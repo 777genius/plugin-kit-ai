@@ -53,10 +53,11 @@ func TestServiceValidateAndRender(t *testing.T) {
 	if len(report.Failures) != 0 {
 		t.Fatalf("failures = %+v", report.Failures)
 	}
-	artifacts, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	result, err := svc.Render(RenderOptions{Root: root, Target: "all"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifacts := result.Artifacts
 	if len(artifacts) == 0 {
 		t.Fatal("expected artifacts")
 	}
@@ -86,10 +87,11 @@ func TestServiceRenderDocsOnlySkipsCommandDoc(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	artifacts, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	result, err := svc.Render(RenderOptions{Root: root, Target: "all"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifacts := result.Artifacts
 	for _, artifact := range artifacts {
 		if artifact.RelPath == filepath.Join("commands", "playbook.md") {
 			t.Fatalf("unexpected command doc for docs-only skill: %s", artifact.RelPath)
@@ -133,10 +135,11 @@ z
 		t.Fatal(err)
 	}
 	svc := Service{}
-	artifacts, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	result, err := svc.Render(RenderOptions{Root: root, Target: "all"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifacts := result.Artifacts
 	for _, artifact := range artifacts {
 		if strings.Contains(artifact.RelPath, filepath.Join("generated", "skills", "codex")) {
 			t.Fatalf("unexpected codex artifact for claude-only skill: %s", artifact.RelPath)
@@ -185,10 +188,11 @@ Run the command.
 		t.Fatal(err)
 	}
 	svc := Service{}
-	artifacts, err := svc.Render(RenderOptions{Root: root, Target: "claude"})
+	result, err := svc.Render(RenderOptions{Root: root, Target: "claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifacts := result.Artifacts
 	var commandDoc string
 	for _, artifact := range artifacts {
 		if artifact.RelPath == filepath.Join("commands", "quoted.md") {
@@ -238,10 +242,11 @@ Run the command.
 		t.Fatal(err)
 	}
 	svc := Service{}
-	artifacts, err := svc.Render(RenderOptions{Root: root, Target: "claude"})
+	result, err := svc.Render(RenderOptions{Root: root, Target: "claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifacts := result.Artifacts
 	var commandDoc string
 	for _, artifact := range artifacts {
 		if artifact.RelPath == filepath.Join("commands", "minimal.md") {
@@ -285,6 +290,89 @@ something
 	}
 	if len(report.Failures) == 0 {
 		t.Fatal("expected failures")
+	}
+}
+
+func TestServiceValidateRejectsDocsOnlyCommandFieldsAndDuplicates(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "skills", "bad-docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yes := `true`
+	body := `---
+name: bad-docs
+description: docs only with command fields
+execution_mode: docs_only
+supported_agents:
+  - claude
+  - claude
+allowed_tools:
+  - bash
+  - bash
+command: tool
+args:
+  - --flag
+runtime: external
+working_dir: subdir
+timeout: 5s
+safe_to_retry: ` + yes + `
+writes_files: false
+produces_json: false
+---
+
+# bad-docs
+
+## What it does
+
+x
+
+## When to use
+
+y
+
+## How to run
+
+z
+
+## Constraints
+
+- c
+`
+	if err := os.WriteFile(filepath.Join(root, "skills", "bad-docs", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	svc := Service{}
+	report, err := svc.Validate(ValidateOptions{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, failure := range report.Failures {
+		got = append(got, failure.Message)
+	}
+	for _, want := range []string{
+		`supported_agents contains duplicate value "claude"`,
+		`allowed_tools contains duplicate value "bash"`,
+		"execution_mode=docs_only must not define command",
+		"execution_mode=docs_only must not define args",
+		"execution_mode=docs_only must not define runtime",
+		"execution_mode=docs_only must not define working_dir",
+		"execution_mode=docs_only must not define timeout",
+		"execution_mode=docs_only must not define safe_to_retry",
+		"execution_mode=docs_only must not define writes_files",
+		"execution_mode=docs_only must not define produces_json",
+	} {
+		found := false
+		for _, msg := range got {
+			if strings.Contains(msg, want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing validation failure %q in %+v", want, got)
+		}
 	}
 }
 
@@ -365,7 +453,7 @@ z
 		`agent_hints.codex requires "codex" in supported_agents`,
 		"agent_hints.codex.notes cannot contain empty values",
 		`unsupported agent_hints key "typo"`,
-		"working_dir must be relative to the skill root",
+		"working_dir must stay within the skill root",
 		"timeout must be a valid duration:",
 	} {
 		found := false
@@ -377,6 +465,76 @@ z
 		}
 		if !found {
 			t.Fatalf("missing validation failure %q in %+v", want, got)
+		}
+	}
+}
+
+func TestServiceRenderReportsStaleArtifactsWhenShapeShrinks(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	svc := Service{}
+	if _, err := svc.Init(InitOptions{
+		Name:      "shrink",
+		Template:  filesystem.TemplateGoCommand,
+		OutputDir: root,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.WriteArtifacts(root, first.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	body := `---
+name: shrink
+description: now docs only and claude only
+execution_mode: docs_only
+supported_agents:
+  - claude
+allowed_tools: []
+---
+
+# shrink
+
+## What it does
+
+x
+
+## When to use
+
+y
+
+## How to run
+
+z
+
+## Constraints
+
+- c
+`
+	if err := os.WriteFile(filepath.Join(root, "skills", "shrink", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := map[string]bool{
+		filepath.Join("commands", "shrink.md"):                               false,
+		filepath.Join("generated", "skills", "codex", "shrink", "SKILL.md"):  false,
+		filepath.Join("generated", "skills", "codex", "shrink", "AGENTS.md"): false,
+		filepath.Join("generated", "skills", "claude", "shrink", "SKILL.md"): true,
+	}
+	for _, stale := range second.StalePaths {
+		if _, ok := expected[stale]; ok {
+			expected[stale] = true
+		}
+	}
+	for path, seen := range expected {
+		if !seen {
+			t.Fatalf("missing managed/stale path %s in %+v", path, second.StalePaths)
 		}
 	}
 }

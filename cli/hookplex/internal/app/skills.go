@@ -43,15 +43,18 @@ func (s SkillsService) Validate(opts SkillsValidateOptions) (skillsapp.Validatio
 }
 
 func (s SkillsService) Render(opts SkillsRenderOptions) ([]string, error) {
-	artifacts, err := s.svc.Render(skillsapp.RenderOptions{Root: opts.Root, Target: opts.Target})
+	result, err := s.svc.Render(skillsapp.RenderOptions{Root: opts.Root, Target: opts.Target})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.svc.WriteArtifacts(opts.Root, artifacts); err != nil {
+	if err := s.svc.WriteArtifacts(opts.Root, result.Artifacts); err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(artifacts))
-	for _, artifact := range artifacts {
+	if err := s.svc.RemoveArtifacts(opts.Root, result.StalePaths); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(result.Artifacts))
+	for _, artifact := range result.Artifacts {
 		out = append(out, artifact.RelPath)
 	}
 	return out, nil

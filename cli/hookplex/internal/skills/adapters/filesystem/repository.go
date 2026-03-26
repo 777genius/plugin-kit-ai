@@ -127,6 +127,16 @@ func (Repository) WriteArtifacts(root string, artifacts []domain.Artifact) error
 	return nil
 }
 
+func (Repository) RemoveArtifacts(root string, relPaths []string) error {
+	for _, relPath := range relPaths {
+		full := filepath.Join(root, relPath)
+		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 func RenderTemplate(name string, data TemplateData) ([]byte, error) {
 	raw, err := tmplFS.ReadFile(filepath.Join("templates", name))
 	if err != nil {

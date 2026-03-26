@@ -326,3 +326,66 @@ func TestHookplexSkillsExamplesArtifactsTracked(t *testing.T) {
 		t.Fatalf("expected example artifacts to be tracked: %v\n%s", err, out)
 	}
 }
+
+func TestHookplexSkillsRenderRemovesStaleArtifacts(t *testing.T) {
+	bin := buildHookplex(t)
+	root := t.TempDir()
+
+	initCmd := exec.Command(bin, "skills", "init", "shrink", "--output", root, "--template", "go-command")
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+	}
+	renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills render: %v\n%s", err, out)
+	}
+
+	body := `---
+name: shrink
+description: now docs only and claude only
+execution_mode: docs_only
+supported_agents:
+  - claude
+allowed_tools: []
+---
+
+# shrink
+
+## What it does
+
+x
+
+## When to use
+
+y
+
+## How to run
+
+z
+
+## Constraints
+
+- c
+`
+	if err := os.WriteFile(filepath.Join(root, "skills", "shrink", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	renderCmd = exec.Command(bin, "skills", "render", root, "--target", "all")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills render after shrink: %v\n%s", err, out)
+	}
+
+	for _, rel := range []string{
+		filepath.Join("commands", "shrink.md"),
+		filepath.Join("generated", "skills", "codex", "shrink", "SKILL.md"),
+		filepath.Join("generated", "skills", "codex", "shrink", "AGENTS.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("expected stale artifact removed: %s err=%v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "generated", "skills", "claude", "shrink", "SKILL.md")); err != nil {
+		t.Fatalf("expected current claude artifact: %v", err)
+	}
+}

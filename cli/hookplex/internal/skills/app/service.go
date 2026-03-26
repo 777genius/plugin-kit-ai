@@ -44,6 +44,11 @@ type Service struct {
 	Repo filesystem.Repository
 }
 
+type RenderResult struct {
+	Artifacts  []domain.Artifact
+	StalePaths []string
+}
+
 func (s Service) Init(opts InitOptions) (string, error) {
 	name := strings.TrimSpace(opts.Name)
 	if err := validateName(name); err != nil {
@@ -89,21 +94,26 @@ func (s Service) Validate(opts ValidateOptions) (ValidationReport, error) {
 	return report, nil
 }
 
-func (s Service) Render(opts RenderOptions) ([]domain.Artifact, error) {
+func (s Service) Render(opts RenderOptions) (RenderResult, error) {
 	names, err := s.Repo.Discover(opts.Root)
 	if err != nil {
-		return nil, err
+		return RenderResult{}, err
 	}
 	var renderers []renderer
+	selectedTargets := make(map[string]struct{})
 	switch strings.ToLower(strings.TrimSpace(opts.Target)) {
 	case "", "all":
 		renderers = []renderer{render.ClaudeRenderer{}, render.CodexRenderer{}}
+		selectedTargets["claude"] = struct{}{}
+		selectedTargets["codex"] = struct{}{}
 	case "claude":
 		renderers = []renderer{render.ClaudeRenderer{}}
+		selectedTargets["claude"] = struct{}{}
 	case "codex":
 		renderers = []renderer{render.CodexRenderer{}}
+		selectedTargets["codex"] = struct{}{}
 	default:
-		return nil, fmt.Errorf("unknown render target %q", opts.Target)
+		return RenderResult{}, fmt.Errorf("unknown render target %q", opts.Target)
 	}
 	docs := make(map[string]domain.SkillDocument, len(names))
 	var failures []ValidationFailure
@@ -117,19 +127,23 @@ func (s Service) Render(opts RenderOptions) ([]domain.Artifact, error) {
 		failures = append(failures, validateDoc(name, doc)...)
 	}
 	if len(failures) > 0 {
-		return nil, formatValidationError("cannot render invalid skills", failures)
+		return RenderResult{}, formatValidationError("cannot render invalid skills", failures)
 	}
 	var out []domain.Artifact
+	managed := make(map[string]struct{})
 	for _, name := range names {
 		doc := docs[name]
 		supportedRenderers := renderersForSkill(doc.Spec, renderers)
 		if len(supportedRenderers) == 0 {
+			for path := range managedPathsForSkill(name, doc.Spec, selectedTargets) {
+				managed[path] = struct{}{}
+			}
 			continue
 		}
 		for _, r := range supportedRenderers {
 			artifacts, err := r.Render(name, doc)
 			if err != nil {
-				return nil, err
+				return RenderResult{}, err
 			}
 			out = append(out, artifacts...)
 		}
@@ -144,20 +158,38 @@ func (s Service) Render(opts RenderOptions) ([]domain.Artifact, error) {
 				ExecutionNotes:       executionNotes(doc.Spec),
 			})
 			if err != nil {
-				return nil, err
+				return RenderResult{}, err
 			}
 			out = append(out, domain.Artifact{
 				RelPath: filepath.Join("commands", name+".md"),
 				Content: cmdBody,
 			})
 		}
+		for path := range managedPathsForSkill(name, doc.Spec, selectedTargets) {
+			managed[path] = struct{}{}
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].RelPath < out[j].RelPath })
-	return out, nil
+	keep := make(map[string]struct{}, len(out))
+	for _, artifact := range out {
+		keep[artifact.RelPath] = struct{}{}
+	}
+	var stale []string
+	for path := range managed {
+		if _, ok := keep[path]; !ok {
+			stale = append(stale, path)
+		}
+	}
+	sort.Strings(stale)
+	return RenderResult{Artifacts: out, StalePaths: stale}, nil
 }
 
 func (s Service) WriteArtifacts(root string, artifacts []domain.Artifact) error {
 	return s.Repo.WriteArtifacts(root, artifacts)
+}
+
+func (s Service) RemoveArtifacts(root string, relPaths []string) error {
+	return s.Repo.RemoveArtifacts(root, relPaths)
 }
 
 type renderer interface {
@@ -198,10 +230,18 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 	if len(doc.Spec.SupportedAgents) == 0 {
 		failures = append(failures, ValidationFailure{Path: skillPath, Message: "missing frontmatter field: supported_agents"})
 	}
+	seenTools := make(map[string]struct{}, len(doc.Spec.AllowedTools))
 	for _, tool := range doc.Spec.AllowedTools {
-		if strings.TrimSpace(tool) == "" {
+		trimmed := strings.TrimSpace(tool)
+		if trimmed == "" {
 			failures = append(failures, ValidationFailure{Path: skillPath, Message: "allowed_tools cannot contain empty values"})
+			continue
 		}
+		if _, ok := seenTools[trimmed]; ok {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: fmt.Sprintf("allowed_tools contains duplicate value %q", trimmed)})
+			continue
+		}
+		seenTools[trimmed] = struct{}{}
 	}
 	for _, input := range doc.Spec.Inputs {
 		if strings.TrimSpace(input) == "" {
@@ -244,7 +284,13 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 			}
 		}
 	}
+	seenAgents := make(map[domain.Agent]struct{}, len(doc.Spec.SupportedAgents))
 	for _, agent := range doc.Spec.SupportedAgents {
+		if _, ok := seenAgents[agent]; ok {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: fmt.Sprintf("supported_agents contains duplicate value %q", agent)})
+			continue
+		}
+		seenAgents[agent] = struct{}{}
 		switch agent {
 		case domain.AgentClaude, domain.AgentCodex:
 		default:
@@ -256,8 +302,9 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=command requires command"})
 		}
 		if wd := strings.TrimSpace(doc.Spec.WorkingDir); wd != "" {
-			if filepath.IsAbs(wd) {
-				failures = append(failures, ValidationFailure{Path: skillPath, Message: "working_dir must be relative to the skill root"})
+			clean := filepath.Clean(wd)
+			if filepath.IsAbs(wd) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+				failures = append(failures, ValidationFailure{Path: skillPath, Message: "working_dir must stay within the skill root"})
 			}
 		}
 		if timeout := strings.TrimSpace(doc.Spec.Timeout); timeout != "" {
@@ -269,6 +316,31 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 		case domain.RuntimeGo, domain.RuntimeShell, domain.RuntimePython, domain.RuntimeNode, domain.RuntimeDeno, domain.RuntimeExternal, domain.RuntimeGeneric:
 		default:
 			failures = append(failures, ValidationFailure{Path: skillPath, Message: fmt.Sprintf("execution_mode=command requires valid runtime (got %q)", doc.Spec.Runtime)})
+		}
+	} else {
+		if strings.TrimSpace(doc.Spec.Command) != "" {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define command"})
+		}
+		if len(doc.Spec.Args) > 0 {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define args"})
+		}
+		if strings.TrimSpace(string(doc.Spec.Runtime)) != "" {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define runtime"})
+		}
+		if strings.TrimSpace(doc.Spec.WorkingDir) != "" {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define working_dir"})
+		}
+		if strings.TrimSpace(doc.Spec.Timeout) != "" {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define timeout"})
+		}
+		if doc.Spec.SafeToRetry != nil {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define safe_to_retry"})
+		}
+		if doc.Spec.WritesFiles != nil {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define writes_files"})
+		}
+		if doc.Spec.ProducesJSON != nil {
+			failures = append(failures, ValidationFailure{Path: skillPath, Message: "execution_mode=docs_only must not define produces_json"})
 		}
 	}
 	requiredSections := []string{"## What it does", "## When to use", "## How to run", "## Constraints"}
@@ -340,6 +412,19 @@ func containsAgent(agents []domain.Agent, want domain.Agent) bool {
 		}
 	}
 	return false
+}
+
+func managedPathsForSkill(name string, spec domain.SkillSpec, selectedTargets map[string]struct{}) map[string]struct{} {
+	out := make(map[string]struct{})
+	if _, ok := selectedTargets["claude"]; ok {
+		out[filepath.Join("generated", "skills", "claude", name, "SKILL.md")] = struct{}{}
+	}
+	if _, ok := selectedTargets["codex"]; ok {
+		out[filepath.Join("generated", "skills", "codex", name, "SKILL.md")] = struct{}{}
+		out[filepath.Join("generated", "skills", "codex", name, "AGENTS.md")] = struct{}{}
+	}
+	out[filepath.Join("commands", name+".md")] = struct{}{}
+	return out
 }
 
 func formatValidationError(prefix string, failures []ValidationFailure) error {
