@@ -4,7 +4,7 @@ Go tooling for AI coding CLI plugins.
 
 ## Contract Status
 
-This source tree contains the approved `v1.0` contract split between **public stable** and **public beta**.
+This source tree contains the approved `v1.0` contract plus explicitly marked **public-experimental** surfaces.
 
 Stable now:
 
@@ -15,6 +15,7 @@ Stable now:
 Beta now:
 
 - optional scaffold extras from `hookplex init --extras`
+- experimental `hookplex skills` authoring/rendering subsystem
 - any future surfaces not explicitly promoted through the audit ledger
 
 Canonical sources of truth:
@@ -43,6 +44,7 @@ What ships now:
 
 - `sdk/hookplex`: generated multi-platform runtime with peer public packages for Claude and Codex
 - `cli/hookplex`: `hookplex init`, `hookplex validate`, `hookplex capabilities`, `hookplex install`, `hookplex version`
+- `cli/hookplex` experimental skills layer: `hookplex skills init|validate|render`
 - `install/plugininstall`: GitHub Releases installer with checksum verification
 
 Current runtime support:
@@ -171,6 +173,9 @@ Examples:
 ./bin/hookplex init my-plugin
 ./bin/hookplex init my-plugin --platform claude --extras
 ./bin/hookplex validate ./my-plugin --platform codex
+./bin/hookplex skills init lint-repo --template go-command
+./bin/hookplex skills validate .
+./bin/hookplex skills render . --target all
 ./bin/hookplex capabilities --format json --platform claude
 ./bin/hookplex install owner/repo --tag v1.0.0 --goos linux --goarch amd64
 ```

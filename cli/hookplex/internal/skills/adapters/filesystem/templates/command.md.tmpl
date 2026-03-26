@@ -1,0 +1,24 @@
+# /{{.SkillName}}
+
+Generated command reference for `{{.SkillName}}`.
+
+## Purpose
+
+{{.Description}}
+
+## Invocation
+
+`{{.CommandLine}}`
+
+{{- if .AllowedTools }}
+## Allowed tools
+
+{{- range .AllowedTools }}
+- `{{.}}`
+{{- end }}
+{{- end }}
+
+## Notes
+
+- This file is generated from `skills/{{.SkillName}}/SKILL.md`.
+- Regenerate with `hookplex skills render`.

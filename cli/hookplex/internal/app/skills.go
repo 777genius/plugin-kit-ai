@@ -1,0 +1,58 @@
+package app
+
+import (
+	"github.com/hookplex/hookplex/cli/internal/skills/adapters/filesystem"
+	skillsapp "github.com/hookplex/hookplex/cli/internal/skills/app"
+)
+
+type SkillsInitOptions struct {
+	Name        string
+	Description string
+	Template    string
+	OutputDir   string
+	Command     string
+	Force       bool
+}
+
+type SkillsValidateOptions struct {
+	Root string
+}
+
+type SkillsRenderOptions struct {
+	Root   string
+	Target string
+}
+
+type SkillsService struct {
+	svc skillsapp.Service
+}
+
+func (s SkillsService) Init(opts SkillsInitOptions) (string, error) {
+	return s.svc.Init(skillsapp.InitOptions{
+		Name:        opts.Name,
+		Description: opts.Description,
+		Template:    filesystem.InitTemplate(opts.Template),
+		OutputDir:   opts.OutputDir,
+		Command:     opts.Command,
+		Force:       opts.Force,
+	})
+}
+
+func (s SkillsService) Validate(opts SkillsValidateOptions) (skillsapp.ValidationReport, error) {
+	return s.svc.Validate(skillsapp.ValidateOptions{Root: opts.Root})
+}
+
+func (s SkillsService) Render(opts SkillsRenderOptions) ([]string, error) {
+	artifacts, err := s.svc.Render(skillsapp.RenderOptions{Root: opts.Root, Target: opts.Target})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.WriteArtifacts(opts.Root, artifacts); err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		out = append(out, artifact.RelPath)
+	}
+	return out, nil
+}

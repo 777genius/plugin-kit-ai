@@ -1,0 +1,15 @@
+## Skill: {{.SkillName}}
+
+- Description: {{.Description}}
+- Canonical source: `skills/{{.SkillName}}/SKILL.md`
+{{- if .CommandLine }}
+- Command: `{{.CommandLine}}`
+{{- end }}
+{{- if .AllowedTools }}
+- Allowed tools:
+{{- range .AllowedTools }}
+  - `{{.}}`
+{{- end }}
+{{- end }}
+
+Use the rendered skill instructions alongside this snippet when wiring repository guidance.

@@ -1,0 +1,17 @@
+# {{.SkillName}} (Claude Render)
+
+Generated from `skills/{{.SkillName}}/SKILL.md`.
+
+Use this skill in Claude-friendly contexts. The authored instructions remain canonical.
+
+{{- if .CommandLine }}
+Command: `{{.CommandLine}}`
+{{- end }}
+{{- if .AllowedTools }}
+Allowed tools:
+{{- range .AllowedTools }}
+- `{{.}}`
+{{- end }}
+{{- end }}
+
+{{.Body}}

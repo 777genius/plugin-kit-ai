@@ -1,6 +1,6 @@
 # hookplex CLI
 
-Module: `github.com/hookplex/hookplex/cli`. Builds the **`hookplex`** binary: `init`, `validate`, `capabilities`, `install`, `version`.
+Module: `github.com/hookplex/hookplex/cli`. Builds the **`hookplex`** binary: `init`, `validate`, `capabilities`, `install`, `version`, plus experimental `skills` authoring commands.
 
 Current CLI contract status in this source tree: approved for `public-stable` in the pending `v1.0` release. Repository-wide compatibility and release policy live in [../../docs/SUPPORT.md](../../docs/SUPPORT.md) and [../../docs/RELEASE.md](../../docs/RELEASE.md).
 
@@ -20,6 +20,7 @@ Current-state behavior:
 - `capabilities`: generated support/capability introspection in table or JSON
 - `install`: plugin binary from GitHub Releases with checksum verification
 - `version`: build/version info
+- `skills init|validate|render`: experimental SKILL.md authoring and agent render tooling
 
 See the root [README.md](../../README.md) for current CLI behavior, shipped scope, and canonical support links.
 
