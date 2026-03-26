@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -89,7 +90,7 @@ func (s Service) Validate(opts ValidateOptions) (ValidationReport, error) {
 			report.Failures = append(report.Failures, ValidationFailure{Path: filepath.Join("skills", name, "SKILL.md"), Message: err.Error()})
 			continue
 		}
-		report.Failures = append(report.Failures, validateDoc(name, doc)...)
+		report.Failures = append(report.Failures, validateDoc(opts.Root, name, doc)...)
 	}
 	return report, nil
 }
@@ -124,13 +125,20 @@ func (s Service) Render(opts RenderOptions) (RenderResult, error) {
 			continue
 		}
 		docs[name] = doc
-		failures = append(failures, validateDoc(name, doc)...)
+		failures = append(failures, validateDoc(opts.Root, name, doc)...)
 	}
 	if len(failures) > 0 {
 		return RenderResult{}, formatValidationError("cannot render invalid skills", failures)
 	}
 	var out []domain.Artifact
 	managed := make(map[string]struct{})
+	existingManaged, err := s.Repo.ListManagedArtifacts(opts.Root, selectedTargets)
+	if err != nil {
+		return RenderResult{}, err
+	}
+	for _, path := range existingManaged {
+		managed[path] = struct{}{}
+	}
 	for _, name := range names {
 		doc := docs[name]
 		supportedRenderers := renderersForSkill(doc.Spec, renderers)
@@ -209,7 +217,7 @@ func validateName(name string) error {
 	return nil
 }
 
-func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
+func validateDoc(root, name string, doc domain.SkillDocument) []ValidationFailure {
 	var failures []ValidationFailure
 	skillPath := filepath.Join("skills", name, "SKILL.md")
 	if strings.TrimSpace(doc.Spec.Name) == "" {
@@ -268,7 +276,13 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 			failures = append(failures, ValidationFailure{Path: skillPath, Message: "compatibility.notes cannot contain empty values"})
 		}
 	}
-	for key, hint := range doc.Spec.AgentHints {
+	agentHintKeys := make([]string, 0, len(doc.Spec.AgentHints))
+	for key := range doc.Spec.AgentHints {
+		agentHintKeys = append(agentHintKeys, key)
+	}
+	sort.Strings(agentHintKeys)
+	for _, key := range agentHintKeys {
+		hint := doc.Spec.AgentHints[key]
 		switch domain.Agent(key) {
 		case domain.AgentClaude, domain.AgentCodex:
 		default:
@@ -305,6 +319,18 @@ func validateDoc(name string, doc domain.SkillDocument) []ValidationFailure {
 			clean := filepath.Clean(wd)
 			if filepath.IsAbs(wd) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
 				failures = append(failures, ValidationFailure{Path: skillPath, Message: "working_dir must stay within the skill root"})
+			} else {
+				full := filepath.Join(root, "skills", name, clean)
+				info, err := os.Stat(full)
+				if err != nil {
+					if os.IsNotExist(err) {
+						failures = append(failures, ValidationFailure{Path: skillPath, Message: "working_dir must reference an existing directory under the skill root"})
+					} else {
+						failures = append(failures, ValidationFailure{Path: skillPath, Message: fmt.Sprintf("working_dir could not be checked: %v", err)})
+					}
+				} else if !info.IsDir() {
+					failures = append(failures, ValidationFailure{Path: skillPath, Message: "working_dir must reference an existing directory under the skill root"})
+				}
 			}
 		}
 		if timeout := strings.TrimSpace(doc.Spec.Timeout); timeout != "" {

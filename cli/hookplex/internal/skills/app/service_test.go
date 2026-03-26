@@ -469,6 +469,61 @@ z
 	}
 }
 
+func TestServiceValidateRejectsMissingWorkingDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "skills", "missingwd"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `---
+name: missingwd
+description: missing working dir skill
+execution_mode: command
+supported_agents:
+  - claude
+command: tool
+runtime: external
+working_dir: scripts
+---
+
+# missingwd
+
+## What it does
+
+x
+
+## When to use
+
+y
+
+## How to run
+
+z
+
+## Constraints
+
+- c
+`
+	if err := os.WriteFile(filepath.Join(root, "skills", "missingwd", "SKILL.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	svc := Service{}
+	report, err := svc.Validate(ValidateOptions{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, "working_dir must reference an existing directory under the skill root") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected working_dir existence failure, got %+v", report.Failures)
+	}
+}
+
 func TestServiceRenderReportsStaleArtifactsWhenShapeShrinks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -536,5 +591,95 @@ z
 		if !seen {
 			t.Fatalf("missing managed/stale path %s in %+v", path, second.StalePaths)
 		}
+	}
+}
+
+func TestServiceRenderReportsDeletedSkillArtifactsAsStale(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	svc := Service{}
+	if _, err := svc.Init(InitOptions{
+		Name:      "ghost",
+		Template:  filesystem.TemplateGoCommand,
+		OutputDir: root,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.WriteArtifacts(root, first.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, "skills", "ghost")); err != nil {
+		t.Fatal(err)
+	}
+	second, err := svc.Render(RenderOptions{Root: root, Target: "all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		filepath.Join("commands", "ghost.md"),
+		filepath.Join("generated", "skills", "claude", "ghost", "SKILL.md"),
+		filepath.Join("generated", "skills", "codex", "ghost", "SKILL.md"),
+		filepath.Join("generated", "skills", "codex", "ghost", "AGENTS.md"),
+	} {
+		found := false
+		for _, stale := range second.StalePaths {
+			if stale == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing stale deleted artifact %s in %+v", want, second.StalePaths)
+		}
+	}
+	if err := svc.RemoveArtifacts(root, second.StalePaths); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join("generated", "skills", "claude", "ghost"),
+		filepath.Join("generated", "skills", "codex", "ghost"),
+		filepath.Join("commands"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("expected empty directory pruned: %s err=%v", rel, err)
+		}
+	}
+}
+
+func TestServiceInitEscapesYAMLScalars(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	svc := Service{}
+	command := `python3 -c "print('a: b # c')"`
+	description := `format: repo #1`
+	if _, err := svc.Init(InitOptions{
+		Name:        "quoted-init",
+		Description: description,
+		Template:    filesystem.TemplateCLIWrapper,
+		OutputDir:   root,
+		Command:     command,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	report, err := svc.Validate(ValidateOptions{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 0 {
+		t.Fatalf("unexpected validation failures: %+v", report.Failures)
+	}
+	doc, err := svc.Repo.LoadSkill(root, "quoted-init")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Spec.Description != description {
+		t.Fatalf("description mismatch: got %q want %q", doc.Spec.Description, description)
+	}
+	if doc.Spec.Command != command {
+		t.Fatalf("command mismatch: got %q want %q", doc.Spec.Command, command)
 	}
 }

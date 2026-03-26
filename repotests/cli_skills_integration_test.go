@@ -389,3 +389,79 @@ z
 		t.Fatalf("expected current claude artifact: %v", err)
 	}
 }
+
+func TestHookplexSkillsRenderRemovesDeletedSkillArtifacts(t *testing.T) {
+	bin := buildHookplex(t)
+	root := t.TempDir()
+
+	initCmd := exec.Command(bin, "skills", "init", "ghost", "--output", root, "--template", "go-command")
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+	}
+	renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills render: %v\n%s", err, out)
+	}
+	if err := os.RemoveAll(filepath.Join(root, "skills", "ghost")); err != nil {
+		t.Fatal(err)
+	}
+	renderCmd = exec.Command(bin, "skills", "render", root, "--target", "all")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills render after delete: %v\n%s", err, out)
+	}
+	for _, rel := range []string{
+		filepath.Join("commands", "ghost.md"),
+		filepath.Join("generated", "skills", "claude", "ghost", "SKILL.md"),
+		filepath.Join("generated", "skills", "codex", "ghost", "SKILL.md"),
+		filepath.Join("generated", "skills", "codex", "ghost", "AGENTS.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("expected deleted artifact removed: %s err=%v", rel, err)
+		}
+	}
+	for _, rel := range []string{
+		filepath.Join("generated", "skills", "claude", "ghost"),
+		filepath.Join("generated", "skills", "codex", "ghost"),
+		filepath.Join("commands"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("expected empty directory pruned: %s err=%v", rel, err)
+		}
+	}
+}
+
+func TestHookplexSkillsInitEscapesManifestValues(t *testing.T) {
+	bin := buildHookplex(t)
+	root := t.TempDir()
+
+	command := `python3 -c "print('a: b # c')"`
+	description := `format: repo #1`
+	initCmd := exec.Command(
+		bin,
+		"skills", "init", "quoted-init",
+		"--output", root,
+		"--template", "cli-wrapper",
+		"--description", description,
+		"--command", command,
+	)
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+	}
+	validateCmd := exec.Command(bin, "skills", "validate", root)
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("hookplex skills validate: %v\n%s", err, out)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "skills", "quoted-init", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	descriptionEscaped := strings.Contains(text, `description: "format: repo #1"`) || strings.Contains(text, `description: 'format: repo #1'`)
+	commandEscaped := strings.Contains(text, `command: "python3 -c \"print('a: b # c')\""`) || strings.Contains(text, `command: 'python3 -c "print(''a: b # c'')"'`)
+	if !descriptionEscaped {
+		t.Fatalf("generated SKILL.md missing escaped description:\n%s", text)
+	}
+	if !commandEscaped {
+		t.Fatalf("generated SKILL.md missing escaped command:\n%s", text)
+	}
+}

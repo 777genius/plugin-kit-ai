@@ -1,6 +1,6 @@
 ---
-name: {{.SkillName}}
-description: {{.Description}}
+name: {{ yamlString .SkillName }}
+description: {{ yamlString .Description }}
 execution_mode: command
 supported_agents:
   - claude
