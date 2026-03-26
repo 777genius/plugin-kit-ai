@@ -11,7 +11,7 @@ func TestGeneratedRegistryCompleteness(t *testing.T) {
 	if len(profiles) != 2 {
 		t.Fatalf("profiles count = %d", len(profiles))
 	}
-	if len(events) != 4 {
+	if len(events) != 19 {
 		t.Fatalf("events count = %d", len(events))
 	}
 	entries := AllSupportEntries()

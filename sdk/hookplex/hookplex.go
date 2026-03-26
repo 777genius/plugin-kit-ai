@@ -2,7 +2,9 @@ package hookplex
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/hookplex/hookplex/sdk/claude"
@@ -46,6 +48,7 @@ type App struct {
 
 	handlers *runtime.HandlerRegistry
 	mws      []runtime.Middleware
+	custom   *customRegistry
 }
 
 func New(cfg Config) *App {
@@ -72,6 +75,7 @@ func New(cfg Config) *App {
 		env:      env,
 		logger:   logger,
 		handlers: runtime.NewHandlerRegistry(),
+		custom:   newCustomRegistry(),
 	}
 }
 
@@ -122,8 +126,8 @@ func (a *App) RunContext(ctx context.Context) int {
 		IO:            io,
 		Env:           env,
 		Logger:        logger,
-		Resolver:      gen.ResolveInvocation,
-		Lookup:        gen.Lookup,
+		Resolver:      a.resolveInvocation,
+		Lookup:        a.lookupDescriptor,
 		BuildEnvelope: process.BuildEnvelope,
 		Handlers:      handlers,
 		Middleware:    append([]runtime.Middleware{runtime.RecoveryMiddleware(logger)}, mws...),
@@ -152,4 +156,90 @@ func (b registrarBackend) Register(platform runtime.PlatformID, event runtime.Ev
 		panic("hookplex: register after Run")
 	}
 	b.app.handlers.Register(platform, event, handler)
+}
+
+func (b registrarBackend) RegisterCustom(rawName string, desc runtime.Descriptor, handler runtime.TypedHandler) error {
+	b.app.mu.Lock()
+	defer b.app.mu.Unlock()
+	if b.app.runDone {
+		panic("hookplex: register after Run")
+	}
+	if err := b.app.custom.Register(rawName, desc); err != nil {
+		return err
+	}
+	b.app.handlers.Register(desc.Platform, desc.Event, handler)
+	return nil
+}
+
+type customRegistry struct {
+	byRaw  map[string]runtime.Invocation
+	byDesc map[customKey]runtime.Descriptor
+}
+
+type customKey struct {
+	platform runtime.PlatformID
+	event    runtime.EventID
+}
+
+func newCustomRegistry() *customRegistry {
+	return &customRegistry{
+		byRaw:  make(map[string]runtime.Invocation),
+		byDesc: make(map[customKey]runtime.Descriptor),
+	}
+}
+
+func (r *customRegistry) Register(rawName string, desc runtime.Descriptor) error {
+	name := strings.TrimSpace(rawName)
+	if name == "" {
+		return fmt.Errorf("custom hook name required")
+	}
+	if desc.Platform == "" || desc.Event == "" {
+		return fmt.Errorf("custom hook descriptor requires platform and event")
+	}
+	if desc.Decode == nil || desc.Encode == nil {
+		return fmt.Errorf("custom hook descriptor requires decode and encode")
+	}
+	if _, ok := gen.Lookup(desc.Platform, desc.Event); ok {
+		return fmt.Errorf("custom hook %s/%s conflicts with built-in descriptor", desc.Platform, desc.Event)
+	}
+	if _, err := gen.ResolveInvocation([]string{"hookplex", name}, nil); err == nil {
+		return fmt.Errorf("custom hook name %q conflicts with built-in invocation", name)
+	}
+	rawKey := strings.ToLower(name)
+	if inv, ok := r.byRaw[rawKey]; ok {
+		return fmt.Errorf("custom hook name %q already registered for %s/%s", name, inv.Platform, inv.Event)
+	}
+	key := customKey{platform: desc.Platform, event: desc.Event}
+	if _, ok := r.byDesc[key]; ok {
+		return fmt.Errorf("custom hook descriptor already registered for %s/%s", desc.Platform, desc.Event)
+	}
+	r.byRaw[rawKey] = runtime.Invocation{Platform: desc.Platform, Event: desc.Event, RawName: name}
+	r.byDesc[key] = desc
+	return nil
+}
+
+func (a *App) resolveInvocation(args []string, env runtime.Env) (runtime.Invocation, error) {
+	if inv, err := gen.ResolveInvocation(args, env); err == nil {
+		return inv, nil
+	}
+	if len(args) < 2 {
+		return runtime.Invocation{}, fmt.Errorf("usage: <binary> <hookName>")
+	}
+	raw := args[1]
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if inv, ok := a.custom.byRaw[strings.ToLower(raw)]; ok {
+		inv.RawName = raw
+		return inv, nil
+	}
+	return runtime.Invocation{}, fmt.Errorf("unknown invocation %q", raw)
+}
+
+func (a *App) lookupDescriptor(platform runtime.PlatformID, event runtime.EventID) (runtime.Descriptor, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if desc, ok := a.custom.byDesc[customKey{platform: platform, event: event}]; ok {
+		return desc, true
+	}
+	return gen.Lookup(platform, event)
 }

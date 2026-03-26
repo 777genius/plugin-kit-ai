@@ -98,6 +98,51 @@ func TestWrite_Codex(t *testing.T) {
 	}
 }
 
+func TestWrite_ClaudeIncludesOfficialHookRoutes(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	err := Write(root, Data{
+		ProjectName: "my-plugin",
+		ModulePath:  DefaultModulePath("my-plugin"),
+		Description: "hookplex plugin",
+		Platform:    "claude",
+		WithExtras:  true,
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	body, err := os.ReadFile(filepath.Join(root, "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, hook := range []string{
+		"SessionStart",
+		"SessionEnd",
+		"Notification",
+		"PostToolUse",
+		"PostToolUseFailure",
+		"PermissionRequest",
+		"SubagentStart",
+		"SubagentStop",
+		"PreCompact",
+		"Setup",
+		"Stop",
+		"PreToolUse",
+		"TeammateIdle",
+		"TaskCompleted",
+		"UserPromptSubmit",
+		"ConfigChange",
+		"WorktreeCreate",
+		"WorktreeRemove",
+	} {
+		if !strings.Contains(got, `"`+hook+`"`) {
+			t.Fatalf("hooks.json missing %q:\n%s", hook, got)
+		}
+	}
+}
+
 func contains(haystack []string, needle string) bool {
 	for _, item := range haystack {
 		if item == needle {

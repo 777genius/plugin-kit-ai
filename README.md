@@ -47,13 +47,17 @@ What ships now:
 
 Current runtime support:
 
-- Claude: `Stop`, `PreToolUse`, `UserPromptSubmit`
+- Claude stable: `Stop`, `PreToolUse`, `UserPromptSubmit`
+- Claude beta: `SessionStart`, `SessionEnd`, `Notification`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `SubagentStart`, `SubagentStop`, `PreCompact`, `Setup`, `TeammateIdle`, `TaskCompleted`, `ConfigChange`, `WorktreeCreate`, `WorktreeRemove`
 - Codex: `Notify`
 
 Release boundary notes:
 
 - Codex stable support does not guarantee the health of the external `codex exec` runtime before hook execution.
 - Claude stable support covers the declared event set only.
+- Additional official Claude hooks may be runtime-supported in `public-beta` before they are promoted through the audit ledger.
+- Experimental typed custom Claude hooks can be registered locally through `sdk/claude` generic helper functions when upstream support lags behind.
+- Experimental typed custom Codex hooks can be registered locally through `sdk/codex` generic helper functions for future argv-JSON hook additions.
 
 Current CLI scaffold targets:
 

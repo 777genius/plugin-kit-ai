@@ -1,7 +1,22 @@
 {
   "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} SessionStart" }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} SessionEnd" }] }],
+    "Notification": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} Notification" }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} PostToolUse" }] }],
+    "PostToolUseFailure": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} PostToolUseFailure" }] }],
+    "PermissionRequest": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} PermissionRequest" }] }],
+    "SubagentStart": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} SubagentStart" }] }],
+    "SubagentStop": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} SubagentStop" }] }],
+    "PreCompact": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} PreCompact" }] }],
+    "Setup": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} Setup" }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} Stop" }] }],
     "PreToolUse": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} PreToolUse" }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} UserPromptSubmit" }] }]
+    "TeammateIdle": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} TeammateIdle" }] }],
+    "TaskCompleted": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} TaskCompleted" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} UserPromptSubmit" }] }],
+    "ConfigChange": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} ConfigChange" }] }],
+    "WorktreeCreate": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} WorktreeCreate" }] }],
+    "WorktreeRemove": [{ "hooks": [{ "type": "command", "command": "./bin/{{.ProjectName}} WorktreeRemove" }] }]
   }
 }

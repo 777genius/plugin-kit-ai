@@ -7,7 +7,26 @@ The declared `v1` candidate set is tracked repo-wide in [../../docs/V0_9_AUDIT.m
 Promotion to `public-stable` is driven only by the final audit ledger and release rehearsal evidence. A candidate surface is not stable merely because it exists or is documented.
 
 ## Public-Beta
-None currently in the approved stable set. Any new SDK surface added after this promotion defaults to `public-beta` until it is reviewed through the audit ledger.
+Current SDK beta surface added after the first promotion:
+
+- approved-export-shaped Claude event and response types for:
+  - `SessionStart`
+  - `SessionEnd`
+  - `Notification`
+  - `PostToolUse`
+  - `PostToolUseFailure`
+  - `PermissionRequest`
+  - `SubagentStart`
+  - `SubagentStop`
+  - `PreCompact`
+  - `Setup`
+  - `TeammateIdle`
+  - `TaskCompleted`
+  - `ConfigChange`
+  - `WorktreeCreate`
+  - `WorktreeRemove`
+
+These hooks are runtime-supported and scaffolded, but remain outside the stable compatibility promise until they are promoted through the audit ledger.
 
 ## Public-Stable
 Approved stable SDK surface:
@@ -37,6 +56,16 @@ It does not cover:
 - internal packages
 - generator implementation details
 - generated runtime internals
+
+## Public-Experimental
+
+- `claude.RegisterCustomCommonJSON`
+- `claude.RegisterCustomContextJSON`
+- `claude.RegisterCustomPostToolUseJSON`
+- `claude.RegisterCustomPermissionRequestJSON`
+- `codex.RegisterCustomJSON`
+
+These helpers are intentionally outside the stable promise. They exist to let plugin projects add typed local Claude or Codex hooks before upstream promotion.
 
 ## Internal
 

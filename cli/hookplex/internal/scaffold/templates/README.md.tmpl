@@ -14,8 +14,23 @@ go build -o bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
 
 This scaffold wires the generated binary in router mode:
 
+- `SessionStart`
+- `SessionEnd`
+- `Notification`
+- `PostToolUse`
+- `PostToolUseFailure`
+- `PermissionRequest`
+- `SubagentStart`
+- `SubagentStop`
+- `PreCompact`
+- `Setup`
 - `Stop`
 - `PreToolUse`
+- `TeammateIdle`
+- `TaskCompleted`
 - `UserPromptSubmit`
+- `ConfigChange`
+- `WorktreeCreate`
+- `WorktreeRemove`
 
 If you move the project, update `hooks/hooks.json` so the command points at your built binary.

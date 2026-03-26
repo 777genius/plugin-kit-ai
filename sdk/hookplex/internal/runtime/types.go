@@ -130,4 +130,5 @@ type EnvelopeBuilder func(ctx context.Context, inv Invocation, carrier CarrierKi
 
 type RegistrarBackend interface {
 	Register(platform PlatformID, event EventID, handler TypedHandler)
+	RegisterCustom(rawName string, desc Descriptor, handler TypedHandler) error
 }
