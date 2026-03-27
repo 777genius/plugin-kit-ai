@@ -31,3 +31,10 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 3. improve Codex runner story only as operational reliability work
 4. keep beta leftovers intentional and documented
 5. begin `v1.1` planning only after at least one quiet `v1.0.x` cycle
+
+## Current Patch Candidate Focus
+
+- package-standard authoring is now the only supported authored shape
+- Gemini remains a packaging-only target and is being hardened as part of the package-standard surface, not promoted to runtime
+- executable runtime work in `python`, `node`, and `shell` remains `public-beta` and is limited to repo-local bootstrap, validate, launcher, and deterministic canary hardening
+- the current deterministic patch candidate is `8b3bdbbf400805c410ea05bec8b0c5215dacd131`
