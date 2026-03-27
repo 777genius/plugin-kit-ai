@@ -27,7 +27,7 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 ## First Post-`v1` Backlog
 
 1. collect first-wave user feedback on approved stable surfaces
-2. carry `hookplex install` from local compatibility matrix coverage to refreshed live tarball/unsupported evidence
+2. carry `plugin-kit-ai install` from local compatibility matrix coverage to refreshed live tarball/unsupported evidence
 3. improve Codex runner story only as operational reliability work
 4. keep beta leftovers intentional and documented
 5. begin `v1.1` planning only after at least one quiet `v1.0.x` cycle

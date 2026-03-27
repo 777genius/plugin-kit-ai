@@ -3,7 +3,7 @@ package github
 import (
 	"net/http"
 
-	"github.com/hookplex/hookplex/plugininstall/internal/httpconfig"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/internal/httpconfig"
 )
 
 const defaultReleaseJSONMaxBytes = 32 << 20

@@ -28,8 +28,8 @@ jobs:
 
       - name: Run live lane
         env:
-          HOOKPLEX_E2E_NOTIFICATIONS_TAG: ${{ inputs.notifications_tag }}
-          HOOKPLEX_RUN_CLAUDE_CLI: ${{ inputs.run_claude_cli }}
+          PLUGIN_KIT_AI_E2E_NOTIFICATIONS_TAG: ${{ inputs.notifications_tag }}
+          PLUGIN_KIT_AI_RUN_CLAUDE_CLI: ${{ inputs.run_claude_cli }}
         run: |
           {
             make test-live-cli EXTENDED_TEST_ARGS='-args -claude-model=${{ inputs.claude_model }}'

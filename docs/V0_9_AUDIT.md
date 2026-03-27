@@ -8,15 +8,15 @@ This document tracks the declared `v1` candidate set through freeze, rehearsal, 
 
 SDK root API:
 
-- `hookplex.New`
-- `hookplex.Config`
-- `hookplex.App`
-- `(*hookplex.App).Use`
-- `(*hookplex.App).Claude`
-- `(*hookplex.App).Codex`
-- `(*hookplex.App).Run`
-- `(*hookplex.App).RunContext`
-- `hookplex.Supported`
+- `plugin-kit-ai.New`
+- `plugin-kit-ai.Config`
+- `plugin-kit-ai.App`
+- `(*plugin-kit-ai.App).Use`
+- `(*plugin-kit-ai.App).Claude`
+- `(*plugin-kit-ai.App).Codex`
+- `(*plugin-kit-ai.App).Run`
+- `(*plugin-kit-ai.App).RunContext`
+- `plugin-kit-ai.Supported`
 
 Event surfaces:
 
@@ -27,11 +27,11 @@ Event surfaces:
 
 CLI surfaces:
 
-- `hookplex init`
-- `hookplex validate`
-- `hookplex capabilities`
-- `hookplex install`
-- `hookplex version`
+- `plugin-kit-ai init`
+- `plugin-kit-ai validate`
+- `plugin-kit-ai capabilities`
+- `plugin-kit-ai install`
+- `plugin-kit-ai version`
 
 Generated scaffold contract:
 
@@ -71,8 +71,8 @@ Core stable set that must not remain `blocked`:
 - SDK root API
 - Claude event set
 - Codex `Notify`
-- `hookplex init`
-- `hookplex validate`
+- `plugin-kit-ai init`
+- `plugin-kit-ai validate`
 - generated scaffold contract
 
 ## Audit Ledger
@@ -81,7 +81,7 @@ Core stable set that must not remain `blocked`:
 |--------|------------------|-------------------------------|------------------------|-----------------------|--------------------|----------------|----------|----------|---------------|-----------|--------------|-------|
 | SDK root API (`New`, `Config`, `App`, `Use`, `Claude`, `Codex`, `Run`, `RunContext`, `Supported`) | yes | yes | yes | n/a | yes | existing | pass | n/a | n/a | done | stable-approved | Runtime failure families are documented in `DIAGNOSTICS.md` and covered by runtime regression tests. |
 | Claude event set (`Stop`, `PreToolUse`, `UserPromptSubmit`) | yes | yes | yes | yes | yes | existing | pass | pass | n/a | done | stable-approved | Real Claude CLI smoke asserts all three declared events through the repository-owned hook harness and now passes in the latest evidence refresh. |
-| Codex event set (`Notify`) | yes | yes | yes | yes | yes | existing | pass | pass | n/a | done | stable-approved | Real `codex exec` smoke passed in rehearsal. Known external Codex runtime panics remain environment-health skips rather than hookplex regressions. |
+| Codex event set (`Notify`) | yes | yes | yes | yes | yes | existing | pass | pass | n/a | done | stable-approved | Real `codex exec` smoke passed in rehearsal. Known external Codex runtime panics remain environment-health skips rather than plugin-kit-ai regressions. |
 | CLI command set (`init`, `validate`, `capabilities`, `install`, `version`) | yes | partial | yes | partial | yes | existing | pass | pass | pass | done | stable-approved | `init`, `validate`, `capabilities`, and `install` have integration coverage. `version` is covered in required, and live install checks now pass in the latest evidence refresh. |
 | Generated scaffold contract (Codex + Claude required files and generated entrypoints) | yes | yes | yes | n/a | n/a | existing | pass | n/a | n/a | done | stable-approved | Scaffold and validate claims are generated from descriptors and covered by init/validate integration tests. |
 

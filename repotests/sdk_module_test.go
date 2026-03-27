@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"os/exec"
@@ -6,16 +6,16 @@ import (
 	"testing"
 )
 
-// TestSDKModule runs the full SDK test suite (module sdk/hookplex).
-// Repository root is a workspace-only module so `go test ./...` from the hookplex
-// repo root satisfies the iter1 DoD while keeping sdk/hookplex/go.mod as in the plan.
+// TestSDKModule runs the full SDK test suite (module sdk/plugin-kit-ai).
+// Repository root is a workspace-only module so `go test ./...` from the plugin-kit-ai
+// repo root satisfies the iter1 DoD while keeping sdk/plugin-kit-ai/go.mod as in the plan.
 func TestSDKModule(t *testing.T) {
 	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk", "hookplex")
+	sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
 	cmd := exec.Command("go", "test", "./...")
 	cmd.Dir = sdkDir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go test in sdk/hookplex: %v\n%s", err, out)
+		t.Fatalf("go test in sdk/plugin-kit-ai: %v\n%s", err, out)
 	}
 }

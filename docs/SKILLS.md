@@ -1,6 +1,6 @@
-# hookplex Skills
+# plugin-kit-ai Skills
 
-`hookplex skills` is an experimental, compatibility-first authoring layer for repository-local skills.
+`plugin-kit-ai skills` is an experimental, compatibility-first authoring layer for repository-local skills.
 
 The goal is not to replace the broader `SKILL.md` ecosystem. The goal is to make the common workflow easier to maintain when you want:
 
@@ -11,7 +11,7 @@ The goal is not to replace the broader `SKILL.md` ecosystem. The goal is to make
 
 ## What It Is
 
-`hookplex skills` treats a skill as:
+`plugin-kit-ai skills` treats a skill as:
 
 - authored instructions in `skills/<name>/SKILL.md`
 - YAML frontmatter for light validation and rendering metadata
@@ -24,7 +24,7 @@ The canonical authored file stays:
 
 Generated files are derived outputs. Edit the canonical skill, then re-render.
 
-Handwritten `SKILL.md` is a first-class input. `hookplex skills init` is a convenience scaffold, not a required entrypoint.
+Handwritten `SKILL.md` is a first-class input. `plugin-kit-ai skills init` is a convenience scaffold, not a required entrypoint.
 
 ## Supported Authored Contract
 
@@ -60,7 +60,7 @@ Required body sections:
 Compatibility guarantees in this beta layer:
 
 - authored source of truth stays `skills/<name>/SKILL.md`
-- handwritten skills are supported even without `hookplex skills init`
+- handwritten skills are supported even without `plugin-kit-ai skills init`
 - generated files under `generated/skills/...` and `commands/...` are derived and disposable
 - extra ecosystem files like `scripts/`, `references/`, `assets/`, or agent-specific helper files are tolerated unless they directly break validation
 
@@ -86,7 +86,7 @@ Use skills when you need reusable guidance, workflows, or command-backed procedu
 
 If all you need is a tiny `SKILL.md` and a trivial one-off command, writing it by hand is fine.
 
-`hookplex skills` becomes useful when you want:
+`plugin-kit-ai skills` becomes useful when you want:
 
 - a canonical authoring workflow: `init -> edit -> validate -> render`
 - clearer validation than "hope the frontmatter is right"
@@ -96,10 +96,10 @@ If all you need is a tiny `SKILL.md` and a trivial one-off command, writing it b
 ## Canonical Workflow
 
 ```bash
-hookplex skills init lint-repo --template go-command
+plugin-kit-ai skills init lint-repo --template go-command
 # edit skills/lint-repo/SKILL.md
-hookplex skills validate .
-hookplex skills render . --target all
+plugin-kit-ai skills validate .
+plugin-kit-ai skills render . --target all
 ```
 
 Templates:
@@ -112,8 +112,8 @@ The same workflow also works for a handwritten skill package:
 
 ```bash
 # start with a handwritten skills/<name>/SKILL.md
-hookplex skills validate .
-hookplex skills render . --target all
+plugin-kit-ai skills validate .
+plugin-kit-ai skills render . --target all
 ```
 
 ## Execution Model
@@ -130,9 +130,9 @@ Supported execution modes:
 - Python, Node, or Deno commands
 - `npx`, `uvx`, `go run`, Docker wrappers, or another external CLI
 
-`hookplex` does not execute commands during validation. It only validates the authored contract statically.
+`plugin-kit-ai` does not execute commands during validation. It only validates the authored contract statically.
 
-## When Not To Use hookplex Skills
+## When Not To Use plugin-kit-ai Skills
 
 You probably do not need this subsystem when:
 

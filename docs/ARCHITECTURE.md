@@ -17,25 +17,25 @@ Historical maintainer references live in:
 
 | Layer | Location | Role |
 |-------|----------|------|
-| SDK runtime | `sdk/hookplex/hookplex.go` | Platform-neutral composition root that wires the generic engine, generated descriptor lookup, middleware, and platform registrars |
-| SDK generator | `cmd/hookplex-gen/main.go` | Generates descriptor-derived runtime, scaffold, validate, and docs artifacts |
+| SDK runtime | `sdk/plugin-kit-ai/plugin-kit-ai.go` | Platform-neutral composition root that wires the generic engine, generated descriptor lookup, middleware, and platform registrars |
+| SDK generator | `cmd/plugin-kit-ai-gen/main.go` | Generates descriptor-derived runtime, scaffold, validate, and docs artifacts |
 | Plugin install library | `install/plugininstall/install.go` | Public install facade that wires use case and concrete adapters |
-| CLI | `cli/hookplex/cmd/hookplex/main.go` | Process entrypoint; commands parse flags and call `internal/app`, `internal/scaffold`, and `internal/validate` |
+| CLI | `cli/plugin-kit-ai/cmd/plugin-kit-ai/main.go` | Process entrypoint; commands parse flags and call `internal/app`, `internal/scaffold`, and `internal/validate` |
 
 Rule: the CLI must not construct `plugininstall` adapters directly. It uses the `plugininstall` facade.
 
 ## SDK Runtime
 
-- `sdk/hookplex` exposes only shared runtime composition.
+- `sdk/plugin-kit-ai` exposes only shared runtime composition.
 - Public platform APIs are peer packages:
-  - `sdk/hookplex/claude`
-  - `sdk/hookplex/codex`
-- Core runtime lives under `sdk/hookplex/internal/runtime`.
-- Descriptor definitions live under `sdk/hookplex/internal/descriptors/defs`.
-- Generated runtime registries and resolvers live under `sdk/hookplex/internal/descriptors/gen`.
+  - `sdk/plugin-kit-ai/claude`
+  - `sdk/plugin-kit-ai/codex`
+- Core runtime lives under `sdk/plugin-kit-ai/internal/runtime`.
+- Descriptor definitions live under `sdk/plugin-kit-ai/internal/descriptors/defs`.
+- Generated runtime registries and resolvers live under `sdk/plugin-kit-ai/internal/descriptors/gen`.
 - Platform wire codecs live under:
-  - `sdk/hookplex/internal/platforms/claude`
-  - `sdk/hookplex/internal/platforms/codex`
+  - `sdk/plugin-kit-ai/internal/platforms/claude`
+  - `sdk/plugin-kit-ai/internal/platforms/codex`
 
 Current runtime carriers:
 
@@ -44,16 +44,16 @@ Current runtime carriers:
 
 ## CLI Application Layer
 
-`cli/hookplex/internal/app` keeps Cobra out of install/init application logic:
+`cli/plugin-kit-ai/internal/app` keeps Cobra out of install/init application logic:
 
 - `InstallRunner` delegates to `plugininstall.Install`
 - `InitRunner` resolves generated scaffold definitions and delegates rendering to `scaffold`
 
-`cli/hookplex/internal/validate` enforces generated platform rules for scaffolded projects.
+`cli/plugin-kit-ai/internal/validate` enforces generated platform rules for scaffolded projects.
 
 ## Generated Sources
 
-`go run ./cmd/hookplex-gen` is the canonical generation entrypoint.
+`go run ./cmd/plugin-kit-ai-gen` is the canonical generation entrypoint.
 
 Generated artifacts include:
 
@@ -63,18 +63,18 @@ Generated artifacts include:
 - validation rules
 - support contract documentation
 
-Generator drift is enforced by tests in `sdk/hookplex/generator`.
+Generator drift is enforced by tests in `sdk/plugin-kit-ai/generator`.
 
 ## Exit Codes
 
-- `hookplex install`: domain errors map through `plugininstall.ExitCodeFromErr` and CLI `exitx`
-- `hookplex init`: failures surface as CLI errors and exit code `1`
-- `hookplex validate`: invalid scaffold or buildability failures exit non-zero
+- `plugin-kit-ai install`: domain errors map through `plugininstall.ExitCodeFromErr` and CLI `exitx`
+- `plugin-kit-ai init`: failures surface as CLI errors and exit code `1`
+- `plugin-kit-ai validate`: invalid scaffold or buildability failures exit non-zero
 
 ## Tests
 
-- `sdk/hookplex/...`: runtime, descriptors, generator drift, examples
-- `cli/hookplex/...`: app and scaffold coverage
+- `sdk/plugin-kit-ai/...`: runtime, descriptors, generator drift, examples
+- `cli/plugin-kit-ai/...`: app and scaffold coverage
 - `repotests/...`: generated project integration and installer integration
 
 Note: installer integration tests create a local `httptest` server and require loopback bind permissions.

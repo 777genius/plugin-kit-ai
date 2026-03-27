@@ -12,9 +12,9 @@ This ledger tracks the current delivery state of the shipped architecture after 
 |------|--------|-------|
 | Runtime foundation | done | Platform-neutral runtime, generated lookup, middleware chain, and platform registrars are shipped. |
 | Descriptor system | done | Runtime wiring, scaffold rules, validate rules, registrars, and support docs are generated from descriptor definitions. |
-| Generated contract docs | done | Support claims are emitted from descriptors into the generated support matrix and exposed through `hookplex capabilities`. |
+| Generated contract docs | done | Support claims are emitted from descriptors into the generated support matrix and exposed through `plugin-kit-ai capabilities`. |
 | Public contract freeze | done | `README`, support policy, and SDK stability docs now describe the current shipped contract instead of a transition state. |
-| Codex GA path | done | Runtime, scaffold, validate, integration coverage, and repository-owned opt-in real `codex exec` smoke test exist. The supported invocation semantics are now frozen in the release audit, and external runtime-health failures are explicitly outside the hookplex stable promise. |
+| Codex GA path | done | Runtime, scaffold, validate, integration coverage, and repository-owned opt-in real `codex exec` smoke test exist. The supported invocation semantics are now frozen in the release audit, and external runtime-health failures are explicitly outside the plugin-kit-ai stable promise. |
 | Claude stabilization | done | Deterministic coverage, real-CLI smoke policy, and declared event-set review are complete. External Claude runtime connectivity failures are now handled as documented release waivers when hook execution is never reached. |
 | Quality gates | done | `required`, `extended`, and `live` lanes exist in repo automation. Install compatibility now has both a deterministic matrix and refreshed live raw-binary / supported-tarball / unsupported-layout evidence. |
 | Release discipline | done | Changelog, CI lanes, release checklist, audit ledger, migration registry, release playbook, release-notes template, rehearsal worksheet, install verification, and version command exist. A full release rehearsal has been recorded. |

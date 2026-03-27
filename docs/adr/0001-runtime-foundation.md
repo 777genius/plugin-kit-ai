@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The current shipped SDK runtime is Claude-only. `hookplex.App` wires `ports.ClaudeWireCodec`, the dispatcher switches on three Claude command-hook names, and core/runtime concerns are mixed with Claude-shaped event contracts.
+The current shipped SDK runtime is Claude-only. `plugin-kit-ai.App` wires `ports.ClaudeWireCodec`, the dispatcher switches on three Claude command-hook names, and core/runtime concerns are mixed with Claude-shaped event contracts.
 
 The rewrite needs a runtime foundation that does not treat any single platform as the architectural center, while still keeping platform-specific APIs as the public contract.
 
@@ -54,7 +54,7 @@ Codex is the first platform used to validate this runtime foundation, but the ru
 
 ## Consequences
 
-- The current `hookplex.App` shape is legacy runtime, not a compatibility anchor.
+- The current `plugin-kit-ai.App` shape is legacy runtime, not a compatibility anchor.
 - The current switch-based dispatcher and `ClaudeWireCodec`-centered core are replaced, not generalized in place.
 - Core logic can be tested without importing any concrete platform event types.
 - Platform packages own their own event structs, wire codecs, manifest metadata, and response rules.
@@ -62,7 +62,7 @@ Codex is the first platform used to validate this runtime foundation, but the ru
 
 ## Non-Goals
 
-- Preserving `hookplex.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or current `Run()` as compatibility facades.
+- Preserving `plugin-kit-ai.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or current `Run()` as compatibility facades.
 - Defining the full Go package tree or naming every internal file ahead of implementation.
 - Introducing a unified event model that erases platform-specific semantics.
 

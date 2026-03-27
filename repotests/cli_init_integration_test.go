@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"os"
@@ -7,28 +7,28 @@ import (
 	"testing"
 )
 
-func TestHookplexInitGeneratesBuildableModule(t *testing.T) {
+func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 	for _, platform := range []string{"claude", "codex"} {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
-			cliDir := filepath.Join(root, "cli", "hookplex")
-			sdkDir := filepath.Join(root, "sdk", "hookplex")
+			cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
+			sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
 
 			binDir := t.TempDir()
-			bin := filepath.Join(binDir, "hookplex")
-			build := exec.Command("go", "build", "-o", bin, "./cmd/hookplex")
+			bin := filepath.Join(binDir, "plugin-kit-ai")
+			build := exec.Command("go", "build", "-o", bin, "./cmd/plugin-kit-ai")
 			build.Dir = cliDir
 			if out, err := build.CombinedOutput(); err != nil {
-				t.Fatalf("build hookplex: %v\n%s", err, out)
+				t.Fatalf("build plugin-kit-ai: %v\n%s", err, out)
 			}
 
 			plugRoot := t.TempDir()
 			run := exec.Command(bin, "init", "genplug", "--platform", platform, "-o", plugRoot, "--extras")
 			if out, err := run.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex init: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
 
-			replaceArg := "github.com/hookplex/hookplex/sdk=" + sdkDir
+			replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
 			modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
 			modEdit.Dir = plugRoot
 			if out, err := modEdit.CombinedOutput(); err != nil {
@@ -38,7 +38,7 @@ func TestHookplexInitGeneratesBuildableModule(t *testing.T) {
 			validate := exec.Command(bin, "validate", plugRoot, "--platform", platform)
 			validate.Env = append(os.Environ(), "GOWORK=off")
 			if out, err := validate.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex validate: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 			}
 
 			tidy := exec.Command("go", "mod", "tidy")

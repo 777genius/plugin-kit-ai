@@ -1,6 +1,6 @@
 # review-checklist
 
-> Claude render for `skills/review-checklist/SKILL.md`. Edit the canonical source, then re-run `hookplex skills render`.
+> Claude render for `skills/review-checklist/SKILL.md`. Edit the canonical source, then re-run `plugin-kit-ai skills render`.
 
 ## Summary
 

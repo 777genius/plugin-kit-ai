@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"bytes"
@@ -8,12 +8,12 @@ import (
 	"testing"
 )
 
-// TestClaudeHooks_E2E_Subprocess runs hookplex-e2e as a real subprocess with JSON on stdin,
+// TestClaudeHooks_E2E_Subprocess runs plugin-kit-ai-e2e as a real subprocess with JSON on stdin,
 // matching how Claude Code invokes command hooks.
 func TestClaudeHooks_E2E_Subprocess(t *testing.T) {
 	t.Parallel()
 	root := RepoRoot(t)
-	bin := buildHookplexE2E(t)
+	bin := buildPluginKitAIE2E(t)
 
 	cases := []struct {
 		hook     string

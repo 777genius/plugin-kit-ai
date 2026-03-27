@@ -10,17 +10,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
 )
 
 func requireBindTests(t *testing.T) {
 	t.Helper()
-	if os.Getenv("HOOKPLEX_BIND_TESTS") == "1" {
+	if os.Getenv("PLUGIN_KIT_AI_BIND_TESTS") == "1" {
 		return
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Skipf("requires loopback bind support or HOOKPLEX_BIND_TESTS=1: %v", err)
+		t.Skipf("requires loopback bind support or PLUGIN_KIT_AI_BIND_TESTS=1: %v", err)
 	}
 	_ = ln.Close()
 }

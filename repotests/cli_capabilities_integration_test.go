@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"encoding/json"
@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-func TestHookplexCapabilities(t *testing.T) {
-	hookplexBin := buildHookplex(t)
+func TestPluginKitAICapabilities(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
 
-	tableCmd := exec.Command(hookplexBin, "capabilities")
+	tableCmd := exec.Command(pluginKitAIBin, "capabilities")
 	tableOut, err := tableCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("capabilities table: %v\n%s", err, tableOut)
@@ -20,7 +20,7 @@ func TestHookplexCapabilities(t *testing.T) {
 		t.Fatalf("unexpected capabilities table output:\n%s", table)
 	}
 
-	jsonCmd := exec.Command(hookplexBin, "capabilities", "--format", "json", "--platform", "claude")
+	jsonCmd := exec.Command(pluginKitAIBin, "capabilities", "--format", "json", "--platform", "claude")
 	jsonOut, err := jsonCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("capabilities json: %v\n%s", err, jsonOut)

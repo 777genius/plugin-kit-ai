@@ -8,13 +8,13 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/hookplex/hookplex/plugininstall/adapters/archive"
-	"github.com/hookplex/hookplex/plugininstall/adapters/fs"
-	gh "github.com/hookplex/hookplex/plugininstall/adapters/github"
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/internal/checksum"
-	"github.com/hookplex/hookplex/plugininstall/ports"
-	"github.com/hookplex/hookplex/plugininstall/usecase"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/adapters/archive"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/adapters/fs"
+	gh "github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/adapters/github"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/internal/checksum"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/ports"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/usecase"
 )
 
 // Params configures Install (plugin binary from GitHub Releases).

@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"bytes"
@@ -16,12 +16,12 @@ import (
 
 // Codex CLI --model for real hook e2e. Example:
 //
-//	HOOKPLEX_RUN_CODEX_CLI=1 go test ./repotests -run TestCodexCLINotify -v -args -codex-model=gpt-5.4-mini
+//	PLUGIN_KIT_AI_RUN_CODEX_CLI=1 go test ./repotests -run TestCodexCLINotify -v -args -codex-model=gpt-5.4-mini
 var codexModel = flag.String("codex-model", "gpt-5.4-mini", "codex exec --model for CLI e2e (notify smoke)")
 
 func TestCodexCLINotify(t *testing.T) {
 	codexBin := codexBinaryOrSkip(t)
-	hookBin := buildHookplexE2E(t)
+	hookBin := buildPluginKitAIE2E(t)
 	trace := filepath.Join(t.TempDir(), "trace.ndjson")
 	dir := t.TempDir()
 	notifyOverride := codexNotifyOverride(t, trace, hookBin)
@@ -43,18 +43,18 @@ func TestCodexCLINotify(t *testing.T) {
 
 func codexBinaryOrSkip(t *testing.T) string {
 	t.Helper()
-	if strings.TrimSpace(os.Getenv("HOOKPLEX_SKIP_CODEX_CLI")) == "1" {
-		t.Skip("HOOKPLEX_SKIP_CODEX_CLI=1")
+	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_CODEX_CLI")) == "1" {
+		t.Skip("PLUGIN_KIT_AI_SKIP_CODEX_CLI=1")
 	}
-	if strings.TrimSpace(os.Getenv("HOOKPLEX_RUN_CODEX_CLI")) != "1" {
-		t.Skip("set HOOKPLEX_RUN_CODEX_CLI=1 to run real Codex CLI e2e (see -args -codex-model)")
+	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_RUN_CODEX_CLI")) != "1" {
+		t.Skip("set PLUGIN_KIT_AI_RUN_CODEX_CLI=1 to run real Codex CLI e2e (see -args -codex-model)")
 	}
-	codexBin := strings.TrimSpace(os.Getenv("HOOKPLEX_E2E_CODEX"))
+	codexBin := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_E2E_CODEX"))
 	if codexBin == "" {
 		var err error
 		codexBin, err = exec.LookPath("codex")
 		if err != nil {
-			t.Skip("codex not in PATH; set HOOKPLEX_E2E_CODEX or install Codex CLI")
+			t.Skip("codex not in PATH; set PLUGIN_KIT_AI_E2E_CODEX or install Codex CLI")
 		}
 	}
 	if out, err := exec.Command(codexBin, "login", "status").CombinedOutput(); err != nil {
@@ -74,7 +74,7 @@ func codexNotifyOverride(t *testing.T, traceFile, hookBin string) string {
 		"trace_file=\"$1\"\n" +
 		"hook_bin=\"$2\"\n" +
 		"shift 2\n" +
-		"HOOKPLEX_E2E_TRACE=\"$trace_file\" exec \"$hook_bin\" \"$@\"\n"
+		"PLUGIN_KIT_AI_E2E_TRACE=\"$trace_file\" exec \"$hook_bin\" \"$@\"\n"
 	if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

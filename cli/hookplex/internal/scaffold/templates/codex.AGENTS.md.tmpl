@@ -1,8 +1,0 @@
-# {{.ProjectName}}
-
-Repository instructions for Codex:
-
-- Build the helper binary with `go build -o bin/{{.ProjectName}} ./cmd/{{.ProjectName}}`.
-- The binary is wired as a Codex `notify` hook through `.codex/config.toml`.
-- Use a sample payload such as `./bin/{{.ProjectName}} notify '{"client":"codex-tui"}'` as a smoke check.
-- Keep project-specific workflows in `commands/` and reusable procedures in `skills/`.

@@ -1,0 +1,9 @@
+@echo off
+setlocal
+set "ROOT=%~dp0.."
+where bash >nul 2>nul
+if errorlevel 1 (
+  echo plugin-kit-ai launcher: bash not found >&2
+  exit /b 1
+)
+bash "%ROOT%\scripts\main.sh" %*

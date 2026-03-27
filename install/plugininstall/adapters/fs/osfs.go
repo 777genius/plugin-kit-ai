@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/ports"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/ports"
 )
 
 // OS implements ports.FileSystem using the real OS.
@@ -68,7 +68,7 @@ func (OS) WriteFileAtomic(ctx context.Context, dir, name string, r io.Reader, si
 		return domain.NewError(domain.ExitFS, "mkdir: "+err.Error())
 	}
 	dest := filepath.Join(dir, name)
-	f, err := os.CreateTemp(dir, ".hookplex-install-*")
+	f, err := os.CreateTemp(dir, ".plugin-kit-ai-install-*")
 	if err != nil {
 		return domain.NewError(domain.ExitFS, "temp file: "+err.Error())
 	}

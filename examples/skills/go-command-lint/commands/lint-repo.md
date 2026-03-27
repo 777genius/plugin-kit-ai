@@ -26,4 +26,4 @@ Check that this skill package is internally consistent and report actionable fai
 - Writes files: no
 - Produces JSON: no
 - This file is generated from `skills/lint-repo/SKILL.md`.
-- Regenerate with `hookplex skills render`.
+- Regenerate with `plugin-kit-ai skills render`.

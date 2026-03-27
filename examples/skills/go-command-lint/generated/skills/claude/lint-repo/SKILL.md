@@ -1,6 +1,6 @@
 # lint-repo
 
-> Claude render for `skills/lint-repo/SKILL.md`. Edit the canonical source, then re-run `hookplex skills render`.
+> Claude render for `skills/lint-repo/SKILL.md`. Edit the canonical source, then re-run `plugin-kit-ai skills render`.
 
 ## Summary
 

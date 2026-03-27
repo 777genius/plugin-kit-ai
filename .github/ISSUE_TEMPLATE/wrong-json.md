@@ -5,7 +5,7 @@ about: Claude Code hook stdin/stdout mismatch or hook not invoked as expected
 
 ## Versions
 
-- hookplex / module version or git SHA:
+- plugin-kit-ai / module version or git SHA:
 - Claude Code CLI version:
 - OS:
 

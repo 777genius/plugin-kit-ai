@@ -20,7 +20,7 @@ For each beta-breaking change, record:
 ### 2026-03-26: SDK registration moved from root-Claude methods to platform registrars
 
 - Affected surface:
-  - `sdk/hookplex`
+  - `sdk/plugin-kit-ai`
   - generated scaffold entrypoints
 - Old behavior:
   - Claude registration happened through root methods such as `app.OnStop(...)`.
@@ -31,8 +31,8 @@ For each beta-breaking change, record:
     - `app.Claude().OnUserPromptSubmit(...)`
     - `app.Codex().OnNotify(...)`
 - Required user action:
-  - Recreate app construction with `hookplex.New(hookplex.Config{...})`.
+  - Recreate app construction with `plugin-kit-ai.New(plugin-kit-ai.Config{...})`.
   - Move Claude hook registration to `app.Claude()`.
   - Register Codex notify handlers through `app.Codex()`.
 - Changelog reference:
-  - `sdk/hookplex/CHANGELOG.md` `[Unreleased]`
+  - `sdk/plugin-kit-ai/CHANGELOG.md` `[Unreleased]`

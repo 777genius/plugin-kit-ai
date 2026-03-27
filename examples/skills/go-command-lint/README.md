@@ -1,6 +1,6 @@
 # go-command-lint
 
-This example demonstrates the strongest happy path for `hookplex skills`:
+This example demonstrates the strongest happy path for `plugin-kit-ai skills`:
 
 - authored `SKILL.md`
 - a Go command entrypoint

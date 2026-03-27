@@ -1,6 +1,6 @@
 # Diagnostics Contract
 
-This document records the current user-facing diagnostics contract for shipped `hookplex` surfaces.
+This document records the current user-facing diagnostics contract for shipped `plugin-kit-ai` surfaces.
 
 ## Goal
 
@@ -21,7 +21,7 @@ Contract-sensitive examples:
 
 ## Validate Failure Families
 
-`cli/hookplex/internal/validate` exposes stable failure kinds for:
+`cli/plugin-kit-ai/internal/validate` exposes stable failure kinds for:
 
 - `unknown_platform`
 - `cannot_infer_platform`
@@ -60,7 +60,7 @@ Install success output is also part of the stable CLI contract at a high level:
 - subsequent lines identify release ref/source, asset, and target GOOS/GOARCH
 - overwrite status is printed only when an existing file was replaced
 
-This contract covers verified installation of third-party plugin binaries only. It does not imply a self-update or auto-update subsystem for the `hookplex` CLI itself.
+This contract covers verified installation of third-party plugin binaries only. It does not imply a self-update or auto-update subsystem for the `plugin-kit-ai` CLI itself.
 Supported and refused release layouts are documented in [INSTALL_COMPATIBILITY.md](./INSTALL_COMPATIBILITY.md).
 
 ## Non-Contract Debug Data
@@ -70,7 +70,7 @@ These are intentionally **not** public contract:
 - full stack traces
 - transport-layer retry wording
 - verbose external CLI logs
-- `HOOKPLEX_E2E_TRACE` contents used by repository tests
+- `PLUGIN_KIT_AI_E2E_TRACE` contents used by repository tests
 
 They may be used for troubleshooting and E2E assertions, but changes to them do not require compatibility handling.
 

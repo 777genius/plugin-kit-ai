@@ -14,11 +14,11 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/hookplex/hookplex/plugininstall/adapters/archive"
-	"github.com/hookplex/hookplex/plugininstall/adapters/fs"
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/internal/checksum"
-	"github.com/hookplex/hookplex/plugininstall/ports"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/adapters/archive"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/adapters/fs"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/internal/checksum"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/ports"
 )
 
 type fakeGH struct {

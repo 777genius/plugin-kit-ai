@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 
 // Claude Code CLI --model for real hook e2e. Example:
 //
-//	HOOKPLEX_RUN_CLAUDE_CLI=1 go test ./repotests -run TestClaudeCLIHooks -v -args -claude-model=haiku
+//	PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1 go test ./repotests -run TestClaudeCLIHooks -v -args -claude-model=haiku
 //
-// Optional: HOOKPLEX_E2E_CLAUDE=/path/to/claude. Full model id: -claude-model=claude-3-5-haiku-20241022
+// Optional: PLUGIN_KIT_AI_E2E_CLAUDE=/path/to/claude. Full model id: -claude-model=claude-3-5-haiku-20241022
 var claudeModel = flag.String("claude-model", "haiku", "claude --model for CLI e2e (hooks + TestClaudeHooks_LiveHaikuLow)")
 
 func TestMain(m *testing.M) {
@@ -25,14 +25,14 @@ func TestMain(m *testing.M) {
 }
 
 // TestClaudeCLIHooks runs the real claude binary in print mode against a temp project whose
-// .claude/settings.json invokes hookplex-e2e. Assertions use HOOKPLEX_E2E_TRACE lines.
+// .claude/settings.json invokes plugin-kit-ai-e2e. Assertions use PLUGIN_KIT_AI_E2E_TRACE lines.
 //
-// Enable with HOOKPLEX_RUN_CLAUDE_CLI=1 (real Claude Code CLI; uses your normal login: subscription or console API key).
-// Disable explicitly with HOOKPLEX_SKIP_CLAUDE_CLI=1.
+// Enable with PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1 (real Claude Code CLI; uses your normal login: subscription or console API key).
+// Disable explicitly with PLUGIN_KIT_AI_SKIP_CLAUDE_CLI=1.
 func TestClaudeCLIHooks(t *testing.T) {
 	claudeBin := claudeBinaryOrSkip(t)
 
-	hookBin := buildHookplexE2E(t)
+	hookBin := buildPluginKitAIE2E(t)
 
 	t.Run("Stop_allows_completion", func(t *testing.T) {
 		t.Parallel()
@@ -64,10 +64,10 @@ func TestClaudeCLIHooks(t *testing.T) {
 		t.Parallel()
 		trace := t.TempDir() + string(os.PathSeparator) + "trace.ndjson"
 		dir := newClaudeProjectWithHooks(t, hookBin)
-		const marker = "__hookplex_cli_e2e__"
+		const marker = "__plugin_kit_ai_cli_e2e__"
 		runClaudePrint(t, claudeBin, dir, trace, *claudeModel,
 			`Use the Bash tool exactly once. The shell command must contain this exact token (keep it verbatim): `+marker+` — for example: echo `+marker,
-			"HOOKPLEX_E2E_PRETOOL_DENY_SUBSTRING="+marker,
+			"PLUGIN_KIT_AI_E2E_PRETOOL_DENY_SUBSTRING="+marker,
 		)
 		lines := waitForTraceLines(t, trace, 3*time.Second)
 		if !traceHas(t, lines, "PreToolUse", "deny") {
@@ -79,18 +79,18 @@ func TestClaudeCLIHooks(t *testing.T) {
 // claudeBinaryOrSkip returns the claude executable when CLI e2e is enabled and auth works.
 func claudeBinaryOrSkip(t *testing.T) string {
 	t.Helper()
-	if strings.TrimSpace(os.Getenv("HOOKPLEX_SKIP_CLAUDE_CLI")) == "1" {
-		t.Skip("HOOKPLEX_SKIP_CLAUDE_CLI=1")
+	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_CLAUDE_CLI")) == "1" {
+		t.Skip("PLUGIN_KIT_AI_SKIP_CLAUDE_CLI=1")
 	}
-	if strings.TrimSpace(os.Getenv("HOOKPLEX_RUN_CLAUDE_CLI")) != "1" {
-		t.Skip("set HOOKPLEX_RUN_CLAUDE_CLI=1 to run real Claude CLI e2e (see -args -claude-model)")
+	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_RUN_CLAUDE_CLI")) != "1" {
+		t.Skip("set PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1 to run real Claude CLI e2e (see -args -claude-model)")
 	}
-	claudeBin := strings.TrimSpace(os.Getenv("HOOKPLEX_E2E_CLAUDE"))
+	claudeBin := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_E2E_CLAUDE"))
 	if claudeBin == "" {
 		var err error
 		claudeBin, err = exec.LookPath("claude")
 		if err != nil {
-			t.Skip("claude not in PATH; set HOOKPLEX_E2E_CLAUDE or install Claude Code CLI")
+			t.Skip("claude not in PATH; set PLUGIN_KIT_AI_E2E_CLAUDE or install Claude Code CLI")
 		}
 	}
 	if out, err := exec.Command(claudeBin, "auth", "status").CombinedOutput(); err != nil {
@@ -152,7 +152,7 @@ func runClaudePrint(t *testing.T, claudeBin, projectDir, traceFile, model, promp
 		prompt,
 	)
 	cmd.Dir = projectDir
-	cmd.Env = append(os.Environ(), append([]string{"HOOKPLEX_E2E_TRACE=" + traceFile}, extraEnv...)...)
+	cmd.Env = append(os.Environ(), append([]string{"PLUGIN_KIT_AI_E2E_TRACE=" + traceFile}, extraEnv...)...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Logf("claude output:\n%s", out)

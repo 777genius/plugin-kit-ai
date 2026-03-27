@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/internal/httpconfig"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/internal/httpconfig"
 )
 
 // DownloadAsset downloads the full body from browser_download_url (follows redirects; see httpconfig.DownloadClient).

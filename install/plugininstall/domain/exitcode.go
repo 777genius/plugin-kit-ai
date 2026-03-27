@@ -1,6 +1,6 @@
 package domain
 
-// ExitCode is returned to the shell by hookplex install.
+// ExitCode is returned to the shell by plugin-kit-ai install.
 type ExitCode int
 
 const (

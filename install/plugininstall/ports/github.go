@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
 )
 
 // ReleaseSource fetches GitHub release metadata and bytes.

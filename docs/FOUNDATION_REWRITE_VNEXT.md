@@ -30,7 +30,7 @@ Codex is not just another Tier-1 platform in the plan. It is the first platform 
 
 ## Non-Goals
 
-- Preserving `hookplex.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or the current `Run()` contract.
+- Preserving `plugin-kit-ai.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or the current `Run()` contract.
 - Keeping Claude as the architectural reference model.
 - Supporting speculative unified prompt, agent, or platform-unique workflows.
 - Reintroducing plugin commands into the runtime core.
@@ -141,9 +141,9 @@ Claude is ported later as a peer platform on the same architecture, not as the b
 
 ### Phase 3. Descriptor-driven CLI on top of Codex
 
-- Rewrite `cli/hookplex` around real use cases such as `init`, `validate`, `capabilities`, and `install`.
+- Rewrite `cli/plugin-kit-ai` around real use cases such as `init`, `validate`, `capabilities`, and `install`.
 - Make scaffold an adapter over template/file-system ports instead of mixed application logic plus `os` plus embed assumptions.
-- Add `hookplex validate` for manifest correctness, supported event set, unified capability support, and scaffold consistency.
+- Add `plugin-kit-ai validate` for manifest correctness, supported event set, unified capability support, and scaffold consistency.
 
 ### Phase 4. Port Claude as a peer platform
 
@@ -169,7 +169,7 @@ Claude is ported later as a peer platform on the same architecture, not as the b
 
 ## CLI And Installer Decisions
 
-- `hookplex init` becomes descriptor-driven and platform-aware.
+- `plugin-kit-ai init` becomes descriptor-driven and platform-aware.
 - Default scaffold target is `codex`.
 - Generated examples use Codex handlers first.
 - README sections, SDK docs, scaffold templates, and capability tables should be generated or descriptor-verified.

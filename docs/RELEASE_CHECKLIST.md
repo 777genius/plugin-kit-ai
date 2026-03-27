@@ -20,7 +20,7 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - `extended` workflow result recorded
 - `live` workflow result recorded, or an explicit waiver is noted in release notes
 - any skipped real-CLI smoke reason is written down
-- waiver justification explicitly states why the failure is outside hookplex contract scope
+- waiver justification explicitly states why the failure is outside plugin-kit-ai contract scope
 
 ## Beta-Breaking Changes
 

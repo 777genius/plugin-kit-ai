@@ -1,6 +1,6 @@
 # format-changed
 
-> Claude render for `skills/format-changed/SKILL.md`. Edit the canonical source, then re-run `hookplex skills render`.
+> Claude render for `skills/format-changed/SKILL.md`. Edit the canonical source, then re-run `plugin-kit-ai skills render`.
 
 ## Summary
 

@@ -1,6 +1,6 @@
 # Threat Model
 
-This document captures the current trust boundaries for shipped `hookplex` surfaces.
+This document captures the current trust boundaries for shipped `plugin-kit-ai` surfaces.
 
 ## Trust Boundaries
 

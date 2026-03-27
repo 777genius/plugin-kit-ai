@@ -1,6 +1,6 @@
 # Skill Examples
 
-These examples are intentionally small, but each one demonstrates a real beta-adoption path for `hookplex skills`.
+These examples are intentionally small, but each one demonstrates a real beta-adoption path for `plugin-kit-ai skills`.
 
 - `go-command-lint`
   - canonical `SKILL.md` plus a Go command entrypoint

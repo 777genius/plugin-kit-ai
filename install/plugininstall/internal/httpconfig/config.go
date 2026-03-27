@@ -8,13 +8,13 @@ import (
 
 // Defaults for GitHub API and release asset downloads.
 const (
-	DefaultAPITimeout        = 30 * time.Second
-	DefaultDownloadTimeout   = 15 * time.Minute
-	DefaultConnectTimeout    = 15 * time.Second
-	DefaultMaxRedirects      = 10
-	DefaultMaxDownloadBytes  = 256 << 20 // 256 MiB
-	DefaultGitHubAPIVersion  = "2022-11-28"
-	MaxRetries429            = 3
+	DefaultAPITimeout       = 30 * time.Second
+	DefaultDownloadTimeout  = 15 * time.Minute
+	DefaultConnectTimeout   = 15 * time.Second
+	DefaultMaxRedirects     = 10
+	DefaultMaxDownloadBytes = 256 << 20 // 256 MiB
+	DefaultGitHubAPIVersion = "2022-11-28"
+	MaxRetries429           = 3
 )
 
 // Client returns an http.Client for GitHub API JSON calls.
@@ -32,7 +32,7 @@ func DownloadClient() *http.Client {
 	t := http.DefaultTransport.(*http.Transport).Clone()
 	t.DialContext = (&net.Dialer{Timeout: DefaultConnectTimeout}).DialContext
 	return &http.Client{
-		Timeout: DefaultDownloadTimeout,
+		Timeout:   DefaultDownloadTimeout,
 		Transport: t,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= DefaultMaxRedirects {

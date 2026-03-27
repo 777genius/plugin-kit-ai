@@ -1,14 +1,14 @@
 # Install Compatibility Contract
 
-This document records the real-world-inspired compatibility boundary for `hookplex install`.
+This document records the real-world-inspired compatibility boundary for `plugin-kit-ai install`.
 
 ## Scope
 
-`hookplex install` is a stable surface for **verified installation of third-party plugin binaries from GitHub Releases**.
+`plugin-kit-ai install` is a stable surface for **verified installation of third-party plugin binaries from GitHub Releases**.
 
 It does **not** cover:
 
-- self-update of the `hookplex` CLI
+- self-update of the `plugin-kit-ai` CLI
 - auto-update behavior
 - arbitrary GitHub release layouts
 - zip extraction support
@@ -58,7 +58,7 @@ These patterns are currently outside the stable contract:
 - tarballs without a single installable binary in the archive root
 - custom checksum filenames instead of `checksums.txt`
 
-When these appear, `hookplex install` is expected to fail cleanly with the documented release, checksum, filesystem, or ambiguous exit-family.
+When these appear, `plugin-kit-ai install` is expected to fail cleanly with the documented release, checksum, filesystem, or ambiguous exit-family.
 
 ## Repo-Owned Compatibility Evidence
 
@@ -66,9 +66,9 @@ Compatibility evidence lives in two layers:
 
 - local fixture matrix:
   - [repotests/testdata/install_compatibility/matrix.json](../repotests/testdata/install_compatibility/matrix.json)
-  - exercised by [repotests/hookplex_install_compatibility_test.go](../repotests/hookplex_install_compatibility_test.go)
+  - exercised by [repotests/plugin-kit-ai_install_compatibility_test.go](../repotests/plugin-kit-ai_install_compatibility_test.go)
 - live optional smoke:
-  - [repotests/hookplex_live_install_e2e_test.go](../repotests/hookplex_live_install_e2e_test.go)
+  - [repotests/plugin-kit-ai_live_install_e2e_test.go](../repotests/plugin-kit-ai_live_install_e2e_test.go)
 
 The local matrix is the default compatibility proof.
 The live lane is only for release evidence and manual confidence refresh.
@@ -79,13 +79,13 @@ Current live inputs:
 
 - built-in raw-binary smoke for `777genius/claude-notifications-go`
 - optional tarball smoke via:
-  - `HOOKPLEX_E2E_TARBALL_OWNER_REPO`
-  - `HOOKPLEX_E2E_TARBALL_TAG`
-  - `HOOKPLEX_E2E_TARBALL_BINARY`
+  - `PLUGIN_KIT_AI_E2E_TARBALL_OWNER_REPO`
+  - `PLUGIN_KIT_AI_E2E_TARBALL_TAG`
+  - `PLUGIN_KIT_AI_E2E_TARBALL_BINARY`
 - optional unsupported-layout smoke via:
-  - `HOOKPLEX_E2E_UNSUPPORTED_OWNER_REPO`
-  - `HOOKPLEX_E2E_UNSUPPORTED_TAG`
-  - `HOOKPLEX_E2E_UNSUPPORTED_EXPECT_EXIT`
-  - `HOOKPLEX_E2E_UNSUPPORTED_SUBSTRING`
+  - `PLUGIN_KIT_AI_E2E_UNSUPPORTED_OWNER_REPO`
+  - `PLUGIN_KIT_AI_E2E_UNSUPPORTED_TAG`
+  - `PLUGIN_KIT_AI_E2E_UNSUPPORTED_EXPECT_EXIT`
+  - `PLUGIN_KIT_AI_E2E_UNSUPPORTED_SUBSTRING`
 
 These live checks are opt-in and are not part of the default `go test ./...` path.

@@ -87,7 +87,7 @@ See also [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) for pre-tag execution st
 
 ## Waiver Policy
 
-Waivers are allowed only for failures outside the hookplex contract boundary:
+Waivers are allowed only for failures outside the plugin-kit-ai contract boundary:
 
 - external Claude/Codex runtime-health failures before hook execution
 - live/network failures in external systems that do not indicate a repo regression
@@ -97,7 +97,7 @@ Waivers are not allowed for:
 - repo-controlled test failures
 - deterministic required-lane failures
 - scaffold/validate/runtime contract regressions
-- smoke failures that show hookplex misbehavior after the hook path should have executed
+- smoke failures that show plugin-kit-ai misbehavior after the hook path should have executed
 
 Every waiver must record:
 
@@ -106,7 +106,7 @@ Every waiver must record:
 - affected lane
 - exact skipped or failed surface
 - reason
-- why it is outside hookplex contract scope
+- why it is outside plugin-kit-ai contract scope
 - maintainer sign-off in release notes or rehearsal notes
 
 ## `v0.9` Freeze Criteria

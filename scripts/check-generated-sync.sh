@@ -9,12 +9,12 @@ after="$(mktemp)"
 trap 'rm -f "$before" "$after"' EXIT
 
 generated_files=(
-  "cli/hookplex/internal/scaffold/platforms_gen.go"
-  "cli/hookplex/internal/validate/rules_gen.go"
-  "sdk/hookplex/internal/descriptors/gen/completeness_gen_test.go"
-  "sdk/hookplex/internal/descriptors/gen/registry_gen.go"
-  "sdk/hookplex/internal/descriptors/gen/resolvers_gen.go"
-  "sdk/hookplex/internal/descriptors/gen/support_gen.go"
+  "cli/plugin-kit-ai/internal/scaffold/platforms_gen.go"
+  "cli/plugin-kit-ai/internal/validate/rules_gen.go"
+  "sdk/plugin-kit-ai/internal/descriptors/gen/completeness_gen_test.go"
+  "sdk/plugin-kit-ai/internal/descriptors/gen/registry_gen.go"
+  "sdk/plugin-kit-ai/internal/descriptors/gen/resolvers_gen.go"
+  "sdk/plugin-kit-ai/internal/descriptors/gen/support_gen.go"
   "docs/generated/support_matrix.md"
 )
 
@@ -22,7 +22,7 @@ for f in "${generated_files[@]}"; do
   shasum "$f"
 done >"$before"
 
-GOCACHE="${GOCACHE:-/tmp/hookplex-gocache}" go run ./cmd/hookplex-gen >/tmp/hookplex-gen.out 2>/tmp/hookplex-gen.err
+GOCACHE="${GOCACHE:-/tmp/plugin-kit-ai-gocache}" go run ./cmd/plugin-kit-ai-gen >/tmp/plugin-kit-ai-gen.out 2>/tmp/plugin-kit-ai-gen.err
 
 for f in "${generated_files[@]}"; do
   shasum "$f"

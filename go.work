@@ -2,7 +2,7 @@ go 1.22
 
 use (
 	.
-	./cli/hookplex
+	./cli/plugin-kit-ai
 	./install/plugininstall
-	./sdk/hookplex
+	./sdk/plugin-kit-ai
 )

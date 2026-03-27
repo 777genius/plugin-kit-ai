@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 // interactive CLI: subscription SSO or `claude auth login --console` — no ANTHROPIC_API_KEY needed
 // for the usual Max/Team flow).
 //
-// Uses -args -claude-model (default haiku). Enable with HOOKPLEX_RUN_CLAUDE_CLI=1 like other CLI e2e.
+// Uses -args -claude-model (default haiku). Enable with PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1 like other CLI e2e.
 func TestClaudeHooks_LiveHaikuLow(t *testing.T) {
 	claudeBin := claudeBinaryOrSkip(t)
 

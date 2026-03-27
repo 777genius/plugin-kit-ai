@@ -27,4 +27,4 @@ Format changed files through an existing external formatter command.
 - Writes files: yes
 - Produces JSON: no
 - This file is generated from `skills/format-changed/SKILL.md`.
-- Regenerate with `hookplex skills render`.
+- Regenerate with `plugin-kit-ai skills render`.

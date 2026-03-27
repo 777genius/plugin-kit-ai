@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/ports"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/ports"
 )
 
 // TarGzExtractor extracts a single plugin binary from the root of a .tar.gz (GoReleaser layout).

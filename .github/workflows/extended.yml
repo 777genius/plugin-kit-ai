@@ -32,8 +32,8 @@ jobs:
 
       - name: Run extended lane
         env:
-          HOOKPLEX_RUN_CLAUDE_CLI: ${{ inputs.run_claude_cli }}
-          HOOKPLEX_RUN_CODEX_CLI: ${{ inputs.run_codex_cli }}
+          PLUGIN_KIT_AI_RUN_CLAUDE_CLI: ${{ inputs.run_claude_cli }}
+          PLUGIN_KIT_AI_RUN_CODEX_CLI: ${{ inputs.run_codex_cli }}
         run: |
           make test-extended EXTENDED_TEST_ARGS='-args -claude-model=${{ inputs.claude_model }} -codex-model=${{ inputs.codex_model }}' 2>&1 | tee extended.log
 

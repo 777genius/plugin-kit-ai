@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"bytes"
@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestHookplexSkillsInitValidateRender(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsInitValidateRender(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	cases := []struct {
 		name         string
 		skillName    string
@@ -72,17 +72,17 @@ func TestHookplexSkillsInitValidateRender(t *testing.T) {
 			}
 			initCmd := exec.Command(bin, args...)
 			if out, err := initCmd.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex skills init: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai skills init: %v\n%s", err, out)
 			}
 
 			validateCmd := exec.Command(bin, "skills", "validate", root)
 			if out, err := validateCmd.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex skills validate: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai skills validate: %v\n%s", err, out)
 			}
 
 			renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
 			if out, err := renderCmd.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex skills render: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai skills render: %v\n%s", err, out)
 			}
 
 			for _, rel := range tc.mustExist {
@@ -99,8 +99,8 @@ func TestHookplexSkillsInitValidateRender(t *testing.T) {
 	}
 }
 
-func TestHookplexSkillsValidateReportsMultipleProblems(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsValidateReportsMultipleProblems(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "skills", "broken"), 0o755); err != nil {
 		t.Fatal(err)
@@ -148,8 +148,8 @@ Broken on purpose.
 	}
 }
 
-func TestHookplexSkillsRenderRejectsInvalidSkill(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsRenderRejectsInvalidSkill(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "skills", "broken"), 0o755); err != nil {
 		t.Fatal(err)
@@ -197,8 +197,8 @@ Do not run it.
 	}
 }
 
-func TestHookplexSkillsValidateRejectsNameDirectoryMismatch(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsValidateRejectsNameDirectoryMismatch(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "skills", "foo"), 0o755); err != nil {
 		t.Fatal(err)
@@ -242,8 +242,8 @@ z
 	}
 }
 
-func TestHookplexSkillsHandwrittenCompatibility(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsHandwrittenCompatibility(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 
 	mustWriteFile(t, filepath.Join(root, "skills", "review-guide", "SKILL.md"), `---
@@ -368,11 +368,11 @@ Run the pinned uvx command from the repository root.
 
 	validateCmd := exec.Command(bin, "skills", "validate", root)
 	if out, err := validateCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills validate: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills validate: %v\n%s", err, out)
 	}
 	renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
 	if out, err := renderCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills render: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills render: %v\n%s", err, out)
 	}
 
 	for _, rel := range []string{
@@ -414,8 +414,8 @@ Run the pinned uvx command from the repository root.
 	}
 }
 
-func TestHookplexSkillsExamplesValidateAndRender(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsExamplesValidateAndRender(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := RepoRoot(t)
 	examples := []struct {
 		root  string
@@ -461,11 +461,11 @@ func TestHookplexSkillsExamplesValidateAndRender(t *testing.T) {
 			}
 			validateCmd := exec.Command(bin, "skills", "validate", example.root)
 			if out, err := validateCmd.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex skills validate: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai skills validate: %v\n%s", err, out)
 			}
 			renderCmd := exec.Command(bin, "skills", "render", example.root, "--target", "all")
 			if out, err := renderCmd.CombinedOutput(); err != nil {
-				t.Fatalf("hookplex skills render: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai skills render: %v\n%s", err, out)
 			}
 			for _, rel := range example.files {
 				full := filepath.Join(example.root, rel)
@@ -484,7 +484,7 @@ func TestHookplexSkillsExamplesValidateAndRender(t *testing.T) {
 	}
 }
 
-func TestHookplexSkillsExamplesArtifactsTracked(t *testing.T) {
+func TestPluginKitAISkillsExamplesArtifactsTracked(t *testing.T) {
 	root := RepoRoot(t)
 	paths := []string{
 		"examples/skills/go-command-lint/generated/skills/codex/lint-repo/AGENTS.md",
@@ -499,17 +499,17 @@ func TestHookplexSkillsExamplesArtifactsTracked(t *testing.T) {
 	}
 }
 
-func TestHookplexSkillsRenderRemovesStaleArtifacts(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsRenderRemovesStaleArtifacts(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 
 	initCmd := exec.Command(bin, "skills", "init", "shrink", "--output", root, "--template", "go-command")
 	if out, err := initCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills init: %v\n%s", err, out)
 	}
 	renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
 	if out, err := renderCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills render: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills render: %v\n%s", err, out)
 	}
 
 	body := `---
@@ -545,7 +545,7 @@ z
 
 	renderCmd = exec.Command(bin, "skills", "render", root, "--target", "all")
 	if out, err := renderCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills render after shrink: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills render after shrink: %v\n%s", err, out)
 	}
 
 	for _, rel := range []string{
@@ -562,24 +562,24 @@ z
 	}
 }
 
-func TestHookplexSkillsRenderRemovesDeletedSkillArtifacts(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsRenderRemovesDeletedSkillArtifacts(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 
 	initCmd := exec.Command(bin, "skills", "init", "ghost", "--output", root, "--template", "go-command")
 	if out, err := initCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills init: %v\n%s", err, out)
 	}
 	renderCmd := exec.Command(bin, "skills", "render", root, "--target", "all")
 	if out, err := renderCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills render: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills render: %v\n%s", err, out)
 	}
 	if err := os.RemoveAll(filepath.Join(root, "skills", "ghost")); err != nil {
 		t.Fatal(err)
 	}
 	renderCmd = exec.Command(bin, "skills", "render", root, "--target", "all")
 	if out, err := renderCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills render after delete: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills render after delete: %v\n%s", err, out)
 	}
 	for _, rel := range []string{
 		filepath.Join("commands", "ghost.md"),
@@ -602,8 +602,8 @@ func TestHookplexSkillsRenderRemovesDeletedSkillArtifacts(t *testing.T) {
 	}
 }
 
-func TestHookplexSkillsInitEscapesManifestValues(t *testing.T) {
-	bin := buildHookplex(t)
+func TestPluginKitAISkillsInitEscapesManifestValues(t *testing.T) {
+	bin := buildPluginKitAI(t)
 	root := t.TempDir()
 
 	command := `python3 -c "print('a: b # c')"`
@@ -617,11 +617,11 @@ func TestHookplexSkillsInitEscapesManifestValues(t *testing.T) {
 		"--command", command,
 	)
 	if out, err := initCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills init: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills init: %v\n%s", err, out)
 	}
 	validateCmd := exec.Command(bin, "skills", "validate", root)
 	if out, err := validateCmd.CombinedOutput(); err != nil {
-		t.Fatalf("hookplex skills validate: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai skills validate: %v\n%s", err, out)
 	}
 	body, err := os.ReadFile(filepath.Join(root, "skills", "quoted-init", "SKILL.md"))
 	if err != nil {

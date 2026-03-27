@@ -1,0 +1,5 @@
+# Project-local Codex configuration.
+# Extend with approval, model, sandbox, MCP, and notifier settings as needed.
+
+model = "{{if .CodexModel}}{{.CodexModel}}{{else}}gpt-5-codex{{end}}"
+notify = ["{{.Entrypoint}}", "notify"]

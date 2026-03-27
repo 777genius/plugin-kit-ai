@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/ports"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/ports"
 )
 
 // Input is the install use case input.
@@ -89,7 +89,7 @@ func (in *Installer) Run(ctx context.Context, input Input) (Result, error) {
 		return Result{}, err
 	}
 	if rel.Prerelease && !input.AllowPrerelease {
-		return Result{}, domain.NewError(domain.ExitRelease, "release is prerelease (refused; use hookplex install --pre)")
+		return Result{}, domain.NewError(domain.ExitRelease, "release is prerelease (refused; use plugin-kit-ai install --pre)")
 	}
 	if err := validateOutputName(input.OutputName); err != nil {
 		return Result{}, err

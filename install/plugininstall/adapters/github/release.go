@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hookplex/hookplex/plugininstall/domain"
-	"github.com/hookplex/hookplex/plugininstall/internal/httpconfig"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/domain"
+	"github.com/plugin-kit-ai/plugin-kit-ai/plugininstall/internal/httpconfig"
 )
 
 type releaseDTO struct {

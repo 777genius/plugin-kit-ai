@@ -1,0 +1,9 @@
+# {{.ProjectName}}
+
+Repository instructions for Codex:
+
+- The generated entrypoint is `{{.Entrypoint}}`.
+- It is wired as a Codex `notify` hook through `.codex/config.toml`.
+- Use a smoke payload such as `{{.Entrypoint}} notify '{"client":"codex-tui"}'`.
+- Keep hook responses on stdout and diagnostics on stderr.
+- Keep project-specific workflows in `commands/` and reusable procedures in `skills/`.
