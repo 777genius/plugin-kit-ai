@@ -54,7 +54,7 @@ Codex is the first platform used to validate this runtime foundation, but the ru
 
 ## Consequences
 
-- The current `plugin-kit-ai.App` shape is legacy runtime, not a compatibility anchor.
+- The pre-redesign `plugin-kit-ai.App` shape is historical context, not a compatibility anchor.
 - The current switch-based dispatcher and `ClaudeWireCodec`-centered core are replaced, not generalized in place.
 - Core logic can be tested without importing any concrete platform event types.
 - Platform packages own their own event structs, wire codecs, manifest metadata, and response rules.
@@ -62,7 +62,7 @@ Codex is the first platform used to validate this runtime foundation, but the ru
 
 ## Non-Goals
 
-- Preserving `plugin-kit-ai.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or current `Run()` as compatibility facades.
+- Preserving `plugin-kit-ai.New()`, `OnStop()`, `OnPreToolUse()`, `OnUserPromptSubmit()`, or the pre-redesign `Run()` shape as compatibility facades.
 - Defining the full Go package tree or naming every internal file ahead of implementation.
 - Introducing a unified event model that erases platform-specific semantics.
 

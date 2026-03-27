@@ -108,7 +108,7 @@ func Validate(root, platform string) (Report, error) {
 		return Report{}, &ReportError{Report: Report{
 			Failures: []Failure{{
 				Kind:    FailureManifestInvalid,
-				Message: "legacy project manifest .plugin-kit-ai/project.toml is no longer supported; use plugin.yaml and targets/<platform>/...",
+				Message: "unsupported project format: .plugin-kit-ai/project.toml is not supported; use plugin.yaml and targets/<platform>/...",
 			}},
 		}}
 	}

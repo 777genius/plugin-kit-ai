@@ -150,7 +150,6 @@ Declared release review:
 
 - production plugin authoring guide: [PRODUCTION.md](./PRODUCTION.md)
 - stable-candidate ledger: [V0_9_AUDIT.md](./V0_9_AUDIT.md)
-- beta-breaking migration registry: [MIGRATIONS.md](./MIGRATIONS.md)
 - release playbook: [RELEASE.md](./RELEASE.md)
 - release notes template: [RELEASE_NOTES_TEMPLATE.md](./RELEASE_NOTES_TEMPLATE.md)
 - rehearsal worksheet: [REHEARSAL_TEMPLATE.md](./REHEARSAL_TEMPLATE.md)

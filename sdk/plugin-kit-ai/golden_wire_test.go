@@ -8,7 +8,7 @@ import (
 	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
 )
 
-// Golden fixtures (testdata/golden/) freeze minimal current-state wire shapes for the legacy runtime.
+// Golden fixtures (testdata/golden/) freeze minimal runtime wire shapes for regression coverage.
 func TestGolden_PreToolUseMinDecodes(t *testing.T) {
 	raw, err := os.ReadFile("testdata/golden/pretooluse_min.json")
 	if err != nil {

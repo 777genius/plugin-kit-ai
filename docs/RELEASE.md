@@ -45,13 +45,12 @@ Use this exact order for stable or beta release work:
 3. run `make test-install-compat`
 4. run `make test-polyglot-smoke`
 5. review `docs/V0_9_AUDIT.md`
-6. review `docs/MIGRATIONS.md`
-7. run or record `extended`
-8. run or record `live`
-9. record waivers for skipped external smoke if needed
-10. draft release notes from the release-notes template
-11. update each candidate row to `stable-approved`, `stays-beta`, or `blocked`
-12. cut the rehearsal or release tag only after the audit ledger is complete
+6. run or record `extended`
+7. run or record `live`
+8. record waivers for skipped external smoke if needed
+9. draft release notes from the release-notes template
+10. update each candidate row to `stable-approved`, `stays-beta`, or `blocked`
+11. cut the rehearsal or release tag only after the audit ledger is complete
 
 Required release artifacts:
 
@@ -64,7 +63,6 @@ Required release artifacts:
 - extended result
 - live result or waiver
 - updated audit ledger
-- updated migration registry
 - release notes draft
 
 No stable tag should be cut without one completed rehearsal cycle using this playbook.

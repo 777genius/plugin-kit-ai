@@ -2,7 +2,7 @@
 
 The SDK contract is split between `public-stable` and `internal`. Future additions remain `public-beta` until separately promoted.
 
-The declared `v1` candidate set is tracked repo-wide in [../../docs/V0_9_AUDIT.md](../../docs/V0_9_AUDIT.md), and beta-breaking moves are recorded in [../../docs/MIGRATIONS.md](../../docs/MIGRATIONS.md).
+The declared `v1` candidate set is tracked repo-wide in [../../docs/V0_9_AUDIT.md](../../docs/V0_9_AUDIT.md). Beta-breaking moves should be called out in the changelog and release notes.
 
 Promotion to `public-stable` is driven only by the final audit ledger and release rehearsal evidence. A candidate surface is not stable merely because it exists or is documented.
 

@@ -104,7 +104,7 @@ func TestImport_RejectsLegacyInternalProjectManifest(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), ".plugin-kit-ai/project.toml is no longer supported for import") {
+	if !strings.Contains(err.Error(), ".plugin-kit-ai/project.toml is not supported") {
 		t.Fatalf("error = %q", err)
 	}
 }
@@ -124,7 +124,7 @@ targets:
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "legacy plugin.yaml with schema_version is no longer supported") {
+	if !strings.Contains(err.Error(), "unsupported plugin.yaml format: schema_version-based manifests are not supported") {
 		t.Fatalf("error = %q", err)
 	}
 }
@@ -174,7 +174,7 @@ components:
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "legacy flat plugin.yaml with components inventory is no longer supported") {
+	if !strings.Contains(err.Error(), "unsupported plugin.yaml format: flat components inventory is not supported") {
 		t.Fatalf("error = %q", err)
 	}
 }

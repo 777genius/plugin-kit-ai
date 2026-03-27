@@ -40,7 +40,7 @@ func TestValidate_LegacyProjectManifestRejected(t *testing.T) {
 	if got := re.Report.Failures[0].Kind; got != FailureManifestInvalid {
 		t.Fatalf("failure kind = %q", got)
 	}
-	if !strings.Contains(re.Error(), ".plugin-kit-ai/project.toml is no longer supported") {
+	if !strings.Contains(re.Error(), ".plugin-kit-ai/project.toml is not supported") {
 		t.Fatalf("error = %q", re.Error())
 	}
 }

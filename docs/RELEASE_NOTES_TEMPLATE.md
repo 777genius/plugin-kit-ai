@@ -18,9 +18,9 @@ Pair this with [REHEARSAL_TEMPLATE.md](./REHEARSAL_TEMPLATE.md) when collecting 
 
 - list remaining beta surfaces
 
-## Migration Entries
+## Breaking Changes And Required User Action
 
-- list entries from `docs/MIGRATIONS.md` that affect this release
+- list beta-breaking or release-relevant changes and the required user action
 
 ## External Smoke Status
 

@@ -136,14 +136,14 @@ func Analyze(body []byte) (Manifest, []Warning, error) {
 		return Manifest{}, nil, fmt.Errorf("parse plugin.yaml: %w", err)
 	}
 	if _, ok := raw["schema_version"]; ok {
-		return Manifest{}, nil, fmt.Errorf("legacy plugin.yaml with schema_version is no longer supported; use package-standard plugin.yaml with targets")
+		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: schema_version-based manifests are not supported; use package-standard plugin.yaml with targets")
 	}
 	if _, ok := raw["components"]; ok {
-		return Manifest{}, nil, fmt.Errorf("legacy flat plugin.yaml with components inventory is no longer supported; use package-standard plugin.yaml plus conventions")
+		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: flat components inventory is not supported; use package-standard plugin.yaml plus conventions")
 	}
 	if rawTargets, ok := raw["targets"]; ok {
 		if _, legacy := rawTargets.(map[string]any); legacy {
-			return Manifest{}, nil, fmt.Errorf("legacy flat plugin.yaml target object is no longer supported; use targets as a YAML sequence")
+			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: legacy targets object is not supported; use targets as a YAML sequence")
 		}
 	}
 	warnings, err := collectWarnings(body)
@@ -434,7 +434,7 @@ func Drift(root string, target string) ([]string, error) {
 
 func Import(root string, from string) (Manifest, []Warning, error) {
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
-		return Manifest{}, nil, fmt.Errorf("legacy project manifest .plugin-kit-ai/project.toml is no longer supported for import; rewrite the project into the package standard layout")
+		return Manifest{}, nil, fmt.Errorf("unsupported project format for import: .plugin-kit-ai/project.toml is not supported; rewrite the project into the package standard layout")
 	}
 	from = normalizeTarget(from)
 	if from == "" {

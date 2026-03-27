@@ -29,7 +29,7 @@ Use this worksheet during the `v0.9` rehearsal and reuse the same structure for 
 ## Audit Updates
 
 - `docs/V0_9_AUDIT.md` updated:
-- `docs/MIGRATIONS.md` updated:
+- changelog / release notes updated:
 - final statuses assigned:
 
 ## Known Limitations

@@ -129,7 +129,7 @@ Claude is ported later as a peer platform on the same architecture, not as the b
 - Keep current behavior only as regression fixtures.
 - Write ADRs for runtime shape, descriptor model, unified capability policy, and transport model.
 - Delete or quarantine roadmap-heavy docs that describe non-shipped APIs.
-- Mark current architecture docs as current-state only.
+- Mark pre-redesign architecture docs as historical maintainer context only.
 
 ### Phase 2. Build the new engine with Codex first
 

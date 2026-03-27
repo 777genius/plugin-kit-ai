@@ -30,7 +30,6 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - deprecation or removal called out in docs/changelog
 - stable-candidate set impact reviewed
 - [V0_9_AUDIT.md](./V0_9_AUDIT.md) updated when the declared `v1` candidate set changes
-- [MIGRATIONS.md](./MIGRATIONS.md) updated for every beta-breaking user-visible change
 
 ## Rehearsal Completion
 
