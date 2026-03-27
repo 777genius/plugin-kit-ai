@@ -30,6 +30,7 @@ Canonical sources of truth:
 - beta-breaking migration registry: [docs/MIGRATIONS.md](docs/MIGRATIONS.md)
 - post-`v1` hardening mode: [docs/V1_0_X_HARDENING.md](docs/V1_0_X_HARDENING.md)
 - diagnostics contract: [docs/DIAGNOSTICS.md](docs/DIAGNOSTICS.md)
+- install compatibility contract: [docs/INSTALL_COMPATIBILITY.md](docs/INSTALL_COMPATIBILITY.md)
 - threat model: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
 Maintainer-only historical context:
@@ -192,6 +193,7 @@ Examples:
 - overwrite notice only when `--force` replaced an existing file
 
 The command verifies `checksums.txt` from the target release and installs third-party plugin binaries only. Self-update remains out of scope.
+Supported and refused release layouts are documented in [docs/INSTALL_COMPATIBILITY.md](docs/INSTALL_COMPATIBILITY.md).
 
 See:
 

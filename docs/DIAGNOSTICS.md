@@ -61,6 +61,7 @@ Install success output is also part of the stable CLI contract at a high level:
 - overwrite status is printed only when an existing file was replaced
 
 This contract covers verified installation of third-party plugin binaries only. It does not imply a self-update or auto-update subsystem for the `hookplex` CLI itself.
+Supported and refused release layouts are documented in [INSTALL_COMPATIBILITY.md](./INSTALL_COMPATIBILITY.md).
 
 ## Non-Contract Debug Data
 

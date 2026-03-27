@@ -33,6 +33,8 @@ For `install`, the stable CLI promise is limited to verified installation of thi
 - target GOOS/GOARCH
 - overwrite notice only when an existing file was replaced
 
+Supported and unsupported release layouts for `install` are documented in [../../docs/INSTALL_COMPATIBILITY.md](../../docs/INSTALL_COMPATIBILITY.md).
+
 See the root [README.md](../../README.md) for current CLI behavior, shipped scope, and canonical support links.
 See [../../docs/SKILLS.md](../../docs/SKILLS.md) for the skills workflow, positioning, and examples.
 

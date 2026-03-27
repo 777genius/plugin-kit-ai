@@ -1,0 +1,91 @@
+# Install Compatibility Contract
+
+This document records the real-world-inspired compatibility boundary for `hookplex install`.
+
+## Scope
+
+`hookplex install` is a stable surface for **verified installation of third-party plugin binaries from GitHub Releases**.
+
+It does **not** cover:
+
+- self-update of the `hookplex` CLI
+- auto-update behavior
+- arbitrary GitHub release layouts
+- zip extraction support
+
+## Supported Release Layouts
+
+The current stable install contract supports these release shapes:
+
+1. GoReleaser-style tarball:
+   - one matching `*_GOOS_GOARCH.tar.gz` asset for the requested target
+   - `checksums.txt` present on the same release
+   - the tarball contains one installable root binary
+
+2. Raw binary release:
+   - one matching `*-GOOS-GOARCH` asset, or `*.exe` on Windows
+   - `checksums.txt` present on the same release
+
+Selection precedence:
+
+- if exactly one matching tarball exists, it wins
+- raw binaries are used only when no single matching tarball is available
+
+Known companion raw utilities are ignored during selection:
+
+- `sound-preview-*`
+- `list-devices-*`
+- `list-sounds-*`
+
+## Required Files
+
+Stable verified install requires:
+
+- release metadata resolvable by `--tag` or `--latest`
+- `checksums.txt`
+- a checksum line for the exact installed asset
+
+Without `checksums.txt`, the install contract fails with the checksum error family by design.
+
+## Unsupported Or Refused Layouts
+
+These patterns are currently outside the stable contract:
+
+- zip-only releases
+- multiple matching `*_GOOS_GOARCH.tar.gz` archives
+- multiple matching raw binaries for the same target
+- asset names that do not encode target GOOS/GOARCH in the supported forms
+- tarballs without a single installable binary in the archive root
+- custom checksum filenames instead of `checksums.txt`
+
+When these appear, `hookplex install` is expected to fail cleanly with the documented release, checksum, filesystem, or ambiguous exit-family.
+
+## Repo-Owned Compatibility Evidence
+
+Compatibility evidence lives in two layers:
+
+- local fixture matrix:
+  - [repotests/testdata/install_compatibility/matrix.json](../repotests/testdata/install_compatibility/matrix.json)
+  - exercised by [repotests/hookplex_install_compatibility_test.go](../repotests/hookplex_install_compatibility_test.go)
+- live optional smoke:
+  - [repotests/hookplex_live_install_e2e_test.go](../repotests/hookplex_live_install_e2e_test.go)
+
+The local matrix is the default compatibility proof.
+The live lane is only for release evidence and manual confidence refresh.
+
+## Optional Live Compatibility Inputs
+
+Current live inputs:
+
+- built-in raw-binary smoke for `777genius/claude-notifications-go`
+- optional tarball smoke via:
+  - `HOOKPLEX_E2E_TARBALL_OWNER_REPO`
+  - `HOOKPLEX_E2E_TARBALL_TAG`
+  - `HOOKPLEX_E2E_TARBALL_BINARY`
+- optional unsupported-layout smoke via:
+  - `HOOKPLEX_E2E_UNSUPPORTED_OWNER_REPO`
+  - `HOOKPLEX_E2E_UNSUPPORTED_TAG`
+  - `HOOKPLEX_E2E_UNSUPPORTED_EXPECT_EXIT`
+  - `HOOKPLEX_E2E_UNSUPPORTED_SUBSTRING`
+
+These live checks are opt-in and are not part of the default `go test ./...` path.

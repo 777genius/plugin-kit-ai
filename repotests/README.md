@@ -5,7 +5,7 @@
 ## Что здесь
 
 - **Guard:** `TestSDKModule`, `TestCLIModule`, `TestPlugininstallModule` — подпроцессом гоняют `go test ./...` в `sdk/hookplex`, `cli/hookplex`, `install/plugininstall`.
-- **Интеграция:** `hookplex install` с моком GitHub (`hookplex_install_integration_test.go`), `hookplex init` + сгенерированный модуль (`cli_init_integration_test.go`).
+- **Интеграция:** `hookplex install` с моком GitHub (`hookplex_install_integration_test.go`), install compatibility matrix (`hookplex_install_compatibility_test.go`), `hookplex init` + сгенерированный модуль (`cli_init_integration_test.go`).
 - **CLI introspection:** `hookplex capabilities` integration check.
 - **Live GitHub:** `TestLiveInstall_*` — только с **`HOOKPLEX_E2E_LIVE=1`** и без `-short`; см. `make test-e2e-live`.
 - **Claude / hookplex-e2e:** JSON-фикстуры в `testdata/e2e_claude/` и opt-in real CLI smoke — **`HOOKPLEX_RUN_CLAUDE_CLI=1`**, флаг **`-args -claude-model=...`**.
@@ -29,6 +29,13 @@
 | `HOOKPLEX_REPO_ROOT` | Редко: переопределить корень репо (по умолчанию — walk-up по `go.mod` с `module github.com/hookplex/hookplex`). |
 | `HOOKPLEX_E2E_LIVE=1` | Включить live-тесты против github.com. |
 | `HOOKPLEX_E2E_NOTIFICATIONS_TAG` | Тег для pinned live-теста (по умолчанию `v1.34.0`). |
+| `HOOKPLEX_E2E_TARBALL_OWNER_REPO` | Опциональный live tarball repo для install compatibility smoke. |
+| `HOOKPLEX_E2E_TARBALL_TAG` | Тег для live tarball compatibility smoke. |
+| `HOOKPLEX_E2E_TARBALL_BINARY` | Ожидаемое имя установленного бинаря для live tarball smoke. |
+| `HOOKPLEX_E2E_UNSUPPORTED_OWNER_REPO` | Опциональный live repo с неподдерживаемым layout для clean-failure smoke. |
+| `HOOKPLEX_E2E_UNSUPPORTED_TAG` | Тег для unsupported live smoke. |
+| `HOOKPLEX_E2E_UNSUPPORTED_EXPECT_EXIT` | Ожидаемый exit code unsupported live smoke. |
+| `HOOKPLEX_E2E_UNSUPPORTED_SUBSTRING` | Опциональная diagnostic substring для unsupported live smoke. |
 | `GITHUB_TOKEN` | Опционально для API при live / rate limit. |
 | `HOOKPLEX_RUN_CLAUDE_CLI=1` | Реальный бинарник `claude` для CLI E2E. |
 | `HOOKPLEX_SKIP_CLAUDE_CLI=1` | Явно выключить CLI E2E. |

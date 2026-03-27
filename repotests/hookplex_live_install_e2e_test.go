@@ -26,9 +26,16 @@ import (
 //
 // Опционально: GITHUB_TOKEN в окружении при rate limit анонимного API.
 const (
-	liveE2EEnvVar            = "HOOKPLEX_E2E_LIVE"
-	liveE2EPinnedTagEnv      = "HOOKPLEX_E2E_NOTIFICATIONS_TAG" // default v1.34.0
-	notificationsGoOwnerRepo = "777genius/claude-notifications-go"
+	liveE2EEnvVar             = "HOOKPLEX_E2E_LIVE"
+	liveE2EPinnedTagEnv       = "HOOKPLEX_E2E_NOTIFICATIONS_TAG" // default v1.34.0
+	liveE2ETwitterballRepoEnv = "HOOKPLEX_E2E_TARBALL_OWNER_REPO"
+	liveE2ETwitterballTagEnv  = "HOOKPLEX_E2E_TARBALL_TAG"
+	liveE2ETwitterballBinEnv  = "HOOKPLEX_E2E_TARBALL_BINARY"
+	liveE2EUnsupportedRepoEnv = "HOOKPLEX_E2E_UNSUPPORTED_OWNER_REPO"
+	liveE2EUnsupportedTagEnv  = "HOOKPLEX_E2E_UNSUPPORTED_TAG"
+	liveE2EUnsupportedExitEnv = "HOOKPLEX_E2E_UNSUPPORTED_EXPECT_EXIT"
+	liveE2EUnsupportedNeedle  = "HOOKPLEX_E2E_UNSUPPORTED_SUBSTRING"
+	notificationsGoOwnerRepo  = "777genius/claude-notifications-go"
 )
 
 func skipUnlessLiveE2E(t *testing.T) {
@@ -77,6 +84,9 @@ func TestLiveInstall_NotificationsGo_latest(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
+	if !strings.Contains(string(out), "Release: ") || !strings.Contains(string(out), "Asset: ") || !strings.Contains(string(out), "Target: ") {
+		t.Fatalf("missing install summary lines:\n%s", out)
+	}
 
 	binPath := filepath.Join(outDir, notificationsGoExpectedBinaryName())
 	st, err := os.Stat(binPath)
@@ -107,6 +117,9 @@ func TestLiveInstall_NotificationsGo_pinnedTag(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d (tag=%q)\n%s", code, tag, out)
 	}
+	if !strings.Contains(string(out), "Release: "+tag+" (tag)") {
+		t.Fatalf("missing release summary:\n%s", out)
+	}
 
 	binPath := filepath.Join(outDir, notificationsGoExpectedBinaryName())
 	if _, err := os.Stat(binPath); err != nil {
@@ -130,6 +143,9 @@ func TestLiveInstall_NotificationsGo_customOutputName(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, out)
 	}
+	if !strings.Contains(string(out), "Installed "+filepath.Join(outDir, wantName)) {
+		t.Fatalf("missing installed-path summary:\n%s", out)
+	}
 
 	binPath := filepath.Join(outDir, wantName)
 	if _, err := os.Stat(binPath); err != nil {
@@ -137,4 +153,58 @@ func TestLiveInstall_NotificationsGo_customOutputName(t *testing.T) {
 	}
 
 	assertBinaryRunnable(t, binPath)
+}
+
+func TestLiveInstall_ConfiguredTarballRelease(t *testing.T) {
+	skipUnlessLiveE2E(t)
+
+	ownerRepo := strings.TrimSpace(os.Getenv(liveE2ETwitterballRepoEnv))
+	tag := strings.TrimSpace(os.Getenv(liveE2ETwitterballTagEnv))
+	binaryName := strings.TrimSpace(os.Getenv(liveE2ETwitterballBinEnv))
+	if ownerRepo == "" || tag == "" || binaryName == "" {
+		t.Skipf("set %s, %s, and %s to exercise live tarball compatibility", liveE2ETwitterballRepoEnv, liveE2ETwitterballTagEnv, liveE2ETwitterballBinEnv)
+	}
+
+	hookplexBin := buildHookplex(t)
+	outDir := t.TempDir()
+
+	code, out := runHookplexInstall(t, hookplexBin, "", ownerRepo,
+		"--tag", tag, "--dir", outDir, "--force")
+	if code != 0 {
+		t.Fatalf("exit %d (repo=%q tag=%q)\n%s", code, ownerRepo, tag, out)
+	}
+	if !strings.Contains(string(out), "Release: "+tag+" (tag)") || !strings.Contains(string(out), "Asset: ") {
+		t.Fatalf("missing install summary:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, binaryName)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLiveInstall_ConfiguredUnsupportedReleaseFailsCleanly(t *testing.T) {
+	skipUnlessLiveE2E(t)
+
+	ownerRepo := strings.TrimSpace(os.Getenv(liveE2EUnsupportedRepoEnv))
+	tag := strings.TrimSpace(os.Getenv(liveE2EUnsupportedTagEnv))
+	if ownerRepo == "" || tag == "" {
+		t.Skipf("set %s and %s to exercise live unsupported-release compatibility", liveE2EUnsupportedRepoEnv, liveE2EUnsupportedTagEnv)
+	}
+
+	wantExit := "2"
+	if v := strings.TrimSpace(os.Getenv(liveE2EUnsupportedExitEnv)); v != "" {
+		wantExit = v
+	}
+	wantNeedle := strings.TrimSpace(os.Getenv(liveE2EUnsupportedNeedle))
+
+	hookplexBin := buildHookplex(t)
+	outDir := t.TempDir()
+
+	code, out := runHookplexInstall(t, hookplexBin, "", ownerRepo,
+		"--tag", tag, "--dir", outDir, "--force")
+	if fmt.Sprint(code) != wantExit {
+		t.Fatalf("want exit %s, got %d (repo=%q tag=%q)\n%s", wantExit, code, ownerRepo, tag, out)
+	}
+	if wantNeedle != "" && !strings.Contains(string(out), wantNeedle) {
+		t.Fatalf("want diagnostic %q in output:\n%s", wantNeedle, out)
+	}
 }

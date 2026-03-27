@@ -68,6 +68,8 @@ Stable `hookplex install` contract:
 - permits overwrite only for existing files when `--force` is set
 - does not include self-update or auto-update behavior for the `hookplex` CLI itself
 
+The release-layout compatibility boundary for `hookplex install` is documented separately in [INSTALL_COMPATIBILITY.md](./INSTALL_COMPATIBILITY.md).
+
 Stable generated scaffold contract:
 
 - Codex required files: `go.mod`, `README.md`, `AGENTS.md`, `.codex/config.toml`, generated `cmd/<project>/main.go`
