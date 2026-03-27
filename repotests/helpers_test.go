@@ -1,4 +1,4 @@
-package hookplexrepo_test
+package pluginkitairepo_test
 
 import (
 	"bufio"
@@ -13,14 +13,14 @@ import (
 	"time"
 )
 
-const rootGoModModuleLine = "module github.com/hookplex/hookplex"
+const rootGoModModuleLine = "module github.com/plugin-kit-ai/plugin-kit-ai"
 
-// RepoRoot returns the hookplex monorepo root (directory containing the anchor go.mod).
-// Walks up from the caller's file until it finds go.mod with module github.com/hookplex/hookplex.
-// Override with HOOKPLEX_REPO_ROOT for debugging.
+// RepoRoot returns the plugin-kit-ai monorepo root (directory containing the anchor go.mod).
+// Walks up from the caller's file until it finds go.mod with module github.com/plugin-kit-ai/plugin-kit-ai.
+// Override with PLUGIN_KIT_AI_REPO_ROOT for debugging.
 func RepoRoot(tb testing.TB) string {
 	tb.Helper()
-	if v := strings.TrimSpace(os.Getenv("HOOKPLEX_REPO_ROOT")); v != "" {
+	if v := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_REPO_ROOT")); v != "" {
 		return v
 	}
 	_, file, _, ok := runtime.Caller(1)
@@ -35,7 +35,7 @@ func RepoRoot(tb testing.TB) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			tb.Fatalf("hookplex repo root not found from %s (expected %s in a parent go.mod)", file, rootGoModModuleLine)
+			tb.Fatalf("plugin-kit-ai repo root not found from %s (expected %s in a parent go.mod)", file, rootGoModModuleLine)
 		}
 		dir = parent
 	}
@@ -59,28 +59,55 @@ func isAnchorGoMod(path string) bool {
 	return strings.TrimSpace(s.Text()) == rootGoModModuleLine
 }
 
-func buildHookplex(t *testing.T) string {
+func buildPluginKitAI(t *testing.T) string {
 	t.Helper()
 	root := RepoRoot(t)
-	cliDir := filepath.Join(root, "cli", "hookplex")
+	cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
 	binDir := t.TempDir()
-	name := "hookplex"
+	name := "plugin-kit-ai"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	hookplexBin := filepath.Join(binDir, name)
-	build := exec.Command("go", "build", "-o", hookplexBin, "./cmd/hookplex")
+	pluginKitAIBin := filepath.Join(binDir, name)
+	build := exec.Command("go", "build", "-o", pluginKitAIBin, "./cmd/plugin-kit-ai")
 	build.Dir = cliDir
 	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build hookplex: %v\n%s", err, out)
+		t.Fatalf("build plugin-kit-ai: %v\n%s", err, out)
 	}
-	return hookplexBin
+	return pluginKitAIBin
 }
 
-func runInstall(t *testing.T, hookplexBin, workDir, apiBase string, extraArgs ...string) (exitCode int, output []byte) {
+func copyTree(t *testing.T, src, dst string) {
+	t.Helper()
+	if err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, body, info.Mode())
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runInstall(t *testing.T, pluginKitAIBin, workDir, apiBase string, extraArgs ...string) (exitCode int, output []byte) {
 	t.Helper()
 	args := append([]string{"install", "o/r", "--github-api-base", apiBase}, extraArgs...)
-	cmd := exec.Command(hookplexBin, args...)
+	cmd := exec.Command(pluginKitAIBin, args...)
 	if workDir != "" {
 		cmd.Dir = workDir
 	}
@@ -95,10 +122,10 @@ func runInstall(t *testing.T, hookplexBin, workDir, apiBase string, extraArgs ..
 	return 0, out
 }
 
-func runHookplexInstall(t *testing.T, hookplexBin, workDir, ownerRepo string, extraArgs ...string) (exitCode int, output []byte) {
+func runPluginKitAIInstall(t *testing.T, pluginKitAIBin, workDir, ownerRepo string, extraArgs ...string) (exitCode int, output []byte) {
 	t.Helper()
 	args := append([]string{"install", ownerRepo}, extraArgs...)
-	cmd := exec.Command(hookplexBin, args...)
+	cmd := exec.Command(pluginKitAIBin, args...)
 	if workDir != "" {
 		cmd.Dir = workDir
 	}
@@ -108,38 +135,38 @@ func runHookplexInstall(t *testing.T, hookplexBin, workDir, ownerRepo string, ex
 		if ee, ok := err.(*exec.ExitError); ok {
 			return ee.ExitCode(), out
 		}
-		t.Fatalf("hookplex install: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai install: %v\n%s", err, out)
 	}
 	return 0, out
 }
 
-// buildHookplexE2E builds sdk/hookplex/cmd/hookplex-e2e into a temp dir and returns the binary path.
-func buildHookplexE2E(t *testing.T) string {
+// buildPluginKitAIE2E builds sdk/plugin-kit-ai/cmd/plugin-kit-ai-e2e into a temp dir and returns the binary path.
+func buildPluginKitAIE2E(t *testing.T) string {
 	t.Helper()
 	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk", "hookplex")
+	sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
 	binDir := t.TempDir()
-	name := "hookplex-e2e"
+	name := "plugin-kit-ai-e2e"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
 	out := filepath.Join(binDir, name)
-	cmd := exec.Command("go", "build", "-o", out, "./cmd/hookplex-e2e")
+	cmd := exec.Command("go", "build", "-o", out, "./cmd/plugin-kit-ai-e2e")
 	cmd.Dir = sdkDir
 	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build hookplex-e2e: %v\n%s", err, b)
+		t.Fatalf("build plugin-kit-ai-e2e: %v\n%s", err, b)
 	}
 	return out
 }
 
 func requireBindTests(t *testing.T) {
 	t.Helper()
-	if os.Getenv("HOOKPLEX_BIND_TESTS") == "1" {
+	if os.Getenv("PLUGIN_KIT_AI_BIND_TESTS") == "1" {
 		return
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		t.Skipf("requires loopback bind support or HOOKPLEX_BIND_TESTS=1: %v", err)
+		t.Skipf("requires loopback bind support or PLUGIN_KIT_AI_BIND_TESTS=1: %v", err)
 	}
 	_ = ln.Close()
 }

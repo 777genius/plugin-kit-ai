@@ -19,5 +19,8 @@ jobs:
       - name: Test (required lane)
         run: make test-required
 
+      - name: Plugin Manifest Workflow
+        run: make test-plugin-manifest-workflow
+
       - name: Vet (all workspace modules)
         run: make vet

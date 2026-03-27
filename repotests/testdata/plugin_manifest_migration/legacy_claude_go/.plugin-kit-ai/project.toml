@@ -1,0 +1,5 @@
+schema_version = 1
+platform = "claude"
+runtime = "go"
+execution_mode = "direct"
+entrypoint = "./bin/legacy-claude-go"

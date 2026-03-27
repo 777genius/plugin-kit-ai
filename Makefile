@@ -1,6 +1,6 @@
-.PHONY: test test-required test-install-compat test-extended test-live test-live-cli test-install-live test-e2e-live generated-check release-gate release-rehearsal build-hookplex vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-e2e-live generated-check release-gate release-rehearsal build-plugin-kit-ai vet
 
-GOCACHE ?= /tmp/hookplex-gocache
+GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
 
 EXTENDED_TEST_ARGS ?=
@@ -11,12 +11,20 @@ test:
 test-required:
 	go test ./...
 
+test-plugin-manifest-workflow:
+	go test -count=1 -run 'TestPluginKitAI(ValidateWarnsButSucceedsOnExtraPluginYAMLFields|ValidateStrictFailsOnWarningsThenNormalizeFixesThem|ImportPrintsWarningsForIgnoredAssets|MigrationFixtures_RoundTripToStrictValidation)$$' ./repotests
+
 test-install-compat:
-	go test -count=1 -run '^TestHookplexInstall_' ./repotests
+	go test -count=1 -run '^TestPluginKitAIInstall_' ./repotests
 
 test-extended:
 	go test -count=1 -run '^TestClaudeCLIHooks$$' ./repotests $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run '^TestCodexCLINotify$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-polyglot-smoke:
+	go test -count=1 -run 'TestRenderTemplate_(PythonLauncherWindowsFallbackOrder|ShellLauncherWindowsRequiresBash)$$' ./cli/plugin-kit-ai/internal/scaffold
+	go test -count=1 -run 'Test(FindPython_UsesPlatformAwareLookupOrder|Validate_ManifestProject_WindowsCmdLauncherAccepted|Validate_ManifestProject_ShellRequiresBashOnWindows|ShellLauncherPassthrough)$$' ./cli/plugin-kit-ai/internal/validate
+	go test -count=1 -run 'TestPluginKitAI(Init(GoRuntimeLauncherFlow|PythonRuntimeLauncherFlow|ShellRuntimeLauncherFlow|NodeRuntimeSupportsTypeScriptBuildThroughLauncher)|RuntimeABIPassthrough|PythonLauncherPrefersProjectVenvOnWindows)$$' ./repotests
 
 # Live E2E: real GitHub + real claude-notifications-go release (needs network). Optional: GITHUB_TOKEN.
 # Package is ./repotests (tests moved out of repo root).
@@ -26,16 +34,16 @@ test-live-cli:
 	go test -count=1 -run 'TestClaudeHooks_LiveHaikuLow' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-install-live:
-	HOOKPLEX_E2E_LIVE=1 go test -count=1 -timeout=15m -run '^TestLiveInstall_' ./repotests
+	PLUGIN_KIT_AI_E2E_LIVE=1 go test -count=1 -timeout=15m -run '^TestLiveInstall_' ./repotests
 
 test-e2e-live: test-install-live
 
 # Root module is workspace-only; submodules are vetted explicitly.
 vet:
 	go vet ./...
-	cd cli/hookplex && go vet ./...
+	cd cli/plugin-kit-ai && go vet ./...
 	cd install/plugininstall && go vet ./...
-	cd sdk/hookplex && go vet ./...
+	cd sdk/plugin-kit-ai && go vet ./...
 
 generated-check:
 	bash ./scripts/check-generated-sync.sh
@@ -49,5 +57,5 @@ release-rehearsal: release-gate
 	$(MAKE) test-install-compat
 	@echo "Release rehearsal deterministic checks complete. Record install compatibility, extended/live evidence, audit updates, and release notes draft."
 
-build-hookplex:
-	go build -o bin/hookplex ./cli/hookplex/cmd/hookplex
+build-plugin-kit-ai:
+	go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai

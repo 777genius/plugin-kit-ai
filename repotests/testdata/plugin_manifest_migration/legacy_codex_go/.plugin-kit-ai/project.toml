@@ -1,0 +1,5 @@
+schema_version = 1
+platform = "codex"
+runtime = "go"
+execution_mode = "direct"
+entrypoint = "./bin/legacy-codex-go"

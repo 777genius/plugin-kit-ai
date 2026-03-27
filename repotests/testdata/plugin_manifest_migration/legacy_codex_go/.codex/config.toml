@@ -1,0 +1,2 @@
+model = "gpt-5-codex"
+notify = ["./bin/legacy-codex-go", "notify"]
