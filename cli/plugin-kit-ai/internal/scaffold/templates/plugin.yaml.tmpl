@@ -1,0 +1,26 @@
+schema_version: 1
+name: "{{.ProjectName}}"
+version: "{{.Version}}"
+description: "{{.Description}}"
+runtime: "{{.Runtime}}"
+entrypoint: "{{.Entrypoint}}"
+targets:
+  enabled:
+    - "{{.Platform}}"
+{{- if and (eq .Platform "codex") .CodexModel }}
+  codex:
+    model: "{{.CodexModel}}"
+{{- end }}
+components:
+{{- if .HasSkills }}
+  skills:
+    - path: "skills/{{.ProjectName}}/SKILL.md"
+{{- else }}
+  skills: []
+{{- end }}
+{{- if .HasCommands }}
+  commands:
+    - path: "commands/{{.ProjectName}}.md"
+{{- else }}
+  commands: []
+{{- end }}
