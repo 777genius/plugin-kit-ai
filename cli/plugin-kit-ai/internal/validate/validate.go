@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -433,7 +434,7 @@ func validateRuntimeFiles(root string, manifest projectManifest, report *Report)
 	case "python":
 		validateLauncher(root, manifest, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
-		if _, err := findPython(root); err != nil {
+		if err := validatePythonRuntime(root); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
 				Message: err.Error(),
@@ -441,12 +442,12 @@ func validateRuntimeFiles(root string, manifest projectManifest, report *Report)
 		}
 	case "node":
 		validateLauncher(root, manifest, report)
-		validateRuntimeFileExists(root, "src/main.mjs", report)
 		validateRuntimeFileExists(root, "package.json", report)
-		if _, err := exec.LookPath("node"); err != nil {
+		validateNodeRuntimeTarget(root, manifest.Entrypoint, report)
+		if err := validateNodeRuntime(); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: "runtime not found: node",
+				Message: err.Error(),
 			})
 		}
 	case "shell":
@@ -456,7 +457,7 @@ func validateRuntimeFiles(root string, manifest projectManifest, report *Report)
 			if _, err := exec.LookPath("bash"); err != nil {
 				report.Failures = append(report.Failures, Failure{
 					Kind:    FailureRuntimeNotFound,
-					Message: "runtime not found: bash",
+					Message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
 				})
 			}
 		}
@@ -480,7 +481,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 	case "python":
 		validatePluginLauncher(root, manifest, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
-		if _, err := findPython(root); err != nil {
+		if err := validatePythonRuntime(root); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
 				Message: err.Error(),
@@ -488,17 +489,25 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 		}
 	case "node":
 		validatePluginLauncher(root, manifest, report)
-		validateRuntimeFileExists(root, "src/main.mjs", report)
 		validateRuntimeFileExists(root, "package.json", report)
-		if _, err := exec.LookPath("node"); err != nil {
+		validateNodeRuntimeTarget(root, manifest.Entrypoint, report)
+		if err := validateNodeRuntime(); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: "runtime not found: node",
+				Message: err.Error(),
 			})
 		}
 	case "shell":
 		validatePluginLauncher(root, manifest, report)
 		validateRuntimeTargetExecutable(root, "scripts/main.sh", report)
+		if runtime.GOOS == "windows" {
+			if _, err := exec.LookPath("bash"); err != nil {
+				report.Failures = append(report.Failures, Failure{
+					Kind:    FailureRuntimeNotFound,
+					Message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
+				})
+			}
+		}
 	}
 }
 
@@ -597,20 +606,47 @@ func validateRuntimeTargetExecutable(root, rel string, report *Report) {
 	}
 }
 
-func findPython(root string) (string, error) {
+type pythonRuntimeResolution struct {
+	Path   string
+	Source string
+}
+
+func validatePythonRuntime(root string) error {
+	resolution, err := findPython(root)
+	if err != nil {
+		return err
+	}
+	if _, err := exec.Command(resolution.Path, "--version").CombinedOutput(); err != nil {
+		switch resolution.Source {
+		case "project-venv":
+			return fmt.Errorf("runtime not found: found project virtualenv interpreter at %s but it is not runnable (%v); recreate .venv or install Python 3.10+", resolution.Path, err)
+		default:
+			return fmt.Errorf("runtime not found: found %s at %s but it is not runnable (%v); install Python 3.10+ or repair your PATH", resolution.Source, resolution.Path, err)
+		}
+	}
+	return nil
+}
+
+func findPython(root string) (pythonRuntimeResolution, error) {
 	candidates := pythonCandidates(root)
+	venvExists := fileExists(filepath.Join(root, ".venv")) || dirExists(filepath.Join(root, ".venv"))
 	for _, candidate := range candidates {
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate, nil
+			return pythonRuntimeResolution{Path: candidate, Source: "project-venv"}, nil
 		}
+	}
+	checkedVenv := strings.Join(candidates, ", ")
+	checkedPath := strings.Join(pythonPathNames(), ", ")
+	if venvExists {
+		return pythonRuntimeResolution{}, fmt.Errorf("runtime not found: python runtime required; checked project virtualenv (%s); found .venv but no runnable interpreter. Recreate .venv or install Python 3.10+", checkedVenv)
 	}
 	for _, name := range pythonPathNames() {
 		path, err := exec.LookPath(name)
 		if err == nil {
-			return path, nil
+			return pythonRuntimeResolution{Path: path, Source: "system-path"}, nil
 		}
 	}
-	return "", fmt.Errorf("runtime not found: %s", strings.Join(pythonPathNames(), " or "))
+	return pythonRuntimeResolution{}, fmt.Errorf("runtime not found: python runtime required; checked PATH runtimes (%s). Install Python 3.10+ or create .venv with python3 -m venv .venv", checkedPath)
 }
 
 func pythonCandidates(root string) []string {
@@ -631,4 +667,69 @@ func pythonPathNames() []string {
 		return []string{"python", "python3"}
 	}
 	return []string{"python3"}
+}
+
+func validateNodeRuntime() error {
+	path, err := exec.LookPath("node")
+	if err != nil {
+		return fmt.Errorf("runtime not found: node runtime required; checked PATH for node. Install Node.js 20+")
+	}
+	if _, err := exec.Command(path, "--version").CombinedOutput(); err != nil {
+		return fmt.Errorf("runtime not found: found node at %s but it is not runnable (%v); install or repair Node.js 20+", path, err)
+	}
+	return nil
+}
+
+func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
+	rel := detectNodeRuntimeTarget(root, entrypoint)
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	if _, err := os.Stat(full); err == nil {
+		return
+	}
+	message := "runtime target missing: " + rel
+	if strings.HasPrefix(rel, "dist/") || strings.HasPrefix(rel, "build/") {
+		message += " (launcher points to built output; run npm install && npm run build, or restore the launcher target)"
+	} else {
+		message += " (restore the generated scaffold target or update the launcher)"
+	}
+	report.Failures = append(report.Failures, Failure{
+		Kind:    FailureRuntimeTargetMissing,
+		Path:    rel,
+		Message: message,
+	})
+}
+
+func detectNodeRuntimeTarget(root, entrypoint string) string {
+	body, err := os.ReadFile(launcherPath(root, entrypoint))
+	if err != nil {
+		return "src/main.mjs"
+	}
+	text := filepath.ToSlash(string(body))
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`\$ROOT/([^"\s]+\.(?:mjs|js))`),
+		regexp.MustCompile(`%ROOT%/([^"\r\n]+\.(?:mjs|js))`),
+	}
+	for _, pattern := range patterns {
+		matches := pattern.FindStringSubmatch(text)
+		if len(matches) == 2 {
+			return matches[1]
+		}
+	}
+	return "src/main.mjs"
+}
+
+func launcherPath(root, entrypoint string) string {
+	rel := strings.TrimPrefix(filepath.Clean(entrypoint), "./")
+	full := filepath.Join(root, rel)
+	if runtime.GOOS == "windows" {
+		if _, err := os.Stat(full + ".cmd"); err == nil {
+			return full + ".cmd"
+		}
+	}
+	return full
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

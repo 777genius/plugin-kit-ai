@@ -141,6 +141,36 @@ func TestValidate_ManifestProject_RuntimeNotFound(t *testing.T) {
 	}
 }
 
+func TestValidate_ManifestProject_NodeLauncherTargetMissingShowsBuildGuidance(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, filepath.Join(".plugin-kit-ai", "project.toml"), "schema_version = 1\nplatform = \"codex\"\nruntime = \"node\"\nexecution_mode = \"launcher\"\nentrypoint = \"./bin/x\"\n")
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, "package.json", "{}\n")
+	if runtime.GOOS == "windows" {
+		mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\nsetlocal\r\nset \"ROOT=%~dp0..\"\r\nnode \"%ROOT%\\dist\\main.js\" %*\r\n")
+	} else {
+		mustWriteValidateFile(t, dir, filepath.Join("bin", "x"), "#!/usr/bin/env bash\nset -euo pipefail\nROOT=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")/..\" && pwd)\"\nexec \"$(command -v node)\" \"$ROOT/dist/main.js\" \"$@\"\n")
+		mustChmodExecutable(t, filepath.Join(dir, "bin", "x"))
+	}
+
+	report, err := Validate(dir, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureRuntimeTargetMissing && strings.Contains(failure.Message, "npm install && npm run build") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestFindPython_UsesPlatformAwareLookupOrder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -151,8 +181,8 @@ func TestFindPython_UsesPlatformAwareLookupOrder(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got != venv {
-			t.Fatalf("findPython = %q, want %q", got, venv)
+		if got.Path != venv {
+			t.Fatalf("findPython = %q, want %q", got.Path, venv)
 		}
 		return
 	}
@@ -162,8 +192,26 @@ func TestFindPython_UsesPlatformAwareLookupOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != venv {
-		t.Fatalf("findPython = %q, want %q", got, venv)
+	if got.Path != venv {
+		t.Fatalf("findPython = %q, want %q", got.Path, venv)
+	}
+}
+
+func TestValidatePythonRuntime_BrokenProjectVenvShowsRecoveryGuidance(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("PATH", "")
+	if runtime.GOOS == "windows" {
+		mustWriteValidateFile(t, root, filepath.Join(".venv", "Scripts", "python.exe"), "not-a-real-exe")
+	} else {
+		mustWriteValidateFile(t, root, filepath.Join(".venv", "bin", "python3"), "#!/usr/bin/env bash\nexit 0\n")
+	}
+
+	err := validatePythonRuntime(root)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "recreate .venv") {
+		t.Fatalf("error = %q", err)
 	}
 }
 
