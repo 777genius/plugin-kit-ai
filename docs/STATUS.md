@@ -17,9 +17,9 @@ This ledger tracks the current delivery state of the shipped architecture and th
 | Public contract freeze | done | `README`, support policy, and SDK stability docs now describe the current shipped contract instead of a transition state. |
 | Codex GA path | done | Runtime, scaffold, validate, integration coverage, and repository-owned opt-in real `codex exec` smoke test exist. The supported invocation semantics are now frozen in the release audit, and external runtime-health failures are explicitly outside the hookplex stable promise. |
 | Claude stabilization | done | Deterministic coverage, real-CLI smoke policy, and declared event-set review are complete. External Claude runtime connectivity failures are now handled as documented release waivers when hook execution is never reached. |
-| Quality gates | partial | `required`, `extended`, and `live` lanes now exist in repo automation, and install compatibility now has a dedicated deterministic matrix plus optional live smoke inputs. Remaining gap: refresh real tarball/unsupported live evidence on a candidate release. |
+| Quality gates | done | `required`, `extended`, and `live` lanes exist in repo automation. Install compatibility now has both a deterministic matrix and refreshed live raw-binary / supported-tarball / unsupported-layout evidence. |
 | Release discipline | done | Changelog, CI lanes, release checklist, audit ledger, migration registry, release playbook, release-notes template, rehearsal worksheet, install verification, and version command exist. A full release rehearsal has been recorded. |
-| Security and diagnostics | partial | Threat model, diagnostics contract, checksum verification, install compatibility contract, and regression coverage exist. Remaining gap: carry them through live release evidence and close remaining accepted gaps deliberately. |
+| Security and diagnostics | done | Threat model, diagnostics contract, checksum verification, install compatibility contract, deterministic regression coverage, and refreshed live install compatibility evidence now exist. |
 | `v1.0` readiness | partial | Rehearsal evidence and stable-approved decisions exist. Latest full-access evidence refresh passed deterministic, extended, and live checks. Remaining gap: final maintainer sign-off and tag execution. |
 
 ## Current Blockers
