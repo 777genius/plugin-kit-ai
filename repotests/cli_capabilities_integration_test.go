@@ -16,8 +16,11 @@ func TestPluginKitAICapabilities(t *testing.T) {
 		t.Fatalf("capabilities table: %v\n%s", err, tableOut)
 	}
 	table := string(tableOut)
-	if !strings.Contains(table, "claude") || !strings.Contains(table, "codex") || !strings.Contains(table, "MATURITY") {
+	if !strings.Contains(table, "claude") || !strings.Contains(table, "codex") || !strings.Contains(table, "MATURITY") || !strings.Contains(table, "CONTRACT") {
 		t.Fatalf("unexpected capabilities table output:\n%s", table)
+	}
+	if strings.Contains(strings.ToLower(table), "gemini") {
+		t.Fatalf("capabilities table should stay runtime-only and exclude gemini:\n%s", table)
 	}
 
 	jsonCmd := exec.Command(pluginKitAIBin, "capabilities", "--format", "json", "--platform", "claude")
@@ -38,6 +41,9 @@ func TestPluginKitAICapabilities(t *testing.T) {
 		}
 		if entry["maturity"] == "" {
 			t.Fatalf("missing maturity entry: %+v", entry)
+		}
+		if entry["contract_class"] == "" {
+			t.Fatalf("missing contract_class entry: %+v", entry)
 		}
 		if entry["scaffold_support"] != true || entry["validate_support"] != true {
 			t.Fatalf("expected scaffold/validate support in entry: %+v", entry)

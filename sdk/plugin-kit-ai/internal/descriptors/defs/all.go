@@ -117,7 +117,7 @@ func Events() []EventDescriptor {
 			},
 			Carrier: runtime.CarrierStdinJSON,
 			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
+				Maturity: runtime.MaturityStable,
 				V1Target: true,
 			},
 			DecodeFunc: "DecodeStop",
@@ -147,7 +147,7 @@ func Events() []EventDescriptor {
 			},
 			Carrier: runtime.CarrierStdinJSON,
 			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
+				Maturity: runtime.MaturityStable,
 				V1Target: true,
 			},
 			DecodeFunc: "DecodePreToolUse",
@@ -177,7 +177,7 @@ func Events() []EventDescriptor {
 			},
 			Carrier: runtime.CarrierStdinJSON,
 			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
+				Maturity: runtime.MaturityStable,
 				V1Target: true,
 			},
 			DecodeFunc: "DecodeUserPromptSubmit",
@@ -612,7 +612,7 @@ func Events() []EventDescriptor {
 			},
 			Carrier: runtime.CarrierArgvJSON,
 			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
+				Maturity: runtime.MaturityStable,
 				V1Target: true,
 			},
 			DecodeFunc: "DecodeNotify",

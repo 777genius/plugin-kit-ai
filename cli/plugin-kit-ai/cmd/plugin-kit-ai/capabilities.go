@@ -15,8 +15,12 @@ var (
 
 var capabilitiesCmd = &cobra.Command{
 	Use:   "capabilities",
-	Short: "Show generated hook and capability support",
-	Args:  cobra.NoArgs,
+	Short: "Show generated runtime support and contract class",
+	Long: `Shows generated runtime-event support metadata for production and beta hook paths.
+
+This command is runtime-focused: it reports Claude and Codex event support plus their contract class.
+Packaging-only targets such as Gemini are documented in SUPPORT.md and intentionally do not appear in this output.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		entries := capabilities.ByPlatform(capabilitiesPlatform)
 		switch strings.ToLower(strings.TrimSpace(capabilitiesFormat)) {

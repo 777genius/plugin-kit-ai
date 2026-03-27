@@ -260,6 +260,116 @@ func TestRenderTemplate_ShellLauncherWindowsRequiresBash(t *testing.T) {
 	}
 }
 
+func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		template string
+		runtime  string
+		wants    []string
+	}{
+		{
+			name:     "claude-python",
+			template: "README.executable.md.tmpl",
+			runtime:  "python",
+			wants: []string{
+				"Status: `public-beta`, repo-local executable ABI",
+				"system Python `3.10+`",
+				"plugin-kit-ai validate . --platform claude --strict",
+				"Do not write debug logs or human-readable status lines to stdout.",
+			},
+		},
+		{
+			name:     "codex-node",
+			template: "codex.README.executable.md.tmpl",
+			runtime:  "node",
+			wants: []string{
+				"system Node.js `20+`",
+				"package-lock.json",
+				"TypeScript remains a build-to-JavaScript path",
+				"plugin-kit-ai validate . --platform codex --strict",
+			},
+		},
+		{
+			name:     "claude-shell",
+			template: "README.executable.md.tmpl",
+			runtime:  "shell",
+			wants: []string{
+				"POSIX shell on Unix",
+				"`bash` in `PATH`",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			body, _, err := RenderTemplate(tc.template, Data{
+				Runtime:    tc.runtime,
+				Entrypoint: "./bin/demo",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := string(body)
+			for _, want := range tc.wants {
+				if !strings.Contains(got, want) {
+					t.Fatalf("template missing %q:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		template string
+		wants    []string
+	}{
+		{
+			name:     "claude-go",
+			template: "README.md.tmpl",
+			wants: []string{
+				"Status: `production-ready`, stable default path",
+				"Bootstrap contract: Go `1.22+`",
+				"plugin-kit-ai validate . --platform claude --strict",
+				"Do not write debug logs or human-readable status lines to stdout.",
+			},
+		},
+		{
+			name:     "codex-go",
+			template: "codex.README.md.tmpl",
+			wants: []string{
+				"Status: `production-ready`, stable default path",
+				"Bootstrap contract: Go `1.22+`",
+				"plugin-kit-ai validate . --platform codex --strict",
+				"Keep stdout reserved for Codex responses; write diagnostics to stderr only.",
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			body, _, err := RenderTemplate(tc.template, Data{
+				ProjectName: "demo",
+				Entrypoint:  "./bin/demo",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := string(body)
+			for _, want := range tc.wants {
+				if !strings.Contains(got, want) {
+					t.Fatalf("template missing %q:\n%s", want, got)
+				}
+			}
+		})
+	}
+}
+
 func contains(haystack []string, needle string) bool {
 	for _, item := range haystack {
 		if item == needle {

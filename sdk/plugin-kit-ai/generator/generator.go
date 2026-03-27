@@ -374,16 +374,17 @@ func renderValidateRules(m model) string {
 func renderSupportMatrix(m model) string {
 	var b strings.Builder
 	b.WriteString("# Generated Support Matrix\n\n")
-	b.WriteString("This generated table is the canonical per-event support contract for shipped runtime claims.\n\n")
-	b.WriteString("| Platform | Event | Status | Maturity | V1 Target | Invocation | Carrier | Transport Modes | Scaffold | Validate | Capabilities | Live Test | Summary |\n")
-	b.WriteString("|----------|-------|--------|----------|-----------|------------|---------|-----------------|----------|----------|--------------|-----------|---------|\n")
+	b.WriteString("This generated table is the canonical per-event runtime support contract for shipped runtime claims. Packaging-only targets such as Gemini are documented in SUPPORT.md and are intentionally not listed here.\n\n")
+	b.WriteString("| Platform | Event | Status | Maturity | Contract Class | V1 Target | Invocation | Carrier | Transport Modes | Scaffold | Validate | Capabilities | Live Test | Summary |\n")
+	b.WriteString("|----------|-------|--------|----------|----------------|-----------|------------|---------|-----------------|----------|----------|--------------|-----------|---------|\n")
 	for _, e := range m.events {
 		p := m.profiles[e.Platform]
-		b.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %t | %s | %s | %s | %t | %t | %s | %s | %s |\n",
+		b.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %t | %s | %s | %s | %t | %t | %s | %s | %s |\n",
 			e.Platform,
 			e.Event,
 			p.Status,
 			e.Contract.Maturity,
+			contractClass(p, e),
 			e.Contract.V1Target,
 			e.Invocation.Kind,
 			e.Carrier,
@@ -396,6 +397,25 @@ func renderSupportMatrix(m model) string {
 		))
 	}
 	return b.String()
+}
+
+func contractClass(p defs.PlatformProfile, e defs.EventDescriptor) string {
+	if p.Status == runtime.StatusRuntimeSupported {
+		switch e.Contract.Maturity {
+		case runtime.MaturityStable:
+			return "production-ready"
+		case runtime.MaturityExperimental:
+			return "public-experimental"
+		default:
+			return "runtime-supported but not stable"
+		}
+	}
+	switch e.Contract.Maturity {
+	case runtime.MaturityExperimental:
+		return "public-experimental"
+	default:
+		return "public-beta"
+	}
 }
 
 func carrierExpr(c runtime.CarrierKind) string {

@@ -14,6 +14,7 @@ type Entry struct {
 	Event           string   `json:"event"`
 	Status          string   `json:"status"`
 	Maturity        string   `json:"maturity"`
+	ContractClass   string   `json:"contract_class"`
 	V1Target        bool     `json:"v1_target"`
 	InvocationKind  string   `json:"invocation_kind"`
 	Carrier         string   `json:"carrier"`
@@ -51,9 +52,9 @@ func JSON(entries []Entry) ([]byte, error) {
 func Table(entries []Entry) []byte {
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 0, 2, ' ', 0)
-	_, _ = w.Write([]byte("PLATFORM\tEVENT\tSTATUS\tMATURITY\tV1\tINVOCATION\tCARRIER\tTRANSPORT\tSCAFFOLD\tVALIDATE\tCAPABILITIES\tSUMMARY\n"))
+	_, _ = w.Write([]byte("PLATFORM\tEVENT\tSTATUS\tMATURITY\tCONTRACT\tV1\tINVOCATION\tCARRIER\tTRANSPORT\tSCAFFOLD\tVALIDATE\tCAPABILITIES\tSUMMARY\n"))
 	for _, entry := range entries {
-		_, _ = w.Write([]byte(entry.Platform + "\t" + entry.Event + "\t" + entry.Status + "\t" + entry.Maturity + "\t" + yesNo(entry.V1Target) + "\t" + entry.InvocationKind + "\t" + entry.Carrier + "\t" + join(entry.TransportModes) + "\t" + yesNo(entry.ScaffoldSupport) + "\t" + yesNo(entry.ValidateSupport) + "\t" + join(entry.Capabilities) + "\t" + entry.Summary + "\n"))
+		_, _ = w.Write([]byte(entry.Platform + "\t" + entry.Event + "\t" + entry.Status + "\t" + entry.Maturity + "\t" + entry.ContractClass + "\t" + yesNo(entry.V1Target) + "\t" + entry.InvocationKind + "\t" + entry.Carrier + "\t" + join(entry.TransportModes) + "\t" + yesNo(entry.ScaffoldSupport) + "\t" + yesNo(entry.ValidateSupport) + "\t" + join(entry.Capabilities) + "\t" + entry.Summary + "\n"))
 	}
 	_ = w.Flush()
 	return buf.Bytes()
@@ -67,6 +68,7 @@ func fromSupport(entries []pluginkitai.SupportEntry) []Entry {
 			Event:           string(entry.Event),
 			Status:          string(entry.Status),
 			Maturity:        string(entry.Maturity),
+			ContractClass:   contractClass(string(entry.Status), string(entry.Maturity)),
 			V1Target:        entry.V1Target,
 			InvocationKind:  string(entry.InvocationKind),
 			Carrier:         string(entry.Carrier),
@@ -79,6 +81,25 @@ func fromSupport(entries []pluginkitai.SupportEntry) []Entry {
 		})
 	}
 	return out
+}
+
+func contractClass(status, maturity string) string {
+	if status == "runtime_supported" {
+		switch maturity {
+		case "stable":
+			return "production-ready"
+		case "experimental":
+			return "public-experimental"
+		default:
+			return "runtime-supported but not stable"
+		}
+	}
+	switch maturity {
+	case "experimental":
+		return "public-experimental"
+	default:
+		return "public-beta"
+	}
 }
 
 func capabilities(in []pluginkitai.CapabilityID) []string {

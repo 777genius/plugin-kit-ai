@@ -6,6 +6,11 @@ The declared `v1` candidate set is tracked repo-wide in [../../docs/V0_9_AUDIT.m
 
 Promotion to `public-stable` is driven only by the final audit ledger and release rehearsal evidence. A candidate surface is not stable merely because it exists or is documented.
 
+The generated support matrix and `plugin-kit-ai.Supported()` describe runtime-event metadata only. In that runtime view:
+
+- `stable` event entries are the production-ready runtime paths
+- `beta` event entries are runtime-supported but not stable
+
 ## Public-Beta
 Current SDK beta surface added after the first promotion:
 
