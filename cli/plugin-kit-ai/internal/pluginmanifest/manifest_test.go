@@ -1048,6 +1048,42 @@ func TestInspect_ExposesSurfaceTiers(t *testing.T) {
 	}
 }
 
+func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "opencode", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+
+	inspection, _, err := Inspect(root, "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Targets) != 1 {
+		t.Fatalf("targets = %+v", inspection.Targets)
+	}
+	target := inspection.Targets[0]
+	var foundAgentConfig, foundToolsConfig, foundCommands, foundAgents, foundThemes, foundModes bool
+	for _, surface := range target.NativeSurfaces {
+		switch {
+		case surface.Kind == "agent_config" && surface.Tier == "passthrough_only":
+			foundAgentConfig = true
+		case surface.Kind == "tools_config" && surface.Tier == "passthrough_only":
+			foundToolsConfig = true
+		case surface.Kind == "commands" && surface.Tier == "unsupported":
+			foundCommands = true
+		case surface.Kind == "agents" && surface.Tier == "unsupported":
+			foundAgents = true
+		case surface.Kind == "themes" && surface.Tier == "unsupported":
+			foundThemes = true
+		case surface.Kind == "modes" && surface.Tier == "unsupported":
+			foundModes = true
+		}
+	}
+	if !foundAgentConfig || !foundToolsConfig || !foundCommands || !foundAgents || !foundThemes || !foundModes {
+		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
+	}
+}
+
 func TestNormalize_RewritesManifestIntoPackageStandardShape(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, FileName, `format: plugin-kit-ai/package

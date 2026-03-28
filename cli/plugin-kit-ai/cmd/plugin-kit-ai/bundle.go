@@ -33,7 +33,7 @@ func newBundleInstallCmd(runner bundleInstallRunner) *cobra.Command {
 		Short: "Install a local exported Python/Node bundle into a destination directory",
 		Long: `Install a local .tar.gz bundle created by plugin-kit-ai export into a destination directory.
 
-This beta surface only supports local exported Python/Node bundles for codex-runtime or claude.
+This stable local handoff surface only supports local exported Python/Node bundles for codex-runtime or claude.
 It unpacks bundle contents safely, prints next steps, and does not extend the binary-only plugin-kit-ai install flow.`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

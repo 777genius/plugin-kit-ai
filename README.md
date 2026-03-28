@@ -42,11 +42,11 @@ Stable in the current source tree:
 - Go-first scaffold contract for Claude and Codex
 - repo-local local-runtime authoring for `python` and `node` on `codex-runtime` and `claude`, including `doctor`, `bootstrap`, `validate --strict`, and `export`
 - TypeScript as the stable `node` authoring mode via `--runtime node --typescript`
+- `bundle install` for local exported Python/Node bundles on `codex-runtime` and `claude`
 
 Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
-- `bundle install` for local exported Python/Node bundles
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
 - OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, and explicit warnings for unsupported local plugin code
 - launcher-based `shell` runtime authoring on `codex-runtime` and `claude`, including `init --runtime shell`, `doctor`, `bootstrap`, `validate --strict`, and `export`
@@ -221,7 +221,7 @@ Node/TypeScript and Python are the stable repo-local interpreted subset for scaf
 Shell remains `public-beta` and stays outside that stable local-runtime subset.
 For interpreted runtimes, `validate --strict` is the canonical CI-grade readiness gate, and its runtime lookup order is expected to stay aligned with the generated launcher.
 For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, and `plugin-kit-ai export <path> --platform <target>` is the stable portable handoff surface for that subset.
-`plugin-kit-ai bundle install <bundle.tar.gz> --dest <path>` is the new `public-beta` local bundle installer for exported Python/Node handoff bundles. It unpacks only local archives and does not run `bootstrap` or `validate` for you.
+`plugin-kit-ai bundle install <bundle.tar.gz> --dest <path>` is the stable local bundle installer for exported Python/Node handoff bundles. It accepts only local `.tar.gz` archives, unpacks into `--dest`, and does not run `bootstrap` or `validate` for you.
 `plugin-kit-ai install` remains binary-only; marketplace packaging, dependency-preinstalled installs, and a universal package-management contract stay out of scope in this cycle.
 
 ## What The Community Should Expect

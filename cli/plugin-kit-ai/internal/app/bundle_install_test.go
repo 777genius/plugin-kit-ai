@@ -88,6 +88,17 @@ func TestPluginServiceBundleInstallRejectsUnsupportedRuntime(t *testing.T) {
 	}
 }
 
+func TestPluginServiceBundleInstallRejectsRemoteURL(t *testing.T) {
+	var svc PluginService
+	_, err := svc.BundleInstall(PluginBundleInstallOptions{
+		Archive: "https://example.com/demo.tar.gz",
+		Dest:    filepath.Join(t.TempDir(), "dest"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "remote URLs") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestPluginServiceBundleInstallRejectsPathTraversal(t *testing.T) {
 	dir := t.TempDir()
 	bundle := filepath.Join(dir, "demo.tar.gz")

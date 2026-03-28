@@ -174,3 +174,57 @@ func TestPluginKitAIBundleInstallNodeTypeScriptFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai validate after bundle install: %v\n%s", err, out)
 	}
 }
+
+func TestPluginKitAIBundleInstallClaudeNodeTypeScriptFlow(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not in PATH")
+	}
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm not in PATH")
+	}
+
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := runtimeProjectRoot(t)
+	run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "claude", "--runtime", "node", "--typescript", "-o", plugRoot, "--extras")
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai init claude node typescript: %v\n%s", err, out)
+	}
+
+	bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap before claude export: %v\n%s", err, out)
+	}
+	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "claude")
+	if out, err := export.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai export claude node typescript: %v\n%s", err, out)
+	}
+
+	bundle := filepath.Join(plugRoot, "genplug_claude_node_bundle.tar.gz")
+	dest := filepath.Join(t.TempDir(), "installed")
+	install := exec.Command(pluginKitAIBin, "bundle", "install", "--dest", dest, bundle)
+	out, err := install.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai bundle install claude node typescript: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "platform=claude runtime=node") {
+		t.Fatalf("bundle install output missing claude runtime summary:\n%s", out)
+	}
+
+	doctor := exec.Command(pluginKitAIBin, "doctor", dest)
+	out, err = doctor.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected doctor to require bootstrap after claude bundle install:\n%s", out)
+	}
+	if !strings.Contains(string(out), "Status: needs_bootstrap") {
+		t.Fatalf("doctor output missing needs_bootstrap:\n%s", out)
+	}
+
+	bootstrap = exec.Command(pluginKitAIBin, "bootstrap", dest)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap after claude bundle install: %v\n%s", err, out)
+	}
+	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
+	if out, err := validate.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate after claude bundle install: %v\n%s", err, out)
+	}
+}

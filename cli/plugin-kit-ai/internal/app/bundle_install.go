@@ -26,6 +26,13 @@ func (PluginService) BundleInstall(opts PluginBundleInstallOptions) (PluginBundl
 	if archivePath == "" {
 		return PluginBundleInstallResult{}, fmt.Errorf("bundle install requires a local .tar.gz bundle path")
 	}
+	lowerArchivePath := strings.ToLower(archivePath)
+	if strings.HasPrefix(lowerArchivePath, "http://") || strings.HasPrefix(lowerArchivePath, "https://") {
+		return PluginBundleInstallResult{}, fmt.Errorf("bundle install supports local .tar.gz bundles only; remote URLs are out of scope")
+	}
+	if !strings.HasSuffix(lowerArchivePath, ".tar.gz") {
+		return PluginBundleInstallResult{}, fmt.Errorf("bundle install requires a local .tar.gz bundle path")
+	}
 	dest := strings.TrimSpace(opts.Dest)
 	if dest == "" {
 		return PluginBundleInstallResult{}, fmt.Errorf("bundle install requires --dest")

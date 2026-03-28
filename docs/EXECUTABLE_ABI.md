@@ -48,7 +48,7 @@ For Codex `notify`, successful completion is represented by exit code `0`; stdou
 - repo-local authoring, validation, and launcher execution are supported for interpreted runtimes
 - `plugin-kit-ai doctor` is the stable read-only readiness surface for the `python`/`node` local-runtime subset on `codex-runtime` and `claude`; `shell` remains beta
 - `plugin-kit-ai export` is the stable portable handoff surface for the `python`/`node` local-runtime subset on `codex-runtime` and `claude`; `shell` remains beta
-- `plugin-kit-ai bundle install` is the `public-beta` local bundle installer for exported `python`/`node` handoff bundles; it accepts local `.tar.gz` archives only, unpacks into `--dest`, and does not run `bootstrap` or `validate`
+- `plugin-kit-ai bundle install` is the stable local bundle installer for exported `python`/`node` handoff bundles; it accepts local `.tar.gz` archives only, unpacks into `--dest`, and does not run `bootstrap` or `validate`
 - universal package management and packaged distribution through `plugin-kit-ai install` are out of scope for interpreted runtimes in this cycle
 - Windows launcher resolution is platform-aware:
   - `python`: launcher resolution still prefers `.venv\Scripts\python.exe`, but `validate --strict` now treats `poetry` and `pipenv` manager-owned envs as ready without requiring repo-local `.venv`

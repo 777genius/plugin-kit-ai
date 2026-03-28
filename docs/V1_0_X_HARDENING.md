@@ -37,5 +37,5 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 - package-standard authoring is now the only supported authored shape
 - Gemini remains a packaging-only target and is being hardened as part of the package-standard surface, not promoted to runtime
 - the community-first interpreted local-runtime promotion is recorded in [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md): `python` and `node` are now the stable repo-local subset on `codex-runtime` and `claude`, while `shell` remains `public-beta`
-- local exported bundle install for Python/Node remains `public-beta` and is intentionally separate from the stable binary-only `install` contract
+- local exported bundle install for Python/Node is now part of the promoted stable subset and remains intentionally separate from the stable binary-only `install` contract
 - the current deterministic patch candidate is `8b3bdbbf400805c410ea05bec8b0c5215dacd131`

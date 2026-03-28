@@ -16,11 +16,11 @@ Promoted to `public-stable` in the current source tree:
   - `plugin-kit-ai bootstrap`
   - `plugin-kit-ai validate --strict`
   - `plugin-kit-ai export`
+  - `plugin-kit-ai bundle install`
 
 Explicitly **not** promoted in this audit:
 
 - launcher-based `shell` runtime authoring
-- `plugin-kit-ai bundle install`
 - `plugin-kit-ai install` for interpreted bundles or dependency-preinstalled installs
 - interpreted packaged distribution beyond bounded portable `export`
 - TypeScript as a separate runtime contract
@@ -34,6 +34,7 @@ Stable promise for this subset means:
 - deterministic lockfile-first bootstrap for supported Python and Node managers
 - `validate --strict` as the CI-grade readiness gate
 - deterministic portable handoff through `export`
+- deterministic local unpack/install handoff through `bundle install`
 
 Supported manager boundary:
 
@@ -60,6 +61,7 @@ Current status:
 - `python`: `stable-approved`
 - `node`: `stable-approved`
 - `typescript via node`: `stable-approved`
+- `bundle install for exported python/node local bundles`: `stable-approved`
 - `shell`: `stays-beta`
 
 Rationale:
