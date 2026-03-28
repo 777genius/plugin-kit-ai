@@ -16,6 +16,7 @@ type initCommandRunner interface {
 type initFlagState struct {
 	platform            string
 	runtime             string
+	typescript          bool
 	output              string
 	force               bool
 	extras              bool
@@ -46,6 +47,7 @@ Already have native config:
 Public flags:
   --platform   Supported: "codex-runtime" (default), "codex-package", "claude", and "gemini".
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
+  --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   -o, --output Target directory (default: ./<project-name>).
   -f, --force  Allow writing into a non-empty directory and overwrite generated files.
   --extras     Also emit Makefile, .goreleaser.yml, and portable skills/ (stretch scaffold).
@@ -65,6 +67,7 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", or "gemini")`)
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "go", `runtime ("go", "python", "node", or "shell")`)
+	cmd.Flags().BoolVar(&flags.typescript, "typescript", false, "generate a TypeScript scaffold on top of the node runtime lane")
 	cmd.Flags().StringVarP(&flags.output, "output", "o", "", "output directory (default: ./<project-name>)")
 	cmd.Flags().BoolVarP(&flags.force, "force", "f", false, "overwrite generated files; allow non-empty output directory")
 	cmd.Flags().BoolVar(&flags.extras, "extras", false, "include optional scaffold files (runtime-dependent extras plus skills and commands)")
@@ -84,6 +87,7 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 		ProjectName:         name,
 		Platform:            flags.platform,
 		Runtime:             runtime,
+		TypeScript:          flags.typescript,
 		OutputDir:           flags.output,
 		Force:               flags.force,
 		Extras:              flags.extras,
@@ -130,18 +134,19 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 	switch runtime {
 	case "python":
 		lines = append(lines,
-			"  Create a project .venv, then run:",
+			"  plugin-kit-ai bootstrap .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			"  See README.md for the full first run",
 		)
 	case "node":
 		lines = append(lines,
-			"  npm install",
+			"  plugin-kit-ai bootstrap .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			"  See README.md for the full first run",
 		)
 	case "shell":
 		lines = append(lines,
+			"  plugin-kit-ai bootstrap .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			"  See README.md for the full first run",
 		)

@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -194,22 +195,6 @@ func validatePluginProject(root, platform string) (Report, error) {
 				Message: fmt.Sprintf("target %s does not support portable component kind mcp_servers", targetName),
 			})
 		}
-		if len(graph.Portable.Paths("agents")) > 0 && !supportedPortable["agents"] {
-			report.Failures = append(report.Failures, Failure{
-				Kind:    FailureUnsupportedTargetKind,
-				Path:    "agents",
-				Target:  targetName,
-				Message: fmt.Sprintf("target %s does not support portable component kind agents", targetName),
-			})
-		}
-		if len(graph.Portable.Paths("contexts")) > 0 && !supportedPortable["contexts"] {
-			report.Failures = append(report.Failures, Failure{
-				Kind:    FailureUnsupportedTargetKind,
-				Path:    "contexts",
-				Target:  targetName,
-				Message: fmt.Sprintf("target %s does not support portable component kind contexts", targetName),
-			})
-		}
 		supportedNative := setOf(entry.TargetComponentKinds)
 		for _, kind := range pluginmanifest.DiscoveredTargetKinds(tc) {
 			if supportedNative[kind] {
@@ -223,6 +208,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 			})
 		}
 		validateTargetExtraDocs(root, targetName, tc, &report)
+		validateUnsupportedTargetSurfaces(root, targetName, &report)
 		if adapter, ok := platformexec.Lookup(targetName); ok {
 			diagnostics, err := adapter.Validate(root, graph, tc)
 			if err != nil {
@@ -252,6 +238,48 @@ func validatePluginProject(root, platform string) (Report, error) {
 	}
 	validatePluginRuntimeFiles(root, manifest, graph.Launcher, &report)
 	return report, nil
+}
+
+func validateUnsupportedTargetSurfaces(root, target string, report *Report) {
+	profile, ok := platformmeta.Lookup(target)
+	if !ok {
+		return
+	}
+	for _, surface := range profile.SurfaceTiers {
+		if surface.Tier != platformmeta.SurfaceTierUnsupported {
+			continue
+		}
+		for _, path := range unsupportedSurfacePaths(root, target, surface.Kind, profile) {
+			report.Failures = append(report.Failures, Failure{
+				Kind:    FailureUnsupportedTargetKind,
+				Path:    path,
+				Target:  target,
+				Message: fmt.Sprintf("target %s does not support authored surface %s", target, surface.Kind),
+			})
+		}
+	}
+}
+
+func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.PlatformProfile) []string {
+	seen := map[string]struct{}{}
+	for _, doc := range profile.NativeDocs {
+		if doc.Kind != kind {
+			continue
+		}
+		if fileExists(filepath.Join(root, doc.Path)) {
+			seen[doc.Path] = struct{}{}
+		}
+	}
+	dir := filepath.Join("targets", target, kind)
+	if entries, err := os.ReadDir(filepath.Join(root, dir)); err == nil && len(entries) > 0 {
+		seen[dir] = struct{}{}
+	}
+	out := make([]string, 0, len(seen))
+	for path := range seen {
+		out = append(out, path)
+	}
+	slices.Sort(out)
+	return out
 }
 
 func applyAdapterDiagnostics(report *Report, diagnostics []platformexec.Diagnostic) {
@@ -598,14 +626,19 @@ func validateNodeRuntime() error {
 }
 
 func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
-	rel := detectNodeRuntimeTarget(root, entrypoint)
+	shape := detectNodeRuntimeShape(root, entrypoint)
+	rel := shape.TargetRel
 	full := filepath.Join(root, filepath.FromSlash(rel))
 	if _, err := os.Stat(full); err == nil {
 		return
 	}
 	message := "runtime target missing: " + rel
-	if strings.HasPrefix(rel, "dist/") || strings.HasPrefix(rel, "build/") {
-		message += " (launcher points to built output; run npm install && npm run build, or restore the launcher target)"
+	if shape.BuiltOutput {
+		if shape.IsTypeScript {
+			message += " (TypeScript scaffold expects built output; run plugin-kit-ai bootstrap . or npm install && npm run build)"
+		} else {
+			message += " (launcher points to built output; run npm install && npm run build, or restore the launcher target)"
+		}
 	} else {
 		message += " (restore the generated scaffold target or update the launcher)"
 	}
@@ -614,6 +647,31 @@ func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
 		Path:    rel,
 		Message: message,
 	})
+}
+
+type nodeRuntimeShape struct {
+	TargetRel    string
+	BuiltOutput  bool
+	IsTypeScript bool
+}
+
+func detectNodeRuntimeShape(root, entrypoint string) nodeRuntimeShape {
+	rel := detectNodeRuntimeTarget(root, entrypoint)
+	builtOutput := strings.HasPrefix(rel, "dist/") || strings.HasPrefix(rel, "build/")
+	buildScript := ""
+	if body, err := os.ReadFile(filepath.Join(root, "package.json")); err == nil {
+		var pkg struct {
+			Scripts map[string]string `json:"scripts"`
+		}
+		if err := json.Unmarshal(body, &pkg); err == nil && pkg.Scripts != nil {
+			buildScript = strings.TrimSpace(pkg.Scripts["build"])
+		}
+	}
+	return nodeRuntimeShape{
+		TargetRel:    rel,
+		BuiltOutput:  builtOutput,
+		IsTypeScript: builtOutput && fileExists(filepath.Join(root, "tsconfig.json")) && buildScript != "",
+	}
 }
 
 func detectNodeRuntimeTarget(root, entrypoint string) string {

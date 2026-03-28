@@ -15,7 +15,7 @@ Repo-local executable runtime boundary:
 |---------|--------------|---------------------|
 | `go` | stable | default production path |
 | `python` | public-beta | repo-local only, prefer `.venv`, fallback to system Python `3.10+` |
-| `node` | public-beta | repo-local only, system Node.js `20+`, TypeScript only after build-to-JS |
+| `node` | public-beta | repo-local only, system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript` |
 | `shell` | public-beta | repo-local only, POSIX shell on Unix, `bash` required on Windows |
 
 Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, and repo-local bootstrap only.
@@ -42,8 +42,8 @@ Then run the target-specific smoke:
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
 
-- `python`: create `.venv` with `python3 -m venv .venv` when using a project-local runtime
-- `node`: run `npm install`; commit `package-lock.json` or an equivalent deterministic lockfile for production repos
+- `python`: run `plugin-kit-ai bootstrap .` to create `.venv`; it installs `requirements.txt` when present
+- `node`: run `plugin-kit-ai bootstrap .`; it runs `npm install`, and TypeScript-shaped Node projects also run `npm run build`
 - `shell`: ensure the launcher target remains executable on Unix and `bash` is available on Windows
 
 After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.
@@ -64,7 +64,7 @@ Reference implementation:
 
 ## Codex Runtime Release-Ready Path
 
-- Start from `plugin-kit-ai init --platform codex-runtime` or `plugin-kit-ai import --from codex`
+- Start from `plugin-kit-ai init --platform codex-runtime` or `plugin-kit-ai import --from codex-runtime`
 - Keep `plugin.yaml` plus `targets/codex-runtime/...` as the authored source of truth
 - Commit generated `.codex/config.toml`
 - Treat the stable promise as applying only to the `Notify` path

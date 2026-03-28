@@ -15,6 +15,7 @@ type InitOptions struct {
 	ProjectName         string
 	Platform            string
 	Runtime             string
+	TypeScript          bool
 	OutputDir           string // empty → ./<project-name> under cwd
 	Force               bool
 	Extras              bool
@@ -39,6 +40,9 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		return "", fmt.Errorf("--claude-extended-hooks is only supported with --platform claude")
 	}
 	if p == "gemini" {
+		if opts.TypeScript {
+			return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
+		}
 		if err := pluginmanifest.ValidateGeminiExtensionName(name); err != nil {
 			return "", err
 		}
@@ -49,11 +53,17 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 	if p == "codex-package" && strings.TrimSpace(opts.Runtime) != "" {
 		return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
 	}
+	if p == "codex-package" && opts.TypeScript {
+		return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
+	}
 	r := strings.ToLower(strings.TrimSpace(opts.Runtime))
 	if p != "gemini" && p != "codex-package" {
 		if _, ok := scaffold.LookupRuntime(r); !ok {
 			return "", errUnknownRuntime(opts.Runtime)
 		}
+	}
+	if opts.TypeScript && r != scaffold.RuntimeNode {
+		return "", fmt.Errorf("--typescript requires --runtime node")
 	}
 
 	out := strings.TrimSpace(opts.OutputDir)
@@ -78,6 +88,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		Version:             "0.1.0",
 		Platform:            p,
 		Runtime:             r,
+		TypeScript:          opts.TypeScript,
 		HasSkills:           opts.Extras,
 		HasCommands:         opts.Extras,
 		WithExtras:          opts.Extras,

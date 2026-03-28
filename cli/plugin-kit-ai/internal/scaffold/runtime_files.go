@@ -1,6 +1,6 @@
 package scaffold
 
-func filesFor(platform, runtime string, extras bool) []TemplateFile {
+func filesFor(platform, runtime string, extras, typescript bool) []TemplateFile {
 	if runtime == RuntimeGo {
 		def := generatedPlatforms[platform]
 		return def.Files
@@ -38,7 +38,7 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 	case "gemini":
 		files = append(files,
 			TemplateFile{Path: "targets/gemini/package.yaml", Template: "targets.gemini.package.yaml.tmpl", Extra: false},
-			TemplateFile{Path: "contexts/GEMINI.md", Template: "gemini.GEMINI.md.tmpl", Extra: false},
+			TemplateFile{Path: "targets/gemini/contexts/GEMINI.md", Template: "gemini.GEMINI.md.tmpl", Extra: false},
 			TemplateFile{Path: "README.md", Template: "gemini.README.md.tmpl", Extra: false},
 		)
 		if extras {
@@ -57,12 +57,22 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 			TemplateFile{Path: "bin/{{.ProjectName}}.cmd", Template: "python.launcher.cmd.tmpl", Extra: false},
 		)
 	case RuntimeNode:
-		files = append(files,
-			TemplateFile{Path: "src/main.mjs", Template: "node.main.mjs.tmpl", Extra: false},
-			TemplateFile{Path: "package.json", Template: "node.package.json.tmpl", Extra: false},
-			TemplateFile{Path: "bin/{{.ProjectName}}", Template: "node.launcher.sh.tmpl", Extra: false},
-			TemplateFile{Path: "bin/{{.ProjectName}}.cmd", Template: "node.launcher.cmd.tmpl", Extra: false},
-		)
+		if typescript {
+			files = append(files,
+				TemplateFile{Path: "src/main.ts", Template: "node.main.ts.tmpl", Extra: false},
+				TemplateFile{Path: "tsconfig.json", Template: "node.tsconfig.json.tmpl", Extra: false},
+				TemplateFile{Path: "package.json", Template: "node.package.json.tmpl", Extra: false},
+				TemplateFile{Path: "bin/{{.ProjectName}}", Template: "node.launcher.sh.tmpl", Extra: false},
+				TemplateFile{Path: "bin/{{.ProjectName}}.cmd", Template: "node.launcher.cmd.tmpl", Extra: false},
+			)
+		} else {
+			files = append(files,
+				TemplateFile{Path: "src/main.mjs", Template: "node.main.mjs.tmpl", Extra: false},
+				TemplateFile{Path: "package.json", Template: "node.package.json.tmpl", Extra: false},
+				TemplateFile{Path: "bin/{{.ProjectName}}", Template: "node.launcher.sh.tmpl", Extra: false},
+				TemplateFile{Path: "bin/{{.ProjectName}}.cmd", Template: "node.launcher.cmd.tmpl", Extra: false},
+			)
+		}
 	case RuntimeShell:
 		files = append(files,
 			TemplateFile{Path: "scripts/main.sh", Template: "shell.main.sh.tmpl", Extra: false},

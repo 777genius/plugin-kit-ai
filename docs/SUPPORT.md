@@ -68,7 +68,8 @@ Stable event surfaces:
 Current production-ready target boundary:
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
-- Codex: production-ready within the stable `Notify` path
+- Codex runtime: production-ready within the stable `Notify` path
+- Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
 
 Stable CLI commands:
@@ -79,6 +80,10 @@ Stable CLI commands:
 - `plugin-kit-ai inspect`
 - `plugin-kit-ai install`
 - `plugin-kit-ai version`
+
+Current beta CLI commands:
+
+- `plugin-kit-ai bootstrap`
 
 Stable `plugin-kit-ai install` contract:
 
@@ -148,7 +153,7 @@ Config contract:
 - executable-runtime hardening currently includes generated launcher smoke for `go`, `python`, `node`, and `shell`, plus Windows `.cmd` validation coverage and ABI passthrough e2e; this hardens the beta path but does not promote it to `public-stable`
 - interpreted-runtime bootstrap contract in the current beta boundary:
   - `python`: prefer `.venv`, fallback to system Python `3.10+`
-  - `node`: system Node.js `20+`; TypeScript only via build-to-JS
+  - `node`: system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript`
   - `shell`: POSIX shell on Unix, `bash` required on Windows
   - supported scope is scaffold, validate, launcher execution, and repo-local bootstrap only
   - unsupported scope is dependency installation, package management, and packaged distribution through `plugin-kit-ai install`

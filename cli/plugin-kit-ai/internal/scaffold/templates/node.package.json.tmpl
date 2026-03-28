@@ -2,5 +2,14 @@
   "name": "{{.ProjectName}}",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module"{{if .TypeScript}},
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "typescript": "^5.9.0"
+  }{{end}}
 }

@@ -11,6 +11,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(bootstrapCmd)
 	rootCmd.AddCommand(renderCmd)
 	rootCmd.AddCommand(importCmd)
 	rootCmd.AddCommand(inspectCmd)

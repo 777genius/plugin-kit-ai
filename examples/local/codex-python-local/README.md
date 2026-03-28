@@ -20,12 +20,11 @@ This repo-local reference example is a fast-start lane for `codex-runtime`. For 
 
 ## First Run
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
+plugin-kit-ai bootstrap .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ./bin/codex-python-local notify '{"client":"codex-tui"}'
 ```
-On Windows, create the virtualenv the same way and activate it with `.venv\\Scripts\\activate`.
+On Windows, `plugin-kit-ai bootstrap .` creates `.venv` the same way and uses `.venv\\Scripts\\python.exe`.
 
 ## Stable Default
 

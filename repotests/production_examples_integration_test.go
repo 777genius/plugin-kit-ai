@@ -2,6 +2,7 @@ package pluginkitairepo_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +19,7 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 		dir      string
 		platform string
 		binary   string
+		buildGo  bool
 		smoke    func(t *testing.T, binary string)
 	}{
 		{
@@ -25,6 +27,7 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "plugins", "claude-basic-prod"),
 			platform: "claude",
 			binary:   "claude-basic-prod",
+			buildGo:  true,
 			smoke:    smokeClaudeStableSubset,
 		},
 		{
@@ -32,13 +35,18 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "plugins", "codex-basic-prod"),
 			platform: "codex-runtime",
 			binary:   "codex-basic-prod",
+			buildGo:  true,
 			smoke:    smokeCodexNotify,
+		},
+		{
+			name:     "codex-package",
+			dir:      filepath.Join(root, "examples", "plugins", "codex-package-prod"),
+			platform: "codex-package",
 		},
 		{
 			name:     "gemini",
 			dir:      filepath.Join(root, "examples", "plugins", "gemini-extension-package"),
 			platform: "gemini",
-			binary:   "gemini-extension-package",
 		},
 	}
 
@@ -49,7 +57,13 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			if tc.platform == "codex-runtime" {
 				assertCodexConfig(t, tc.dir, "gpt-5.4-mini", "./bin/codex-basic-prod")
 			}
+			if tc.platform == "codex-package" {
+				assertCodexPackageManifest(t, tc.dir, "codex-package-prod")
+			}
 			if tc.platform == "gemini" {
+				return
+			}
+			if !tc.buildGo {
 				return
 			}
 
@@ -76,6 +90,23 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 				tc.smoke(t, binPath)
 			}
 		})
+	}
+}
+
+func assertCodexPackageManifest(t *testing.T, root, wantName string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		t.Fatalf("parse codex package manifest: %v\n%s", err, body)
+	}
+	if manifest.Name != wantName {
+		t.Fatalf(".codex-plugin/plugin.json name = %q want %q", manifest.Name, wantName)
 	}
 }
 

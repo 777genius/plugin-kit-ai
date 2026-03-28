@@ -9,4 +9,8 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 NODE="$(command -v node)"
+{{- if .TypeScript }}
+exec "$NODE" "$ROOT/dist/main.js" "$@"
+{{- else }}
 exec "$NODE" "$ROOT/src/main.mjs" "$@"
+{{- end }}

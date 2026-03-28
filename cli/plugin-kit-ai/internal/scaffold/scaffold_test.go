@@ -311,6 +311,42 @@ func TestWrite_CodexRuntimePythonIncludesLauncher(t *testing.T) {
 	}
 }
 
+func TestWrite_CodexRuntimeNodeTypeScriptIncludesBuiltOutputShape(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	err := Write(root, Data{
+		ProjectName: "my-plugin",
+		Description: "plugin-kit-ai plugin",
+		Platform:    "codex-runtime",
+		Runtime:     "node",
+		TypeScript:  true,
+		WithExtras:  true,
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		"plugin.yaml",
+		"launcher.yaml",
+		"package.json",
+		"tsconfig.json",
+		filepath.Join("src", "main.ts"),
+		filepath.Join("bin", "my-plugin"),
+		filepath.Join("bin", "my-plugin.cmd"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(root, "bin", "my-plugin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "dist/main.js") {
+		t.Fatalf("launcher does not point at built output:\n%s", body)
+	}
+}
+
 func TestWrite_ShellLauncherIsExecutable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -386,7 +422,7 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"Status: `public-beta`, repo-local executable ABI",
 				"system Python `3.10+`",
 				"recreate it",
-				".venv\\\\Scripts\\\\activate",
+				"plugin-kit-ai bootstrap .",
 				"plugin-kit-ai validate . --platform claude --strict",
 				"CI-grade readiness gate",
 				"managed dependency installation or packaged distribution",
@@ -401,8 +437,9 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"Status: `public-beta`, repo-local executable ABI",
 				"system Node.js `20+`",
 				"package-lock.json",
-				"TypeScript remains a build-to-JavaScript path",
-				"npm install && npm run build",
+				"Minimal JavaScript runtime scaffold using `src/main.mjs`",
+				"--runtime node --typescript",
+				"plugin-kit-ai bootstrap .",
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"CI-grade readiness gate",
 				"local notify integration",
@@ -437,6 +474,57 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				}
 			}
 		})
+	}
+}
+
+func TestRenderTemplate_NodeTypeScriptScaffoldTemplates(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		template string
+		wants    []string
+	}{
+		{
+			template: "codex-runtime.README.executable.md.tmpl",
+			wants: []string{
+				"Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
+				"`plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`",
+			},
+		},
+		{
+			template: "README.executable.md.tmpl",
+			wants: []string{
+				"Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
+				"`plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`",
+			},
+		},
+	}
+	for _, tc := range cases {
+		body, _, err := RenderTemplate(tc.template, Data{
+			Runtime:    "node",
+			TypeScript: true,
+			Entrypoint: "./bin/demo",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range tc.wants {
+			if !strings.Contains(string(body), want) {
+				t.Fatalf("%s missing %q:\n%s", tc.template, want, body)
+			}
+		}
+	}
+	body, _, err := RenderTemplate("node.package.json.tmpl", Data{
+		ProjectName: "demo",
+		TypeScript:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, want := range []string{`"build": "tsc -p tsconfig.json"`, `"typescript": "^5.9.0"`, `"@types/node"`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("package template missing %q:\n%s", want, got)
+		}
 	}
 }
 
@@ -531,6 +619,18 @@ func TestBuildPlan_GeminiRejectsExplicitRuntime(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_TypeScriptRequiresNodeRuntime(t *testing.T) {
+	t.Parallel()
+	_, err := BuildPlan(Data{
+		ProjectName: "my-plugin",
+		Platform:    "codex-runtime",
+		TypeScript:  true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "--typescript requires --runtime node") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestRenderTemplate_ClaudeHooksDefaultAndExtended(t *testing.T) {
 	t.Parallel()
 	defaultBody, _, err := RenderTemplate("targets.claude.hooks.json.tmpl", Data{Entrypoint: "./bin/demo"})
@@ -603,7 +703,10 @@ func liveTemplateNames() map[string]struct{} {
 	}
 	for _, platform := range []string{"claude", "codex-package", "codex-runtime", "gemini"} {
 		for _, runtime := range []string{RuntimePython, RuntimeNode, RuntimeShell} {
-			for _, file := range filesFor(platform, runtime, true) {
+			for _, file := range filesFor(platform, runtime, true, false) {
+				out[file.Template] = struct{}{}
+			}
+			for _, file := range filesFor(platform, runtime, true, true) {
 				out[file.Template] = struct{}{}
 			}
 		}

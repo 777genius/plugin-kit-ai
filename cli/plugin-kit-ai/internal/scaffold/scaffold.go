@@ -26,6 +26,7 @@ type Data struct {
 	Version             string
 	Platform            string
 	Runtime             string
+	TypeScript          bool
 	ExecutionMode       string
 	Entrypoint          string
 	CodexModel          string
@@ -82,15 +83,24 @@ func Paths(platform, name string, extras bool) []string {
 }
 
 func PathsForRuntime(platform, runtime, name string, extras bool) []string {
+	return pathsForRuntime(platform, runtime, name, extras, false)
+}
+
+func PathsForRuntimeTypeScript(platform, name string, extras bool) []string {
+	return pathsForRuntime(platform, RuntimeNode, name, extras, true)
+}
+
+func pathsForRuntime(platform, runtime, name string, extras bool, typescript bool) []string {
 	def, ok := LookupPlatform(platform)
 	if !ok {
 		return nil
 	}
 	runtime = normalizeRuntime(runtime)
-	return planPaths(expandTemplateFiles(planFilesFor(def.Name, runtime, extras), Data{
+	return planPaths(expandTemplateFiles(planFilesFor(def.Name, runtime, extras, typescript), Data{
 		ProjectName:   name,
 		Platform:      def.Name,
 		Runtime:       runtime,
+		TypeScript:    typescript,
 		ExecutionMode: defaultExecutionMode(runtime),
 		Entrypoint:    "./bin/" + name,
 		WithExtras:    extras,
@@ -116,6 +126,9 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 	}
 	d.Platform = p.Name
 	if d.Platform == "gemini" || d.Platform == "codex-package" {
+		if d.TypeScript {
+			return ProjectPlan{}, fmt.Errorf("--typescript is not supported with --platform %s", d.Platform)
+		}
 		if strings.TrimSpace(d.Runtime) != "" {
 			return ProjectPlan{}, fmt.Errorf("--runtime is not supported with --platform %s", d.Platform)
 		}
@@ -126,6 +139,9 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 		d.Runtime = normalizeRuntime(d.Runtime)
 		if _, ok := LookupRuntime(d.Runtime); !ok {
 			return ProjectPlan{}, fmt.Errorf("unknown runtime %q", d.Runtime)
+		}
+		if d.TypeScript && d.Runtime != RuntimeNode {
+			return ProjectPlan{}, fmt.Errorf("--typescript requires --runtime node")
 		}
 		if strings.TrimSpace(d.Entrypoint) == "" {
 			d.Entrypoint = "./bin/" + d.ProjectName
@@ -148,13 +164,13 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 	out := ProjectPlan{
 		Platform: p.Name,
 		Data:     d,
-		Files:    expandTemplateFiles(planFilesFor(p.Name, d.Runtime, d.WithExtras), d),
+		Files:    expandTemplateFiles(planFilesFor(p.Name, d.Runtime, d.WithExtras, d.TypeScript), d),
 	}
 	return out, nil
 }
 
-func planFilesFor(platform, runtime string, extras bool) []TemplateFile {
-	files := append([]TemplateFile(nil), filesFor(platform, runtime, extras)...)
+func planFilesFor(platform, runtime string, extras, typescript bool) []TemplateFile {
+	files := append([]TemplateFile(nil), filesFor(platform, runtime, extras, typescript)...)
 	return files
 }
 

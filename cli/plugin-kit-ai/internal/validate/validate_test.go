@@ -643,6 +643,28 @@ func TestValidateNodeRuntimeTarget_MissingBuiltOutputShowsRecoveryGuidance(t *te
 	}
 }
 
+func TestValidateNodeRuntimeTarget_TypeScriptLaneShowsTypeScriptGuidance(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, filepath.Join("bin", "x"), "#!/usr/bin/env bash\nset -euo pipefail\nROOT=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")/..\" && pwd)\"\nexec node \"$ROOT/dist/main.js\" \"$@\"\n")
+	mustChmodExecutable(t, filepath.Join(dir, "bin", "x"))
+	mustWriteValidateFile(t, dir, "tsconfig.json", "{}\n")
+	mustWriteValidateFile(t, dir, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
+
+	var report Report
+	validateNodeRuntimeTarget(dir, "./bin/x", &report)
+	if len(report.Failures) != 1 {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+	failure := report.Failures[0]
+	if !strings.Contains(failure.Message, "TypeScript scaffold expects built output") {
+		t.Fatalf("failure message = %q", failure.Message)
+	}
+	if !strings.Contains(failure.Message, "plugin-kit-ai bootstrap .") {
+		t.Fatalf("failure message = %q", failure.Message)
+	}
+}
+
 func TestValidateRuntimeTargetExecutable_NonExecutableScriptFails(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

@@ -15,12 +15,12 @@ This repo-local reference example is a fast-start lane for `codex-runtime`. For 
 ## Bootstrap Contract
 - Runtime: system Node.js `20+`
 - Commit `package-lock.json` or an equivalent deterministic lockfile for production repos
-- TypeScript remains a build-to-JavaScript path over the `node` runtime entrypoint
-- If you repoint the launcher at built output such as `dist/`, run `npm install && npm run build` before `validate --strict`
+- JavaScript is the default scaffold; use `plugin-kit-ai init ... --runtime node --typescript` for the first-class TypeScript authoring path
+- TypeScript-shaped Node projects build to `dist/`; `plugin-kit-ai bootstrap .` runs both `npm install` and `npm run build` before `validate --strict`
 
 ## First Run
 ```bash
-npm install
+plugin-kit-ai bootstrap .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ./bin/codex-node-local notify '{"client":"codex-tui"}'
 ```

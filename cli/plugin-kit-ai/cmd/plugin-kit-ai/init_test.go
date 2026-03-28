@@ -44,6 +44,7 @@ func TestInitHelpIncludesScenarioLanesAndDefaults(t *testing.T) {
 		"plugin-kit-ai import",
 		`--platform   Supported: "codex-runtime" (default), "codex-package", "claude", and "gemini".`,
 		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.`,
+		"--typescript Generate a TypeScript scaffold on top of the node runtime lane",
 		"--runtime go remains the default",
 		"--platform codex-package",
 		"--claude-extended-hooks",
@@ -101,7 +102,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantRuntime:  "python",
 			wantPlatform: "codex-runtime",
 			want: []string{
-				"Create a project .venv, then run:",
+				"plugin-kit-ai bootstrap .",
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"See README.md for the full first run",
 			},
@@ -115,7 +116,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantRuntime:  "node",
 			wantPlatform: "codex-runtime",
 			want: []string{
-				"npm install",
+				"plugin-kit-ai bootstrap .",
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"See README.md for the full first run",
 			},
@@ -177,5 +178,18 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				t.Fatalf("platform = %q, want %q", runner.gotOpts.Platform, tc.wantPlatform)
 			}
 		})
+	}
+}
+
+func TestInitCommandRejectsTypeScriptOutsideNodeRuntime(t *testing.T) {
+	t.Parallel()
+	cmd := newInitCmd(app.InitRunner{})
+	cmd.SetArgs([]string{"demo", "--typescript", "-o", t.TempDir()})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--typescript requires --runtime node") {
+		t.Fatalf("err = %v", err)
 	}
 }

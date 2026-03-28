@@ -44,6 +44,7 @@ Stable in `v1.0.0`:
 Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
+- `bootstrap`
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
 - executable runtime scaffolds for `python`, `node`, and `shell`
 - optional scaffold extras from `plugin-kit-ai init --extras`
@@ -63,6 +64,13 @@ go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 
 Choose the path that matches your goal:
 
+| Goal | Recommended lane |
+|------|------------------|
+| local notify/runtime plugin in your repo | `codex-runtime` |
+| official Codex bundle/package output | `codex-package` |
+| Claude hook runtime plugin | `claude` |
+| Gemini CLI extension package | `gemini` |
+
 ### Fast Local Plugin
 
 For repo-local plugins where quick iteration matters more than packaged distribution:
@@ -72,8 +80,10 @@ For repo-local plugins where quick iteration matters more than packaged distribu
 - Main non-goals: managed dependency installation, packaged distribution, and runtime parity with the Go SDK
 
 ```bash
-./bin/plugin-kit-ai init my-plugin --runtime python
-./bin/plugin-kit-ai init my-plugin --runtime node
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
+./bin/plugin-kit-ai bootstrap ./my-plugin
 ```
 
 Reference repos: [examples/local/README.md](examples/local/README.md)
@@ -94,6 +104,8 @@ For teams that want the strongest supported release and distribution story:
 ./bin/plugin-kit-ai init my-plugin --platform gemini
 ```
 
+Default `init my-plugin` is the strongest repo-local Codex runtime path: `--platform codex-runtime --runtime go`.
+
 ### Already Have Native Config
 
 For teams migrating existing Claude/Codex/Gemini native files into the package-standard authored layout:
@@ -101,6 +113,12 @@ For teams migrating existing Claude/Codex/Gemini native files into the package-s
 - Good fit: existing plugin repos that want one managed source of truth
 - Guarantee level: import bridge into the authored package-standard model
 - Main non-goals: preserving native files as the long-term authored source of truth
+
+```bash
+./bin/plugin-kit-ai import ./native-plugin --from codex-runtime
+```
+
+Legacy bridge for older native Codex layouts:
 
 ```bash
 ./bin/plugin-kit-ai import ./native-plugin --from codex
@@ -131,8 +149,9 @@ Choose `python`, `node`, or `shell` if:
 
 The default recommendation remains:
 
-- Go for production-ready plugin repos
-- Python/Node/Shell for repo-local integration where language fit matters more than ecosystem packaging
+- Go on `codex-runtime` or `claude` when you want the strongest runtime lane
+- `codex-package` when you want the official Codex package/bundle lane
+- Python/Node/Shell on launcher-based lanes for repo-local integration where language fit matters more than ecosystem packaging
 
 ## Project Model
 
@@ -188,11 +207,12 @@ Executable runtime boundary:
 |---------|--------|-----------------|--------------------|
 | `go` | stable | default typed SDK path | Go `1.22+`, direct executable |
 | `python` | public-beta | repo-local executable ABI | prefer `.venv`, fallback to system Python `3.10+` |
-| `node` | public-beta | repo-local executable ABI | system Node.js `20+`, JS-first runtime |
+| `node` | public-beta | repo-local executable ABI | system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript` |
 | `shell` | public-beta | repo-local executable ABI | POSIX shell on Unix, `bash` required on Windows |
 
 Interpreted runtimes are supported for scaffold, validate, launcher execution, and repo-local bootstrap only.
 For interpreted runtimes, `validate --strict` is the canonical CI-grade readiness gate, and its runtime lookup order is expected to stay aligned with the generated launcher.
+For generated Python and Node projects, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`.
 They are not covered by `plugin-kit-ai install`, dependency installation, or packaged distribution in this cycle.
 
 ## What The Community Should Expect
@@ -272,14 +292,16 @@ Common commands:
 
 ```bash
 ./bin/plugin-kit-ai init my-plugin
-./bin/plugin-kit-ai init my-plugin --runtime python
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
+./bin/plugin-kit-ai bootstrap ./my-plugin
 ./bin/plugin-kit-ai init my-plugin --platform claude --runtime shell
 ./bin/plugin-kit-ai render ./my-plugin
 ./bin/plugin-kit-ai render ./my-plugin --check
-./bin/plugin-kit-ai import ./native-plugin --from codex
+./bin/plugin-kit-ai import ./native-plugin --from codex-runtime
 ./bin/plugin-kit-ai inspect ./my-plugin
 ./bin/plugin-kit-ai normalize ./my-plugin
-./bin/plugin-kit-ai validate ./my-plugin --platform codex --strict
+./bin/plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ./bin/plugin-kit-ai capabilities --format json
 ./bin/plugin-kit-ai capabilities --mode runtime --format json --platform claude
 ./bin/plugin-kit-ai install owner/repo --tag v1.0.0 --goos linux --goarch amd64

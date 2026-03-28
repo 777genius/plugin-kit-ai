@@ -21,8 +21,13 @@ This local plugin starter is the fastest path when you want repo-local integrati
 {{- else if eq .Runtime "node" }}
 - Runtime: system Node.js `20+`
 - Commit `package-lock.json` or an equivalent deterministic lockfile for production repos
-- TypeScript remains a build-to-JavaScript path over the `node` runtime entrypoint
-- If you repoint the launcher at built output such as `dist/`, run `npm install && npm run build` before `validate --strict`
+{{- if .TypeScript }}
+- Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`
+- `plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`
+{{- else }}
+- Minimal JavaScript runtime scaffold using `src/main.mjs`
+- Use `plugin-kit-ai init <name> --platform claude --runtime node --typescript` when you want the built TypeScript scaffold
+{{- end }}
 {{- else if eq .Runtime "shell" }}
 - Runtime: POSIX shell on Unix
 - On Windows, this runtime requires `bash` in `PATH`
@@ -33,17 +38,15 @@ This local plugin starter is the fastest path when you want repo-local integrati
 
 {{- if eq .Runtime "python" }}
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
+plugin-kit-ai bootstrap .
 plugin-kit-ai validate . --platform claude --strict
 {{.Entrypoint}} Stop <<'EOF'
 {}
 EOF
 ```
-On Windows, create the virtualenv the same way and activate it with `.venv\\Scripts\\activate`.
 {{- else if eq .Runtime "node" }}
 ```bash
-npm install
+plugin-kit-ai bootstrap .
 plugin-kit-ai validate . --platform claude --strict
 {{.Entrypoint}} Stop <<'EOF'
 {}

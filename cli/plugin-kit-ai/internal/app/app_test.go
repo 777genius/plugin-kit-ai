@@ -297,6 +297,55 @@ func TestInitRunner_codexRuntimePython(t *testing.T) {
 	}
 }
 
+func TestInitRunner_codexRuntimeNodeTypeScript(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	got, err := r.Run(InitOptions{
+		ProjectName: "genplug",
+		Platform:    "codex-runtime",
+		Runtime:     "node",
+		TypeScript:  true,
+		OutputDir:   out,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != out {
+		t.Fatalf("out = %q, want %q", got, out)
+	}
+	for _, rel := range []string{
+		"plugin.yaml",
+		"launcher.yaml",
+		"package.json",
+		"tsconfig.json",
+		filepath.Join("src", "main.ts"),
+		filepath.Join("bin", "genplug"),
+		filepath.Join(".codex", "config.toml"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+}
+
+func TestInitRunner_TypeScriptRejectedOutsideNodeRuntime(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	_, err := r.Run(InitOptions{
+		ProjectName: "genplug",
+		Platform:    "codex-runtime",
+		TypeScript:  true,
+		OutputDir:   filepath.Join(t.TempDir(), "genplug"),
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--typescript requires --runtime node") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
 func TestInitRunner_codexPackage(t *testing.T) {
 	t.Parallel()
 	var r InitRunner

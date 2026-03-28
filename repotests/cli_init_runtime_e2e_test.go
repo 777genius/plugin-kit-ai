@@ -88,7 +88,7 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
-			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "node", "-o", plugRoot, "--extras")
+			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "node", "--typescript", "-o", plugRoot, "--extras")
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
@@ -97,25 +97,22 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 			}
 
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
+			out, err := validate.CombinedOutput()
+			if err == nil {
+				t.Fatalf("expected validate failure before bootstrap:\n%s", out)
+			}
+			if !strings.Contains(string(out), "TypeScript scaffold expects built output") {
+				t.Fatalf("validate output missing TS-specific guidance:\n%s", out)
+			}
+
+			bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+			if out, err := bootstrap.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai bootstrap: %v\n%s", err, out)
+			}
+
+			validate = exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
 			if out, err := validate.CombinedOutput(); err != nil {
-				t.Fatalf("plugin-kit-ai validate before TS conversion: %v\n%s", err, out)
-			}
-
-			writeRuntimeFile(t, plugRoot, filepath.Join("src", "main.ts"), tsPluginSource())
-			writeRuntimeFile(t, plugRoot, "tsconfig.json", tsConfig())
-			writeRuntimeFile(t, plugRoot, "package.json", tsPackageJSON())
-			patchNodeLauncherForDist(t, plugRoot)
-
-			npmInstall := exec.Command("npm", "install")
-			npmInstall.Dir = plugRoot
-			if out, err := npmInstall.CombinedOutput(); err != nil {
-				t.Fatalf("npm install: %v\n%s", err, out)
-			}
-
-			npmBuild := exec.Command("npm", "run", "build")
-			npmBuild.Dir = plugRoot
-			if out, err := npmBuild.CombinedOutput(); err != nil {
-				t.Fatalf("npm run build: %v\n%s", err, out)
+				t.Fatalf("plugin-kit-ai validate after bootstrap: %v\n%s", err, out)
 			}
 
 			entry := filepath.Join(plugRoot, "bin", "genplug")
@@ -266,12 +263,10 @@ func TestPluginKitAIInitNodeRuntimeMissingBuiltOutputFailsValidate(t *testing.T)
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
-			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "node", "-o", plugRoot, "--extras")
+			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "node", "--typescript", "-o", plugRoot, "--extras")
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-
-			patchNodeLauncherForDist(t, plugRoot)
 
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform, "--strict")
 			out, err := validate.CombinedOutput()
@@ -282,8 +277,8 @@ func TestPluginKitAIInitNodeRuntimeMissingBuiltOutputFailsValidate(t *testing.T)
 			if !strings.Contains(text, "dist/main.js") {
 				t.Fatalf("validate output missing built-output target path:\n%s", text)
 			}
-			if !strings.Contains(text, "npm install && npm run build") {
-				t.Fatalf("validate output missing build recovery guidance:\n%s", text)
+			if !strings.Contains(text, "plugin-kit-ai bootstrap .") {
+				t.Fatalf("validate output missing bootstrap guidance:\n%s", text)
 			}
 		})
 	}
@@ -534,88 +529,4 @@ func parsePythonVersion(version string) (major, minor int, ok bool) {
 		return 0, 0, false
 	}
 	return major, minor, true
-}
-
-func patchNodeLauncherForDist(t *testing.T, root string) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		writeRuntimeFile(t, root, filepath.Join("bin", "genplug.cmd"), "@echo off\r\nsetlocal\r\nset \"ROOT=%~dp0..\"\r\nnode \"%ROOT%\\dist\\main.js\" %*\r\n")
-		return
-	}
-	writeRuntimeFile(t, root, filepath.Join("bin", "genplug"), "#!/usr/bin/env bash\nset -euo pipefail\nROOT=\"$(CDPATH= cd -- \"$(dirname -- \"$0\")/..\" && pwd)\"\nif ! command -v node >/dev/null 2>&1; then\n  echo \"plugin-kit-ai launcher: node not found\" >&2\n  exit 1\nfi\nNODE=\"$(command -v node)\"\nexec \"$NODE\" \"$ROOT/dist/main.js\" \"$@\"\n")
-}
-
-func tsPluginSource() string {
-	return `import fs from "node:fs";
-
-function readStdin(): string {
-  return fs.readFileSync(0, "utf8");
-}
-
-function handleClaude(): number {
-  const event = JSON.parse(readStdin());
-  void event;
-  process.stdout.write("{}");
-  return 0;
-}
-
-function handleCodex(): number {
-  const payload = process.argv[3];
-  if (!payload) {
-    process.stderr.write("missing notify payload\n");
-    return 1;
-  }
-  const event = JSON.parse(payload);
-  void event;
-  return 0;
-}
-
-function main(): number {
-  const hookName = process.argv[2];
-  if (!hookName) {
-    process.stderr.write("usage: main.ts <hook-name>\n");
-    return 1;
-  }
-  if (hookName === "notify") {
-    return handleCodex();
-  }
-  return handleClaude();
-}
-
-process.exit(main());
-`
-}
-
-func tsConfig() string {
-	return `{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "types": ["node"],
-    "outDir": "dist",
-    "rootDir": "src",
-    "strict": true,
-    "skipLibCheck": true
-  },
-  "include": ["src/**/*.ts"]
-}
-`
-}
-
-func tsPackageJSON() string {
-	return `{
-  "name": "genplug",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "build": "tsc -p tsconfig.json"
-  },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.9.0"
-  }
-}
-`
 }
