@@ -77,5 +77,10 @@ Use `plugin-kit-ai init <name> --platform claude --runtime {{.Runtime}} --claude
 
 - `targets/claude/hooks/hooks.json`: authored Claude hook routing
 - `hooks/hooks.json`: rendered managed Claude hook file
+- Optional first-class Claude breadth via `--extras`:
+  - `targets/claude/settings.json` -> rendered `settings.json`
+  - `targets/claude/lsp.json` -> rendered `.lsp.json`
+  - `targets/claude/user-config.json` -> rendered `plugin.json.userConfig`
+  - `targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
 
 Keep stdout reserved for Claude responses and write diagnostics to stderr only.

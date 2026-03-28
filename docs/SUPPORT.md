@@ -86,6 +86,7 @@ Current beta CLI commands:
 
 - `plugin-kit-ai bootstrap`
 - `plugin-kit-ai doctor`
+- `plugin-kit-ai export`
 
 Stable `plugin-kit-ai install` contract:
 
@@ -154,10 +155,10 @@ Config contract:
 - Claude authored hook routing must stay aligned with `launcher.yaml.entrypoint`; `validate --strict` is the enforcing gate for that consistency
 - executable-runtime hardening currently includes generated launcher smoke for `go`, `python`, `node`, and `shell`, plus Windows `.cmd` validation coverage and ABI passthrough e2e; this hardens the beta path but does not promote it to `public-stable`
 - interpreted-runtime bootstrap contract in the current beta boundary:
-  - `python`: repo-local `.venv` readiness with lockfile-first manager detection for `uv`, `poetry`, `pipenv`, or `requirements.txt`
+  - `python`: lockfile-first manager detection; `venv`, `requirements.txt`, and `uv` use repo-local `.venv`, while `poetry` and `pipenv` can validate against manager-owned envs
   - `node`: system Node.js `20+`; lockfile-first manager detection for `bun`, `pnpm`, `yarn`, or `npm`; JavaScript by default, TypeScript via `--runtime node --typescript`
   - `shell`: POSIX shell on Unix, `bash` required on Windows
-  - supported scope is scaffold, validate, launcher execution, repo-local bootstrap, and read-only doctor checks
+  - supported scope is scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, and bounded portable export bundles
   - unsupported scope is universal package-management policy and packaged distribution through `plugin-kit-ai install`
 
 Declared release review:
@@ -203,7 +204,8 @@ The custom hook helpers are intended as an escape hatch when Claude or Codex add
 
 ## Compatibility Rules
 
-- `public-beta` changes must be called out in changelogs and should ship with migration guidance when user code or scaffold output changes.
+- `public-beta` changes must be called out in changelogs or release notes when user code, scaffold output, readiness semantics, or bundle contents change.
+- `public-beta` surfaces are not covered by a backward-compatibility promise; before promotion, legacy paths may be removed directly as long as the current contract and resulting breakage are documented.
 - The declared `v1` candidate set must be reviewed through [V0_9_AUDIT.md](./V0_9_AUDIT.md) before any surface is promoted.
 - `public-stable` defines the post-`v1.0` compatibility promise for the approved set.
 - No surface is promoted to `public-stable` until it has descriptor-backed docs, scaffold/validate alignment, and test coverage across unit, integration, contract, and smoke layers.

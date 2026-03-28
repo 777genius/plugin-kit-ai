@@ -24,7 +24,9 @@ test-extended:
 test-polyglot-smoke:
 	go test -count=1 -run 'TestRenderTemplate_(PythonLauncherWindowsFallbackOrder|ShellLauncherWindowsRequiresBash)$$' ./cli/plugin-kit-ai/internal/scaffold
 	go test -count=1 -run 'Test(FindPython_UsesPlatformAwareLookupOrder|Validate_ManifestProject_WindowsCmdLauncherAccepted|Validate_ManifestProject_ShellRequiresBashOnWindows|ValidateNodeRuntimeTarget_MissingBuiltOutputShowsRecoveryGuidance|ValidateRuntimeTargetExecutable_NonExecutableScriptFails|ShellLauncherPassthrough)$$' ./cli/plugin-kit-ai/internal/validate
-	go test -count=1 -run 'TestPluginKitAI(Init(GoRuntimeLauncherFlow|PythonRuntimeLauncherFlow|PythonRuntimeBrokenVenvFailsValidate|ShellRuntimeLauncherFlow|ShellRuntimeNonExecutableTargetFailsValidate|NodeRuntimeSupportsTypeScriptBuildThroughLauncher|NodeRuntimeMissingBuiltOutputFailsValidate)|RuntimeABIPassthrough|PythonLauncherPrefersProjectVenvOnWindows)$$' ./repotests
+	go test -count=1 -run 'TestPluginService(DoctorReadyNeedsBootstrapNeedsBuildAndBlocked|DoctorPoetryManagerOwnedEnvIsReady|BootstrapPythonCreatesVenvAndInstallsRequirements|BootstrapPoetryReportsManagerOwnedEnv|BootstrapNodePNPMTypeScriptRunsInstallAndBuild|ExportPythonBundleExcludesProjectVenv|ExportShellBundlePreservesScripts|ExportRejectsGoRuntime)$$' ./cli/plugin-kit-ai/internal/app
+	go test -count=1 -run 'TestPluginKitAI(Init(GoRuntimeLauncherFlow|PythonRuntimeLauncherFlow|PythonRuntimeWithRequirementsDoctorBootstrapFlow|PythonRuntimeBrokenVenvFailsValidate|ShellRuntimeLauncherFlow|ShellRuntimeNonExecutableTargetFailsValidate|NodeRuntimeSupportsTypeScriptBuildThroughLauncher|NodeRuntimePNPMDoctorBootstrapFlow|NodeRuntimeMissingBuiltOutputFailsValidate)|RuntimeABIPassthrough|PythonLauncherPrefersProjectVenvOnWindows)$$' ./repotests
+	go test -count=1 -run 'TestPluginKitAIExport(PythonRequirementsBundleFlow|NodeTypeScriptBundleFlow|ShellBundleFlow)$$' ./repotests
 
 # Live E2E: real GitHub + real claude-notifications-go release (needs network). Optional: GITHUB_TOKEN.
 # Package is ./repotests (tests moved out of repo root).

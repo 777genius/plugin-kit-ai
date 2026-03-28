@@ -70,6 +70,10 @@ func TestInitRunner_claudeStableDefault(t *testing.T) {
 		"go.mod",
 		"plugin.yaml",
 		filepath.Join("targets", "claude", "hooks", "hooks.json"),
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
 		filepath.Join("cmd", "genplug", "main.go"),
 		filepath.Join(".claude-plugin", "plugin.json"),
 		filepath.Join("hooks", "hooks.json"),
@@ -107,6 +111,26 @@ func TestInitRunner_claudeStableDefault(t *testing.T) {
 	}
 	if strings.Contains(mainGo, "OnSessionStart") {
 		t.Fatalf("default Claude main.go unexpectedly contains extended handler:\n%s", mainGo)
+	}
+}
+
+func TestInitRunner_claudeWithoutExtrasStaysMinimal(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	_, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "claude", OutputDir: out})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
+		}
 	}
 }
 

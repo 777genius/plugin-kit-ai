@@ -13,8 +13,8 @@ This repo-local reference example is a fast-start lane for `codex-runtime`. For 
 - Status: `public-beta`, repo-local executable ABI
 
 ## Bootstrap Contract
-- Preferred runtime: project `.venv`
-- Fallback runtime: system Python `3.10+`
+- `venv`, `requirements.txt`, and `uv` expect repo-local `.venv`
+- `poetry` and `pipenv` can validate through manager-owned envs
 - If `.venv` exists but is broken, `plugin-kit-ai validate --strict` will fail until you recreate it
 - `plugin-kit-ai install` does not manage Python dependencies or virtualenv creation
 
@@ -25,7 +25,7 @@ plugin-kit-ai bootstrap .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ./bin/codex-python-local notify '{"client":"codex-tui"}'
 ```
-On Windows, `plugin-kit-ai bootstrap .` creates `.venv` the same way and uses `.venv\\Scripts\\python.exe`.
+On Windows, repo-local env flows still use `.venv\\Scripts\\python.exe`; `poetry` and `pipenv` may validate against manager-owned envs without creating `.venv`.
 
 ## Stable Default
 

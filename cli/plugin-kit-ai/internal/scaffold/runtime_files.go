@@ -17,6 +17,10 @@ func filesFor(platform, runtime string, extras, typescript bool) []TemplateFile 
 	case "claude":
 		files = append(files,
 			TemplateFile{Path: "targets/claude/hooks/hooks.json", Template: "targets.claude.hooks.json.tmpl", Extra: false},
+			TemplateFile{Path: "targets/claude/settings.json", Template: "empty.json.tmpl", Extra: true},
+			TemplateFile{Path: "targets/claude/lsp.json", Template: "empty.json.tmpl", Extra: true},
+			TemplateFile{Path: "targets/claude/user-config.json", Template: "empty.json.tmpl", Extra: true},
+			TemplateFile{Path: "targets/claude/manifest.extra.json", Template: "empty.json.tmpl", Extra: true},
 			TemplateFile{Path: "README.md", Template: "README.executable.md.tmpl", Extra: false},
 		)
 	case "codex-runtime":

@@ -80,7 +80,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex")
+	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
 	out, err := importCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("plugin-kit-ai import: %v\n%s", err, out)
@@ -216,7 +216,7 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 		t.Fatal(err)
 	}
 
-	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex")
+	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
 	out, err := importCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("plugin-kit-ai import codex: %v\n%s", err, out)
@@ -288,5 +288,19 @@ func TestPluginKitAIHelpDoesNotExposeMigrateCommand(t *testing.T) {
 	text := string(out)
 	if strings.Contains(text, " migrate ") || strings.Contains(text, "\nmigrate") {
 		t.Fatalf("unexpected migrate command in help:\n%s", text)
+	}
+}
+
+func TestPluginKitAIImportRejectsLegacyCodexAlias(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := t.TempDir()
+
+	cmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected legacy codex alias to fail:\n%s", out)
+	}
+	if !strings.Contains(string(out), `unsupported import source "codex"`) {
+		t.Fatalf("unexpected import failure:\n%s", out)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/runtimecheck"
 )
 
 func TestValidate_ManifestMissing(t *testing.T) {
@@ -245,42 +246,87 @@ targets: ["gemini"]
 	}
 }
 
-func TestFindPython_UsesPlatformAwareLookupOrder(t *testing.T) {
+func TestValidatePythonRuntime_UsesRepoLocalInterpreterFirst(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	restoreLookPath := runtimecheck.LookPath
+	restoreRunCommand := runtimecheck.RunCommand
+	runtimecheck.LookPath = func(name string) (string, error) { return name, nil }
+	runtimecheck.RunCommand = func(dir, name string, args ...string) (string, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return "Python 3.11.0", nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		runtimecheck.LookPath = restoreLookPath
+		runtimecheck.RunCommand = restoreRunCommand
+	})
+
+	mustWriteValidateFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexit 0\n")
 	if runtime.GOOS == "windows" {
 		venv := filepath.Join(root, ".venv", "Scripts", "python.exe")
 		mustWriteValidateFile(t, root, filepath.Join(".venv", "Scripts", "python.exe"), "binary")
-		got, err := findPython(root)
+		project, err := runtimecheck.Inspect(runtimecheck.Inputs{
+			Root:    root,
+			Targets: []string{"codex-runtime"},
+			Launcher: &pluginmanifest.Launcher{
+				Runtime:    "python",
+				Entrypoint: "./bin/demo",
+			},
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Path != venv {
-			t.Fatalf("findPython = %q, want %q", got.Path, venv)
+		if project.Python.ReadyInterpreter != venv {
+			t.Fatalf("ready interpreter = %q, want %q", project.Python.ReadyInterpreter, venv)
 		}
 		return
 	}
 	venv := filepath.Join(root, ".venv", "bin", "python3")
 	mustWriteValidateFile(t, root, filepath.Join(".venv", "bin", "python3"), "binary")
-	got, err := findPython(root)
+	project, err := runtimecheck.Inspect(runtimecheck.Inputs{
+		Root:    root,
+		Targets: []string{"codex-runtime"},
+		Launcher: &pluginmanifest.Launcher{
+			Runtime:    "python",
+			Entrypoint: "./bin/demo",
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Path != venv {
-		t.Fatalf("findPython = %q, want %q", got.Path, venv)
+	if project.Python.ReadyInterpreter != venv {
+		t.Fatalf("ready interpreter = %q, want %q", project.Python.ReadyInterpreter, venv)
 	}
 }
 
 func TestValidatePythonRuntime_BrokenProjectVenvShowsRecoveryGuidance(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("PATH", "")
+	mustWriteValidateFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexit 0\n")
+	restoreLookPath := runtimecheck.LookPath
+	restoreRunCommand := runtimecheck.RunCommand
+	runtimecheck.LookPath = func(name string) (string, error) { return name, nil }
+	runtimecheck.RunCommand = func(dir, name string, args ...string) (string, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return "", exec.ErrNotFound
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		runtimecheck.LookPath = restoreLookPath
+		runtimecheck.RunCommand = restoreRunCommand
+	})
 	if runtime.GOOS == "windows" {
 		mustWriteValidateFile(t, root, filepath.Join(".venv", "Scripts", "python.exe"), "not-a-real-exe")
 	} else {
-		mustWriteValidateFile(t, root, filepath.Join(".venv", "bin", "python3"), "#!/usr/bin/env bash\nexit 0\n")
+		mustWriteValidateFile(t, root, filepath.Join(".venv", "bin", "python3"), "not-a-real-exe")
 	}
 
-	err := validatePythonRuntime(root)
+	err := validatePythonRuntime(root, []string{"codex-runtime"}, &pluginmanifest.Launcher{
+		Runtime:    "python",
+		Entrypoint: "./bin/demo",
+	})
 	if err == nil {
 		t.Fatal("expected error")
 	}

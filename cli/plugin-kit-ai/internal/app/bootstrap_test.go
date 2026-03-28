@@ -32,6 +32,7 @@ func TestPluginServiceBootstrapPythonCreatesVenvAndInstallsRequirements(t *testi
 		"Detected Python manager: requirements.txt (pip)",
 		"Ran: python -m venv .venv",
 		"Ran: python -m pip install -r requirements.txt",
+		"Canonical Python environment source: repo-local .venv",
 		"Next: plugin-kit-ai validate . --platform codex-runtime --strict",
 	} {
 		if !strings.Contains(output, want) {
@@ -47,6 +48,30 @@ func TestPluginServiceBootstrapPythonCreatesVenvAndInstallsRequirements(t *testi
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".venv", "pip-installed.txt")); err != nil {
 		t.Fatalf("expected pip install marker: %v", err)
+	}
+}
+
+func TestPluginServiceBootstrapPoetryReportsManagerOwnedEnv(t *testing.T) {
+	restoreBootstrapHelpers(t)
+	dir := t.TempDir()
+	writeBootstrapProjectFile(t, dir, "plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
+
+	var svc PluginService
+	result, err := svc.Bootstrap(context.Background(), PluginBootstrapOptions{Root: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := strings.Join(result.Lines, "\n")
+	for _, want := range []string{
+		"Detected Python manager: poetry",
+		"Ran: poetry install --no-root",
+		"Canonical Python environment source: manager-owned env",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
 	}
 }
 
@@ -167,11 +192,19 @@ func runBootstrapPythonManagerHelper(name string, args []string) {
 			return
 		}
 	case "poetry":
+		if len(args) == 3 && args[0] == "env" && args[1] == "info" && args[2] == "--path" {
+			fmt.Fprintln(os.Stderr, "no active poetry env")
+			os.Exit(1)
+		}
 		if len(args) == 2 && args[0] == "install" && args[1] == "--no-root" {
 			mustWriteHelperFile(filepath.Join(".venv", "poetry-installed.txt"), "ok", 0o644)
 			return
 		}
 	case "pipenv":
+		if len(args) == 1 && args[0] == "--venv" {
+			fmt.Fprintln(os.Stderr, "no active pipenv env")
+			os.Exit(1)
+		}
 		if len(args) == 1 && (args[0] == "sync" || args[0] == "install") {
 			mustWriteHelperFile(filepath.Join(".venv", "pipenv-installed.txt"), args[0], 0o644)
 			return
@@ -227,6 +260,7 @@ func runBootstrapNodeHelper(name string, args []string) {
 func restoreBootstrapHelpers(t *testing.T) {
 	t.Helper()
 	prevLookPath := runtimecheck.LookPath
+	prevRunCommand := runtimecheck.RunCommand
 	prevCommand := bootstrapCommandContext
 	runtimecheck.LookPath = func(name string) (string, error) {
 		switch name {
@@ -235,6 +269,15 @@ func restoreBootstrapHelpers(t *testing.T) {
 		default:
 			return "", exec.ErrNotFound
 		}
+	}
+	runtimecheck.RunCommand = func(dir, name string, args ...string) (string, error) {
+		cmdArgs := []string{"-test.run=TestBootstrapHelperProcess", "--", name}
+		cmdArgs = append(cmdArgs, args...)
+		cmd := exec.Command(os.Args[0], cmdArgs...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GO_WANT_BOOTSTRAP_HELPER=1")
+		out, err := cmd.CombinedOutput()
+		return strings.TrimSpace(string(out)), err
 	}
 	bootstrapCommandContext = func(ctx context.Context, name string, args ...string) *exec.Cmd {
 		cmdArgs := []string{"-test.run=TestBootstrapHelperProcess", "--", name}
@@ -245,6 +288,7 @@ func restoreBootstrapHelpers(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		runtimecheck.LookPath = prevLookPath
+		runtimecheck.RunCommand = prevRunCommand
 		bootstrapCommandContext = prevCommand
 	})
 }

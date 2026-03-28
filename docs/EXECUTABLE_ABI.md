@@ -9,7 +9,7 @@ Runtime matrix:
 | Runtime | Status | Scope | Bootstrap |
 |---------|--------|-------|-----------|
 | `go` | stable | default SDK authoring path | Go `1.22+` |
-| `python` | public-beta | repo-local executable ABI | repo-local `.venv` readiness with lockfile-first manager detection |
+| `python` | public-beta | repo-local executable ABI | lockfile-first manager detection; `venv`/`requirements`/`uv` expect repo-local `.venv`, `poetry`/`pipenv` can use manager-owned envs |
 | `node` | public-beta | repo-local executable ABI | system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript` |
 | `shell` | public-beta | repo-local executable ABI | POSIX shell on Unix, `bash` on Windows |
 
@@ -47,9 +47,10 @@ For Codex `notify`, successful completion is represented by exit code `0`; stdou
 - current Claude/Codex/Gemini native config files stay as rendered managed artifacts; they are not the authored source of truth
 - repo-local authoring, validation, and launcher execution are supported for interpreted runtimes
 - `plugin-kit-ai doctor` is the read-only readiness surface for interpreted runtimes in the current beta contract
-- universal package management and packaged distribution are out of scope for interpreted runtimes in this cycle
+- `plugin-kit-ai export` is the bounded portable handoff surface for interpreted runtimes in the current beta contract
+- universal package management and packaged distribution through `plugin-kit-ai install` are out of scope for interpreted runtimes in this cycle
 - Windows launcher resolution is platform-aware:
-  - `python`: `.venv\Scripts\python.exe`, then `python`, then `python3`
+  - `python`: launcher resolution still prefers `.venv\Scripts\python.exe`, but `validate --strict` now treats `poetry` and `pipenv` manager-owned envs as ready without requiring repo-local `.venv`
   - `shell`: requires `bash` in `PATH`
   - generated launcher files use `.cmd`, while config entrypoints remain extensionless such as `./bin/my-plugin`
 - `plugin-kit-ai validate --strict` is the canonical CI-grade readiness gate for interpreted runtimes and uses the same runtime lookup order as the generated launcher contract
@@ -71,7 +72,7 @@ Current hardening coverage:
 
 ## Non-Goals In This Iteration
 
-- packaged distribution for Python or Node ecosystems
+- packaged distribution for Python or Node ecosystems through `plugin-kit-ai install`
 - release/install packaging for Python or Node ecosystems
 - TypeScript-specific runtime support
 - ABI changes to Claude or Codex wire formats

@@ -134,7 +134,7 @@ func TestImport_CurrentNativeCodexShellProject(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/demo\", \"notify\"]\nmodel = \"gpt-5.4-mini\"\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex", false)
+	_, _, err := Import(root, "codex-native", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\", \"extra\"]\napproval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
 
-	_, warnings, err := Import(root, "codex", false)
+	_, warnings, err := Import(root, "codex-native", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,6 +379,146 @@ func TestImport_ClaudeNormalizesCustomPathsAndUserConfig(t *testing.T) {
 	}
 }
 
+func TestImport_ClaudeNormalizesMultiPathArrays(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{
+  "name":"demo",
+  "version":"0.1.0",
+  "description":"demo",
+  "hooks":["./custom-hooks-a.json","./custom-hooks-b.json"],
+  "lspServers":["./custom-lsp-a.json","./custom-lsp-b.json"],
+  "mcpServers":["./custom-mcp-a.json","./custom-mcp-b.json"]
+}`)
+	mustWritePluginFile(t, root, "custom-hooks-a.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo Stop"}]}]}}`)
+	mustWritePluginFile(t, root, "custom-hooks-b.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo-again Stop"}]}],"UserPromptSubmit":[{"hooks":[{"type":"command","command":"./bin/demo UserPromptSubmit"}]}]}}`)
+	mustWritePluginFile(t, root, "custom-lsp-a.json", `{"demo":{"command":["demo-lsp"]}}`)
+	mustWritePluginFile(t, root, "custom-lsp-b.json", `{"demo":{"command":["demo-lsp"]},"review":{"command":["review-lsp"]}}`)
+	mustWritePluginFile(t, root, "custom-mcp-a.json", `{"demo":{"command":"demo","args":["serve"]}}`)
+	mustWritePluginFile(t, root, "custom-mcp-b.json", `{"demo":{"command":"demo","args":["serve"]},"review":{"command":"review","args":["serve"]}}`)
+
+	_, warnings, err := Import(root, "claude", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hooksBody, err := os.ReadFile(filepath.Join(root, "targets", "claude", "hooks", "hooks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hooksDoc map[string]any
+	if err := json.Unmarshal(hooksBody, &hooksDoc); err != nil {
+		t.Fatal(err)
+	}
+	hooksMap, ok := hooksDoc["hooks"].(map[string]any)
+	if !ok {
+		t.Fatalf("hooks document = %#v", hooksDoc)
+	}
+	stopEntries, ok := hooksMap["Stop"].([]any)
+	if !ok || len(stopEntries) != 2 {
+		t.Fatalf("Stop hooks = %#v", hooksMap["Stop"])
+	}
+	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "lsp.json")); err != nil {
+		t.Fatalf("stat lsp: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.json")); err != nil {
+		t.Fatalf("stat mcp: %v", err)
+	}
+
+	var foundHooks, foundLSP, foundMCP bool
+	for _, warning := range warnings {
+		if strings.Contains(warning.Message, "custom Claude hooks path array was normalized") {
+			foundHooks = true
+		}
+		if strings.Contains(warning.Message, "custom Claude lspServers path array was normalized") {
+			foundLSP = true
+		}
+		if strings.Contains(warning.Message, "custom Claude mcpServers path array was normalized") {
+			foundMCP = true
+		}
+	}
+	if !foundHooks || !foundLSP || !foundMCP {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestImport_ClaudeRejectsConflictingMultiPathArrays(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{
+  "name":"demo",
+  "version":"0.1.0",
+  "description":"demo",
+  "lspServers":["./custom-lsp-a.json","./custom-lsp-b.json"]
+}`)
+	mustWritePluginFile(t, root, "custom-lsp-a.json", `{"demo":{"command":["demo-lsp"]}}`)
+	mustWritePluginFile(t, root, "custom-lsp-b.json", `{"demo":{"command":["other-lsp"]}}`)
+
+	_, _, err := Import(root, "claude", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), `duplicate key "demo" conflicts`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestImport_ClaudeRejectsInvalidHookMultiPathMerge(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{
+  "name":"demo",
+  "version":"0.1.0",
+  "description":"demo",
+  "hooks":["./custom-hooks-a.json","./custom-hooks-b.json"]
+}`)
+	mustWritePluginFile(t, root, "custom-hooks-a.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo Stop"}]}]}}`)
+	mustWritePluginFile(t, root, "custom-hooks-b.json", `{"hooks":{"Stop":{"bad":true}}}`)
+
+	_, _, err := Import(root, "claude", false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "mixes object and non-object shapes") && !strings.Contains(err.Error(), "mixes array and non-array shapes") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestImport_ClaudeManifestlessDetectsCommandsOnly(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join("commands", "ship.md"), "# ship\n")
+
+	imported, warnings, err := Import(root, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "claude" {
+		t.Fatalf("targets = %+v", imported.Targets)
+	}
+	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "commands", "ship.md")); err != nil {
+		t.Fatalf("stat command: %v", err)
+	}
+	if !containsWarning(warnings, "native Claude plugin imported without manifest") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
+func TestImport_ClaudeManifestlessDetectsAgentsOnly(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "---\nname: reviewer\ndescription: review\n---\nReview.\n")
+
+	imported, warnings, err := Import(root, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "claude" {
+		t.Fatalf("targets = %+v", imported.Targets)
+	}
+	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "agents", "reviewer.md")); err != nil {
+		t.Fatalf("stat agent: %v", err)
+	}
+	if !containsWarning(warnings, "native Claude plugin imported without manifest") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+}
+
 func TestImport_RefusesOverwriteBeforeWritingImportedLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, FileName, `format: plugin-kit-ai/package
@@ -391,7 +531,7 @@ targets: ["codex"]
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex", false)
+	_, _, err := Import(root, "codex-native", false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -858,7 +998,7 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, ".mcp.json", "{}\n")
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
-	_, warnings, err := Import(root, "codex", false)
+	_, warnings, err := Import(root, "codex-native", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -877,6 +1017,26 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	if !foundMCP || !foundAgents {
 		t.Fatalf("warnings = %+v", warnings)
 	}
+}
+
+func TestImport_RejectsLegacyCodexSource(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
+
+	_, _, err := Import(root, "codex", false)
+	if err == nil || !strings.Contains(err.Error(), `unsupported import source "codex"`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func containsWarning(warnings []Warning, needle string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning.Message, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func mustWritePluginFile(t *testing.T, root, rel, body string) {

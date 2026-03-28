@@ -18,9 +18,9 @@ Pair this with [REHEARSAL_TEMPLATE.md](./REHEARSAL_TEMPLATE.md) when collecting 
 
 - list remaining beta surfaces
 
-## Breaking Changes And Required User Action
+## Beta Contract Changes
 
-- list beta-breaking or release-relevant changes and the required user action
+- list beta-contract changes and whether each affected surface stays `public-beta`
 
 ## External Smoke Status
 

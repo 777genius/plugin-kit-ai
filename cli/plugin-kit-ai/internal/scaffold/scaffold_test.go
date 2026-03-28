@@ -121,6 +121,10 @@ func TestPaths_ClaudeStableDefault(t *testing.T) {
 		"plugin.yaml",
 		"launcher.yaml",
 		filepath.Join("targets", "claude", "hooks", "hooks.json"),
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
 		"README.md",
 		"Makefile",
 		".goreleaser.yml",
@@ -165,6 +169,10 @@ func TestPathsForRuntime_ClaudeShell(t *testing.T) {
 		"plugin.yaml",
 		"launcher.yaml",
 		filepath.Join("targets", "claude", "hooks", "hooks.json"),
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
 		filepath.Join("scripts", "main.sh"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
@@ -239,6 +247,50 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 	} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("plugin.yaml unexpectedly contains %q:\n%s", unwanted, got)
+		}
+	}
+}
+
+func TestPaths_ClaudeWithoutExtrasStaysMinimal(t *testing.T) {
+	t.Parallel()
+	got := Paths("claude", "my-plugin", false)
+	for _, unwanted := range []string{
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
+	} {
+		if contains(got, unwanted) {
+			t.Fatalf("unexpected %q in %v", unwanted, got)
+		}
+	}
+}
+
+func TestWrite_ClaudeExtrasCreateOptionalJSONDocs(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	err := Write(root, Data{
+		ProjectName: "my-plugin",
+		ModulePath:  DefaultModulePath("my-plugin"),
+		Description: "plugin-kit-ai plugin",
+		Platform:    "claude",
+		WithExtras:  true,
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join("targets", "claude", "settings.json"),
+		filepath.Join("targets", "claude", "lsp.json"),
+		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("targets", "claude", "manifest.extra.json"),
+	} {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if strings.TrimSpace(string(body)) != "{}" {
+			t.Fatalf("%s = %q, want {}", rel, string(body))
 		}
 	}
 }

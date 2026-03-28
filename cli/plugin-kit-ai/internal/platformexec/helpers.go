@@ -42,6 +42,17 @@ func mustJSON(value any) []byte {
 	return body
 }
 
+func decodeJSONObject(body []byte, label string) (map[string]any, error) {
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("%s is invalid JSON: %w", label, err)
+	}
+	if doc == nil {
+		doc = map[string]any{}
+	}
+	return doc, nil
+}
+
 func mustYAML(value any) []byte {
 	body, err := yaml.Marshal(value)
 	if err != nil {

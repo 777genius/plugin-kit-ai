@@ -67,8 +67,32 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 	}
 
 	restoreLookPath := LookPath
+	restoreRunCommand := RunCommand
 	LookPath = func(name string) (string, error) { return name, nil }
-	t.Cleanup(func() { LookPath = restoreLookPath })
+	RunCommand = func(dir, name string, args ...string) (string, error) {
+		base := filepath.Base(name)
+		if len(args) == 1 && args[0] == "--version" {
+			switch {
+			case strings.Contains(filepath.ToSlash(name), ".venv/"), strings.Contains(filepath.ToSlash(name), ".venv\\"):
+				return "Python 3.11.0", nil
+			case strings.Contains(filepath.ToSlash(name), "external-env/"), strings.Contains(filepath.ToSlash(name), "external-env\\"):
+				return "Python 3.11.0", nil
+			case base == "python" || base == "python3" || base == "python.exe":
+				return "Python 3.11.0", nil
+			}
+		}
+		if base == "poetry" && len(args) == 3 && args[0] == "env" && args[1] == "info" && args[2] == "--path" {
+			return filepath.Join(dir, "external-env"), nil
+		}
+		if base == "pipenv" && len(args) == 1 && args[0] == "--venv" {
+			return filepath.Join(dir, "external-env"), nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		LookPath = restoreLookPath
+		RunCommand = restoreRunCommand
+	})
 
 	for _, tc := range cases {
 		tc := tc
@@ -95,6 +119,132 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 				t.Fatalf("binary = %q want %q", project.Python.ManagerBinary, tc.binary)
 			}
 		})
+	}
+}
+
+func TestInspectPythonManagerOwnedEnvDetection(t *testing.T) {
+	restoreLookPath := LookPath
+	restoreRunCommand := RunCommand
+	LookPath = func(name string) (string, error) { return name, nil }
+	RunCommand = func(dir, name string, args ...string) (string, error) {
+		base := filepath.Base(name)
+		if len(args) == 1 && args[0] == "--version" && strings.Contains(filepath.ToSlash(name), "external-env") {
+			return "Python 3.11.0", nil
+		}
+		if base == "poetry" && len(args) == 3 {
+			return filepath.Join(dir, "external-env"), nil
+		}
+		if base == "pipenv" && len(args) == 1 {
+			return filepath.Join(dir, "external-env"), nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		LookPath = restoreLookPath
+		RunCommand = restoreRunCommand
+	})
+
+	cases := []struct {
+		name    string
+		files   map[string]string
+		manager PythonManager
+	}{
+		{
+			name: "poetry external env",
+			files: map[string]string{
+				"plugin.yaml":              minimalManifest("demo"),
+				"launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"pyproject.toml":           "[tool.poetry]\nname='demo'\n",
+				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
+				"external-env/bin/python3": "ok",
+			},
+			manager: PythonManagerPoetry,
+		},
+		{
+			name: "pipenv external env",
+			files: map[string]string{
+				"plugin.yaml":              minimalManifest("demo"),
+				"launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"Pipfile.lock":             "{}\n",
+				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
+				"external-env/bin/python3": "ok",
+			},
+			manager: PythonManagerPipenv,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for rel, body := range tc.files {
+				writeRuntimeCheckFile(t, root, rel, body)
+			}
+			project, err := Inspect(Inputs{
+				Root:    root,
+				Targets: []string{"codex-runtime"},
+				Launcher: &pluginmanifest.Launcher{
+					Runtime:    "python",
+					Entrypoint: "./bin/demo",
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if project.Python.Manager != tc.manager {
+				t.Fatalf("manager = %q want %q", project.Python.Manager, tc.manager)
+			}
+			if project.Python.ReadySource != PythonEnvSourceManagerOwned {
+				t.Fatalf("ready source = %q", project.Python.ReadySource)
+			}
+			if project.Python.ReadyInterpreter == "" {
+				t.Fatal("expected manager-owned interpreter")
+			}
+		})
+	}
+}
+
+func TestInspectPythonBrokenVenvBlocksManagerProbe(t *testing.T) {
+	restoreLookPath := LookPath
+	restoreRunCommand := RunCommand
+	LookPath = func(name string) (string, error) { return name, nil }
+	RunCommand = func(dir, name string, args ...string) (string, error) {
+		base := filepath.Base(name)
+		if base == "poetry" || base == "pipenv" {
+			t.Fatalf("manager probe should not run when .venv is broken")
+		}
+		if len(args) == 1 && args[0] == "--version" {
+			return "", exec.ErrNotFound
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		LookPath = restoreLookPath
+		RunCommand = restoreRunCommand
+	})
+
+	root := t.TempDir()
+	writeRuntimeCheckFile(t, root, "plugin.yaml", minimalManifest("demo"))
+	writeRuntimeCheckFile(t, root, "launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeRuntimeCheckFile(t, root, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
+	writeRuntimeCheckFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexit 0\n")
+	writeRuntimeCheckFile(t, root, filepath.Join(".venv", "bin", "python3"), "broken")
+
+	project, err := Inspect(Inputs{
+		Root:    root,
+		Targets: []string{"codex-runtime"},
+		Launcher: &pluginmanifest.Launcher{
+			Runtime:    "python",
+			Entrypoint: "./bin/demo",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if project.Python.ReadySource != PythonEnvSourceBroken {
+		t.Fatalf("ready source = %q", project.Python.ReadySource)
+	}
+	if !strings.Contains(project.Python.BrokenReason, "found .venv") {
+		t.Fatalf("broken reason = %q", project.Python.BrokenReason)
 	}
 }
 

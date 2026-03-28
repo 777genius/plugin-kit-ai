@@ -14,7 +14,7 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 - release automation hardening
 - Codex smoke reliability improvements that do not widen the contract promise
 - install path and checksum hardening inside the existing contract
-- migration and deprecation follow-through for beta leftovers
+- beta contract cleanup, change-note hygiene, and documentation follow-through for beta leftovers
 
 ## Disallowed Scope
 
@@ -36,5 +36,5 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 
 - package-standard authoring is now the only supported authored shape
 - Gemini remains a packaging-only target and is being hardened as part of the package-standard surface, not promoted to runtime
-- executable runtime work in `python`, `node`, and `shell` remains `public-beta` and is limited to repo-local bootstrap, validate, launcher, and deterministic canary hardening
+- executable runtime work in `python`, `node`, and `shell` remains `public-beta` and is limited to scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, bounded portable export bundles, and deterministic canary hardening
 - the current deterministic patch candidate is `8b3bdbbf400805c410ea05bec8b0c5215dacd131`

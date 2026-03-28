@@ -16,6 +16,7 @@ import (
 )
 
 var LookPath = exec.LookPath
+var RunCommand = defaultRunCommand
 
 type DoctorStatus string
 
@@ -55,6 +56,15 @@ const (
 	PythonManagerPipenv       PythonManager = "pipenv"
 )
 
+type PythonEnvSource string
+
+const (
+	PythonEnvSourceMissing      PythonEnvSource = "missing"
+	PythonEnvSourceRepoLocal    PythonEnvSource = "repo-local .venv"
+	PythonEnvSourceManagerOwned PythonEnvSource = "manager-owned env"
+	PythonEnvSourceBroken       PythonEnvSource = "broken"
+)
+
 type NodeManager string
 
 const (
@@ -69,7 +79,15 @@ type PythonShape struct {
 	ManagerBinary    string
 	ManifestPath     string
 	HasVenv          bool
+	VenvPath         string
 	VenvRunnable     bool
+	ProbedEnvPath    string
+	ProbeAttempted   bool
+	ProbeAvailable   bool
+	ReadySource      PythonEnvSource
+	ReadyInterpreter string
+	VersionOutput    string
+	BrokenReason     string
 	ManagerAvailable bool
 }
 
@@ -203,11 +221,18 @@ func Diagnose(project Project) Diagnosis {
 
 func diagnosePython(project Project, nextValidate string) Diagnosis {
 	shape := project.Python
-	if shape.HasVenv && !shape.VenvRunnable {
+	if shape.BrokenReason != "" {
 		return Diagnosis{
 			Status: StatusBlocked,
-			Reason: "found .venv but no runnable interpreter; recreate or repair the virtualenv",
+			Reason: shape.BrokenReason,
 			Next:   []string{"plugin-kit-ai bootstrap .", nextValidate},
+		}
+	}
+	if shape.ReadySource != PythonEnvSourceMissing {
+		return Diagnosis{
+			Status: StatusReady,
+			Reason: fmt.Sprintf("Python runtime is ready via %s using %s", shape.ManagerDisplay(), shape.ReadySourceDisplay()),
+			Next:   []string{nextValidate},
 		}
 	}
 	if !shape.ManagerAvailable {
@@ -217,17 +242,10 @@ func diagnosePython(project Project, nextValidate string) Diagnosis {
 			Next:   []string{"plugin-kit-ai bootstrap .", nextValidate},
 		}
 	}
-	if !shape.VenvRunnable {
-		return Diagnosis{
-			Status: StatusNeedsBootstrap,
-			Reason: "project-local Python environment is not ready",
-			Next:   []string{"plugin-kit-ai bootstrap .", nextValidate},
-		}
-	}
 	return Diagnosis{
-		Status: StatusReady,
-		Reason: fmt.Sprintf("Python runtime is ready via %s", shape.ManagerDisplay()),
-		Next:   []string{nextValidate},
+		Status: StatusNeedsBootstrap,
+		Reason: fmt.Sprintf("%s environment is not ready", shape.CanonicalSourceDisplay()),
+		Next:   []string{"plugin-kit-ai bootstrap .", nextValidate},
 	}
 }
 
@@ -277,52 +295,93 @@ func diagnoseNode(project Project, nextValidate string) Diagnosis {
 
 func inspectPython(root string) PythonShape {
 	hasUV, hasPoetry := parsePyProjectTools(root)
+	shape := PythonShape{}
 	switch {
 	case fileExists(filepath.Join(root, "uv.lock")) || hasUV:
-		return PythonShape{
+		shape = PythonShape{
 			Manager:          PythonManagerUV,
 			ManagerBinary:    "uv",
 			ManifestPath:     firstExisting(root, "uv.lock", "pyproject.toml"),
-			HasVenv:          hasVenv(root),
-			VenvRunnable:     pythonInterpreter(root) != "",
 			ManagerAvailable: lookupBinary("uv"),
 		}
 	case fileExists(filepath.Join(root, "poetry.lock")) || hasPoetry:
-		return PythonShape{
+		shape = PythonShape{
 			Manager:          PythonManagerPoetry,
 			ManagerBinary:    "poetry",
 			ManifestPath:     firstExisting(root, "poetry.lock", "pyproject.toml"),
-			HasVenv:          hasVenv(root),
-			VenvRunnable:     pythonInterpreter(root) != "",
 			ManagerAvailable: lookupBinary("poetry"),
 		}
 	case fileExists(filepath.Join(root, "Pipfile.lock")) || fileExists(filepath.Join(root, "Pipfile")):
-		return PythonShape{
+		shape = PythonShape{
 			Manager:          PythonManagerPipenv,
 			ManagerBinary:    "pipenv",
 			ManifestPath:     firstExisting(root, "Pipfile.lock", "Pipfile"),
-			HasVenv:          hasVenv(root),
-			VenvRunnable:     pythonInterpreter(root) != "",
 			ManagerAvailable: lookupBinary("pipenv"),
 		}
 	case fileExists(filepath.Join(root, "requirements.txt")):
-		return PythonShape{
+		shape = PythonShape{
 			Manager:          PythonManagerRequirements,
 			ManagerBinary:    firstAvailableBinary(pythonPathNames()),
 			ManifestPath:     "requirements.txt",
-			HasVenv:          hasVenv(root),
-			VenvRunnable:     pythonInterpreter(root) != "",
 			ManagerAvailable: firstAvailableBinary(pythonPathNames()) != "",
 		}
 	default:
-		return PythonShape{
+		shape = PythonShape{
 			Manager:          PythonManagerVenv,
 			ManagerBinary:    firstAvailableBinary(pythonPathNames()),
-			HasVenv:          hasVenv(root),
-			VenvRunnable:     pythonInterpreter(root) != "",
 			ManagerAvailable: firstAvailableBinary(pythonPathNames()) != "",
 		}
 	}
+	shape.HasVenv = hasVenv(root)
+	shape.VenvPath = pythonInterpreter(root)
+	if shape.VenvPath != "" {
+		if version, err := pythonVersion(root, shape.VenvPath); err == nil {
+			shape.VenvRunnable = true
+			shape.ReadySource = PythonEnvSourceRepoLocal
+			shape.ReadyInterpreter = shape.VenvPath
+			shape.VersionOutput = version
+			return shape
+		}
+		shape.BrokenReason = "found .venv but no runnable interpreter; recreate .venv or repair the virtualenv"
+		shape.ReadySource = PythonEnvSourceBroken
+		return shape
+	}
+	if shape.HasVenv {
+		shape.BrokenReason = "found .venv but no runnable interpreter; recreate .venv or repair the virtualenv"
+		shape.ReadySource = PythonEnvSourceBroken
+		return shape
+	}
+	switch shape.Manager {
+	case PythonManagerPoetry, PythonManagerPipenv:
+		shape.ProbeAttempted = shape.ManagerAvailable
+		if shape.ManagerAvailable {
+			envRoot, ok := probeManagedPythonEnv(root, shape.Manager)
+			shape.ProbeAvailable = ok
+			if ok {
+				shape.ProbedEnvPath = envRoot
+				interpreter := pythonInterpreterInEnv(envRoot)
+				if interpreter == "" {
+					shape.BrokenReason = fmt.Sprintf("%s reported env %s but no runnable interpreter was found", shape.ManagerDisplay(), filepath.ToSlash(envRoot))
+					shape.ReadySource = PythonEnvSourceBroken
+					return shape
+				}
+				version, err := pythonVersion(root, interpreter)
+				if err != nil {
+					shape.BrokenReason = fmt.Sprintf("%s reported env %s but its interpreter is not runnable", shape.ManagerDisplay(), filepath.ToSlash(envRoot))
+					shape.ReadySource = PythonEnvSourceBroken
+					return shape
+				}
+				shape.ReadySource = PythonEnvSourceManagerOwned
+				shape.ReadyInterpreter = interpreter
+				shape.VersionOutput = version
+				return shape
+			}
+		}
+	}
+	if shape.ReadySource == "" {
+		shape.ReadySource = PythonEnvSourceMissing
+	}
+	return shape
 }
 
 func inspectNode(root, entrypoint string) NodeShape {
@@ -404,6 +463,54 @@ func (p PythonShape) ManagerDisplay() string {
 	}
 }
 
+func (p PythonShape) ReadySourceDisplay() string {
+	switch p.ReadySource {
+	case PythonEnvSourceRepoLocal:
+		return "repo-local .venv"
+	case PythonEnvSourceManagerOwned:
+		return "manager-owned env"
+	default:
+		return "missing env"
+	}
+}
+
+func (p PythonShape) CanonicalSourceDisplay() string {
+	switch p.Manager {
+	case PythonManagerPoetry, PythonManagerPipenv:
+		return "manager-owned Python"
+	default:
+		return "project-local Python"
+	}
+}
+
+func (p PythonShape) CanonicalEnvSourceDisplay() string {
+	switch p.Manager {
+	case PythonManagerPoetry, PythonManagerPipenv:
+		return "manager-owned env"
+	default:
+		return "repo-local .venv"
+	}
+}
+
+func (p PythonShape) BootstrapFallbackCommand() string {
+	switch p.Manager {
+	case PythonManagerUV:
+		return "uv sync"
+	case PythonManagerPoetry:
+		return "poetry install --no-root"
+	case PythonManagerPipenv:
+		if p.ManifestPath == "Pipfile.lock" {
+			return "pipenv sync"
+		}
+		return "pipenv install"
+	case PythonManagerRequirements, PythonManagerVenv:
+		if strings.TrimSpace(p.ManagerBinary) != "" {
+			return p.ManagerBinary + " -m venv .venv"
+		}
+	}
+	return ""
+}
+
 func (n NodeShape) ManagerDisplay() string {
 	if n.Manager == "" {
 		return "npm"
@@ -480,6 +587,25 @@ func parsePyProjectTools(root string) (bool, bool) {
 	_, hasUV := project.Tool["uv"]
 	_, hasPoetry := project.Tool["poetry"]
 	return hasUV, hasPoetry
+}
+
+func probeManagedPythonEnv(root string, manager PythonManager) (string, bool) {
+	switch manager {
+	case PythonManagerPoetry:
+		out, err := RunCommand(root, "poetry", "env", "info", "--path")
+		if err != nil {
+			return "", false
+		}
+		return strings.TrimSpace(out), strings.TrimSpace(out) != ""
+	case PythonManagerPipenv:
+		out, err := RunCommand(root, "pipenv", "--venv")
+		if err != nil {
+			return "", false
+		}
+		return strings.TrimSpace(out), strings.TrimSpace(out) != ""
+	default:
+		return "", false
+	}
 }
 
 func detectNodeManager(root string) NodeManager {
@@ -565,16 +691,29 @@ func pythonInterpreter(root string) string {
 	return ""
 }
 
+func pythonInterpreterInEnv(envRoot string) string {
+	for _, candidate := range pythonEnvCandidates(envRoot) {
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+	return ""
+}
+
 func pythonCandidates(root string) []string {
+	return pythonEnvCandidates(filepath.Join(root, ".venv"))
+}
+
+func pythonEnvCandidates(envRoot string) []string {
 	if runtime.GOOS == "windows" {
 		return []string{
-			filepath.Join(root, ".venv", "Scripts", "python.exe"),
-			filepath.Join(root, ".venv", "bin", "python3"),
+			filepath.Join(envRoot, "Scripts", "python.exe"),
+			filepath.Join(envRoot, "bin", "python3"),
 		}
 	}
 	return []string{
-		filepath.Join(root, ".venv", "bin", "python3"),
-		filepath.Join(root, ".venv", "Scripts", "python.exe"),
+		filepath.Join(envRoot, "bin", "python3"),
+		filepath.Join(envRoot, "Scripts", "python.exe"),
 	}
 }
 
@@ -616,4 +755,15 @@ func YarnBerry(root string, packageManager string) bool {
 	}
 	major, err := strconv.Atoi(majorText)
 	return err == nil && major >= 2
+}
+
+func pythonVersion(root, path string) (string, error) {
+	return RunCommand(root, path, "--version")
+}
+
+func defaultRunCommand(dir, name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	return strings.TrimSpace(string(out)), err
 }

@@ -30,6 +30,7 @@ Use this worksheet during the `v0.9` rehearsal and reuse the same structure for 
 
 - `docs/V0_9_AUDIT.md` updated:
 - changelog / release notes updated:
+- beta change notes updated:
 - final statuses assigned:
 
 ## Known Limitations

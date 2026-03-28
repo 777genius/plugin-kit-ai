@@ -396,7 +396,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 	case "python":
 		validatePluginLauncher(root, launcher, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
-		if err := validatePythonRuntime(root); err != nil {
+		if err := validatePythonRuntime(root, manifest.EnabledTargets(), launcher); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
 				Message: err.Error(),
@@ -538,76 +538,36 @@ func validateRuntimeTargetExecutable(root, rel string, report *Report) {
 	}
 }
 
-type pythonRuntimeResolution struct {
-	Path   string
-	Source string
-}
-
-func validatePythonRuntime(root string) error {
-	resolution, err := findPython(root)
+func validatePythonRuntime(root string, targets []string, launcher *pluginmanifest.Launcher) error {
+	project, err := runtimecheck.Inspect(runtimecheck.Inputs{
+		Root:     root,
+		Targets:  targets,
+		Launcher: launcher,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("runtime not found: python runtime inspection failed: %v", err)
 	}
-	out, err := exec.Command(resolution.Path, "--version").CombinedOutput()
-	if err != nil {
-		switch resolution.Source {
-		case "project-venv":
-			return fmt.Errorf("runtime not found: found project virtualenv interpreter at %s but it is not runnable (%v); recreate .venv or install Python 3.10+", resolution.Path, err)
-		default:
-			return fmt.Errorf("runtime not found: found %s at %s but it is not runnable (%v); install Python 3.10+ or repair your PATH", resolution.Source, resolution.Path, err)
-		}
+	diagnosis := runtimecheck.Diagnose(project)
+	if diagnosis.Status != runtimecheck.StatusReady {
+		return fmt.Errorf("runtime not found: %s. %s", diagnosis.Reason, pythonRecoveryMessage(project.Python))
 	}
-	if err := requireMinVersion("python", string(out), 3, 10); err != nil {
-		switch resolution.Source {
-		case "project-venv":
-			return fmt.Errorf("runtime not found: found project virtualenv interpreter at %s but %v; recreate .venv with Python 3.10+ or repair the virtualenv", resolution.Path, err)
-		default:
-			return fmt.Errorf("runtime not found: found %s at %s but %v; install Python 3.10+ or repair your PATH", resolution.Source, resolution.Path, err)
-		}
+	if err := requireMinVersion("python", project.Python.VersionOutput, 3, 10); err != nil {
+		return fmt.Errorf("runtime not found: found %s interpreter at %s but %v. %s",
+			project.Python.ReadySourceDisplay(),
+			filepath.ToSlash(project.Python.ReadyInterpreter),
+			err,
+			pythonRecoveryMessage(project.Python),
+		)
 	}
 	return nil
 }
 
-func findPython(root string) (pythonRuntimeResolution, error) {
-	candidates := pythonCandidates(root)
-	venvExists := fileExists(filepath.Join(root, ".venv")) || dirExists(filepath.Join(root, ".venv"))
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return pythonRuntimeResolution{Path: candidate, Source: "project-venv"}, nil
-		}
+func pythonRecoveryMessage(shape runtimecheck.PythonShape) string {
+	message := "Run plugin-kit-ai doctor ., then plugin-kit-ai bootstrap ."
+	if fallback := shape.BootstrapFallbackCommand(); strings.TrimSpace(fallback) != "" {
+		message += " If needed, fall back to " + fallback + "."
 	}
-	checkedVenv := strings.Join(candidates, ", ")
-	checkedPath := strings.Join(pythonPathNames(), ", ")
-	if venvExists {
-		return pythonRuntimeResolution{}, fmt.Errorf("runtime not found: python runtime required; checked project virtualenv (%s); found .venv but no runnable interpreter. Recreate .venv or install Python 3.10+", checkedVenv)
-	}
-	for _, name := range pythonPathNames() {
-		path, err := exec.LookPath(name)
-		if err == nil {
-			return pythonRuntimeResolution{Path: path, Source: "system-path"}, nil
-		}
-	}
-	return pythonRuntimeResolution{}, fmt.Errorf("runtime not found: python runtime required; checked PATH runtimes (%s). Install Python 3.10+ or create .venv with python3 -m venv .venv", checkedPath)
-}
-
-func pythonCandidates(root string) []string {
-	if runtime.GOOS == "windows" {
-		return []string{
-			filepath.Join(root, ".venv", "Scripts", "python.exe"),
-			filepath.Join(root, ".venv", "bin", "python3"),
-		}
-	}
-	return []string{
-		filepath.Join(root, ".venv", "bin", "python3"),
-		filepath.Join(root, ".venv", "Scripts", "python.exe"),
-	}
-}
-
-func pythonPathNames() []string {
-	if runtime.GOOS == "windows" {
-		return []string{"python", "python3"}
-	}
-	return []string{"python3"}
+	return message
 }
 
 func validateNodeRuntime() error {

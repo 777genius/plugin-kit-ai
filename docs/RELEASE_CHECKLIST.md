@@ -8,7 +8,7 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - `make release-gate` includes `test-required`, `vet`, and `generated-check`
 - `make release-rehearsal` may be used as the canonical deterministic local rehearsal shortcut
 - `make test-install-compat` green
-- `make test-polyglot-smoke` green when executable-runtime beta claims or launcher logic changed
+- `make test-polyglot-smoke` green when executable-runtime beta claims, launcher logic, doctor/bootstrap/export behavior, or runtime bundle contract changed
 - generated-config/runtime-contract drift evidence recorded when changes affect `render`, scaffolded target files, target contracts, or runtime docs
 - generated artifacts in sync
 - support matrix matches shipped claims
@@ -28,7 +28,7 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 
 ## Beta-Breaking Changes
 
-- migration note written when beta user code or scaffold output changes
+- beta change note written when beta user code, scaffold output, readiness semantics, or bundle contents change
 - deprecation or removal called out in docs/changelog
 - stable-candidate set impact reviewed
 - [V0_9_AUDIT.md](./V0_9_AUDIT.md) updated when the declared `v1` candidate set changes

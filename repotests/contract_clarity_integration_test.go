@@ -72,6 +72,34 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	hardeningDoc, err := os.ReadFile(filepath.Join(root, "docs", "V1_0_X_HARDENING.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseDoc, err := os.ReadFile(filepath.Join(root, "docs", "RELEASE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseChecklist, err := os.ReadFile(filepath.Join(root, "docs", "RELEASE_CHECKLIST.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseNotesTemplate, err := os.ReadFile(filepath.Join(root, "docs", "RELEASE_NOTES_TEMPLATE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rehearsalTemplate, err := os.ReadFile(filepath.Join(root, "docs", "REHEARSAL_TEMPLATE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	polyglotWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "polyglot-smoke.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mustContain(t, string(rootReadme), "full Gemini CLI extension packaging lane through `render|import|validate`")
 	mustContain(t, string(rootReadme), "### Fast Local Plugin")
@@ -80,11 +108,11 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(rootReadme), "| local notify/runtime plugin in your repo | `codex-runtime` |")
 	mustContain(t, string(rootReadme), "Reference repos: [examples/local/README.md](examples/local/README.md)")
 	mustContain(t, string(rootReadme), "`plugin-kit-ai capabilities` now defaults to target/package introspection")
-	mustContain(t, string(rootReadme), "| `python` | public-beta | repo-local executable ABI | prefer `.venv`, fallback to system Python `3.10+` |")
+	mustContain(t, string(rootReadme), "| `python` | public-beta | repo-local executable ABI | lockfile-first manager detection; `venv`/`requirements`/`uv` use repo-local `.venv`, `poetry`/`pipenv` can use manager-owned envs |")
 	mustContain(t, string(rootReadme), "./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript")
 	mustContain(t, string(rootReadme), "./bin/plugin-kit-ai doctor ./my-plugin")
 	mustContain(t, string(rootReadme), "./bin/plugin-kit-ai bootstrap ./my-plugin")
-	mustContain(t, string(rootReadme), "Legacy bridge for older native Codex layouts")
+	mustContain(t, string(rootReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex-native")
 	mustContain(t, string(rootReadme), "| `node` | public-beta | repo-local executable ABI | system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript` |")
 	mustContain(t, string(rootReadme), "Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface")
 	mustContain(t, string(rootReadme), "`validate --strict` is the canonical CI-grade readiness gate")
@@ -95,9 +123,11 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(cliReadme), "Reference repos: [../../examples/local/README.md](../../examples/local/README.md)")
 	mustContain(t, string(cliReadme), "Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai capabilities` defaults to the target/package view")
-	mustContain(t, string(cliReadme), "Builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `render`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`")
+	mustContain(t, string(cliReadme), "Builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `export`, `render`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai bootstrap` is the bounded repo-local first-run helper")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai doctor` is the read-only readiness check")
+	mustContain(t, string(cliReadme), "`plugin-kit-ai export` is the bounded `public-beta` portable handoff surface")
+	mustContain(t, string(cliReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex-native")
 	mustContain(t, string(cliReadme), "| `node` | public-beta | repo-local only | lockfile-first manager detection (`bun`, `pnpm`, `yarn`, `npm`); JavaScript by default, TypeScript via `--runtime node --typescript` |")
 	mustContain(t, string(cliReadme), "Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface")
 	mustContain(t, string(pluginsExamplesReadme), "# Production Plugin Examples")
@@ -108,20 +138,38 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "Current beta CLI commands:")
 	mustContain(t, string(supportDoc), "- `plugin-kit-ai bootstrap`")
 	mustContain(t, string(supportDoc), "- `plugin-kit-ai doctor`")
+	mustContain(t, string(supportDoc), "- `plugin-kit-ai export`")
+	mustContain(t, string(supportDoc), "supported scope is scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, and bounded portable export bundles")
 	mustContain(t, string(supportDoc), "unsupported scope is universal package-management policy and packaged distribution through `plugin-kit-ai install`")
 	mustContain(t, string(supportDoc), "target/package contract matrix")
 	mustContain(t, string(supportDoc), "generated Claude/Codex config wiring is a repo-owned contract surface guarded by `render --check`")
 	mustContain(t, string(productionDoc), "Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set")
 	mustContain(t, string(productionDoc), "Codex runtime: production-ready within the stable `Notify` path")
 	mustContain(t, string(productionDoc), "Codex package: production-ready official plugin package lane")
-	mustContain(t, string(productionDoc), "Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, repo-local bootstrap, and read-only doctor checks.")
+	mustContain(t, string(productionDoc), "Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, and bounded portable export bundles.")
 	mustContain(t, string(productionDoc), "After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.")
 	mustContain(t, string(productionDoc), "plugin-kit-ai doctor .")
+	mustContain(t, string(productionDoc), "plugin-kit-ai export . --platform <codex-runtime|claude>")
 	mustContain(t, string(productionDoc), "plugin-kit-ai import --from codex-runtime")
+	mustContain(t, string(hardeningDoc), "beta contract cleanup, change-note hygiene, and documentation follow-through for beta leftovers")
+	mustContain(t, string(hardeningDoc), "scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, bounded portable export bundles, and deterministic canary hardening")
+	mustContain(t, string(releaseDoc), "doctor/bootstrap/export beta claims")
+	mustContain(t, string(releaseDoc), "beta change notes")
+	mustContain(t, string(releaseChecklist), "beta change note written when beta user code, scaffold output, readiness semantics, or bundle contents change")
+	mustContain(t, string(releaseNotesTemplate), "## Beta Contract Changes")
+	mustContain(t, string(rehearsalTemplate), "- beta change notes updated:")
+	mustContain(t, string(makefile), "DoctorReadyNeedsBootstrapNeedsBuildAndBlocked")
+	mustContain(t, string(makefile), "ShellBundleFlow")
+	mustContain(t, string(polyglotWorkflow), "DoctorReadyNeedsBootstrapNeedsBuildAndBlocked")
+	mustContain(t, string(polyglotWorkflow), "ShellBundleFlow")
 
 	mustNotContain(t, string(rootReadme), "./bin/plugin-kit-ai validate ./my-plugin --platform codex --strict")
 	mustNotContain(t, string(rootReadme), "./bin/plugin-kit-ai init my-plugin --runtime python")
+	mustNotContain(t, string(rootReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex\n")
 	mustNotContain(t, string(cliReadme), "TypeScript via build-to-JS only")
+	mustNotContain(t, string(cliReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex\n")
+	mustNotContain(t, string(releaseChecklist), "migration note written")
+	mustNotContain(t, string(supportDoc), "should ship with migration guidance")
 
 	abiDoc, err := os.ReadFile(filepath.Join(root, "docs", "EXECUTABLE_ABI.md"))
 	if err != nil {
@@ -129,6 +177,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	}
 	mustContain(t, string(abiDoc), "`plugin-kit-ai validate --strict` is the canonical CI-grade readiness gate for interpreted runtimes")
 	mustContain(t, string(abiDoc), "`plugin-kit-ai doctor` is the read-only readiness surface for interpreted runtimes")
+	mustContain(t, string(abiDoc), "`plugin-kit-ai export` is the bounded portable handoff surface for interpreted runtimes")
 	mustContain(t, string(abiDoc), "uses the same runtime lookup order as the generated launcher contract")
 	mustNotContain(t, string(abiDoc), "TypeScript only via build-to-JavaScript")
 }

@@ -595,12 +595,13 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
 		return Manifest{}, nil, fmt.Errorf("unsupported project format for import: .plugin-kit-ai/project.toml is not supported; rewrite the project into the package standard layout")
 	}
+	explicitFrom := strings.TrimSpace(from) != ""
 	from = normalizeTarget(from)
 	if from == "" {
 		matches := platformexec.DetectImport(root)
 		switch {
 		case len(matches) == 2 && detectCombinedCodexImport(matches):
-			from = "codex"
+			return importCombinedCodex(root, force)
 		case len(matches) == 0:
 			from = ""
 		case len(matches) == 1:
@@ -613,10 +614,13 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 			return Manifest{}, nil, fmt.Errorf("ambiguous import source: detected multiple native layouts (%s); pass --from explicitly", strings.Join(ids, ", "))
 		}
 	}
+	if explicitFrom && from == "codex" {
+		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
+	}
 	if !isSupportedImportSource(from) {
 		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
 	}
-	if from == "codex" {
+	if from == "codex-native" {
 		return importCombinedCodex(root, force)
 	}
 	adapter, ok := platformexec.Lookup(from)
@@ -670,7 +674,7 @@ func detectCombinedCodexImport(matches []platformexec.Adapter) bool {
 }
 
 func isSupportedImportSource(from string) bool {
-	if from == "codex" {
+	if from == "codex-native" {
 		return true
 	}
 	return slices.Contains(platformmeta.IDs(), from)

@@ -12,6 +12,7 @@ import (
 
 func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T) {
 	restoreLookPath := runtimecheck.LookPath
+	restoreRunCommand := runtimecheck.RunCommand
 	runtimecheck.LookPath = func(name string) (string, error) {
 		switch name {
 		case "python", "python3", "npm", "pnpm":
@@ -20,7 +21,16 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 			return "", exec.ErrNotFound
 		}
 	}
-	t.Cleanup(func() { runtimecheck.LookPath = restoreLookPath })
+	runtimecheck.RunCommand = func(dir, name string, args ...string) (string, error) {
+		if len(args) == 1 && args[0] == "--version" {
+			return "Python 3.11.0", nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		runtimecheck.LookPath = restoreLookPath
+		runtimecheck.RunCommand = restoreRunCommand
+	})
 
 	cases := []struct {
 		name       string
@@ -123,6 +133,55 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 				}
 			}
 		})
+	}
+}
+
+func TestPluginServiceDoctorPoetryManagerOwnedEnvIsReady(t *testing.T) {
+	restoreLookPath := runtimecheck.LookPath
+	restoreRunCommand := runtimecheck.RunCommand
+	runtimecheck.LookPath = func(name string) (string, error) {
+		switch name {
+		case "poetry":
+			return name, nil
+		default:
+			return "", exec.ErrNotFound
+		}
+	}
+	runtimecheck.RunCommand = func(dir, name string, args ...string) (string, error) {
+		base := filepath.Base(name)
+		if base == "poetry" && len(args) == 3 && args[0] == "env" && args[1] == "info" && args[2] == "--path" {
+			return filepath.Join(dir, "external-env"), nil
+		}
+		if len(args) == 1 && args[0] == "--version" && strings.Contains(filepath.ToSlash(name), "external-env") {
+			return "Python 3.11.0", nil
+		}
+		return "", exec.ErrNotFound
+	}
+	t.Cleanup(func() {
+		runtimecheck.LookPath = restoreLookPath
+		runtimecheck.RunCommand = restoreRunCommand
+	})
+
+	root := t.TempDir()
+	writeDoctorFile(t, root, "plugin.yaml", minimalBootstrapManifest())
+	writeDoctorFile(t, root, "launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeDoctorFile(t, root, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
+	writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec python \"$ROOT/src/main.py\" \"$@\"\n")
+	writeDoctorFile(t, root, filepath.Join("src", "main.py"), "print('ok')\n")
+	writeDoctorFile(t, root, filepath.Join("external-env", "bin", "python3"), "ok")
+	mustChmodBootstrapExecutable(t, filepath.Join(root, "bin", "demo"))
+
+	var svc PluginService
+	result, err := svc.Doctor(PluginDoctorOptions{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Ready {
+		t.Fatalf("expected ready result:\n%s", strings.Join(result.Lines, "\n"))
+	}
+	output := strings.Join(result.Lines, "\n")
+	if !strings.Contains(output, "Status: ready") || !strings.Contains(output, "manager=poetry") {
+		t.Fatalf("unexpected doctor output:\n%s", output)
 	}
 }
 

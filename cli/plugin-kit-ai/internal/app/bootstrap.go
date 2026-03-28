@@ -139,6 +139,7 @@ func bootstrapPython(ctx context.Context, project runtimecheck.Project) ([]strin
 			}
 		}
 	}
+	lines = append(lines, "Canonical Python environment source: "+shape.CanonicalEnvSourceDisplay())
 	return lines, nil
 }
 

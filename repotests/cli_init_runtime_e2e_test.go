@@ -262,6 +262,11 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
+			bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+			if out, err := bootstrap.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai bootstrap python runtime: %v\n%s", err, out)
+			}
+
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
 			if out, err := validate.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai validate python runtime: %v\n%s", err, out)
@@ -283,6 +288,92 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 				}
 			case "claude":
 				assertClaudeStableSubsetEntry(t, entry)
+			}
+		})
+	}
+}
+
+func TestPluginKitAIInitPythonRuntimeManagerOwnedEnvFlows(t *testing.T) {
+	if !pythonRuntimeAvailable() {
+		t.Skip("python runtime not available for manager-owned env flows")
+	}
+
+	pythonExe := mustPythonExecutable(t)
+	for _, tc := range []struct {
+		name              string
+		manifestRel       string
+		manifestBody      string
+		managerBinaryName string
+		bootstrapCommand  string
+		probeCommand      string
+	}{
+		{
+			name:              "poetry",
+			manifestRel:       "pyproject.toml",
+			manifestBody:      "[tool.poetry]\nname = 'demo'\nversion = '0.1.0'\ndescription = 'demo'\nauthors = ['demo <demo@example.com>']\n",
+			managerBinaryName: "poetry",
+			bootstrapCommand:  "install --no-root",
+			probeCommand:      "env info --path",
+		},
+		{
+			name:              "pipenv",
+			manifestRel:       "Pipfile.lock",
+			manifestBody:      "{}\n",
+			managerBinaryName: "pipenv",
+			bootstrapCommand:  "sync",
+			probeCommand:      "--venv",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginKitAIBin := buildPluginKitAI(t)
+			plugRoot := runtimeProjectRoot(t)
+			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex-runtime", "--runtime", "python", "-o", plugRoot, "--extras")
+			if out, err := run.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai init python runtime: %v\n%s", err, out)
+			}
+			writeRuntimeFile(t, plugRoot, tc.manifestRel, tc.manifestBody)
+
+			shimDir := filepath.Join(t.TempDir(), "bin")
+			if err := os.MkdirAll(shimDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writePythonManagerShim(t, shimDir, tc.managerBinaryName, pythonExe)
+			env := append(os.Environ(), "GOWORK=off", "PATH="+shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+			doctor := exec.Command(pluginKitAIBin, "doctor", plugRoot)
+			doctor.Env = env
+			out, err := doctor.CombinedOutput()
+			if err == nil {
+				t.Fatalf("expected doctor to require bootstrap before %s env exists:\n%s", tc.name, out)
+			}
+			if !strings.Contains(string(out), "Status: needs_bootstrap") || !strings.Contains(string(out), "manager="+tc.name) {
+				t.Fatalf("doctor output missing %s readiness guidance:\n%s", tc.name, out)
+			}
+
+			bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+			bootstrap.Env = env
+			out, err = bootstrap.CombinedOutput()
+			if err != nil {
+				t.Fatalf("plugin-kit-ai bootstrap %s: %v\n%s", tc.name, err, out)
+			}
+			if !strings.Contains(string(out), "Canonical Python environment source: manager-owned env") {
+				t.Fatalf("bootstrap output missing manager-owned env summary:\n%s", out)
+			}
+
+			if _, err := os.Stat(filepath.Join(plugRoot, ".venv")); err == nil {
+				t.Fatalf("expected %s flow to stay out of repo-local .venv", tc.name)
+			}
+
+			doctor = exec.Command(pluginKitAIBin, "doctor", plugRoot)
+			doctor.Env = env
+			if out, err := doctor.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai doctor after %s bootstrap: %v\n%s", tc.name, err, out)
+			}
+
+			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime")
+			validate.Env = env
+			if out, err := validate.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai validate after %s bootstrap (%s / %s): %v\n%s", tc.name, tc.bootstrapCommand, tc.probeCommand, err, out)
 			}
 		})
 	}
@@ -638,4 +729,30 @@ func parsePythonVersion(version string) (major, minor int, ok bool) {
 		return 0, 0, false
 	}
 	return major, minor, true
+}
+
+func mustPythonExecutable(t *testing.T) string {
+	t.Helper()
+	candidates := []string{"python3", "python"}
+	if runtime.GOOS == "windows" {
+		candidates = []string{"python", "python3"}
+	}
+	for _, candidate := range candidates {
+		if path, err := exec.LookPath(candidate); err == nil {
+			return path
+		}
+	}
+	t.Fatal("python executable not found")
+	return ""
+}
+
+func writePythonManagerShim(t *testing.T, dir, name, pythonExe string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		body := "@echo off\r\nsetlocal\r\nset \"ROOT=%CD%\"\r\nif \"%1\"==\"install\" if \"%2\"==\"--no-root\" (\r\n  \"" + pythonExe + "\" -m venv external-env\r\n  exit /b %ERRORLEVEL%\r\n)\r\nif \"%1\"==\"env\" if \"%2\"==\"info\" if \"%3\"==\"--path\" (\r\n  if exist external-env (\r\n    echo %ROOT%\\external-env\r\n    exit /b 0\r\n  )\r\n  exit /b 1\r\n)\r\nif \"%1\"==\"sync\" (\r\n  \"" + pythonExe + "\" -m venv external-env\r\n  exit /b %ERRORLEVEL%\r\n)\r\nif \"%1\"==\"--venv\" (\r\n  if exist external-env (\r\n    echo %ROOT%\\external-env\r\n    exit /b 0\r\n  )\r\n  exit /b 1\r\n)\r\necho unexpected args %* 1>&2\r\nexit /b 1\r\n"
+		writeRuntimeFile(t, dir, name+".cmd", body)
+		return
+	}
+	body := "#!/usr/bin/env bash\nset -euo pipefail\nroot=\"$PWD\"\npython_exe=" + strconv.Quote(pythonExe) + "\nif [[ \"$1\" == \"install\" && \"${2:-}\" == \"--no-root\" ]]; then\n  \"$python_exe\" -m venv external-env\n  exit 0\nfi\nif [[ \"$1\" == \"env\" && \"${2:-}\" == \"info\" && \"${3:-}\" == \"--path\" ]]; then\n  if [[ -d external-env ]]; then\n    printf '%s\\n' \"$root/external-env\"\n    exit 0\n  fi\n  exit 1\nfi\nif [[ \"$1\" == \"sync\" ]]; then\n  \"$python_exe\" -m venv external-env\n  exit 0\nfi\nif [[ \"$1\" == \"--venv\" ]]; then\n  if [[ -d external-env ]]; then\n    printf '%s\\n' \"$root/external-env\"\n    exit 0\n  fi\n  exit 1\nfi\necho \"unexpected args: $*\" >&2\nexit 1\n"
+	writeRuntimeFile(t, dir, name, body)
 }

@@ -221,6 +221,10 @@ func All() []PlatformProfile {
 				OptionalFiles: []string{
 					"Makefile",
 					".goreleaser.yml",
+					"targets/claude/settings.json",
+					"targets/claude/lsp.json",
+					"targets/claude/user-config.json",
+					"targets/claude/manifest.extra.json",
 					"skills/{{.ProjectName}}/SKILL.md",
 				},
 				ForbiddenFiles: []string{
@@ -232,6 +236,10 @@ func All() []PlatformProfile {
 					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
 					{Path: "launcher.yaml", Template: "launcher.yaml.tmpl"},
 					{Path: "targets/claude/hooks/hooks.json", Template: "targets.claude.hooks.json.tmpl"},
+					{Path: "targets/claude/settings.json", Template: "empty.json.tmpl", Extra: true},
+					{Path: "targets/claude/lsp.json", Template: "empty.json.tmpl", Extra: true},
+					{Path: "targets/claude/user-config.json", Template: "empty.json.tmpl", Extra: true},
+					{Path: "targets/claude/manifest.extra.json", Template: "empty.json.tmpl", Extra: true},
 					{Path: "README.md", Template: "README.md.tmpl"},
 					{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
 					{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},

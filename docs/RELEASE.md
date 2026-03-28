@@ -5,7 +5,7 @@ This document defines the expected test lanes and release ladder for the current
 ## Test Lanes
 
 - `required`: deterministic local tests that must stay green on every change. This includes unit tests, integration tests, and repository guard tests that do not require live external CLIs or network access.
-- `polyglot-smoke`: deterministic cross-platform launcher and executable-ABI smoke for `go`, `python`, `node`, and `shell`, including Windows `.cmd` behavior, path-with-spaces coverage, generated Claude/Codex config canaries, `render --check` drift protection for runtime-affecting artifacts, and repo-local bootstrap failure paths such as broken `.venv`, missing built Node output, and non-executable shell targets.
+- `polyglot-smoke`: deterministic cross-platform launcher and executable-ABI smoke for `go`, `python`, `node`, and `shell`, including Windows `.cmd` behavior, path-with-spaces coverage, generated Claude/Codex config canaries, `render --check` drift protection for runtime-affecting artifacts, doctor/bootstrap/export beta claims, and repo-local bootstrap failure paths such as broken `.venv`, missing built Node output, and non-executable shell targets.
 - `extended`: subprocess smoke and platform-CLI tests that may depend on locally installed tools or opt-in environment variables, but should still stay narrowly scoped and finish quickly.
 - `nightly/live`: real network or externally authenticated scenarios, including live install compatibility checks and live-model sanity runs.
 - `generated-sync`: deterministic generated-artifact drift check used by release gates and rehearsal, but kept separate from the default `required` lane.
@@ -87,7 +87,7 @@ No event or public contract claim should be treated as shipped unless all of the
 
 - `dev`: normal mainline delivery, still `public-beta`
 - `beta`: feature-complete enough for targeted external validation
-- `rc`: release-candidate stabilization; only bug fixes, docs, migration, and hardening work
+- `rc`: release-candidate stabilization; only bug fixes, docs, beta change notes, and hardening work
 - `stable`: reserved for `v1.0` and later major-compatible releases
 
 See also [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) for pre-tag execution steps.
@@ -123,7 +123,7 @@ After `v0.9`, only these change classes are expected:
 
 - bug fixes
 - docs corrections
-- migration notes
+- beta change notes
 - quality-gate hardening
 - e2e stabilization
 - release process tightening

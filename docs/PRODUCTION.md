@@ -18,7 +18,7 @@ Repo-local executable runtime boundary:
 | `node` | public-beta | repo-local only, system Node.js `20+`; lockfile-first manager detection plus TypeScript via `--runtime node --typescript` |
 | `shell` | public-beta | repo-local only, POSIX shell on Unix, `bash` required on Windows |
 
-Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, repo-local bootstrap, and read-only doctor checks.
+Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, and bounded portable export bundles.
 This workflow does not imply a universal package-management contract or packaged distribution through `plugin-kit-ai install`.
 
 Supported authored inputs are root `plugin.yaml` plus `targets/<platform>/...`.
@@ -43,9 +43,10 @@ Then run the target-specific smoke:
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
 
 - `doctor`: run `plugin-kit-ai doctor .` first when you want a read-only readiness verdict
-- `python`: run `plugin-kit-ai bootstrap .` to create `.venv`; it installs `requirements.txt` when present
+- `python`: run `plugin-kit-ai bootstrap .`; `venv`, `requirements.txt`, and `uv` end in repo-local `.venv`, while `poetry` and `pipenv` can end in manager-owned envs
 - `node`: run `plugin-kit-ai bootstrap .`; it chooses the detected install manager, and TypeScript-shaped Node projects also run `build`
 - `shell`: ensure the launcher target remains executable on Unix and `bash` is available on Windows
+- `export`: run `plugin-kit-ai export . --platform <codex-runtime|claude>` when you need a portable handoff bundle after readiness is already green
 
 After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.
 
@@ -107,4 +108,4 @@ Reference implementation:
 - external Codex CLI health before `notify` execution
 - interactive runtime parity for Gemini sessions
 - promotion of runtime-supported beta hooks into the stable promise
-- dependency bootstrap or packaged distribution for interpreted runtimes
+- dependency bootstrap beyond the bounded helpers, or packaged distribution through `plugin-kit-ai install`

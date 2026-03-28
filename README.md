@@ -46,6 +46,7 @@ Currently `public-beta`:
 - `render`, `import`, and `normalize`
 - `bootstrap`
 - `doctor`
+- `export`
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
 - executable runtime scaffolds for `python`, `node`, and `shell`
 - optional scaffold extras from `plugin-kit-ai init --extras`
@@ -86,6 +87,7 @@ For repo-local plugins where quick iteration matters more than packaged distribu
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
 ./bin/plugin-kit-ai doctor ./my-plugin
 ./bin/plugin-kit-ai bootstrap ./my-plugin
+./bin/plugin-kit-ai export ./my-plugin --platform codex-runtime
 ```
 
 Reference repos: [examples/local/README.md](examples/local/README.md)
@@ -118,12 +120,7 @@ For teams migrating existing Claude/Codex/Gemini native files into the package-s
 
 ```bash
 ./bin/plugin-kit-ai import ./native-plugin --from codex-runtime
-```
-
-Legacy bridge for older native Codex layouts:
-
-```bash
-./bin/plugin-kit-ai import ./native-plugin --from codex
+./bin/plugin-kit-ai import ./native-plugin --from codex-native
 ```
 
 Run the canonical authoring lane:
@@ -209,14 +206,14 @@ Executable runtime boundary:
 | Runtime | Status | Supported shape | Bootstrap contract |
 |---------|--------|-----------------|--------------------|
 | `go` | stable | default typed SDK path | Go `1.22+`, direct executable |
-| `python` | public-beta | repo-local executable ABI | prefer `.venv`, fallback to system Python `3.10+` |
+| `python` | public-beta | repo-local executable ABI | lockfile-first manager detection; `venv`/`requirements`/`uv` use repo-local `.venv`, `poetry`/`pipenv` can use manager-owned envs |
 | `node` | public-beta | repo-local executable ABI | system Node.js `20+`; JavaScript by default, TypeScript via `--runtime node --typescript` |
 | `shell` | public-beta | repo-local executable ABI | POSIX shell on Unix, `bash` required on Windows |
 
 Interpreted runtimes are supported for scaffold, validate, launcher execution, repo-local bootstrap, and read-only doctor checks.
 For interpreted runtimes, `validate --strict` is the canonical CI-grade readiness gate, and its runtime lookup order is expected to stay aligned with the generated launcher.
-For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check and `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`.
-They are not covered by `plugin-kit-ai install`, packaged distribution, or a universal package-management contract in this cycle.
+For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, and `plugin-kit-ai export <path> --platform <target>` is the bounded portable handoff surface.
+`plugin-kit-ai install` remains binary-only; marketplace packaging, dependency-preinstalled installs, and a universal package-management contract stay out of scope in this cycle.
 
 ## What The Community Should Expect
 

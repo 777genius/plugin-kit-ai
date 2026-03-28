@@ -44,6 +44,13 @@ func TestPluginKitAIRuntimeABIPassthrough(t *testing.T) {
 						configureGeneratedGoModule(t, plugRoot)
 					}
 					overwriteRuntimeWithABIFixture(t, plugRoot, tc.runtime)
+					if tc.runtime == "python" || tc.runtime == "node" {
+						bootstrapCmd := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+						bootstrapCmd.Env = append(os.Environ(), "GOWORK=off")
+						if out, err := bootstrapCmd.CombinedOutput(); err != nil {
+							t.Fatalf("plugin-kit-ai bootstrap: %v\n%s", err, out)
+						}
+					}
 
 					validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
 					validateCmd.Env = append(os.Environ(), "GOWORK=off")
