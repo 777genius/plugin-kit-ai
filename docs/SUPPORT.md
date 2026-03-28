@@ -92,6 +92,7 @@ Current beta CLI commands:
 - `plugin-kit-ai bootstrap` for launcher-based `shell` projects
 - `plugin-kit-ai doctor` for launcher-based `shell` projects
 - `plugin-kit-ai export` for launcher-based `shell` projects
+- `plugin-kit-ai bundle fetch` for remote exported Python/Node bundles
 
 Stable `plugin-kit-ai install` contract:
 
@@ -124,6 +125,7 @@ Current beta surfaces that remain intentionally outside the stable set:
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
 - `plugin-kit-ai render`, `plugin-kit-ai import`, and `plugin-kit-ai normalize`
 - launcher-based `shell` runtime authoring on `codex-runtime` and `claude`, including `init --runtime shell`, `bootstrap`, `doctor`, `validate --strict`, and `export`
+- `plugin-kit-ai bundle fetch` for remote exported Python/Node bundles via direct HTTPS URLs or GitHub Releases
 - experimental `plugin-kit-ai skills` authoring/render subsystem and generated skill artifacts
 - Claude official runtime-supported hooks not yet promoted to `public-stable`:
   - `SessionStart`
@@ -175,6 +177,10 @@ Config contract:
   - `bundle install` accepts only local `.tar.gz` bundles created by `plugin-kit-ai export`
   - supported subset: exported `python` and `node` bundles for `codex-runtime` and `claude`
   - unsupported scope: `shell`, remote URLs, registries, GitHub Releases, and implicit `bootstrap` or `validate`
+- beta remote bundle-fetch subset:
+  - `bundle fetch` supports direct HTTPS bundle URLs and GitHub Releases bundle discovery
+  - supported subset: exported `python` and `node` bundles for `codex-runtime` and `claude`
+  - unsupported scope: `shell`, registries, generic authenticated HTTPS distribution, and implicit `bootstrap` or `validate`
 
 Declared release review:
 

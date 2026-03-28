@@ -49,6 +49,7 @@ For interpreted runtimes, add the bootstrap step before `validate --strict`:
 - `shell`: ensure the launcher target remains executable on Unix and `bash` is available on Windows; this path remains `public-beta`
 - `export`: run `plugin-kit-ai export . --platform <codex-runtime|claude>` when you need a portable handoff bundle after readiness is already green; this is stable for `python` and `node`, beta for `shell`
 - `bundle install`: run `plugin-kit-ai bundle install <bundle.tar.gz> --dest <path>` when you need a local unpack/install handoff for exported Python/Node bundles; this path is stable for the Python/Node local-bundle subset and stays separate from `plugin-kit-ai install`
+- `bundle fetch`: run `plugin-kit-ai bundle fetch --url <https://...tar.gz> --dest <path>` or `plugin-kit-ai bundle fetch <owner/repo> --tag <tag> --dest <path>` when you need a remote handoff path for exported Python/Node bundles; this path is `public-beta` and stays separate from `plugin-kit-ai install`
 
 After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.
 

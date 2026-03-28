@@ -9,6 +9,7 @@ Current CLI contract status in this source tree: `public-stable` shipped in `v1.
 `plugin-kit-ai doctor` is the stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It reports lane, runtime, detected manager, readiness status, and next commands without mutating files. The same command remains `public-beta` for `shell`.
 `plugin-kit-ai export` is the stable portable handoff surface for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It writes a deterministic `.tar.gz` bundle, but does not extend `install`. The same command remains `public-beta` for `shell`.
 `plugin-kit-ai bundle install` is the stable local bundle installer for exported Python/Node handoff archives. It only accepts local `.tar.gz` bundles created by `plugin-kit-ai export`, unpacks them into `--dest`, and prints next steps. It does not extend `install`, and it does not run `bootstrap` automatically.
+`plugin-kit-ai bundle fetch` is the `public-beta` remote bundle fetch/install companion for exported Python/Node handoff archives. It supports direct HTTPS URLs and GitHub Releases bundle discovery, but remains separate from both stable local `bundle install` and binary-only `install`.
 `plugin-kit-ai validate` checks package-standard projects, including generated-artifact drift, manifest warnings for unknown `plugin.yaml` keys, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
 `plugin-kit-ai render` renders native target artifacts from the authored package-standard layout, `plugin-kit-ai import` backfills that layout from current native Claude/Codex/Gemini/OpenCode artifacts, and `plugin-kit-ai normalize` rewrites `plugin.yaml` into the package-standard shape.
 `plugin-kit-ai capabilities` defaults to the target/package view and supports `--mode runtime` for runtime-event metadata.
@@ -44,6 +45,7 @@ For repo-local plugins where fast iteration matters more than packaged distribut
 ./bin/plugin-kit-ai bootstrap ./my-plugin
 ./bin/plugin-kit-ai export ./my-plugin --platform codex-runtime
 ./bin/plugin-kit-ai bundle install ./my-plugin/my-plugin_codex-runtime_python_bundle.tar.gz --dest ./handoff-plugin
+./bin/plugin-kit-ai bundle fetch --url https://example.com/my-plugin_codex-runtime_python_bundle.tar.gz --dest ./handoff-plugin
 ```
 
 Reference repos: [../../examples/local/README.md](../../examples/local/README.md)
@@ -86,6 +88,7 @@ Current behavior and contract details:
 - `doctor`: stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`; `public-beta` for `shell`
 - `export`: stable deterministic `.tar.gz` handoff bundle for `python` and `node` launcher-based projects on `codex-runtime` and `claude`; `public-beta` for `shell`
 - `bundle install`: stable local installer for exported Python/Node bundles; local-file-only, unpack-only, and intentionally separate from `install`
+- `bundle fetch`: `public-beta` remote installer for exported Python/Node bundles; supports direct HTTPS URLs and GitHub release bundle selection, but stays separate from `install`
 - `init --platform claude`: stable-default Claude scaffold; `--claude-extended-hooks` opts into the full runtime-supported hook set
 - `init --platform gemini`: richer packaging starter with `targets/gemini/package.yaml`, `targets/gemini/contexts/GEMINI.md`, and no launcher/runtime scaffold
 - `init --platform opencode`: workspace-config starter with `targets/opencode/package.yaml`, optional `targets/opencode/config.extra.json`, and no launcher/runtime scaffold
@@ -114,7 +117,7 @@ Executable runtime matrix:
 | `shell` | public-beta | repo-local only | POSIX shell on Unix, `bash` in `PATH` on Windows |
 
 For interpreted runtimes, `validate --strict` is the canonical CI-grade readiness gate.
-`plugin-kit-ai install` remains binary-only and does not bootstrap or distribute Python/Node/Shell plugin dependencies. `export` is the handoff bundle surface for interpreted runtimes; it is not an installer. `bundle install` is the local unpack/install companion for exported Python/Node bundles only, not a GitHub Releases installer.
+`plugin-kit-ai install` remains binary-only and does not bootstrap or distribute Python/Node/Shell plugin dependencies. `export` is the handoff bundle surface for interpreted runtimes; it is not an installer. `bundle install` is the stable local unpack/install companion for exported Python/Node bundles only. `bundle fetch` is the beta remote companion for direct HTTPS URLs and GitHub Releases bundle discovery, not a widening of `install`.
 
 Production-ready target boundary in the current contract:
 
