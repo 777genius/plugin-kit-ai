@@ -65,7 +65,7 @@ func ResolveInvocation(args []string, _ runtime.Env) (runtime.Invocation, error)
 	if strings.EqualFold(raw, "WorktreeRemove") {
 		return runtime.Invocation{Platform: "claude", Event: "WorktreeRemove", RawName: raw}, nil
 	}
-	if raw == "notify" {
+	if strings.EqualFold(raw, "notify") {
 		return runtime.Invocation{Platform: "codex", Event: "Notify", RawName: raw}, nil
 	}
 	return runtime.Invocation{}, fmt.Errorf("unknown invocation %q", raw)

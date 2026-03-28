@@ -7,6 +7,7 @@ These examples are reference implementations for the current production plugin w
 - [gemini-extension-package](./gemini-extension-package): Gemini CLI extension repo with `plugin.yaml`, rendered `gemini-extension.json`, shared MCP, and packaging-only validation coverage
 
 Use them together with [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md).
+For repo-local Python/Node entrance examples, see [../local/README.md](../local/README.md).
 
 These reference repos document the current stable Go-first production path.
 Their authored source of truth is `plugin.yaml` plus `targets/<platform>/...`; committed native Claude/Codex files are rendered managed artifacts.

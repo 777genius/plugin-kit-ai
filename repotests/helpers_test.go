@@ -254,3 +254,32 @@ func traceFind(t *testing.T, lines []string, wantHook string) (traceRec, bool) {
 	}
 	return traceRec{}, false
 }
+
+func assertCodexConfig(t *testing.T, root, wantModel, wantEntrypoint string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(body), "\n")
+	var got []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		got = append(got, line)
+	}
+	want := []string{
+		`model = "` + wantModel + `"`,
+		`notify = ["` + wantEntrypoint + `", "notify"]`,
+	}
+	if len(got) < len(want) {
+		t.Fatalf(".codex/config.toml lines = %v, want prefix %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf(".codex/config.toml lines = %v, want prefix %v", got, want)
+		}
+	}
+}

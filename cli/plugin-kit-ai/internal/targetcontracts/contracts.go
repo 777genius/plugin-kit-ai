@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"text/tabwriter"
+
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
 )
 
 type Entry struct {
@@ -27,62 +29,12 @@ type Entry struct {
 }
 
 func All() []Entry {
-	return []Entry{
-		{
-			Target:                 "claude",
-			TargetClass:            "hook_runtime",
-			TargetNoun:             "plugin",
-			ProductionClass:        "production-ready",
-			RuntimeContract:        "public-stable stable-subset runtime",
-			InstallModel:           "marketplace or local plugin install",
-			DevModel:               "reload plugins",
-			ActivationModel:        "reload or restart",
-			NativeRoot:             "~/.claude/plugins/...",
-			ImportSupport:          true,
-			RenderSupport:          true,
-			ValidateSupport:        true,
-			PortableComponentKinds: []string{"skills", "mcp_servers", "agents"},
-			TargetComponentKinds:   []string{"package_metadata", "hooks", "commands", "contexts"},
-			ManagedArtifacts:       []string{".claude-plugin/plugin.json", "hooks/hooks.json", ".mcp.json"},
-			Summary:                "Claude plugin packages compile portable skills and MCP plus target-native hook bindings.",
-		},
-		{
-			Target:                 "codex",
-			TargetClass:            "mixed_package_runtime",
-			TargetNoun:             "plugin",
-			ProductionClass:        "production-ready",
-			RuntimeContract:        "public-stable notify runtime",
-			InstallModel:           "plugin directory or marketplace cache",
-			DevModel:               "local plugin workspace",
-			ActivationModel:        "config reload or restart",
-			NativeRoot:             "~/.codex/plugins/...",
-			ImportSupport:          true,
-			RenderSupport:          true,
-			ValidateSupport:        true,
-			PortableComponentKinds: []string{"skills", "mcp_servers"},
-			TargetComponentKinds:   []string{"package_metadata", "commands", "contexts"},
-			ManagedArtifacts:       []string{".codex-plugin/plugin.json", ".codex/config.toml", ".mcp.json"},
-			Summary:                "Codex packages compile portable skills and MCP plus target metadata such as model hints.",
-		},
-		{
-			Target:                 "gemini",
-			TargetClass:            "mcp_extension",
-			TargetNoun:             "extension",
-			ProductionClass:        "packaging-only target",
-			RuntimeContract:        "not a production-ready runtime target",
-			InstallModel:           "copy install",
-			DevModel:               "link",
-			ActivationModel:        "restart required",
-			NativeRoot:             "~/.gemini/extensions/<name>",
-			ImportSupport:          true,
-			RenderSupport:          true,
-			ValidateSupport:        true,
-			PortableComponentKinds: []string{"skills", "mcp_servers", "agents"},
-			TargetComponentKinds:   []string{"package_metadata", "hooks", "commands", "policies", "themes", "settings", "contexts", "manifest_extra"},
-			ManagedArtifacts:       []string{"gemini-extension.json", "commands/**", "hooks/**", "policies/**", "GEMINI.md or selected root context", "contexts/**"},
-			Summary:                "Gemini compiles as an official-style extension package with MCP, a primary root context, and target-native extension assets.",
-		},
+	profiles := platformmeta.All()
+	out := make([]Entry, 0, len(profiles))
+	for _, profile := range profiles {
+		out = append(out, fromProfile(profile))
 	}
+	return out
 }
 
 func ByTarget(name string) []Entry {
@@ -100,12 +52,11 @@ func ByTarget(name string) []Entry {
 }
 
 func Lookup(name string) (Entry, bool) {
-	for _, entry := range All() {
-		if entry.Target == strings.ToLower(strings.TrimSpace(name)) {
-			return entry, true
-		}
+	profile, ok := platformmeta.Lookup(name)
+	if !ok {
+		return Entry{}, false
 	}
-	return Entry{}, false
+	return fromProfile(profile), true
 }
 
 func JSON(entries []Entry) ([]byte, error) {
@@ -148,6 +99,38 @@ func Markdown(entries []Entry) []byte {
 		b.WriteString("| " + entry.Target + " | " + entry.TargetClass + " | " + entry.TargetNoun + " | " + entry.InstallModel + " | " + entry.DevModel + " | " + entry.ActivationModel + " | " + entry.NativeRoot + " | " + entry.ProductionClass + " | " + entry.RuntimeContract + " | " + yesNo(entry.ImportSupport) + " | " + yesNo(entry.RenderSupport) + " | " + yesNo(entry.ValidateSupport) + " | " + join(entry.PortableComponentKinds) + " | " + join(entry.TargetComponentKinds) + " | " + join(entry.ManagedArtifacts) + " | " + entry.Summary + " |\n")
 	}
 	return b.Bytes()
+}
+
+func fromProfile(profile platformmeta.PlatformProfile) Entry {
+	managed := make([]string, 0, len(profile.ManagedArtifacts))
+	for _, item := range profile.ManagedArtifacts {
+		switch item.Kind {
+		case platformmeta.ManagedArtifactStatic, platformmeta.ManagedArtifactPortableMCP:
+			managed = append(managed, item.Path)
+		case platformmeta.ManagedArtifactMirror:
+			managed = append(managed, item.OutputRoot+"/**")
+		case platformmeta.ManagedArtifactSelectedContext:
+			managed = append(managed, "GEMINI.md or selected root context")
+		}
+	}
+	return Entry{
+		Target:                 profile.ID,
+		TargetClass:            profile.Contract.TargetClass,
+		TargetNoun:             profile.Contract.TargetNoun,
+		ProductionClass:        profile.Contract.ProductionClass,
+		RuntimeContract:        profile.Contract.RuntimeContract,
+		InstallModel:           profile.Contract.InstallModel,
+		DevModel:               profile.Contract.DevModel,
+		ActivationModel:        profile.Contract.ActivationModel,
+		NativeRoot:             profile.Contract.NativeRoot,
+		ImportSupport:          profile.Contract.ImportSupport,
+		RenderSupport:          profile.Contract.RenderSupport,
+		ValidateSupport:        profile.Contract.ValidateSupport,
+		PortableComponentKinds: append([]string(nil), profile.Contract.PortableComponentKinds...),
+		TargetComponentKinds:   append([]string(nil), profile.Contract.TargetComponentKinds...),
+		ManagedArtifacts:       managed,
+		Summary:                profile.Contract.Summary,
+	}
 }
 
 func join(items []string) string {

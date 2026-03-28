@@ -77,7 +77,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"session_start",
 			},
-			Summary:         "Claude SessionStart hook",
+			Summary:         "Claude SessionStart beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -96,7 +96,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"session_end",
 			},
-			Summary:         "Claude SessionEnd hook",
+			Summary:         "Claude SessionEnd beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -113,9 +113,9 @@ func AllSupportEntries() []runtime.SupportEntry {
 			ScaffoldSupport: true,
 			ValidateSupport: true,
 			Capabilities: []runtime.CapabilityID{
-				"notification",
+				"notify",
 			},
-			Summary:         "Claude Notification hook",
+			Summary:         "Claude Notification beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -132,9 +132,9 @@ func AllSupportEntries() []runtime.SupportEntry {
 			ScaffoldSupport: true,
 			ValidateSupport: true,
 			Capabilities: []runtime.CapabilityID{
-				"posttooluse",
+				"post_tool",
 			},
-			Summary:         "Claude PostToolUse hook",
+			Summary:         "Claude PostToolUse beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -151,9 +151,9 @@ func AllSupportEntries() []runtime.SupportEntry {
 			ScaffoldSupport: true,
 			ValidateSupport: true,
 			Capabilities: []runtime.CapabilityID{
-				"posttooluse_failure",
+				"post_tool_failure",
 			},
-			Summary:         "Claude PostToolUseFailure hook",
+			Summary:         "Claude PostToolUseFailure beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -172,7 +172,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"permission_request",
 			},
-			Summary:         "Claude PermissionRequest hook",
+			Summary:         "Claude PermissionRequest beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -191,7 +191,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"subagent_start",
 			},
-			Summary:         "Claude SubagentStart hook",
+			Summary:         "Claude SubagentStart beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -210,7 +210,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"subagent_stop",
 			},
-			Summary:         "Claude SubagentStop hook",
+			Summary:         "Claude SubagentStop beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -229,7 +229,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"pre_compact",
 			},
-			Summary:         "Claude PreCompact hook",
+			Summary:         "Claude PreCompact beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -248,7 +248,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"setup",
 			},
-			Summary:         "Claude Setup hook",
+			Summary:         "Claude Setup beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -267,7 +267,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"teammate_idle",
 			},
-			Summary:         "Claude TeammateIdle hook",
+			Summary:         "Claude TeammateIdle beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -286,7 +286,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"task_completed",
 			},
-			Summary:         "Claude TaskCompleted hook",
+			Summary:         "Claude TaskCompleted beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -305,7 +305,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"config_change",
 			},
-			Summary:         "Claude ConfigChange hook",
+			Summary:         "Claude ConfigChange beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -324,7 +324,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"worktree_create",
 			},
-			Summary:         "Claude WorktreeCreate hook",
+			Summary:         "Claude WorktreeCreate beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -343,7 +343,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Capabilities: []runtime.CapabilityID{
 				"worktree_remove",
 			},
-			Summary:         "Claude WorktreeRemove hook",
+			Summary:         "Claude WorktreeRemove beta hook",
 			LiveTestProfile: "claude_cli",
 		},
 		{
@@ -352,7 +352,7 @@ func AllSupportEntries() []runtime.SupportEntry {
 			Status:         "runtime_supported",
 			Maturity:       "stable",
 			V1Target:       true,
-			InvocationKind: "argv_command",
+			InvocationKind: "argv_command_casefold",
 			Carrier:        runtime.CarrierArgvJSON,
 			TransportModes: []runtime.TransportMode{
 				"process",

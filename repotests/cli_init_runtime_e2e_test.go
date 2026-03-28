@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,9 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "go", "-o", plugRoot, "--extras")
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
+			}
+			if platform == "codex" {
+				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
 			replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
@@ -88,6 +92,9 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
+			if platform == "codex" {
+				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
+			}
 
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
 			if out, err := validate.CombinedOutput(); err != nil {
@@ -145,6 +152,9 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
+			if platform == "codex" {
+				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
+			}
 
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
 			if out, err := validate.CombinedOutput(); err != nil {
@@ -184,6 +194,9 @@ func TestPluginKitAIInitShellRuntimeLauncherFlow(t *testing.T) {
 			run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "shell", "-o", plugRoot, "--extras")
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
+			}
+			if platform == "codex" {
+				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
 			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
@@ -482,17 +495,45 @@ func assertClaudeExtendedHookEntry(t *testing.T, entry, hookName, payload string
 }
 
 func pythonRuntimeAvailable() bool {
+	bin := ""
 	if runtime.GOOS == "windows" {
 		if _, err := exec.LookPath("python"); err == nil {
-			return true
+			bin = "python"
+		} else if _, err := exec.LookPath("python3"); err == nil {
+			bin = "python3"
 		}
-		if _, err := exec.LookPath("python3"); err == nil {
-			return true
-		}
+	} else if _, err := exec.LookPath("python3"); err == nil {
+		bin = "python3"
+	}
+	if bin == "" {
 		return false
 	}
-	_, err := exec.LookPath("python3")
-	return err == nil
+	out, err := exec.Command(bin, "--version").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	major, minor, ok := parsePythonVersion(string(out))
+	return ok && (major > 3 || (major == 3 && minor >= 10))
+}
+
+func parsePythonVersion(version string) (major, minor int, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(version))
+	if len(fields) < 2 {
+		return 0, 0, false
+	}
+	parts := strings.Split(fields[1], ".")
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, false
+	}
+	minor, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, false
+	}
+	return major, minor, true
 }
 
 func patchNodeLauncherForDist(t *testing.T, root string) {

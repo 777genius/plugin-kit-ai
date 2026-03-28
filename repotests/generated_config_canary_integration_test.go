@@ -76,11 +76,18 @@ func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("config lines = %v, want exactly model + notify", lines)
 	}
-	if !strings.HasPrefix(lines[0], `model = "`) {
-		t.Fatalf("first config line = %q, want model assignment", lines[0])
+	if lines[0] != `model = "gpt-5.4-mini"` {
+		t.Fatalf("first config line = %q, want gpt-5.4-mini", lines[0])
 	}
 	if lines[1] != `notify = ["./bin/genplug", "notify"]` {
 		t.Fatalf("notify line = %q, want exact argv shape", lines[1])
+	}
+	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(packageBody), `model_hint: "gpt-5.4-mini"`) {
+		t.Fatalf("targets/codex/package.yaml = %q, want gpt-5.4-mini model_hint", string(packageBody))
 	}
 
 	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "codex")

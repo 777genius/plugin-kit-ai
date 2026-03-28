@@ -35,7 +35,7 @@ var inspectCmd = &cobra.Command{
 		case "", "text":
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "package %s %s\n", report.Manifest.Name, report.Manifest.Version)
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "targets: %s\n", strings.Join(report.Manifest.Targets, ", "))
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "portable: skills=%d agents=%d mcp=%t contexts=%d\n", len(report.Portable.Skills), len(report.Portable.Agents), report.Portable.MCP != nil, len(report.Portable.Contexts))
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "portable: skills=%d agents=%d mcp=%t contexts=%d\n", len(report.Portable.Paths("skills")), len(report.Portable.Paths("agents")), report.Portable.MCP != nil, len(report.Portable.Paths("contexts")))
 			for _, target := range report.Targets {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "- %s: class=%s production=%s runtime=%s native=%s managed=%s\n",
 					target.Target,

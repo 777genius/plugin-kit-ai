@@ -53,10 +53,9 @@ func TestValidate_GeminiRejectsInvalidExtensionName(t *testing.T) {
 name: "Demo_Extension"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/demo"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
@@ -79,10 +78,9 @@ func TestValidate_GeminiRejectsTrustAndAmbiguousContexts(t *testing.T) {
 name: "gemini-demo"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/gemini-demo"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-demo\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-demo", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node server.mjs","trust":true}}`)
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "FIRST.md"), "# First\n")
@@ -123,10 +121,9 @@ func TestValidate_GeminiWarnsOnIgnoredPolicyKeys(t *testing.T) {
 name: "gemini-policy"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/gemini-policy"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-policy\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-policy", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "policies", "review.toml"), "allow = true\nyolo = true\n")
@@ -157,10 +154,9 @@ func TestValidate_GeminiRejectsInvalidCommandTOML(t *testing.T) {
 name: "gemini-command"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/gemini-command"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-command\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-command", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "commands", "bad.toml"), "description = [\n")
@@ -188,10 +184,9 @@ func TestValidate_GeminiRejectsUnsupportedHooksLayout(t *testing.T) {
 name: "gemini-hooks"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/gemini-hooks"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-hooks\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-hooks", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "hooks", "extra.json"), "{}\n")
@@ -219,10 +214,9 @@ func TestValidate_GeminiRejectsNonYAMLSettingsAndThemes(t *testing.T) {
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
-runtime: "go"
-entrypoint: "./bin/gemini-assets"
 targets: ["gemini"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-assets\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-assets", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "api-token.json"), "{}\n")
@@ -364,10 +358,9 @@ func TestValidate_ManifestProject_ShellRequiresBashOnWindows(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "x"
-runtime: "shell"
-entrypoint: "./bin/x"
 targets: ["codex"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: shell\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
@@ -392,6 +385,109 @@ targets: ["codex"]
 	}
 }
 
+func TestValidate_CodexRejectsManifestExtraCanonicalOverride(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
+	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "manifest.extra.json"), `{"name":"override"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+
+	report, err := Validate(dir, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, `codex manifest.extra.json may not override canonical field "name"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
+	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-4.1\"\nnotify = [\"./bin/other\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+
+	report, err := Validate(dir, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundExtra, foundNotify, foundModel bool
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, `codex config.extra.toml may not override canonical field "notify"`) {
+			foundExtra = true
+		}
+		if strings.Contains(failure.Message, `entrypoint mismatch: Codex notify argv uses ["./bin/other" "notify"]`) {
+			foundNotify = true
+		}
+		if strings.Contains(failure.Message, `does not match targets/codex/package.yaml model_hint "gpt-5.4-mini"`) {
+			foundModel = true
+		}
+	}
+	if !foundExtra || !foundNotify || !foundModel {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "go.mod", "module example.com/gemini-demo\n\ngo 1.22\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-demo"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/gemini-demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join("cmd", "gemini-demo", "main.go"), "package main\nfunc main() {}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, `gemini manifest.extra.json may not override canonical field "plan.directory"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "windows" {
@@ -403,10 +499,9 @@ func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "x"
-runtime: "python"
-entrypoint: "./bin/x"
 targets: ["codex"]
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: python\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")

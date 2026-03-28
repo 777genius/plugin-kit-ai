@@ -8,6 +8,7 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 
 	files := []TemplateFile{
 		{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
+		{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false},
 	}
 
 	switch platform {

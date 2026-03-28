@@ -29,6 +29,8 @@ For repo-local plugins where fast iteration matters more than packaged distribut
 ./bin/plugin-kit-ai init my-plugin --runtime node
 ```
 
+Reference repos: [../../examples/local/README.md](../../examples/local/README.md)
+
 ## Production-Ready Plugin Repo
 
 For the strongest supported path in the current CLI contract:

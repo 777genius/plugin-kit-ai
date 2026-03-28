@@ -1,150 +1,78 @@
 package defs
 
-import "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+import (
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
+)
 
 func Profiles() []PlatformProfile {
-	return []PlatformProfile{
-		{
-			Platform:        "claude",
-			Status:          runtime.StatusRuntimeSupported,
-			PublicPackage:   "claude",
-			InternalPackage: "claude",
-			InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude",
-			TransportModes:  []runtime.TransportMode{runtime.ProcessMode},
-			LiveTestProfile: "claude_cli",
-			Scaffold: ScaffoldMeta{
-				RequiredFiles: []string{
-					"go.mod",
-					"README.md",
-					"plugin.yaml",
-					"targets/claude/hooks/hooks.json",
-				},
-				OptionalFiles: []string{
-					"Makefile",
-					".goreleaser.yml",
-					"skills/{{.ProjectName}}/SKILL.md",
-				},
-				ForbiddenFiles: []string{
-					"AGENTS.md",
-				},
-				TemplateFiles: []TemplateFile{
-					{Path: "go.mod", Template: "go.mod.tmpl"},
-					{Path: "cmd/{{.ProjectName}}/main.go", Template: "main.go.tmpl"},
-					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
-					{Path: "targets/claude/hooks/hooks.json", Template: "targets.claude.hooks.json.tmpl"},
-					{Path: "README.md", Template: "README.md.tmpl"},
-					{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
-					{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
-					{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
-				},
-			},
-			Validate: ValidateMeta{
-				RequiredFiles: []string{
-					"go.mod",
-					"README.md",
-					".claude-plugin/plugin.json",
-					"hooks/hooks.json",
-				},
-				ForbiddenFiles: []string{
-					"AGENTS.md",
-					".codex/config.toml",
-				},
-				BuildTargets: []string{"./..."},
-			},
+	source := platformmeta.All()
+	out := make([]PlatformProfile, 0, len(source))
+	for _, profile := range source {
+		out = append(out, adaptProfile(profile))
+	}
+	return out
+}
+
+func adaptProfile(profile platformmeta.PlatformProfile) PlatformProfile {
+	return PlatformProfile{
+		Platform:        runtime.PlatformID(profile.ID),
+		Status:          adaptStatus(profile.SDK.Status),
+		PublicPackage:   profile.SDK.PublicPackage,
+		InternalPackage: profile.SDK.InternalPackage,
+		InternalImport:  profile.SDK.InternalImport,
+		TransportModes:  adaptTransportModes(profile.SDK.TransportModes),
+		LiveTestProfile: profile.SDK.LiveTestProfile,
+		Scaffold: ScaffoldMeta{
+			RequiredFiles:  append([]string(nil), profile.Scaffold.RequiredFiles...),
+			OptionalFiles:  append([]string(nil), profile.Scaffold.OptionalFiles...),
+			ForbiddenFiles: append([]string(nil), profile.Scaffold.ForbiddenFiles...),
+			TemplateFiles:  adaptTemplateFiles(profile.Scaffold.TemplateFiles),
 		},
-		{
-			Platform:        "codex",
-			Status:          runtime.StatusRuntimeSupported,
-			PublicPackage:   "codex",
-			InternalPackage: "codex",
-			InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/codex",
-			TransportModes:  []runtime.TransportMode{runtime.ProcessMode},
-			LiveTestProfile: "codex_notify",
-			Scaffold: ScaffoldMeta{
-				RequiredFiles: []string{
-					"go.mod",
-					"README.md",
-					"plugin.yaml",
-					"AGENTS.md",
-					"targets/codex/package.yaml",
-				},
-				OptionalFiles: []string{
-					"Makefile",
-					".goreleaser.yml",
-					"skills/{{.ProjectName}}/SKILL.md",
-				},
-				ForbiddenFiles: []string{
-					".claude-plugin/plugin.json",
-					"hooks/hooks.json",
-				},
-				TemplateFiles: []TemplateFile{
-					{Path: "go.mod", Template: "codex.go.mod.tmpl"},
-					{Path: "cmd/{{.ProjectName}}/main.go", Template: "codex.main.go.tmpl"},
-					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
-					{Path: "targets/codex/package.yaml", Template: "targets.codex.package.yaml.tmpl"},
-					{Path: "AGENTS.md", Template: "codex.AGENTS.md.tmpl"},
-					{Path: "README.md", Template: "codex.README.md.tmpl"},
-					{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
-					{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
-					{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
-				},
-			},
-			Validate: ValidateMeta{
-				RequiredFiles: []string{
-					"go.mod",
-					"README.md",
-					"AGENTS.md",
-					".codex/config.toml",
-				},
-				ForbiddenFiles: []string{
-					".claude-plugin/plugin.json",
-					"hooks/hooks.json",
-				},
-				BuildTargets: []string{"./..."},
-			},
-		},
-		{
-			Platform:        "gemini",
-			Status:          runtime.StatusScaffoldOnly,
-			PublicPackage:   "gemini",
-			InternalPackage: "gemini",
-			InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/gemini",
-			TransportModes:  []runtime.TransportMode{runtime.ProcessMode},
-			LiveTestProfile: "gemini_extension",
-			Scaffold: ScaffoldMeta{
-				RequiredFiles: []string{
-					"go.mod",
-					"plugin.yaml",
-					"targets/gemini/package.yaml",
-					"contexts/GEMINI.md",
-					"README.md",
-				},
-				OptionalFiles: []string{
-					"Makefile",
-					".goreleaser.yml",
-					"skills/{{.ProjectName}}/SKILL.md",
-				},
-				TemplateFiles: []TemplateFile{
-					{Path: "go.mod", Template: "go.mod.tmpl"},
-					{Path: "cmd/{{.ProjectName}}/main.go", Template: "gemini.main.go.tmpl"},
-					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
-					{Path: "targets/gemini/package.yaml", Template: "targets.gemini.package.yaml.tmpl"},
-					{Path: "contexts/GEMINI.md", Template: "gemini.GEMINI.md.tmpl"},
-					{Path: "README.md", Template: "gemini.README.md.tmpl"},
-					{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
-					{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
-					{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
-				},
-			},
-			Validate: ValidateMeta{
-				RequiredFiles: []string{
-					"plugin.yaml",
-					"targets/gemini/package.yaml",
-				},
-				BuildTargets: []string{"./..."},
-			},
+		Validate: ValidateMeta{
+			RequiredFiles:  append([]string(nil), profile.Validate.RequiredFiles...),
+			ForbiddenFiles: append([]string(nil), profile.Validate.ForbiddenFiles...),
+			BuildTargets:   append([]string(nil), profile.Validate.BuildTargets...),
 		},
 	}
+}
+
+func adaptStatus(status platformmeta.SupportStatus) runtime.SupportStatus {
+	switch status {
+	case platformmeta.StatusRuntimeSupported:
+		return runtime.StatusRuntimeSupported
+	case platformmeta.StatusScaffoldOnly:
+		return runtime.StatusScaffoldOnly
+	default:
+		return runtime.StatusDeferred
+	}
+}
+
+func adaptTransportModes(modes []platformmeta.TransportMode) []runtime.TransportMode {
+	out := make([]runtime.TransportMode, 0, len(modes))
+	for _, mode := range modes {
+		switch mode {
+		case platformmeta.TransportHybrid:
+			out = append(out, runtime.HybridMode)
+		case platformmeta.TransportDaemon:
+			out = append(out, runtime.DaemonMode)
+		default:
+			out = append(out, runtime.ProcessMode)
+		}
+	}
+	return out
+}
+
+func adaptTemplateFiles(files []platformmeta.TemplateFile) []TemplateFile {
+	out := make([]TemplateFile, 0, len(files))
+	for _, file := range files {
+		out = append(out, TemplateFile{
+			Path:     file.Path,
+			Template: file.Template,
+			Extra:    file.Extra,
+		})
+	}
+	return out
 }
 
 func Events() []EventDescriptor {
@@ -262,9 +190,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-sessionstart",
 				TableGroup: "claude",
-				Summary:    "Claude SessionStart hook",
+				Summary:    "Claude SessionStart beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"session_start"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "session_start", Platform: "session_start"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -289,9 +220,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-sessionend",
 				TableGroup: "claude",
-				Summary:    "Claude SessionEnd hook",
+				Summary:    "Claude SessionEnd beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"session_end"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "session_end", Platform: "session_end"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -316,9 +250,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-notification",
 				TableGroup: "claude",
-				Summary:    "Claude Notification hook",
+				Summary:    "Claude Notification beta hook",
 			},
-			Capabilities: []runtime.CapabilityID{"notification"},
+			Capabilities: []runtime.CapabilityID{"notify"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "notify", Platform: "notify"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -343,9 +280,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-posttooluse",
 				TableGroup: "claude",
-				Summary:    "Claude PostToolUse hook",
+				Summary:    "Claude PostToolUse beta hook",
 			},
-			Capabilities: []runtime.CapabilityID{"posttooluse"},
+			Capabilities: []runtime.CapabilityID{"post_tool"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "post_tool", Platform: "post_tool"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -370,9 +310,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-posttoolusefailure",
 				TableGroup: "claude",
-				Summary:    "Claude PostToolUseFailure hook",
+				Summary:    "Claude PostToolUseFailure beta hook",
 			},
-			Capabilities: []runtime.CapabilityID{"posttooluse_failure"},
+			Capabilities: []runtime.CapabilityID{"post_tool_failure"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "post_tool_failure", Platform: "post_tool_failure"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -397,9 +340,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-permissionrequest",
 				TableGroup: "claude",
-				Summary:    "Claude PermissionRequest hook",
+				Summary:    "Claude PermissionRequest beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"permission_request"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "permission_request", Platform: "permission_request"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -424,9 +370,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-subagentstart",
 				TableGroup: "claude",
-				Summary:    "Claude SubagentStart hook",
+				Summary:    "Claude SubagentStart beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"subagent_start"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "subagent_start", Platform: "subagent_start"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -451,9 +400,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-subagentstop",
 				TableGroup: "claude",
-				Summary:    "Claude SubagentStop hook",
+				Summary:    "Claude SubagentStop beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"subagent_stop"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "subagent_stop", Platform: "subagent_stop"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -478,9 +430,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-precompact",
 				TableGroup: "claude",
-				Summary:    "Claude PreCompact hook",
+				Summary:    "Claude PreCompact beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"pre_compact"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "pre_compact", Platform: "pre_compact"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -505,9 +460,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-setup",
 				TableGroup: "claude",
-				Summary:    "Claude Setup hook",
+				Summary:    "Claude Setup beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"setup"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "setup", Platform: "setup"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -532,9 +490,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-teammateidle",
 				TableGroup: "claude",
-				Summary:    "Claude TeammateIdle hook",
+				Summary:    "Claude TeammateIdle beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"teammate_idle"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "teammate_idle", Platform: "teammate_idle"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -559,9 +520,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-taskcompleted",
 				TableGroup: "claude",
-				Summary:    "Claude TaskCompleted hook",
+				Summary:    "Claude TaskCompleted beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"task_completed"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "task_completed", Platform: "task_completed"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -586,9 +550,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-configchange",
 				TableGroup: "claude",
-				Summary:    "Claude ConfigChange hook",
+				Summary:    "Claude ConfigChange beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"config_change"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "config_change", Platform: "config_change"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -613,9 +580,12 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-worktreecreate",
 				TableGroup: "claude",
-				Summary:    "Claude WorktreeCreate hook",
+				Summary:    "Claude WorktreeCreate beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"worktree_create"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "worktree_create", Platform: "worktree_create"},
+			},
 		},
 		{
 			Platform: "claude",
@@ -640,15 +610,18 @@ func Events() []EventDescriptor {
 			Docs: DocsMeta{
 				SnippetKey: "claude-worktreeremove",
 				TableGroup: "claude",
-				Summary:    "Claude WorktreeRemove hook",
+				Summary:    "Claude WorktreeRemove beta hook",
 			},
 			Capabilities: []runtime.CapabilityID{"worktree_remove"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "worktree_remove", Platform: "worktree_remove"},
+			},
 		},
 		{
 			Platform: "codex",
 			Event:    "Notify",
 			Invocation: InvocationBinding{
-				Kind: runtime.InvocationArgvCommand,
+				Kind: runtime.InvocationArgvCommandCaseFold,
 				Name: "notify",
 			},
 			Carrier: runtime.CarrierArgvJSON,
@@ -670,6 +643,9 @@ func Events() []EventDescriptor {
 				Summary:    "Codex notify hook",
 			},
 			Capabilities: []runtime.CapabilityID{"notify"},
+			CapabilityMappings: []CapabilityMapping{
+				{Unified: "notify", Platform: "notify"},
+			},
 		},
 	}
 }

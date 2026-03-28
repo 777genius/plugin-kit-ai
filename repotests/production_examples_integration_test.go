@@ -46,6 +46,9 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			runCmd(t, root, exec.Command(pluginKitAIBin, "render", tc.dir, "--check"))
 			runCmd(t, root, exec.Command(pluginKitAIBin, "validate", tc.dir, "--platform", tc.platform, "--strict"))
+			if tc.platform == "codex" {
+				assertCodexConfig(t, tc.dir, "gpt-5.4-mini", "./bin/codex-basic-prod")
+			}
 
 			testCmd := exec.Command("go", "test", "./...")
 			testCmd.Dir = tc.dir

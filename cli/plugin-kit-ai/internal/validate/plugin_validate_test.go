@@ -16,9 +16,7 @@ func TestValidate_PluginProject_CodexGo(t *testing.T) {
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
 	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	if err := pluginmanifest.Save(dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), false); err != nil {
-		t.Fatal(err)
-	}
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), "go")
 	rendered, err := pluginmanifest.Render(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -43,9 +41,7 @@ func TestValidate_PluginProjectDetectsDrift(t *testing.T) {
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
 	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	if err := pluginmanifest.Save(dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), false); err != nil {
-		t.Fatal(err)
-	}
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), "go")
 	rendered, err := pluginmanifest.Render(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -83,11 +79,10 @@ func TestValidate_PluginProjectWarnsOnUnknownFields(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "plugin"
-runtime: "go"
-entrypoint: "./bin/x"
 targets: ["codex"]
 extra: true
 `)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
 	rendered, err := pluginmanifest.Render(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -116,9 +111,7 @@ func TestValidate_PluginProject_ClaudeHooksMatchEntrypoint(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	if err := pluginmanifest.Save(dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), false); err != nil {
-		t.Fatal(err)
-	}
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/x Stop"}]}],
@@ -149,9 +142,7 @@ func TestValidate_PluginProject_ClaudeHookEntrypointMismatch(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	if err := pluginmanifest.Save(dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), false); err != nil {
-		t.Fatal(err)
-	}
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/old-x Stop"}]}],
@@ -188,9 +179,7 @@ func TestValidate_PluginProject_ClaudeExtendedHooksAlsoMatchEntrypoint(t *testin
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	if err := pluginmanifest.Save(dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), false); err != nil {
-		t.Fatal(err)
-	}
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/x Stop"}]}],
@@ -218,5 +207,15 @@ func TestValidate_PluginProject_ClaudeExtendedHooksAlsoMatchEntrypoint(t *testin
 	}
 	if !found {
 		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func mustSaveValidatedPackage(t *testing.T, root string, manifest pluginmanifest.Manifest, runtime string) {
+	t.Helper()
+	if err := pluginmanifest.Save(root, manifest, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher(manifest.Name, runtime), false); err != nil {
+		t.Fatal(err)
 	}
 }

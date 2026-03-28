@@ -8,6 +8,7 @@ var generatedRules = map[string]Rule{
 		RequiredFiles: []string{
 			"go.mod",
 			"README.md",
+			"launcher.yaml",
 			".claude-plugin/plugin.json",
 			"hooks/hooks.json",
 		},
@@ -24,6 +25,7 @@ var generatedRules = map[string]Rule{
 		RequiredFiles: []string{
 			"go.mod",
 			"README.md",
+			"launcher.yaml",
 			"AGENTS.md",
 			".codex/config.toml",
 		},

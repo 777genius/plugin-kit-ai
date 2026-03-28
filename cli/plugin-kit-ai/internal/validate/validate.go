@@ -15,6 +15,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/targetcontracts"
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
 	"gopkg.in/yaml.v3"
 )
 
@@ -179,7 +180,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		}
 		tc := graph.Targets[targetName]
 		supportedPortable := setOf(entry.PortableComponentKinds)
-		if len(graph.Portable.Skills) > 0 && !supportedPortable["skills"] {
+		if len(graph.Portable.Paths("skills")) > 0 && !supportedPortable["skills"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
 				Path:    "skills",
@@ -195,12 +196,20 @@ func validatePluginProject(root, platform string) (Report, error) {
 				Message: fmt.Sprintf("target %s does not support portable component kind mcp_servers", targetName),
 			})
 		}
-		if len(graph.Portable.Agents) > 0 && !supportedPortable["agents"] {
+		if len(graph.Portable.Paths("agents")) > 0 && !supportedPortable["agents"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
 				Path:    "agents",
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support portable component kind agents", targetName),
+			})
+		}
+		if len(graph.Portable.Paths("contexts")) > 0 && !supportedPortable["contexts"] {
+			report.Failures = append(report.Failures, Failure{
+				Kind:    FailureUnsupportedTargetKind,
+				Path:    "contexts",
+				Target:  targetName,
+				Message: fmt.Sprintf("target %s does not support portable component kind contexts", targetName),
 			})
 		}
 		supportedNative := setOf(entry.TargetComponentKinds)
@@ -219,7 +228,10 @@ func validatePluginProject(root, platform string) (Report, error) {
 			validateGeminiTarget(root, manifest, graph, tc, &report)
 		}
 		if targetName == "claude" {
-			validateClaudeTarget(root, manifest, tc, &report)
+			validateClaudeTarget(root, graph.Launcher, tc, &report)
+		}
+		if targetName == "codex" {
+			validateCodexTarget(root, graph.Launcher, tc, &report)
 		}
 	}
 	if drift, err := pluginmanifest.Drift(root, targetOrAll(platform)); err != nil {
@@ -236,7 +248,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 			})
 		}
 	}
-	validatePluginRuntimeFiles(root, manifest, &report)
+	validatePluginRuntimeFiles(root, manifest, graph.Launcher, &report)
 	return report, nil
 }
 
@@ -254,8 +266,29 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, report *Report) {
-	switch manifest.Runtime {
+func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, launcher *pluginmanifest.Launcher, report *Report) {
+	requireLauncher := false
+	for _, target := range manifest.EnabledTargets() {
+		profile, ok := platformmeta.Lookup(target)
+		if !ok {
+			continue
+		}
+		if profile.Launcher.Requirement == platformmeta.LauncherRequired {
+			requireLauncher = true
+			break
+		}
+	}
+	if launcher == nil {
+		if requireLauncher {
+			report.Failures = append(report.Failures, Failure{
+				Kind:    FailureLauncherInvalid,
+				Path:    pluginmanifest.LauncherFileName,
+				Message: "launcher invalid: missing " + pluginmanifest.LauncherFileName,
+			})
+		}
+		return
+	}
+	switch launcher.Runtime {
 	case "go":
 		validateRuntimeFileExists(root, "go.mod", report)
 		cmd := exec.Command("go", "build", "./...")
@@ -269,7 +302,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 			})
 		}
 	case "python":
-		validatePluginLauncher(root, manifest, report)
+		validatePluginLauncher(root, launcher, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
 		if err := validatePythonRuntime(root); err != nil {
 			report.Failures = append(report.Failures, Failure{
@@ -278,9 +311,9 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 			})
 		}
 	case "node":
-		validatePluginLauncher(root, manifest, report)
+		validatePluginLauncher(root, launcher, report)
 		validateRuntimeFileExists(root, "package.json", report)
-		validateNodeRuntimeTarget(root, manifest.Entrypoint, report)
+		validateNodeRuntimeTarget(root, launcher.Entrypoint, report)
 		if err := validateNodeRuntime(); err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
@@ -288,7 +321,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 			})
 		}
 	case "shell":
-		validatePluginLauncher(root, manifest, report)
+		validatePluginLauncher(root, launcher, report)
 		validateRuntimeTargetExecutable(root, "scripts/main.sh", report)
 		if runtime.GOOS == "windows" {
 			if _, err := exec.LookPath("bash"); err != nil {
@@ -301,19 +334,27 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, r
 	}
 }
 
-func validatePluginLauncher(root string, manifest pluginmanifest.Manifest, report *Report) {
-	info, err := statLauncher(root, manifest.Entrypoint)
+func validatePluginLauncher(root string, launcher *pluginmanifest.Launcher, report *Report) {
+	if launcher == nil {
+		report.Failures = append(report.Failures, Failure{
+			Kind:    FailureLauncherInvalid,
+			Path:    pluginmanifest.LauncherFileName,
+			Message: "launcher invalid: missing " + pluginmanifest.LauncherFileName,
+		})
+		return
+	}
+	info, err := statLauncher(root, launcher.Entrypoint)
 	if err != nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
-			Message: "launcher invalid: missing " + manifest.Entrypoint,
+			Message: "launcher invalid: missing " + launcher.Entrypoint,
 		})
 		return
 	}
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
-			Message: "launcher invalid: not executable " + manifest.Entrypoint,
+			Message: "launcher invalid: not executable " + launcher.Entrypoint,
 		})
 	}
 }
@@ -343,12 +384,12 @@ func validateGeminiTarget(root string, manifest pluginmanifest.Manifest, graph p
 	}
 	validateGeminiMCP(graph, report)
 	validateGeminiContext(graph, tc, report)
-	validateGeminiSettings(root, tc.Settings, report)
-	validateGeminiThemes(root, tc.Themes, report)
+	validateGeminiSettings(root, tc.ComponentPaths("settings"), report)
+	validateGeminiThemes(root, tc.ComponentPaths("themes"), report)
 	validateGeminiManifestExtra(root, tc, report)
-	validateGeminiPolicies(root, tc.Policies, report)
-	validateGeminiCommands(root, tc.Commands, report)
-	validateGeminiJSONFileKinds(root, tc.Hooks, report)
+	validateGeminiPolicies(root, tc.ComponentPaths("policies"), report)
+	validateGeminiCommands(root, tc.ComponentPaths("commands"), report)
+	validateGeminiJSONFileKinds(root, tc.ComponentPaths("hooks"), report)
 }
 
 func validateGeminiMCP(graph pluginmanifest.PackageGraph, report *Report) {
@@ -380,8 +421,11 @@ func validateGeminiMCP(graph pluginmanifest.PackageGraph, report *Report) {
 	}
 }
 
-func validateClaudeTarget(root string, manifest pluginmanifest.Manifest, tc pluginmanifest.TargetComponents, report *Report) {
-	for _, rel := range tc.Hooks {
+func validateClaudeTarget(root string, launcher *pluginmanifest.Launcher, tc pluginmanifest.TargetComponents, report *Report) {
+	if launcher == nil {
+		return
+	}
+	for _, rel := range tc.ComponentPaths("hooks") {
 		full := filepath.Join(root, rel)
 		body, err := os.ReadFile(full)
 		if err != nil {
@@ -393,7 +437,7 @@ func validateClaudeTarget(root string, manifest pluginmanifest.Manifest, tc plug
 			})
 			continue
 		}
-		mismatches, err := pluginmanifest.ValidateClaudeHookEntrypoints(body, manifest.Entrypoint)
+		mismatches, err := pluginmanifest.ValidateClaudeHookEntrypoints(body, launcher.Entrypoint)
 		if err != nil {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureManifestInvalid,
@@ -414,6 +458,64 @@ func validateClaudeTarget(root string, manifest pluginmanifest.Manifest, tc plug
 	}
 }
 
+func validateCodexTarget(root string, launcher *pluginmanifest.Launcher, tc pluginmanifest.TargetComponents, report *Report) {
+	validateTargetExtraDoc(root, "codex", tc.DocPath("manifest_extra"), pluginmanifest.NativeDocFormatJSON, "codex manifest.extra.json", []string{
+		"name",
+		"version",
+		"description",
+		"skills",
+		"mcpServers",
+	}, report)
+	validateTargetExtraDoc(root, "codex", tc.DocPath("config_extra"), pluginmanifest.NativeDocFormatTOML, "codex config.extra.toml", []string{
+		"model",
+		"notify",
+	}, report)
+
+	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
+	if err != nil {
+		report.Failures = append(report.Failures, Failure{
+			Kind:    FailureGeneratedContractInvalid,
+			Path:    filepath.ToSlash(filepath.Join(".codex", "config.toml")),
+			Target:  "codex",
+			Message: fmt.Sprintf("Codex config file %s is not readable: %v", filepath.ToSlash(filepath.Join(".codex", "config.toml")), err),
+		})
+		return
+	}
+	var config struct {
+		Model  string   `toml:"model"`
+		Notify []string `toml:"notify"`
+	}
+	if err := toml.Unmarshal(body, &config); err != nil {
+		report.Failures = append(report.Failures, Failure{
+			Kind:    FailureManifestInvalid,
+			Path:    filepath.ToSlash(filepath.Join(".codex", "config.toml")),
+			Target:  "codex",
+			Message: fmt.Sprintf("Codex config file %s is invalid TOML: %v", filepath.ToSlash(filepath.Join(".codex", "config.toml")), err),
+		})
+		return
+	}
+	if launcher == nil {
+		return
+	}
+	expectedNotify := []string{launcher.Entrypoint, "notify"}
+	if len(config.Notify) != len(expectedNotify) || len(config.Notify) == 0 || strings.TrimSpace(config.Notify[0]) != expectedNotify[0] || (len(config.Notify) > 1 && strings.TrimSpace(config.Notify[1]) != expectedNotify[1]) {
+		report.Failures = append(report.Failures, Failure{
+			Kind:    FailureEntrypointMismatch,
+			Path:    filepath.ToSlash(filepath.Join(".codex", "config.toml")),
+			Target:  "codex",
+			Message: fmt.Sprintf("entrypoint mismatch: Codex notify argv uses %q; expected %q from plugin.yaml entrypoint", config.Notify, expectedNotify),
+		})
+	}
+	if strings.TrimSpace(tc.Codex.ModelHint) != "" && strings.TrimSpace(config.Model) != strings.TrimSpace(tc.Codex.ModelHint) {
+		report.Failures = append(report.Failures, Failure{
+			Kind:    FailureGeneratedContractInvalid,
+			Path:    filepath.ToSlash(filepath.Join(".codex", "config.toml")),
+			Target:  "codex",
+			Message: fmt.Sprintf("Codex config model %q does not match targets/codex/package.yaml model_hint %q", strings.TrimSpace(config.Model), strings.TrimSpace(tc.Codex.ModelHint)),
+		})
+	}
+}
+
 func validateGeminiContext(graph pluginmanifest.PackageGraph, tc pluginmanifest.TargetComponents, report *Report) {
 	selected := strings.TrimSpace(tc.Gemini.ContextFileName)
 	candidates := geminiContextMatches(graph, tc, "")
@@ -423,7 +525,7 @@ func validateGeminiContext(graph pluginmanifest.PackageGraph, tc pluginmanifest.
 		case 0:
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureManifestInvalid,
-				Path:    tc.PackagePath,
+				Path:    tc.DocPath("package_metadata"),
 				Target:  "gemini",
 				Message: fmt.Sprintf("Gemini context_file_name %q does not resolve to a shared or Gemini-native context source", selected),
 			})
@@ -432,7 +534,7 @@ func validateGeminiContext(graph pluginmanifest.PackageGraph, tc pluginmanifest.
 		default:
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureManifestInvalid,
-				Path:    tc.PackagePath,
+				Path:    tc.DocPath("package_metadata"),
 				Target:  "gemini",
 				Message: fmt.Sprintf("Gemini context_file_name %q is ambiguous across multiple context sources", selected),
 			})
@@ -463,7 +565,7 @@ func validateGeminiContext(graph pluginmanifest.PackageGraph, tc pluginmanifest.
 func geminiContextMatches(graph pluginmanifest.PackageGraph, tc pluginmanifest.TargetComponents, name string) []string {
 	var matches []string
 	seen := map[string]struct{}{}
-	for _, rel := range append(append([]string{}, tc.Contexts...), graph.Portable.Contexts...) {
+	for _, rel := range append(append([]string{}, tc.ComponentPaths("contexts")...), graph.Portable.Paths("contexts")...) {
 		rel = filepath.ToSlash(rel)
 		if name == "" || filepath.Base(rel) == name {
 			if _, ok := seen[rel]; ok {
@@ -518,61 +620,42 @@ func validateGeminiThemes(root string, rels []string, report *Report) {
 }
 
 func validateGeminiManifestExtra(root string, tc pluginmanifest.TargetComponents, report *Report) {
-	if strings.TrimSpace(tc.ManifestExtra) == "" {
+	validateTargetExtraDoc(root, "gemini", tc.DocPath("manifest_extra"), pluginmanifest.NativeDocFormatJSON, "gemini manifest.extra.json", []string{
+		"name",
+		"version",
+		"description",
+		"mcpServers",
+		"contextFileName",
+		"excludeTools",
+		"migratedTo",
+		"settings",
+		"themes",
+		"plan.directory",
+	}, report)
+}
+
+func validateTargetExtraDoc(root, target, rel string, format pluginmanifest.NativeDocFormat, label string, managedPaths []string, report *Report) {
+	if strings.TrimSpace(rel) == "" {
 		return
 	}
-	body, err := os.ReadFile(filepath.Join(root, tc.ManifestExtra))
+	doc, err := pluginmanifest.LoadNativeExtraDoc(root, rel, format)
 	if err != nil {
+		formatName := strings.ToUpper(string(format))
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureManifestInvalid,
-			Path:    tc.ManifestExtra,
-			Target:  "gemini",
-			Message: fmt.Sprintf("Gemini manifest extra file %s is not readable: %v", tc.ManifestExtra, err),
+			Path:    rel,
+			Target:  target,
+			Message: fmt.Sprintf("%s %s is invalid %s: %v", label, rel, formatName, err),
 		})
 		return
 	}
-	var extra map[string]any
-	if err := json.Unmarshal(body, &extra); err != nil {
+	if err := pluginmanifest.ValidateNativeExtraDocConflicts(doc, label, managedPaths); err != nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureManifestInvalid,
-			Path:    tc.ManifestExtra,
-			Target:  "gemini",
-			Message: fmt.Sprintf("Gemini manifest extra file %s must be a JSON object: %v", tc.ManifestExtra, err),
+			Path:    rel,
+			Target:  target,
+			Message: err.Error(),
 		})
-		return
-	}
-	forbidden := map[string]struct{}{
-		"name": {}, "version": {}, "description": {}, "mcpServers": {}, "contextFileName": {}, "excludeTools": {}, "migratedTo": {}, "settings": {}, "themes": {},
-	}
-	for key, value := range extra {
-		if _, blocked := forbidden[key]; blocked {
-			report.Failures = append(report.Failures, Failure{
-				Kind:    FailureManifestInvalid,
-				Path:    tc.ManifestExtra,
-				Target:  "gemini",
-				Message: fmt.Sprintf("Gemini manifest extra file may not override canonical field %q", key),
-			})
-		}
-		if key == "plan" {
-			plan, ok := value.(map[string]any)
-			if !ok {
-				report.Failures = append(report.Failures, Failure{
-					Kind:    FailureManifestInvalid,
-					Path:    tc.ManifestExtra,
-					Target:  "gemini",
-					Message: "Gemini manifest extra field plan must be a JSON object",
-				})
-				continue
-			}
-			if _, blocked := plan["directory"]; blocked {
-				report.Failures = append(report.Failures, Failure{
-					Kind:    FailureManifestInvalid,
-					Path:    tc.ManifestExtra,
-					Target:  "gemini",
-					Message: "Gemini manifest extra file may not override canonical field \"plan.directory\"",
-				})
-			}
-		}
 	}
 }
 

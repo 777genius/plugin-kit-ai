@@ -15,15 +15,16 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/targetcontracts"
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
 	"gopkg.in/yaml.v3"
 )
 
 const (
-	FileName     = "plugin.yaml"
-	FormatMarker = "plugin-kit-ai/package"
+	FileName         = "plugin.yaml"
+	LauncherFileName = "launcher.yaml"
+	FormatMarker     = "plugin-kit-ai/package"
 )
 
-var supportedTargets = []string{"claude", "codex", "gemini"}
 var geminiExtensionNameRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type WarningKind string
@@ -45,9 +46,12 @@ type Manifest struct {
 	Name        string   `yaml:"name" json:"name"`
 	Version     string   `yaml:"version" json:"version"`
 	Description string   `yaml:"description" json:"description"`
-	Runtime     string   `yaml:"runtime" json:"runtime"`
-	Entrypoint  string   `yaml:"entrypoint" json:"entrypoint"`
 	Targets     []string `yaml:"targets" json:"targets"`
+}
+
+type Launcher struct {
+	Runtime    string `yaml:"runtime" json:"runtime"`
+	Entrypoint string `yaml:"entrypoint" json:"entrypoint"`
 }
 
 type PortableMCP struct {
@@ -56,10 +60,22 @@ type PortableMCP struct {
 }
 
 type PortableComponents struct {
-	Skills   []string
-	Agents   []string
-	Contexts []string
-	MCP      *PortableMCP
+	Items map[string][]string
+	MCP   *PortableMCP
+}
+
+type NativeDocFormat string
+
+const (
+	NativeDocFormatJSON NativeDocFormat = "json"
+	NativeDocFormatTOML NativeDocFormat = "toml"
+)
+
+type NativeExtraDoc struct {
+	Path   string
+	Format NativeDocFormat
+	Raw    []byte
+	Fields map[string]any
 }
 
 type CodexTargetMeta struct {
@@ -74,18 +90,11 @@ type GeminiTargetMeta struct {
 }
 
 type TargetComponents struct {
-	Target        string
-	PackagePath   string
-	Codex         CodexTargetMeta
-	Gemini        GeminiTargetMeta
-	Hooks         []string
-	Commands      []string
-	Policies      []string
-	Themes        []string
-	Settings      []string
-	Contexts      []string
-	Opaque        []string
-	ManifestExtra string
+	Target     string
+	Docs       map[string]string
+	Components map[string][]string
+	Codex      CodexTargetMeta
+	Gemini     GeminiTargetMeta
 }
 
 type GeminiSetting struct {
@@ -97,9 +106,67 @@ type GeminiSetting struct {
 
 type PackageGraph struct {
 	Manifest    Manifest
+	Launcher    *Launcher
 	Portable    PortableComponents
 	Targets     map[string]TargetComponents
 	SourceFiles []string
+}
+
+func newPortableComponents() PortableComponents {
+	return PortableComponents{Items: map[string][]string{}}
+}
+
+func (p *PortableComponents) Add(kind string, paths ...string) {
+	if p.Items == nil {
+		p.Items = map[string][]string{}
+	}
+	p.Items[kind] = append(p.Items[kind], paths...)
+}
+
+func (p PortableComponents) Paths(kind string) []string {
+	return append([]string(nil), p.Items[kind]...)
+}
+
+func (p PortableComponents) Kinds() []string {
+	out := make([]string, 0, len(p.Items))
+	for kind, paths := range p.Items {
+		if len(paths) == 0 {
+			continue
+		}
+		out = append(out, kind)
+	}
+	slices.Sort(out)
+	return out
+}
+
+func newTargetComponents(target string) TargetComponents {
+	return TargetComponents{
+		Target:     target,
+		Docs:       map[string]string{},
+		Components: map[string][]string{},
+	}
+}
+
+func (tc *TargetComponents) SetDoc(kind, path string) {
+	if tc.Docs == nil {
+		tc.Docs = map[string]string{}
+	}
+	tc.Docs[kind] = filepath.ToSlash(path)
+}
+
+func (tc TargetComponents) DocPath(kind string) string {
+	return strings.TrimSpace(tc.Docs[kind])
+}
+
+func (tc *TargetComponents) AddComponent(kind string, paths ...string) {
+	if tc.Components == nil {
+		tc.Components = map[string][]string{}
+	}
+	tc.Components[kind] = append(tc.Components[kind], paths...)
+}
+
+func (tc TargetComponents) ComponentPaths(kind string) []string {
+	return append([]string(nil), tc.Components[kind]...)
 }
 
 type InspectTarget struct {
@@ -153,6 +220,21 @@ type importedCodexConfig struct {
 	Notify []string `toml:"notify"`
 }
 
+type importedCodexPluginManifest struct {
+	Name          string
+	Version       string
+	Description   string
+	SkillsPath    string
+	MCPServersRef string
+	Extra         map[string]any
+}
+
+type importedCodexNativeConfig struct {
+	Model  string
+	Notify []string
+	Extra  map[string]any
+}
+
 type importedGeminiExtension struct {
 	Name        string
 	Version     string
@@ -169,6 +251,11 @@ func Load(root string) (Manifest, error) {
 	return manifest, err
 }
 
+func LoadLauncher(root string) (Launcher, error) {
+	launcher, _, err := LoadLauncherWithWarnings(root)
+	return launcher, err
+}
+
 func LoadWithWarnings(root string) (Manifest, []Warning, error) {
 	body, err := os.ReadFile(filepath.Join(root, FileName))
 	if err != nil {
@@ -177,9 +264,22 @@ func LoadWithWarnings(root string) (Manifest, []Warning, error) {
 	return Analyze(body)
 }
 
+func LoadLauncherWithWarnings(root string) (Launcher, []Warning, error) {
+	body, err := os.ReadFile(filepath.Join(root, LauncherFileName))
+	if err != nil {
+		return Launcher{}, nil, err
+	}
+	return AnalyzeLauncher(body)
+}
+
 func Parse(body []byte) (Manifest, error) {
 	manifest, _, err := Analyze(body)
 	return manifest, err
+}
+
+func ParseLauncher(body []byte) (Launcher, error) {
+	launcher, _, err := AnalyzeLauncher(body)
+	return launcher, err
 }
 
 func Analyze(body []byte) (Manifest, []Warning, error) {
@@ -198,6 +298,12 @@ func Analyze(body []byte) (Manifest, []Warning, error) {
 			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: legacy targets object is not supported; use targets as a YAML sequence")
 		}
 	}
+	if _, ok := raw["runtime"]; ok {
+		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: runtime moved to %s", LauncherFileName)
+	}
+	if _, ok := raw["entrypoint"]; ok {
+		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: entrypoint moved to %s", LauncherFileName)
+	}
 	warnings, err := collectWarnings(body)
 	if err != nil {
 		return Manifest{}, nil, err
@@ -213,6 +319,18 @@ func Analyze(body []byte) (Manifest, []Warning, error) {
 	return out, warnings, nil
 }
 
+func AnalyzeLauncher(body []byte) (Launcher, []Warning, error) {
+	var out Launcher
+	if err := yaml.Unmarshal(body, &out); err != nil {
+		return Launcher{}, nil, fmt.Errorf("parse %s: %w", LauncherFileName, err)
+	}
+	normalizeLauncher(&out)
+	if err := out.Validate(); err != nil {
+		return Launcher{}, nil, err
+	}
+	return out, nil, nil
+}
+
 func (m Manifest) Validate() error {
 	if strings.TrimSpace(m.Format) != FormatMarker {
 		return fmt.Errorf("invalid plugin.yaml: format must be %q", FormatMarker)
@@ -226,16 +344,11 @@ func (m Manifest) Validate() error {
 	if strings.TrimSpace(m.Description) == "" {
 		return fmt.Errorf("invalid plugin.yaml: description required")
 	}
-	if _, ok := scaffold.LookupRuntime(m.Runtime); !ok {
-		return fmt.Errorf("invalid plugin.yaml: unsupported runtime %q", m.Runtime)
-	}
-	if strings.TrimSpace(m.Entrypoint) == "" {
-		return fmt.Errorf("invalid plugin.yaml: entrypoint required")
-	}
 	if len(m.Targets) == 0 {
 		return fmt.Errorf("invalid plugin.yaml: targets must not be empty")
 	}
 	seen := map[string]struct{}{}
+	supportedTargets := platformmeta.IDs()
 	for _, target := range m.Targets {
 		target = normalizeTarget(target)
 		if !slices.Contains(supportedTargets, target) {
@@ -250,6 +363,16 @@ func (m Manifest) Validate() error {
 		if err := ValidateGeminiExtensionName(m.Name); err != nil {
 			return fmt.Errorf("invalid plugin.yaml: %w", err)
 		}
+	}
+	return nil
+}
+
+func (l Launcher) Validate() error {
+	if _, ok := scaffold.LookupRuntime(l.Runtime); !ok {
+		return fmt.Errorf("invalid %s: unsupported runtime %q", LauncherFileName, l.Runtime)
+	}
+	if strings.TrimSpace(l.Entrypoint) == "" {
+		return fmt.Errorf("invalid %s: entrypoint required", LauncherFileName)
 	}
 	return nil
 }
@@ -285,7 +408,6 @@ func (m Manifest) SelectedTargets(target string) ([]string, error) {
 
 func Default(projectName, platform, runtime, description string, _ bool) Manifest {
 	platform = normalizeTarget(platform)
-	runtime = normalizeRuntime(runtime)
 	if strings.TrimSpace(description) == "" {
 		description = "plugin-kit-ai plugin"
 	}
@@ -294,9 +416,18 @@ func Default(projectName, platform, runtime, description string, _ bool) Manifes
 		Name:        projectName,
 		Version:     "0.1.0",
 		Description: description,
-		Runtime:     runtime,
-		Entrypoint:  "./bin/" + projectName,
 		Targets:     []string{platform},
+	}
+}
+
+func DefaultLauncher(projectName, runtime string) Launcher {
+	runtime = normalizeRuntime(runtime)
+	if runtime == "" {
+		runtime = "go"
+	}
+	return Launcher{
+		Runtime:    runtime,
+		Entrypoint: "./bin/" + projectName,
 	}
 }
 
@@ -316,6 +447,22 @@ func Save(root string, manifest Manifest, force bool) error {
 	return os.WriteFile(full, body, 0o644)
 }
 
+func SaveLauncher(root string, launcher Launcher, force bool) error {
+	normalizeLauncher(&launcher)
+	if err := launcher.Validate(); err != nil {
+		return err
+	}
+	full := filepath.Join(root, LauncherFileName)
+	if _, err := os.Stat(full); err == nil && !force {
+		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
+	}
+	body, err := yaml.Marshal(launcher)
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", LauncherFileName, err)
+	}
+	return os.WriteFile(full, body, 0o644)
+}
+
 func Normalize(root string, force bool) ([]Warning, error) {
 	manifest, warnings, err := LoadWithWarnings(root)
 	if err != nil {
@@ -323,6 +470,11 @@ func Normalize(root string, force bool) ([]Warning, error) {
 	}
 	if err := Save(root, manifest, force); err != nil {
 		return warnings, err
+	}
+	if launcher, err := LoadLauncher(root); err == nil {
+		if err := SaveLauncher(root, launcher, force); err != nil {
+			return warnings, err
+		}
 	}
 	return warnings, nil
 }
@@ -332,24 +484,36 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 	if err != nil {
 		return PackageGraph{}, nil, err
 	}
+	launcher, err := loadLauncherForTargets(root, manifest.EnabledTargets())
+	if err != nil {
+		return PackageGraph{}, nil, err
+	}
 	graph := PackageGraph{
 		Manifest: manifest,
+		Launcher: launcher,
+		Portable: newPortableComponents(),
 		Targets:  make(map[string]TargetComponents, len(manifest.Targets)),
 	}
 	sourceSet := map[string]struct{}{FileName: {}}
+	if launcher != nil {
+		sourceSet[LauncherFileName] = struct{}{}
+	}
 
-	graph.Portable.Skills = discoverFiles(root, filepath.Join("skills"), func(rel string) bool {
+	skillPaths := discoverFiles(root, filepath.Join("skills"), func(rel string) bool {
 		return strings.HasSuffix(rel, "SKILL.md")
 	})
-	addSourceFiles(sourceSet, graph.Portable.Skills)
+	graph.Portable.Add("skills", skillPaths...)
+	addSourceFiles(sourceSet, skillPaths)
 
-	graph.Portable.Agents = discoverFiles(root, filepath.Join("agents"), func(rel string) bool {
+	agentPaths := discoverFiles(root, filepath.Join("agents"), func(rel string) bool {
 		return strings.HasSuffix(rel, ".md")
 	})
-	addSourceFiles(sourceSet, graph.Portable.Agents)
+	graph.Portable.Add("agents", agentPaths...)
+	addSourceFiles(sourceSet, agentPaths)
 
-	graph.Portable.Contexts = discoverFiles(root, filepath.Join("contexts"), nil)
-	addSourceFiles(sourceSet, graph.Portable.Contexts)
+	contextPaths := discoverFiles(root, filepath.Join("contexts"), nil)
+	graph.Portable.Add("contexts", contextPaths...)
+	addSourceFiles(sourceSet, contextPaths)
 
 	if mcpDoc, ok, err := discoverMCP(root); err != nil {
 		return PackageGraph{}, warnings, err
@@ -369,6 +533,31 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 
 	graph.SourceFiles = sortedKeys(sourceSet)
 	return graph, warnings, nil
+}
+
+func loadLauncherForTargets(root string, targets []string) (*Launcher, error) {
+	requires := false
+	for _, target := range targets {
+		profile, ok := platformmeta.Lookup(target)
+		if !ok {
+			continue
+		}
+		if profile.Launcher.Requirement == platformmeta.LauncherRequired {
+			requires = true
+			break
+		}
+	}
+	launcher, err := LoadLauncher(root)
+	if err == nil {
+		return &launcher, nil
+	}
+	if os.IsNotExist(err) && !requires {
+		return nil, nil
+	}
+	if os.IsNotExist(err) {
+		return nil, fmt.Errorf("required launcher missing: %s", LauncherFileName)
+	}
+	return nil, err
 }
 
 func Inspect(root string, target string) (Inspection, []Warning, error) {
@@ -510,18 +699,22 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 	if from == "" {
 		from = inferNativePlatform(root)
 	}
-	if !slices.Contains(supportedTargets, from) {
+	if !slices.Contains(platformmeta.IDs(), from) {
 		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
 	}
-	manifest, warnings, err := importManifest(root, from)
+	manifest, launcher, warnings, err := importManifest(root, from)
 	if err != nil {
 		return Manifest{}, nil, err
 	}
-	artifacts, err := importedLayoutArtifacts(root, from)
+	artifacts, importWarnings, err := importedLayoutArtifacts(root, from)
 	if err != nil {
 		return Manifest{}, warnings, err
 	}
+	warnings = append(warnings, importWarnings...)
 	if err := Save(root, manifest, force); err != nil {
+		return manifest, warnings, err
+	}
+	if err := SaveLauncher(root, launcher, force); err != nil {
 		return manifest, warnings, err
 	}
 	if err := WriteArtifacts(root, artifacts); err != nil {
@@ -545,11 +738,21 @@ func renderTargetArtifacts(root string, graph PackageGraph, target string) ([]Ar
 }
 
 func renderClaude(root string, graph PackageGraph, tc TargetComponents) ([]Artifact, error) {
-	artifacts, err := renderManagedPluginArtifacts(displayName(graph.Manifest, tc), graph.Manifest, graph.Portable, true, filepath.Join(".claude-plugin", "plugin.json"))
+	entrypoint, err := requireLauncherEntrypoint(graph)
 	if err != nil {
 		return nil, err
 	}
-	if len(tc.Hooks) > 0 {
+	artifacts, err := renderManagedPluginArtifacts(managedPluginArtifactOptions{
+		Name:          displayName(graph.Manifest, tc),
+		Manifest:      graph.Manifest,
+		Portable:      graph.Portable,
+		IncludeAgents: true,
+		RelPath:       filepath.Join(".claude-plugin", "plugin.json"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if hookPaths := tc.ComponentPaths("hooks"); len(hookPaths) > 0 {
 		copied, err := copyArtifacts(root, filepath.Join("targets", "claude", "hooks"), "hooks")
 		if err != nil {
 			return nil, err
@@ -558,7 +761,7 @@ func renderClaude(root string, graph PackageGraph, tc TargetComponents) ([]Artif
 	} else {
 		artifacts = append(artifacts, Artifact{
 			RelPath: filepath.Join("hooks", "hooks.json"),
-			Content: defaultClaudeHooks(graph.Manifest.Entrypoint),
+			Content: defaultClaudeHooks(entrypoint),
 		})
 	}
 	copiedKinds := []artifactDir{
@@ -574,18 +777,47 @@ func renderClaude(root string, graph PackageGraph, tc TargetComponents) ([]Artif
 }
 
 func renderCodex(root string, graph PackageGraph, tc TargetComponents) ([]Artifact, error) {
-	artifacts, err := renderManagedPluginArtifacts(graph.Manifest.Name, graph.Manifest, graph.Portable, false, filepath.Join(".codex-plugin", "plugin.json"))
+	entrypoint, err := requireLauncherEntrypoint(graph)
+	if err != nil {
+		return nil, err
+	}
+	manifestExtra, err := loadNativeExtraDoc(root, tc.DocPath("manifest_extra"), NativeDocFormatJSON)
+	if err != nil {
+		return nil, err
+	}
+	artifacts, err := renderManagedPluginArtifacts(managedPluginArtifactOptions{
+		Name:          graph.Manifest.Name,
+		Manifest:      graph.Manifest,
+		Portable:      graph.Portable,
+		IncludeAgents: false,
+		RelPath:       filepath.Join(".codex-plugin", "plugin.json"),
+		Extra:         manifestExtra,
+		Label:         "codex manifest.extra.json",
+		ManagedPaths:  []string{"name", "version", "description", "skills", "mcpServers"},
+	})
 	if err != nil {
 		return nil, err
 	}
 	model := tc.Codex.ModelHint
 	if strings.TrimSpace(model) == "" {
-		model = "gpt-5-codex"
+		model = scaffold.DefaultCodexModel
+	}
+	configExtra, err := loadNativeExtraDoc(root, tc.DocPath("config_extra"), NativeDocFormatTOML)
+	if err != nil {
+		return nil, err
+	}
+	if err := ValidateNativeExtraDocConflicts(configExtra, "codex config.extra.toml", []string{"model", "notify"}); err != nil {
+		return nil, err
 	}
 	var config bytes.Buffer
 	config.WriteString("# Generated by plugin-kit-ai. DO NOT EDIT.\n")
 	config.WriteString(fmt.Sprintf("model = %q\n", model))
-	config.WriteString(fmt.Sprintf("notify = [%q, %q]\n", graph.Manifest.Entrypoint, "notify"))
+	config.WriteString(fmt.Sprintf("notify = [%q, %q]\n", entrypoint, "notify"))
+	if extraBody := trimmedExtraBody(configExtra); len(extraBody) > 0 {
+		config.WriteByte('\n')
+		config.Write(extraBody)
+		config.WriteByte('\n')
+	}
 	artifacts = append(artifacts, Artifact{RelPath: filepath.Join(".codex", "config.toml"), Content: config.Bytes()})
 	copiedKinds := []artifactDir{
 		{src: filepath.Join("targets", "codex", "commands"), dst: "commands"},
@@ -618,14 +850,14 @@ func renderGemini(root string, graph PackageGraph, tc TargetComponents) ([]Artif
 	if strings.TrimSpace(tc.Gemini.PlanDirectory) != "" {
 		manifest["plan"] = map[string]any{"directory": tc.Gemini.PlanDirectory}
 	}
-	settings, err := loadGeminiSettings(root, tc.Settings)
+	settings, err := loadGeminiSettings(root, tc.ComponentPaths("settings"))
 	if err != nil {
 		return nil, err
 	}
 	if len(settings) > 0 {
 		manifest["settings"] = settings
 	}
-	themes, err := loadGeminiThemes(root, tc.Themes)
+	themes, err := loadGeminiThemes(root, tc.ComponentPaths("themes"))
 	if err != nil {
 		return nil, err
 	}
@@ -639,9 +871,20 @@ func renderGemini(root string, graph PackageGraph, tc TargetComponents) ([]Artif
 		artifacts = append(artifacts, contextArtifact)
 		artifacts = append(artifacts, extraContexts...)
 	}
-	if extra, err := loadGeminiManifestExtra(root, tc); err != nil {
+	if extra, err := loadNativeExtraDoc(root, tc.DocPath("manifest_extra"), NativeDocFormatJSON); err != nil {
 		return nil, err
-	} else if err := mergeGeminiManifestExtra(manifest, extra); err != nil {
+	} else if err := mergeNativeExtraObject(manifest, extra, "gemini manifest.extra.json", []string{
+		"name",
+		"version",
+		"description",
+		"mcpServers",
+		"contextFileName",
+		"excludeTools",
+		"migratedTo",
+		"settings",
+		"themes",
+		"plan.directory",
+	}); err != nil {
 		return nil, err
 	}
 
@@ -683,7 +926,7 @@ func geminiContextArtifacts(root string, graph PackageGraph, tc TargetComponents
 	}
 	primary := Artifact{RelPath: selected.ArtifactName, Content: body}
 	var extra []Artifact
-	for _, rel := range tc.Contexts {
+	for _, rel := range tc.ComponentPaths("contexts") {
 		if rel == selected.SourcePath {
 			continue
 		}
@@ -734,7 +977,7 @@ func selectGeminiPrimaryContext(graph PackageGraph, tc TargetComponents) (gemini
 func geminiContextCandidates(graph PackageGraph, tc TargetComponents) []geminiContextSelection {
 	var out []geminiContextSelection
 	seen := map[string]struct{}{}
-	for _, rel := range append(append([]string{}, tc.Contexts...), graph.Portable.Contexts...) {
+	for _, rel := range append(append([]string{}, tc.ComponentPaths("contexts")...), graph.Portable.Paths("contexts")...) {
 		key := filepath.ToSlash(rel)
 		if _, ok := seen[key]; ok {
 			continue
@@ -833,71 +1076,11 @@ func loadGeminiThemes(root string, rels []string) ([]map[string]any, error) {
 	return themes, nil
 }
 
-func loadGeminiManifestExtra(root string, tc TargetComponents) (map[string]any, error) {
-	if strings.TrimSpace(tc.ManifestExtra) == "" {
-		return nil, nil
-	}
-	body, err := os.ReadFile(filepath.Join(root, tc.ManifestExtra))
-	if err != nil {
-		return nil, err
-	}
-	var extra map[string]any
-	if err := json.Unmarshal(body, &extra); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", tc.ManifestExtra, err)
-	}
-	if extra == nil {
-		extra = map[string]any{}
-	}
-	return extra, nil
-}
-
-func mergeGeminiManifestExtra(manifest map[string]any, extra map[string]any) error {
-	if len(extra) == 0 {
-		return nil
-	}
-	forbidden := map[string]struct{}{
-		"name":            {},
-		"version":         {},
-		"description":     {},
-		"mcpServers":      {},
-		"contextFileName": {},
-		"excludeTools":    {},
-		"migratedTo":      {},
-		"settings":        {},
-		"themes":          {},
-	}
-	for key, value := range extra {
-		if _, blocked := forbidden[key]; blocked {
-			return fmt.Errorf("gemini manifest.extra.json may not override canonical field %q", key)
-		}
-		if key != "plan" {
-			manifest[key] = value
-			continue
-		}
-		extraPlan, ok := value.(map[string]any)
-		if !ok {
-			return fmt.Errorf("gemini manifest.extra.json field %q must be a JSON object", key)
-		}
-		if _, blocked := extraPlan["directory"]; blocked {
-			return fmt.Errorf("gemini manifest.extra.json may not override canonical field %q", "plan.directory")
-		}
-		basePlan, _ := manifest["plan"].(map[string]any)
-		if basePlan == nil {
-			basePlan = map[string]any{}
-		}
-		for nestedKey, nestedValue := range extraPlan {
-			basePlan[nestedKey] = nestedValue
-		}
-		manifest["plan"] = basePlan
-	}
-	return nil
-}
-
 func discoverTarget(root string, target string) (TargetComponents, error) {
-	tc := TargetComponents{Target: target}
+	tc := newTargetComponents(target)
 	packagePath := filepath.Join("targets", target, "package.yaml")
 	if body, err := os.ReadFile(filepath.Join(root, packagePath)); err == nil {
-		tc.PackagePath = filepath.ToSlash(packagePath)
+		tc.SetDoc("package_metadata", packagePath)
 		switch target {
 		case "codex":
 			if err := yaml.Unmarshal(body, &tc.Codex); err != nil {
@@ -921,12 +1104,12 @@ func discoverTarget(root string, target string) (TargetComponents, error) {
 				return TargetComponents{}, fmt.Errorf("unsupported Gemini hooks layout: use only targets/gemini/hooks/hooks.json")
 			}
 		}
-		tc.Hooks = hookFiles
+		tc.AddComponent("hooks", hookFiles...)
 	} else {
-		tc.Hooks = discoverFiles(root, filepath.Join("targets", target, "hooks"), nil)
+		tc.AddComponent("hooks", discoverFiles(root, filepath.Join("targets", target, "hooks"), nil)...)
 	}
-	tc.Commands = discoverFiles(root, filepath.Join("targets", target, "commands"), nil)
-	tc.Policies = discoverFiles(root, filepath.Join("targets", target, "policies"), nil)
+	tc.AddComponent("commands", discoverFiles(root, filepath.Join("targets", target, "commands"), nil)...)
+	tc.AddComponent("policies", discoverFiles(root, filepath.Join("targets", target, "policies"), nil)...)
 	if target == "gemini" {
 		themes, err := discoverGeminiYAMLFiles(root, filepath.Join("targets", target, "themes"), "theme")
 		if err != nil {
@@ -936,20 +1119,30 @@ func discoverTarget(root string, target string) (TargetComponents, error) {
 		if err != nil {
 			return TargetComponents{}, err
 		}
-		tc.Themes = themes
-		tc.Settings = settings
+		tc.AddComponent("themes", themes...)
+		tc.AddComponent("settings", settings...)
 	} else {
-		tc.Themes = discoverFiles(root, filepath.Join("targets", target, "themes"), nil)
-		tc.Settings = discoverFiles(root, filepath.Join("targets", target, "settings"), nil)
+		tc.AddComponent("themes", discoverFiles(root, filepath.Join("targets", target, "themes"), nil)...)
+		tc.AddComponent("settings", discoverFiles(root, filepath.Join("targets", target, "settings"), nil)...)
 	}
-	tc.Contexts = discoverFiles(root, filepath.Join("targets", target, "contexts"), nil)
-	if target == "gemini" {
-		extraPath := filepath.Join("targets", target, "manifest.extra.json")
-		if fileExists(filepath.Join(root, extraPath)) {
-			tc.ManifestExtra = filepath.ToSlash(extraPath)
+	tc.AddComponent("contexts", discoverFiles(root, filepath.Join("targets", target, "contexts"), nil)...)
+	if extraPath := optionalTargetDocPath(root, target, "manifest.extra.json"); extraPath != "" {
+		tc.SetDoc("manifest_extra", extraPath)
+	}
+	if target == "codex" {
+		if extraPath := optionalTargetDocPath(root, target, "config.extra.toml"); extraPath != "" {
+			tc.SetDoc("config_extra", extraPath)
 		}
 	}
 	return tc, nil
+}
+
+func optionalTargetDocPath(root, target, name string) string {
+	path := filepath.Join("targets", target, name)
+	if fileExists(filepath.Join(root, path)) {
+		return filepath.ToSlash(path)
+	}
+	return ""
 }
 
 func discoverGeminiYAMLFiles(root, dir string, kind string) ([]string, error) {
@@ -1038,8 +1231,6 @@ func manifestSchema() schemaSpec {
 		"name":        {},
 		"version":     {},
 		"description": {},
-		"runtime":     {},
-		"entrypoint":  {},
 		"targets":     {Seq: &schemaSpec{}},
 	}}
 }
@@ -1074,28 +1265,22 @@ func walkNode(node *yaml.Node, path string, spec schemaSpec, seen map[string]str
 	}
 }
 
-func importManifest(root, from string) (Manifest, []Warning, error) {
+func importManifest(root, from string) (Manifest, Launcher, []Warning, error) {
 	warnings := []Warning{}
 	manifest := Default(defaultName(root), from, inferRuntime(root), "plugin-kit-ai plugin", false)
-	enrichFromNative(root, &manifest, from, &warnings)
-	return manifest, warnings, nil
+	launcher := DefaultLauncher(defaultName(root), inferRuntime(root))
+	enrichFromNative(root, &manifest, &launcher, from, &warnings)
+	return manifest, launcher, warnings, nil
 }
 
-func enrichFromNative(root string, manifest *Manifest, from string, warnings *[]Warning) {
+func enrichFromNative(root string, manifest *Manifest, launcher *Launcher, from string, warnings *[]Warning) {
 	switch from {
 	case "claude":
-		loadClaudeMetadata(root, manifest)
+		loadClaudeMetadata(root, manifest, launcher)
 	case "codex":
-		loadCodexMetadata(root, manifest)
+		loadCodexMetadata(root, manifest, launcher)
 	case "gemini":
 		loadGeminiMetadata(root, manifest)
-		if fileExists(filepath.Join(root, "targets", "gemini", "manifest.extra.json")) {
-			*warnings = append(*warnings, Warning{
-				Kind:    WarningFidelity,
-				Path:    filepath.ToSlash(filepath.Join("targets", "gemini", "manifest.extra.json")),
-				Message: "preserved unsupported Gemini manifest fields under targets/gemini/manifest.extra.json",
-			})
-		}
 	}
 	if fileExists(filepath.Join(root, ".mcp.json")) {
 		*warnings = append(*warnings, Warning{
@@ -1113,41 +1298,109 @@ func enrichFromNative(root string, manifest *Manifest, from string, warnings *[]
 	}
 }
 
-func importedLayoutArtifacts(root, from string) ([]Artifact, error) {
+func importedLayoutArtifacts(root, from string) ([]Artifact, []Warning, error) {
 	var artifacts []Artifact
+	var warnings []Warning
 	mcpArtifacts, err := importedPortableMCPArtifacts(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	artifacts = append(artifacts, mcpArtifacts...)
 	switch from {
 	case "claude":
 		copied, err := copySingleArtifactIfExists(root, filepath.Join("hooks", "hooks.json"), filepath.Join("targets", "claude", "hooks", "hooks.json"))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		artifacts = append(artifacts, copied...)
 	case "codex":
-		model := importCodexModel(root)
-		if strings.TrimSpace(model) != "" {
-			body, err := yaml.Marshal(CodexTargetMeta{ModelHint: model})
+		copied, codexWarnings, err := importedCodexArtifacts(root)
+		if err != nil {
+			return nil, nil, err
+		}
+		artifacts = append(artifacts, copied...)
+		warnings = append(warnings, codexWarnings...)
+	case "gemini":
+		copied, geminiWarnings, err := importedGeminiArtifacts(root)
+		if err != nil {
+			return nil, nil, err
+		}
+		artifacts = append(artifacts, copied...)
+		warnings = append(warnings, geminiWarnings...)
+	}
+	slices.SortFunc(artifacts, func(a, b Artifact) int { return strings.Compare(a.RelPath, b.RelPath) })
+	return compactArtifacts(artifacts), warnings, nil
+}
+
+func importedCodexArtifacts(root string) ([]Artifact, []Warning, error) {
+	var artifacts []Artifact
+	var warnings []Warning
+	config, _, err := readImportedCodexConfig(root)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, nil, err
+		}
+	} else {
+		if strings.TrimSpace(config.Model) != "" {
+			body, err := yaml.Marshal(CodexTargetMeta{ModelHint: config.Model})
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("targets", "codex", "package.yaml"), Content: body})
 		}
-	case "gemini":
-		copied, err := importedGeminiArtifacts(root)
-		if err != nil {
-			return nil, err
+		if len(config.Extra) > 0 {
+			body, err := toml.Marshal(config.Extra)
+			if err != nil {
+				return nil, nil, err
+			}
+			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("targets", "codex", "config.extra.toml"), Content: body})
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join("targets", "codex", "config.extra.toml")),
+				Message: "preserved unsupported Codex config fields under targets/codex/config.extra.toml",
+			})
 		}
-		artifacts = append(artifacts, copied...)
+		if len(config.Notify) > 0 && !isCanonicalCodexNotify(config.Notify) {
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join(".codex", "config.toml")),
+				Message: "normalized Codex notify argv to the managed [entrypoint, \"notify\"] shape",
+			})
+		}
 	}
-	slices.SortFunc(artifacts, func(a, b Artifact) int { return strings.Compare(a.RelPath, b.RelPath) })
-	return compactArtifacts(artifacts), nil
+	pluginManifest, _, err := readImportedCodexPluginManifest(root)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, nil, err
+		}
+	} else {
+		if len(pluginManifest.Extra) > 0 {
+			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("targets", "codex", "manifest.extra.json"), Content: mustJSON(pluginManifest.Extra)})
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join("targets", "codex", "manifest.extra.json")),
+				Message: "preserved unsupported Codex plugin manifest fields under targets/codex/manifest.extra.json",
+			})
+		}
+		if strings.TrimSpace(pluginManifest.SkillsPath) != "" && strings.TrimSpace(pluginManifest.SkillsPath) != "./skills/" {
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join(".codex-plugin", "plugin.json")),
+				Message: "normalized Codex plugin skills path to the managed ./skills/ location",
+			})
+		}
+		if strings.TrimSpace(pluginManifest.MCPServersRef) != "" && strings.TrimSpace(pluginManifest.MCPServersRef) != "./.mcp.json" {
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join(".codex-plugin", "plugin.json")),
+				Message: "normalized Codex plugin mcpServers path to the managed ./.mcp.json location",
+			})
+		}
+	}
+	return compactArtifacts(artifacts), warnings, nil
 }
 
-func loadClaudeMetadata(root string, manifest *Manifest) {
+func loadClaudeMetadata(root string, manifest *Manifest, launcher *Launcher) {
 	type meta struct {
 		Name        string `json:"name"`
 		Version     string `json:"version"`
@@ -1169,34 +1422,26 @@ func loadClaudeMetadata(root string, manifest *Manifest) {
 	}
 	if body, err := os.ReadFile(filepath.Join(root, "hooks", "hooks.json")); err == nil {
 		if entrypoint, ok := inferClaudeEntrypoint(body); ok {
-			manifest.Entrypoint = entrypoint
+			launcher.Entrypoint = entrypoint
 		}
 	}
 }
 
-func loadCodexMetadata(root string, manifest *Manifest) {
-	type meta struct {
-		Name        string `json:"name"`
-		Version     string `json:"version"`
-		Description string `json:"description"`
-	}
-	if body, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json")); err == nil {
-		var m meta
-		if json.Unmarshal(body, &m) == nil {
-			if strings.TrimSpace(m.Name) != "" {
-				manifest.Name = m.Name
-			}
-			if strings.TrimSpace(m.Version) != "" {
-				manifest.Version = m.Version
-			}
-			if strings.TrimSpace(m.Description) != "" {
-				manifest.Description = m.Description
-			}
+func loadCodexMetadata(root string, manifest *Manifest, launcher *Launcher) {
+	if data, _, err := readImportedCodexPluginManifest(root); err == nil {
+		if strings.TrimSpace(data.Name) != "" {
+			manifest.Name = data.Name
+		}
+		if strings.TrimSpace(data.Version) != "" {
+			manifest.Version = data.Version
+		}
+		if strings.TrimSpace(data.Description) != "" {
+			manifest.Description = data.Description
 		}
 	}
-	if config, err := loadImportedCodexConfig(root); err == nil {
+	if config, _, err := readImportedCodexConfig(root); err == nil {
 		if len(config.Notify) > 0 && strings.TrimSpace(config.Notify[0]) != "" {
-			manifest.Entrypoint = strings.TrimSpace(config.Notify[0])
+			launcher.Entrypoint = strings.TrimSpace(config.Notify[0])
 		}
 	}
 }
@@ -1319,7 +1564,7 @@ func jsonStringArray(values []any) []string {
 }
 
 func importCodexModel(root string) string {
-	config, err := loadImportedCodexConfig(root)
+	config, _, err := readImportedCodexConfig(root)
 	if err != nil {
 		return ""
 	}
@@ -1336,6 +1581,66 @@ func loadImportedCodexConfig(root string) (importedCodexConfig, error) {
 		return importedCodexConfig{}, err
 	}
 	return config, nil
+}
+
+func readImportedCodexConfig(root string) (importedCodexNativeConfig, []byte, error) {
+	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
+	if err != nil {
+		return importedCodexNativeConfig{}, nil, err
+	}
+	var raw map[string]any
+	if err := toml.Unmarshal(body, &raw); err != nil {
+		return importedCodexNativeConfig{}, nil, err
+	}
+	config := importedCodexNativeConfig{}
+	if value, ok := raw["model"].(string); ok {
+		config.Model = strings.TrimSpace(value)
+	}
+	if values, ok := raw["notify"].([]any); ok {
+		config.Notify = jsonStringArray(values)
+	}
+	delete(raw, "model")
+	delete(raw, "notify")
+	if len(raw) > 0 {
+		config.Extra = raw
+	}
+	return config, body, nil
+}
+
+func readImportedCodexPluginManifest(root string) (importedCodexPluginManifest, []byte, error) {
+	body, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json"))
+	if err != nil {
+		return importedCodexPluginManifest{}, nil, err
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return importedCodexPluginManifest{}, nil, err
+	}
+	out := importedCodexPluginManifest{}
+	if value, ok := raw["name"].(string); ok {
+		out.Name = strings.TrimSpace(value)
+	}
+	if value, ok := raw["version"].(string); ok {
+		out.Version = strings.TrimSpace(value)
+	}
+	if value, ok := raw["description"].(string); ok {
+		out.Description = strings.TrimSpace(value)
+	}
+	if value, ok := raw["skills"].(string); ok {
+		out.SkillsPath = strings.TrimSpace(value)
+	}
+	if value, ok := raw["mcpServers"].(string); ok {
+		out.MCPServersRef = strings.TrimSpace(value)
+	}
+	delete(raw, "name")
+	delete(raw, "version")
+	delete(raw, "description")
+	delete(raw, "skills")
+	delete(raw, "mcpServers")
+	if len(raw) > 0 {
+		out.Extra = raw
+	}
+	return out, body, nil
 }
 
 func inferClaudeEntrypoint(body []byte) (string, bool) {
@@ -1441,34 +1746,163 @@ type artifactDir struct {
 	dst string
 }
 
-func renderManagedPluginArtifacts(name string, manifest Manifest, portable PortableComponents, includeAgents bool, relPath string) ([]Artifact, error) {
+type managedPluginArtifactOptions struct {
+	Name          string
+	Manifest      Manifest
+	Portable      PortableComponents
+	IncludeAgents bool
+	RelPath       string
+	Extra         NativeExtraDoc
+	Label         string
+	ManagedPaths  []string
+}
+
+func renderManagedPluginArtifacts(opts managedPluginArtifactOptions) ([]Artifact, error) {
 	doc := map[string]any{
-		"name":        name,
-		"version":     manifest.Version,
-		"description": manifest.Description,
+		"name":        opts.Name,
+		"version":     opts.Manifest.Version,
+		"description": opts.Manifest.Description,
 	}
-	if len(portable.Skills) > 0 {
+	if len(opts.Portable.Paths("skills")) > 0 {
 		doc["skills"] = "./skills/"
 	}
-	if includeAgents && len(portable.Agents) > 0 {
+	if opts.IncludeAgents && len(opts.Portable.Paths("agents")) > 0 {
 		doc["agents"] = "./agents/"
 	}
-	if portable.MCP != nil {
+	if opts.Portable.MCP != nil {
 		doc["mcpServers"] = "./.mcp.json"
+	}
+	if err := mergeNativeExtraObject(doc, opts.Extra, opts.Label, opts.ManagedPaths); err != nil {
+		return nil, err
 	}
 	pluginJSON, err := marshalJSON(doc)
 	if err != nil {
 		return nil, err
 	}
-	artifacts := []Artifact{{RelPath: relPath, Content: pluginJSON}}
-	if portable.MCP != nil {
-		mcpJSON, err := marshalJSON(portable.MCP.Servers)
+	artifacts := []Artifact{{RelPath: opts.RelPath, Content: pluginJSON}}
+	if opts.Portable.MCP != nil {
+		mcpJSON, err := marshalJSON(opts.Portable.MCP.Servers)
 		if err != nil {
 			return nil, err
 		}
 		artifacts = append(artifacts, Artifact{RelPath: ".mcp.json", Content: mcpJSON})
 	}
 	return artifacts, nil
+}
+
+func LoadNativeExtraDoc(root, rel string, format NativeDocFormat) (NativeExtraDoc, error) {
+	return loadNativeExtraDoc(root, rel, format)
+}
+
+func loadNativeExtraDoc(root, rel string, format NativeDocFormat) (NativeExtraDoc, error) {
+	if strings.TrimSpace(rel) == "" {
+		return NativeExtraDoc{}, nil
+	}
+	body, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		return NativeExtraDoc{}, err
+	}
+	fields, err := parseNativeExtraDocFields(body, format)
+	if err != nil {
+		return NativeExtraDoc{}, fmt.Errorf("parse %s: %w", rel, err)
+	}
+	return NativeExtraDoc{
+		Path:   rel,
+		Format: format,
+		Raw:    body,
+		Fields: fields,
+	}, nil
+}
+
+func parseNativeExtraDocFields(body []byte, format NativeDocFormat) (map[string]any, error) {
+	fields := map[string]any{}
+	switch format {
+	case NativeDocFormatJSON:
+		if err := json.Unmarshal(body, &fields); err != nil {
+			return nil, err
+		}
+	case NativeDocFormatTOML:
+		if err := toml.Unmarshal(body, &fields); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported native doc format %q", format)
+	}
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	return fields, nil
+}
+
+func ValidateNativeExtraDocConflicts(doc NativeExtraDoc, label string, managedPaths []string) error {
+	if len(doc.Fields) == 0 {
+		return nil
+	}
+	if conflict, ok := findManagedPathConflict(doc.Fields, "", setOf(managedPaths)); ok {
+		return fmt.Errorf("%s may not override canonical field %q", label, conflict)
+	}
+	return nil
+}
+
+func mergeNativeExtraObject(base map[string]any, doc NativeExtraDoc, label string, managedPaths []string) error {
+	if len(doc.Fields) == 0 {
+		return nil
+	}
+	if err := ValidateNativeExtraDocConflicts(doc, label, managedPaths); err != nil {
+		return err
+	}
+	mergeExtraObject(base, doc.Fields)
+	return nil
+}
+
+func mergeExtraObject(base, extra map[string]any) {
+	for key, value := range extra {
+		existing, hasExisting := asStringMap(base[key])
+		incoming, incomingIsMap := asStringMap(value)
+		if hasExisting && incomingIsMap {
+			mergeExtraObject(existing, incoming)
+			base[key] = existing
+			continue
+		}
+		base[key] = value
+	}
+}
+
+func findManagedPathConflict(values map[string]any, prefix string, managed map[string]bool) (string, bool) {
+	for key, value := range values {
+		path := joinPath(prefix, key)
+		if _, blocked := managed[path]; blocked {
+			return path, true
+		}
+		if nested, ok := asStringMap(value); ok {
+			if conflict, found := findManagedPathConflict(nested, path, managed); found {
+				return conflict, true
+			}
+			continue
+		}
+		for managedPath := range managed {
+			if strings.HasPrefix(managedPath, path+".") {
+				return managedPath, true
+			}
+		}
+	}
+	return "", false
+}
+
+func asStringMap(value any) (map[string]any, bool) {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	return typed, true
+}
+
+func trimmedExtraBody(doc NativeExtraDoc) []byte {
+	return bytes.TrimSpace(doc.Raw)
+}
+
+func isCanonicalCodexNotify(notify []string) bool {
+	return len(notify) == 2 && strings.TrimSpace(notify[0]) != "" && strings.TrimSpace(notify[1]) == "notify"
 }
 
 func copyArtifactDirs(root string, dirs ...artifactDir) ([]Artifact, error) {
@@ -1529,11 +1963,12 @@ func importedPortableMCPArtifacts(root string) ([]Artifact, error) {
 	return copySingleArtifactIfExists(root, ".mcp.json", filepath.Join("mcp", "servers.json"))
 }
 
-func importedGeminiArtifacts(root string) ([]Artifact, error) {
+func importedGeminiArtifacts(root string) ([]Artifact, []Warning, error) {
 	var artifacts []Artifact
+	var warnings []Warning
 	copied, err := copySingleArtifactIfExists(root, filepath.Join("hooks", "hooks.json"), filepath.Join("targets", "gemini", "hooks", "hooks.json"))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	artifacts = append(artifacts, copied...)
 	copied, err = copyArtifactDirs(root,
@@ -1541,13 +1976,13 @@ func importedGeminiArtifacts(root string) ([]Artifact, error) {
 		artifactDir{src: "policies", dst: filepath.Join("targets", "gemini", "policies")},
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	artifacts = append(artifacts, copied...)
 
 	data, ok, err := readImportedGeminiExtension(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if ok {
 		if len(data.MCPServers) > 0 {
@@ -1560,16 +1995,21 @@ func importedGeminiArtifacts(root string) ([]Artifact, error) {
 		artifacts = append(artifacts, importedGeminiThemeArtifacts(data.Themes)...)
 		if len(data.Extra) > 0 {
 			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("targets", "gemini", "manifest.extra.json"), Content: mustJSON(data.Extra)})
+			warnings = append(warnings, Warning{
+				Kind:    WarningFidelity,
+				Path:    filepath.ToSlash(filepath.Join("targets", "gemini", "manifest.extra.json")),
+				Message: "preserved unsupported Gemini manifest fields under targets/gemini/manifest.extra.json",
+			})
 		}
 		if contextName := importedGeminiPrimaryContextName(root, data.Meta); contextName != "" {
 			contextArtifacts, err := copySingleArtifactIfExists(root, contextName, filepath.Join("targets", "gemini", "contexts", filepath.Base(contextName)))
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			artifacts = append(artifacts, contextArtifacts...)
 		}
 	}
-	return compactArtifacts(artifacts), nil
+	return compactArtifacts(artifacts), warnings, nil
 }
 
 func importedGeminiPackageYAML(meta GeminiTargetMeta) ([]byte, bool) {
@@ -1647,39 +2087,33 @@ func compactArtifacts(artifacts []Artifact) []Artifact {
 func expectedManagedPaths(graph PackageGraph, selected []string) []string {
 	seen := map[string]struct{}{}
 	for _, target := range selected {
-		if entry, ok := targetcontracts.Lookup(target); ok {
-			for _, path := range entry.ManagedArtifacts {
-				if strings.Contains(path, "**") {
-					continue
-				}
-				seen[path] = struct{}{}
-			}
+		profile, ok := platformmeta.Lookup(target)
+		if !ok {
+			continue
 		}
 		tc := graph.Targets[target]
-		switch target {
-		case "claude":
-			addManagedCopies(seen, tc.Hooks, filepath.Join("targets", "claude", "hooks"), "hooks")
-			addManagedCopies(seen, tc.Commands, filepath.Join("targets", "claude", "commands"), "commands")
-			addManagedCopies(seen, tc.Contexts, filepath.Join("targets", "claude", "contexts"), "contexts")
-		case "codex":
-			addManagedCopies(seen, tc.Commands, filepath.Join("targets", "codex", "commands"), "commands")
-			addManagedCopies(seen, tc.Contexts, filepath.Join("targets", "codex", "contexts"), "contexts")
-		case "gemini":
-			addManagedCopies(seen, tc.Hooks, filepath.Join("targets", "gemini", "hooks"), "hooks")
-			addManagedCopies(seen, tc.Commands, filepath.Join("targets", "gemini", "commands"), "commands")
-			addManagedCopies(seen, tc.Policies, filepath.Join("targets", "gemini", "policies"), "policies")
-			addManagedCopies(seen, tc.Themes, filepath.Join("targets", "gemini", "themes"), "themes")
-			addManagedCopies(seen, tc.Settings, filepath.Join("targets", "gemini", "settings"), "settings")
-			for _, rel := range tc.Contexts {
-				seen[geminiExtraContextArtifactPath(rel)] = struct{}{}
+		for _, spec := range profile.ManagedArtifacts {
+			switch spec.Kind {
+			case platformmeta.ManagedArtifactStatic:
+				seen[spec.Path] = struct{}{}
+			case platformmeta.ManagedArtifactPortableMCP:
+				if graph.Portable.MCP != nil {
+					seen[spec.Path] = struct{}{}
+				}
+			case platformmeta.ManagedArtifactMirror:
+				addManagedCopies(seen, tc.ComponentPaths(spec.ComponentKind), spec.SourceRoot, spec.OutputRoot)
+			case platformmeta.ManagedArtifactSelectedContext:
+				if spec.ContextMode != platformmeta.ContextStrategyGeminiPrimaryRoot {
+					continue
+				}
+				for _, rel := range tc.ComponentPaths(spec.ComponentKind) {
+					seen[geminiExtraContextArtifactPath(rel)] = struct{}{}
+				}
+				if selectedContext, ok, err := selectGeminiPrimaryContext(graph, tc); err == nil && ok {
+					delete(seen, geminiExtraContextArtifactPath(selectedContext.SourcePath))
+					seen[selectedContext.ArtifactName] = struct{}{}
+				}
 			}
-			if selected, ok, err := selectGeminiPrimaryContext(graph, tc); err == nil && ok {
-				delete(seen, geminiExtraContextArtifactPath(selected.SourcePath))
-				seen[selected.ArtifactName] = struct{}{}
-			}
-		}
-		if graph.Portable.MCP != nil && (target == "claude" || target == "codex") {
-			seen[".mcp.json"] = struct{}{}
 		}
 	}
 	return sortedKeys(seen)
@@ -1697,44 +2131,34 @@ func addManagedCopies(set map[string]struct{}, files []string, srcDir, dstRoot s
 
 func DiscoveredTargetKinds(tc TargetComponents) []string {
 	var kinds []string
-	if tc.PackagePath != "" {
-		kinds = append(kinds, "package_metadata")
+	for kind, path := range tc.Docs {
+		if strings.TrimSpace(path) != "" {
+			kinds = append(kinds, kind)
+		}
 	}
-	if len(tc.Hooks) > 0 {
-		kinds = append(kinds, "hooks")
+	for kind, paths := range tc.Components {
+		if len(paths) > 0 {
+			kinds = append(kinds, kind)
+		}
 	}
-	if len(tc.Commands) > 0 {
-		kinds = append(kinds, "commands")
-	}
-	if len(tc.Policies) > 0 {
-		kinds = append(kinds, "policies")
-	}
-	if len(tc.Themes) > 0 {
-		kinds = append(kinds, "themes")
-	}
-	if len(tc.Settings) > 0 {
-		kinds = append(kinds, "settings")
-	}
-	if len(tc.Contexts) > 0 {
-		kinds = append(kinds, "contexts")
-	}
-	if strings.TrimSpace(tc.ManifestExtra) != "" {
-		kinds = append(kinds, "manifest_extra")
-	}
+	slices.Sort(kinds)
 	return kinds
 }
 
 func unsupportedKinds(entry targetcontracts.Entry, graph PackageGraph, tc TargetComponents) []string {
 	supportedPortable := setOf(entry.PortableComponentKinds)
 	var unsupported []string
-	if len(graph.Portable.Skills) > 0 && !supportedPortable["skills"] {
+	if len(graph.Portable.Paths("skills")) > 0 && !supportedPortable["skills"] {
 		unsupported = append(unsupported, "skills")
 	}
 	if graph.Portable.MCP != nil && !supportedPortable["mcp_servers"] {
 		unsupported = append(unsupported, "mcp_servers")
 	}
-	if len(graph.Portable.Agents) > 0 && !supportedPortable["agents"] {
+	if len(graph.Portable.Paths("agents")) > 0 && !supportedPortable["agents"] {
 		unsupported = append(unsupported, "agents")
+	}
+	if len(graph.Portable.Paths("contexts")) > 0 && !supportedPortable["contexts"] {
+		unsupported = append(unsupported, "contexts")
 	}
 	supportedNative := setOf(entry.TargetComponentKinds)
 	for _, kind := range DiscoveredTargetKinds(tc) {
@@ -1748,18 +2172,15 @@ func unsupportedKinds(entry targetcontracts.Entry, graph PackageGraph, tc Target
 
 func targetFiles(tc TargetComponents) []string {
 	var out []string
-	if tc.PackagePath != "" {
-		out = append(out, tc.PackagePath)
+	for _, path := range tc.Docs {
+		if strings.TrimSpace(path) != "" {
+			out = append(out, path)
+		}
 	}
-	out = append(out, tc.Hooks...)
-	out = append(out, tc.Commands...)
-	out = append(out, tc.Policies...)
-	out = append(out, tc.Themes...)
-	out = append(out, tc.Settings...)
-	out = append(out, tc.Contexts...)
-	if strings.TrimSpace(tc.ManifestExtra) != "" {
-		out = append(out, tc.ManifestExtra)
+	for _, paths := range tc.Components {
+		out = append(out, paths...)
 	}
+	slices.Sort(out)
 	return out
 }
 
@@ -1859,13 +2280,16 @@ func normalizeManifest(m *Manifest) {
 	m.Name = strings.TrimSpace(m.Name)
 	m.Version = strings.TrimSpace(m.Version)
 	m.Description = strings.TrimSpace(m.Description)
-	m.Runtime = normalizeRuntime(m.Runtime)
-	m.Entrypoint = strings.TrimSpace(m.Entrypoint)
 	for i, target := range m.Targets {
 		m.Targets[i] = normalizeTarget(target)
 	}
 	slices.Sort(m.Targets)
 	m.Targets = slices.Compact(m.Targets)
+}
+
+func normalizeLauncher(l *Launcher) {
+	l.Runtime = normalizeRuntime(l.Runtime)
+	l.Entrypoint = strings.TrimSpace(l.Entrypoint)
 }
 
 func normalizeTarget(target string) string {
@@ -1882,6 +2306,16 @@ func defaultName(root string) string {
 		return name
 	}
 	return "plugin"
+}
+
+func requireLauncherEntrypoint(graph PackageGraph) (string, error) {
+	if graph.Launcher == nil {
+		return "", fmt.Errorf("required launcher missing: %s", LauncherFileName)
+	}
+	if strings.TrimSpace(graph.Launcher.Entrypoint) == "" {
+		return "", fmt.Errorf("invalid %s: entrypoint required", LauncherFileName)
+	}
+	return graph.Launcher.Entrypoint, nil
 }
 
 func appendWarning(seen map[string]struct{}, warnings *[]Warning, warning Warning) {

@@ -76,7 +76,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		ClaudeExtendedHooks: opts.ClaudeExtendedHooks,
 	}
 	if p == "codex" {
-		d.CodexModel = "gpt-5-codex"
+		d.CodexModel = scaffold.DefaultCodexModel
 	}
 	if err := scaffold.Write(out, d, opts.Force); err != nil {
 		return "", err

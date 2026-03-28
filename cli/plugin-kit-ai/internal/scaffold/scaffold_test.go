@@ -44,6 +44,7 @@ func TestPaths_Gemini(t *testing.T) {
 		"go.mod",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
 		"README.md",
@@ -62,6 +63,7 @@ func TestPaths_Codex(t *testing.T) {
 		"go.mod",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "codex", "package.yaml"),
 		"AGENTS.md",
 		"README.md",
@@ -78,6 +80,7 @@ func TestPathsForRuntime_CodexPython(t *testing.T) {
 	got := PathsForRuntime("codex", "python", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "codex", "package.yaml"),
 		"AGENTS.md",
 		filepath.Join("src", "main.py"),
@@ -99,6 +102,7 @@ func TestPaths_ClaudeStableDefault(t *testing.T) {
 		"go.mod",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "claude", "hooks", "hooks.json"),
 		"README.md",
 		"Makefile",
@@ -116,6 +120,7 @@ func TestPathsForRuntime_GeminiPython(t *testing.T) {
 	got := PathsForRuntime("gemini", "python", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
 		filepath.Join("src", "main.py"),
@@ -135,6 +140,7 @@ func TestPathsForRuntime_ClaudeShell(t *testing.T) {
 	got := PathsForRuntime("claude", "shell", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		filepath.Join("targets", "claude", "hooks", "hooks.json"),
 		filepath.Join("scripts", "main.sh"),
 		filepath.Join("bin", "my-plugin"),
@@ -163,6 +169,7 @@ func TestWrite_Codex(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		"AGENTS.md",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
@@ -196,7 +203,6 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 		`format: plugin-kit-ai/package`,
 		`name: "my-plugin"`,
 		`version: "0.1.0"`,
-		`runtime: "go"`,
 		`targets:`,
 		`- "claude"`,
 	} {
@@ -207,6 +213,8 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 	for _, unwanted := range []string{
 		`schema_version:`,
 		`components:`,
+		`runtime:`,
+		`entrypoint:`,
 	} {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("plugin.yaml unexpectedly contains %q:\n%s", unwanted, got)
@@ -229,6 +237,7 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		"go.mod",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		filepath.Join("targets", "gemini", "package.yaml"),
@@ -264,6 +273,7 @@ func TestWrite_CodexPythonIncludesPluginManifestAndLauncher(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		"launcher.yaml",
 		"AGENTS.md",
 		filepath.Join("src", "main.py"),
 		filepath.Join("bin", "my-plugin"),

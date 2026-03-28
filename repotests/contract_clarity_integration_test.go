@@ -59,6 +59,10 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	pluginsExamplesReadme, err := os.ReadFile(filepath.Join(root, "examples", "plugins", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	supportDoc, err := os.ReadFile(filepath.Join(root, "docs", "SUPPORT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +76,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(rootReadme), "### Fast Local Plugin")
 	mustContain(t, string(rootReadme), "### Production-Ready Plugin Repo")
 	mustContain(t, string(rootReadme), "### Already Have Native Config")
+	mustContain(t, string(rootReadme), "Reference repos: [examples/local/README.md](examples/local/README.md)")
 	mustContain(t, string(rootReadme), "`plugin-kit-ai capabilities` now defaults to target/package introspection")
 	mustContain(t, string(rootReadme), "| `python` | public-beta | repo-local executable ABI | prefer `.venv`, fallback to system Python `3.10+` |")
 	mustContain(t, string(rootReadme), "Generated Claude/Codex config shapes are part of the repo-owned contract surface")
@@ -79,10 +84,13 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(cliReadme), "## Fast Local Plugin")
 	mustContain(t, string(cliReadme), "## Production-Ready Plugin Repo")
 	mustContain(t, string(cliReadme), "## Already Have Native Config")
+	mustContain(t, string(cliReadme), "Reference repos: [../../examples/local/README.md](../../examples/local/README.md)")
 	mustContain(t, string(cliReadme), "Gemini is currently a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target.")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai capabilities` defaults to the target/package view")
 	mustContain(t, string(cliReadme), "| `node` | public-beta | repo-local only | system Node.js `20+`; TypeScript via build-to-JS only |")
 	mustContain(t, string(cliReadme), "Generated Claude/Codex config shapes are part of the repo-owned contract surface")
+	mustContain(t, string(pluginsExamplesReadme), "# Production Plugin Examples")
+	mustContain(t, string(pluginsExamplesReadme), "For repo-local Python/Node entrance examples, see [../local/README.md](../local/README.md).")
 	mustContain(t, string(supportDoc), "Gemini: packaging-only Gemini CLI extension target through `plugin-kit-ai render|import`; not a production-ready runtime target")
 	mustContain(t, string(supportDoc), "unsupported scope is dependency installation, package management, and packaged distribution through `plugin-kit-ai install`")
 	mustContain(t, string(supportDoc), "target/package contract matrix")

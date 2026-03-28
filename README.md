@@ -76,6 +76,8 @@ For repo-local plugins where quick iteration matters more than packaged distribu
 ./bin/plugin-kit-ai init my-plugin --runtime node
 ```
 
+Reference repos: [examples/local/README.md](examples/local/README.md)
+
 ### Production-Ready Plugin Repo
 
 For teams that want the strongest supported release and distribution story:
@@ -314,6 +316,7 @@ go test ./...
 - `sdk/plugin-kit-ai`: SDK runtime, public platform packages, descriptor generator
 - `cli/plugin-kit-ai`: CLI authoring and validation flow
 - `install/plugininstall`: installer subsystem
+- `examples/local`: repo-local executable-runtime reference examples
 - `examples/plugins`: reference production repos
 - `repotests`: integration and guard tests
 - `docs`: support policy, production workflow, release policy, and generated contract docs
@@ -333,6 +336,7 @@ Use these as the canonical contract docs:
 
 Reference repos:
 
+- [examples/local/README.md](examples/local/README.md)
 - [examples/plugins/README.md](examples/plugins/README.md)
 
 Maintainer-only historical context:

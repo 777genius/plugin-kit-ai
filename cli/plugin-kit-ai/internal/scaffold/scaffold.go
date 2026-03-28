@@ -16,6 +16,8 @@ import (
 //go:embed templates/*.tmpl
 var tmplFS embed.FS
 
+const DefaultCodexModel = "gpt-5.4-mini"
+
 // Data is passed to all templates.
 type Data struct {
 	ModulePath          string
@@ -132,7 +134,7 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 		}
 	}
 	if d.Platform == "codex" && strings.TrimSpace(d.CodexModel) == "" {
-		d.CodexModel = "gpt-5-codex"
+		d.CodexModel = DefaultCodexModel
 	}
 	out := ProjectPlan{
 		Platform: p.Name,

@@ -160,6 +160,88 @@ func TestPluginKitAIImportClaudeNativeLayoutRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(plugRoot, ".codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(plugRoot, ".codex-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(plugRoot, "cmd", "demo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugRoot, ".codex", "config.toml"), []byte("model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\", \"extra\"]\napproval_policy = \"never\"\n[ui]\nverbose = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugRoot, ".codex-plugin", "plugin.json"), []byte(`{"name":"demo","version":"0.1.0","description":"demo","homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugRoot, "go.mod"), []byte("module example.com/demo\n\ngo 1.22\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugRoot, "cmd", "demo", "main.go"), []byte("package main\nfunc main() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex")
+	out, err := importCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai import codex: %v\n%s", err, out)
+	}
+
+	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(packageBody), "model_hint: gpt-5.4-mini") {
+		t.Fatalf("imported codex package metadata = %q, want gpt-5.4-mini model_hint", string(packageBody))
+	}
+	manifestExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "manifest.extra.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(manifestExtraBody), `"homepage": "https://example.com/demo"`) {
+		t.Fatalf("manifest extra = %q", string(manifestExtraBody))
+	}
+	configExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "config.extra.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(configExtraBody), `approval_policy =`) || !strings.Contains(string(configExtraBody), `never`) || !strings.Contains(string(configExtraBody), `[ui]`) {
+		t.Fatalf("config extra = %q", string(configExtraBody))
+	}
+
+	renderCmd := exec.Command(pluginKitAIBin, "render", plugRoot)
+	renderCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render after Codex import: %v\n%s", err, out)
+	}
+
+	assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/demo")
+	renderedConfigBody, err := os.ReadFile(filepath.Join(plugRoot, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(renderedConfigBody), `approval_policy =`) || !strings.Contains(string(renderedConfigBody), `never`) || !strings.Contains(string(renderedConfigBody), `[ui]`) {
+		t.Fatalf("rendered codex config = %q", string(renderedConfigBody))
+	}
+
+	renderCheckCmd := exec.Command(pluginKitAIBin, "render", plugRoot, "--check")
+	renderCheckCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCheckCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render --check after Codex import: %v\n%s", err, out)
+	}
+
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex", "--strict")
+	validateCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate after Codex import: %v\n%s", err, out)
+	}
+}
+
 func TestPluginKitAIHelpDoesNotExposeMigrateCommand(t *testing.T) {
 	pluginKitAIBin := buildPluginKitAI(t)
 	cmd := exec.Command(pluginKitAIBin, "--help")
