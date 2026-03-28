@@ -12,7 +12,7 @@ It does **not** cover:
 - auto-update behavior
 - arbitrary GitHub release layouts
 - zip extraction support
-- exported interpreted-runtime bundles; those use the stable local `plugin-kit-ai bundle install` surface or the beta remote `plugin-kit-ai bundle fetch` surface, not `plugin-kit-ai install`
+- exported interpreted-runtime bundles; those use the stable local `plugin-kit-ai bundle install` surface, the beta remote `plugin-kit-ai bundle fetch` surface, or the beta GitHub Releases producer companion `plugin-kit-ai bundle publish`, not `plugin-kit-ai install`
 
 ## Supported Release Layouts
 

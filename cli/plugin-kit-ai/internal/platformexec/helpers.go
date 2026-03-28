@@ -54,6 +54,33 @@ func decodeJSONObject(body []byte, label string) (map[string]any, error) {
 	return doc, nil
 }
 
+func parseMarkdownFrontmatterDocument(body []byte, label string) (map[string]any, string, error) {
+	src := strings.ReplaceAll(string(body), "\r\n", "\n")
+	src = strings.ReplaceAll(src, "\r", "\n")
+	src = strings.TrimPrefix(src, "\ufeff")
+	if !strings.HasPrefix(src, "---\n") {
+		return nil, "", fmt.Errorf("%s must start with YAML frontmatter", label)
+	}
+	rest := strings.TrimPrefix(src, "---\n")
+	idx := strings.Index(rest, "\n---\n")
+	if idx < 0 {
+		if strings.HasSuffix(rest, "\n---") {
+			idx = len(rest) - len("\n---")
+		} else {
+			return nil, "", fmt.Errorf("%s frontmatter terminator not found", label)
+		}
+	}
+	frontmatter := map[string]any{}
+	if err := yaml.Unmarshal([]byte(rest[:idx]), &frontmatter); err != nil {
+		return nil, "", fmt.Errorf("parse %s frontmatter: %w", label, err)
+	}
+	bodyOffset := idx + len("\n---\n")
+	if bodyOffset > len(rest) {
+		bodyOffset = len(rest)
+	}
+	return frontmatter, strings.TrimSpace(rest[bodyOffset:]), nil
+}
+
 func mustYAML(value any) []byte {
 	body, err := yaml.Marshal(value)
 	if err != nil {
@@ -351,9 +378,15 @@ type importedGeminiExtension struct {
 }
 
 type importedOpenCodeConfig struct {
-	Plugins []string
-	MCP     map[string]any
-	Extra   map[string]any
+	Plugins          []string
+	PluginsProvided  bool
+	MCP              map[string]any
+	MCPProvided      bool
+	Commands         map[string]any
+	CommandsProvided bool
+	Agents           map[string]any
+	AgentsProvided   bool
+	Extra            map[string]any
 }
 
 type importedClaudePluginManifest struct {
@@ -718,6 +751,7 @@ func decodeImportedOpenCodeConfig(body []byte) (importedOpenCodeConfig, error) {
 	}
 	out := importedOpenCodeConfig{}
 	if pluginsRaw, ok := raw["plugin"]; ok {
+		out.PluginsProvided = true
 		values, ok := pluginsRaw.([]any)
 		if !ok {
 			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be an array of strings", "plugin")
@@ -732,40 +766,77 @@ func decodeImportedOpenCodeConfig(body []byte) (importedOpenCodeConfig, error) {
 		}
 	}
 	if mcpRaw, ok := raw["mcp"]; ok {
+		out.MCPProvided = true
 		servers, ok := mcpRaw.(map[string]any)
 		if !ok {
 			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be a JSON object", "mcp")
 		}
 		out.MCP = servers
 	}
+	if commandsRaw, ok := raw["command"]; ok {
+		out.CommandsProvided = true
+		values, ok := commandsRaw.(map[string]any)
+		if !ok {
+			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be a JSON object", "command")
+		}
+		out.Commands = values
+	}
+	if agentsRaw, ok := raw["agent"]; ok {
+		out.AgentsProvided = true
+		values, ok := agentsRaw.(map[string]any)
+		if !ok {
+			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be a JSON object", "agent")
+		}
+		out.Agents = values
+	}
 	delete(raw, "$schema")
 	delete(raw, "plugin")
 	delete(raw, "mcp")
+	delete(raw, "command")
+	delete(raw, "agent")
 	if len(raw) > 0 {
 		out.Extra = raw
 	}
 	return out, nil
 }
 
-func resolveOpenCodeConfigPath(root string) (string, []pluginmodel.Warning, bool, error) {
+func resolveOpenCodeConfigPathInDir(dir string, warningBase string) (string, []pluginmodel.Warning, bool, error) {
 	jsonRel := "opencode.json"
 	jsoncRel := "opencode.jsonc"
-	hasJSON := fileExists(filepath.Join(root, jsonRel))
-	hasJSONC := fileExists(filepath.Join(root, jsoncRel))
+	jsonPath := filepath.Join(dir, jsonRel)
+	jsoncPath := filepath.Join(dir, jsoncRel)
+	hasJSON := fileExists(jsonPath)
+	hasJSONC := fileExists(jsoncPath)
+	warnPath := jsoncRel
+	if strings.TrimSpace(warningBase) != "" {
+		warnPath = filepath.ToSlash(filepath.Join(warningBase, jsoncRel))
+	}
 	switch {
 	case hasJSON && hasJSONC:
-		return jsonRel, []pluginmodel.Warning{{
+		return jsonPath, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
-			Path:    jsoncRel,
+			Path:    warnPath,
 			Message: "ignored opencode.jsonc because opencode.json takes precedence during OpenCode import normalization",
 		}}, true, nil
 	case hasJSON:
-		return jsonRel, nil, true, nil
+		return jsonPath, nil, true, nil
 	case hasJSONC:
-		return jsoncRel, nil, true, nil
+		return jsoncPath, nil, true, nil
 	default:
 		return "", nil, false, nil
 	}
+}
+
+func resolveOpenCodeConfigPath(root string) (string, []pluginmodel.Warning, bool, error) {
+	path, warnings, ok, err := resolveOpenCodeConfigPathInDir(root, "")
+	if err != nil || !ok {
+		return "", warnings, ok, err
+	}
+	rel, rerr := filepath.Rel(root, path)
+	if rerr != nil {
+		return "", nil, false, rerr
+	}
+	return filepath.ToSlash(rel), warnings, true, nil
 }
 
 func readImportedOpenCodeConfig(root string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {

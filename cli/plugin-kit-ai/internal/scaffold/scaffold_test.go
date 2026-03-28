@@ -62,6 +62,9 @@ func TestPaths_OpenCode(t *testing.T) {
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
+		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "agents", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "themes", "my-plugin.json"),
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -192,6 +195,9 @@ func TestPathsForRuntime_OpenCodeIgnoresExecutableScaffolding(t *testing.T) {
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
+		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "agents", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "themes", "my-plugin.json"),
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -355,6 +361,15 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("OpenCode skill stub missing %q:\n%s", want, body)
+		}
+	}
+	for _, rel := range []string{
+		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "agents", "my-plugin.md"),
+		filepath.Join("targets", "opencode", "themes", "my-plugin.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
 }
@@ -755,6 +770,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai validate . --platform opencode --strict",
 				"`targets/opencode/package.yaml`",
 				"`targets/opencode/config.extra.json`",
+				"`targets/opencode/commands/`",
+				"`targets/opencode/agents/`",
+				"`targets/opencode/themes/`",
 				"`opencode.json`",
 			},
 		},

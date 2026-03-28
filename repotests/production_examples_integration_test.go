@@ -128,6 +128,15 @@ func assertOpenCodeConfig(t *testing.T, root, wantPlugin string) {
 	if _, err := os.Stat(filepath.Join(root, ".opencode", "skills", "opencode-basic", "SKILL.md")); err != nil {
 		t.Fatalf("stat mirrored opencode skill: %v", err)
 	}
+	for _, rel := range []string{
+		filepath.Join(".opencode", "commands", "ship.md"),
+		filepath.Join(".opencode", "agents", "reviewer.md"),
+		filepath.Join(".opencode", "themes", "midnight.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
 }
 
 func assertCodexPackageManifest(t *testing.T, root, wantName string) {

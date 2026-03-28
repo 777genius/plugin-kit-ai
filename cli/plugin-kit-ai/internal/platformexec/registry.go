@@ -34,9 +34,10 @@ type Diagnostic struct {
 }
 
 type ImportSeed struct {
-	Manifest pluginmodel.Manifest
-	Launcher *pluginmodel.Launcher
-	Explicit bool
+	Manifest         pluginmodel.Manifest
+	Launcher         *pluginmodel.Launcher
+	Explicit         bool
+	IncludeUserScope bool
 }
 
 type ImportResult struct {

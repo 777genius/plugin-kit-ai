@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -229,6 +231,148 @@ func TestPluginKitAIBundleFetchGitHubClaudeNodeTypeScriptFlow(t *testing.T) {
 	}
 }
 
+func TestPluginKitAIBundlePublishFetchPythonRequirementsFlow(t *testing.T) {
+	if !pythonRuntimeAvailable() {
+		t.Skip("python runtime not available for bundle publish/fetch flow")
+	}
+
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := runtimeProjectRoot(t)
+	run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex-runtime", "--runtime", "python", "-o", plugRoot, "--extras")
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
+	}
+	writeRuntimeFile(t, plugRoot, "requirements.txt", "requests==2.32.0\n")
+
+	bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap before publish: %v\n%s", err, out)
+	}
+
+	server := newMockBundlePublishGitHubServer(t)
+	defer server.Close()
+
+	publish := exec.Command(
+		pluginKitAIBin,
+		"bundle", "publish", plugRoot,
+		"--platform", "codex-runtime",
+		"--repo", "o/r",
+		"--tag", "v1",
+		"--github-api-base", server.URL,
+	)
+	out, err := publish.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai bundle publish python requirements: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Release state: created published release") {
+		t.Fatalf("publish output missing published release line:\n%s", out)
+	}
+
+	dest := filepath.Join(t.TempDir(), "installed")
+	fetch := exec.Command(
+		pluginKitAIBin,
+		"bundle", "fetch", "o/r",
+		"--tag", "v1",
+		"--dest", dest,
+		"--platform", "codex-runtime",
+		"--runtime", "python",
+		"--github-api-base", server.URL,
+	)
+	out, err = fetch.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai bundle fetch published python requirements: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Checksum source: release asset genplug_codex-runtime_python_bundle.tar.gz.sha256") {
+		t.Fatalf("fetch output missing sidecar checksum source:\n%s", out)
+	}
+
+	doctor := exec.Command(pluginKitAIBin, "doctor", dest)
+	out, err = doctor.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "Status: needs_bootstrap") {
+		t.Fatalf("doctor output = %s, err=%v", out, err)
+	}
+	bootstrap = exec.Command(pluginKitAIBin, "bootstrap", dest)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap after published fetch: %v\n%s", err, out)
+	}
+	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "codex-runtime", "--strict")
+	if out, err := validate.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate after published fetch: %v\n%s", err, out)
+	}
+}
+
+func TestPluginKitAIBundlePublishFetchClaudeNodeTypeScriptFlow(t *testing.T) {
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skip("node not in PATH")
+	}
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skip("npm not in PATH")
+	}
+
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := runtimeProjectRoot(t)
+	run := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "claude", "--runtime", "node", "--typescript", "-o", plugRoot, "--extras")
+	if out, err := run.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai init claude node typescript: %v\n%s", err, out)
+	}
+
+	bootstrap := exec.Command(pluginKitAIBin, "bootstrap", plugRoot)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap before publish: %v\n%s", err, out)
+	}
+
+	server := newMockBundlePublishGitHubServer(t)
+	defer server.Close()
+
+	publish := exec.Command(
+		pluginKitAIBin,
+		"bundle", "publish", plugRoot,
+		"--platform", "claude",
+		"--repo", "o/r",
+		"--tag", "v2",
+		"--github-api-base", server.URL,
+	)
+	out, err := publish.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai bundle publish claude node typescript: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "genplug_claude_node_bundle.tar.gz") {
+		t.Fatalf("publish output missing bundle asset name:\n%s", out)
+	}
+
+	dest := filepath.Join(t.TempDir(), "installed")
+	fetch := exec.Command(
+		pluginKitAIBin,
+		"bundle", "fetch", "o/r",
+		"--tag", "v2",
+		"--dest", dest,
+		"--platform", "claude",
+		"--runtime", "node",
+		"--github-api-base", server.URL,
+	)
+	out, err = fetch.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai bundle fetch published claude node typescript: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "Checksum source: release asset genplug_claude_node_bundle.tar.gz.sha256") {
+		t.Fatalf("fetch output missing sidecar checksum source:\n%s", out)
+	}
+
+	doctor := exec.Command(pluginKitAIBin, "doctor", dest)
+	out, err = doctor.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "Status: needs_bootstrap") {
+		t.Fatalf("doctor output = %s, err=%v", out, err)
+	}
+	bootstrap = exec.Command(pluginKitAIBin, "bootstrap", dest)
+	if out, err := bootstrap.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai bootstrap after published fetch: %v\n%s", err, out)
+	}
+	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
+	if out, err := validate.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate after published fetch: %v\n%s", err, out)
+	}
+}
+
 func bundleFetchTestCAEnv(t *testing.T, server *httptest.Server) []string {
 	t.Helper()
 	certPath := filepath.Join(t.TempDir(), "bundle-fetch-test-ca.pem")
@@ -270,6 +414,136 @@ func newMockBundleFetchGitHubServer(t *testing.T, bundleName string, bundleBody 
 			_, _ = w.Write([]byte(checksums))
 		case "/bundle.tar.gz":
 			_, _ = w.Write(bundleBody)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return srv
+}
+
+func newMockBundlePublishGitHubServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	type ghAsset struct {
+		ID                 int64  `json:"id"`
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+		Size               int64  `json:"size"`
+	}
+	type ghRelease struct {
+		ID         int64     `json:"id"`
+		TagName    string    `json:"tag_name"`
+		Draft      bool      `json:"draft"`
+		Prerelease bool      `json:"prerelease"`
+		UploadURL  string    `json:"upload_url"`
+		Assets     []ghAsset `json:"assets"`
+	}
+	releases := map[string]*ghRelease{}
+	bodies := map[string][]byte{}
+	var nextReleaseID int64 = 100
+	var nextAssetID int64 = 1000
+
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		base := srv.URL
+		switch {
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/repos/o/r/releases/tags/"):
+			tag := strings.TrimPrefix(r.URL.Path, "/repos/o/r/releases/tags/")
+			release, ok := releases[tag]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(release)
+		case r.Method == http.MethodPost && r.URL.Path == "/repos/o/r/releases":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			tag, _ := payload["tag_name"].(string)
+			draft, _ := payload["draft"].(bool)
+			release := &ghRelease{
+				ID:         nextReleaseID,
+				TagName:    tag,
+				Draft:      draft,
+				Prerelease: false,
+				UploadURL:  base + "/upload/" + tag + "/assets{?name,label}",
+				Assets:     []ghAsset{},
+			}
+			nextReleaseID++
+			releases[tag] = release
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(release)
+		case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/repos/o/r/releases/"):
+			idText := strings.TrimPrefix(r.URL.Path, "/repos/o/r/releases/")
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			draft, _ := payload["draft"].(bool)
+			var release *ghRelease
+			for _, candidate := range releases {
+				if fmt.Sprintf("%d", candidate.ID) == idText {
+					release = candidate
+					break
+				}
+			}
+			if release == nil {
+				http.NotFound(w, r)
+				return
+			}
+			release.Draft = draft
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(release)
+		case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/upload/") && strings.HasSuffix(r.URL.Path, "/assets"):
+			trimmed := strings.TrimPrefix(r.URL.Path, "/upload/")
+			tag := strings.TrimSuffix(trimmed, "/assets")
+			release, ok := releases[tag]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			name := r.URL.Query().Get("name")
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			bodies[name] = body
+			asset := ghAsset{
+				ID:                 nextAssetID,
+				Name:               name,
+				BrowserDownloadURL: base + "/download/" + name,
+				Size:               int64(len(body)),
+			}
+			nextAssetID++
+			release.Assets = append(release.Assets, asset)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(asset)
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/repos/o/r/releases/assets/"):
+			assetIDText := strings.TrimPrefix(r.URL.Path, "/repos/o/r/releases/assets/")
+			for _, release := range releases {
+				filtered := release.Assets[:0]
+				for _, asset := range release.Assets {
+					if fmt.Sprintf("%d", asset.ID) == assetIDText {
+						delete(bodies, asset.Name)
+						continue
+					}
+					filtered = append(filtered, asset)
+				}
+				release.Assets = filtered
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/download/"):
+			name := strings.TrimPrefix(r.URL.Path, "/download/")
+			body, ok := bodies[name]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = w.Write(body)
 		default:
 			http.NotFound(w, r)
 		}

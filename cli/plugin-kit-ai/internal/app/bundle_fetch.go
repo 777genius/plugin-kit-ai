@@ -54,6 +54,7 @@ type bundleHTTPDownloader interface {
 type bundleGitHubSource interface {
 	GetReleaseByTag(ctx context.Context, owner, repo, tag string) (*domain.Release, error)
 	GetLatestRelease(ctx context.Context, owner, repo string) (*domain.Release, error)
+	FindReleaseByTag(ctx context.Context, owner, repo, tag string) (*domain.Release, error)
 	DownloadAsset(ctx context.Context, url string) (body []byte, contentType string, err error)
 }
 
@@ -227,7 +228,7 @@ func resolveBundleGitHubSource(ctx context.Context, opts PluginBundleFetchOption
 	if opts.Latest {
 		rel, err = source.GetLatestRelease(ctx, owner, repo)
 	} else {
-		rel, err = source.GetReleaseByTag(ctx, owner, repo, strings.TrimSpace(opts.Tag))
+		rel, err = source.FindReleaseByTag(ctx, owner, repo, strings.TrimSpace(opts.Tag))
 	}
 	if err != nil {
 		return bundleRemoteSource{}, err

@@ -22,6 +22,7 @@ Explicitly **not** promoted in this audit:
 
 - launcher-based `shell` runtime authoring
 - `plugin-kit-ai bundle fetch`
+- `plugin-kit-ai bundle publish`
 - `plugin-kit-ai install` for interpreted bundles or dependency-preinstalled installs
 - interpreted packaged distribution beyond bounded portable `export`
 - TypeScript as a separate runtime contract

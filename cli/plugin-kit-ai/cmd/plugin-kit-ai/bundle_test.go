@@ -14,6 +14,8 @@ type fakeBundleRunner struct {
 	installErr    error
 	fetchResult   app.PluginBundleFetchResult
 	fetchErr      error
+	publishResult app.PluginBundlePublishResult
+	publishErr    error
 }
 
 func (f fakeBundleRunner) BundleInstall(app.PluginBundleInstallOptions) (app.PluginBundleInstallResult, error) {
@@ -22,6 +24,10 @@ func (f fakeBundleRunner) BundleInstall(app.PluginBundleInstallOptions) (app.Plu
 
 func (f fakeBundleRunner) BundleFetch(_ context.Context, _ app.PluginBundleFetchOptions) (app.PluginBundleFetchResult, error) {
 	return f.fetchResult, f.fetchErr
+}
+
+func (f fakeBundleRunner) BundlePublish(_ context.Context, _ app.PluginBundlePublishOptions) (app.PluginBundlePublishResult, error) {
+	return f.publishResult, f.publishErr
 }
 
 func TestBundleInstallHelpIncludesLocalTarballLanguage(t *testing.T) {
@@ -101,6 +107,45 @@ func TestBundleFetchWritesRunnerOutput(t *testing.T) {
 	}
 	output := buf.String()
 	if !strings.Contains(output, "Bundle source: https://example.com/demo_bundle.tar.gz") {
+		t.Fatalf("output = %s", output)
+	}
+}
+
+func TestBundlePublishHelpIncludesGitHubLanguage(t *testing.T) {
+	cmd := newBundleCmd(fakeBundleRunner{})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"publish", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	for _, want := range []string{"GitHub Releases", "--draft", "binary-only"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("help output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestBundlePublishWritesRunnerOutput(t *testing.T) {
+	cmd := newBundleCmd(fakeBundleRunner{
+		publishResult: app.PluginBundlePublishResult{
+			Lines: []string{
+				"Release: o/r@v1",
+				"Release state: created published release",
+			},
+		},
+	})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"publish", ".", "--platform", "codex-runtime", "--repo", "o/r", "--tag", "v1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	if !strings.Contains(output, "Release: o/r@v1") {
 		t.Fatalf("output = %s", output)
 	}
 }

@@ -47,6 +47,10 @@ func (f fakeBundleReleaseSource) GetReleaseByTag(_ context.Context, owner, repo,
 	return f.byTag, nil
 }
 
+func (f fakeBundleReleaseSource) FindReleaseByTag(_ context.Context, owner, repo, tag string) (*domain.Release, error) {
+	return f.GetReleaseByTag(context.Background(), owner, repo, tag)
+}
+
 func (f fakeBundleReleaseSource) GetLatestRelease(_ context.Context, owner, repo string) (*domain.Release, error) {
 	if owner == "" || repo == "" {
 		return nil, errors.New("bad latest ref")

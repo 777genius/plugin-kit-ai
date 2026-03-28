@@ -509,7 +509,7 @@ func All() []PlatformProfile {
 				TargetClass:            "workspace_config_lane",
 				TargetNoun:             "workspace",
 				ProductionClass:        "packaging-only target",
-				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, validated mirrored skills, JSON/JSONC native config import, and config passthrough; no first-class local plugin code or workspace directory support",
+				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, JSON/JSONC native import, explicit opt-in user-scope import, and config passthrough; local JS/TS plugin code stays for the later code-plugin wave",
 				InstallModel:           "workspace config file",
 				DevModel:               "config authoring workspace",
 				ActivationModel:        "config reload or restart",
@@ -518,8 +518,8 @@ func All() []PlatformProfile {
 				RenderSupport:          true,
 				ValidateSupport:        true,
 				PortableComponentKinds: []string{"skills", "mcp_servers"},
-				TargetComponentKinds:   []string{"package_metadata", "config_extra"},
-				Summary:                "OpenCode compiles as a workspace-config lane with first-class npm plugin refs, shared MCP, validated mirrored portable skills, JSON/JSONC-native import compatibility, and explicit passthrough/unsupported boundaries for the broader workspace surface.",
+				TargetComponentKinds:   []string{"package_metadata", "config_extra", "commands", "agents", "themes"},
+				Summary:                "OpenCode compiles as a workspace-config lane with canonical repo-local authored outputs for npm plugin refs, shared MCP, skills, commands, agents, themes, JSON/JSONC import compatibility for project and explicit user scope, and passthrough support for broader config-only surfaces.",
 			},
 			SDK: SDKMeta{
 				PublicPackage:   "opencode",
@@ -538,12 +538,14 @@ func All() []PlatformProfile {
 				{Kind: "plugins", Tier: SurfaceTierStable},
 				{Kind: "mcp", Tier: SurfaceTierStable},
 				{Kind: "skills", Tier: SurfaceTierStable},
+				{Kind: "commands", Tier: SurfaceTierStable},
+				{Kind: "agents", Tier: SurfaceTierStable},
+				{Kind: "themes", Tier: SurfaceTierStable},
 				{Kind: "config_extra", Tier: SurfaceTierStable},
 				{Kind: "agent_config", Tier: SurfaceTierPassthroughOnly},
+				{Kind: "permission_config", Tier: SurfaceTierPassthroughOnly},
+				{Kind: "instructions_config", Tier: SurfaceTierPassthroughOnly},
 				{Kind: "tools_config", Tier: SurfaceTierPassthroughOnly},
-				{Kind: "commands", Tier: SurfaceTierUnsupported},
-				{Kind: "agents", Tier: SurfaceTierUnsupported},
-				{Kind: "themes", Tier: SurfaceTierUnsupported},
 				{Kind: "modes", Tier: SurfaceTierUnsupported},
 				{Kind: "local_plugin_code", Tier: SurfaceTierUnsupported},
 				{Kind: "custom_tools", Tier: SurfaceTierUnsupported},
@@ -552,6 +554,9 @@ func All() []PlatformProfile {
 			ManagedArtifacts: []ManagedArtifactSpec{
 				{Kind: ManagedArtifactStatic, Path: "opencode.json"},
 				{Kind: ManagedArtifactPortableSkills, OutputRoot: ".opencode/skills"},
+				{Kind: ManagedArtifactMirror, ComponentKind: "commands", SourceRoot: "targets/opencode/commands", OutputRoot: ".opencode/commands"},
+				{Kind: ManagedArtifactMirror, ComponentKind: "agents", SourceRoot: "targets/opencode/agents", OutputRoot: ".opencode/agents"},
+				{Kind: ManagedArtifactMirror, ComponentKind: "themes", SourceRoot: "targets/opencode/themes", OutputRoot: ".opencode/themes"},
 			},
 			Scaffold: ScaffoldMeta{
 				RequiredFiles: []string{
@@ -562,6 +567,9 @@ func All() []PlatformProfile {
 				OptionalFiles: []string{
 					"targets/opencode/config.extra.json",
 					"skills/{{.ProjectName}}/SKILL.md",
+					"targets/opencode/commands/{{.ProjectName}}.md",
+					"targets/opencode/agents/{{.ProjectName}}.md",
+					"targets/opencode/themes/{{.ProjectName}}.json",
 				},
 				ForbiddenFiles: []string{
 					"launcher.yaml",
@@ -572,6 +580,9 @@ func All() []PlatformProfile {
 					{Path: "targets/opencode/config.extra.json", Template: "empty.json.tmpl", Extra: true},
 					{Path: "README.md", Template: "opencode.README.md.tmpl"},
 					{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "opencode.SKILL.md.tmpl", Extra: true},
+					{Path: "targets/opencode/commands/{{.ProjectName}}.md", Template: "opencode.command.md.tmpl", Extra: true},
+					{Path: "targets/opencode/agents/{{.ProjectName}}.md", Template: "opencode.agent.md.tmpl", Extra: true},
+					{Path: "targets/opencode/themes/{{.ProjectName}}.json", Template: "opencode.theme.json.tmpl", Extra: true},
 				},
 			},
 			Validate: ValidateMeta{

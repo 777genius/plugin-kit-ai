@@ -8,8 +8,9 @@ import (
 )
 
 var (
-	importFrom  string
-	importForce bool
+	importFrom             string
+	importForce            bool
+	importIncludeUserScope bool
 )
 
 var importCmd = &cobra.Command{
@@ -20,7 +21,7 @@ var importCmd = &cobra.Command{
 Claude import maps native plugin artifacts into the package-standard layout.
 Codex import can materialize the official package lane, the local runtime lane, or both from current native artifacts. Use codex-native when you want the combined current Codex native layout; use codex-package or codex-runtime when you already know the target lane.
 Gemini import is packaging-only in the current contract: it backfills manifest metadata, but does not promote Gemini to a production-ready runtime target.
-OpenCode import is workspace-config-only in the current contract: it backfills opencode.json, portable skills, and shared MCP, but does not claim first-class support for local JS/TS plugin code.`,
+OpenCode import is workspace-config-only in the current contract: it normalizes project-native JSON/JSONC config, commands, agents, themes, compatible skill roots, and optional user-scope OpenCode sources into the canonical package-standard layout while keeping local JS/TS plugin code out of scope.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		root := "."
@@ -28,9 +29,10 @@ OpenCode import is workspace-config-only in the current contract: it backfills o
 			root = args[0]
 		}
 		warnings, err := pluginService.Import(app.PluginImportOptions{
-			Root:  root,
-			From:  importFrom,
-			Force: importForce,
+			Root:             root,
+			From:             importFrom,
+			Force:            importForce,
+			IncludeUserScope: importIncludeUserScope,
 		})
 		if err != nil {
 			return err
@@ -46,4 +48,5 @@ OpenCode import is workspace-config-only in the current contract: it backfills o
 func init() {
 	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex-native", "codex-package", "codex-runtime", "gemini", or "opencode"; omit to auto-detect current native layouts)`)
 	importCmd.Flags().BoolVarP(&importForce, "force", "f", false, "overwrite plugin.yaml if it already exists")
+	importCmd.Flags().BoolVar(&importIncludeUserScope, "include-user-scope", false, "include explicit user-scope native sources when supported by the import target")
 }

@@ -39,4 +39,5 @@ Stabilize the newly promoted `public-stable` contract in production reality befo
 - the community-first interpreted local-runtime promotion is recorded in [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md): `python` and `node` are now the stable repo-local subset on `codex-runtime` and `claude`, while `shell` remains `public-beta`
 - local exported bundle install for Python/Node is now part of the promoted stable subset and remains intentionally separate from the stable binary-only `install` contract
 - remote bundle fetch for Python/Node remains `public-beta` and is intentionally separate from both stable local `bundle install` and binary-only `install`
+- GitHub Releases bundle publish for Python/Node is now `public-beta` and remains intentionally separate from both stable local `bundle install` and binary-only `install`
 - the current deterministic patch candidate is `8b3bdbbf400805c410ea05bec8b0c5215dacd131`

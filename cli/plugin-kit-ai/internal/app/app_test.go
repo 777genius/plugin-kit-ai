@@ -271,10 +271,16 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 		"plugin.yaml",
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
+		filepath.Join("targets", "opencode", "commands", "genplug.md"),
+		filepath.Join("targets", "opencode", "agents", "genplug.md"),
+		filepath.Join("targets", "opencode", "themes", "genplug.json"),
 		"opencode.json",
 		"README.md",
 		filepath.Join("skills", "genplug", "SKILL.md"),
 		filepath.Join(".opencode", "skills", "genplug", "SKILL.md"),
+		filepath.Join(".opencode", "commands", "genplug.md"),
+		filepath.Join(".opencode", "agents", "genplug.md"),
+		filepath.Join(".opencode", "themes", "genplug.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)

@@ -13,13 +13,16 @@ import (
 )
 
 type releaseDTO struct {
+	ID         int64      `json:"id"`
 	TagName    string     `json:"tag_name"`
 	Draft      bool       `json:"draft"`
 	Prerelease bool       `json:"prerelease"`
+	UploadURL  string     `json:"upload_url"`
 	Assets     []assetDTO `json:"assets"`
 }
 
 type assetDTO struct {
+	ID                 int64  `json:"id"`
 	Name               string `json:"name"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
@@ -28,16 +31,16 @@ type assetDTO struct {
 // GetReleaseByTag implements ports.ReleaseSource.
 func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag string) (*domain.Release, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/tags/%s", owner, repo, tag)
-	return c.fetchRelease(ctx, path, fmt.Sprintf("release tag %q not found", tag))
+	return c.fetchRelease(ctx, path, fmt.Sprintf("release tag %q not found", tag), false)
 }
 
 // GetLatestRelease implements ports.ReleaseSource (GitHub non-prerelease latest).
 func (c *Client) GetLatestRelease(ctx context.Context, owner, repo string) (*domain.Release, error) {
 	path := fmt.Sprintf("repos/%s/%s/releases/latest", owner, repo)
-	return c.fetchRelease(ctx, path, "no latest release found (GitHub has no published non-prerelease release)")
+	return c.fetchRelease(ctx, path, "no latest release found (GitHub has no published non-prerelease release)", false)
 }
 
-func (c *Client) fetchRelease(ctx context.Context, apiPath, notFoundDetail string) (*domain.Release, error) {
+func (c *Client) fetchRelease(ctx context.Context, apiPath, notFoundDetail string, allowDraft bool) (*domain.Release, error) {
 	if c.APIClient == nil {
 		c.APIClient = httpconfig.APIClient()
 	}
@@ -80,23 +83,10 @@ func (c *Client) fetchRelease(ctx context.Context, apiPath, notFoundDetail strin
 	if err := json.Unmarshal(body, &dto); err != nil {
 		return nil, domain.NewError(domain.ExitNetwork, "github api: invalid json: "+err.Error())
 	}
-	if dto.Draft {
+	if dto.Draft && !allowDraft {
 		return nil, domain.NewError(domain.ExitRelease, "release is draft (refused)")
 	}
-	out := &domain.Release{
-		TagName:    dto.TagName,
-		Draft:      dto.Draft,
-		Prerelease: dto.Prerelease,
-		Assets:     make([]domain.Asset, 0, len(dto.Assets)),
-	}
-	for _, a := range dto.Assets {
-		out.Assets = append(out.Assets, domain.Asset{
-			Name:               a.Name,
-			BrowserDownloadURL: a.BrowserDownloadURL,
-			Size:               a.Size,
-		})
-	}
-	return out, nil
+	return releaseFromDTO(dto), nil
 }
 
 func (c *Client) releaseJSONMaxBytes() int64 {

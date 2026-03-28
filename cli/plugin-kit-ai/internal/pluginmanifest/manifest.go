@@ -591,7 +591,7 @@ func Drift(root string, target string) ([]string, error) {
 	return slices.Compact(drift), nil
 }
 
-func Import(root string, from string, force bool) (Manifest, []Warning, error) {
+func Import(root string, from string, force bool, includeUserScope bool) (Manifest, []Warning, error) {
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
 		return Manifest{}, nil, fmt.Errorf("unsupported project format for import: .plugin-kit-ai/project.toml is not supported; rewrite the project into the package standard layout")
 	}
@@ -628,8 +628,9 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
 	}
 	seed := platformexec.ImportSeed{
-		Manifest: Default(defaultName(root), from, inferRuntime(root), "plugin-kit-ai plugin", false),
-		Explicit: explicitFrom,
+		Manifest:         Default(defaultName(root), from, inferRuntime(root), "plugin-kit-ai plugin", false),
+		Explicit:         explicitFrom,
+		IncludeUserScope: includeUserScope,
 	}
 	if requiresLauncherForTarget(from) {
 		launcher := DefaultLauncher(defaultName(root), inferRuntime(root))

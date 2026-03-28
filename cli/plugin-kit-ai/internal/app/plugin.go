@@ -9,9 +9,10 @@ type PluginRenderOptions struct {
 }
 
 type PluginImportOptions struct {
-	Root  string
-	From  string
-	Force bool
+	Root             string
+	From             string
+	Force            bool
+	IncludeUserScope bool
 }
 
 type PluginNormalizeOptions struct {
@@ -48,7 +49,7 @@ func (PluginService) Render(opts PluginRenderOptions) ([]string, error) {
 }
 
 func (PluginService) Import(opts PluginImportOptions) ([]pluginmanifest.Warning, error) {
-	_, warnings, err := pluginmanifest.Import(opts.Root, opts.From, opts.Force)
+	_, warnings, err := pluginmanifest.Import(opts.Root, opts.From, opts.Force, opts.IncludeUserScope)
 	if err != nil {
 		return warnings, err
 	}

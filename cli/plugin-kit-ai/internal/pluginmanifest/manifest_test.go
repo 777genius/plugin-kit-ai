@@ -57,7 +57,10 @@ func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
 	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
-	mustWritePluginFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "# Demo\n")
+	mustWritePluginFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo skill\nexecution_mode: docs_only\nsupported_agents:\n  - opencode\n---\n\n# Demo\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "themes", "midnight.json"), `{"$schema":"https://opencode.ai/theme.json","theme":{"primary":"#111827","text":"#f9fafb","background":"#020617"}}`)
 
 	result, err := Render(root, "opencode")
 	if err != nil {
@@ -85,6 +88,15 @@ func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".opencode", "skills", "demo", "SKILL.md")); err != nil {
 		t.Fatalf("stat mirrored opencode skill: %v", err)
 	}
+	for _, rel := range []string{
+		filepath.Join(".opencode", "commands", "ship.md"),
+		filepath.Join(".opencode", "agents", "reviewer.md"),
+		filepath.Join(".opencode", "themes", "midnight.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
 }
 
 func TestRender_OpenCodeRejectsManagedOverridesInConfigExtra(t *testing.T) {
@@ -111,10 +123,13 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
   "theme": "midnight"
 }`)
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "skills", "demo", "SKILL.md"), "# Demo\n")
+	mustWritePluginFile(t, root, filepath.Join(".opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
+	mustWritePluginFile(t, root, filepath.Join(".opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
+	mustWritePluginFile(t, root, filepath.Join(".opencode", "themes", "midnight.json"), `{"$schema":"https://opencode.ai/theme.json","theme":{"primary":"#111827","text":"#f9fafb","background":"#020617"}}`)
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "plugins", "demo.ts"), "export default {};\n")
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "package.json"), `{"name":"demo-opencode"}`)
 
-	imported, warnings, err := Import(root, "", false)
+	imported, warnings, err := Import(root, "", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +141,9 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("mcp", "servers.json"),
 		filepath.Join("skills", "demo", "SKILL.md"),
+		filepath.Join("targets", "opencode", "commands", "ship.md"),
+		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
+		filepath.Join("targets", "opencode", "themes", "midnight.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -133,6 +151,101 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	}
 	if len(warnings) < 2 {
 		t.Fatalf("warnings = %v, want plugin code and package warnings", warnings)
+	}
+}
+
+func TestImport_OpenCodeNormalizesInlineCommandsAndAgents(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "opencode.json", `{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@acme/demo-opencode"],
+  "command": {
+    "ship": {
+      "description": "ship command",
+      "template": "Ship the release."
+    },
+    "kept": {
+      "description": "kept command",
+      "template": "Keep it.",
+      "unknown": true
+    }
+  },
+  "agent": {
+    "reviewer": {
+      "description": "reviewer",
+      "mode": "subagent",
+      "prompt": "Review carefully."
+    },
+    "kept": {
+      "description": "kept agent",
+      "prompt": "{file:./prompts/kept.md}"
+    }
+  }
+}`)
+
+	_, warnings, err := Import(root, "opencode", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join("targets", "opencode", "commands", "ship.md"),
+		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{`"kept"`, `"command"`, `"agent"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config.extra.json missing %q:\n%s", want, text)
+		}
+	}
+	if len(warnings) < 2 {
+		t.Fatalf("warnings = %v, want fidelity warnings for preserved inline command and agent", warnings)
+	}
+}
+
+func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "opencode.jsonc"), `{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@acme/global-opencode"],
+  "theme": "midnight"
+}`)
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "themes", "midnight.json"), `{"$schema":"https://opencode.ai/theme.json","theme":{"primary":"#111827","text":"#f9fafb","background":"#020617"}}`)
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: global skill\nexecution_mode: docs_only\nsupported_agents:\n  - opencode\n---\n\n# Demo\n")
+
+	imported, warnings, err := Import(root, "opencode", false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "opencode" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	for _, rel := range []string{
+		filepath.Join("targets", "opencode", "package.yaml"),
+		filepath.Join("targets", "opencode", "config.extra.json"),
+		filepath.Join("targets", "opencode", "commands", "ship.md"),
+		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
+		filepath.Join("targets", "opencode", "themes", "midnight.json"),
+		filepath.Join("skills", "demo", "SKILL.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
 	}
 }
 
@@ -151,7 +264,7 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
   "theme": "midnight",
 }`)
 
-	imported, warnings, err := Import(root, "opencode", false)
+	imported, warnings, err := Import(root, "opencode", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +290,7 @@ func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/json"]}`)
 	mustWritePluginFile(t, root, "opencode.jsonc", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/jsonc"]}`)
 
-	_, warnings, err := Import(root, "opencode", false)
+	_, warnings, err := Import(root, "opencode", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +314,7 @@ func TestImport_OpenCodeExplicitCompatibilitySkillRoots(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".claude", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: claude\n---\n")
 	mustWritePluginFile(t, root, filepath.Join(".agents", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: agents\n---\n")
 
-	_, warnings, err := Import(root, "opencode", false)
+	_, warnings, err := Import(root, "opencode", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,7 +421,7 @@ func TestImport_CurrentNativeCodexShellProject(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/demo\", \"notify\"]\nmodel = \"gpt-5.4-mini\"\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex-native", false)
+	_, _, err := Import(root, "codex-native", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -411,7 +524,7 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\", \"extra\"]\napproval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
 
-	_, warnings, err := Import(root, "codex-native", false)
+	_, warnings, err := Import(root, "codex-native", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -456,7 +569,7 @@ func TestImport_ClaudeHooksJSONParsingHandlesNonFirstCommand(t *testing.T) {
   }
 }`)
 
-	_, _, err := Import(root, "claude", false)
+	_, _, err := Import(root, "claude", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +590,7 @@ func TestImport_ClaudeManifestlessLayoutPreservesCanonicalDocs(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join("commands", "ship.md"), "# ship\n")
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "---\nname: reviewer\ndescription: review\n---\nReview.\n")
 
-	imported, warnings, err := Import(root, "claude", false)
+	imported, warnings, err := Import(root, "claude", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -523,7 +636,7 @@ func TestImport_ClaudeNormalizesCustomPathsAndUserConfig(t *testing.T) {
 	mustWritePluginFile(t, root, "custom-hooks.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo Stop"}]}]}}`)
 	mustWritePluginFile(t, root, "custom-lsp.json", `{"servers":{"demo":{"command":["demo-lsp"]}}}`)
 
-	_, warnings, err := Import(root, "claude", false)
+	_, warnings, err := Import(root, "claude", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -570,7 +683,7 @@ func TestImport_ClaudeNormalizesMultiPathArrays(t *testing.T) {
 	mustWritePluginFile(t, root, "custom-mcp-a.json", `{"demo":{"command":"demo","args":["serve"]}}`)
 	mustWritePluginFile(t, root, "custom-mcp-b.json", `{"demo":{"command":"demo","args":["serve"]},"review":{"command":"review","args":["serve"]}}`)
 
-	_, warnings, err := Import(root, "claude", false)
+	_, warnings, err := Import(root, "claude", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -626,7 +739,7 @@ func TestImport_ClaudeRejectsConflictingMultiPathArrays(t *testing.T) {
 	mustWritePluginFile(t, root, "custom-lsp-a.json", `{"demo":{"command":["demo-lsp"]}}`)
 	mustWritePluginFile(t, root, "custom-lsp-b.json", `{"demo":{"command":["other-lsp"]}}`)
 
-	_, _, err := Import(root, "claude", false)
+	_, _, err := Import(root, "claude", false, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -646,7 +759,7 @@ func TestImport_ClaudeRejectsInvalidHookMultiPathMerge(t *testing.T) {
 	mustWritePluginFile(t, root, "custom-hooks-a.json", `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo Stop"}]}]}}`)
 	mustWritePluginFile(t, root, "custom-hooks-b.json", `{"hooks":{"Stop":{"bad":true}}}`)
 
-	_, _, err := Import(root, "claude", false)
+	_, _, err := Import(root, "claude", false, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -659,7 +772,7 @@ func TestImport_ClaudeManifestlessDetectsCommandsOnly(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("commands", "ship.md"), "# ship\n")
 
-	imported, warnings, err := Import(root, "", false)
+	imported, warnings, err := Import(root, "", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -678,7 +791,7 @@ func TestImport_ClaudeManifestlessDetectsAgentsOnly(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "---\nname: reviewer\ndescription: review\n---\nReview.\n")
 
-	imported, warnings, err := Import(root, "", false)
+	imported, warnings, err := Import(root, "", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -705,7 +818,7 @@ targets: ["codex"]
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex-native", false)
+	_, _, err := Import(root, "codex-native", false, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -744,7 +857,7 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join("policies", "review.toml"), "name = \"review\"\n")
 	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), "{\"hooks\":{}}\n")
 
-	manifest, _, err := Import(root, "gemini", false)
+	manifest, _, err := Import(root, "gemini", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -801,7 +914,7 @@ func TestImport_AmbiguousNativeLayoutsRequireExplicitFrom(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 
-	_, _, err := Import(root, "", false)
+	_, _, err := Import(root, "", false, false)
 	if err == nil || !strings.Contains(err.Error(), "ambiguous import source") {
 		t.Fatalf("Import error = %v", err)
 	}
@@ -931,7 +1044,7 @@ func TestRender_GeminiRejectsInvalidMCPTransportAndExcludeTools(t *testing.T) {
 func TestImport_RejectsLegacyInternalProjectManifest(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".plugin-kit-ai", "project.toml"), "schema_version = 1\n")
-	_, _, err := Import(root, "", false)
+	_, _, err := Import(root, "", false, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1149,24 +1262,28 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
-	var foundAgentConfig, foundToolsConfig, foundCommands, foundAgents, foundThemes, foundModes bool
+	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig, foundToolsConfig, foundCommands, foundAgents, foundThemes, foundModes bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
 		case surface.Kind == "agent_config" && surface.Tier == "passthrough_only":
 			foundAgentConfig = true
+		case surface.Kind == "permission_config" && surface.Tier == "passthrough_only":
+			foundPermissionConfig = true
+		case surface.Kind == "instructions_config" && surface.Tier == "passthrough_only":
+			foundInstructionsConfig = true
 		case surface.Kind == "tools_config" && surface.Tier == "passthrough_only":
 			foundToolsConfig = true
-		case surface.Kind == "commands" && surface.Tier == "unsupported":
+		case surface.Kind == "commands" && surface.Tier == "stable":
 			foundCommands = true
-		case surface.Kind == "agents" && surface.Tier == "unsupported":
+		case surface.Kind == "agents" && surface.Tier == "stable":
 			foundAgents = true
-		case surface.Kind == "themes" && surface.Tier == "unsupported":
+		case surface.Kind == "themes" && surface.Tier == "stable":
 			foundThemes = true
 		case surface.Kind == "modes" && surface.Tier == "unsupported":
 			foundModes = true
 		}
 	}
-	if !foundAgentConfig || !foundToolsConfig || !foundCommands || !foundAgents || !foundThemes || !foundModes {
+	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundToolsConfig || !foundCommands || !foundAgents || !foundThemes || !foundModes {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }
@@ -1208,7 +1325,7 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, ".mcp.json", "{}\n")
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
-	_, warnings, err := Import(root, "codex-native", false)
+	_, warnings, err := Import(root, "codex-native", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1234,7 +1351,7 @@ func TestImport_RejectsLegacyCodexSource(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex", false)
+	_, _, err := Import(root, "codex", false, false)
 	if err == nil || !strings.Contains(err.Error(), `unsupported import source "codex"`) {
 		t.Fatalf("Import error = %v", err)
 	}
