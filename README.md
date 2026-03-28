@@ -44,7 +44,7 @@ Stable in `v1.0.0`:
 Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
-- Gemini CLI extension packaging target through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, contexts, settings, themes, commands, hooks, and policies
+- full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
 - executable runtime scaffolds for `python`, `node`, and `shell`
 - optional scaffold extras from `plugin-kit-ai init --extras`
 
@@ -170,7 +170,7 @@ Current runtime support:
 - Claude scaffolds only that stable subset by default; use `--claude-extended-hooks` only for the wider runtime-supported set
 - Claude: runtime-supported but not stable for `SessionStart`, `SessionEnd`, `Notification`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `SubagentStart`, `SubagentStop`, `PreCompact`, `Setup`, `TeammateIdle`, `TaskCompleted`, `ConfigChange`, `WorktreeCreate`, `WorktreeRemove`
 - Codex: production-ready within the declared stable `Notify` path
-- Gemini: packaging-only beta target through `render|import`, not a production-ready runtime target
+- Gemini: full packaging-only extension lane through `render|import|validate` plus local `extensions link|config|disable|enable`, not a production-ready runtime target
 
 Release boundary notes:
 
@@ -200,7 +200,7 @@ The project is intentionally opinionated.
 - Go is the best-supported authoring path, not just one option among equals
 - package-standard authoring is the source of truth; hand-editing rendered target files is not the intended workflow
 - Python, Node, and Shell are supported because teams use them, but they are still a repo-local beta path
-- Gemini is in scope as a packaging target, not as a production-ready runtime target
+- Gemini is in scope as a full extension-packaging target, not as a production-ready runtime target
 
 That means the promise is practical rather than inflated:
 

@@ -556,13 +556,45 @@ targets: ["gemini"]
 		switch {
 		case strings.Contains(failure.Message, "exclude_tools entries must be non-empty strings"):
 			foundExclude = true
-		case strings.Contains(failure.Message, "Gemini setting file") && (strings.Contains(failure.Message, "boolean sensitive") || strings.Contains(failure.Message, "invalid YAML")):
+		case strings.Contains(failure.Message, "Gemini setting file"):
 			foundSetting = true
-		case strings.Contains(failure.Message, "must define at least one theme token besides name"):
+		case strings.Contains(failure.Message, "Gemini themes require at least one theme token besides name"):
 			foundTheme = true
 		}
 	}
 	if !foundExclude || !foundSetting || !foundTheme {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsInvalidThemeShapeAndDuplicateSettings(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-assets"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundTheme, foundDuplicate bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, `Gemini theme key "background" must be a YAML object`):
+			foundTheme = true
+		case strings.Contains(failure.Message, `duplicates env_var "RELEASE_PROFILE"`):
+			foundDuplicate = true
+		}
+	}
+	if !foundTheme || !foundDuplicate {
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 }

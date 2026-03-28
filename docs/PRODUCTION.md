@@ -6,7 +6,7 @@ This document is the canonical production authoring path for plugin authors usin
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
 - Codex: production-ready within the stable `Notify` path
-- Gemini: packaging-only Gemini CLI extension target through `render|import|validate`; not a production-ready runtime target
+- Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
 
 Repo-local executable runtime boundary:
 
@@ -86,7 +86,7 @@ Reference implementation:
 - Keep `plugin.yaml` plus `targets/gemini/...` as the authored source of truth
 - Commit generated `gemini-extension.json` plus rendered `hooks/`, `commands/`, `policies/`, and selected context artifacts
 - Treat Gemini as official extension packaging only: inline `mcpServers`, `contextFileName`, `settings`, `themes`, `excludeTools`, `plan.directory`, and `manifest.extra.json`
-- Use `gemini extensions link` for local development and restart Gemini CLI after changes
+- Use `gemini extensions link` for local development, `gemini extensions config` for install-time settings, and `gemini extensions disable|enable` to exercise scope changes; restart Gemini CLI after changes
 
 ## What It Does Not Guarantee
 

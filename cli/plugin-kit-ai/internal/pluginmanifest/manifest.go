@@ -1597,7 +1597,7 @@ func importedGeminiArtifacts(root string) ([]Artifact, []Warning, error) {
 			warnings = append(warnings, Warning{
 				Kind:    WarningFidelity,
 				Path:    filepath.ToSlash(filepath.Join("targets", "gemini", "manifest.extra.json")),
-				Message: "preserved unsupported Gemini manifest fields under targets/gemini/manifest.extra.json",
+				Message: "preserved additional Gemini manifest fields under targets/gemini/manifest.extra.json",
 			})
 		}
 		if contextName := importedGeminiPrimaryContextName(root, data.Meta); contextName != "" {

@@ -13,7 +13,7 @@
 - **Live GitHub:** `TestLiveInstall_*` — только с **`PLUGIN_KIT_AI_E2E_LIVE=1`** и без `-short`; см. `make test-e2e-live`.
 - **Claude / plugin-kit-ai-e2e:** JSON-фикстуры в `testdata/e2e_claude/` и opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1`**, флаг **`-args -claude-model=...`**.
 - **Codex / plugin-kit-ai-e2e:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CODEX_CLI=1`**, флаг **`-args -codex-model=...`**. Для hermetic smoke `notify` подаётся через CLI config override; project-scoped `.codex/config.toml` остаётся частью scaffold/validate contract, а не runtime env prerequisite теста.
-- **Gemini / extensions link:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_GEMINI_BIN=/path/to/gemini`** or **`GEMINI_BIN=/path/to/gemini`**. Тест работает в `Temp HOME` и проверяет `gemini extensions link` против rendered reference extension, не трогая реальный user state.
+- **Gemini / extension lifecycle:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_GEMINI_BIN=/path/to/gemini`** or **`GEMINI_BIN=/path/to/gemini`**. Тест работает в `Temp HOME` и проверяет `gemini extensions link|config|disable|enable` против rendered reference extension, не трогая реальный user state.
 - Codex smoke intentionally distinguishes repo failures from Codex runtime-environment failures. If `codex exec` hits known runtime panics before the hook fires, the test skips instead of reporting a false plugin-kit-ai regression.
 
 ## Линии запуска

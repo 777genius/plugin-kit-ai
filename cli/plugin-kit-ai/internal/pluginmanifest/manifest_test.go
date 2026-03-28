@@ -277,8 +277,8 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	  "excludeTools":["run_shell_command(rm -rf)"],
 	  "migratedTo":"https://github.com/example/gemini-demo-v2",
 	  "plan":{"directory":".gemini/plans","retentionDays":7},
-	  "settings":[{"name":"api-token","description":"token","envVar":"API_TOKEN","sensitive":true}],
-	  "themes":[{"name":"release-dawn","background":"#fff9f2","text":"#2e1f14"}],
+	  "settings":[{"name":"release-profile","description":"profile","envVar":"RELEASE_PROFILE","sensitive":false}],
+	  "themes":[{"name":"release-dawn","background":{"primary":"#fff9f2"},"text":{"primary":"#2e1f14"}}],
 	  "mcpServers":{"demo":{"command":"demo","args":["serve"]}},
 	  "x_galleryTopic":"gemini-cli-extension"
 	}`)
@@ -305,7 +305,7 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 		t.Fatalf("stat mcp servers: %v", err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "gemini", "settings", "api-token.yaml"),
+		filepath.Join("targets", "gemini", "settings", "release-profile.yaml"),
 		filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"),
 		filepath.Join("targets", "gemini", "manifest.extra.json"),
 		filepath.Join("targets", "gemini", "commands", "release", "deploy.toml"),
@@ -369,8 +369,8 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["${extensionPath}/server.mjs"]}}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nmigrated_to: https://github.com/example/demo-gemini-v2\nplan_directory: .gemini/plans\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: true\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\ntext: \"#2e1f14\"\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\ntext:\n  primary: \"#2e1f14\"\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "commands", "deploy.toml"), "description = \"deploy\"\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
@@ -414,7 +414,7 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "hooks", "hooks.json")); err != nil {
 		t.Fatalf("stat generated hooks: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "settings", "api-token.yaml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "settings", "release-profile.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("settings should be rendered into manifest, err=%v", err)
 	}
 }
@@ -433,6 +433,24 @@ func TestRender_GeminiRejectsMalformedStructuredSettingsAndThemes(t *testing.T) 
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "broken.yaml"), "name: fixed\ndescription: desc\nenv_var: FIXED\nsensitive: false\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: broken\n")
 	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "Gemini themes require at least one theme token besides name") {
+		t.Fatalf("Render error = %v", err)
+	}
+}
+
+func TestRender_GeminiRejectsInvalidThemeObjectShapeAndDuplicateSettings(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), `Gemini theme key "background" must be a YAML object`) {
+		t.Fatalf("Render error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), `duplicates`) {
 		t.Fatalf("Render error = %v", err)
 	}
 }

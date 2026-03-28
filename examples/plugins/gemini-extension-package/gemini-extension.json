@@ -20,25 +20,42 @@
   },
   "settings": [
     {
-      "description": "Token used by release-checks MCP flows.",
-      "envVar": "RELEASE_API_TOKEN",
-      "name": "release-api-token",
-      "sensitive": true
+      "description": "Deployment profile used by local extension lifecycle checks.",
+      "envVar": "RELEASE_PROFILE",
+      "name": "release-profile",
+      "sensitive": false
     }
   ],
   "themes": [
     {
-      "background": "#fff9f2",
-      "border": "#d6bda8",
+      "background": {
+        "diff": {
+          "added": "#edf7ed",
+          "removed": "#fdecec"
+        },
+        "primary": "#fff9f2"
+      },
       "name": "release-dawn",
       "status": {
         "error": "#b42318",
         "success": "#18794e",
         "warning": "#9a6700"
       },
-      "text": "#2e1f14",
+      "text": {
+        "accent": "#b3571f",
+        "link": "#8f4d1f",
+        "primary": "#2e1f14",
+        "secondary": "#6f5a4a"
+      },
       "ui": {
-        "accent": "#b3571f"
+        "active": "#b3571f",
+        "comment": "#6f5a4a",
+        "focus": "#18794e",
+        "gradient": [
+          "#b3571f",
+          "#d99058",
+          "#f3c48b"
+        ]
       }
     }
   ],

@@ -94,7 +94,7 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 			result.Warnings = append(result.Warnings, pluginmodel.Warning{
 				Kind:    pluginmodel.WarningFidelity,
 				Path:    filepath.ToSlash(filepath.Join("targets", "gemini", "manifest.extra.json")),
-				Message: "preserved unsupported Gemini manifest fields under targets/gemini/manifest.extra.json",
+				Message: "preserved additional Gemini manifest fields under targets/gemini/manifest.extra.json",
 			})
 		}
 		if contextName := importedGeminiPrimaryContextName(root, data.Meta); contextName != "" {
@@ -651,6 +651,8 @@ func geminiContextMatches(graph pluginmodel.PackageGraph, state pluginmodel.Targ
 
 func validateGeminiSettings(root string, rels []string) []Diagnostic {
 	var diagnostics []Diagnostic
+	seenNames := map[string]string{}
+	seenEnvVars := map[string]string{}
 	for _, rel := range rels {
 		body, raw, err := readGeminiYAMLMap(root, rel)
 		if err != nil {
@@ -674,16 +676,39 @@ func validateGeminiSettings(root string, rels []string) []Diagnostic {
 			})
 			continue
 		}
-		_, hasSensitive := raw["sensitive"]
-		_, sensitiveIsBool := raw["sensitive"].(bool)
-		if strings.TrimSpace(setting.Name) == "" || strings.TrimSpace(setting.Description) == "" || strings.TrimSpace(setting.EnvVar) == "" || !hasSensitive || !sensitiveIsBool {
+		if message := validateGeminiSettingMap(rel, raw, setting); message != "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "gemini",
-				Message:  fmt.Sprintf("Gemini setting file %s must define string name, description, env_var, and boolean sensitive", rel),
+				Message:  fmt.Sprintf("Gemini setting file %s: %s", rel, message),
 			})
+			continue
+		}
+		nameKey := strings.ToLower(strings.TrimSpace(setting.Name))
+		if prev, ok := seenNames[nameKey]; ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini setting file %s duplicates setting name %q already declared in %s", rel, setting.Name, prev),
+			})
+		} else {
+			seenNames[nameKey] = rel
+		}
+		envKey := strings.ToLower(strings.TrimSpace(setting.EnvVar))
+		if prev, ok := seenEnvVars[envKey]; ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini setting file %s duplicates env_var %q already declared in %s", rel, setting.EnvVar, prev),
+			})
+		} else {
+			seenEnvVars[envKey] = rel
 		}
 	}
 	return diagnostics
@@ -691,6 +716,7 @@ func validateGeminiSettings(root string, rels []string) []Diagnostic {
 
 func validateGeminiThemes(root string, rels []string) []Diagnostic {
 	var diagnostics []Diagnostic
+	seenNames := map[string]string{}
 	for _, rel := range rels {
 		_, raw, err := readGeminiYAMLMap(root, rel)
 		if err != nil {
@@ -704,24 +730,29 @@ func validateGeminiThemes(root string, rels []string) []Diagnostic {
 			continue
 		}
 		name, _ := raw["name"].(string)
-		if strings.TrimSpace(name) == "" {
+		if message := validateGeminiThemeMap(rel, raw); message != "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "gemini",
-				Message:  fmt.Sprintf("Gemini theme file %s must define name", rel),
+				Message:  fmt.Sprintf("Gemini theme file %s: %s", rel, message),
 			})
+			continue
 		}
-		if len(raw) <= 1 {
+		name = strings.TrimSpace(name)
+		nameKey := strings.ToLower(name)
+		if prev, ok := seenNames[nameKey]; ok {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "gemini",
-				Message:  fmt.Sprintf("Gemini theme file %s must define at least one theme token besides name", rel),
+				Message:  fmt.Sprintf("Gemini theme file %s duplicates theme name %q already declared in %s", rel, name, prev),
 			})
+			continue
 		}
+		seenNames[nameKey] = rel
 	}
 	return diagnostics
 }

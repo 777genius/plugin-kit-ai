@@ -345,8 +345,6 @@ func All() []PlatformProfile {
 				{Kind: ManagedArtifactMirror, ComponentKind: "hooks", SourceRoot: "targets/gemini/hooks", OutputRoot: "hooks"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "commands", SourceRoot: "targets/gemini/commands", OutputRoot: "commands"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "policies", SourceRoot: "targets/gemini/policies", OutputRoot: "policies"},
-				{Kind: ManagedArtifactMirror, ComponentKind: "themes", SourceRoot: "targets/gemini/themes", OutputRoot: "themes"},
-				{Kind: ManagedArtifactMirror, ComponentKind: "settings", SourceRoot: "targets/gemini/settings", OutputRoot: "settings"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "contexts", SourceRoot: "targets/gemini/contexts", OutputRoot: "contexts"},
 				{Kind: ManagedArtifactSelectedContext, ComponentKind: "contexts", OutputRoot: "", ContextMode: ContextStrategyGeminiPrimaryRoot},
 			},

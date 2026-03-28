@@ -3,6 +3,7 @@ package pluginkitairepo_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,11 +33,40 @@ func TestGeminiCLIExtensionLink(t *testing.T) {
 	if !strings.Contains(output, `Extension "gemini-extension-package" linked successfully and enabled.`) {
 		t.Fatalf("gemini link output missing success marker:\n%s", output)
 	}
+	installMetadataPath := filepath.Join(homeDir, ".gemini", "extensions", "gemini-extension-package", ".gemini-extension-install.json")
+	installMetadataBody, err := os.ReadFile(installMetadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(installMetadataBody), extensionDir) || !strings.Contains(string(installMetadataBody), `"type": "link"`) {
+		t.Fatalf("unexpected install metadata:\n%s", installMetadataBody)
+	}
+	envPath := filepath.Join(homeDir, ".gemini", "extensions", "gemini-extension-package", ".env")
+	assertFileContains(t, envPath, "RELEASE_PROFILE=stable")
+
+	configOutput := runGeminiConfig(t, geminiBin, homeDir, extensionDir, "gemini-extension-package", "release-profile", "canary\n")
+	if !strings.Contains(configOutput, `Setting "release-profile" updated.`) {
+		t.Fatalf("gemini config output missing success marker:\n%s", configOutput)
+	}
+	assertFileContains(t, envPath, "RELEASE_PROFILE=canary")
+
+	disableOutput := runGeminiCommand(t, geminiBin, homeDir, extensionDir, "extensions", "disable", "gemini-extension-package", "--scope", "user")
+	if !strings.Contains(disableOutput, `Extension "gemini-extension-package" successfully disabled for scope "user".`) {
+		t.Fatalf("gemini disable output missing success marker:\n%s", disableOutput)
+	}
+	assertEnablementRule(t, filepath.Join(homeDir, ".gemini", "extensions", "extension-enablement.json"), "gemini-extension-package", "!"+homeDir+"/*")
+
+	enableOutput := runGeminiCommand(t, geminiBin, homeDir, extensionDir, "extensions", "enable", "gemini-extension-package", "--scope", "user")
+	if !strings.Contains(enableOutput, `Extension "gemini-extension-package" successfully enabled for scope "user".`) {
+		t.Fatalf("gemini enable output missing success marker:\n%s", enableOutput)
+	}
+	assertEnablementRule(t, filepath.Join(homeDir, ".gemini", "extensions", "extension-enablement.json"), "gemini-extension-package", homeDir+"/*")
+
 	registryBody, err := os.ReadFile(filepath.Join(homeDir, ".gemini", "projects.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(string(registryBody)) == "{}" || strings.TrimSpace(string(registryBody)) == "" {
+	if !strings.Contains(string(registryBody), "hookplex") && (strings.TrimSpace(string(registryBody)) == "{}" || strings.TrimSpace(string(registryBody)) == "") {
 		t.Fatalf("gemini project registry was not updated:\n%s", registryBody)
 	}
 }
@@ -54,25 +84,37 @@ func geminiBinaryOrSkip(t *testing.T) string {
 }
 
 func runGeminiLink(t *testing.T, geminiBin, homeDir, extensionDir string) string {
+	return runGeminiCommandWithInput(t, geminiBin, homeDir, extensionDir, "stable\n", "extensions", "link", extensionDir, "--consent")
+}
+
+func runGeminiConfig(t *testing.T, geminiBin, homeDir, extensionDir, name, setting, input string) string {
+	return runGeminiCommandWithInput(t, geminiBin, homeDir, extensionDir, input, "extensions", "config", name, setting, "--scope", "user")
+}
+
+func runGeminiCommand(t *testing.T, geminiBin, homeDir, extensionDir string, args ...string) string {
+	return runGeminiCommandWithInput(t, geminiBin, homeDir, extensionDir, "", args...)
+}
+
+func runGeminiCommandWithInput(t *testing.T, geminiBin, homeDir, extensionDir, input string, args ...string) string {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, geminiBin, "extensions", "link", extensionDir, "--consent")
+	cmd := exec.CommandContext(ctx, geminiBin, args...)
 	cmd.Dir = extensionDir
 	cmd.Env = geminiCLIEnv(homeDir)
-	cmd.Stdin = strings.NewReader("plugin-kit-ai-gemini-e2e\n")
+	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("gemini extensions link timed out:\n%s", out)
+		t.Fatalf("gemini command %q timed out:\n%s", strings.Join(args, " "), out)
 	}
 	if err != nil {
 		if bytes.Contains(out, []byte("Please set an Auth method")) {
 			t.Skipf("gemini auth is not usable for isolated live e2e:\n%s", out)
 		}
-		t.Fatalf("gemini extensions link: %v\n%s", err, out)
+		t.Fatalf("gemini command %q: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	text := string(out)
-	t.Logf("gemini extensions link output: %s", truncateRunes(text, 4000))
+	t.Logf("gemini %s output: %s", strings.Join(args, " "), truncateRunes(text, 4000))
 	return text
 }
 
@@ -94,10 +136,10 @@ func geminiCLIEnv(homeDir string) []string {
 	out = append(out,
 		"HOME="+homeDir,
 		"USERPROFILE="+homeDir,
+		"GEMINI_CLI_HOME="+homeDir,
 		"XDG_CONFIG_HOME="+filepath.Join(homeDir, ".config"),
 		"XDG_DATA_HOME="+filepath.Join(homeDir, ".local", "share"),
 		"XDG_STATE_HOME="+filepath.Join(homeDir, ".local", "state"),
-		"RELEASE_API_TOKEN=plugin-kit-ai-gemini-e2e",
 	)
 	return out
 }
@@ -152,4 +194,39 @@ func seedGeminiHome(t *testing.T, homeDir string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func assertFileContains(t *testing.T, path, want string) {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), want) {
+		t.Fatalf("file %s missing %q:\n%s", path, want, body)
+	}
+}
+
+func assertEnablementRule(t *testing.T, path, extensionName, want string) {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var config map[string]struct {
+		Overrides []string `json:"overrides"`
+	}
+	if err := json.Unmarshal(body, &config); err != nil {
+		t.Fatalf("parse extension enablement: %v\n%s", err, body)
+	}
+	entry, ok := config[extensionName]
+	if !ok {
+		t.Fatalf("enablement config missing %q:\n%s", extensionName, body)
+	}
+	for _, override := range entry.Overrides {
+		if override == want {
+			return
+		}
+	}
+	t.Fatalf("enablement overrides for %q = %#v, want %q", extensionName, entry.Overrides, want)
 }

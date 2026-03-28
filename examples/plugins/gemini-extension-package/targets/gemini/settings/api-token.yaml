@@ -1,4 +1,0 @@
-name: "release-api-token"
-description: "Token used by release-checks MCP flows."
-env_var: "RELEASE_API_TOKEN"
-sensitive: true
