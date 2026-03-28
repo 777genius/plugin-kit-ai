@@ -41,10 +41,7 @@ func TestPaths_Gemini(t *testing.T) {
 	t.Parallel()
 	got := Paths("gemini", "my-plugin", true)
 	for _, want := range []string{
-		"go.mod",
-		filepath.Join("cmd", "my-plugin", "main.go"),
 		"plugin.yaml",
-		"launcher.yaml",
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
 		"README.md",
@@ -115,22 +112,28 @@ func TestPaths_ClaudeStableDefault(t *testing.T) {
 	}
 }
 
-func TestPathsForRuntime_GeminiPython(t *testing.T) {
+func TestPathsForRuntime_GeminiIgnoresExecutableScaffolding(t *testing.T) {
 	t.Parallel()
 	got := PathsForRuntime("gemini", "python", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
-		"launcher.yaml",
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
-		filepath.Join("src", "main.py"),
-		filepath.Join("bin", "my-plugin"),
-		filepath.Join("bin", "my-plugin.cmd"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		"launcher.yaml",
+		filepath.Join("src", "main.py"),
+		filepath.Join("bin", "my-plugin"),
+		filepath.Join("bin", "my-plugin.cmd"),
+	} {
+		if contains(got, unwanted) {
+			t.Fatalf("unexpected %q in %v", unwanted, got)
 		}
 	}
 }
@@ -237,9 +240,6 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
-		"launcher.yaml",
-		"go.mod",
-		filepath.Join("cmd", "my-plugin", "main.go"),
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
 		"README.md",
@@ -255,6 +255,15 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `context_file_name: "GEMINI.md"`) {
 		t.Fatalf("gemini package.yaml missing context_file_name:\n%s", body)
+	}
+	for _, rel := range []string{
+		"launcher.yaml",
+		"go.mod",
+		filepath.Join("cmd", "my-plugin", "main.go"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected Gemini starter file %s", rel)
+		}
 	}
 }
 
@@ -393,18 +402,6 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"`bash` in `PATH`",
 			},
 		},
-		{
-			name:     "gemini-python",
-			template: "gemini.README.executable.md.tmpl",
-			runtime:  "python",
-			wants: []string{
-				"Runtime claim: `packaging-only target`",
-				"system Python `3.10+`",
-				"plugin-kit-ai render .",
-				"plugin-kit-ai validate . --platform gemini --strict",
-				"CI-grade readiness gate",
-			},
-		},
 	}
 
 	for _, tc := range cases {
@@ -463,9 +460,12 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 			name:     "gemini-go",
 			template: "gemini.README.md.tmpl",
 			wants: []string{
+				"Platform family: `extension_package`",
+				"Launcher contract: `none`",
 				"Runtime claim: `packaging-only target`",
 				"plugin-kit-ai render .",
 				"plugin-kit-ai validate . --platform gemini --strict",
+				"no `launcher.yaml`",
 				"`targets/gemini/package.yaml`",
 			},
 		},
@@ -488,6 +488,18 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBuildPlan_GeminiRejectsExplicitRuntime(t *testing.T) {
+	t.Parallel()
+	_, err := BuildPlan(Data{
+		ProjectName: "my-plugin",
+		Platform:    "gemini",
+		Runtime:     "python",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--runtime is not supported with --platform gemini") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

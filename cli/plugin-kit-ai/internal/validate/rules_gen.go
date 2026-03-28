@@ -44,9 +44,7 @@ var generatedRules = map[string]Rule{
 			"targets/gemini/package.yaml",
 		},
 		ForbiddenFiles: []string{},
-		BuildTargets: []string{
-			"./...",
-		},
+		BuildTargets:   []string{},
 	},
 }
 

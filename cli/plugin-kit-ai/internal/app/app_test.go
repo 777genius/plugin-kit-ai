@@ -174,9 +174,7 @@ func TestInitRunner_geminiPackagingStarter(t *testing.T) {
 		t.Fatalf("out = %q, want %q", got, out)
 	}
 	for _, rel := range []string{
-		"go.mod",
 		"plugin.yaml",
-		filepath.Join("cmd", "genplug", "main.go"),
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("contexts", "GEMINI.md"),
 		"GEMINI.md",
@@ -197,6 +195,15 @@ func TestInitRunner_geminiPackagingStarter(t *testing.T) {
 			t.Fatalf("gemini manifest missing %q:\n%s", want, manifest)
 		}
 	}
+	for _, rel := range []string{
+		"go.mod",
+		"launcher.yaml",
+		filepath.Join("cmd", "genplug", "main.go"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected gemini runtime scaffold file %s", rel)
+		}
+	}
 }
 
 func TestInitRunner_geminiRejectsInvalidExtensionNameEarly(t *testing.T) {
@@ -208,6 +215,19 @@ func TestInitRunner_geminiRejectsInvalidExtensionNameEarly(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	if !strings.Contains(err.Error(), "invalid Gemini extension name") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestInitRunner_geminiRejectsRuntimeFlag(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	_, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "gemini", Runtime: "python", OutputDir: out})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--runtime is not supported with --platform gemini") {
 		t.Fatalf("error = %q", err)
 	}
 }

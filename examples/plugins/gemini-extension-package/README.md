@@ -5,10 +5,11 @@ Reference Gemini CLI extension repo for the current `plugin-kit-ai` packaging wo
 Packaging contract:
 
 - official-style `gemini-extension.json`
-- shared MCP from `mcp/servers.json`
-- one primary root context file
-- native Gemini commands and policies
-- manifest-driven settings and themes
+- inline `mcpServers` rendered from `mcp/servers.json`
+- one primary root context file plus extra extension contexts
+- native Gemini commands, hooks, and policies
+- manifest-driven `migratedTo`, settings, themes, and `plan.directory`
+- `targets/gemini/manifest.extra.json` as the forward-compatible escape hatch
 
 This example is intentionally `packaging-only`. It does not claim Gemini runtime parity with Claude or Codex.
 
@@ -19,6 +20,5 @@ plugin-kit-ai normalize .
 plugin-kit-ai render .
 plugin-kit-ai render --check .
 plugin-kit-ai validate . --platform gemini --strict
-go test ./...
-go build -o bin/gemini-extension-package ./cmd/gemini-extension-package
+gemini extensions link .
 ```

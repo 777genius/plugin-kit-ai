@@ -262,7 +262,7 @@ func validateClaudeHookEntrypoints(body []byte, entrypoint string) ([]string, er
 				}
 				foundCommand = true
 				if strings.TrimSpace(command.Command) != expected {
-					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses %q; expected %q from plugin.yaml entrypoint", hookName, command.Command, expected))
+					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses %q; expected %q from launcher.yaml entrypoint", hookName, command.Command, expected))
 				}
 			}
 		}
@@ -596,8 +596,9 @@ func loadGeminiSettings(root string, rels []string) ([]map[string]any, error) {
 			return nil, fmt.Errorf("parse %s: %w", rel, err)
 		}
 		_, hasSensitive := raw["sensitive"]
-		if strings.TrimSpace(setting.Name) == "" || strings.TrimSpace(setting.Description) == "" || strings.TrimSpace(setting.EnvVar) == "" || !hasSensitive {
-			return nil, fmt.Errorf("invalid %s: Gemini settings require name, description, env_var, and sensitive", rel)
+		_, sensitiveIsBool := raw["sensitive"].(bool)
+		if strings.TrimSpace(setting.Name) == "" || strings.TrimSpace(setting.Description) == "" || strings.TrimSpace(setting.EnvVar) == "" || !hasSensitive || !sensitiveIsBool {
+			return nil, fmt.Errorf("invalid %s: Gemini settings require string name, description, env_var, and boolean sensitive", rel)
 		}
 		settings = append(settings, map[string]any{
 			"name":        setting.Name,
@@ -629,6 +630,9 @@ func loadGeminiThemes(root string, rels []string) ([]map[string]any, error) {
 		name, _ := raw["name"].(string)
 		if strings.TrimSpace(name) == "" {
 			return nil, fmt.Errorf("invalid %s: Gemini themes require name", rel)
+		}
+		if len(raw) <= 1 {
+			return nil, fmt.Errorf("invalid %s: Gemini themes require at least one theme token besides name", rel)
 		}
 		theme := map[string]any{}
 		for key, value := range raw {

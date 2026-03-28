@@ -27,6 +27,20 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
+			if platform == "gemini" {
+				validate := exec.Command(bin, "validate", plugRoot, "--platform", platform)
+				validate.Env = append(os.Environ(), "GOWORK=off")
+				if out, err := validate.CombinedOutput(); err != nil {
+					t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
+				}
+				if _, err := os.Stat(filepath.Join(plugRoot, "launcher.yaml")); !os.IsNotExist(err) {
+					t.Fatalf("gemini starter unexpectedly wrote launcher.yaml")
+				}
+				if _, err := os.Stat(filepath.Join(plugRoot, "go.mod")); !os.IsNotExist(err) {
+					t.Fatalf("gemini starter unexpectedly wrote go.mod")
+				}
+				return
+			}
 
 			replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
 			modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
@@ -40,7 +54,6 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 			if out, err := validate.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 			}
-
 			tidy := exec.Command("go", "mod", "tidy")
 			tidy.Dir = plugRoot
 			tidy.Env = append(os.Environ(), "GOWORK=off")

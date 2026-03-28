@@ -12,9 +12,11 @@
       "command": "node"
     }
   },
+  "migratedTo": "https://github.com/plugin-kit-ai/example-gemini-extension-v2",
   "name": "gemini-extension-package",
   "plan": {
-    "directory": ".gemini/plans"
+    "directory": ".gemini/plans",
+    "retentionDays": 7
   },
   "settings": [
     {
@@ -40,5 +42,6 @@
       }
     }
   ],
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "x_galleryTopic": "gemini-cli-extension"
 }

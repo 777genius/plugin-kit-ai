@@ -27,9 +27,9 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetMatrix := string(targetMatrixBody)
-	mustContain(t, targetMatrix, "| claude | hook_runtime | plugin | marketplace or local plugin install |")
-	mustContain(t, targetMatrix, "| codex | mixed_package_runtime | plugin | plugin directory or marketplace cache |")
-	mustContain(t, targetMatrix, "| gemini | mcp_extension | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | packaging-only target |")
+	mustContain(t, targetMatrix, "| claude | packaged_runtime | hook_runtime | required | plugin | marketplace or local plugin install |")
+	mustContain(t, targetMatrix, "| codex | packaged_runtime | mixed_package_runtime | required | plugin | plugin directory or marketplace cache |")
+	mustContain(t, targetMatrix, "| gemini | extension_package | mcp_extension | ignored | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | packaging-only target |")
 
 	cmd := exec.Command(pluginKitAIBin, "capabilities", "--mode", "runtime", "--format", "json")
 	out, err := cmd.CombinedOutput()
@@ -72,7 +72,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustContain(t, string(rootReadme), "Gemini extension packaging target through `render|import`")
+	mustContain(t, string(rootReadme), "Gemini CLI extension packaging target through `render|import|validate`")
 	mustContain(t, string(rootReadme), "### Fast Local Plugin")
 	mustContain(t, string(rootReadme), "### Production-Ready Plugin Repo")
 	mustContain(t, string(rootReadme), "### Already Have Native Config")
@@ -85,13 +85,13 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(cliReadme), "## Production-Ready Plugin Repo")
 	mustContain(t, string(cliReadme), "## Already Have Native Config")
 	mustContain(t, string(cliReadme), "Reference repos: [../../examples/local/README.md](../../examples/local/README.md)")
-	mustContain(t, string(cliReadme), "Gemini is currently a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target.")
+	mustContain(t, string(cliReadme), "Gemini is currently a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai capabilities` defaults to the target/package view")
 	mustContain(t, string(cliReadme), "| `node` | public-beta | repo-local only | system Node.js `20+`; TypeScript via build-to-JS only |")
 	mustContain(t, string(cliReadme), "Generated Claude/Codex config shapes are part of the repo-owned contract surface")
 	mustContain(t, string(pluginsExamplesReadme), "# Production Plugin Examples")
 	mustContain(t, string(pluginsExamplesReadme), "For repo-local Python/Node entrance examples, see [../local/README.md](../local/README.md).")
-	mustContain(t, string(supportDoc), "Gemini: packaging-only Gemini CLI extension target through `plugin-kit-ai render|import`; not a production-ready runtime target")
+	mustContain(t, string(supportDoc), "Gemini: packaging-only Gemini CLI extension target through `plugin-kit-ai render|import|validate`; not a production-ready runtime target")
 	mustContain(t, string(supportDoc), "unsupported scope is dependency installation, package management, and packaged distribution through `plugin-kit-ai install`")
 	mustContain(t, string(supportDoc), "target/package contract matrix")
 	mustContain(t, string(supportDoc), "generated Claude/Codex config wiring is a repo-owned contract surface guarded by `render --check`")

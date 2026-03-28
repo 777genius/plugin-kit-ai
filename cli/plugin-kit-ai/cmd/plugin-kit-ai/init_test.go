@@ -43,7 +43,7 @@ func TestInitHelpIncludesScenarioLanesAndDefaults(t *testing.T) {
 		"Already have native config",
 		"plugin-kit-ai import",
 		`--platform   Supported: "codex" (default), "claude", and "gemini".`,
-		`--runtime    Supported: "go" (default), "python", "node", "shell".`,
+		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets.`,
 		"--runtime go remains the default",
 		"--claude-extended-hooks",
 	} {
@@ -125,7 +125,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 		{
 			name:         "gemini-go",
 			args:         []string{"demo", "--platform", "gemini"},
-			wantRuntime:  "go",
+			wantRuntime:  "",
 			wantPlatform: "gemini",
 			want: []string{
 				"plugin-kit-ai render .",

@@ -46,7 +46,7 @@ func TestGeneratedRegistryCompleteness(t *testing.T) {
 			if len(profile.Scaffold.RequiredFiles) == 0 || len(profile.Scaffold.TemplateFiles) == 0 {
 				t.Fatalf("missing scaffold metadata for %s", profile.Platform)
 			}
-			if len(profile.Validate.RequiredFiles) == 0 || len(profile.Validate.BuildTargets) == 0 {
+			if len(profile.Validate.RequiredFiles) == 0 {
 				t.Fatalf("missing validate metadata for %s", profile.Platform)
 			}
 		}

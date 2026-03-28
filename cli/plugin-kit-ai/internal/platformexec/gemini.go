@@ -60,6 +60,7 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	copied, err = copyArtifactDirs(root,
 		artifactDir{src: "commands", dst: filepath.Join("targets", "gemini", "commands")},
 		artifactDir{src: "policies", dst: filepath.Join("targets", "gemini", "policies")},
+		artifactDir{src: "contexts", dst: filepath.Join("targets", "gemini", "contexts")},
 	)
 	if err != nil {
 		return ImportResult{}, err
@@ -113,6 +114,9 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
 	}
+	if err := validateGeminiRenderReady(root, graph, state, meta); err != nil {
+		return nil, err
+	}
 	manifest := map[string]any{
 		"name":        graph.Manifest.Name,
 		"version":     graph.Manifest.Version,
@@ -123,7 +127,7 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 	}
 	var artifacts []pluginmodel.Artifact
 	if len(meta.ExcludeTools) > 0 {
-		manifest["excludeTools"] = append([]string(nil), meta.ExcludeTools...)
+		manifest["excludeTools"] = append([]string(nil), normalizeGeminiExcludeTools(meta.ExcludeTools)...)
 	}
 	if strings.TrimSpace(meta.MigratedTo) != "" {
 		manifest["migratedTo"] = meta.MigratedTo
@@ -154,18 +158,7 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 	}
 	if extra, err := loadNativeExtraDoc(root, state, "manifest_extra", pluginmodel.NativeDocFormatJSON); err != nil {
 		return nil, err
-	} else if err := pluginmodel.MergeNativeExtraObject(manifest, extra, "gemini manifest.extra.json", []string{
-		"name",
-		"version",
-		"description",
-		"mcpServers",
-		"contextFileName",
-		"excludeTools",
-		"migratedTo",
-		"settings",
-		"themes",
-		"plan.directory",
-	}); err != nil {
+	} else if err := pluginmodel.MergeNativeExtraObject(manifest, extra, "gemini manifest.extra.json", geminiManifestManagedPaths()); err != nil {
 		return nil, err
 	}
 	manifestJSON, err := marshalJSON(manifest)
@@ -224,40 +217,56 @@ func (geminiAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 		})
 	}
 	if graph.Portable.MCP != nil {
-		for serverName, raw := range graph.Portable.MCP.Servers {
-			server, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
-			if _, blocked := server["trust"]; blocked {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: SeverityFailure,
-					Code:     CodeManifestInvalid,
-					Path:     graph.Portable.MCP.Path,
-					Target:   "gemini",
-					Message:  fmt.Sprintf("Gemini extension MCP server %q may not set trust", serverName),
-				})
-			}
-			command, _ := server["command"].(string)
-			_, hasArgs := server["args"]
-			if strings.Contains(strings.TrimSpace(command), " ") && !hasArgs {
-				diagnostics = append(diagnostics, Diagnostic{
-					Severity: SeverityWarning,
-					Code:     CodeGeminiMCPCommandStyle,
-					Path:     graph.Portable.MCP.Path,
-					Target:   "gemini",
-					Message:  fmt.Sprintf("Gemini extension MCP server %q uses a space-delimited command string; prefer command plus args", serverName),
-				})
-			}
-		}
+		diagnostics = append(diagnostics, validateGeminiMCPServers(graph.Portable.MCP.Path, graph.Portable.MCP.Servers)...)
 	}
+	diagnostics = append(diagnostics, validateGeminiExcludeTools(state.DocPath("package_metadata"), meta.ExcludeTools)...)
 	diagnostics = append(diagnostics, validateGeminiContext(graph, state, meta)...)
 	diagnostics = append(diagnostics, validateGeminiSettings(root, state.ComponentPaths("settings"))...)
 	diagnostics = append(diagnostics, validateGeminiThemes(root, state.ComponentPaths("themes"))...)
 	diagnostics = append(diagnostics, validateGeminiPolicies(root, state.ComponentPaths("policies"))...)
 	diagnostics = append(diagnostics, validateGeminiCommands(root, state.ComponentPaths("commands"))...)
-	diagnostics = append(diagnostics, validateGeminiJSONFileKinds(root, state.ComponentPaths("hooks"))...)
+	diagnostics = append(diagnostics, validateGeminiHookFiles(root, state.ComponentPaths("hooks"))...)
 	return diagnostics, nil
+}
+
+func geminiManifestManagedPaths() []string {
+	return []string{
+		"name",
+		"version",
+		"description",
+		"mcpServers",
+		"contextFileName",
+		"excludeTools",
+		"migratedTo",
+		"settings",
+		"themes",
+		"plan.directory",
+	}
+}
+
+func validateGeminiRenderReady(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) error {
+	if failures := collectDiagnosticMessages(validateGeminiExcludeTools(state.DocPath("package_metadata"), meta.ExcludeTools), SeverityFailure); len(failures) > 0 {
+		return fmt.Errorf(failures[0])
+	}
+	if graph.Portable.MCP != nil {
+		if failures := collectDiagnosticMessages(validateGeminiMCPServers(graph.Portable.MCP.Path, graph.Portable.MCP.Servers), SeverityFailure); len(failures) > 0 {
+			return fmt.Errorf(failures[0])
+		}
+	}
+	if failures := collectDiagnosticMessages(validateGeminiHookFiles(root, state.ComponentPaths("hooks")), SeverityFailure); len(failures) > 0 {
+		return fmt.Errorf(failures[0])
+	}
+	return nil
+}
+
+func collectDiagnosticMessages(diagnostics []Diagnostic, severity DiagnosticSeverity) []string {
+	var messages []string
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == severity {
+			messages = append(messages, diagnostic.Message)
+		}
+	}
+	return messages
 }
 
 func importedGeminiPackageYAML(meta geminiPackageMeta) []byte {
@@ -423,6 +432,206 @@ func validateGeminiContext(graph pluginmodel.PackageGraph, state pluginmodel.Tar
 	}}
 }
 
+func normalizeGeminiExcludeTools(values []string) []string {
+	var out []string
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func validateGeminiExcludeTools(path string, values []string) []Diagnostic {
+	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			return []Diagnostic{{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  "Gemini exclude_tools entries must be non-empty strings naming built-in tools",
+			}}
+		}
+	}
+	return nil
+}
+
+func validateGeminiMCPServers(path string, servers map[string]any) []Diagnostic {
+	var diagnostics []Diagnostic
+	for serverName, raw := range servers {
+		server, ok := raw.(map[string]any)
+		if !ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q must be a JSON object", serverName),
+			})
+			continue
+		}
+		if _, blocked := server["trust"]; blocked {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q may not set trust", serverName),
+			})
+		}
+		command, hasCommand := geminiOptionalString(server["command"])
+		url, hasURL := geminiOptionalString(server["url"])
+		httpURL, hasHTTPURL := geminiOptionalString(server["httpUrl"])
+		transportCount := 0
+		if hasCommand {
+			transportCount++
+		}
+		if hasURL {
+			transportCount++
+		}
+		if hasHTTPURL {
+			transportCount++
+		}
+		if transportCount != 1 {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q must define exactly one transport via command, url, or httpUrl", serverName),
+			})
+		}
+		if hasArgs := server["args"] != nil; hasArgs && !hasCommand {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q may only use args with command-based stdio transport", serverName),
+			})
+		}
+		if hasEnv := server["env"] != nil; hasEnv && !hasCommand {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q may only use env with command-based stdio transport", serverName),
+			})
+		}
+		if hasCwd := server["cwd"] != nil; hasCwd && !hasCommand {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q may only use cwd with command-based stdio transport", serverName),
+			})
+		}
+		if value, ok := server["args"]; ok {
+			items, valid := geminiStringSlice(value)
+			if !valid {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     path,
+					Target:   "gemini",
+					Message:  fmt.Sprintf("Gemini extension MCP server %q args must be an array of strings", serverName),
+				})
+			} else if len(items) == 0 {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     path,
+					Target:   "gemini",
+					Message:  fmt.Sprintf("Gemini extension MCP server %q args may not be empty when provided", serverName),
+				})
+			}
+		}
+		if value, ok := server["env"]; ok {
+			if _, valid := geminiStringMap(value); !valid {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     path,
+					Target:   "gemini",
+					Message:  fmt.Sprintf("Gemini extension MCP server %q env must be an object of string values", serverName),
+				})
+			}
+		}
+		if value, ok := server["cwd"]; ok {
+			if cwd, ok := value.(string); !ok || strings.TrimSpace(cwd) == "" {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     path,
+					Target:   "gemini",
+					Message:  fmt.Sprintf("Gemini extension MCP server %q cwd must be a non-empty string", serverName),
+				})
+			}
+		}
+		if hasCommand && strings.Contains(command, " ") && server["args"] == nil {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityWarning,
+				Code:     CodeGeminiMCPCommandStyle,
+				Path:     path,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini extension MCP server %q uses a space-delimited command string; prefer command plus args", serverName),
+			})
+		}
+		_ = url
+		_ = httpURL
+	}
+	return diagnostics
+}
+
+func geminiOptionalString(value any) (string, bool) {
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", false
+	}
+	return text, true
+}
+
+func geminiStringSlice(value any) ([]string, bool) {
+	raw, ok := value.([]any)
+	if !ok {
+		return nil, false
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		text, ok := item.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, false
+		}
+		out = append(out, strings.TrimSpace(text))
+	}
+	return out, true
+}
+
+func geminiStringMap(value any) (map[string]string, bool) {
+	raw, ok := value.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	out := make(map[string]string, len(raw))
+	for key, item := range raw {
+		text, ok := item.(string)
+		if !ok {
+			return nil, false
+		}
+		out[key] = text
+	}
+	return out, true
+}
+
 func geminiContextMatches(graph pluginmodel.PackageGraph, state pluginmodel.TargetState, name string) []string {
 	var matches []string
 	seen := map[string]struct{}{}
@@ -456,16 +665,24 @@ func validateGeminiSettings(root string, rels []string) []Diagnostic {
 		}
 		var setting geminiSetting
 		if err := yaml.Unmarshal(body, &setting); err != nil {
-			continue
-		}
-		_, hasSensitive := raw["sensitive"]
-		if strings.TrimSpace(setting.Name) == "" || strings.TrimSpace(setting.Description) == "" || strings.TrimSpace(setting.EnvVar) == "" || !hasSensitive {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "gemini",
-				Message:  fmt.Sprintf("Gemini setting file %s must define name, description, env_var, and sensitive", rel),
+				Message:  fmt.Sprintf("Gemini setting file %s is invalid YAML: %v", rel, err),
+			})
+			continue
+		}
+		_, hasSensitive := raw["sensitive"]
+		_, sensitiveIsBool := raw["sensitive"].(bool)
+		if strings.TrimSpace(setting.Name) == "" || strings.TrimSpace(setting.Description) == "" || strings.TrimSpace(setting.EnvVar) == "" || !hasSensitive || !sensitiveIsBool {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini setting file %s must define string name, description, env_var, and boolean sensitive", rel),
 			})
 		}
 	}
@@ -494,6 +711,15 @@ func validateGeminiThemes(root string, rels []string) []Diagnostic {
 				Path:     rel,
 				Target:   "gemini",
 				Message:  fmt.Sprintf("Gemini theme file %s must define name", rel),
+			})
+		}
+		if len(raw) <= 1 {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini theme file %s must define at least one theme token besides name", rel),
 			})
 		}
 	}
@@ -568,7 +794,7 @@ func validateGeminiCommands(root string, rels []string) []Diagnostic {
 	return diagnostics
 }
 
-func validateGeminiJSONFileKinds(root string, rels []string) []Diagnostic {
+func validateGeminiHookFiles(root string, rels []string) []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, rel := range rels {
 		body, err := os.ReadFile(filepath.Join(root, rel))
@@ -582,14 +808,35 @@ func validateGeminiJSONFileKinds(root string, rels []string) []Diagnostic {
 			})
 			continue
 		}
-		var discard any
+		var discard map[string]any
 		if err := json.Unmarshal(body, &discard); err != nil {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "gemini",
-				Message:  fmt.Sprintf("Gemini JSON asset %s is invalid JSON: %v", rel, err),
+				Message:  fmt.Sprintf("Gemini hooks file %s is invalid JSON: %v", rel, err),
+			})
+			continue
+		}
+		hooks, ok := discard["hooks"].(map[string]any)
+		if !ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini hooks file %s must define a top-level hooks object", rel),
+			})
+			continue
+		}
+		if hooks == nil {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "gemini",
+				Message:  fmt.Sprintf("Gemini hooks file %s must define a top-level hooks object", rel),
 			})
 		}
 	}

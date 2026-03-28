@@ -76,19 +76,21 @@ func newTargetComponents(target string) TargetComponents {
 }
 
 type InspectTarget struct {
-	Target            string   `json:"target"`
-	TargetClass       string   `json:"target_class"`
-	TargetNoun        string   `json:"target_noun,omitempty"`
-	ProductionClass   string   `json:"production_class"`
-	RuntimeContract   string   `json:"runtime_contract"`
-	InstallModel      string   `json:"install_model,omitempty"`
-	DevModel          string   `json:"dev_model,omitempty"`
-	ActivationModel   string   `json:"activation_model,omitempty"`
-	NativeRoot        string   `json:"native_root,omitempty"`
-	PortableKinds     []string `json:"portable_kinds"`
-	TargetNativeKinds []string `json:"target_native_kinds"`
-	ManagedArtifacts  []string `json:"managed_artifacts"`
-	UnsupportedKinds  []string `json:"unsupported_kinds,omitempty"`
+	Target              string   `json:"target"`
+	PlatformFamily      string   `json:"platform_family"`
+	TargetClass         string   `json:"target_class"`
+	LauncherRequirement string   `json:"launcher_requirement"`
+	TargetNoun          string   `json:"target_noun,omitempty"`
+	ProductionClass     string   `json:"production_class"`
+	RuntimeContract     string   `json:"runtime_contract"`
+	InstallModel        string   `json:"install_model,omitempty"`
+	DevModel            string   `json:"dev_model,omitempty"`
+	ActivationModel     string   `json:"activation_model,omitempty"`
+	NativeRoot          string   `json:"native_root,omitempty"`
+	PortableKinds       []string `json:"portable_kinds"`
+	TargetNativeKinds   []string `json:"target_native_kinds"`
+	ManagedArtifacts    []string `json:"managed_artifacts"`
+	UnsupportedKinds    []string `json:"unsupported_kinds,omitempty"`
 }
 
 type Inspection struct {
@@ -426,19 +428,21 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 		}
 		tc := graph.Targets[name]
 		inspection.Targets = append(inspection.Targets, InspectTarget{
-			Target:            name,
-			TargetClass:       entry.TargetClass,
-			TargetNoun:        entry.TargetNoun,
-			ProductionClass:   entry.ProductionClass,
-			RuntimeContract:   entry.RuntimeContract,
-			InstallModel:      entry.InstallModel,
-			DevModel:          entry.DevModel,
-			ActivationModel:   entry.ActivationModel,
-			NativeRoot:        entry.NativeRoot,
-			PortableKinds:     entry.PortableComponentKinds,
-			TargetNativeKinds: DiscoveredTargetKinds(tc),
-			ManagedArtifacts:  expectedManagedPaths(root, graph, []string{name}),
-			UnsupportedKinds:  unsupportedKinds(entry, graph, tc),
+			Target:              name,
+			PlatformFamily:      entry.PlatformFamily,
+			TargetClass:         entry.TargetClass,
+			LauncherRequirement: entry.LauncherRequirement,
+			TargetNoun:          entry.TargetNoun,
+			ProductionClass:     entry.ProductionClass,
+			RuntimeContract:     entry.RuntimeContract,
+			InstallModel:        entry.InstallModel,
+			DevModel:            entry.DevModel,
+			ActivationModel:     entry.ActivationModel,
+			NativeRoot:          entry.NativeRoot,
+			PortableKinds:       entry.PortableComponentKinds,
+			TargetNativeKinds:   DiscoveredTargetKinds(tc),
+			ManagedArtifacts:    expectedManagedPaths(root, graph, []string{name}),
+			UnsupportedKinds:    unsupportedKinds(entry, graph, tc),
 		})
 	}
 	return inspection, warnings, nil
@@ -1276,7 +1280,7 @@ func ValidateClaudeHookEntrypoints(body []byte, entrypoint string) ([]string, er
 					continue
 				}
 				if command.Command != expected {
-					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses %q; expected %q from plugin.yaml entrypoint", hookName, command.Command, expected))
+					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses %q; expected %q from launcher.yaml entrypoint", hookName, command.Command, expected))
 				}
 			}
 		}

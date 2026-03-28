@@ -49,6 +49,9 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			if tc.platform == "codex" {
 				assertCodexConfig(t, tc.dir, "gpt-5.4-mini", "./bin/codex-basic-prod")
 			}
+			if tc.platform == "gemini" {
+				return
+			}
 
 			testCmd := exec.Command("go", "test", "./...")
 			testCmd.Dir = tc.dir

@@ -99,7 +99,7 @@ func validateModel(m model) error {
 			if len(p.Scaffold.RequiredFiles) == 0 || len(p.Scaffold.TemplateFiles) == 0 {
 				return fmt.Errorf("platform profile %s missing scaffold metadata", p.Platform)
 			}
-			if len(p.Validate.RequiredFiles) == 0 || len(p.Validate.BuildTargets) == 0 {
+			if len(p.Validate.RequiredFiles) == 0 {
 				return fmt.Errorf("platform profile %s missing validate metadata", p.Platform)
 			}
 		}
@@ -290,7 +290,7 @@ func renderCompletenessTest(m model) string {
 	b.WriteString("\t\tif len(profile.TransportModes) == 0 { t.Fatalf(\"missing transport modes for %s\", profile.Platform) }\n")
 	b.WriteString("\t\tif profile.Status != \"deferred\" {\n")
 	b.WriteString("\t\t\tif len(profile.Scaffold.RequiredFiles) == 0 || len(profile.Scaffold.TemplateFiles) == 0 { t.Fatalf(\"missing scaffold metadata for %s\", profile.Platform) }\n")
-	b.WriteString("\t\t\tif len(profile.Validate.RequiredFiles) == 0 || len(profile.Validate.BuildTargets) == 0 { t.Fatalf(\"missing validate metadata for %s\", profile.Platform) }\n")
+	b.WriteString("\t\t\tif len(profile.Validate.RequiredFiles) == 0 { t.Fatalf(\"missing validate metadata for %s\", profile.Platform) }\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n")

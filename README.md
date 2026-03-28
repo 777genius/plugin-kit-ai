@@ -44,7 +44,7 @@ Stable in `v1.0.0`:
 Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
-- Gemini extension packaging target through `render|import`
+- Gemini CLI extension packaging target through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, contexts, settings, themes, commands, hooks, and policies
 - executable runtime scaffolds for `python`, `node`, and `shell`
 - optional scaffold extras from `plugin-kit-ai init --extras`
 
@@ -151,9 +151,9 @@ That means:
 - `import` is the bridge from current native Claude/Codex/Gemini layouts back into the package-standard authored layout
 - `normalize` rewrites `plugin.yaml` into canonical package-standard shape and removes unknown fields
 
-`plugin-kit-ai validate` checks package-standard projects, generated-artifact drift, manifest warnings, and Claude authored-hook routing consistency against `plugin.yaml.entrypoint`.
+`plugin-kit-ai validate` checks package-standard projects, generated-artifact drift, manifest warnings, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
 `plugin-kit-ai capabilities` now defaults to target/package introspection. Use `--mode runtime` for Claude/Codex event support, and use the default target view for package class, production boundary, and managed-artifact coverage.
-Generated Claude/Codex config shapes are part of the repo-owned contract surface and are guarded by `render --check` plus deterministic `polyglot-smoke` canaries. Claude authored hook routing consistency with `plugin.yaml.entrypoint` is enforced separately by `validate --strict`.
+Generated Claude/Codex config shapes are part of the repo-owned contract surface and are guarded by `render --check` plus deterministic `polyglot-smoke` canaries. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced separately by `validate --strict`.
 
 In practice, that gives the repo one clear split:
 

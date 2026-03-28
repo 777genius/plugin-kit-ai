@@ -275,16 +275,18 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	  "description":"gemini demo",
 	  "contextFileName":"TEAM.md",
 	  "excludeTools":["run_shell_command(rm -rf)"],
+	  "migratedTo":"https://github.com/example/gemini-demo-v2",
 	  "plan":{"directory":".gemini/plans","retentionDays":7},
 	  "settings":[{"name":"api-token","description":"token","envVar":"API_TOKEN","sensitive":true}],
-	  "themes":[{"name":"release-dawn","background":"#fff9f2"}],
+	  "themes":[{"name":"release-dawn","background":"#fff9f2","text":"#2e1f14"}],
 	  "mcpServers":{"demo":{"command":"demo","args":["serve"]}},
-	  "galleryTopic":"gemini-cli-extension"
+	  "x_galleryTopic":"gemini-cli-extension"
 	}`)
 	mustWritePluginFile(t, root, "TEAM.md", "# Team\n")
+	mustWritePluginFile(t, root, filepath.Join("contexts", "RELEASE.md"), "# Release\n")
 	mustWritePluginFile(t, root, filepath.Join("commands", "release", "deploy.toml"), "description = \"deploy\"\n")
 	mustWritePluginFile(t, root, filepath.Join("policies", "review.toml"), "name = \"review\"\n")
-	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), "{}\n")
+	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), "{\"hooks\":{}}\n")
 
 	manifest, _, err := Import(root, "gemini", false)
 	if err != nil {
@@ -318,7 +320,7 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"context_file_name: TEAM.md", "exclude_tools:", "plan_directory: .gemini/plans"} {
+	for _, want := range []string{"context_file_name: TEAM.md", "exclude_tools:", "migrated_to: https://github.com/example/gemini-demo-v2", "plan_directory: .gemini/plans"} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("package metadata missing %q:\n%s", want, body)
 		}
@@ -326,11 +328,14 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "contexts", "TEAM.md")); err != nil {
 		t.Fatalf("stat imported custom primary context: %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "contexts", "RELEASE.md")); err != nil {
+		t.Fatalf("stat imported extra Gemini context: %v", err)
+	}
 	extra, err := os.ReadFile(filepath.Join(root, "targets", "gemini", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(extra), `"galleryTopic": "gemini-cli-extension"`) || !strings.Contains(string(extra), `"retentionDays": 7`) {
+	if !strings.Contains(string(extra), `"x_galleryTopic": "gemini-cli-extension"`) || !strings.Contains(string(extra), `"retentionDays": 7`) {
 		t.Fatalf("manifest extra = %s", extra)
 	}
 }
@@ -348,8 +353,8 @@ func TestImport_AmbiguousNativeLayoutsRequireExplicitFrom(t *testing.T) {
 
 func TestRender_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
-	mustSavePackage(t, root, manifest, "go")
+	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
 	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), `gemini manifest.extra.json may not override canonical field "plan.directory"`) {
@@ -359,15 +364,17 @@ func TestRender_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
 
 func TestRender_GeminiManifestParity(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
-	mustSavePackage(t, root, manifest, "go")
+	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["${extensionPath}/server.mjs"]}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nplan_directory: .gemini/plans\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nmigrated_to: https://github.com/example/demo-gemini-v2\nplan_directory: .gemini/plans\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: true\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\ntext: \"#2e1f14\"\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "commands", "deploy.toml"), "description = \"deploy\"\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "RELEASE.md"), "# Release\n")
 	result, err := Render(root, "gemini")
 	if err != nil {
 		t.Fatal(err)
@@ -383,7 +390,7 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	if err := json.Unmarshal(body, &rendered); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"mcpServers", "excludeTools", "plan", "settings", "themes", "contextFileName", "galleryTopic"} {
+	for _, key := range []string{"mcpServers", "excludeTools", "migratedTo", "plan", "settings", "themes", "contextFileName", "x_galleryTopic"} {
 		if _, ok := rendered[key]; !ok {
 			t.Fatalf("rendered manifest missing %q: %s", key, body)
 		}
@@ -392,11 +399,20 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	if plan["directory"] != ".gemini/plans" || plan["retentionDays"] != float64(7) {
 		t.Fatalf("plan = %#v", plan)
 	}
+	if rendered["migratedTo"] != "https://github.com/example/demo-gemini-v2" {
+		t.Fatalf("migratedTo = %#v", rendered["migratedTo"])
+	}
 	if _, err := os.Stat(filepath.Join(root, "commands", "deploy.toml")); err != nil {
 		t.Fatalf("stat generated command: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "GEMINI.md")); err != nil {
 		t.Fatalf("stat generated primary context: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "contexts", "RELEASE.md")); err != nil {
+		t.Fatalf("stat generated extra context: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "hooks", "hooks.json")); err != nil {
+		t.Fatalf("stat generated hooks: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, "settings", "api-token.yaml")); !os.IsNotExist(err) {
 		t.Fatalf("settings should be rendered into manifest, err=%v", err)
@@ -405,8 +421,8 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 
 func TestRender_GeminiRejectsMalformedStructuredSettingsAndThemes(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
-	mustSavePackage(t, root, manifest, "go")
+	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "broken.yaml"), "name: broken\n")
 
@@ -415,8 +431,25 @@ func TestRender_GeminiRejectsMalformedStructuredSettingsAndThemes(t *testing.T) 
 	}
 
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "broken.yaml"), "name: fixed\ndescription: desc\nenv_var: FIXED\nsensitive: false\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "background: \"#fff\"\n")
-	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "Gemini themes require name") {
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: broken\n")
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "Gemini themes require at least one theme token besides name") {
+		t.Fatalf("Render error = %v", err)
+	}
+}
+
+func TestRender_GeminiRejectsInvalidMCPTransportAndExcludeTools(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","url":"https://example.com/sse"}}`)
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "must define exactly one transport") {
+		t.Fatalf("Render error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["server.mjs"]}}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "exclude_tools entries must be non-empty strings") {
 		t.Fatalf("Render error = %v", err)
 	}
 }
@@ -537,8 +570,8 @@ func TestInspect_ReturnsTargetCoverage(t *testing.T) {
 
 func TestInspect_IncludesTargetLifecycleMetadata(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("gemini-inspect", "gemini", "go", "gemini inspect", true)
-	mustSavePackage(t, root, manifest, "go")
+	manifest := Default("gemini-inspect", "gemini", "", "gemini inspect", true)
+	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
 
 	inspection, _, err := Inspect(root, "gemini")
@@ -652,7 +685,9 @@ func mustSavePackage(t *testing.T, root string, manifest Manifest, runtime strin
 	if err := Save(root, manifest, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveLauncher(root, DefaultLauncher(manifest.Name, runtime), false); err != nil {
-		t.Fatal(err)
+	if strings.TrimSpace(runtime) != "" {
+		if err := SaveLauncher(root, DefaultLauncher(manifest.Name, runtime), false); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

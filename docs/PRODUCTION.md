@@ -6,7 +6,7 @@ This document is the canonical production authoring path for plugin authors usin
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
 - Codex: production-ready within the stable `Notify` path
-- Gemini: packaging-only Gemini CLI extension target through `render|import`; not a production-ready runtime target
+- Gemini: packaging-only Gemini CLI extension target through `render|import|validate`; not a production-ready runtime target
 
 Repo-local executable runtime boundary:
 
@@ -52,7 +52,7 @@ After bootstrap, treat `validate --strict` as the CI-grade readiness gate for in
 - Start from `plugin-kit-ai init --platform claude` or `plugin-kit-ai import --from claude`
 - Keep `plugin.yaml` plus `targets/claude/...` as the authored source of truth
 - Commit generated `.claude-plugin/plugin.json` and `hooks/hooks.json`
-- `validate --strict` enforces that authored `targets/claude/hooks/hooks.json` command entries still match `plugin.yaml.entrypoint`
+- `validate --strict` enforces that authored `targets/claude/hooks/hooks.json` command entries still match `launcher.yaml.entrypoint`
 - Treat the stable promise as applying only to `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - The default Claude scaffold already matches that stable subset; use `--claude-extended-hooks` only as an explicit expansion step
 - Treat additional runtime-supported Claude hooks as `public-beta` unless separately promoted
@@ -80,10 +80,18 @@ Reference implementation:
 - strict validation passes with no manifest drift and no Claude authored-hook entrypoint drift
 - the committed example-shaped repo can build and execute a deterministic local smoke path
 
+## Gemini Packaging Boundary
+
+- Start from `plugin-kit-ai init --platform gemini` or `plugin-kit-ai import --from gemini`
+- Keep `plugin.yaml` plus `targets/gemini/...` as the authored source of truth
+- Commit generated `gemini-extension.json` plus rendered `hooks/`, `commands/`, `policies/`, and selected context artifacts
+- Treat Gemini as official extension packaging only: inline `mcpServers`, `contextFileName`, `settings`, `themes`, `excludeTools`, `plan.directory`, and `manifest.extra.json`
+- Use `gemini extensions link` for local development and restart Gemini CLI after changes
+
 ## What It Does Not Guarantee
 
 - external Claude CLI health before hook execution
 - external Codex CLI health before `notify` execution
-- runtime parity for Gemini
+- interactive runtime parity for Gemini sessions
 - promotion of runtime-supported beta hooks into the stable promise
 - dependency bootstrap or packaged distribution for interpreted runtimes

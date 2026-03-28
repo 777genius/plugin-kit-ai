@@ -44,7 +44,7 @@ Already have native config:
 
 Public flags:
   --platform   Supported: "codex" (default), "claude", and "gemini".
-  --runtime    Supported: "go" (default), "python", "node", "shell".
+  --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets.
   -o, --output Target directory (default: ./<project-name>).
   -f, --force  Allow writing into a non-empty directory and overwrite generated files.
   --extras     Also emit Makefile, .goreleaser.yml, and portable skills/ (stretch scaffold).
@@ -73,10 +73,14 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 
 func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, args []string) error {
 	name := strings.TrimSpace(args[0])
+	runtime := flags.runtime
+	if strings.EqualFold(strings.TrimSpace(flags.platform), "gemini") && !cmd.Flags().Changed("runtime") {
+		runtime = ""
+	}
 	opts := app.InitOptions{
 		ProjectName:         name,
 		Platform:            flags.platform,
-		Runtime:             flags.runtime,
+		Runtime:             runtime,
 		OutputDir:           flags.output,
 		Force:               flags.force,
 		Extras:              flags.extras,

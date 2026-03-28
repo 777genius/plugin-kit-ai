@@ -110,20 +110,29 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 	if strings.TrimSpace(d.Version) == "" {
 		d.Version = "0.1.0"
 	}
-	d.Runtime = normalizeRuntime(d.Runtime)
-	if _, ok := LookupRuntime(d.Runtime); !ok {
-		return ProjectPlan{}, fmt.Errorf("unknown runtime %q", d.Runtime)
-	}
 	p, ok := LookupPlatform(d.Platform)
 	if !ok {
 		return ProjectPlan{}, fmt.Errorf("unknown platform %q", d.Platform)
 	}
 	d.Platform = p.Name
-	if strings.TrimSpace(d.Entrypoint) == "" {
-		d.Entrypoint = "./bin/" + d.ProjectName
-	}
-	if strings.TrimSpace(d.ExecutionMode) == "" {
-		d.ExecutionMode = defaultExecutionMode(d.Runtime)
+	if d.Platform == "gemini" {
+		if strings.TrimSpace(d.Runtime) != "" {
+			return ProjectPlan{}, fmt.Errorf("--runtime is not supported with --platform gemini")
+		}
+		d.Runtime = ""
+		d.Entrypoint = ""
+		d.ExecutionMode = ""
+	} else {
+		d.Runtime = normalizeRuntime(d.Runtime)
+		if _, ok := LookupRuntime(d.Runtime); !ok {
+			return ProjectPlan{}, fmt.Errorf("unknown runtime %q", d.Runtime)
+		}
+		if strings.TrimSpace(d.Entrypoint) == "" {
+			d.Entrypoint = "./bin/" + d.ProjectName
+		}
+		if strings.TrimSpace(d.ExecutionMode) == "" {
+			d.ExecutionMode = defaultExecutionMode(d.Runtime)
+		}
 	}
 	if d.WithExtras {
 		if !d.HasSkills {

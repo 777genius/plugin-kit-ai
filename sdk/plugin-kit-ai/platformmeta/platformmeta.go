@@ -4,6 +4,7 @@ import "strings"
 
 type SupportStatus string
 type TransportMode string
+type PlatformFamily string
 type LauncherRequirement string
 type NativeDocRole string
 type NativeDocFormat string
@@ -20,6 +21,13 @@ const (
 	TransportProcess TransportMode = "process"
 	TransportHybrid  TransportMode = "hybrid"
 	TransportDaemon  TransportMode = "daemon"
+)
+
+const (
+	FamilyPackagedRuntime  PlatformFamily = "packaged_runtime"
+	FamilyExtensionPackage PlatformFamily = "extension_package"
+	FamilyCodePlugin       PlatformFamily = "code_plugin"
+	FamilyIDEPlugin        PlatformFamily = "ide_plugin"
 )
 
 const (
@@ -72,6 +80,7 @@ type ValidateMeta struct {
 }
 
 type TargetContractMeta struct {
+	PlatformFamily         PlatformFamily
 	TargetClass            string
 	TargetNoun             string
 	ProductionClass        string
@@ -134,6 +143,7 @@ func All() []PlatformProfile {
 		{
 			ID: "claude",
 			Contract: TargetContractMeta{
+				PlatformFamily:         FamilyPackagedRuntime,
 				TargetClass:            "hook_runtime",
 				TargetNoun:             "plugin",
 				ProductionClass:        "production-ready",
@@ -215,6 +225,7 @@ func All() []PlatformProfile {
 		{
 			ID: "codex",
 			Contract: TargetContractMeta{
+				PlatformFamily:         FamilyPackagedRuntime,
 				TargetClass:            "mixed_package_runtime",
 				TargetNoun:             "plugin",
 				ProductionClass:        "production-ready",
@@ -300,6 +311,7 @@ func All() []PlatformProfile {
 		{
 			ID: "gemini",
 			Contract: TargetContractMeta{
+				PlatformFamily:         FamilyExtensionPackage,
 				TargetClass:            "mcp_extension",
 				TargetNoun:             "extension",
 				ProductionClass:        "packaging-only target",
@@ -340,9 +352,7 @@ func All() []PlatformProfile {
 			},
 			Scaffold: ScaffoldMeta{
 				RequiredFiles: []string{
-					"go.mod",
 					"plugin.yaml",
-					"launcher.yaml",
 					"targets/gemini/package.yaml",
 					"contexts/GEMINI.md",
 					"README.md",
@@ -353,10 +363,7 @@ func All() []PlatformProfile {
 					"skills/{{.ProjectName}}/SKILL.md",
 				},
 				TemplateFiles: []TemplateFile{
-					{Path: "go.mod", Template: "go.mod.tmpl"},
-					{Path: "cmd/{{.ProjectName}}/main.go", Template: "gemini.main.go.tmpl"},
 					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
-					{Path: "launcher.yaml", Template: "launcher.yaml.tmpl"},
 					{Path: "targets/gemini/package.yaml", Template: "targets.gemini.package.yaml.tmpl"},
 					{Path: "contexts/GEMINI.md", Template: "gemini.GEMINI.md.tmpl"},
 					{Path: "README.md", Template: "gemini.README.md.tmpl"},
@@ -370,7 +377,6 @@ func All() []PlatformProfile {
 					"plugin.yaml",
 					"targets/gemini/package.yaml",
 				},
-				BuildTargets: []string{"./..."},
 			},
 		},
 	}

@@ -8,7 +8,9 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 
 	files := []TemplateFile{
 		{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
-		{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false},
+	}
+	if platform != "gemini" {
+		files = append(files, TemplateFile{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false})
 	}
 
 	switch platform {
@@ -27,8 +29,14 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 		files = append(files,
 			TemplateFile{Path: "targets/gemini/package.yaml", Template: "targets.gemini.package.yaml.tmpl", Extra: false},
 			TemplateFile{Path: "contexts/GEMINI.md", Template: "gemini.GEMINI.md.tmpl", Extra: false},
-			TemplateFile{Path: "README.md", Template: "gemini.README.executable.md.tmpl", Extra: false},
+			TemplateFile{Path: "README.md", Template: "gemini.README.md.tmpl", Extra: false},
 		)
+		if extras {
+			files = append(files,
+				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+			)
+		}
+		return files
 	}
 
 	switch runtime {

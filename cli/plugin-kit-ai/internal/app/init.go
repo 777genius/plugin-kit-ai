@@ -42,10 +42,15 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		if err := pluginmanifest.ValidateGeminiExtensionName(name); err != nil {
 			return "", err
 		}
+		if strings.TrimSpace(opts.Runtime) != "" {
+			return "", fmt.Errorf("--runtime is not supported with --platform gemini")
+		}
 	}
 	r := strings.ToLower(strings.TrimSpace(opts.Runtime))
-	if _, ok := scaffold.LookupRuntime(r); !ok {
-		return "", errUnknownRuntime(opts.Runtime)
+	if p != "gemini" {
+		if _, ok := scaffold.LookupRuntime(r); !ok {
+			return "", errUnknownRuntime(opts.Runtime)
+		}
 	}
 
 	out := strings.TrimSpace(opts.OutputDir)
