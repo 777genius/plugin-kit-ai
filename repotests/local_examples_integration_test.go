@@ -49,7 +49,7 @@ func TestLocalExamples_RenderValidateAndNotify(t *testing.T) {
 
 			runLocalExampleCmd(t, root, exec.Command(pluginKitAIBin, "render", workDir, "--check"))
 			tc.setup(t, workDir)
-			runLocalExampleCmd(t, root, exec.Command(pluginKitAIBin, "validate", workDir, "--platform", "codex", "--strict"))
+			runLocalExampleCmd(t, root, exec.Command(pluginKitAIBin, "validate", workDir, "--platform", "codex-runtime", "--strict"))
 
 			entry := localExampleEntrypointPath(workDir, tc.runtime)
 			cmd := exec.Command(entry, "notify", `{"client":"codex-tui"}`)

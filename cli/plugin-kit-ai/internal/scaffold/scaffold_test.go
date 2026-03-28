@@ -27,7 +27,7 @@ func TestValidateProjectName(t *testing.T) {
 
 func TestLookupPlatform(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"claude", "codex", "gemini"} {
+	for _, name := range []string{"claude", "codex-package", "codex-runtime", "gemini"} {
 		if _, ok := LookupPlatform(name); !ok {
 			t.Fatalf("LookupPlatform(%q) = missing", name)
 		}
@@ -53,18 +53,16 @@ func TestPaths_Gemini(t *testing.T) {
 	}
 }
 
-func TestPaths_Codex(t *testing.T) {
+func TestPaths_CodexRuntime(t *testing.T) {
 	t.Parallel()
-	got := Paths("codex", "my-plugin", true)
+	got := Paths("codex-runtime", "my-plugin", true)
 	for _, want := range []string{
 		"go.mod",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 		"plugin.yaml",
 		"launcher.yaml",
-		filepath.Join("targets", "codex", "package.yaml"),
-		"AGENTS.md",
+		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		"README.md",
-		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -72,19 +70,41 @@ func TestPaths_Codex(t *testing.T) {
 	}
 }
 
-func TestPathsForRuntime_CodexPython(t *testing.T) {
+func TestPaths_CodexPackage(t *testing.T) {
 	t.Parallel()
-	got := PathsForRuntime("codex", "python", "my-plugin", true)
+	got := Paths("codex-package", "my-plugin", true)
+	for _, want := range []string{
+		"plugin.yaml",
+		filepath.Join("targets", "codex-package", "package.yaml"),
+		"README.md",
+		filepath.Join("skills", "my-plugin", "SKILL.md"),
+	} {
+		if !contains(got, want) {
+			t.Fatalf("missing %q in %v", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		"go.mod",
+		"launcher.yaml",
+		filepath.Join("cmd", "my-plugin", "main.go"),
+	} {
+		if contains(got, unwanted) {
+			t.Fatalf("unexpected %q in %v", unwanted, got)
+		}
+	}
+}
+
+func TestPathsForRuntime_CodexRuntimePython(t *testing.T) {
+	t.Parallel()
+	got := PathsForRuntime("codex-runtime", "python", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
 		"launcher.yaml",
-		filepath.Join("targets", "codex", "package.yaml"),
-		"AGENTS.md",
+		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("src", "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 		"README.md",
-		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -157,14 +177,14 @@ func TestPathsForRuntime_ClaudeShell(t *testing.T) {
 	}
 }
 
-func TestWrite_Codex(t *testing.T) {
+func TestWrite_CodexRuntime(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	err := Write(root, Data{
 		ProjectName: "my-plugin",
 		ModulePath:  DefaultModulePath("my-plugin"),
 		Description: "plugin-kit-ai plugin",
-		Platform:    "codex",
+		Platform:    "codex-runtime",
 		WithExtras:  true,
 	}, false)
 	if err != nil {
@@ -173,9 +193,7 @@ func TestWrite_Codex(t *testing.T) {
 	for _, rel := range []string{
 		"plugin.yaml",
 		"launcher.yaml",
-		"AGENTS.md",
 		filepath.Join("cmd", "my-plugin", "main.go"),
-		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -267,13 +285,13 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 	}
 }
 
-func TestWrite_CodexPythonIncludesPluginManifestAndLauncher(t *testing.T) {
+func TestWrite_CodexRuntimePythonIncludesLauncher(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	err := Write(root, Data{
 		ProjectName: "my-plugin",
 		Description: "plugin-kit-ai plugin",
-		Platform:    "codex",
+		Platform:    "codex-runtime",
 		Runtime:     "python",
 		WithExtras:  true,
 	}, false)
@@ -283,7 +301,6 @@ func TestWrite_CodexPythonIncludesPluginManifestAndLauncher(t *testing.T) {
 	for _, rel := range []string{
 		"plugin.yaml",
 		"launcher.yaml",
-		"AGENTS.md",
 		filepath.Join("src", "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
@@ -377,20 +394,19 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 			},
 		},
 		{
-			name:     "codex-node",
-			template: "codex.README.executable.md.tmpl",
+			name:     "codex-runtime-node",
+			template: "codex-runtime.README.executable.md.tmpl",
 			runtime:  "node",
 			wants: []string{
-				"fastest path",
 				"Status: `public-beta`, repo-local executable ABI",
 				"system Node.js `20+`",
 				"package-lock.json",
 				"TypeScript remains a build-to-JavaScript path",
 				"npm install && npm run build",
-				"plugin-kit-ai validate . --platform codex --strict",
+				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"CI-grade readiness gate",
-				"managed dependency installation or packaged distribution",
-				"`AGENTS.md`: repository instructions for Codex",
+				"local notify integration",
+				"`targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
 			},
 		},
 		{
@@ -443,16 +459,28 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 			},
 		},
 		{
-			name:     "codex-go",
-			template: "codex.README.md.tmpl",
+			name:     "codex-package",
+			template: "codex-package.README.md.tmpl",
+			wants: []string{
+				"Package lane: `codex-package`",
+				"Status: `production-ready` package contract",
+				"Launcher: not used",
+				"plugin-kit-ai validate . --platform codex-package --strict",
+				"`targets/codex-package/manifest.extra.json`: official Codex manifest passthrough",
+				".codex-plugin/plugin.json",
+			},
+		},
+		{
+			name:     "codex-runtime",
+			template: "codex-runtime.README.md.tmpl",
 			wants: []string{
 				"Status: `production-ready`, stable default path",
 				"Bootstrap contract: Go `1.22+`",
-				"long-term support, packaged distribution, and the clearest release story matter",
-				"plugin-kit-ai validate . --platform codex --strict",
+				"repo-local Codex notify integration",
+				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"## Stable Default",
 				"`Notify`",
-				"`targets/codex/package.yaml`: authored Codex package metadata",
+				"`targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
 				"Keep stdout reserved for Codex responses and write diagnostics to stderr only.",
 			},
 		},
@@ -500,55 +528,6 @@ func TestBuildPlan_GeminiRejectsExplicitRuntime(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "--runtime is not supported with --platform gemini") {
 		t.Fatalf("err = %v", err)
-	}
-}
-
-func TestRenderTemplate_CodexAgentsTemplatesStayActionOriented(t *testing.T) {
-	t.Parallel()
-	cases := []struct {
-		name     string
-		template string
-		data     Data
-		wants    []string
-	}{
-		{
-			name:     "codex-go",
-			template: "codex.AGENTS.md.tmpl",
-			data:     Data{ProjectName: "demo", Entrypoint: "./bin/demo"},
-			wants: []string{
-				"Codex project instructions:",
-				"./bin/demo notify '{\"client\":\"codex-tui\"}'",
-				"Put repository-specific operating instructions here.",
-				"stdout and diagnostics on stderr",
-			},
-		},
-		{
-			name:     "codex-exec",
-			template: "codex.AGENTS.executable.md.tmpl",
-			data:     Data{ProjectName: "demo", Entrypoint: "./bin/demo"},
-			wants: []string{
-				"Codex project instructions:",
-				"./bin/demo notify '{\"client\":\"codex-tui\"}'",
-				"Put repository-specific operating instructions here.",
-				"stdout and diagnostics on stderr",
-			},
-		},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			body, _, err := RenderTemplate(tc.template, tc.data)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := string(body)
-			for _, want := range tc.wants {
-				if !strings.Contains(got, want) {
-					t.Fatalf("template missing %q:\n%s", want, got)
-				}
-			}
-		})
 	}
 }
 
@@ -622,7 +601,7 @@ func liveTemplateNames() map[string]struct{} {
 			out[file.Template] = struct{}{}
 		}
 	}
-	for _, platform := range []string{"claude", "codex", "gemini"} {
+	for _, platform := range []string{"claude", "codex-package", "codex-runtime", "gemini"} {
 		for _, runtime := range []string{RuntimePython, RuntimeNode, RuntimeShell} {
 			for _, file := range filesFor(platform, runtime, true) {
 				out[file.Template] = struct{}{}

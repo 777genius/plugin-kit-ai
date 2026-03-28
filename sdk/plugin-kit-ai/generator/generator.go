@@ -11,6 +11,7 @@ import (
 
 	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/descriptors/defs"
 	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
 )
 
 type Artifact struct {
@@ -20,6 +21,7 @@ type Artifact struct {
 
 type model struct {
 	profiles map[runtime.PlatformID]defs.PlatformProfile
+	cliProfiles []platformmeta.PlatformProfile
 	events   []defs.EventDescriptor
 }
 
@@ -67,7 +69,11 @@ func WriteAll(repoRoot string) error {
 func loadModel() (model, error) {
 	profiles := defs.Profiles()
 	events := defs.Events()
-	out := model{profiles: make(map[runtime.PlatformID]defs.PlatformProfile, len(profiles)), events: events}
+	out := model{
+		profiles:   make(map[runtime.PlatformID]defs.PlatformProfile, len(profiles)),
+		cliProfiles: append([]platformmeta.PlatformProfile(nil), platformmeta.All()...),
+		events:     events,
+	}
 	for _, p := range profiles {
 		if p.Platform == "" {
 			return model{}, fmt.Errorf("platform profile missing platform")
@@ -314,9 +320,9 @@ func renderScaffoldPlatforms(m model) string {
 	b.WriteString("package scaffold\n\n")
 	b.WriteString("import (\n\t\"strings\"\n)\n\n")
 	b.WriteString("var generatedPlatforms = map[string]PlatformDefinition{\n")
-	for _, p := range scaffoldProfiles(m) {
-		b.WriteString(fmt.Sprintf("\t%q: {\n", p.Platform))
-		b.WriteString(fmt.Sprintf("\t\tName: %q,\n", p.Platform))
+	for _, p := range scaffoldTargetProfiles(m) {
+		b.WriteString(fmt.Sprintf("\t%q: {\n", p.ID))
+		b.WriteString(fmt.Sprintf("\t\tName: %q,\n", p.ID))
 		b.WriteString("\t\tFiles: []TemplateFile{\n")
 		for _, file := range p.Scaffold.TemplateFiles {
 			b.WriteString(fmt.Sprintf("\t\t\t{Path: %q, Template: %q, Extra: %t},\n", file.Path, file.Template, file.Extra))
@@ -329,7 +335,7 @@ func renderScaffoldPlatforms(m model) string {
 	b.WriteString("\tp, ok := generatedPlatforms[normalizePlatform(name)]\n\treturn p, ok\n}\n\n")
 	b.WriteString("func normalizePlatform(name string) string {\n")
 	b.WriteString("\tname = strings.ToLower(strings.TrimSpace(name))\n")
-	b.WriteString("\tif name == \"\" { return \"codex\" }\n")
+	b.WriteString("\tif name == \"\" { return \"codex-runtime\" }\n")
 	b.WriteString("\treturn name\n")
 	b.WriteString("}\n")
 	return b.String()
@@ -340,9 +346,9 @@ func renderValidateRules(m model) string {
 	b.WriteString("package validate\n\n")
 	b.WriteString("import \"strings\"\n\n")
 	b.WriteString("var generatedRules = map[string]Rule{\n")
-	for _, p := range scaffoldProfiles(m) {
-		b.WriteString(fmt.Sprintf("\t%q: {\n", p.Platform))
-		b.WriteString(fmt.Sprintf("\t\tPlatform: %q,\n", p.Platform))
+	for _, p := range scaffoldTargetProfiles(m) {
+		b.WriteString(fmt.Sprintf("\t%q: {\n", p.ID))
+		b.WriteString(fmt.Sprintf("\t\tPlatform: %q,\n", p.ID))
 		b.WriteString("\t\tRequiredFiles: []string{\n")
 		for _, s := range p.Validate.RequiredFiles {
 			b.WriteString(fmt.Sprintf("\t\t\t%q,\n", s))
@@ -365,7 +371,7 @@ func renderValidateRules(m model) string {
 	b.WriteString("\tr, ok := generatedRules[normalizePlatform(name)]\n\treturn r, ok\n}\n\n")
 	b.WriteString("func normalizePlatform(name string) string {\n")
 	b.WriteString("\tname = strings.ToLower(strings.TrimSpace(name))\n")
-	b.WriteString("\tif name == \"\" { return \"codex\" }\n")
+	b.WriteString("\tif name == \"\" { return \"codex-runtime\" }\n")
 	b.WriteString("\treturn name\n")
 	b.WriteString("}\n")
 	return b.String()
@@ -450,6 +456,19 @@ func scaffoldProfiles(m model) []defs.PlatformProfile {
 			out = append(out, p)
 		}
 	}
+	return out
+}
+
+func scaffoldTargetProfiles(m model) []platformmeta.PlatformProfile {
+	var out []platformmeta.PlatformProfile
+	for _, p := range m.cliProfiles {
+		if p.SDK.Status == platformmeta.StatusRuntimeSupported || p.SDK.Status == platformmeta.StatusScaffoldOnly {
+			out = append(out, p)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
 	return out
 }
 

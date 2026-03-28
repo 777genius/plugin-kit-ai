@@ -547,10 +547,12 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 	from = normalizeTarget(from)
 	if from == "" {
 		matches := platformexec.DetectImport(root)
-		switch len(matches) {
-		case 0:
+		switch {
+		case len(matches) == 2 && detectCombinedCodexImport(matches):
+			from = "codex"
+		case len(matches) == 0:
 			from = ""
-		case 1:
+		case len(matches) == 1:
 			from = matches[0].ID()
 		default:
 			var ids []string
@@ -560,8 +562,11 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 			return Manifest{}, nil, fmt.Errorf("ambiguous import source: detected multiple native layouts (%s); pass --from explicitly", strings.Join(ids, ", "))
 		}
 	}
-	if !slices.Contains(platformmeta.IDs(), from) {
+	if !isSupportedImportSource(from) {
 		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
+	}
+	if from == "codex" {
+		return importCombinedCodex(root, force)
 	}
 	adapter, ok := platformexec.Lookup(from)
 	if !ok {
@@ -570,8 +575,10 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 	seed := platformexec.ImportSeed{
 		Manifest: Default(defaultName(root), from, inferRuntime(root), "plugin-kit-ai plugin", false),
 	}
-	launcher := DefaultLauncher(defaultName(root), inferRuntime(root))
-	seed.Launcher = &launcher
+	if requiresLauncherForTarget(from) {
+		launcher := DefaultLauncher(defaultName(root), inferRuntime(root))
+		seed.Launcher = &launcher
+	}
 	imported, err := adapter.Import(root, seed)
 	if err != nil {
 		return Manifest{}, nil, err
@@ -603,6 +610,85 @@ func Import(root string, from string, force bool) (Manifest, []Warning, error) {
 	return imported.Manifest, imported.Warnings, nil
 }
 
+func detectCombinedCodexImport(matches []platformexec.Adapter) bool {
+	seen := map[string]bool{}
+	for _, match := range matches {
+		seen[match.ID()] = true
+	}
+	return len(matches) == 2 && seen["codex-package"] && seen["codex-runtime"]
+}
+
+func isSupportedImportSource(from string) bool {
+	if from == "codex" {
+		return true
+	}
+	return slices.Contains(platformmeta.IDs(), from)
+}
+
+func requiresLauncherForTarget(target string) bool {
+	profile, ok := platformmeta.Lookup(target)
+	return ok && profile.Launcher.Requirement == platformmeta.LauncherRequired
+}
+
+func importCombinedCodex(root string, force bool) (Manifest, []Warning, error) {
+	name := defaultName(root)
+	runtime := inferRuntime(root)
+	manifest := Default(name, "codex-package", runtime, "plugin-kit-ai plugin", false)
+	manifest.Targets = []string{"codex-package", "codex-runtime"}
+	launcher := DefaultLauncher(name, runtime)
+
+	packageAdapter, _ := platformexec.Lookup("codex-package")
+	packageImported, err := packageAdapter.Import(root, platformexec.ImportSeed{Manifest: manifest})
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	runtimeAdapter, _ := platformexec.Lookup("codex-runtime")
+	runtimeImported, err := runtimeAdapter.Import(root, platformexec.ImportSeed{
+		Manifest: manifest,
+		Launcher: &launcher,
+	})
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+
+	importedManifest := packageImported.Manifest
+	importedManifest.Targets = []string{"codex-package", "codex-runtime"}
+	var importedLauncher *Launcher
+	if runtimeImported.Launcher != nil {
+		copied := *runtimeImported.Launcher
+		importedLauncher = &copied
+	}
+	warnings := append([]Warning{}, packageImported.Warnings...)
+	warnings = append(warnings, runtimeImported.Warnings...)
+	artifacts := append([]Artifact{}, packageImported.Artifacts...)
+	artifacts = append(artifacts, runtimeImported.Artifacts...)
+	if mcpArtifacts, err := importedPortableMCPArtifacts(root); err != nil {
+		return Manifest{}, warnings, err
+	} else {
+		artifacts = append(artifacts, mcpArtifacts...)
+	}
+	if fileExists(filepath.Join(root, ".mcp.json")) {
+		warnings = append(warnings, Warning{
+			Kind:    WarningFidelity,
+			Path:    ".mcp.json",
+			Message: "portable MCP will be preserved under mcp/servers.json",
+		})
+	}
+	artifacts = compactArtifacts(artifacts)
+	if err := Save(root, importedManifest, force); err != nil {
+		return importedManifest, warnings, err
+	}
+	if importedLauncher != nil {
+		if err := SaveLauncher(root, *importedLauncher, force); err != nil {
+			return importedManifest, warnings, err
+		}
+	}
+	if err := WriteArtifacts(root, artifacts); err != nil {
+		return Manifest{}, warnings, err
+	}
+	return importedManifest, warnings, nil
+}
+
 func renderTargetArtifacts(root string, graph PackageGraph, target string) ([]Artifact, error) {
 	tc := graph.Targets[target]
 	adapter, ok := platformexec.Lookup(target)
@@ -618,7 +704,7 @@ func renderClaude(root string, graph PackageGraph, tc TargetComponents) ([]Artif
 }
 
 func renderCodex(root string, graph PackageGraph, tc TargetComponents) ([]Artifact, error) {
-	adapter, _ := platformexec.Lookup("codex")
+	adapter, _ := platformexec.Lookup("codex-runtime")
 	return adapter.Render(root, graph, tc)
 }
 

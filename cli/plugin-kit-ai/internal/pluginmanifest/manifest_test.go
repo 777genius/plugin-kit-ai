@@ -11,9 +11,9 @@ import (
 
 func TestRender_RendersVersionIntoEveryNativeManifest(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo", "codex", "go", "demo plugin", true)
+	manifest := Default("demo", "codex-runtime", "go", "demo plugin", true)
 	manifest.Version = "1.2.3"
-	manifest.Targets = []string{"claude", "codex", "gemini"}
+	manifest.Targets = []string{"claude", "codex-package", "codex-runtime", "gemini"}
 	mustSavePackage(t, root, manifest, "go")
 	result, err := Render(root, "all")
 	if err != nil {
@@ -97,7 +97,7 @@ func TestImport_CurrentNativeCodexShellProject(t *testing.T) {
 	if launcher.Entrypoint != "./bin/demo" {
 		t.Fatalf("entrypoint = %q", launcher.Entrypoint)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "codex", "package.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "targets", "codex-runtime", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,13 +108,15 @@ func TestImport_CurrentNativeCodexShellProject(t *testing.T) {
 
 func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo", "codex", "go", "demo plugin", false)
+	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
+	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "manifest.extra.json"), `{"homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"},"apps":["./.app.json"]}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 
-	result, err := Render(root, "codex")
+	result, err := Render(root, "all")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +141,9 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	if _, ok := plugin["interface"].(map[string]any); !ok {
 		t.Fatalf("plugin manifest missing interface object: %+v", plugin)
 	}
+	if apps, ok := plugin["apps"].([]any); !ok || len(apps) != 1 || apps[0] != "./.app.json" {
+		t.Fatalf("plugin manifest missing apps: %+v", plugin)
+	}
 
 	configBody, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
 	if err != nil {
@@ -160,16 +165,17 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 
 func TestRender_CodexRejectsManagedOverridesInExtraDocs(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("demo", "codex", "go", "demo plugin", false)
+	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
+	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "manifest.extra.json"), `{"name":"override"}`)
-	if _, err := Render(root, "codex"); err == nil || !strings.Contains(err.Error(), `codex manifest.extra.json may not override canonical field "name"`) {
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
+	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "name"`) {
 		t.Fatalf("Render error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "manifest.extra.json"), `{}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "config.extra.toml"), "model = \"gpt-4.1\"\n")
-	if _, err := Render(root, "codex"); err == nil || !strings.Contains(err.Error(), `codex config.extra.toml may not override canonical field "model"`) {
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "model = \"gpt-4.1\"\n")
+	if _, err := Render(root, "codex-runtime"); err == nil || !strings.Contains(err.Error(), `codex-runtime config.extra.toml may not override canonical field "model"`) {
 		t.Fatalf("Render error = %v", err)
 	}
 }
@@ -195,14 +201,14 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 		t.Fatal("expected fidelity warnings")
 	}
 
-	manifestExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex", "manifest.extra.json"))
+	manifestExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(manifestExtra), `"homepage": "https://example.com/demo"`) {
 		t.Fatalf("manifest.extra.json = %s", manifestExtra)
 	}
-	configExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex", "config.extra.toml"))
+	configExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex-runtime", "config.extra.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -258,7 +264,8 @@ targets: ["codex"]
 		t.Fatalf("error = %v", err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "codex", "package.yaml"),
+		filepath.Join("targets", "codex-package", "package.yaml"),
+		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("mcp", "servers.json"),
 	} {
 		if _, statErr := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(statErr) {
@@ -610,22 +617,31 @@ func TestInspect_IncludesTargetLifecycleMetadata(t *testing.T) {
 
 func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 	root := t.TempDir()
-	manifest := Default("codex-inspect", "codex", "go", "codex inspect", true)
+	manifest := Default("codex-inspect", "codex-runtime", "go", "codex inspect", true)
+	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "manifest.extra.json"), `{"homepage":"https://example.com"}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex", "config.extra.toml"), "approval_policy = \"never\"\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com"}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n")
 
-	inspection, _, err := Inspect(root, "codex")
+	inspection, _, err := Inspect(root, "all")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(inspection.Targets) != 1 {
+	if len(inspection.Targets) != 2 {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
-	kinds := inspection.Targets[0].TargetNativeKinds
-	for _, want := range []string{"manifest_extra", "config_extra"} {
-		if !slices.Contains(kinds, want) {
-			t.Fatalf("target_native_kinds = %v, want %q", kinds, want)
+	for _, target := range inspection.Targets {
+		switch target.Target {
+		case "codex-package":
+			if !slices.Contains(target.TargetNativeKinds, "manifest_extra") {
+				t.Fatalf("codex-package target_native_kinds = %v", target.TargetNativeKinds)
+			}
+		case "codex-runtime":
+			if !slices.Contains(target.TargetNativeKinds, "config_extra") {
+				t.Fatalf("codex-runtime target_native_kinds = %v", target.TargetNativeKinds)
+			}
+		default:
+			t.Fatalf("unexpected target %+v", target)
 		}
 	}
 }
@@ -636,7 +652,7 @@ func TestNormalize_RewritesManifestIntoPackageStandardShape(t *testing.T) {
 name: "demo"
 version: "0.1.0"
 description: "demo"
-targets: ["codex"]
+targets: ["codex-runtime"]
 extra_field: true
 `)
 	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
@@ -662,6 +678,7 @@ extra_field: true
 func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
 	mustWritePluginFile(t, root, ".mcp.json", "{}\n")
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")

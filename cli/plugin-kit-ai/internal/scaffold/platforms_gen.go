@@ -19,19 +19,26 @@ var generatedPlatforms = map[string]PlatformDefinition{
 			{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 		},
 	},
-	"codex": {
-		Name: "codex",
+	"codex-package": {
+		Name: "codex-package",
+		Files: []TemplateFile{
+			{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
+			{Path: "targets/codex-package/package.yaml", Template: "targets.codex-package.package.yaml.tmpl", Extra: false},
+			{Path: "README.md", Template: "codex-package.README.md.tmpl", Extra: false},
+			{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+		},
+	},
+	"codex-runtime": {
+		Name: "codex-runtime",
 		Files: []TemplateFile{
 			{Path: "go.mod", Template: "codex.go.mod.tmpl", Extra: false},
 			{Path: "cmd/{{.ProjectName}}/main.go", Template: "codex.main.go.tmpl", Extra: false},
 			{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
 			{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false},
-			{Path: "targets/codex/package.yaml", Template: "targets.codex.package.yaml.tmpl", Extra: false},
-			{Path: "AGENTS.md", Template: "codex.AGENTS.md.tmpl", Extra: false},
-			{Path: "README.md", Template: "codex.README.md.tmpl", Extra: false},
+			{Path: "targets/codex-runtime/package.yaml", Template: "targets.codex-runtime.package.yaml.tmpl", Extra: false},
+			{Path: "README.md", Template: "codex-runtime.README.md.tmpl", Extra: false},
 			{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
 			{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
-			{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 		},
 	},
 	"gemini": {
@@ -56,7 +63,7 @@ func LookupPlatform(name string) (PlatformDefinition, bool) {
 func normalizePlatform(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
-		return "codex"
+		return "codex-runtime"
 	}
 	return name
 }

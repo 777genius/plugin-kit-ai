@@ -33,10 +33,10 @@ func TestDefaultRegistry_CoversExecutableProfiles(t *testing.T) {
 
 func TestRegistry_RejectsDuplicateRegistration(t *testing.T) {
 	registry := NewRegistry()
-	if err := registry.Register(testAdapter{id: "codex"}); err != nil {
+	if err := registry.Register(testAdapter{id: "codex-runtime"}); err != nil {
 		t.Fatalf("first Register error = %v", err)
 	}
-	err := registry.Register(testAdapter{id: "codex"})
+	err := registry.Register(testAdapter{id: "codex-runtime"})
 	if err == nil || !strings.Contains(err.Error(), "duplicate registration") {
 		t.Fatalf("second Register error = %v", err)
 	}

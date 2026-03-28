@@ -19,8 +19,8 @@ var renderCmd = &cobra.Command{
 	Short: "Compile native target artifacts from the package graph",
 	Long: `Compile native target artifacts from the package graph discovered via plugin.yaml and standard directories.
 
-Claude and Codex targets render runtime plugin artifacts that participate in the supported production/beta contract.
-Gemini rendering is currently packaging-only: it produces a native extension manifest, but does not imply runtime parity or a production-ready Gemini runtime path.`,
+Claude and Codex runtime/package lanes render their managed native artifacts from the package graph.
+Gemini rendering is packaging-only: it produces a native extension manifest, but does not imply runtime parity or a production-ready Gemini runtime path.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		root := "."
@@ -48,6 +48,6 @@ Gemini rendering is currently packaging-only: it produces a native extension man
 }
 
 func init() {
-	renderCmd.Flags().StringVar(&renderTarget, "target", "all", `render target ("all", "claude", "codex", "gemini")`)
+	renderCmd.Flags().StringVar(&renderTarget, "target", "all", `render target ("all", "claude", "codex-package", "codex-runtime", "gemini")`)
 	renderCmd.Flags().BoolVar(&renderCheck, "check", false, "fail if generated artifacts are out of date")
 }

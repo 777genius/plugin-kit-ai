@@ -43,11 +43,14 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 			return "", err
 		}
 		if strings.TrimSpace(opts.Runtime) != "" {
-			return "", fmt.Errorf("--runtime is not supported with --platform gemini")
+			return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
 		}
 	}
+	if p == "codex-package" && strings.TrimSpace(opts.Runtime) != "" {
+		return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
+	}
 	r := strings.ToLower(strings.TrimSpace(opts.Runtime))
-	if p != "gemini" {
+	if p != "gemini" && p != "codex-package" {
 		if _, ok := scaffold.LookupRuntime(r); !ok {
 			return "", errUnknownRuntime(opts.Runtime)
 		}
@@ -80,7 +83,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		WithExtras:          opts.Extras,
 		ClaudeExtendedHooks: opts.ClaudeExtendedHooks,
 	}
-	if p == "codex" {
+	if p == "codex-runtime" {
 		d.CodexModel = scaffold.DefaultCodexModel
 	}
 	if err := scaffold.Write(out, d, opts.Force); err != nil {

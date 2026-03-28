@@ -3,4 +3,4 @@ name: "codex-node-local"
 version: "0.1.0"
 description: "plugin-kit-ai plugin"
 targets:
-  - "codex"
+  - "codex-runtime"

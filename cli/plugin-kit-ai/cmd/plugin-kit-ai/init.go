@@ -35,16 +35,17 @@ Fast local plugin:
   These are supported executable-runtime paths, not equal production paths.
 
 Production-ready plugin repo:
-  Plain init keeps the strongest supported path. --runtime go remains the default, and --platform codex remains the default target.
+  Plain init keeps the strongest supported runtime path. --runtime go remains the default, and --platform codex-runtime remains the default target.
   Use --platform claude for Claude hooks, and add --claude-extended-hooks only when you intentionally want the wider runtime-supported subset.
+  Use --platform codex-package for the official Codex plugin bundle without local notify/runtime wiring.
 
 Already have native config:
   Use plugin-kit-ai import to migrate current Claude/Codex/Gemini native files into the package-standard authored layout.
   init is for creating a new package-standard project, not for preserving native files as the authored source of truth.
 
 Public flags:
-  --platform   Supported: "codex" (default), "claude", and "gemini".
-  --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets.
+  --platform   Supported: "codex-runtime" (default), "codex-package", "claude", and "gemini".
+  --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   -o, --output Target directory (default: ./<project-name>).
   -f, --force  Allow writing into a non-empty directory and overwrite generated files.
   --extras     Also emit Makefile, .goreleaser.yml, and portable skills/ (stretch scaffold).
@@ -62,7 +63,7 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 			return runInit(cmd, runner, flags, args)
 		},
 	}
-	cmd.Flags().StringVar(&flags.platform, "platform", "codex", `target CLI ("codex", "claude", or "gemini")`)
+	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", or "gemini")`)
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "go", `runtime ("go", "python", "node", or "shell")`)
 	cmd.Flags().StringVarP(&flags.output, "output", "o", "", "output directory (default: ./<project-name>)")
 	cmd.Flags().BoolVarP(&flags.force, "force", "f", false, "overwrite generated files; allow non-empty output directory")
@@ -74,7 +75,9 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, args []string) error {
 	name := strings.TrimSpace(args[0])
 	runtime := flags.runtime
-	if strings.EqualFold(strings.TrimSpace(flags.platform), "gemini") && !cmd.Flags().Changed("runtime") {
+	if (strings.EqualFold(strings.TrimSpace(flags.platform), "gemini") ||
+		strings.EqualFold(strings.TrimSpace(flags.platform), "codex-package")) &&
+		!cmd.Flags().Changed("runtime") {
 		runtime = ""
 	}
 	opts := app.InitOptions{
@@ -97,7 +100,7 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 func formatInitSuccess(outDir string, opts app.InitOptions) string {
 	platform := strings.TrimSpace(opts.Platform)
 	if platform == "" {
-		platform = "codex"
+		platform = "codex-runtime"
 	}
 	runtime := strings.TrimSpace(opts.Runtime)
 	if runtime == "" {
@@ -110,7 +113,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		fmt.Sprintf("  cd %s", strconv.Quote(outDir)),
 	}
 
-	if platform == "gemini" {
+	if platform == "gemini" || platform == "codex-package" {
 		if runtime == "python" {
 			lines = append(lines, "  Create a project .venv, then run:")
 		} else if runtime == "node" {

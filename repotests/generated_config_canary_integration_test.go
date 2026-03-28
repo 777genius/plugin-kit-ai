@@ -64,7 +64,7 @@ func TestGeneratedConfigCanaries_ClaudeStableHookSubsetAndCommandShape(t *testin
 
 func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	pluginKitAIBin := buildPluginKitAI(t)
-	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "codex")
+	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "codex-runtime")
 
 	runPluginKitAICommand(t, pluginKitAIBin, "render", plugRoot, "--check")
 
@@ -82,18 +82,17 @@ func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	if lines[1] != `notify = ["./bin/genplug", "notify"]` {
 		t.Fatalf("notify line = %q, want exact argv shape", lines[1])
 	}
-	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "package.yaml"))
+	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-runtime", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(packageBody), `model_hint: "gpt-5.4-mini"`) {
-		t.Fatalf("targets/codex/package.yaml = %q, want gpt-5.4-mini model_hint", string(packageBody))
+		t.Fatalf("targets/codex-runtime/package.yaml = %q, want gpt-5.4-mini model_hint", string(packageBody))
 	}
 
-	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "codex")
-	target := requireInspectTarget(t, report, "codex")
-	mustHaveManagedArtifacts(t, target.ManagedArtifacts, ".codex-plugin/plugin.json", ".codex/config.toml")
-	mustExist(t, filepath.Join(plugRoot, ".codex-plugin", "plugin.json"))
+	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "codex-runtime")
+	target := requireInspectTarget(t, report, "codex-runtime")
+	mustHaveManagedArtifacts(t, target.ManagedArtifacts, ".codex/config.toml")
 	mustExist(t, filepath.Join(plugRoot, ".codex", "config.toml"))
 }
 
@@ -109,7 +108,7 @@ func TestGeneratedConfigCanaries_RenderCheckDetectsRuntimeArtifactDrift(t *testi
 			driftBody: `{"hooks":{"Stop":[]}}`,
 		},
 		{
-			platform:  "codex",
+			platform:  "codex-runtime",
 			driftFile: filepath.Join(".codex", "config.toml"),
 			driftBody: "notify = [\"./bin/genplug\"]\n",
 		},
@@ -175,7 +174,11 @@ type inspectTarget struct {
 func initGeneratedCanaryProject(t *testing.T, pluginKitAIBin, platform string) string {
 	t.Helper()
 	plugRoot := runtimeProjectRoot(t)
-	runPluginKitAICommand(t, pluginKitAIBin, "init", "genplug", "--platform", platform, "--runtime", "go", "-o", plugRoot)
+	args := []string{"init", "genplug", "--platform", platform, "-o", plugRoot}
+	if platform != "gemini" && platform != "codex-package" {
+		args = append(args, "--runtime", "go")
+	}
+	runPluginKitAICommand(t, pluginKitAIBin, args...)
 	return plugRoot
 }
 

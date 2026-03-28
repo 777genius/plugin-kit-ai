@@ -1,0 +1,8 @@
+{
+  "name": "codex-package-prod",
+  "version": "0.1.0",
+  "description": "official Codex plugin bundle example",
+  "skills": [
+    "./skills/"
+  ]
+}

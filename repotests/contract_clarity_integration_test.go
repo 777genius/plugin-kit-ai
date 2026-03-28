@@ -28,7 +28,8 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	}
 	targetMatrix := string(targetMatrixBody)
 	mustContain(t, targetMatrix, "| claude | packaged_runtime | hook_runtime | required | plugin | marketplace or local plugin install |")
-	mustContain(t, targetMatrix, "| codex | packaged_runtime | mixed_package_runtime | required | plugin | plugin directory or marketplace cache |")
+	mustContain(t, targetMatrix, "| codex-package | packaged_runtime | plugin_package | ignored | plugin | plugin directory or marketplace cache |")
+	mustContain(t, targetMatrix, "| codex-runtime | packaged_runtime | local_runtime_integration | required | plugin | repo-local config wiring |")
 	mustContain(t, targetMatrix, "| gemini | extension_package | mcp_extension | ignored | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | packaging-only target |")
 
 	cmd := exec.Command(pluginKitAIBin, "capabilities", "--mode", "runtime", "--format", "json")
@@ -79,7 +80,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(rootReadme), "Reference repos: [examples/local/README.md](examples/local/README.md)")
 	mustContain(t, string(rootReadme), "`plugin-kit-ai capabilities` now defaults to target/package introspection")
 	mustContain(t, string(rootReadme), "| `python` | public-beta | repo-local executable ABI | prefer `.venv`, fallback to system Python `3.10+` |")
-	mustContain(t, string(rootReadme), "Generated Claude/Codex config shapes are part of the repo-owned contract surface")
+	mustContain(t, string(rootReadme), "Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface")
 	mustContain(t, string(rootReadme), "`validate --strict` is the canonical CI-grade readiness gate")
 	mustContain(t, string(cliReadme), "## Fast Local Plugin")
 	mustContain(t, string(cliReadme), "## Production-Ready Plugin Repo")
@@ -88,7 +89,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(cliReadme), "Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target")
 	mustContain(t, string(cliReadme), "`plugin-kit-ai capabilities` defaults to the target/package view")
 	mustContain(t, string(cliReadme), "| `node` | public-beta | repo-local only | system Node.js `20+`; TypeScript via build-to-JS only |")
-	mustContain(t, string(cliReadme), "Generated Claude/Codex config shapes are part of the repo-owned contract surface")
+	mustContain(t, string(cliReadme), "Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface")
 	mustContain(t, string(pluginsExamplesReadme), "# Production Plugin Examples")
 	mustContain(t, string(pluginsExamplesReadme), "For repo-local Python/Node entrance examples, see [../local/README.md](../local/README.md).")
 	mustContain(t, string(supportDoc), "Gemini: full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target")
@@ -96,7 +97,8 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "target/package contract matrix")
 	mustContain(t, string(supportDoc), "generated Claude/Codex config wiring is a repo-owned contract surface guarded by `render --check`")
 	mustContain(t, string(productionDoc), "Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set")
-	mustContain(t, string(productionDoc), "Codex: production-ready within the stable `Notify` path")
+	mustContain(t, string(productionDoc), "Codex runtime: production-ready within the stable `Notify` path")
+	mustContain(t, string(productionDoc), "Codex package: production-ready official plugin package lane")
 	mustContain(t, string(productionDoc), "Interpreted runtimes are production-hardened for scaffold, validate, launcher execution, and repo-local bootstrap only.")
 	mustContain(t, string(productionDoc), "After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.")
 

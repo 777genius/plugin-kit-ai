@@ -9,14 +9,21 @@ func Profiles() []PlatformProfile {
 	source := platformmeta.All()
 	out := make([]PlatformProfile, 0, len(source))
 	for _, profile := range source {
+		if profile.ID == "codex-package" {
+			continue
+		}
 		out = append(out, adaptProfile(profile))
 	}
 	return out
 }
 
 func adaptProfile(profile platformmeta.PlatformProfile) PlatformProfile {
+	platformID := runtime.PlatformID(profile.ID)
+	if profile.ID == "codex-runtime" {
+		platformID = "codex"
+	}
 	return PlatformProfile{
-		Platform:        runtime.PlatformID(profile.ID),
+		Platform:        platformID,
 		Status:          adaptStatus(profile.SDK.Status),
 		PublicPackage:   profile.SDK.PublicPackage,
 		InternalPackage: profile.SDK.InternalPackage,

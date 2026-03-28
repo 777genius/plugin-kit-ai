@@ -150,7 +150,7 @@ func TestInitRunner_claudeExtendedHooksRejectedOutsideClaude(t *testing.T) {
 	var r InitRunner
 	_, err := r.Run(InitOptions{
 		ProjectName:         "genplug",
-		Platform:            "codex",
+		Platform:            "codex-runtime",
 		OutputDir:           filepath.Join(t.TempDir(), "genplug"),
 		ClaudeExtendedHooks: true,
 	})
@@ -232,11 +232,11 @@ func TestInitRunner_geminiRejectsRuntimeFlag(t *testing.T) {
 	}
 }
 
-func TestInitRunner_codex(t *testing.T) {
+func TestInitRunner_codexRuntime(t *testing.T) {
 	t.Parallel()
 	var r InitRunner
 	out := filepath.Join(t.TempDir(), "genplug")
-	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "codex", OutputDir: out, Extras: true})
+	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "codex-runtime", OutputDir: out, Extras: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,22 +245,28 @@ func TestInitRunner_codex(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
-		filepath.Join("targets", "codex", "package.yaml"),
-		"AGENTS.md",
-		filepath.Join(".codex-plugin", "plugin.json"),
+		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join(".codex", "config.toml"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	for _, rel := range []string{
+		filepath.Join(".codex-plugin", "plugin.json"),
+		"AGENTS.md",
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected codex runtime starter file %s", rel)
 		}
 	}
 }
 
-func TestInitRunner_codexPython(t *testing.T) {
+func TestInitRunner_codexRuntimePython(t *testing.T) {
 	t.Parallel()
 	var r InitRunner
 	out := filepath.Join(t.TempDir(), "genplug")
-	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "codex", Runtime: "python", OutputDir: out, Extras: true})
+	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "codex-runtime", Runtime: "python", OutputDir: out, Extras: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,18 +275,57 @@ func TestInitRunner_codexPython(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
-		filepath.Join("targets", "codex", "package.yaml"),
+		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("src", "main.py"),
 		filepath.Join("bin", "genplug"),
-		"AGENTS.md",
-		filepath.Join(".codex-plugin", "plugin.json"),
 		filepath.Join(".codex", "config.toml"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
+	for _, rel := range []string{
+		filepath.Join(".codex-plugin", "plugin.json"),
+		"AGENTS.md",
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected codex runtime starter file %s", rel)
+		}
+	}
 	if _, err := os.Stat(filepath.Join(out, ".plugin-kit-ai", "project.toml")); !os.IsNotExist(err) {
 		t.Fatalf("unsupported old manifest should not be generated, stat err = %v", err)
+	}
+}
+
+func TestInitRunner_codexPackage(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "codex-package", OutputDir: out, Extras: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != out {
+		t.Fatalf("out = %q, want %q", got, out)
+	}
+	for _, rel := range []string{
+		"plugin.yaml",
+		filepath.Join("targets", "codex-package", "package.yaml"),
+		filepath.Join(".codex-plugin", "plugin.json"),
+		filepath.Join("skills", "genplug", "SKILL.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	for _, rel := range []string{
+		"launcher.yaml",
+		filepath.Join(".codex", "config.toml"),
+		"AGENTS.md",
+		"go.mod",
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected codex package starter file %s", rel)
+		}
 	}
 }

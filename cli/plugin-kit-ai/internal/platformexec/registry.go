@@ -131,7 +131,8 @@ func mustDefaultRegistry() *Registry {
 	registry := NewRegistry()
 	for _, adapter := range []Adapter{
 		claudeAdapter{},
-		codexAdapter{},
+		codexPackageAdapter{},
+		codexRuntimeAdapter{},
 		geminiAdapter{},
 	} {
 		if err := registry.Register(adapter); err != nil {

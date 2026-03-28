@@ -115,9 +115,9 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 		return ProjectPlan{}, fmt.Errorf("unknown platform %q", d.Platform)
 	}
 	d.Platform = p.Name
-	if d.Platform == "gemini" {
+	if d.Platform == "gemini" || d.Platform == "codex-package" {
 		if strings.TrimSpace(d.Runtime) != "" {
-			return ProjectPlan{}, fmt.Errorf("--runtime is not supported with --platform gemini")
+			return ProjectPlan{}, fmt.Errorf("--runtime is not supported with --platform %s", d.Platform)
 		}
 		d.Runtime = ""
 		d.Entrypoint = ""
@@ -142,7 +142,7 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 			d.HasCommands = true
 		}
 	}
-	if d.Platform == "codex" && strings.TrimSpace(d.CodexModel) == "" {
+	if d.Platform == "codex-runtime" && strings.TrimSpace(d.CodexModel) == "" {
 		d.CodexModel = DefaultCodexModel
 	}
 	out := ProjectPlan{

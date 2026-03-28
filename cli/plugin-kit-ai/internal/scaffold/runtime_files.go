@@ -9,7 +9,7 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 	files := []TemplateFile{
 		{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
 	}
-	if platform != "gemini" {
+	if platform != "gemini" && platform != "codex-package" {
 		files = append(files, TemplateFile{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false})
 	}
 
@@ -19,12 +19,22 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 			TemplateFile{Path: "targets/claude/hooks/hooks.json", Template: "targets.claude.hooks.json.tmpl", Extra: false},
 			TemplateFile{Path: "README.md", Template: "README.executable.md.tmpl", Extra: false},
 		)
-	case "codex":
+	case "codex-runtime":
 		files = append(files,
-			TemplateFile{Path: "targets/codex/package.yaml", Template: "targets.codex.package.yaml.tmpl", Extra: false},
-			TemplateFile{Path: "AGENTS.md", Template: "codex.AGENTS.executable.md.tmpl", Extra: false},
-			TemplateFile{Path: "README.md", Template: "codex.README.executable.md.tmpl", Extra: false},
+			TemplateFile{Path: "targets/codex-runtime/package.yaml", Template: "targets.codex-runtime.package.yaml.tmpl", Extra: false},
+			TemplateFile{Path: "README.md", Template: "codex-runtime.README.executable.md.tmpl", Extra: false},
 		)
+	case "codex-package":
+		files = append(files,
+			TemplateFile{Path: "targets/codex-package/package.yaml", Template: "targets.codex-package.package.yaml.tmpl", Extra: false},
+			TemplateFile{Path: "README.md", Template: "codex-package.README.md.tmpl", Extra: false},
+		)
+		if extras {
+			files = append(files,
+				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+			)
+		}
+		return files
 	case "gemini":
 		files = append(files,
 			TemplateFile{Path: "targets/gemini/package.yaml", Template: "targets.gemini.package.yaml.tmpl", Extra: false},
@@ -61,7 +71,7 @@ func filesFor(platform, runtime string, extras bool) []TemplateFile {
 		)
 	}
 
-	if extras {
+	if extras && platform != "codex-runtime" {
 		files = append(files,
 			TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 		)

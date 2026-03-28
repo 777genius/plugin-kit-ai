@@ -14,9 +14,8 @@ func TestValidate_PluginProject_CodexGo(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), "go")
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex-runtime", "go", "plugin", false), "go")
 	rendered, err := pluginmanifest.Render(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +24,7 @@ func TestValidate_PluginProject_CodexGo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,9 +38,8 @@ func TestValidate_PluginProjectDetectsDrift(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex", "go", "plugin", false), "go")
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "codex-runtime", "go", "plugin", false), "go")
 	rendered, err := pluginmanifest.Render(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +51,7 @@ func TestValidate_PluginProjectDetectsDrift(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,13 +71,12 @@ func TestValidate_PluginProjectWarnsOnUnknownFields(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "AGENTS.md", "repo instructions\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, pluginmanifest.FileName, `format: plugin-kit-ai/package
 name: "x"
 version: "0.1.0"
 description: "plugin"
-targets: ["codex"]
+targets: ["codex-runtime"]
 extra: true
 `)
 	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
@@ -91,7 +88,7 @@ extra: true
 		t.Fatal(err)
 	}
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +98,7 @@ extra: true
 	if len(report.Warnings) != 1 {
 		t.Fatalf("warnings = %+v", report.Warnings)
 	}
-	if err := Run(dir, "codex"); err != nil {
+	if err := Run(dir, "codex-runtime"); err != nil {
 		t.Fatalf("warnings-only validate should succeed, got %v", err)
 	}
 }
@@ -215,7 +212,9 @@ func mustSaveValidatedPackage(t *testing.T, root string, manifest pluginmanifest
 	if err := pluginmanifest.Save(root, manifest, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher(manifest.Name, runtime), false); err != nil {
-		t.Fatal(err)
+	if strings.TrimSpace(runtime) != "" {
+		if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher(manifest.Name, runtime), false); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

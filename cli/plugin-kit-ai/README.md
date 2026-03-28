@@ -4,7 +4,7 @@ Module: `github.com/plugin-kit-ai/plugin-kit-ai/cli`. Builds the **`plugin-kit-a
 
 Current CLI contract status in this source tree: `public-stable` shipped in `v1.0.0`, with additional post-`v1.0.x` hardening on `main`. Repository-wide compatibility and release policy live in [../../docs/SUPPORT.md](../../docs/SUPPORT.md) and [../../docs/RELEASE.md](../../docs/RELEASE.md).
 
-`plugin-kit-ai init` scaffolds a package-standard project for **Codex** (`--platform codex`, default), **Claude** (`--platform claude`), or **Gemini** (`--platform gemini`). Runtime selection `--runtime go|python|node|shell` applies to launcher-based targets only; Gemini packaging does not use `launcher.yaml` or executable runtime scaffolding. Claude defaults to the stable `Stop`/`PreToolUse`/`UserPromptSubmit` subset; use `--claude-extended-hooks` only when you intentionally want the full runtime-supported hook scaffold.
+`plugin-kit-ai init` scaffolds a package-standard project for **Codex runtime** (`--platform codex-runtime`, default), **Codex package** (`--platform codex-package`), **Claude** (`--platform claude`), or **Gemini** (`--platform gemini`). Runtime selection `--runtime go|python|node|shell` applies to launcher-based targets only; Gemini and Codex package authoring do not use `launcher.yaml` or executable runtime scaffolding. Claude defaults to the stable `Stop`/`PreToolUse`/`UserPromptSubmit` subset; use `--claude-extended-hooks` only when you intentionally want the full runtime-supported hook scaffold.
 `plugin-kit-ai validate` checks package-standard projects, including generated-artifact drift, manifest warnings for unknown `plugin.yaml` keys, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
 `plugin-kit-ai render` renders native target artifacts from the authored package-standard layout, `plugin-kit-ai import` backfills that layout from current native Claude/Codex/Gemini artifacts, and `plugin-kit-ai normalize` rewrites `plugin.yaml` into the package-standard shape.
 `plugin-kit-ai capabilities` defaults to the target/package view and supports `--mode runtime` for runtime-event metadata.
@@ -59,10 +59,10 @@ For migrating current Claude/Codex/Gemini native files into the package-standard
 
 Current behavior and contract details:
 
-- `init`: package-standard scaffold for `codex`, `claude`, or `gemini`; launcher-based targets support Go-first or executable runtimes, while Gemini stays packaging-only
+- `init`: package-standard scaffold for `codex-runtime`, `codex-package`, `claude`, or `gemini`; launcher-based targets support Go-first or executable runtimes, while Gemini and Codex package stay packaging-only
 - `init --platform claude`: stable-default Claude scaffold; `--claude-extended-hooks` opts into the full runtime-supported hook set
 - `init --platform gemini`: richer packaging starter with `targets/gemini/package.yaml`, `contexts/GEMINI.md`, and no launcher/runtime scaffold
-- `render`: render native Claude/Codex runtime artifacts and Gemini CLI extension packaging artifacts from `plugin.yaml` plus `targets/<platform>/...`
+- `render`: render native Claude artifacts, Codex package/runtime lane artifacts, and Gemini CLI extension packaging artifacts from `plugin.yaml` plus `targets/<platform>/...`
 - `import`: create the package-standard authored layout from current native Claude/Codex/Gemini artifacts; Gemini import remains extension-packaging-only
 - `inspect`: explain the discovered package graph, target class, and managed artifacts
 - `normalize`: rewrite `plugin.yaml` into the package-standard shape and drop unknown fields
@@ -75,7 +75,7 @@ Current behavior and contract details:
 For the experimental skills subsystem, handwritten `skills/<name>/SKILL.md` is supported directly. `skills init` is convenience scaffold, not a required entrypoint.
 For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself.
 Executable runtime scaffolds for `python`, `node`, and `shell` are `public-beta`, repo-local, and do not add managed install/update handling for interpreted runtimes. `plugin.yaml` plus `targets/<platform>/...` is the only supported authored package standard; native Claude/Codex/Gemini config files are rendered managed artifacts, and `import` exists to recover authored state from those native layouts. Unknown manifest keys warn via `validate`. Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target; the supported Gemini contract is the full official extension packaging lane through `gemini-extension.json`, inline `mcpServers`, contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and local `gemini extensions link|config|disable|enable` workflows. `plugin-kit-ai capabilities` defaults to the target/package view so package authors can see target class, production boundary, and managed artifacts first.
-Generated Claude/Codex config shapes are part of the repo-owned contract surface; `render --check` and the deterministic `polyglot-smoke` lane are the primary drift guards for that wiring. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced by `validate --strict`.
+Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface; `render --check` and the deterministic `polyglot-smoke` lane are the primary drift guards for that wiring. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced by `validate --strict`.
 
 Executable runtime matrix:
 
@@ -92,7 +92,8 @@ For interpreted runtimes, `validate --strict` is the canonical CI-grade readines
 Production-ready target boundary in the current contract:
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` set
-- Codex: production-ready within the stable `Notify` path
+- Codex runtime: production-ready within the stable `Notify` path
+- Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only Gemini CLI extension lane through `render|import|validate` and local `extensions link|config|disable|enable`
 
 Canonical production plugin lane:
@@ -101,7 +102,7 @@ Canonical production plugin lane:
 ./bin/plugin-kit-ai normalize ./my-plugin
 ./bin/plugin-kit-ai render ./my-plugin
 ./bin/plugin-kit-ai render ./my-plugin --check
-./bin/plugin-kit-ai validate ./my-plugin --platform codex --strict
+./bin/plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ```
 
 `plugin-kit-ai install` prints a deterministic success summary:

@@ -11,7 +11,7 @@ import (
 )
 
 func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
 			sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
@@ -22,7 +22,7 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "codex" {
+			if platform == "codex-runtime" {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
@@ -60,7 +60,7 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 
 			entry := filepath.Join(plugRoot, "bin", binName)
 			switch platform {
-			case "codex":
+			case "codex-runtime":
 				cmd := exec.Command(entry, "notify", `{"client":"codex-tui"}`)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
@@ -84,7 +84,7 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 		t.Skip("npm not in PATH")
 	}
 
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
@@ -92,7 +92,7 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "codex" {
+			if platform == "codex-runtime" {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
@@ -123,7 +123,7 @@ func TestPluginKitAIInitNodeRuntimeSupportsTypeScriptBuildThroughLauncher(t *tes
 				entry += ".cmd"
 			}
 			switch platform {
-			case "codex":
+			case "codex-runtime":
 				cmd := exec.Command(entry, "notify", `{"client":"codex-tui"}`)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
@@ -144,7 +144,7 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 		t.Skip("python runtime not available for launcher flow")
 	}
 
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
@@ -152,7 +152,7 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "codex" {
+			if platform == "codex-runtime" {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
@@ -166,7 +166,7 @@ func TestPluginKitAIInitPythonRuntimeLauncherFlow(t *testing.T) {
 				entry += ".cmd"
 			}
 			switch platform {
-			case "codex":
+			case "codex-runtime":
 				cmd := exec.Command(entry, "notify", `{"client":"codex-tui"}`)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
@@ -187,7 +187,7 @@ func TestPluginKitAIInitShellRuntimeLauncherFlow(t *testing.T) {
 		t.Skip("bash runtime not available for shell launcher flow")
 	}
 
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
@@ -195,7 +195,7 @@ func TestPluginKitAIInitShellRuntimeLauncherFlow(t *testing.T) {
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "codex" {
+			if platform == "codex-runtime" {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
@@ -209,7 +209,7 @@ func TestPluginKitAIInitShellRuntimeLauncherFlow(t *testing.T) {
 				entry += ".cmd"
 			}
 			switch platform {
-			case "codex":
+			case "codex-runtime":
 				cmd := exec.Command(entry, "notify", `{"client":"codex-tui"}`)
 				out, err := cmd.CombinedOutput()
 				if err != nil {
@@ -226,7 +226,7 @@ func TestPluginKitAIInitShellRuntimeLauncherFlow(t *testing.T) {
 }
 
 func TestPluginKitAIInitPythonRuntimeBrokenVenvFailsValidate(t *testing.T) {
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
@@ -262,7 +262,7 @@ func TestPluginKitAIInitNodeRuntimeMissingBuiltOutputFailsValidate(t *testing.T)
 		t.Skip("node not in PATH")
 	}
 
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)
@@ -294,7 +294,7 @@ func TestPluginKitAIInitShellRuntimeNonExecutableTargetFailsValidate(t *testing.
 		t.Skip("unix-only executable-bit check")
 	}
 
-	for _, platform := range []string{"claude", "codex"} {
+	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			pluginKitAIBin := buildPluginKitAI(t)
 			plugRoot := runtimeProjectRoot(t)

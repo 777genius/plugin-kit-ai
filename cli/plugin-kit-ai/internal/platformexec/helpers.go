@@ -293,9 +293,11 @@ func stableClaudeHookNames() []string {
 	return []string{"Stop", "PreToolUse", "UserPromptSubmit"}
 }
 
-type codexPackageMeta struct {
+type codexRuntimeMeta struct {
 	ModelHint string `yaml:"model_hint,omitempty"`
 }
+
+type codexPackageMeta struct{}
 
 type geminiPackageMeta struct {
 	ContextFileName string   `yaml:"context_file_name,omitempty"`

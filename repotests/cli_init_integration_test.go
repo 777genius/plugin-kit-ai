@@ -8,7 +8,7 @@ import (
 )
 
 func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
-	for _, platform := range []string{"claude", "codex", "gemini"} {
+	for _, platform := range []string{"claude", "codex-runtime", "codex-package", "gemini"} {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
 			cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
@@ -23,21 +23,24 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 			}
 
 			plugRoot := t.TempDir()
-			run := exec.Command(bin, "init", "genplug", "--platform", platform, "-o", plugRoot, "--extras")
+			args := []string{"init", "genplug", "--platform", platform, "-o", plugRoot, "--extras"}
+			if platform != "gemini" && platform != "codex-package" {
+				args = append(args, "--runtime", "go")
+			}
+			run := exec.Command(bin, args...)
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "gemini" {
+			if platform == "gemini" || platform == "codex-package" {
 				validate := exec.Command(bin, "validate", plugRoot, "--platform", platform)
 				validate.Env = append(os.Environ(), "GOWORK=off")
 				if out, err := validate.CombinedOutput(); err != nil {
 					t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 				}
-				if _, err := os.Stat(filepath.Join(plugRoot, "launcher.yaml")); !os.IsNotExist(err) {
-					t.Fatalf("gemini starter unexpectedly wrote launcher.yaml")
-				}
-				if _, err := os.Stat(filepath.Join(plugRoot, "go.mod")); !os.IsNotExist(err) {
-					t.Fatalf("gemini starter unexpectedly wrote go.mod")
+				for _, rel := range []string{"launcher.yaml", "go.mod"} {
+					if _, err := os.Stat(filepath.Join(plugRoot, rel)); !os.IsNotExist(err) {
+						t.Fatalf("%s starter unexpectedly wrote %s", platform, rel)
+					}
 				}
 				return
 			}

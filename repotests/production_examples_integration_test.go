@@ -30,7 +30,7 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 		{
 			name:     "codex",
 			dir:      filepath.Join(root, "examples", "plugins", "codex-basic-prod"),
-			platform: "codex",
+			platform: "codex-runtime",
 			binary:   "codex-basic-prod",
 			smoke:    smokeCodexNotify,
 		},
@@ -46,7 +46,7 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			runCmd(t, root, exec.Command(pluginKitAIBin, "render", tc.dir, "--check"))
 			runCmd(t, root, exec.Command(pluginKitAIBin, "validate", tc.dir, "--platform", tc.platform, "--strict"))
-			if tc.platform == "codex" {
+			if tc.platform == "codex-runtime" {
 				assertCodexConfig(t, tc.dir, "gpt-5.4-mini", "./bin/codex-basic-prod")
 			}
 			if tc.platform == "gemini" {

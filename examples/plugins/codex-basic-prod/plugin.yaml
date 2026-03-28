@@ -3,4 +3,4 @@ name: "codex-basic-prod"
 version: "0.1.0"
 description: "production-shaped Codex plugin example"
 targets:
-  - "codex"
+  - "codex-runtime"

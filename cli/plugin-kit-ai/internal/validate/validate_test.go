@@ -370,14 +370,12 @@ description: "x"
 targets: ["codex"]
 `)
 	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: shell\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
-	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
 	mustWriteValidateFile(t, dir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -402,23 +400,18 @@ func TestValidate_CodexRejectsManifestExtraCanonicalOverride(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "x"
-targets: ["codex"]
+targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
-	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "manifest.extra.json"), `{"name":"override"}`)
-	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-package")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var found bool
 	for _, failure := range report.Failures {
-		if strings.Contains(failure.Message, `codex manifest.extra.json may not override canonical field "name"`) {
+		if strings.Contains(failure.Message, `codex-package manifest.extra.json may not override canonical field "name"`) {
 			found = true
 		}
 	}
@@ -435,30 +428,28 @@ func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testi
 name: "x"
 version: "0.1.0"
 description: "x"
-targets: ["codex"]
+targets: ["codex-runtime"]
 `)
 	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-4.1\"\nnotify = [\"./bin/other\", \"notify\"]\n")
-	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var foundExtra, foundNotify, foundModel bool
 	for _, failure := range report.Failures {
-		if strings.Contains(failure.Message, `codex config.extra.toml may not override canonical field "notify"`) {
+		if strings.Contains(failure.Message, `codex-runtime config.extra.toml may not override canonical field "notify"`) {
 			foundExtra = true
 		}
 		if strings.Contains(failure.Message, `entrypoint mismatch: Codex notify argv uses ["./bin/other" "notify"]`) {
 			foundNotify = true
 		}
-		if strings.Contains(failure.Message, `does not match targets/codex/package.yaml model_hint "gpt-5.4-mini"`) {
+		if strings.Contains(failure.Message, `does not match targets/codex-runtime/package.yaml model_hint "gpt-5.4-mini"`) {
 			foundModel = true
 		}
 	}
@@ -610,17 +601,15 @@ func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "x"
-targets: ["codex"]
+targets: ["codex-runtime"]
 `)
 	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: python\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("AGENTS.md"), "repo instructions\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
-	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
 	mustWriteValidateFile(t, dir, filepath.Join("src", "main.py"), "print('ok')\n")
 
-	report, err := Validate(dir, "codex")
+	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
 		t.Fatal(err)
 	}

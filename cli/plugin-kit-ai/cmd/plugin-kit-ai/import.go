@@ -17,7 +17,8 @@ var importCmd = &cobra.Command{
 	Short: "Import current native target artifacts into the package standard layout",
 	Long: `Import an existing native plugin into the package standard layout.
 
-Claude and Codex imports read current native managed artifacts and backfill the package-standard authored layout.
+Claude import maps native plugin artifacts into the package-standard layout.
+Codex import can materialize the official package lane, the local runtime lane, or both from current native artifacts.
 Gemini import is packaging-only in the current contract: it backfills manifest metadata, but does not promote Gemini to a production-ready runtime target.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,6 +43,6 @@ Gemini import is packaging-only in the current contract: it backfills manifest m
 }
 
 func init() {
-	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex", "gemini")`)
+	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex", "codex-package", "codex-runtime", "gemini")`)
 	importCmd.Flags().BoolVarP(&importForce, "force", "f", false, "overwrite plugin.yaml if it already exists")
 }

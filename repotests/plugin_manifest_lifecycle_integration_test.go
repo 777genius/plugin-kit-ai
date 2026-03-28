@@ -12,7 +12,7 @@ func TestPluginKitAIValidateStrictFailsOnWarningsThenNormalizeFixesThem(t *testi
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := t.TempDir()
 
-	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex", "-o", plugRoot)
+	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex-runtime", "-o", plugRoot)
 	if out, err := initCmd.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 	}
@@ -28,7 +28,7 @@ func TestPluginKitAIValidateStrictFailsOnWarningsThenNormalizeFixesThem(t *testi
 		t.Fatal(err)
 	}
 
-	validateStrict := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex", "--strict")
+	validateStrict := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
 	validateStrict.Env = append(os.Environ(), "GOWORK=off")
 	out, err := validateStrict.CombinedOutput()
 	if err == nil {
@@ -43,7 +43,7 @@ func TestPluginKitAIValidateStrictFailsOnWarningsThenNormalizeFixesThem(t *testi
 		t.Fatalf("plugin-kit-ai normalize: %v\n%s", err, out)
 	}
 
-	validateStrict = exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex", "--strict")
+	validateStrict = exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
 	validateStrict.Env = append(os.Environ(), "GOWORK=off")
 	out, err = validateStrict.CombinedOutput()
 	if err != nil {
@@ -192,21 +192,21 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 		t.Fatalf("plugin-kit-ai import codex: %v\n%s", err, out)
 	}
 
-	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "package.yaml"))
+	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-runtime", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(packageBody), "model_hint: gpt-5.4-mini") {
 		t.Fatalf("imported codex package metadata = %q, want gpt-5.4-mini model_hint", string(packageBody))
 	}
-	manifestExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "manifest.extra.json"))
+	manifestExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-package", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(manifestExtraBody), `"homepage": "https://example.com/demo"`) {
 		t.Fatalf("manifest extra = %q", string(manifestExtraBody))
 	}
-	configExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex", "config.extra.toml"))
+	configExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-runtime", "config.extra.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,10 +235,16 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 		t.Fatalf("plugin-kit-ai render --check after Codex import: %v\n%s", err, out)
 	}
 
-	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex", "--strict")
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-package", "--strict")
 	validateCmd.Env = append(os.Environ(), "GOWORK=off")
 	if out, err := validateCmd.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after Codex import: %v\n%s", err, out)
+		t.Fatalf("plugin-kit-ai validate codex-package after Codex import: %v\n%s", err, out)
+	}
+
+	validateCmd = exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
+	validateCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate codex-runtime after Codex import: %v\n%s", err, out)
 	}
 }
 

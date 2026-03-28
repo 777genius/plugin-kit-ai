@@ -198,6 +198,9 @@ func (m Manifest) Validate() error {
 	supportedTargets := platformmeta.IDs()
 	for _, target := range m.Targets {
 		target = NormalizeTarget(target)
+		if target == "codex" {
+			return fmt.Errorf("invalid plugin.yaml: target %q was split; use %q for the official plugin bundle and/or %q for repo-local notify integration", target, "codex-package", "codex-runtime")
+		}
 		if !slices.Contains(supportedTargets, target) {
 			return fmt.Errorf("invalid plugin.yaml: unsupported target %q", target)
 		}

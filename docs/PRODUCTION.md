@@ -5,7 +5,8 @@ This document is the canonical production authoring path for plugin authors usin
 ## Current Target Boundary
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
-- Codex: production-ready within the stable `Notify` path
+- Codex runtime: production-ready within the stable `Notify` path
+- Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
 
 Repo-local executable runtime boundary:
@@ -31,7 +32,7 @@ Run this exact sequence before shipping a plugin repo:
 plugin-kit-ai normalize .
 plugin-kit-ai render .
 plugin-kit-ai render --check .
-plugin-kit-ai validate . --platform <claude|codex> --strict
+plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package> --strict
 ```
 
 Then run the target-specific smoke:
@@ -61,17 +62,27 @@ Reference implementation:
 
 - [examples/plugins/claude-basic-prod](../examples/plugins/claude-basic-prod)
 
-## Codex Release-Ready Path
+## Codex Runtime Release-Ready Path
 
-- Start from `plugin-kit-ai init --platform codex` or `plugin-kit-ai import --from codex`
-- Keep `plugin.yaml` plus `targets/codex/...` as the authored source of truth
-- Commit generated `.codex-plugin/plugin.json` and `.codex/config.toml`
-- Keep `AGENTS.md` repo-local and review it as part of release
+- Start from `plugin-kit-ai init --platform codex-runtime` or `plugin-kit-ai import --from codex`
+- Keep `plugin.yaml` plus `targets/codex-runtime/...` as the authored source of truth
+- Commit generated `.codex/config.toml`
 - Treat the stable promise as applying only to the `Notify` path
 
 Reference implementation:
 
 - [examples/plugins/codex-basic-prod](../examples/plugins/codex-basic-prod)
+
+## Codex Package Release-Ready Path
+
+- Start from `plugin-kit-ai init --platform codex-package` or `plugin-kit-ai import --from codex-package`
+- Keep `plugin.yaml` plus `targets/codex-package/...` as the authored source of truth
+- Commit generated `.codex-plugin/plugin.json` plus optional `.mcp.json` and `.app.json`
+- Treat this lane as the official Codex plugin bundle, separate from local notify/runtime wiring
+
+Reference implementation:
+
+- [examples/plugins/codex-package-prod](../examples/plugins/codex-package-prod)
 
 ## What This Workflow Guarantees
 

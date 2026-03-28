@@ -12,7 +12,7 @@ func TestPluginKitAIValidateWarnsButSucceedsOnExtraPluginYAMLFields(t *testing.T
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := t.TempDir()
 
-	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex", "-o", plugRoot)
+	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex-runtime", "-o", plugRoot)
 	if out, err := initCmd.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 	}
@@ -28,7 +28,7 @@ func TestPluginKitAIValidateWarnsButSucceedsOnExtraPluginYAMLFields(t *testing.T
 		t.Fatal(err)
 	}
 
-	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex")
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime")
 	validateCmd.Env = append(os.Environ(), "GOWORK=off")
 	out, err := validateCmd.CombinedOutput()
 	if err != nil {

@@ -29,7 +29,7 @@ func TestPluginKitAIRuntimeABIPassthrough(t *testing.T) {
 				t.Skipf("%s runtime not available", tc.runtime)
 			}
 
-			for _, platform := range []string{"claude", "codex"} {
+			for _, platform := range []string{"claude", "codex-runtime"} {
 				platform := platform
 				t.Run(platform, func(t *testing.T) {
 					pluginKitAIBin := buildPluginKitAI(t)
@@ -69,7 +69,7 @@ func TestPluginKitAIRuntimeABIPassthrough(t *testing.T) {
 						if stderr != "Stop" {
 							t.Fatalf("stderr = %q, want %q", stderr, "Stop")
 						}
-					case "codex":
+					case "codex-runtime":
 						stdout, stderr, err := runProcess(entry, []string{"notify", `{"client":"codex-tui","payload":"codex"}`}, "")
 						if err == nil {
 							t.Fatal("expected non-zero exit")
@@ -109,7 +109,7 @@ func TestPluginKitAIPythonLauncherPrefersProjectVenvOnWindows(t *testing.T) {
 
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := runtimeProjectRoot(t)
-	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex", "--runtime", "python", "-o", plugRoot)
+	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "codex-runtime", "--runtime", "python", "-o", plugRoot)
 	if out, err := initCmd.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 	}
@@ -123,7 +123,7 @@ func TestPluginKitAIPythonLauncherPrefersProjectVenvOnWindows(t *testing.T) {
 	}
 	writeRuntimeFile(t, plugRoot, filepath.Join("src", "main.py"), pythonExecutableProbeSource())
 
-	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex")
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime")
 	if out, err := validateCmd.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 	}

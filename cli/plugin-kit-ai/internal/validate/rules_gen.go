@@ -20,13 +20,25 @@ var generatedRules = map[string]Rule{
 			"./...",
 		},
 	},
-	"codex": {
-		Platform: "codex",
+	"codex-package": {
+		Platform: "codex-package",
+		RequiredFiles: []string{
+			"README.md",
+			".codex-plugin/plugin.json",
+		},
+		ForbiddenFiles: []string{
+			"launcher.yaml",
+			".codex/config.toml",
+			"AGENTS.md",
+		},
+		BuildTargets: []string{},
+	},
+	"codex-runtime": {
+		Platform: "codex-runtime",
 		RequiredFiles: []string{
 			"go.mod",
 			"README.md",
 			"launcher.yaml",
-			"AGENTS.md",
 			".codex/config.toml",
 		},
 		ForbiddenFiles: []string{
@@ -56,7 +68,7 @@ func LookupRule(name string) (Rule, bool) {
 func normalizePlatform(name string) string {
 	name = strings.ToLower(strings.TrimSpace(name))
 	if name == "" {
-		return "codex"
+		return "codex-runtime"
 	}
 	return name
 }

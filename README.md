@@ -7,12 +7,12 @@ It gives you:
 
 - a typed Go SDK for Claude and Codex
 - a package-standard authoring model for plugin repos
-- managed render/validate tooling for Claude, Codex, and Gemini target artifacts
+- managed render/validate tooling for Claude, Codex package/runtime lanes, and Gemini target artifacts
 - a repo-local executable ABI for `python`, `node`, and `shell`
 
 Use it when you want one of these outcomes:
 
-- build a real plugin repo for Claude or Codex with a clear support boundary
+- build a real plugin repo for Claude, Codex package/runtime lanes, or Gemini packaging with a clear support boundary
 - keep authored plugin state in versioned source files instead of hand-editing vendor config
 - generate and validate native target files deterministically
 - stay Go-first by default, but still allow repo-local plugins in Python, Node, or Shell
@@ -27,7 +27,7 @@ Do not use it if your main goal is:
 
 `plugin-kit-ai` is aimed at three audiences:
 
-- plugin authors who want a typed Go SDK and a production path for Claude or Codex
+- plugin authors who want a typed Go SDK and a production path for Claude or the Codex runtime lane
 - teams that already have native Claude/Codex/Gemini config files and want to move to a managed source-of-truth model
 - maintainers who need render, drift detection, strict validation, and deterministic release gates
 
@@ -90,6 +90,7 @@ For teams that want the strongest supported release and distribution story:
 ./bin/plugin-kit-ai init my-plugin
 ./bin/plugin-kit-ai init my-plugin --platform claude
 ./bin/plugin-kit-ai init my-plugin --platform claude --claude-extended-hooks
+./bin/plugin-kit-ai init my-plugin --platform codex-package
 ./bin/plugin-kit-ai init my-plugin --platform gemini
 ```
 
@@ -111,7 +112,7 @@ Run the canonical authoring lane:
 ./bin/plugin-kit-ai normalize ./my-plugin
 ./bin/plugin-kit-ai render ./my-plugin
 ./bin/plugin-kit-ai render ./my-plugin --check
-./bin/plugin-kit-ai validate ./my-plugin --platform codex --strict
+./bin/plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ```
 
 ## Which Path Should You Choose
@@ -141,7 +142,7 @@ The default recommendation remains:
 - `targets/<platform>/...`
 - your real sources such as `cmd/`, `scripts/`, `mcp/`, `skills/`, `agents/`, `contexts/`
 
-Claude, Codex, and Gemini native config files are rendered managed artifacts.
+Claude, Codex package/runtime lanes, and Gemini native config files are rendered managed artifacts.
 They are not the authored source of truth.
 
 That means:
@@ -153,7 +154,7 @@ That means:
 
 `plugin-kit-ai validate` checks package-standard projects, generated-artifact drift, manifest warnings, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
 `plugin-kit-ai capabilities` now defaults to target/package introspection. Use `--mode runtime` for Claude/Codex event support, and use the default target view for package class, production boundary, and managed-artifact coverage.
-Generated Claude/Codex config shapes are part of the repo-owned contract surface and are guarded by `render --check` plus deterministic `polyglot-smoke` canaries. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced separately by `validate --strict`.
+Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface and are guarded by `render --check` plus deterministic `polyglot-smoke` canaries. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced separately by `validate --strict`.
 
 In practice, that gives the repo one clear split:
 
@@ -169,13 +170,14 @@ Current runtime support:
 - Claude: production-ready within the declared stable event set `Stop`, `PreToolUse`, `UserPromptSubmit`
 - Claude scaffolds only that stable subset by default; use `--claude-extended-hooks` only for the wider runtime-supported set
 - Claude: runtime-supported but not stable for `SessionStart`, `SessionEnd`, `Notification`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `SubagentStart`, `SubagentStop`, `PreCompact`, `Setup`, `TeammateIdle`, `TaskCompleted`, `ConfigChange`, `WorktreeCreate`, `WorktreeRemove`
-- Codex: production-ready within the declared stable `Notify` path
+- Codex runtime: production-ready within the declared stable `Notify` path
+- Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only extension lane through `render|import|validate` plus local `extensions link|config|disable|enable`, not a production-ready runtime target
 
 Release boundary notes:
 
 - Claude stable support covers the declared stable event set only
-- Codex stable support does not guarantee the health of the external `codex exec` runtime before hook execution
+- Codex runtime stable support does not guarantee the health of the external `codex exec` runtime before hook execution
 - additional official Claude hooks may be runtime-supported in `public-beta` before separate promotion
 - the canonical production plugin lane is `normalize -> render -> render --check -> validate --strict -> target smoke`
 - deterministic canaries protect generated Claude/Codex config wiring and rendered runtime artifact drift; external CLI health stays outside that repo-owned guarantee

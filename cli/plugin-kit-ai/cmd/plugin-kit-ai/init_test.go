@@ -42,9 +42,10 @@ func TestInitHelpIncludesScenarioLanesAndDefaults(t *testing.T) {
 		"Production-ready plugin repo",
 		"Already have native config",
 		"plugin-kit-ai import",
-		`--platform   Supported: "codex" (default), "claude", and "gemini".`,
-		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets.`,
+		`--platform   Supported: "codex-runtime" (default), "codex-package", "claude", and "gemini".`,
+		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.`,
 		"--runtime go remains the default",
+		"--platform codex-package",
 		"--claude-extended-hooks",
 	} {
 		if !strings.Contains(output, want) {
@@ -64,8 +65,8 @@ func TestInitCommandUsesDefaultPlatformAndRuntime(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	if runner.gotOpts.Platform != "codex" {
-		t.Fatalf("platform = %q, want codex", runner.gotOpts.Platform)
+	if runner.gotOpts.Platform != "codex-runtime" {
+		t.Fatalf("platform = %q, want codex-runtime", runner.gotOpts.Platform)
 	}
 	if runner.gotOpts.Runtime != "go" {
 		t.Fatalf("runtime = %q, want go", runner.gotOpts.Runtime)
@@ -83,25 +84,25 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 		wantPlatform string
 	}{
 		{
-			name:         "codex-go",
+			name:         "codex-runtime-go",
 			args:         []string{"demo"},
 			wantRuntime:  "go",
-			wantPlatform: "codex",
+			wantPlatform: "codex-runtime",
 			want: []string{
 				`Created plugin "demo" at /tmp/demo plugin`,
 				`cd "/tmp/demo plugin"`,
-				"plugin-kit-ai validate . --platform codex --strict",
+				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"See README.md for SDK setup and first-run steps",
 			},
 		},
 		{
-			name:         "codex-python",
+			name:         "codex-runtime-python",
 			args:         []string{"demo", "--runtime", "python"},
 			wantRuntime:  "python",
-			wantPlatform: "codex",
+			wantPlatform: "codex-runtime",
 			want: []string{
 				"Create a project .venv, then run:",
-				"plugin-kit-ai validate . --platform codex --strict",
+				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"See README.md for the full first run",
 			},
 			notWant: []string{
@@ -109,17 +110,28 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			},
 		},
 		{
-			name:         "codex-node",
+			name:         "codex-runtime-node",
 			args:         []string{"demo", "--runtime", "node"},
 			wantRuntime:  "node",
-			wantPlatform: "codex",
+			wantPlatform: "codex-runtime",
 			want: []string{
 				"npm install",
-				"plugin-kit-ai validate . --platform codex --strict",
+				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"See README.md for the full first run",
 			},
 			notWant: []string{
 				"production-ready",
+			},
+		},
+		{
+			name:         "codex-package",
+			args:         []string{"demo", "--platform", "codex-package"},
+			wantRuntime:  "",
+			wantPlatform: "codex-package",
+			want: []string{
+				"plugin-kit-ai render .",
+				"plugin-kit-ai validate . --platform codex-package --strict",
+				"See README.md for the full first run",
 			},
 		},
 		{
