@@ -2,6 +2,8 @@
 
 This ledger records the post-`v1.0.0` promotion of the stable OpenCode local-plugin-loading subset.
 
+Standalone-tools beta evidence is tracked separately in [OPENCODE_TOOLS_BETA_AUDIT.md](./OPENCODE_TOOLS_BETA_AUDIT.md).
+
 ## Scope
 
 Promoted to `public-stable` in the current source tree:

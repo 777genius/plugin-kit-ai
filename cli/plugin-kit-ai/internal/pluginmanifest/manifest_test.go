@@ -267,6 +267,87 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 	}
 }
 
+func TestImport_OpenCodeEnvSourcesLayerDeterministically(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	envDir := t.TempDir()
+	envFile := filepath.Join(t.TempDir(), "custom-opencode.jsonc")
+	t.Setenv("OPENCODE_CONFIG_DIR", envDir)
+	t.Setenv("OPENCODE_CONFIG", envFile)
+
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "opencode.json"), `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/global"],"theme":"global"}`)
+	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "commands", "ship.md"), "---\ndescription: global\n---\n\nglobal\n")
+	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/project"],"theme":"project","mcp":{"project":{"type":"local","command":["echo","project"]}}}`)
+	mustWritePluginFile(t, root, filepath.Join(".opencode", "commands", "ship.md"), "---\ndescription: project\n---\n\nproject\n")
+	mustWritePluginFile(t, envDir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","theme":"env-dir","mcp":{"envdir":{"type":"local","command":["echo","envdir"]}}}`)
+	mustWritePluginFile(t, envDir, filepath.Join("commands", "ship.md"), "---\ndescription: envdir\n---\n\nenvdir\n")
+	mustWritePluginFile(t, envDir, filepath.Join("plugins", "shared.js"), "export const EnvDirPlugin = async () => ({})\n")
+	mustWritePluginFile(t, envDir, "package.json", `{"name":"env-dir-opencode-local"}`)
+	mustWritePluginFile(t, filepath.Dir(envFile), filepath.Base(envFile), `{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["@acme/env-file"],
+  "theme": "env-file",
+  "permission": {"edit":"ask"}
+}`)
+
+	imported, warnings, err := Import(root, "opencode", false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "opencode" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "@acme/env-file") || strings.Contains(string(body), "@acme/project") {
+		t.Fatalf("package.yaml = %s", body)
+	}
+	configBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	configText := string(configBody)
+	for _, want := range []string{`"theme": "env-file"`, `"permission"`, `"edit": "ask"`} {
+		if !strings.Contains(configText, want) {
+			t.Fatalf("config.extra.json missing %q:\n%s", want, configText)
+		}
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mcpBody), `"envdir"`) || !strings.Contains(string(mcpBody), `"project"`) {
+		t.Fatalf("servers.json = %s", mcpBody)
+	}
+	commandBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "commands", "ship.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(commandBody), "envdir") {
+		t.Fatalf("ship.md = %s", commandBody)
+	}
+	pluginBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "plugins", "shared.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(pluginBody), "EnvDirPlugin") {
+		t.Fatalf("shared.js = %s", pluginBody)
+	}
+	packageJSONBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(packageJSONBody), "env-dir-opencode-local") {
+		t.Fatalf("package.json = %s", packageJSONBody)
+	}
+}
+
 func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.jsonc", `{
@@ -300,6 +381,64 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %v, want none", warnings)
+	}
+}
+
+func TestValidate_OpenCodeAcceptsOPENCODECONFIGFallback(t *testing.T) {
+	root := t.TempDir()
+	envFile := filepath.Join(t.TempDir(), "custom-opencode.jsonc")
+	t.Setenv("OPENCODE_CONFIG", envFile)
+	mustWritePluginFile(t, filepath.Dir(envFile), filepath.Base(envFile), `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/env-file"]}`)
+
+	manifest := Default("demo", "opencode", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+
+	graph, _, err := Discover(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, ok := platformexec.Lookup("opencode")
+	if !ok {
+		t.Fatal("missing opencode adapter")
+	}
+	diagnostics, err := adapter.Validate(root, graph, graph.Targets["opencode"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, failure := range diagnostics {
+		if strings.Contains(failure.Message, "OpenCode config opencode.json") {
+			t.Fatalf("diagnostics = %+v", diagnostics)
+		}
+	}
+}
+
+func TestValidate_OpenCodeAcceptsOPENCODECONFIGDIRFallback(t *testing.T) {
+	root := t.TempDir()
+	envDir := t.TempDir()
+	t.Setenv("OPENCODE_CONFIG_DIR", envDir)
+	mustWritePluginFile(t, envDir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/env-dir"]}`)
+
+	manifest := Default("demo", "opencode", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+
+	graph, _, err := Discover(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, ok := platformexec.Lookup("opencode")
+	if !ok {
+		t.Fatal("missing opencode adapter")
+	}
+	diagnostics, err := adapter.Validate(root, graph, graph.Targets["opencode"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, failure := range diagnostics {
+		if strings.Contains(failure.Message, "OpenCode config opencode.json") {
+			t.Fatalf("diagnostics = %+v", diagnostics)
+		}
 	}
 }
 

@@ -8,7 +8,7 @@ This document is the canonical production authoring path for plugin authors usin
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
-- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools; `custom_tools` remain beta
+- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools, explicit env-config import compatibility, and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
 
@@ -42,7 +42,7 @@ Then run the target-specific smoke:
 
 - Claude: execute the built binary with documented stable hook payloads for `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - Codex: execute the built binary with a documented `notify` payload
-- OpenCode: run `make test-opencode-live` when recording stable-promotion or release evidence; this remains opt-in and requires `opencode` in `PATH`
+- OpenCode: run `make test-opencode-live` when recording stable local-plugin-loading evidence, and run `make test-opencode-tools-live` when recording standalone-tools beta evidence; both remain opt-in and require `opencode` in `PATH`
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
 
@@ -104,6 +104,7 @@ Reference implementation:
 - Treat standalone `.opencode/tools/**` authoring as first-class `public-beta`
 - Treat `custom_tools` as `public-beta` whether they ship through standalone tool files or plugin code
 - Record `make test-opencode-live` evidence whenever you are refreshing or asserting the OpenCode stable boundary
+- Record `make test-opencode-tools-live` evidence whenever you are refreshing or asserting the standalone-tools beta boundary
 
 Reference implementation:
 
@@ -116,6 +117,7 @@ Reference implementation:
 - strict validation passes with no manifest drift and no Claude authored-hook entrypoint drift
 - the committed example-shaped repo can build and execute a deterministic local smoke path
 - OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` smoke path
+- OpenCode standalone tools beta evidence is recorded separately through the deterministic marker-based `test-opencode-tools-live` smoke path
 
 ## Gemini Packaging Boundary
 

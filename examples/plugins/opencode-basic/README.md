@@ -22,6 +22,7 @@ Plugin specifics in this example:
 - `targets/opencode/tools/echo.ts` shows first-class beta standalone tool authoring using `@opencode-ai/plugin`
 - `targets/opencode/plugins/custom-tool.js` shows beta custom-tool support through plugin code using the same shared helper dependency
 - `targets/opencode/package.json` is the canonical authored source for shared tool/plugin dependencies
+- `make test-opencode-tools-live` is the dedicated opt-in live evidence path for standalone tools; `make test-opencode-live` remains the stable local-plugin-loading evidence path
 
 Validate it with:
 
