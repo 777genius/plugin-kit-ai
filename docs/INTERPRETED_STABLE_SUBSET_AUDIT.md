@@ -39,7 +39,7 @@ Stable promise for this subset means:
 - deterministic local unpack/install handoff through `bundle install`
 - deterministic remote fetch/install handoff through `bundle fetch`
 - deterministic GitHub Releases producer handoff through `bundle publish`
-- official downstream CLI availability through `scripts/install.sh` and `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1`
+- official downstream CLI availability through Homebrew, `scripts/install.sh`, and `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1`
 - `init --extras` emits `.github/workflows/bundle-release.yml` for the stable interpreted `python`/`node` subset on `codex-runtime` and `claude`
 
 Supported manager boundary:

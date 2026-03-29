@@ -20,6 +20,7 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 
 - `polyglot-smoke` workflow result recorded when stable Node/Python local-runtime, local bundle-install, remote bundle-fetch, or GitHub bundle-publish claims, shell beta claims, launcher logic, or Windows runtime resolution changed
 - generated-config/runtime-contract drift result recorded when Claude/Codex config wiring, rendered target files, or target contract metadata changed
+- Homebrew tap update result recorded when the `plugin-kit-ai` CLI install path changed
 - `extended` workflow result recorded
 - `live` workflow result recorded, or an explicit waiver is noted in release notes
 - any skipped real-CLI smoke reason is written down

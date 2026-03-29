@@ -14,6 +14,8 @@ It does **not** cover:
 - zip extraction support
 - exported interpreted-runtime bundles; those use the stable local `plugin-kit-ai bundle install` surface, the stable remote `plugin-kit-ai bundle fetch` surface, or the stable GitHub Releases producer companion `plugin-kit-ai bundle publish`, not `plugin-kit-ai install`
 
+For the `plugin-kit-ai` CLI itself, the recommended local install path is `brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai`. The verified fallback bootstrap path is `scripts/install.sh`, and the official CI setup path is `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1`. Those surfaces install the CLI itself and stay separate from `plugin-kit-ai install`.
+
 ## Supported Release Layouts
 
 The current stable install contract supports these release shapes:

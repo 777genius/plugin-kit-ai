@@ -4,6 +4,8 @@
 
 Current status: `public-stable` for repo-local `python` and `node` authoring plus exported bundle handoff on `codex-runtime` and `claude`; launcher-based `shell` remains `public-beta`.
 
+For the `plugin-kit-ai` CLI itself, the recommended package-manager install path is Homebrew: `brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai`. The verified fallback bootstrap path is `scripts/install.sh`, and the official CI setup path is `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1`. These install the CLI itself; they do not widen `plugin-kit-ai install`, which remains the stable binary-only installer for third-party plugin binaries.
+
 Runtime matrix:
 
 | Runtime | Status | Scope | Bootstrap |

@@ -7,6 +7,10 @@ on:
         description: "Pinned tag for live install smoke"
         required: false
         default: "v1.34.0"
+      run_homebrew_install:
+        description: "Set to 1 to enable macOS Homebrew install smoke for plugin-kit-ai"
+        required: false
+        default: "0"
       run_claude_cli:
         description: "Set to 1 to enable Claude live-model sanity"
         required: false
@@ -43,3 +47,17 @@ jobs:
         with:
           name: live-log
           path: live.log
+
+  homebrew-install:
+    if: ${{ inputs.run_homebrew_install == '1' }}
+    name: homebrew-install
+    runs-on: macos-latest
+    steps:
+      - name: Tap plugin-kit-ai formula
+        run: brew tap plugin-kit-ai/plugin-kit-ai
+
+      - name: Install plugin-kit-ai
+        run: brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai
+
+      - name: Verify plugin-kit-ai version
+        run: plugin-kit-ai version
