@@ -223,7 +223,7 @@ func TestPluginKitAIInitExtrasNodeTypeScriptEmitsBundleReleaseWorkflow(t *testin
 	}
 	workflow := string(body)
 	for _, want := range []string{
-		"actions/setup-node@v4",
+		"actions/setup-node@v6",
 		"777genius/plugin-kit-ai/setup-plugin-kit-ai@v1",
 		"plugin-kit-ai doctor .",
 		"plugin-kit-ai bootstrap .",

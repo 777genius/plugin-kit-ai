@@ -553,7 +553,7 @@ func TestWrite_CodexRuntimeNodeTypeScriptIncludesBuiltOutputShape(t *testing.T) 
 	}
 	workflow := string(workflowBody)
 	for _, want := range []string{
-		"actions/setup-node@v4",
+		"actions/setup-node@v6",
 		"777genius/plugin-kit-ai/setup-plugin-kit-ai@v1",
 		"plugin-kit-ai doctor .",
 		"plugin-kit-ai bootstrap .",
