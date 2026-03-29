@@ -328,17 +328,17 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(polyglotWorkflow), "^TestNPMCLIPackage")
 	mustContain(t, string(polyglotWorkflow), "InitExtras(PythonEmitsBundleReleaseWorkflow|NodeTypeScriptEmitsBundleReleaseWorkflow)")
 
-	liveWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live.yml"))
+	liveWorkflowBody, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "live.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, string(liveWorkflow), "run_homebrew_install")
-	mustContain(t, string(liveWorkflow), "brew tap 777genius/homebrew-plugin-kit-ai")
-	mustContain(t, string(liveWorkflow), "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai")
-	mustContain(t, string(liveWorkflow), "run_npm_install")
-	mustContain(t, string(liveWorkflow), "npm i -g \"plugin-kit-ai@${version}\"")
-	mustContain(t, string(liveWorkflow), "npm list -g plugin-kit-ai --depth=0")
-	mustContain(t, string(liveWorkflow), "npx \"plugin-kit-ai@${version}\" version")
+	mustContain(t, string(liveWorkflowBody), "run_homebrew_install")
+	mustContain(t, string(liveWorkflowBody), "brew tap 777genius/homebrew-plugin-kit-ai")
+	mustContain(t, string(liveWorkflowBody), "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai")
+	mustContain(t, string(liveWorkflowBody), "run_npm_install")
+	mustContain(t, string(liveWorkflowBody), "npm i -g \"plugin-kit-ai@${version}\"")
+	mustContain(t, string(liveWorkflowBody), "npm list -g plugin-kit-ai --depth=0")
+	mustContain(t, string(liveWorkflowBody), "npx --yes -p \"plugin-kit-ai@${version}\" plugin-kit-ai version")
 
 	homebrewTapWorkflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "homebrew-tap.yml"))
 	if err != nil {

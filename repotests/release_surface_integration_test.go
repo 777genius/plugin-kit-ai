@@ -72,7 +72,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, liveWorkflow, "run_npm_install")
 	mustContain(t, liveWorkflow, "npm i -g \"plugin-kit-ai@${version}\"")
 	mustContain(t, liveWorkflow, "npm list -g plugin-kit-ai --depth=0")
-	mustContain(t, liveWorkflow, "npx \"plugin-kit-ai@${version}\" version")
+	mustContain(t, liveWorkflow, "npx --yes -p \"plugin-kit-ai@${version}\" plugin-kit-ai version")
 	mustContain(t, npmPublishWorkflow, "name: NPM Publish")
 	mustContain(t, npmPublishWorkflow, "types: [published]")
 	mustContain(t, npmPublishWorkflow, "NPM_TOKEN")

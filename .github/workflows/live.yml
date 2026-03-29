@@ -92,4 +92,4 @@ jobs:
         shell: bash
         run: |
           version="${TAG#v}"
-          npx "plugin-kit-ai@${version}" version
+          npx --yes -p "plugin-kit-ai@${version}" plugin-kit-ai version
