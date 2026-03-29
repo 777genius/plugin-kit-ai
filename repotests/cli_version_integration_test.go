@@ -25,7 +25,7 @@ func TestPluginKitAIVersionCommand(t *testing.T) {
 func TestPluginKitAIVersionCommand_UsesInjectedReleaseVersion(t *testing.T) {
 	root := RepoRoot(t)
 	outPath := filepath.Join(t.TempDir(), "plugin-kit-ai")
-	build := exec.Command("/opt/homebrew/bin/go", "build", "-ldflags", "-X main.version=v1.0.1", "-o", outPath, "./cmd/plugin-kit-ai")
+	build := exec.Command("go", "build", "-ldflags", "-X main.version=v1.0.1", "-o", outPath, "./cmd/plugin-kit-ai")
 	build.Dir = filepath.Join(root, "cli", "plugin-kit-ai")
 	buildOut, err := build.CombinedOutput()
 	if err != nil {
