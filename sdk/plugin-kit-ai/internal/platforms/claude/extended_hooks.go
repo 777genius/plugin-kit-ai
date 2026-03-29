@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 type BaseInput struct {

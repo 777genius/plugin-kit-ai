@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/generator"
+	"github.com/777genius/plugin-kit-ai/sdk/generator"
 )
 
 func main() {

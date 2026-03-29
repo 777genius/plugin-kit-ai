@@ -3,8 +3,8 @@ package claude
 import (
 	"encoding/json"
 
-	internalclaude "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	internalclaude "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 type SessionStartEvent = internalclaude.SessionStartInput

@@ -17,7 +17,7 @@ import (
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/targetcontracts"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 	"gopkg.in/yaml.v3"
 )
 

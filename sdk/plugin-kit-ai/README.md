@@ -1,6 +1,6 @@
 # plugin-kit-ai SDK
 
-Module: `github.com/plugin-kit-ai/plugin-kit-ai/sdk`
+Module: `github.com/777genius/plugin-kit-ai/sdk`
 
 The SDK exposes a platform-neutral runtime core with platform-specific public registrars.
 
@@ -22,8 +22,8 @@ Root package:
 
 Platform packages:
 
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude`
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex`
+- `github.com/777genius/plugin-kit-ai/sdk/claude`
+- `github.com/777genius/plugin-kit-ai/sdk/codex`
 
 ## Runtime Contract Boundary
 
@@ -97,8 +97,8 @@ package main
 import (
 	"os"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/claude"
 )
 
 func main() {
@@ -118,8 +118,8 @@ package main
 import (
 	"os"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
 )
 
 func main() {

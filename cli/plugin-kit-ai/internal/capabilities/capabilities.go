@@ -7,7 +7,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/plugin-kit-ai/plugin-kit-ai/cli/internal/targetcontracts"
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
 )
 
 type Entry struct {

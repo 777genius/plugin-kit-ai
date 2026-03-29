@@ -1,9 +1,9 @@
 package gen
 
 import (
-	internal_claude "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude"
-	internal_codex "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/codex"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	internal_claude "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/claude"
+	internal_codex "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/codex"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 type key struct {

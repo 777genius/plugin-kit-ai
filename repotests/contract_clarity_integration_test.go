@@ -225,7 +225,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(startersExamplesReadme), "pipx install plugin-kit-ai")
 	mustContain(t, string(startersExamplesReadme), "plugin-kit-ai doctor .")
 	mustContain(t, string(startersExamplesReadme), "plugin-kit-ai bootstrap .")
-	mustContain(t, string(startersExamplesReadme), "go mod edit -replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai")
+	mustContain(t, string(startersExamplesReadme), "go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai")
 	mustContain(t, string(startersExamplesReadme), "go test ./...")
 	mustContain(t, string(startersExamplesReadme), "go build -o bin/<starter-name> ./cmd/<starter-name>")
 	mustContain(t, string(startersExamplesReadme), "plugin-kit-ai validate . --platform <codex-runtime|claude> --strict")

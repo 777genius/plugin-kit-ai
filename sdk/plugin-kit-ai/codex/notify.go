@@ -3,8 +3,8 @@ package codex
 import (
 	"encoding/json"
 
-	internalcodex "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/codex"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	internalcodex "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/codex"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 type NotifyEvent struct {

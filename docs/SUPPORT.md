@@ -45,9 +45,9 @@ Use these terms consistently in public docs, generated artifacts, and CLI output
 
 SDK packages and stable root API:
 
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk`
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude`
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex`
+- `github.com/777genius/plugin-kit-ai/sdk`
+- `github.com/777genius/plugin-kit-ai/sdk/claude`
+- `github.com/777genius/plugin-kit-ai/sdk/codex`
 - `plugin-kit-ai.New`, `plugin-kit-ai.Config`, `plugin-kit-ai.App`
 - `(*plugin-kit-ai.App).Use`
 - `(*plugin-kit-ai.App).Claude`

@@ -26,7 +26,7 @@ Copy-first starter for Go teams that want the stable `codex-runtime` Notify path
 ## First Run
 
 ```bash
-go mod edit -replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
+go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
 go test ./...
 go build -o bin/codex-go-starter ./cmd/codex-go-starter
 plugin-kit-ai validate . --platform codex-runtime --strict

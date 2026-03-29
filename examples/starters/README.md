@@ -52,7 +52,7 @@ plugin-kit-ai validate . --platform <codex-runtime|claude> --strict
 For Go starters, use the SDK-first first run instead:
 
 ```bash
-go mod edit -replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
+go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
 go test ./...
 go build -o bin/<starter-name> ./cmd/<starter-name>
 plugin-kit-ai validate . --platform <codex-runtime|claude> --strict

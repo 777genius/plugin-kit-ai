@@ -1,6 +1,6 @@
 package claude
 
-import "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+import "github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 
 type Registrar struct {
 	backend runtime.RegistrarBackend

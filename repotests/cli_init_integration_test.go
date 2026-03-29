@@ -45,7 +45,7 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 				return
 			}
 
-			replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
+			replaceArg := "github.com/777genius/plugin-kit-ai/sdk=" + sdkDir
 			modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
 			modEdit.Dir = plugRoot
 			if out, err := modEdit.CombinedOutput(); err != nil {

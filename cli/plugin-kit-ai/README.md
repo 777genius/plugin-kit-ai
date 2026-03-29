@@ -196,5 +196,5 @@ See [../../docs/SKILLS.md](../../docs/SKILLS.md) for the skills workflow, positi
 
 `go.mod` uses:
 
-- `replace github.com/plugin-kit-ai/plugin-kit-ai/sdk => ../../sdk/plugin-kit-ai`
+- `replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk/plugin-kit-ai`
 - `replace github.com/plugin-kit-ai/plugin-kit-ai/plugininstall => ../../install/plugininstall`

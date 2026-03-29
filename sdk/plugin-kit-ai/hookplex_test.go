@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
+	"github.com/777genius/plugin-kit-ai/sdk/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
 )
 
 type testIO struct {

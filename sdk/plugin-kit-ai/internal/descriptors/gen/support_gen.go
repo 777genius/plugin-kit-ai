@@ -1,6 +1,6 @@
 package gen
 
-import "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+import "github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 
 func AllSupportEntries() []runtime.SupportEntry {
 	return []runtime.SupportEntry{

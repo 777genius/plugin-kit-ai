@@ -1,8 +1,8 @@
 package claude
 
 import (
-	internalclaude "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	internalclaude "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 // StopEvent is the Claude Code Stop hook input (decoded from stdin JSON).

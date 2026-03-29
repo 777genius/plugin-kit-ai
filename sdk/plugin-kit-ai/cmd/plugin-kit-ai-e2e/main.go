@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
 )
 
 // PLUGIN_KIT_AI_E2E_TRACE, when set to a file path, appends one JSON line per hook invocation (for CLI e2e).

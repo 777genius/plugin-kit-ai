@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/descriptors/gen"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime/process"
+	"github.com/777genius/plugin-kit-ai/sdk/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/descriptors/gen"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime/process"
 )
 
 type IO = runtime.IO

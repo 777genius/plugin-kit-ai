@@ -9,9 +9,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/descriptors/defs"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/descriptors/defs"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
 type Artifact struct {
@@ -181,7 +181,7 @@ func renderRegistry(m model) string {
 	for _, p := range runtimeProfiles(m) {
 		b.WriteString(fmt.Sprintf("\t%s %q\n", internalAlias(p.Platform), p.InternalImport))
 	}
-	b.WriteString("\t\"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime\"\n")
+	b.WriteString("\t\"github.com/777genius/plugin-kit-ai/sdk/internal/runtime\"\n")
 	b.WriteString(")\n\n")
 	b.WriteString("type key struct { platform runtime.PlatformID; event runtime.EventID }\n\n")
 	b.WriteString("var registry = map[key]runtime.Descriptor{\n")
@@ -209,7 +209,7 @@ func renderResolvers(m model) string {
 	b.WriteString("import (\n")
 	b.WriteString("\t\"fmt\"\n")
 	b.WriteString("\t\"strings\"\n")
-	b.WriteString("\t\"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime\"\n")
+	b.WriteString("\t\"github.com/777genius/plugin-kit-ai/sdk/internal/runtime\"\n")
 	b.WriteString(")\n\n")
 	b.WriteString("func ResolveInvocation(args []string, _ runtime.Env) (runtime.Invocation, error) {\n")
 	b.WriteString("\tif len(args) < 2 {\n")
@@ -236,7 +236,7 @@ func renderResolvers(m model) string {
 func renderSupport(m model) string {
 	var b strings.Builder
 	b.WriteString("package gen\n\n")
-	b.WriteString("import \"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime\"\n\n")
+	b.WriteString("import \"github.com/777genius/plugin-kit-ai/sdk/internal/runtime\"\n\n")
 	b.WriteString("func AllSupportEntries() []runtime.SupportEntry {\n")
 	b.WriteString("\treturn []runtime.SupportEntry{\n")
 	for _, e := range m.events {
@@ -275,7 +275,7 @@ func renderCompletenessTest(m model) string {
 	b.WriteString("package gen\n\n")
 	b.WriteString("import (\n")
 	b.WriteString("\t\"testing\"\n")
-	b.WriteString("\t\"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/descriptors/defs\"\n")
+	b.WriteString("\t\"github.com/777genius/plugin-kit-ai/sdk/internal/descriptors/defs\"\n")
 	b.WriteString(")\n\n")
 	b.WriteString("func TestGeneratedRegistryCompleteness(t *testing.T) {\n")
 	b.WriteString("\tprofiles := defs.Profiles()\n")

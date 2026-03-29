@@ -14,7 +14,7 @@ This lane models repo-local Codex notify integration, separate from the official
 ## First Run
 
 ```bash
-go mod edit -replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
+go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
 go test ./...
 go build -o bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
 plugin-kit-ai validate . --platform codex-runtime --strict

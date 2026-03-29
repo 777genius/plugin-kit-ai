@@ -1,6 +1,6 @@
 package claude
 
-import "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+import "github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 
 func wrapClaudeHandler[T any, R any](name string, fn func(*T) R, mapResponse func(R) any) runtime.TypedHandler {
 	return func(_ runtime.InvocationContext, v any) runtime.Handled {

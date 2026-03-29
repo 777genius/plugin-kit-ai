@@ -178,7 +178,7 @@ func All() []PlatformProfile {
 			SDK: SDKMeta{
 				PublicPackage:   "claude",
 				InternalPackage: "claude",
-				InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/claude",
 				Status:          StatusRuntimeSupported,
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "claude_cli",
@@ -284,7 +284,7 @@ func All() []PlatformProfile {
 			SDK: SDKMeta{
 				PublicPackage:   "codex",
 				InternalPackage: "codex",
-				InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/codex",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/codex",
 				Status:          StatusRuntimeSupported,
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "codex_package",
@@ -362,7 +362,7 @@ func All() []PlatformProfile {
 			SDK: SDKMeta{
 				PublicPackage:   "codex",
 				InternalPackage: "codex",
-				InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/codex",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/codex",
 				Status:          StatusRuntimeSupported,
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "codex_notify",
@@ -445,7 +445,7 @@ func All() []PlatformProfile {
 			SDK: SDKMeta{
 				PublicPackage:   "gemini",
 				InternalPackage: "gemini",
-				InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/gemini",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/gemini",
 				Status:          StatusScaffoldOnly,
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "gemini_extension",
@@ -524,7 +524,7 @@ func All() []PlatformProfile {
 			SDK: SDKMeta{
 				PublicPackage:   "opencode",
 				InternalPackage: "opencode",
-				InternalImport:  "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/opencode",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/opencode",
 				Status:          StatusScaffoldOnly,
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "opencode_workspace",

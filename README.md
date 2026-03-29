@@ -302,9 +302,9 @@ That means the promise is practical rather than inflated:
 
 Root package `plugin-kit-ai` is composition/runtime only. Platform APIs live in peer public packages:
 
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk`
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude`
-- `github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex`
+- `github.com/777genius/plugin-kit-ai/sdk`
+- `github.com/777genius/plugin-kit-ai/sdk/claude`
+- `github.com/777genius/plugin-kit-ai/sdk/codex`
 
 Claude example:
 
@@ -314,8 +314,8 @@ package main
 import (
 	"os"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/claude"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/claude"
 )
 
 func main() {
@@ -335,8 +335,8 @@ package main
 import (
 	"os"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
 )
 
 func main() {

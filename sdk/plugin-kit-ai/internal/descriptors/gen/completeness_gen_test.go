@@ -1,7 +1,7 @@
 package gen
 
 import (
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/descriptors/defs"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/descriptors/defs"
 	"testing"
 )
 

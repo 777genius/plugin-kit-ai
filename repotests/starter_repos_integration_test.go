@@ -20,7 +20,7 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 	mustContain(t, landing, "pipx install plugin-kit-ai")
 	mustContain(t, landing, "plugin-kit-ai doctor .")
 	mustContain(t, landing, "plugin-kit-ai bootstrap .")
-	mustContain(t, landing, "go mod edit -replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai")
+	mustContain(t, landing, "go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai")
 	mustContain(t, landing, "go test ./...")
 	mustContain(t, landing, "go build -o bin/<starter-name> ./cmd/<starter-name>")
 	mustContain(t, landing, "plugin-kit-ai validate . --platform <codex-runtime|claude> --strict")
@@ -483,7 +483,7 @@ func goRuntimeAvailable() bool {
 func goStarterPrepare(t *testing.T, workDir, sdkDir, binaryName string) {
 	t.Helper()
 
-	replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
+	replaceArg := "github.com/777genius/plugin-kit-ai/sdk=" + sdkDir
 	modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
 	modEdit.Dir = workDir
 	modEdit.Env = append(os.Environ(), "GOWORK=off")

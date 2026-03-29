@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	internalclaude "github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/platforms/claude"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/internal/runtime"
+	internalclaude "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/claude"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 // Golden fixtures (testdata/golden/) freeze minimal runtime wire shapes for regression coverage.

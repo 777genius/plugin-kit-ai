@@ -144,7 +144,7 @@ func bootstrapGeneratedGoPlugin(t *testing.T, root string) {
 	t.Helper()
 	repoRoot := RepoRoot(t)
 	sdkDir := filepath.Join(repoRoot, "sdk", "plugin-kit-ai")
-	editCmd := exec.Command("go", "mod", "edit", "-replace=github.com/plugin-kit-ai/plugin-kit-ai/sdk="+sdkDir)
+	editCmd := exec.Command("go", "mod", "edit", "-replace=github.com/777genius/plugin-kit-ai/sdk="+sdkDir)
 	editCmd.Dir = root
 	editCmd.Env = append(os.Environ(), "GOWORK=off")
 	if out, err := editCmd.CombinedOutput(); err != nil {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/platformmeta"
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
 type Entry struct {

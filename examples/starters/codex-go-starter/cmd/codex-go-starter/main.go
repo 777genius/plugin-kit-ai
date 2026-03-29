@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	pluginkitai "github.com/plugin-kit-ai/plugin-kit-ai/sdk"
-	"github.com/plugin-kit-ai/plugin-kit-ai/sdk/codex"
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/codex"
 )
 
 func main() {

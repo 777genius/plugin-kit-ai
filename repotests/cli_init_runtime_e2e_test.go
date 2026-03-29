@@ -26,7 +26,7 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
-			replaceArg := "github.com/plugin-kit-ai/plugin-kit-ai/sdk=" + sdkDir
+			replaceArg := "github.com/777genius/plugin-kit-ai/sdk=" + sdkDir
 			modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
 			modEdit.Dir = plugRoot
 			modEdit.Env = append(os.Environ(), "GOWORK=off")
