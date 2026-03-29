@@ -88,8 +88,8 @@ jobs:
         run: |
           npm list -g plugin-kit-ai --depth=0
 
-      - name: Verify npx plugin-kit-ai version
+      - name: Verify npm exec plugin-kit-ai version
         shell: bash
         run: |
           version="${TAG#v}"
-          npx --yes -p "plugin-kit-ai@${version}" plugin-kit-ai version
+          npm exec --yes --package "plugin-kit-ai@${version}" -- plugin-kit-ai version
