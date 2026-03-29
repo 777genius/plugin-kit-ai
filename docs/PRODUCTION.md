@@ -22,7 +22,7 @@ Repo-local executable runtime boundary:
 Node/TypeScript and Python are the stable interpreted subset for scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, bounded portable export bundles, and local/remote bundle handoff on `codex-runtime` and `claude`.
 Shell remains beta-hardening-only in this workflow.
 This workflow does not imply a universal package-management contract or packaged distribution through `plugin-kit-ai install`.
-Use Homebrew to install the `plugin-kit-ai` CLI locally when possible, use `npm i -g plugin-kit-ai` as the official `public-beta` JavaScript ecosystem path, use `scripts/install.sh` as the verified fallback, and use `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
+Use Homebrew to install the `plugin-kit-ai` CLI locally when possible, use `npm i -g plugin-kit-ai` as the official `public-beta` JavaScript ecosystem path, use `pipx install plugin-kit-ai` as the official `public-beta` Python ecosystem path, use `scripts/install.sh` as the verified fallback, and use `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
 
 Supported authored inputs are root `plugin.yaml` plus `targets/<platform>/...`.
 Committed Claude/Codex/Gemini native config files are rendered managed artifacts and should be treated as generated outputs.

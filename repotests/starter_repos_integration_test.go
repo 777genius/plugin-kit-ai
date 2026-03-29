@@ -15,6 +15,7 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 	mustContain(t, landing, "# Canonical Starter Repos")
 	mustContain(t, landing, "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai")
 	mustContain(t, landing, "npm i -g plugin-kit-ai")
+	mustContain(t, landing, "pipx install plugin-kit-ai")
 	mustContain(t, landing, "plugin-kit-ai doctor .")
 	mustContain(t, landing, "plugin-kit-ai bootstrap .")
 	mustContain(t, landing, "plugin-kit-ai validate . --platform <codex-runtime|claude> --strict")

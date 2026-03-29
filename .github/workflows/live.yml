@@ -15,6 +15,10 @@ on:
         description: "Set to 1 to enable npm install and npx smoke for plugin-kit-ai"
         required: false
         default: "0"
+      run_pipx_install:
+        description: "Set to 1 to enable pipx install and pipx run smoke for plugin-kit-ai"
+        required: false
+        default: "0"
       run_claude_cli:
         description: "Set to 1 to enable Claude live-model sanity"
         required: false
@@ -97,3 +101,43 @@ jobs:
         shell: bash
         run: |
           "${PLUGIN_KIT_AI_NPM_PREFIX}/bin/plugin-kit-ai" version
+
+  pipx-install:
+    if: ${{ inputs.run_pipx_install == '1' }}
+    name: pipx-install
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.notifications_tag }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipx
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip pipx
+
+      - name: Install plugin-kit-ai via pipx
+        shell: bash
+        run: |
+          version="${TAG#v}"
+          export PIPX_HOME="${RUNNER_TEMP}/pipx/home"
+          export PIPX_BIN_DIR="${RUNNER_TEMP}/pipx/bin"
+          python3 -m pipx install --python "$(command -v python3)" "plugin-kit-ai==${version}"
+          echo "PIPX_HOME=${PIPX_HOME}" >> "${GITHUB_ENV}"
+          echo "PIPX_BIN_DIR=${PIPX_BIN_DIR}" >> "${GITHUB_ENV}"
+
+      - name: Verify installed pipx package
+        shell: bash
+        run: |
+          python3 -m pipx list
+          "${PIPX_BIN_DIR}/plugin-kit-ai" version
+
+      - name: Verify pipx run path
+        shell: bash
+        run: |
+          version="${TAG#v}"
+          export PIPX_HOME="${PIPX_HOME}"
+          export PIPX_BIN_DIR="${PIPX_BIN_DIR}"
+          python3 -m pipx run --spec "plugin-kit-ai==${version}" plugin-kit-ai version

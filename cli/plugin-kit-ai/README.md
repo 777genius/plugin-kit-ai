@@ -28,6 +28,11 @@ plugin-kit-ai version
 ```
 
 ```bash
+pipx install plugin-kit-ai
+plugin-kit-ai version
+```
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh
 plugin-kit-ai version
 ```
@@ -120,6 +125,7 @@ Current behavior and contract details:
 - `bundle publish`: stable GitHub Releases publisher for exported Python/Node bundles; reuses `export`, creates a published release by default, supports `--draft` as an opt-in safety mode, uploads the bundle plus `<asset>.sha256`, and stays separate from `install`
 - recommended CLI bootstrap: `brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai`
 - official npm CLI bootstrap (`public-beta`): `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...` downloads the matching published GitHub Releases binary, verifies `checksums.txt`, and keeps the binary origin aligned with Homebrew/script
+- official pipx CLI bootstrap (`public-beta`): `pipx install plugin-kit-ai` or `pipx run plugin-kit-ai version` downloads the matching published GitHub Releases binary, verifies `checksums.txt`, and keeps the binary origin aligned with Homebrew/script
 - official CLI bootstrap: `scripts/install.sh` resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, and installs the matching `plugin-kit-ai` tarball into `BIN_DIR`
 - official CI setup action: `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` reuses that same verified release contract and adds the installed binary to `PATH`
 - `init --extras` on stable interpreted `python`/`node` launcher-based projects emits `.github/workflows/bundle-release.yml`, which uses `setup-plugin-kit-ai@v1` plus `doctor -> bootstrap -> validate --strict -> bundle publish`
@@ -137,7 +143,7 @@ Current behavior and contract details:
 - `skills init|validate|render`: experimental SKILL.md authoring and agent render tooling
 
 For the experimental skills subsystem, handwritten `skills/<name>/SKILL.md` is supported directly. `skills init` is convenience scaffold, not a required entrypoint.
-For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself; use Homebrew as the recommended local install path, the `public-beta` npm wrapper as the official JS ecosystem path, `scripts/install.sh` as the verified fallback, or `setup-plugin-kit-ai@v1` in CI.
+For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself; use Homebrew as the recommended local install path, the `public-beta` npm wrapper as the official JS ecosystem path, the `public-beta` PyPI/pipx wrapper as the official Python ecosystem path, `scripts/install.sh` as the verified fallback, or `setup-plugin-kit-ai@v1` in CI.
 Executable runtime scaffolds for `python` and `node` are the stable repo-local local-runtime subset on `codex-runtime` and `claude`; launcher-based `shell` authoring remains `public-beta`. These paths provide bounded ecosystem bootstrap rather than a universal dependency-management contract for interpreted runtimes. `plugin.yaml` plus `targets/<platform>/...` is the only supported authored package standard; native Claude/Codex/Gemini/OpenCode config files are rendered managed artifacts, and `import` exists to recover authored state from those native layouts. Unknown manifest keys warn via `validate`. Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target; the supported Gemini contract is the full official extension packaging lane through `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and local `gemini extensions link|config|disable|enable` workflows. OpenCode is a `workspace-config OpenCode target` in this CLI surface; the supported OpenCode contract is `opencode.json` or `opencode.jsonc`, `plugin` package refs, inline `mcp`, validated skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes mirrored into `.opencode/{commands,agents,themes}/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable plugin-local dependency metadata mirrored into `.opencode/package.json`, beta custom tools through plugin code with `@opencode-ai/plugin`, explicit `--include-user-scope` import for `~/.config/opencode` plus compatible home-dir skills/plugins/package metadata, and `targets/opencode/config.extra.json` passthrough for broader config. `plugin-kit-ai capabilities` defaults to the target/package view so package authors can see target class, production boundary, and managed artifacts first. For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, and `plugin-kit-ai export <path> --platform <target>` is the stable portable handoff surface for that subset.
 Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface; `render --check` and the deterministic `polyglot-smoke` lane are the primary drift guards for that wiring. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced by `validate --strict`.
 

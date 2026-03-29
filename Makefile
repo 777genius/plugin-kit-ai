@@ -28,10 +28,11 @@ test-polyglot-smoke:
 	go test -count=1 -run 'TestBundle(Install(HelpIncludesLocalTarballLanguage|WritesRunnerOutput)|Fetch(HelpIncludesURLAndGitHubLanguage|WritesRunnerOutput)|Publish(HelpIncludesGitHubLanguage|WritesRunnerOutput))$$' ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 	go test -count=1 -run 'TestPluginKitAI(Init(GoRuntimeLauncherFlow|PythonRuntimeLauncherFlow|PythonRuntimeWithRequirementsDoctorBootstrapFlow|PythonRuntimeBrokenVenvFailsValidate|ShellRuntimeLauncherFlow|ShellRuntimeNonExecutableTargetFailsValidate|NodeRuntimeSupportsTypeScriptBuildThroughLauncher|NodeRuntimePNPMDoctorBootstrapFlow|NodeRuntimeMissingBuiltOutputFailsValidate)|RuntimeABIPassthrough|PythonLauncherPrefersProjectVenvOnWindows)$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAI(BootstrapScriptInstallsLatestRelease|BootstrapScriptSupportsExplicitVersion|BootstrapScriptRejectsChecksumMismatch|InitExtras(PythonEmitsBundleReleaseWorkflow|NodeTypeScriptEmitsBundleReleaseWorkflow))$$|TestSetupPluginKitAIActionUsesInstallScript$$' ./repotests
-	go test -count=1 -run 'Test(HomebrewFormulaGeneratorFromChecksums|NPMCLIPackageContractFiles|StarterRepos_(LayoutAndReadmesStayAligned|Smoke)|StarterTemplate(SyncContractFilesStayAligned|SyncScriptSupportsLocalMirror|RepoLinksResolveToCurrentOwnerNaming)|ReleaseSurface_MakefileDocsAndWorkflowsStayAligned|ContractClarity_RuntimeMetadataAndDocsStayAligned)$$' ./repotests
+	go test -count=1 -run 'Test(HomebrewFormulaGeneratorFromChecksums|NPMCLIPackageContractFiles|PythonCLIPackageContractFiles|StarterRepos_(LayoutAndReadmesStayAligned|Smoke)|StarterTemplate(SyncContractFilesStayAligned|SyncScriptSupportsLocalMirror|RepoLinksResolveToCurrentOwnerNaming)|ReleaseSurface_MakefileDocsAndWorkflowsStayAligned|ContractClarity_RuntimeMetadataAndDocsStayAligned)$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAIExport(PythonRequirementsBundleFlow|NodeTypeScriptBundleFlow|ShellBundleFlow)|TestPluginKitAIBundleInstall(PythonRequirementsFlow|NodeTypeScriptFlow|ClaudeNodeTypeScriptFlow)$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAIBundle(Fetch(URL(PythonRequirementsFlow|ClaudeNodeTypeScriptFlow)|GitHub(ClaudeNodeTypeScriptFlow|LatestClaudeNodeTypeScriptFlow))|PublishFetch(PythonRequirementsFlow|ClaudeNodeTypeScriptFlow))$$' ./repotests
 	go test -count=1 -run '^TestNPMCLIPackage' ./repotests
+	go test -count=1 -run '^TestPythonCLIPackage' ./repotests
 
 # Live E2E: real GitHub + real claude-notifications-go release (needs network). Optional: GITHUB_TOKEN.
 # Package is ./repotests (tests moved out of repo root).

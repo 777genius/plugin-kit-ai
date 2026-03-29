@@ -93,6 +93,7 @@ Stable CLI bootstrap/setup path for `plugin-kit-ai` itself:
 
 - `brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai` is the recommended package-manager install path for the CLI itself
 - `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...` is the official JavaScript ecosystem path for the CLI itself; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`
+- `pipx install plugin-kit-ai` or `pipx run plugin-kit-ai version` is the official Python ecosystem path for the CLI itself; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`
 - `scripts/install.sh` resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, and installs the matching GitHub Releases tarball into `BIN_DIR`
 - `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` is the official CI setup action and reuses the same verified release contract instead of rebuilding from source in downstream repos
 
@@ -201,10 +202,12 @@ Config contract:
 - community-first downstream setup path:
   - local recommended install path uses Homebrew
   - local JS ecosystem install path uses `npm i -g plugin-kit-ai` as `public-beta`
+  - local Python ecosystem install path uses `pipx install plugin-kit-ai` as `public-beta`
   - local CLI bootstrap uses `scripts/install.sh`
   - CI bootstrap uses `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1`
   - Homebrew tap updates come from the current repo's release automation and remain separate from `plugin-kit-ai install`
   - npm publishes come from the current repo's release automation and remain separate from `plugin-kit-ai install`
+  - PyPI publishes come from the current repo's release automation and remain separate from `plugin-kit-ai install`
   - this setup path is separate from binary-only `plugin-kit-ai install`
 
 Declared release review:

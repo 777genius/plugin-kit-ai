@@ -4,7 +4,7 @@
 
 Current status: `public-stable` for repo-local `python` and `node` authoring plus exported bundle handoff on `codex-runtime` and `claude`; launcher-based `shell` remains `public-beta`.
 
-For the `plugin-kit-ai` CLI itself, the recommended package-manager install path is Homebrew: `brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai`. The official JavaScript ecosystem path is `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`. The verified fallback bootstrap path is `scripts/install.sh`, and the official CI setup path is `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1`. These install the CLI itself; they do not widen `plugin-kit-ai install`, which remains the stable binary-only installer for third-party plugin binaries.
+For the `plugin-kit-ai` CLI itself, the recommended package-manager install path is Homebrew: `brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai`. The official JavaScript ecosystem path is `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`. The official Python ecosystem path is `pipx install plugin-kit-ai` or `pipx run plugin-kit-ai version`; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`. The verified fallback bootstrap path is `scripts/install.sh`, and the official CI setup path is `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1`. These install the CLI itself; they do not widen `plugin-kit-ai install`, which remains the stable binary-only installer for third-party plugin binaries.
 
 Runtime matrix:
 
@@ -78,6 +78,6 @@ Current hardening coverage:
 ## Non-Goals In This Iteration
 
 - packaged distribution for Python or Node ecosystems through `plugin-kit-ai install`
-- release/install packaging for Python or Node ecosystems
+- release/install packaging for Python or Node ecosystems through `plugin-kit-ai install`
 - TypeScript-specific runtime support
 - ABI changes to Claude or Codex wire formats

@@ -16,6 +16,9 @@ Use this worksheet for release rehearsal after `v1.0.0`, including post-`v1` sta
 - generated artifacts in sync:
 - `extended`:
 - `live`:
+- Homebrew tap:
+- npm publish:
+- PyPI publish:
 - waivers:
 
 ## Candidate Surface Decisions

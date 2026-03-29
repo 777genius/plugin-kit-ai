@@ -19,6 +19,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	extendedWorkflow := readRepoFile(t, root, ".github", "workflows", "extended.yml")
 	liveWorkflow := readRepoFile(t, root, ".github", "workflows", "live.yml")
 	npmPublishWorkflow := readRepoFile(t, root, ".github", "workflows", "npm-publish.yml")
+	pypiPublishWorkflow := readRepoFile(t, root, ".github", "workflows", "pypi-publish.yml")
 
 	mustContain(t, makefile, "release-gate:\n\t$(MAKE) test-required\n\t$(MAKE) vet\n\t$(MAKE) generated-check")
 	mustContain(t, makefile, "release-rehearsal: release-gate\n\t$(MAKE) test-install-compat\n\t$(MAKE) test-polyglot-smoke")
@@ -35,7 +36,9 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, releaseDoc, "- `polyglot-smoke`: separate deterministic lane required for runtime/ABI/bootstrap-affecting changes and for release rehearsal")
 	mustContain(t, releaseDoc, "generated Claude/Codex config canaries")
 	mustContain(t, releaseDoc, "the `public-beta` npm wrapper contract")
+	mustContain(t, releaseDoc, "the `public-beta` PyPI/pipx wrapper contract")
 	mustContain(t, releaseDoc, "npm publish result and optional live npm smoke result")
+	mustContain(t, releaseDoc, "PyPI publish result and optional live pipx smoke result")
 
 	mustContain(t, checklist, "- `make release-gate` green")
 	mustContain(t, checklist, "- `make release-gate` includes `test-required`, `vet`, and `generated-check`")
@@ -44,6 +47,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, checklist, "- generated-config/runtime-contract drift evidence recorded when changes affect `render`, scaffolded target files, target contracts, or runtime docs")
 	mustContain(t, checklist, "- release notes use the same evidence fields as the release playbook")
 	mustContain(t, checklist, "- npm publish result recorded when the `plugin-kit-ai` CLI npm channel changed")
+	mustContain(t, checklist, "- PyPI publish result recorded when the `plugin-kit-ai` CLI Python channel changed")
 
 	mustContain(t, releaseNotes, "- candidate commit SHA:")
 	mustContain(t, releaseNotes, "- required:")
@@ -52,6 +56,9 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, releaseNotes, "- generated-config/runtime-contract drift:")
 	mustContain(t, releaseNotes, "- extended:")
 	mustContain(t, releaseNotes, "- live:")
+	mustContain(t, releaseNotes, "- Homebrew tap:")
+	mustContain(t, releaseNotes, "- npm publish:")
+	mustContain(t, releaseNotes, "- PyPI publish:")
 	mustContain(t, releaseNotes, "- waivers:")
 
 	mustContain(t, statusDoc, "| Quality gates | done | `required`, `polyglot-smoke`, `extended`, and `live` lanes exist in repo automation. `polyglot-smoke` now covers launcher/ABI checks plus generated Claude/Codex config canaries and rendered runtime-artifact drift protection.")
@@ -73,11 +80,19 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, liveWorkflow, "npm i -g --prefix \"${prefix}\" \"plugin-kit-ai@${version}\"")
 	mustContain(t, liveWorkflow, "npm list -g --prefix \"${PLUGIN_KIT_AI_NPM_PREFIX}\" plugin-kit-ai --depth=0")
 	mustContain(t, liveWorkflow, "\"${PLUGIN_KIT_AI_NPM_PREFIX}/bin/plugin-kit-ai\" version")
+	mustContain(t, liveWorkflow, "run_pipx_install")
+	mustContain(t, liveWorkflow, "python3 -m pipx install --python \"$(command -v python3)\" \"plugin-kit-ai==${version}\"")
+	mustContain(t, liveWorkflow, "\"${PIPX_BIN_DIR}/plugin-kit-ai\" version")
+	mustContain(t, liveWorkflow, "python3 -m pipx run --spec \"plugin-kit-ai==${version}\" plugin-kit-ai version")
 	mustContain(t, npmPublishWorkflow, "name: NPM Publish")
 	mustContain(t, npmPublishWorkflow, "types: [published]")
 	mustContain(t, npmPublishWorkflow, "NPM_TOKEN")
 	mustContain(t, npmPublishWorkflow, "checksums.txt")
 	mustContain(t, npmPublishWorkflow, "npm publish --access public")
+	mustContain(t, pypiPublishWorkflow, "name: PyPI Publish")
+	mustContain(t, pypiPublishWorkflow, "types: [published]")
+	mustContain(t, pypiPublishWorkflow, "id-token: write")
+	mustContain(t, pypiPublishWorkflow, "pypa/gh-action-pypi-publish@release/v1")
 }
 
 func readRepoFile(t *testing.T, root string, parts ...string) string {

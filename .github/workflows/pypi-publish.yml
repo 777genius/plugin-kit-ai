@@ -1,0 +1,88 @@
+name: PyPI Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published stable tag to publish to PyPI"
+        required: true
+
+jobs:
+  publish-pypi:
+    if: github.event_name == 'workflow_dispatch' || (github.event.release.prerelease == false && github.event.release.draft == false)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: pypi
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate published release assets
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          tag="${TAG#v}"
+          tag="v${tag}"
+          version="${tag#v}"
+          base="https://github.com/777genius/plugin-kit-ai/releases/download/${tag}"
+          curl -fsSL "${base}/checksums.txt" -o checksums.txt
+          for asset in \
+            "plugin-kit-ai_${version}_darwin_amd64.tar.gz" \
+            "plugin-kit-ai_${version}_darwin_arm64.tar.gz" \
+            "plugin-kit-ai_${version}_linux_amd64.tar.gz" \
+            "plugin-kit-ai_${version}_linux_arm64.tar.gz" \
+            "plugin-kit-ai_${version}_windows_amd64.tar.gz" \
+            "plugin-kit-ai_${version}_windows_arm64.tar.gz"
+          do
+            grep -q " ${asset}\$" checksums.txt || {
+              echo "checksums.txt missing ${asset}" >&2
+              exit 1
+            }
+          done
+
+      - name: Stage PyPI package
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          stage="${RUNNER_TEMP}/plugin-kit-ai-pypi"
+          rm -rf "${stage}"
+          mkdir -p "${stage}"
+          cp -R python/plugin-kit-ai/. "${stage}/"
+          python3 - "$stage/src/plugin_kit_ai/__init__.py" "$version" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          path = Path(sys.argv[1])
+          version = sys.argv[2]
+          body = path.read_text()
+          updated = re.sub(r'__version__ = ".*"', f'__version__ = "{version}"', body, count=1)
+          if updated == body:
+              raise SystemExit(f"failed to rewrite version in {path}")
+          path.write_text(updated)
+          PY
+          cat "${stage}/pyproject.toml"
+          cat "${stage}/src/plugin_kit_ai/__init__.py"
+
+      - name: Build PyPI package
+        shell: bash
+        working-directory: ${{ runner.temp }}/plugin-kit-ai-pypi
+        run: |
+          python3 -m pip install --upgrade build
+          python3 -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: ${{ runner.temp }}/plugin-kit-ai-pypi/dist
