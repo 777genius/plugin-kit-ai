@@ -83,6 +83,11 @@ jobs:
           version="${TAG#v}"
           npm i -g "plugin-kit-ai@${version}"
 
+      - name: Add npm global bin to PATH
+        shell: bash
+        run: |
+          echo "$(npm prefix -g)/bin" >> "$GITHUB_PATH"
+
       - name: Verify global plugin-kit-ai version
         run: plugin-kit-ai version
 

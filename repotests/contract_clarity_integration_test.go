@@ -336,6 +336,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(liveWorkflow), "brew tap 777genius/homebrew-plugin-kit-ai")
 	mustContain(t, string(liveWorkflow), "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai")
 	mustContain(t, string(liveWorkflow), "run_npm_install")
+	mustContain(t, string(liveWorkflow), "echo \"$(npm prefix -g)/bin\" >> \"$GITHUB_PATH\"")
 	mustContain(t, string(liveWorkflow), "npm i -g \"plugin-kit-ai@${version}\"")
 	mustContain(t, string(liveWorkflow), "npx \"plugin-kit-ai@${version}\" version")
 

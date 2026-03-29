@@ -70,6 +70,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, liveWorkflow, "name: live")
 	mustContain(t, liveWorkflow, "- name: Run live evidence lane")
 	mustContain(t, liveWorkflow, "run_npm_install")
+	mustContain(t, liveWorkflow, "echo \"$(npm prefix -g)/bin\" >> \"$GITHUB_PATH\"")
 	mustContain(t, liveWorkflow, "npm i -g \"plugin-kit-ai@${version}\"")
 	mustContain(t, liveWorkflow, "npx \"plugin-kit-ai@${version}\" version")
 	mustContain(t, npmPublishWorkflow, "name: NPM Publish")
