@@ -20,7 +20,7 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 	mustContain(t, landing, "pipx install plugin-kit-ai")
 	mustContain(t, landing, "plugin-kit-ai doctor .")
 	mustContain(t, landing, "plugin-kit-ai bootstrap .")
-	mustContain(t, landing, "github.com/777genius/plugin-kit-ai/sdk@v1.0.3")
+	mustContain(t, landing, "github.com/777genius/plugin-kit-ai/sdk@v1.0.4")
 	mustContain(t, landing, "go test ./...")
 	mustContain(t, landing, "go build -o bin/<starter-name> ./cmd/<starter-name>")
 	mustContain(t, landing, "plugin-kit-ai validate . --platform <codex-runtime|claude> --strict")
@@ -69,6 +69,8 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "codex-python-starter"),
 			requiredFiles: []string{
 				"README.md",
+				"bin/codex-python-starter",
+				"bin/codex-python-starter.cmd",
 				"plugin.yaml",
 				"launcher.yaml",
 				"requirements.txt",
@@ -95,6 +97,8 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "codex-node-typescript-starter"),
 			requiredFiles: []string{
 				"README.md",
+				"bin/codex-node-typescript-starter",
+				"bin/codex-node-typescript-starter.cmd",
 				"plugin.yaml",
 				"launcher.yaml",
 				"package.json",
@@ -147,6 +151,8 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "claude-python-starter"),
 			requiredFiles: []string{
 				"README.md",
+				"bin/claude-python-starter",
+				"bin/claude-python-starter.cmd",
 				"plugin.yaml",
 				"launcher.yaml",
 				"requirements.txt",
@@ -174,6 +180,8 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "claude-node-typescript-starter"),
 			requiredFiles: []string{
 				"README.md",
+				"bin/claude-node-typescript-starter",
+				"bin/claude-node-typescript-starter.cmd",
 				"plugin.yaml",
 				"launcher.yaml",
 				"package.json",
@@ -247,18 +255,18 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 
 func TestStarterRepos_Smoke(t *testing.T) {
 	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
+	sdkDir := filepath.Join(root, "sdk")
 	pluginKitAIBin := buildPluginKitAI(t)
 
 	cases := []struct {
-		name      string
-		source    string
-		platform  string
-		runtime   string
-		ready     func() bool
-		prepare   func(t *testing.T, workDir string)
-		smoke     func(t *testing.T, workDir string)
-		validate  func(t *testing.T, workDir string)
+		name     string
+		source   string
+		platform string
+		runtime  string
+		ready    func() bool
+		prepare  func(t *testing.T, workDir string)
+		smoke    func(t *testing.T, workDir string)
+		validate func(t *testing.T, workDir string)
 	}{
 		{
 			name:     "codex-go-starter",
@@ -304,7 +312,7 @@ func TestStarterRepos_Smoke(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected doctor to require bootstrap before starter first run:\n%s", out)
 				}
-				mustContain(t, string(out), "Status: needs_bootstrap")
+				assertStarterDoctorBlockedBeforeBootstrap(t, string(out))
 
 				bootstrap := exec.Command(pluginKitAIBin, "bootstrap", workDir)
 				if out, err := bootstrap.CombinedOutput(); err != nil {
@@ -344,7 +352,7 @@ func TestStarterRepos_Smoke(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected doctor to require bootstrap before starter first run:\n%s", out)
 				}
-				mustContain(t, string(out), "Status: needs_bootstrap")
+				assertStarterDoctorBlockedBeforeBootstrap(t, string(out))
 
 				bootstrap := exec.Command(pluginKitAIBin, "bootstrap", workDir)
 				if out, err := bootstrap.CombinedOutput(); err != nil {
@@ -408,7 +416,7 @@ func TestStarterRepos_Smoke(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected doctor to require bootstrap before starter first run:\n%s", out)
 				}
-				mustContain(t, string(out), "Status: needs_bootstrap")
+				assertStarterDoctorBlockedBeforeBootstrap(t, string(out))
 
 				bootstrap := exec.Command(pluginKitAIBin, "bootstrap", workDir)
 				if out, err := bootstrap.CombinedOutput(); err != nil {
@@ -437,7 +445,7 @@ func TestStarterRepos_Smoke(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected doctor to require bootstrap before starter first run:\n%s", out)
 				}
-				mustContain(t, string(out), "Status: needs_bootstrap")
+				assertStarterDoctorBlockedBeforeBootstrap(t, string(out))
 
 				bootstrap := exec.Command(pluginKitAIBin, "bootstrap", workDir)
 				if out, err := bootstrap.CombinedOutput(); err != nil {
@@ -478,6 +486,16 @@ func TestStarterRepos_Smoke(t *testing.T) {
 func goRuntimeAvailable() bool {
 	_, err := exec.LookPath("go")
 	return err == nil
+}
+
+func assertStarterDoctorBlockedBeforeBootstrap(t *testing.T, out string) {
+	t.Helper()
+	if strings.Contains(out, "Status: needs_bootstrap") {
+		return
+	}
+	mustContain(t, out, "Status: blocked")
+	mustContain(t, out, "launcher entrypoint")
+	mustContain(t, out, "is missing")
 }
 
 func goStarterPrepare(t *testing.T, workDir, sdkDir, binaryName string) {

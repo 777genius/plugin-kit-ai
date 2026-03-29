@@ -12,7 +12,7 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
 			cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
-			sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
+			sdkDir := filepath.Join(root, "sdk")
 
 			binDir := t.TempDir()
 			bin := filepath.Join(binDir, "plugin-kit-ai")

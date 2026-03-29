@@ -1,4 +1,8 @@
 bin/
 !npm/plugin-kit-ai/bin/
 !npm/plugin-kit-ai/bin/plugin-kit-ai.js
+!examples/starters/**/bin/
+!examples/starters/**/bin/*
+!examples/local/**/bin/
+!examples/local/**/bin/*
 .DS_Store

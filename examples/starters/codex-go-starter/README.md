@@ -13,7 +13,7 @@ Copy-first starter for Go teams that want the stable `codex-runtime` Notify path
 - `plugin-kit-ai` installed
 - Go `1.22+`
 - Codex local runtime lane
-- access to `github.com/777genius/plugin-kit-ai/sdk@v1.0.3`
+- access to `github.com/777genius/plugin-kit-ai/sdk@v1.0.4`
 
 ## Runtime
 
@@ -38,7 +38,7 @@ This starter keeps one canonical Go story:
 - `go build -o bin/codex-go-starter ./cmd/codex-go-starter`
 
 Unlike the interpreted Python/Node starters, this lane does not depend on the launcher bootstrap command or the Python/Node bundle handoff workflow.
-The public Go SDK now resolves as a normal module release through `github.com/777genius/plugin-kit-ai/sdk@v1.0.3`.
+The public Go SDK now resolves as a normal module release through `github.com/777genius/plugin-kit-ai/sdk@v1.0.4`.
 
 ## Local Smoke
 

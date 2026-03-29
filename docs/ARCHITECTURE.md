@@ -17,7 +17,7 @@ Historical maintainer references live in:
 
 | Layer | Location | Role |
 |-------|----------|------|
-| SDK runtime | `sdk/plugin-kit-ai/plugin-kit-ai.go` | Platform-neutral composition root that wires the generic engine, generated descriptor lookup, middleware, and platform registrars |
+| SDK runtime | `sdk/hookplex.go` | Platform-neutral composition root that wires the generic engine, generated descriptor lookup, middleware, and platform registrars |
 | SDK generator | `cmd/plugin-kit-ai-gen/main.go` | Generates descriptor-derived runtime, scaffold, validate, and docs artifacts |
 | Plugin install library | `install/plugininstall/install.go` | Public install facade that wires use case and concrete adapters |
 | CLI | `cli/plugin-kit-ai/cmd/plugin-kit-ai/main.go` | Process entrypoint; commands parse flags and call `internal/app`, `internal/scaffold`, and `internal/validate` |
@@ -26,16 +26,16 @@ Rule: the CLI must not construct `plugininstall` adapters directly. It uses the 
 
 ## SDK Runtime
 
-- `sdk/plugin-kit-ai` exposes only shared runtime composition.
+- `sdk` exposes only shared runtime composition.
 - Public platform APIs are peer packages:
-  - `sdk/plugin-kit-ai/claude`
-  - `sdk/plugin-kit-ai/codex`
-- Core runtime lives under `sdk/plugin-kit-ai/internal/runtime`.
-- Descriptor definitions live under `sdk/plugin-kit-ai/internal/descriptors/defs`.
-- Generated runtime registries and resolvers live under `sdk/plugin-kit-ai/internal/descriptors/gen`.
+  - `sdk/claude`
+  - `sdk/codex`
+- Core runtime lives under `sdk/internal/runtime`.
+- Descriptor definitions live under `sdk/internal/descriptors/defs`.
+- Generated runtime registries and resolvers live under `sdk/internal/descriptors/gen`.
 - Platform wire codecs live under:
-  - `sdk/plugin-kit-ai/internal/platforms/claude`
-  - `sdk/plugin-kit-ai/internal/platforms/codex`
+  - `sdk/internal/platforms/claude`
+  - `sdk/internal/platforms/codex`
 
 Current runtime carriers:
 
@@ -63,7 +63,7 @@ Generated artifacts include:
 - validation rules
 - support contract documentation
 
-Generator drift is enforced by tests in `sdk/plugin-kit-ai/generator`.
+Generator drift is enforced by tests in `sdk/generator`.
 
 ## Exit Codes
 
@@ -73,7 +73,7 @@ Generator drift is enforced by tests in `sdk/plugin-kit-ai/generator`.
 
 ## Tests
 
-- `sdk/plugin-kit-ai/...`: runtime, descriptors, generator drift, examples
+- `sdk/...`: runtime, descriptors, generator drift, examples
 - `cli/plugin-kit-ai/...`: app and scaffold coverage
 - `repotests/...`: generated project integration and installer integration
 

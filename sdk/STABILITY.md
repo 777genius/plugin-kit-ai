@@ -76,8 +76,8 @@ These helpers are intentionally outside the stable promise. They exist to let pl
 
 These areas are not part of the SDK compatibility promise:
 
-- `sdk/plugin-kit-ai/internal/...`
-- generated descriptor/runtime internals under `sdk/plugin-kit-ai/internal/descriptors/gen`
+- `sdk/internal/...`
+- generated descriptor/runtime internals under `sdk/internal/descriptors/gen`
 - repository-only generator implementation
 
 HTTP / prompt / agent Claude hooks remain out of scope for the current shipped SDK contract.

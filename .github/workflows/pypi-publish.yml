@@ -11,7 +11,7 @@ on:
 
 jobs:
   publish-pypi:
-    if: github.event_name == 'workflow_dispatch' || (github.event.release.prerelease == false && github.event.release.draft == false)
+    if: github.event_name == 'workflow_dispatch' || ((github.event.release.prerelease == false && github.event.release.draft == false) && vars.PYPI_TRUSTED_PUBLISHING_READY == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read

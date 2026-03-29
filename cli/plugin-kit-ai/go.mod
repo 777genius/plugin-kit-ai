@@ -2,7 +2,7 @@ module github.com/plugin-kit-ai/plugin-kit-ai/cli
 
 go 1.23
 
-replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk/plugin-kit-ai
+replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk
 
 replace github.com/plugin-kit-ai/plugin-kit-ai/plugininstall => ../../install/plugininstall
 

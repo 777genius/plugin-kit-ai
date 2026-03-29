@@ -99,17 +99,19 @@ func TestStarterTemplateSyncScriptSupportsLocalMirror(t *testing.T) {
 
 	checks := map[string][]string{
 		"plugin-kit-ai-starter-codex-go":              {"plugin.yaml", "go.mod", "cmd/codex-go-starter/main.go", "targets/codex-runtime/package.yaml"},
-		"plugin-kit-ai-starter-codex-python":           {"plugin.yaml", "requirements.txt", "targets/codex-runtime/package.yaml", ".github/workflows/bundle-release.yml"},
-		"plugin-kit-ai-starter-codex-node-typescript":  {"plugin.yaml", "package.json", "tsconfig.json", "targets/codex-runtime/package.yaml"},
+		"plugin-kit-ai-starter-codex-python":          {"plugin.yaml", "requirements.txt", "bin/codex-python-starter", "bin/codex-python-starter.cmd", "targets/codex-runtime/package.yaml", ".github/workflows/bundle-release.yml"},
+		"plugin-kit-ai-starter-codex-node-typescript": {"plugin.yaml", "package.json", "bin/codex-node-typescript-starter", "bin/codex-node-typescript-starter.cmd", "tsconfig.json", "targets/codex-runtime/package.yaml"},
 		"plugin-kit-ai-starter-claude-go":             {"plugin.yaml", "go.mod", ".claude-plugin/plugin.json", "targets/claude/hooks/hooks.json"},
-		"plugin-kit-ai-starter-claude-python":          {"plugin.yaml", "requirements.txt", ".claude-plugin/plugin.json", "targets/claude/hooks/hooks.json"},
-		"plugin-kit-ai-starter-claude-node-typescript": {"plugin.yaml", "package.json", ".claude-plugin/plugin.json", "targets/claude/hooks/hooks.json"},
+		"plugin-kit-ai-starter-claude-python":         {"plugin.yaml", "requirements.txt", "bin/claude-python-starter", "bin/claude-python-starter.cmd", ".claude-plugin/plugin.json", "targets/claude/hooks/hooks.json"},
+		"plugin-kit-ai-starter-claude-node-typescript": {
+			"plugin.yaml", "package.json", "bin/claude-node-typescript-starter", "bin/claude-node-typescript-starter.cmd", ".claude-plugin/plugin.json", "targets/claude/hooks/hooks.json",
+		},
 	}
 
 	for repo, required := range checks {
 		cloneDir := filepath.Join(workDir, repo+"-check")
 		remote := filepath.Join(remoteBase, repo+".git")
-		if out, err := exec.Command("git", "clone", remote, cloneDir).CombinedOutput(); err != nil {
+		if out, err := exec.Command("git", "clone", "--branch", "main", remote, cloneDir).CombinedOutput(); err != nil {
 			t.Fatalf("git clone check %s: %v\n%s", repo, err, out)
 		}
 		for _, rel := range required {

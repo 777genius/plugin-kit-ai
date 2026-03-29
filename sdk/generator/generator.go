@@ -20,9 +20,9 @@ type Artifact struct {
 }
 
 type model struct {
-	profiles map[runtime.PlatformID]defs.PlatformProfile
+	profiles    map[runtime.PlatformID]defs.PlatformProfile
 	cliProfiles []platformmeta.PlatformProfile
-	events   []defs.EventDescriptor
+	events      []defs.EventDescriptor
 }
 
 func RenderArtifacts() ([]Artifact, error) {
@@ -32,17 +32,17 @@ func RenderArtifacts() ([]Artifact, error) {
 	}
 	var artifacts []Artifact
 	artifacts = append(artifacts,
-		Artifact{Path: "sdk/plugin-kit-ai/internal/descriptors/gen/registry_gen.go", Content: mustGo(renderRegistry(m))},
-		Artifact{Path: "sdk/plugin-kit-ai/internal/descriptors/gen/resolvers_gen.go", Content: mustGo(renderResolvers(m))},
-		Artifact{Path: "sdk/plugin-kit-ai/internal/descriptors/gen/support_gen.go", Content: mustGo(renderSupport(m))},
-		Artifact{Path: "sdk/plugin-kit-ai/internal/descriptors/gen/completeness_gen_test.go", Content: mustGo(renderCompletenessTest(m))},
+		Artifact{Path: "sdk/internal/descriptors/gen/registry_gen.go", Content: mustGo(renderRegistry(m))},
+		Artifact{Path: "sdk/internal/descriptors/gen/resolvers_gen.go", Content: mustGo(renderResolvers(m))},
+		Artifact{Path: "sdk/internal/descriptors/gen/support_gen.go", Content: mustGo(renderSupport(m))},
+		Artifact{Path: "sdk/internal/descriptors/gen/completeness_gen_test.go", Content: mustGo(renderCompletenessTest(m))},
 		Artifact{Path: "cli/plugin-kit-ai/internal/scaffold/platforms_gen.go", Content: mustGo(renderScaffoldPlatforms(m))},
 		Artifact{Path: "cli/plugin-kit-ai/internal/validate/rules_gen.go", Content: mustGo(renderValidateRules(m))},
 		Artifact{Path: "docs/generated/support_matrix.md", Content: []byte(renderSupportMatrix(m))},
 	)
 	for _, p := range runtimeProfiles(m) {
 		artifacts = append(artifacts, Artifact{
-			Path:    fmt.Sprintf("sdk/plugin-kit-ai/%s/registrar_gen.go", p.PublicPackage),
+			Path:    fmt.Sprintf("sdk/%s/registrar_gen.go", p.PublicPackage),
 			Content: mustGo(renderRegistrar(m, p)),
 		})
 	}
@@ -70,9 +70,9 @@ func loadModel() (model, error) {
 	profiles := defs.Profiles()
 	events := defs.Events()
 	out := model{
-		profiles:   make(map[runtime.PlatformID]defs.PlatformProfile, len(profiles)),
+		profiles:    make(map[runtime.PlatformID]defs.PlatformProfile, len(profiles)),
 		cliProfiles: append([]platformmeta.PlatformProfile(nil), platformmeta.All()...),
-		events:     events,
+		events:      events,
 	}
 	for _, p := range profiles {
 		if p.Platform == "" {

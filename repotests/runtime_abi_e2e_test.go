@@ -170,7 +170,7 @@ func buildGeneratedGoEntrypoint(t *testing.T, plugRoot string) {
 func configureGeneratedGoModule(t *testing.T, plugRoot string) {
 	t.Helper()
 	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
+	sdkDir := filepath.Join(root, "sdk")
 	replaceArg := "github.com/777genius/plugin-kit-ai/sdk=" + sdkDir
 	modEdit := exec.Command("go", "mod", "edit", "-replace", replaceArg)
 	modEdit.Dir = plugRoot

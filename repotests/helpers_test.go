@@ -143,7 +143,7 @@ func runPluginKitAIInstall(t *testing.T, pluginKitAIBin, workDir, ownerRepo stri
 func bootstrapGeneratedGoPlugin(t *testing.T, root string) {
 	t.Helper()
 	repoRoot := RepoRoot(t)
-	sdkDir := filepath.Join(repoRoot, "sdk", "plugin-kit-ai")
+	sdkDir := filepath.Join(repoRoot, "sdk")
 	editCmd := exec.Command("go", "mod", "edit", "-replace=github.com/777genius/plugin-kit-ai/sdk="+sdkDir)
 	editCmd.Dir = root
 	editCmd.Env = append(os.Environ(), "GOWORK=off")
@@ -158,11 +158,11 @@ func bootstrapGeneratedGoPlugin(t *testing.T, root string) {
 	}
 }
 
-// buildPluginKitAIE2E builds sdk/plugin-kit-ai/cmd/plugin-kit-ai-e2e into a temp dir and returns the binary path.
+// buildPluginKitAIE2E builds sdk/cmd/plugin-kit-ai-e2e into a temp dir and returns the binary path.
 func buildPluginKitAIE2E(t *testing.T) string {
 	t.Helper()
 	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
+	sdkDir := filepath.Join(root, "sdk")
 	binDir := t.TempDir()
 	name := "plugin-kit-ai-e2e"
 	if runtime.GOOS == "windows" {

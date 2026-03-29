@@ -4,5 +4,5 @@ use (
 	.
 	./cli/plugin-kit-ai
 	./install/plugininstall
-	./sdk/plugin-kit-ai
+	./sdk
 )

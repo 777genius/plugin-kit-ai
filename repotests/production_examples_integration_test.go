@@ -57,19 +57,26 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			runCmd(t, root, exec.Command(pluginKitAIBin, "render", tc.dir, "--check"))
-			runCmd(t, root, exec.Command(pluginKitAIBin, "validate", tc.dir, "--platform", tc.platform, "--strict"))
+			workDir := tc.dir
+			if tc.buildGo {
+				workDir = filepath.Join(t.TempDir(), tc.name)
+				copyTree(t, tc.dir, workDir)
+				bootstrapGeneratedGoPlugin(t, workDir)
+			}
+
+			runCmd(t, root, exec.Command(pluginKitAIBin, "render", workDir, "--check"))
+			runCmd(t, root, exec.Command(pluginKitAIBin, "validate", workDir, "--platform", tc.platform, "--strict"))
 			if tc.platform == "codex-runtime" {
-				assertCodexConfig(t, tc.dir, "gpt-5.4-mini", "./bin/codex-basic-prod")
+				assertCodexConfig(t, workDir, "gpt-5.4-mini", "./bin/codex-basic-prod")
 			}
 			if tc.platform == "codex-package" {
-				assertCodexPackageManifest(t, tc.dir, "codex-package-prod")
+				assertCodexPackageManifest(t, workDir, "codex-package-prod")
 			}
 			if tc.platform == "gemini" {
 				return
 			}
 			if tc.platform == "opencode" {
-				assertOpenCodeConfig(t, tc.dir, "@acme/opencode-demo-plugin")
+				assertOpenCodeConfig(t, workDir, "@acme/opencode-demo-plugin")
 				return
 			}
 			if !tc.buildGo {
@@ -77,11 +84,11 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			}
 
 			testCmd := exec.Command("go", "test", "./...")
-			testCmd.Dir = tc.dir
+			testCmd.Dir = workDir
 			testCmd.Env = append(os.Environ(), "GOWORK=off")
 			runCmd(t, root, testCmd)
 
-			binDir := filepath.Join(tc.dir, "bin")
+			binDir := filepath.Join(workDir, "bin")
 			if err := os.MkdirAll(binDir, 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +98,7 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			}
 			binPath := filepath.Join(binDir, binName)
 			buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/"+tc.binary)
-			buildCmd.Dir = tc.dir
+			buildCmd.Dir = workDir
 			buildCmd.Env = append(os.Environ(), "GOWORK=off")
 			runCmd(t, root, buildCmd)
 

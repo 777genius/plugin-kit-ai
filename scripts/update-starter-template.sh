@@ -52,6 +52,11 @@ sync_one() {
   trap 'rm -rf "$tmp"' RETURN
 
   git clone "$remote_url" "$tmp/repo"
+  if git -C "$tmp/repo" show-ref --verify --quiet refs/remotes/origin/main; then
+    git -C "$tmp/repo" checkout -B main origin/main >/dev/null 2>&1
+  else
+    git -C "$tmp/repo" checkout --orphan main >/dev/null 2>&1
+  fi
 
   find "$tmp/repo" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
   cp -R "$source_dir"/. "$tmp/repo"/

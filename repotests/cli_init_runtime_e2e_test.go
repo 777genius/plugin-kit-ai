@@ -14,7 +14,7 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 	for _, platform := range []string{"claude", "codex-runtime"} {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
-			sdkDir := filepath.Join(root, "sdk", "plugin-kit-ai")
+			sdkDir := filepath.Join(root, "sdk")
 			pluginKitAIBin := buildPluginKitAI(t)
 
 			plugRoot := runtimeProjectRoot(t)

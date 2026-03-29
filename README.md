@@ -146,8 +146,10 @@ Official starter templates:
 
 Public Go SDK consumption now uses the canonical module path and submodule tag contract:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.3`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.4`
 - release tags that change the SDK surface also cut `sdk/vX.Y.Z` from the same commit
+
+Use `v1.0.4` or newer for normal Go module consumption. `v1.0.3` remains published as a root release, but it is known-bad for the Go SDK module path.
 
 ### Production-Ready Plugin Repo
 
@@ -355,7 +357,7 @@ func main() {
 
 SDK references:
 
-- [sdk/plugin-kit-ai/README.md](sdk/plugin-kit-ai/README.md)
+- [sdk/README.md](sdk/README.md)
 - [docs/generated/support_matrix.md](docs/generated/support_matrix.md)
 - [docs/SUPPORT.md](docs/SUPPORT.md)
 
@@ -403,7 +405,7 @@ go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 ./bin/plugin-kit-ai version
 make test-polyglot-smoke
 
-go test ./sdk/plugin-kit-ai/...
+go test ./sdk/...
 go test ./cli/plugin-kit-ai/...
 go test ./install/plugininstall/...
 go test ./repotests -run TestPluginKitAIInitGeneratesBuildableModule -count=1
@@ -422,7 +424,7 @@ plugin-kit-ai bundle fetch owner/repo --tag v1.0.0 --platform codex-runtime --ru
 
 ## Repository Layout
 
-- `sdk/plugin-kit-ai`: SDK runtime, public platform packages, descriptor generator
+- `sdk`: SDK runtime, public platform packages, descriptor generator
 - `cli/plugin-kit-ai`: CLI authoring and validation flow
 - `install/plugininstall`: installer subsystem
 - `examples/starters`: copy-first Go/Python/Node starter repos

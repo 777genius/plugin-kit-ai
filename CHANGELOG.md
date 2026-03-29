@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to this repository are documented here. **CLI releases** (`plugin-kit-ai` binary built from `cli/plugin-kit-ai`) are versioned together with the monorepo for now; SDK history remains in [sdk/plugin-kit-ai/CHANGELOG.md](sdk/plugin-kit-ai/CHANGELOG.md).
+All notable changes to this repository are documented here. **CLI releases** (`plugin-kit-ai` binary built from `cli/plugin-kit-ai`) are versioned together with the monorepo for now; SDK history remains in [sdk/CHANGELOG.md](sdk/CHANGELOG.md).
 
 ## [Unreleased]
 
@@ -15,7 +15,7 @@ Post-`v1.0.0` hardening on `main` lands here. The initial stable release was tag
 
 - Windows launcher validation now accepts extensionless configured entrypoints such as `./bin/x` when the generated launcher file is `./bin/x.cmd`
 - documentation now reflects post-`v1.0.0` contract status, the executable-ABI beta boundary, Windows runtime resolution rules, and the TypeScript-over-Node supported path
-- Go starter, scaffold, and production example consumption now target `github.com/777genius/plugin-kit-ai/sdk@v1.0.3`; public `go mod edit -replace` onboarding was removed in favor of the SDK submodule tagging contract
+- Go SDK module root moved from `sdk/plugin-kit-ai/` to `sdk/`, making `github.com/777genius/plugin-kit-ai/sdk@v1.0.4` the first truthful normal-module release; `v1.0.3` remains published but is known-bad for Go SDK consumption
 
 ## [1.0.0] - 2026-03-26
 
@@ -31,7 +31,7 @@ Release commit: `6e9379868a666e79d7530a02e171a160c2cb1689`
 - **`install/plugininstall`:** module `github.com/plugin-kit-ai/plugin-kit-ai/plugininstall` — GitHub Releases install with SHA256 (`checksums.txt`), `.tar.gz` / raw binary; **`domain.PickInstallAsset`**; **`ports.FileSystem`** **`PathExists`** / **`RemoveBestEffort`**; GitHub adapter split **`release.go`** / **`download.go`** (`NewClient` unchanged).
 - **`plugin-kit-ai install`:** `owner/repo` with **`--tag`** or **`--latest`**; GoReleaser **`.tar.gz`** or **raw** `*-<goos>-<goarch>[.exe]` + mandatory **`checksums.txt`**; `[--dir bin] [--force] [--pre] [--output-name]`; optional `GITHUB_TOKEN` / `--github-token`; hidden `--github-api-base` for tests/Enterprise.
 - **`cli/plugin-kit-ai`:** Cobra commands `init`, `install`, `version` (`runtime/debug.ReadBuildInfo`).
-- **Workspace / tests:** `go.work` uses `./cli/plugin-kit-ai`, `./install/plugininstall`, `./sdk/plugin-kit-ai`; integration/guard tests live under **`repotests/`** (mock GitHub install, module guards, optional live E2E).
+- **Workspace / tests:** `go.work` uses `./cli/plugin-kit-ai`, `./install/plugininstall`, `./sdk`; integration/guard tests live under **`repotests/`** (mock GitHub install, module guards, optional live E2E).
 - **Integration test:** `plugin-kit-ai init` in a temp dir → `go mod edit -replace` to local SDK → `go test` / `go vet` on the generated module.
 - **Repository tooling:** root `Makefile` (`make test`, `make vet`, optional **`make test-e2e-live`** — live GitHub install checks), `.goreleaser.yml`, `.github/workflows/ci.yml`, `scripts/install.sh` (bootstrap plugin-kit-ai; see comments for `plugin-kit-ai install`).
 

@@ -5,13 +5,15 @@ Module: `github.com/777genius/plugin-kit-ai/sdk`
 Normal consumption path:
 
 ```bash
-go get github.com/777genius/plugin-kit-ai/sdk@v1.0.3
+go get github.com/777genius/plugin-kit-ai/sdk@v1.0.4
 ```
 
 The canonical release contract for this subdirectory module is:
 
 - root release tag: `vX.Y.Z`
 - SDK module tag from the same commit: `sdk/vX.Y.Z`
+
+The first truthful normal-module release for this path is `v1.0.4`. `v1.0.3` remains published as a root release, but it should not be used for Go SDK module consumption.
 
 The SDK exposes a platform-neutral runtime core with platform-specific public registrars.
 

@@ -194,11 +194,7 @@ See the root [README.md](../../README.md) for current CLI behavior, shipped scop
 See [../../docs/EXECUTABLE_ABI.md](../../docs/EXECUTABLE_ABI.md) for the low-level executable plugin contract.
 See [../../docs/SKILLS.md](../../docs/SKILLS.md) for the skills workflow, positioning, and examples.
 
-Repo-local maintainer development can still use local replaces when editing the monorepo directly:
-
-- `replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk/plugin-kit-ai`
-- `replace github.com/plugin-kit-ai/plugin-kit-ai/plugininstall => ../../install/plugininstall`
-
+Repo-local maintainer development is handled by the checked-in workspace wiring in this monorepo.
 Public Go starter and scaffold flows should consume the released SDK module directly:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.3`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.4`

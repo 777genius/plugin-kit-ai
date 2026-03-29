@@ -70,7 +70,7 @@ plugin-kit-ai bundle publish . --platform <codex-runtime|claude> --repo owner/re
 plugin-kit-ai bundle fetch owner/repo --tag v1.0.0 --platform <codex-runtime|claude> --runtime <python|node> --dest ./handoff-plugin
 ```
 
-- Go starters stay on the SDK-first production path and consume `github.com/777genius/plugin-kit-ai/sdk@v1.0.3` as a normal module. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
+- Go starters stay on the SDK-first production path and consume `github.com/777genius/plugin-kit-ai/sdk@v1.0.4` as a normal module. Use `v1.0.4` or newer; `v1.0.3` was not a valid normal-module Go SDK release. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
 
 ## Opinionated Defaults
 
