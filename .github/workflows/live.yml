@@ -1,8 +1,5 @@
 name: Live
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 on:
   workflow_dispatch:
     inputs:
@@ -51,7 +48,7 @@ jobs:
 
       - name: Upload live log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: live-log
           path: live.log
