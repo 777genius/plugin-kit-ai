@@ -52,7 +52,6 @@ plugin-kit-ai validate . --platform <codex-runtime|claude> --strict
 For Go starters, use the SDK-first first run instead:
 
 ```bash
-go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
 go test ./...
 go build -o bin/<starter-name> ./cmd/<starter-name>
 plugin-kit-ai validate . --platform <codex-runtime|claude> --strict
@@ -71,7 +70,7 @@ plugin-kit-ai bundle publish . --platform <codex-runtime|claude> --repo owner/re
 plugin-kit-ai bundle fetch owner/repo --tag v1.0.0 --platform <codex-runtime|claude> --runtime <python|node> --dest ./handoff-plugin
 ```
 
-- Go starters stay on the SDK-first production path. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
+- Go starters stay on the SDK-first production path and consume `github.com/777genius/plugin-kit-ai/sdk@v1.0.3` as a normal module. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
 
 ## Opinionated Defaults
 

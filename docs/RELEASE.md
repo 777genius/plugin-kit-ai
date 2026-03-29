@@ -70,9 +70,18 @@ Required release artifacts:
 - Homebrew tap update result or explicit manual-fallback note when the CLI install path changed
 - npm publish result and optional live npm smoke result when the npm CLI channel changed
 - PyPI publish result and optional live pipx smoke result when the Python CLI channel changed
+- Go SDK module proxy evidence when the Go SDK public consumption contract changed:
+  - `go list -m github.com/777genius/plugin-kit-ai/sdk@vX.Y.Z`
+  - `go get github.com/777genius/plugin-kit-ai/sdk@vX.Y.Z`
 - release notes draft
 
 No stable tag should be cut without one completed rehearsal cycle using this playbook.
+When a release changes the public Go SDK consumption contract, cut the root release tag and the SDK submodule tag from the same commit:
+
+- root tag: `vX.Y.Z`
+- SDK submodule tag: `sdk/vX.Y.Z`
+
+GitHub Release assets stay on the root tag. The SDK is published through the Go module proxy path via the `sdk/vX.Y.Z` tag, not through separate tarballs.
 When a published stable release should update `777genius/homebrew-plugin-kit-ai`, `.github/workflows/homebrew-tap.yml` is the automatic path. If `HOMEBREW_TAP_TOKEN` or tap permissions are unavailable, the release notes must record the failure and the maintainer must run `TAG=<tag> HOMEBREW_TAP_TOKEN=<token> ./scripts/update-homebrew-tap.sh`.
 
 ## Shipping Gate For New Stable Functionality

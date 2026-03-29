@@ -39,6 +39,8 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, releaseDoc, "the `public-beta` PyPI/pipx wrapper contract")
 	mustContain(t, releaseDoc, "npm publish result and optional live npm smoke result")
 	mustContain(t, releaseDoc, "PyPI publish result and optional live pipx smoke result")
+	mustContain(t, releaseDoc, "Go SDK module proxy evidence when the Go SDK public consumption contract changed")
+	mustContain(t, releaseDoc, "SDK submodule tag: `sdk/vX.Y.Z`")
 
 	mustContain(t, checklist, "- `make release-gate` green")
 	mustContain(t, checklist, "- `make release-gate` includes `test-required`, `vet`, and `generated-check`")
@@ -48,6 +50,8 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, checklist, "- release notes use the same evidence fields as the release playbook")
 	mustContain(t, checklist, "- npm publish result recorded when the `plugin-kit-ai` CLI npm channel changed")
 	mustContain(t, checklist, "- PyPI publish result recorded when the `plugin-kit-ai` CLI Python channel changed")
+	mustContain(t, checklist, "- when the public Go SDK consumption contract changed:")
+	mustContain(t, checklist, "- clean-module `go get github.com/777genius/plugin-kit-ai/sdk@vX.Y.Z` recorded")
 
 	mustContain(t, releaseNotes, "- candidate commit SHA:")
 	mustContain(t, releaseNotes, "- required:")

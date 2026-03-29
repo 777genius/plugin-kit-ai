@@ -15,6 +15,7 @@ Post-`v1.0.0` hardening on `main` lands here. The initial stable release was tag
 
 - Windows launcher validation now accepts extensionless configured entrypoints such as `./bin/x` when the generated launcher file is `./bin/x.cmd`
 - documentation now reflects post-`v1.0.0` contract status, the executable-ABI beta boundary, Windows runtime resolution rules, and the TypeScript-over-Node supported path
+- Go starter, scaffold, and production example consumption now target `github.com/777genius/plugin-kit-ai/sdk@v1.0.3`; public `go mod edit -replace` onboarding was removed in favor of the SDK submodule tagging contract
 
 ## [1.0.0] - 2026-03-26
 

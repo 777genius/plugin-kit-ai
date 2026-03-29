@@ -2,7 +2,4 @@ module example.com/claude-go-starter
 
 go 1.22
 
-require github.com/777genius/plugin-kit-ai/sdk v0.0.0-00010101000000-000000000000
-
-// Before the SDK is published with a semver tag on the Go proxy, add a replace
-// pointing at your checkout of sdk/plugin-kit-ai (see README.md in this plugin).
+require github.com/777genius/plugin-kit-ai/sdk v1.0.3

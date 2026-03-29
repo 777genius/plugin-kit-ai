@@ -20,7 +20,7 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 	mustContain(t, landing, "pipx install plugin-kit-ai")
 	mustContain(t, landing, "plugin-kit-ai doctor .")
 	mustContain(t, landing, "plugin-kit-ai bootstrap .")
-	mustContain(t, landing, "go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai")
+	mustContain(t, landing, "github.com/777genius/plugin-kit-ai/sdk@v1.0.3")
 	mustContain(t, landing, "go test ./...")
 	mustContain(t, landing, "go build -o bin/<starter-name> ./cmd/<starter-name>")
 	mustContain(t, landing, "plugin-kit-ai validate . --platform <codex-runtime|claude> --strict")
@@ -489,6 +489,13 @@ func goStarterPrepare(t *testing.T, workDir, sdkDir, binaryName string) {
 	modEdit.Env = append(os.Environ(), "GOWORK=off")
 	if out, err := modEdit.CombinedOutput(); err != nil {
 		t.Fatalf("go mod edit: %v\n%s", err, out)
+	}
+
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Dir = workDir
+	tidyCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := tidyCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod tidy starter: %v\n%s", err, out)
 	}
 
 	testCmd := exec.Command("go", "test", "./...")

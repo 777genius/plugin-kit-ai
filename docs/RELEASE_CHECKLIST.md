@@ -15,6 +15,10 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - changelog updated
 - support/status/release docs updated if contract changed
 - candidate commit SHA recorded
+- when the public Go SDK consumption contract changed:
+  - root tag and `sdk/vX.Y.Z` submodule tag planned from the same commit
+  - clean-module `go list -m github.com/777genius/plugin-kit-ai/sdk@vX.Y.Z` recorded
+  - clean-module `go get github.com/777genius/plugin-kit-ai/sdk@vX.Y.Z` recorded
 
 ## Extended / Live Recording
 

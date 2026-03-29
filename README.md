@@ -50,7 +50,7 @@ Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
-- OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, first-class workspace commands/agents/themes, stable official-style local JS/TS plugin subtree support plus stable plugin-local package metadata, and helper-based custom tools still in `public-beta`
+- OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, first-class workspace commands/agents/themes, first-class standalone tools in `public-beta`, stable official-style local JS/TS plugin subtree support plus stable shared package metadata for tools and plugins, and `custom_tools` still in `public-beta`
 - launcher-based `shell` runtime authoring on `codex-runtime` and `claude`, including `init --runtime shell`, `doctor`, `bootstrap`, `validate --strict`, and `export`
 - optional scaffold extras from `plugin-kit-ai init --extras`
 
@@ -143,6 +143,11 @@ Official starter templates:
 - [plugin-kit-ai-starter-claude-go](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
 - [plugin-kit-ai-starter-claude-python](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
 - [plugin-kit-ai-starter-claude-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+
+Public Go SDK consumption now uses the canonical module path and submodule tag contract:
+
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.3`
+- release tags that change the SDK surface also cut `sdk/vX.Y.Z` from the same commit
 
 ### Production-Ready Plugin Repo
 
@@ -247,7 +252,7 @@ Current runtime support:
 - Codex runtime: production-ready within the declared stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only extension lane through `render|import|validate` plus local `extensions link|config|disable|enable`, not a production-ready runtime target
-- OpenCode: workspace-config-only lane through `render|import|validate`, including JSON/JSONC plus explicit user-scope import compatibility, stable local JS/TS plugin subtree/package-metadata support, and beta custom tools, but still not a launcher/runtime target
+- OpenCode: workspace-config-only lane through `render|import|validate`, including JSON/JSONC plus explicit user-scope import compatibility, beta first-class standalone tools, stable local JS/TS plugin subtree/shared package-metadata support, and beta `custom_tools`, but still not a launcher/runtime target
 
 Release boundary notes:
 

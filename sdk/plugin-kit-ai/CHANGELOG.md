@@ -27,6 +27,7 @@ The format is inspired by Keep a Changelog; versions follow SemVer. This unrelea
   - `app.Codex().OnNotify(...)`
 - App construction now uses `plugin-kit-ai.New(plugin-kit-ai.Config{...})`.
 - Registration after `Run` panics.
+- Public SDK consumption now uses the canonical module path `github.com/777genius/plugin-kit-ai/sdk` with the submodule tag contract `sdk/vX.Y.Z`.
 
 ### Removed
 

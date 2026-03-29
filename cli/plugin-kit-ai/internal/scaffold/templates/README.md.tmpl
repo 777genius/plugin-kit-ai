@@ -13,11 +13,12 @@ Choose this lane when long-term support, packaged distribution, and the clearest
 ## First Run
 
 ```bash
-go mod edit -replace=github.com/777genius/plugin-kit-ai/sdk=<absolute-path-to>/sdk/plugin-kit-ai
 go test ./...
 go build -o bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
 plugin-kit-ai validate . --platform claude --strict
 ```
+
+The scaffold consumes `github.com/777genius/plugin-kit-ai/sdk@v1.0.3` as a normal Go module release.
 
 ## Stable Default
 

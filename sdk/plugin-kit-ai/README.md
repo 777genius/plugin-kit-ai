@@ -2,6 +2,17 @@
 
 Module: `github.com/777genius/plugin-kit-ai/sdk`
 
+Normal consumption path:
+
+```bash
+go get github.com/777genius/plugin-kit-ai/sdk@v1.0.3
+```
+
+The canonical release contract for this subdirectory module is:
+
+- root release tag: `vX.Y.Z`
+- SDK module tag from the same commit: `sdk/vX.Y.Z`
+
 The SDK exposes a platform-neutral runtime core with platform-specific public registrars.
 
 Current contract status in this source tree: the root SDK plus the approved Claude/Codex stable event set shipped as `public-stable` in `v1.0.0`. Additional officially supported runtime surfaces remain `public-beta`. Event-level support claims come from [../../docs/generated/support_matrix.md](../../docs/generated/support_matrix.md). Compatibility policy lives in [STABILITY.md](./STABILITY.md).

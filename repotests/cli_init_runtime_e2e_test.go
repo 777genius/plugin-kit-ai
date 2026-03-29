@@ -34,17 +34,17 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 				t.Fatalf("go mod edit: %v\n%s", err, out)
 			}
 
-			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
-			validate.Env = append(os.Environ(), "GOWORK=off")
-			if out, err := validate.CombinedOutput(); err != nil {
-				t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
-			}
-
 			tidy := exec.Command("go", "mod", "tidy")
 			tidy.Dir = plugRoot
 			tidy.Env = append(os.Environ(), "GOWORK=off")
 			if out, err := tidy.CombinedOutput(); err != nil {
 				t.Fatalf("go mod tidy: %v\n%s", err, out)
+			}
+
+			validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", platform)
+			validate.Env = append(os.Environ(), "GOWORK=off")
+			if out, err := validate.CombinedOutput(); err != nil {
+				t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 			}
 
 			binName := "genplug"
