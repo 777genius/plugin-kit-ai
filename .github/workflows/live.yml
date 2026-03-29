@@ -82,7 +82,9 @@ jobs:
         run: |
           version="${TAG#v}"
           prefix="$(npm prefix -g)"
+          root="$(npm root -g)"
           echo "NPM_GLOBAL_PREFIX=${prefix}" >> "$GITHUB_ENV"
+          echo "NPM_GLOBAL_ROOT=${root}" >> "$GITHUB_ENV"
           npm i -g "plugin-kit-ai@${version}"
 
       - name: Add npm global bin to PATH
@@ -93,8 +95,8 @@ jobs:
       - name: Verify global plugin-kit-ai version
         shell: bash
         run: |
-          test -x "${NPM_GLOBAL_PREFIX}/bin/plugin-kit-ai"
-          "${NPM_GLOBAL_PREFIX}/bin/plugin-kit-ai" version
+          test -f "${NPM_GLOBAL_ROOT}/plugin-kit-ai/bin/plugin-kit-ai.js"
+          node "${NPM_GLOBAL_ROOT}/plugin-kit-ai/bin/plugin-kit-ai.js" version
 
       - name: Verify npx plugin-kit-ai version
         shell: bash
