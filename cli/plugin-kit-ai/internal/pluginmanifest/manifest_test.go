@@ -1486,11 +1486,11 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundThemes = true
 		case surface.Kind == "modes" && surface.Tier == "unsupported":
 			foundModes = true
-		case surface.Kind == "local_plugin_code" && surface.Tier == "beta":
+		case surface.Kind == "local_plugin_code" && surface.Tier == "stable":
 			foundLocalPluginCode = true
 		case surface.Kind == "custom_tools" && surface.Tier == "beta":
 			foundCustomTools = true
-		case surface.Kind == "local_plugin_dependencies" && surface.Tier == "beta":
+		case surface.Kind == "local_plugin_dependencies" && surface.Tier == "stable":
 			foundLocalPluginDependencies = true
 		}
 	}

@@ -8,6 +8,7 @@ This document is the canonical production authoring path for plugin authors usin
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
+- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and plugin-local dependency metadata; helper-based custom tools remain beta
 
 Repo-local executable runtime boundary:
 
@@ -21,7 +22,7 @@ Repo-local executable runtime boundary:
 Node/TypeScript and Python are the stable interpreted subset for scaffold, validate, launcher execution, repo-local bootstrap, read-only doctor checks, bounded portable export bundles, and local/remote bundle handoff on `codex-runtime` and `claude`.
 Shell remains beta-hardening-only in this workflow.
 This workflow does not imply a universal package-management contract or packaged distribution through `plugin-kit-ai install`.
-Use `scripts/install.sh` to bootstrap the `plugin-kit-ai` CLI locally, and use `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
+Use Homebrew to install the `plugin-kit-ai` CLI locally when possible, use `scripts/install.sh` as the verified fallback, and use `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
 
 Supported authored inputs are root `plugin.yaml` plus `targets/<platform>/...`.
 Committed Claude/Codex/Gemini native config files are rendered managed artifacts and should be treated as generated outputs.
@@ -34,13 +35,14 @@ Run this exact sequence before shipping a plugin repo:
 plugin-kit-ai normalize .
 plugin-kit-ai render .
 plugin-kit-ai render --check .
-plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package> --strict
+plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package|opencode> --strict
 ```
 
 Then run the target-specific smoke:
 
 - Claude: execute the built binary with documented stable hook payloads for `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - Codex: execute the built binary with a documented `notify` payload
+- OpenCode: run `make test-opencode-live` when recording stable-promotion or release evidence; this remains opt-in and requires `opencode` in `PATH`
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
 
@@ -93,12 +95,26 @@ Reference implementation:
 
 - [examples/plugins/codex-package-prod](../examples/plugins/codex-package-prod)
 
+## OpenCode Release-Ready Path
+
+- Start from `plugin-kit-ai init --platform opencode` or `plugin-kit-ai import --from opencode`
+- Keep `plugin.yaml` plus `targets/opencode/...` as the authored source of truth
+- Commit generated `opencode.json`, `.opencode/plugins/**`, and `.opencode/package.json`
+- Treat the stable promise as applying to repo-local authored/render/import/validate for local plugin subtree ownership and plugin-local dependency metadata
+- Treat helper-based custom tools as `public-beta` even when they ship through the stable local plugin subtree contract
+- Record `make test-opencode-live` evidence whenever you are refreshing or asserting the OpenCode stable boundary
+
+Reference implementation:
+
+- [examples/plugins/opencode-basic](../examples/plugins/opencode-basic)
+
 ## What This Workflow Guarantees
 
 - normalized `plugin.yaml` with no unknown fields
 - generated native artifacts are in sync
 - strict validation passes with no manifest drift and no Claude authored-hook entrypoint drift
 - the committed example-shaped repo can build and execute a deterministic local smoke path
+- OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` smoke path
 
 ## Gemini Packaging Boundary
 
@@ -113,5 +129,6 @@ Reference implementation:
 - external Claude CLI health before hook execution
 - external Codex CLI health before `notify` execution
 - interactive runtime parity for Gemini sessions
+- arbitrary helper-based OpenCode custom tool semantics beyond the documented plugin-subtree/package-metadata contract
 - promotion of runtime-supported beta hooks into the stable promise
 - dependency bootstrap beyond the bounded helpers, or packaged distribution through `plugin-kit-ai install`

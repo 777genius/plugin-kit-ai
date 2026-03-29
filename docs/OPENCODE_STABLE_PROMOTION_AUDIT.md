@@ -1,0 +1,72 @@
+# OpenCode Stable Promotion Audit
+
+This ledger records the post-`v1.0.0` promotion of the stable OpenCode local-plugin-loading subset.
+
+## Scope
+
+Promoted to `public-stable` in the current source tree:
+
+- target: `opencode`
+- authored surfaces:
+  - `targets/opencode/plugins/**`
+  - `targets/opencode/package.json`
+- supporting authored/rendered contract already in scope with this subset:
+  - `targets/opencode/package.yaml`
+  - `targets/opencode/config.extra.json`
+  - `targets/opencode/commands/*.md`
+  - `targets/opencode/agents/*.md`
+  - `targets/opencode/themes/*.json`
+  - portable `skills`
+  - portable `mcp_servers`
+
+Explicitly **not** promoted in this audit:
+
+- helper-based `custom_tools` beyond the documented plugin-code beta contract
+- standalone `.opencode/tools/**`
+- broader OpenCode product config beyond `targets/opencode/config.extra.json`
+- JS/TS semantic compilation or universal npm dependency-graph validation
+
+## Stable Boundary
+
+Stable promise for this subset means:
+
+- deterministic repo-local authored/render/import/validate contract for official-style local JS/TS plugin subtree ownership
+- deterministic repo-local authored/render/import/validate contract for plugin-local dependency metadata in `targets/opencode/package.json`
+- stable rejection of the deprecated `export default { setup() { ... } }` scaffold shape
+- stable enforcement of the documented `@opencode-ai/plugin` helper dependency check
+- stable dependency-free official-style named async plugin scaffold/example shape
+- deterministic explicit user-scope import normalization for project-local and `--include-user-scope` OpenCode plugin tree/package metadata
+- deterministic marker-based loader smoke through `TestOpenCodeLoaderSmoke`
+
+Stable promise for this subset does **not** mean:
+
+- availability of a local `opencode` binary
+- success of external OpenCode startup/auth/provider/network state before plugin loading
+- stable support for every possible helper-based custom tool implementation
+- first-class support for standalone `.opencode/tools/**`
+
+## Evidence Required
+
+Promotion requires:
+
+- descriptor-backed docs and policy alignment
+- scaffold alignment
+- render/import/validate alignment
+- production example canary coverage
+- unit coverage
+- integration coverage
+- contract coverage
+- real OpenCode loader smoke evidence through the documented opt-in live path
+
+## Promotion Decision
+
+Current status:
+
+- `local_plugin_code`: `stable-approved`
+- `local_plugin_dependencies`: `stable-approved`
+- `custom_tools`: `stays-beta`
+
+Rationale:
+
+- repo-local plugin subtree ownership and plugin-local dependency metadata now have a fully bounded authored/render/import/validate contract plus deterministic loader evidence
+- helper-based custom tools are valuable and supported, but their semantic surface is still broader than the current stable validation boundary

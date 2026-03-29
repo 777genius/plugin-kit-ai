@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-e2e-live generated-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-opencode-live test-e2e-live generated-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -28,6 +28,7 @@ test-polyglot-smoke:
 	go test -count=1 -run 'TestBundle(Install(HelpIncludesLocalTarballLanguage|WritesRunnerOutput)|Fetch(HelpIncludesURLAndGitHubLanguage|WritesRunnerOutput)|Publish(HelpIncludesGitHubLanguage|WritesRunnerOutput))$$' ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 	go test -count=1 -run 'TestPluginKitAI(Init(GoRuntimeLauncherFlow|PythonRuntimeLauncherFlow|PythonRuntimeWithRequirementsDoctorBootstrapFlow|PythonRuntimeBrokenVenvFailsValidate|ShellRuntimeLauncherFlow|ShellRuntimeNonExecutableTargetFailsValidate|NodeRuntimeSupportsTypeScriptBuildThroughLauncher|NodeRuntimePNPMDoctorBootstrapFlow|NodeRuntimeMissingBuiltOutputFailsValidate)|RuntimeABIPassthrough|PythonLauncherPrefersProjectVenvOnWindows)$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAI(BootstrapScriptInstallsLatestRelease|BootstrapScriptSupportsExplicitVersion|BootstrapScriptRejectsChecksumMismatch|InitExtras(PythonEmitsBundleReleaseWorkflow|NodeTypeScriptEmitsBundleReleaseWorkflow))$$|TestSetupPluginKitAIActionUsesInstallScript$$' ./repotests
+	go test -count=1 -run 'TestHomebrewFormulaGeneratorFromChecksums$$|TestContractClarity_RuntimeMetadataAndDocsStayAligned$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAIExport(PythonRequirementsBundleFlow|NodeTypeScriptBundleFlow|ShellBundleFlow)|TestPluginKitAIBundleInstall(PythonRequirementsFlow|NodeTypeScriptFlow|ClaudeNodeTypeScriptFlow)$$' ./repotests
 	go test -count=1 -run 'TestPluginKitAIBundle(Fetch(URL(PythonRequirementsFlow|ClaudeNodeTypeScriptFlow)|GitHub(ClaudeNodeTypeScriptFlow|LatestClaudeNodeTypeScriptFlow))|PublishFetch(PythonRequirementsFlow|ClaudeNodeTypeScriptFlow))$$' ./repotests
 
@@ -40,6 +41,9 @@ test-live-cli:
 
 test-install-live:
 	PLUGIN_KIT_AI_E2E_LIVE=1 go test -count=1 -timeout=15m -run '^TestLiveInstall_' ./repotests
+
+test-opencode-live:
+	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeLoaderSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-e2e-live: test-install-live
 
@@ -61,7 +65,7 @@ release-gate:
 release-rehearsal: release-gate
 	$(MAKE) test-install-compat
 	$(MAKE) test-polyglot-smoke
-	@echo "Release rehearsal deterministic checks complete. Record extended/live evidence, audit updates, release notes draft, and any waiver notes tied to the candidate commit SHA."
+	@echo "Release rehearsal deterministic checks complete. Record extended/live evidence (including OpenCode smoke when refreshing that stable boundary), audit updates, release notes draft, and any waiver notes tied to the candidate commit SHA."
 
 build-plugin-kit-ai:
 	go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai

@@ -50,7 +50,7 @@ Currently `public-beta`:
 
 - `render`, `import`, and `normalize`
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
-- OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, first-class workspace commands/agents/themes, official-style local JS/TS plugin subtree support, plugin-local package metadata, and helper-based custom tools in `public-beta`
+- OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, first-class workspace commands/agents/themes, stable official-style local JS/TS plugin subtree support plus stable plugin-local package metadata, and helper-based custom tools still in `public-beta`
 - launcher-based `shell` runtime authoring on `codex-runtime` and `claude`, including `init --runtime shell`, `doctor`, `bootstrap`, `validate --strict`, and `export`
 - optional scaffold extras from `plugin-kit-ai init --extras`
 
@@ -62,6 +62,13 @@ Currently `public-experimental`:
 ## Quick Start
 
 Install the CLI the supported way:
+
+```bash
+brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai
+plugin-kit-ai version
+```
+
+Verified fallback:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/plugin-kit-ai/plugin-kit-ai/main/scripts/install.sh | sh
@@ -216,7 +223,7 @@ Current runtime support:
 - Codex runtime: production-ready within the declared stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only extension lane through `render|import|validate` plus local `extensions link|config|disable|enable`, not a production-ready runtime target
-- OpenCode: workspace-config-only lane through `render|import|validate`, including JSON/JSONC plus explicit user-scope import compatibility and beta local JS/TS plugin subtree support, but still not a launcher/runtime target
+- OpenCode: workspace-config-only lane through `render|import|validate`, including JSON/JSONC plus explicit user-scope import compatibility, stable local JS/TS plugin subtree/package-metadata support, and beta custom tools, but still not a launcher/runtime target
 
 Release boundary notes:
 
@@ -243,7 +250,8 @@ For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the rea
 `plugin-kit-ai bundle fetch` is the stable remote handoff companion for exported Python/Node bundles. URL mode verifies `--sha256` or `<url>.sha256`; GitHub Releases mode prefers `checksums.txt` and falls back to `<asset>.sha256`. It remains separate from both stable local `bundle install` and binary-only `install`.
 `plugin-kit-ai bundle publish <path> --platform <target> --repo <owner/repo> --tag <tag>` is the stable producer-side companion for exported Python/Node bundles. It runs the same export contract, creates a published release by default, supports `--draft` as an opt-in safety mode, uploads the bundle plus a sibling `.sha256` asset, and remains separate from both stable local `bundle install` and binary-only `install`.
 `plugin-kit-ai install` remains binary-only; marketplace packaging, dependency-preinstalled installs, and a universal package-management contract stay out of scope in this cycle.
-The official bootstrap path for the `plugin-kit-ai` CLI itself is `scripts/install.sh`: it resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, and installs the correct GitHub Releases tarball into your chosen `BIN_DIR`.
+The recommended package-manager install path for the `plugin-kit-ai` CLI itself is `brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai`.
+The verified fallback path is `scripts/install.sh`: it resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, and installs the correct GitHub Releases tarball into your chosen `BIN_DIR`.
 The official CI setup path for the CLI itself is `plugin-kit-ai/plugin-kit-ai/setup-plugin-kit-ai@v1`, which reuses the same verified release contract instead of rebuilding the CLI from source in every downstream workflow.
 For stable interpreted `python`/`node` projects on `codex-runtime` and `claude`, `plugin-kit-ai init --extras` now emits `.github/workflows/bundle-release.yml`, an opt-in GitHub Actions workflow that runs `doctor -> bootstrap -> validate --strict -> bundle publish` through the official setup action.
 
@@ -374,7 +382,7 @@ go test ./...
 Canonical community release flow for the stable Python/Node subset:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/plugin-kit-ai/plugin-kit-ai/main/scripts/install.sh | sh
+brew install plugin-kit-ai/plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --extras
 git tag v1.0.0
 # generated .github/workflows/bundle-release.yml runs bundle publish
