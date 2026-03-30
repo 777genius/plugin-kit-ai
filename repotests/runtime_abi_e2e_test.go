@@ -42,6 +42,7 @@ func TestPluginKitAIRuntimeABIPassthrough(t *testing.T) {
 					}
 
 					if tc.runtime == "go" {
+						wireGeneratedGoModuleToLocalSDK(t, plugRoot, goEnv)
 						tidyCmd := exec.Command("go", "mod", "tidy")
 						tidyCmd.Dir = plugRoot
 						tidyCmd.Env = goEnv

@@ -46,7 +46,7 @@ func TestPythonCLIPackageContractFiles(t *testing.T) {
 	}
 
 	initPy := readRepoFile(t, root, "python", "plugin-kit-ai", "src", "plugin_kit_ai", "__init__.py")
-	mustContain(t, initPy, `__version__ = "0.0.0-development"`)
+	mustContain(t, initPy, `__version__ = "0.0.0.dev0"`)
 
 	cliPy := readRepoFile(t, root, "python", "plugin-kit-ai", "src", "plugin_kit_ai", "cli.py")
 	mustContain(t, cliPy, "format_install_error")
@@ -296,7 +296,7 @@ func rewritePythonPackageVersion(t *testing.T, packageRoot, version string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := strings.Replace(string(body), `__version__ = "0.0.0-development"`, fmt.Sprintf(`__version__ = "%s"`, version), 1)
+	updated := strings.Replace(string(body), `__version__ = "0.0.0.dev0"`, fmt.Sprintf(`__version__ = "%s"`, version), 1)
 	if updated == string(body) {
 		t.Fatalf("failed to rewrite package version in %s", path)
 	}

@@ -155,10 +155,10 @@ For repo-local plugins where quick iteration matters more than packaged distribu
 
 ```bash
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --extras
 ./bin/plugin-kit-ai doctor ./my-plugin
 ./bin/plugin-kit-ai bootstrap ./my-plugin
@@ -182,10 +182,10 @@ Official starter templates:
 
 Public Go SDK consumption now uses the canonical module path and submodule tag contract:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.5`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.6`
 - release tags that change the SDK surface also cut `sdk/vX.Y.Z` from the same commit
 
-Use `v1.0.5` or newer for normal Go module consumption. `v1.0.3` remains published as a root release, but it is known-bad for the Go SDK module path.
+Use `v1.0.6` or newer for normal Go module consumption. `v1.0.3` remains published as a root release, but it is known-bad for the Go SDK module path.
 
 ### Production-Ready Plugin Repo
 

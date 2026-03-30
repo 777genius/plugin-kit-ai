@@ -649,7 +649,15 @@ func assertStarterDoctorBlockedBeforeBootstrap(t *testing.T, out string) {
 
 func goStarterPrepare(t *testing.T, workDir, binaryName string) {
 	t.Helper()
+	root := RepoRoot(t)
 	env := newGoModuleEnv(t)
+
+	replaceCmd := exec.Command("go", "mod", "edit", "-replace", "github.com/777genius/plugin-kit-ai/sdk="+filepath.Join(root, "sdk"))
+	replaceCmd.Dir = workDir
+	replaceCmd.Env = env
+	if out, err := replaceCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod edit replace starter sdk: %v\n%s", err, out)
+	}
 
 	tidyCmd := exec.Command("go", "mod", "tidy")
 	tidyCmd.Dir = workDir
@@ -719,7 +727,7 @@ func writeLocalPythonRuntimeWheel(t *testing.T, wheelPath, version string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	moduleBody := strings.Replace(string(sourceBody), `__version__ = "0.0.0-development"`, fmt.Sprintf(`__version__ = "%s"`, version), 1)
+	moduleBody := strings.Replace(string(sourceBody), `__version__ = "0.0.0.dev0"`, fmt.Sprintf(`__version__ = "%s"`, version), 1)
 	if moduleBody == string(sourceBody) {
 		t.Fatalf("failed to rewrite python runtime package version in %s", sourcePath)
 	}

@@ -39,7 +39,7 @@ func TestPythonRuntimePackageContractFiles(t *testing.T) {
 
 	initPy := readRepoFile(t, root, "python", "plugin-kit-ai-runtime", "src", "plugin_kit_ai_runtime", "__init__.py")
 	for _, want := range []string{
-		`__version__ = "0.0.0-development"`,
+		`__version__ = "0.0.0.dev0"`,
 		`CLAUDE_STABLE_HOOKS = (`,
 		`CLAUDE_EXTENDED_HOOKS = (`,
 		"class ClaudeApp:",
@@ -367,7 +367,7 @@ func rewritePythonRuntimeAuthoringPackageVersion(t *testing.T, packageRoot, vers
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := strings.Replace(string(body), `__version__ = "0.0.0-development"`, `__version__ = "`+version+`"`, 1)
+	updated := strings.Replace(string(body), `__version__ = "0.0.0.dev0"`, `__version__ = "`+version+`"`, 1)
 	if updated == string(body) {
 		t.Fatalf("failed to rewrite package version in %s", path)
 	}

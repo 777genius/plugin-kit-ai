@@ -45,6 +45,7 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 			}
 
 			env := newGoModuleEnv(t)
+			wireGeneratedGoModuleToLocalSDK(t, plugRoot, env)
 
 			tidy := exec.Command("go", "mod", "tidy")
 			tidy.Dir = plugRoot

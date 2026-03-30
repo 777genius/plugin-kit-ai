@@ -1,1 +1,1 @@
-plugin-kit-ai-runtime==1.0.5
+plugin-kit-ai-runtime==1.0.6

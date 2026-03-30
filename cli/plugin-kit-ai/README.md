@@ -67,10 +67,10 @@ For repo-local plugins where fast iteration matters more than packaged distribut
 
 ```bash
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --extras
 ./bin/plugin-kit-ai doctor ./my-plugin
 ./bin/plugin-kit-ai bootstrap ./my-plugin
@@ -210,4 +210,4 @@ See [../../docs/SKILLS.md](../../docs/SKILLS.md) for the skills workflow, positi
 Repo-local maintainer development is handled by the checked-in workspace wiring in this monorepo.
 Public Go starter and scaffold flows should consume the released SDK module directly:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.5`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.6`

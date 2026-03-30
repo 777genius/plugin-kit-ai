@@ -7,13 +7,12 @@ name = "plugin-kit-ai"
 description = "Thin Python launcher for the plugin-kit-ai CLI"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
 authors = [{ name = "plugin-kit-ai" }]
 dynamic = ["version"]
 classifiers = [
   "Environment :: Console",
   "Intended Audience :: Developers",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: MacOS",
   "Operating System :: Microsoft :: Windows",
   "Operating System :: POSIX :: Linux",
