@@ -49,6 +49,16 @@ var generatedRules = map[string]Rule{
 			"./...",
 		},
 	},
+	"cursor": {
+		Platform: "cursor",
+		RequiredFiles: []string{
+			"plugin.yaml",
+		},
+		ForbiddenFiles: []string{
+			"launcher.yaml",
+		},
+		BuildTargets: []string{},
+	},
 	"gemini": {
 		Platform: "gemini",
 		RequiredFiles: []string{

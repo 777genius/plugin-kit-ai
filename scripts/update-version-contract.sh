@@ -44,10 +44,14 @@ perl_expr=(
   -0pi
   -e "s{github\\.com/777genius/plugin-kit-ai/sdk\\@v\\d+\\.\\d+\\.\\d+}{github.com/777genius/plugin-kit-ai/sdk\\@${GO_SDK_VERSION}}g;"
   -e "s{github\\.com/777genius/plugin-kit-ai/sdk v\\d+\\.\\d+\\.\\d+}{github.com/777genius/plugin-kit-ai/sdk ${GO_SDK_VERSION}}g;"
+  -e 's{Use `v\d+\.\d+\.\d+` or newer}{Use `'"${GO_SDK_VERSION}"'` or newer}g;'
   -e "s{--runtime-package-version \\d+\\.\\d+\\.\\d+}{--runtime-package-version ${RUNTIME_PACKAGE_VERSION}}g;"
   -e "s{plugin-kit-ai-runtime==\\d+\\.\\d+\\.\\d+}{plugin-kit-ai-runtime==${RUNTIME_PACKAGE_VERSION}}g;"
   -e "s{plugin-kit-ai-runtime\\@\\d+\\.\\d+\\.\\d+}{plugin-kit-ai-runtime\\@${RUNTIME_PACKAGE_VERSION}}g;"
   -e "s{\"plugin-kit-ai-runtime\": \"\\d+\\.\\d+\\.\\d+\"}{\"plugin-kit-ai-runtime\": \"${RUNTIME_PACKAGE_VERSION}\"}g;"
+  -e 's{pin `plugin-kit-ai-runtime` to `\d+\.\d+\.\d+`}{pin `plugin-kit-ai-runtime` to `'"${RUNTIME_PACKAGE_VERSION}"'`}g;'
+  -e "s{DefaultGoSDKVersion          = \"v\\d+\\.\\d+\\.\\d+\"}{DefaultGoSDKVersion          = \"${GO_SDK_VERSION}\"}g;"
+  -e "s{DefaultRuntimePackageVersion = \"\\d+\\.\\d+\\.\\d+\"}{DefaultRuntimePackageVersion = \"${RUNTIME_PACKAGE_VERSION}\"}g;"
 )
 
 perl "${perl_expr[@]}" "${files[@]}"

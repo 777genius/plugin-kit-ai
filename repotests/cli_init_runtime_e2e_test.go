@@ -25,6 +25,7 @@ func TestPluginKitAIInitGoRuntimeLauncherFlow(t *testing.T) {
 				assertCodexConfig(t, plugRoot, "gpt-5.4-mini", "./bin/genplug")
 			}
 
+			wireGeneratedGoModuleToLocalSDK(t, plugRoot, env)
 			tidy := exec.Command("go", "mod", "tidy")
 			tidy.Dir = plugRoot
 			tidy.Env = env

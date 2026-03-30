@@ -16,7 +16,7 @@ func TestPluginKitAICapabilities(t *testing.T) {
 		t.Fatalf("capabilities table: %v\n%s", err, tableOut)
 	}
 	table := string(tableOut)
-	if !strings.Contains(table, "claude") || !strings.Contains(table, "codex-package") || !strings.Contains(table, "codex-runtime") || !strings.Contains(table, "gemini") || !strings.Contains(table, "TARGET") || !strings.Contains(table, "CLASS") {
+	if !strings.Contains(table, "claude") || !strings.Contains(table, "codex-package") || !strings.Contains(table, "codex-runtime") || !strings.Contains(table, "gemini") || !strings.Contains(table, "cursor") || !strings.Contains(table, "TARGET") || !strings.Contains(table, "CLASS") {
 		t.Fatalf("unexpected capabilities table output:\n%s", table)
 	}
 

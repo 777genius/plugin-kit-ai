@@ -7,7 +7,7 @@ It gives you:
 
 - a typed Go SDK for Claude and Codex
 - a package-standard authoring model for plugin repos
-- managed render/validate tooling for Claude, Codex package/runtime lanes, Gemini extension artifacts, and OpenCode workspace config
+- managed render/validate tooling for Claude, Codex package/runtime lanes, Gemini extension artifacts, OpenCode workspace config, and Cursor workspace config
 - stable repo-local authoring lanes for `python` and `node`, plus a beta `shell` lane
 
 Go remains the recommended default when you want the smoothest production path:
@@ -24,7 +24,7 @@ Python and Node are still supported first-class for the stable repo-local subset
 
 Use it when you want one of these outcomes:
 
-- build a real plugin repo for Claude, Codex package/runtime lanes, Gemini packaging, or OpenCode workspace config with a clear support boundary
+- build a real plugin repo for Claude, Codex package/runtime lanes, Gemini packaging, OpenCode workspace config, or Cursor workspace config with a clear support boundary
 - keep authored plugin state in versioned source files instead of hand-editing vendor config
 - generate and validate native target files deterministically
 - recommend Go where it has real operational advantages, without blocking Python or Node teams from a stable supported path
@@ -40,7 +40,7 @@ Do not use it if your main goal is:
 `plugin-kit-ai` is aimed at three audiences:
 
 - plugin authors who want either a typed Go SDK or a stable repo-local Python/Node path for Claude or the Codex runtime lane
-- teams that already have native Claude/Codex/Gemini/OpenCode config files and want to move to a managed source-of-truth model
+- teams that already have native Claude/Codex/Gemini/OpenCode/Cursor config files and want to move to a managed source-of-truth model
 - maintainers who need render, drift detection, strict validation, and deterministic release gates
 
 If you are a solo hacker trying to wire a tiny local script into a CLI, this may still help, but the main value is stronger repo structure and clearer contracts.
@@ -64,6 +64,7 @@ Currently `public-beta`:
 - `render`, `import`, and `normalize`
 - full Gemini CLI extension packaging lane through `render|import|validate`, with official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, and deterministic local extension dev flows
 - OpenCode workspace-config lane through `render|import|validate`, with official-style `opencode.json`, first-class npm plugin package refs, inline MCP, mirrored portable skills, first-class workspace commands/agents/themes, first-class standalone tools in `public-beta`, stable official-style local JS/TS plugin subtree support plus stable shared package metadata for tools and plugins, layered project/user/env config-source import fidelity, permission-first passthrough config semantics, and `custom_tools` still in `public-beta`
+- Cursor workspace-config lane through `render|import|validate`, with `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional root `AGENTS.md`, compatibility import for `.cursorrules`, and a strict documented-subset boundary that defers `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root rules, and JSONC
 - launcher-based `shell` runtime authoring on `codex-runtime` and `claude`, including `init --runtime shell`, `doctor`, `bootstrap`, `validate --strict`, and `export`
 - optional scaffold extras from `plugin-kit-ai init --extras`
 
@@ -135,6 +136,7 @@ Choose the path that matches your goal:
 | Claude hook runtime plugin | `claude` |
 | Gemini CLI extension package | `gemini` |
 | OpenCode workspace-config lane | `opencode` |
+| Cursor workspace-config lane | `cursor` |
 
 ### Fast Local Plugin
 
@@ -153,10 +155,10 @@ For repo-local plugins where quick iteration matters more than packaged distribu
 
 ```bash
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --extras
 ./bin/plugin-kit-ai doctor ./my-plugin
 ./bin/plugin-kit-ai bootstrap ./my-plugin
@@ -180,10 +182,10 @@ Official starter templates:
 
 Public Go SDK consumption now uses the canonical module path and submodule tag contract:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.5`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.6`
 - release tags that change the SDK surface also cut `sdk/vX.Y.Z` from the same commit
 
-Use `v1.0.5` or newer for normal Go module consumption. `v1.0.3` remains published as a root release, but it is known-bad for the Go SDK module path.
+Use `v1.0.6` or newer for normal Go module consumption. `v1.0.3` remains published as a root release, but it is known-bad for the Go SDK module path.
 
 ### Production-Ready Plugin Repo
 
@@ -200,13 +202,14 @@ For teams that want the strongest supported release and distribution story:
 ./bin/plugin-kit-ai init my-plugin --platform codex-package
 ./bin/plugin-kit-ai init my-plugin --platform gemini
 ./bin/plugin-kit-ai init my-plugin --platform opencode
+./bin/plugin-kit-ai init my-plugin --platform cursor
 ```
 
 Default `init my-plugin` is the strongest repo-local Codex runtime path: `--platform codex-runtime --runtime go`.
 
 ### Already Have Native Config
 
-For teams migrating existing Claude/Codex/Gemini native files into the package-standard authored layout:
+For teams migrating existing Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout:
 
 - Good fit: existing plugin repos that want one managed source of truth
 - Guarantee level: import bridge into the authored package-standard model
@@ -262,14 +265,14 @@ The default recommendation remains:
 - `targets/<platform>/...`
 - your real sources such as `cmd/`, `scripts/`, `mcp/`, `skills/`, `agents/`, `contexts/`
 
-Claude, Codex package/runtime lanes, and Gemini native config files are rendered managed artifacts.
+Claude, Codex package/runtime lanes, Gemini native config files, OpenCode workspace config, and Cursor workspace config are rendered managed artifacts.
 They are not the authored source of truth.
 
 That means:
 
 - `render` produces native target files from `plugin.yaml` plus `targets/<platform>/...`
 - `validate` checks the authored project plus generated-artifact drift
-- `import` is the bridge from current native Claude/Codex/Gemini/OpenCode layouts back into the package-standard authored layout
+- `import` is the bridge from current native Claude/Codex/Gemini/OpenCode/Cursor layouts back into the package-standard authored layout
 - `normalize` rewrites `plugin.yaml` into canonical package-standard shape and removes unknown fields
 
 `plugin-kit-ai validate` checks package-standard projects, generated-artifact drift, manifest warnings, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
@@ -295,6 +298,7 @@ Current runtime support:
 - Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only extension lane through `render|import|validate` plus local `extensions link|config|disable|enable`, not a production-ready runtime target
 - OpenCode: workspace-config-only lane through `render|import|validate`, including JSON/JSONC plus explicit user-scope and env-config import compatibility, beta first-class standalone tools, stable local JS/TS plugin subtree/shared package-metadata support, permission-first passthrough config semantics with deprecated tools-config compatibility, and beta `custom_tools`, but still not a launcher/runtime target
+- Cursor: workspace-config-only lane through `render|import|validate`, including `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and `.cursorrules` compatibility import, but not `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root rule directories, or a VS Code extension packaging lane
 
 Release boundary notes:
 
@@ -341,6 +345,7 @@ The project is intentionally opinionated.
 - Shell is still supported because teams use it, but it remains a repo-local beta path
 - Gemini is in scope as a full extension-packaging target, not as a production-ready runtime target
 - OpenCode is in scope as a workspace-config target, not as a first-class local JS/TS plugin-code runtime lane
+- Cursor is in scope as a workspace-config target, not as a VS Code extension packaging lane or a full umbrella for every documented Cursor surface
 
 That means the promise is practical rather than inflated:
 

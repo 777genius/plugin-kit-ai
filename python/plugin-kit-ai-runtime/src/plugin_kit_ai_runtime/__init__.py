@@ -6,7 +6,7 @@ import json
 import sys
 from typing import Any, Callable, Iterable, Optional
 
-__version__ = "0.0.0-development"
+__version__ = "0.0.0.dev0"
 
 JSONMap = dict[str, Any]
 ClaudeHandler = Callable[[JSONMap], Optional[JSONMap]]

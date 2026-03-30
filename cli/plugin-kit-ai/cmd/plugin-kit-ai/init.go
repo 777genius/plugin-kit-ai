@@ -46,13 +46,14 @@ Production-ready plugin repo:
   Use --platform claude for Claude hooks, and add --claude-extended-hooks only when you intentionally want the wider runtime-supported subset.
   Use --platform codex-package for the official Codex plugin bundle without local notify/runtime wiring.
   Use --platform opencode for the OpenCode workspace-config lane without launcher/runtime scaffolding.
+  Use --platform cursor for the Cursor workspace-config lane without launcher/runtime scaffolding.
 
 Already have native config:
-  Use plugin-kit-ai import to migrate current Claude/Codex/Gemini/OpenCode native files into the package-standard authored layout.
+  Use plugin-kit-ai import to migrate current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
   init is for creating a new package-standard project, not for preserving native files as the authored source of truth.
 
 Public flags:
-  --platform   Supported: "codex-runtime" (default), "codex-package", "claude", "gemini", and "opencode".
+  --platform   Supported: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", and "cursor".
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   --runtime-package
@@ -76,7 +77,7 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 			return runInit(cmd, runner, flags, args)
 		},
 	}
-	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", "gemini", or "opencode")`)
+	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", "gemini", "opencode", or "cursor")`)
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "go", `runtime ("go", "python", "node", or "shell")`)
 	cmd.Flags().BoolVar(&flags.typescript, "typescript", false, "generate a TypeScript scaffold on top of the node runtime lane")
 	cmd.Flags().BoolVar(&flags.runtimePackage, "runtime-package", false, "for --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file")
@@ -93,7 +94,8 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 	runtime := flags.runtime
 	if (strings.EqualFold(strings.TrimSpace(flags.platform), "gemini") ||
 		strings.EqualFold(strings.TrimSpace(flags.platform), "codex-package") ||
-		strings.EqualFold(strings.TrimSpace(flags.platform), "opencode")) &&
+		strings.EqualFold(strings.TrimSpace(flags.platform), "opencode") ||
+		strings.EqualFold(strings.TrimSpace(flags.platform), "cursor")) &&
 		!cmd.Flags().Changed("runtime") {
 		runtime = ""
 	}
@@ -133,7 +135,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		fmt.Sprintf("  cd %s", strconv.Quote(outDir)),
 	}
 
-	if platform == "gemini" || platform == "codex-package" || platform == "opencode" {
+	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" {
 		if runtime == "python" {
 			lines = append(lines, "  Create a project .venv, then run:")
 		} else if runtime == "node" {

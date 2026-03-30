@@ -172,11 +172,23 @@ func runPluginKitAIInstall(t *testing.T, pluginKitAIBin, workDir, ownerRepo stri
 func bootstrapGeneratedGoPlugin(t *testing.T, root string) {
 	t.Helper()
 	env := newGoModuleEnv(t)
+	wireGeneratedGoModuleToLocalSDK(t, root, env)
 	tidyCmd := exec.Command("go", "mod", "tidy")
 	tidyCmd.Dir = root
 	tidyCmd.Env = env
 	if out, err := tidyCmd.CombinedOutput(); err != nil {
 		t.Fatalf("go mod tidy in generated plugin: %v\n%s", err, out)
+	}
+}
+
+func wireGeneratedGoModuleToLocalSDK(t testing.TB, root string, env []string) {
+	t.Helper()
+	repoRoot := RepoRoot(t)
+	cmd := exec.Command("go", "mod", "edit", "-replace", "github.com/777genius/plugin-kit-ai/sdk="+filepath.Join(repoRoot, "sdk"))
+	cmd.Dir = root
+	cmd.Env = env
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("go mod edit replace sdk: %v\n%s", err, out)
 	}
 }
 

@@ -742,6 +742,152 @@ func TestImport_OpenCodeNormalizesLegacyToolDirectory(t *testing.T) {
 	}
 }
 
+func TestRender_CursorRendersWorkspaceConfig(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "AGENTS.md"), "# Cursor agents\n")
+
+	result, err := Render(root, "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join(".cursor", "mcp.json"),
+		filepath.Join(".cursor", "rules", "project.mdc"),
+		"AGENTS.md",
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{`"context7"`, `@upstash/context7-mcp`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf(".cursor/mcp.json missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestRender_CursorTracksRootAgentsAsManagedArtifact(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "AGENTS.md"), "# Cursor agents\n")
+
+	first, err := Render(root, "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, first.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "targets", "cursor", "AGENTS.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := Render(root, "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, rel := range second.StalePaths {
+		if rel == "AGENTS.md" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("stale paths = %v, want AGENTS.md", second.StalePaths)
+	}
+}
+
+func TestImport_CursorNativeLayout(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".cursor", "mcp.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
+	mustWritePluginFile(t, root, filepath.Join(".cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, "AGENTS.md", "# Cursor agents\n")
+
+	imported, warnings, err := Import(root, "", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "cursor" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	for _, rel := range []string{
+		filepath.Join("mcp", "servers.json"),
+		filepath.Join("targets", "cursor", "rules", "project.mdc"),
+		filepath.Join("targets", "cursor", "AGENTS.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+}
+
+func TestImport_CursorExplicitAllowsRootAgentsOnly(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "AGENTS.md", "# Shared agents\n")
+
+	imported, warnings, err := Import(root, "cursor", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "cursor" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	if _, err := os.Stat(filepath.Join(root, "targets", "cursor", "AGENTS.md")); err != nil {
+		t.Fatalf("stat targets/cursor/AGENTS.md: %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+}
+
+func TestInspect_CursorExposesWorkspaceSurfaceTiers(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "cursor", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+
+	inspection, _, err := Inspect(root, "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(inspection.Targets) != 1 {
+		t.Fatalf("targets = %+v", inspection.Targets)
+	}
+	target := inspection.Targets[0]
+	var foundMCP, foundRules, foundAgents bool
+	for _, surface := range target.NativeSurfaces {
+		switch {
+		case surface.Kind == "mcp" && surface.Tier == "stable":
+			foundMCP = true
+		case surface.Kind == "rules" && surface.Tier == "stable":
+			foundRules = true
+		case surface.Kind == "agents_md" && surface.Tier == "stable":
+			foundAgents = true
+		}
+	}
+	if !foundMCP || !foundRules || !foundAgents {
+		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
+	}
+}
+
 func TestRender_ClaudeDefaultHooksStayStableSubset(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", false)

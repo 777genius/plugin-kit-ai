@@ -4,7 +4,7 @@ Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submo
 
 Current CLI contract status in this source tree: `public-stable` shipped in `v1.0.0`, with additional post-`v1.0.x` hardening on `main`. Repository-wide compatibility and release policy live in [../../docs/SUPPORT.md](../../docs/SUPPORT.md) and [../../docs/RELEASE.md](../../docs/RELEASE.md).
 
-`plugin-kit-ai init` scaffolds a package-standard project for **Codex runtime** (`--platform codex-runtime`, default), **Codex package** (`--platform codex-package`), **Claude** (`--platform claude`), **Gemini** (`--platform gemini`), or **OpenCode** (`--platform opencode`). Runtime selection `--runtime go|python|node|shell` applies to launcher-based targets only; `--typescript` is available only with `--runtime node` on launcher-based lanes. Gemini, Codex package, and OpenCode authoring do not use `launcher.yaml` or executable runtime scaffolding. Claude defaults to the stable `Stop`/`PreToolUse`/`UserPromptSubmit` subset; use `--claude-extended-hooks` only when you intentionally want the full runtime-supported hook scaffold.
+`plugin-kit-ai init` scaffolds a package-standard project for **Codex runtime** (`--platform codex-runtime`, default), **Codex package** (`--platform codex-package`), **Claude** (`--platform claude`), **Gemini** (`--platform gemini`), **OpenCode** (`--platform opencode`), or **Cursor** (`--platform cursor`). Runtime selection `--runtime go|python|node|shell` applies to launcher-based targets only; `--typescript` is available only with `--runtime node` on launcher-based lanes. Gemini, Codex package, OpenCode, and Cursor authoring do not use `launcher.yaml` or executable runtime scaffolding. Claude defaults to the stable `Stop`/`PreToolUse`/`UserPromptSubmit` subset; use `--claude-extended-hooks` only when you intentionally want the full runtime-supported hook scaffold.
 `plugin-kit-ai bootstrap` is the stable repo-local first-run helper for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It uses lockfile-first manager detection for Python and Node ecosystems, then installs dependencies and runs `build` for TypeScript-shaped Node projects. The same command remains `public-beta` for `shell`.
 `plugin-kit-ai doctor` is the stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It reports lane, runtime, detected manager, readiness status, and next commands without mutating files. The same command remains `public-beta` for `shell`.
 `plugin-kit-ai export` is the stable portable handoff surface for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It writes a deterministic `.tar.gz` bundle, but does not extend `install`. The same command remains `public-beta` for `shell`.
@@ -12,7 +12,7 @@ Current CLI contract status in this source tree: `public-stable` shipped in `v1.
 `plugin-kit-ai bundle fetch` is the stable remote bundle fetch/install companion for exported Python/Node handoff archives. It supports direct HTTPS URLs and GitHub Releases bundle discovery, but remains separate from both stable local `bundle install` and binary-only `install`.
 `plugin-kit-ai bundle publish` is the stable GitHub Releases publish companion for exported Python/Node handoff archives. It exports the same bundle contract, creates a published release by default, supports `--draft` as an opt-in safety mode, uploads the bundle plus a sibling `.sha256` asset, and stays separate from both stable local `bundle install` and binary-only `install`.
 `plugin-kit-ai validate` checks package-standard projects, including generated-artifact drift, manifest warnings for unknown `plugin.yaml` keys, and Claude authored-hook routing consistency against `launcher.yaml.entrypoint`.
-`plugin-kit-ai render` renders native target artifacts from the authored package-standard layout, `plugin-kit-ai import` backfills that layout from current native Claude/Codex/Gemini/OpenCode artifacts, and `plugin-kit-ai normalize` rewrites `plugin.yaml` into the package-standard shape.
+`plugin-kit-ai render` renders native target artifacts from the authored package-standard layout, `plugin-kit-ai import` backfills that layout from current native Claude/Codex/Gemini/OpenCode/Cursor artifacts, and `plugin-kit-ai normalize` rewrites `plugin.yaml` into the package-standard shape.
 `plugin-kit-ai capabilities` defaults to the target/package view and supports `--mode runtime` for runtime-event metadata.
 
 Supported bootstrap paths for the CLI itself:
@@ -55,6 +55,7 @@ Choose the path that matches your goal:
 | Claude hook runtime plugin | `claude` |
 | Gemini CLI extension package | `gemini` |
 | OpenCode workspace-config lane | `opencode` |
+| Cursor workspace-config lane | `cursor` |
 
 ## Fast Local Plugin
 
@@ -66,10 +67,10 @@ For repo-local plugins where fast iteration matters more than packaged distribut
 
 ```bash
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
-./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
+./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
 ./bin/plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --extras
 ./bin/plugin-kit-ai doctor ./my-plugin
 ./bin/plugin-kit-ai bootstrap ./my-plugin
@@ -107,13 +108,14 @@ For the strongest supported path in the current CLI contract:
 ./bin/plugin-kit-ai init my-plugin --platform codex-package
 ./bin/plugin-kit-ai init my-plugin --platform gemini
 ./bin/plugin-kit-ai init my-plugin --platform opencode
+./bin/plugin-kit-ai init my-plugin --platform cursor
 ```
 
 Default `init my-plugin` expands to `--platform codex-runtime --runtime go`.
 
 ## Already Have Native Config
 
-For migrating current Claude/Codex/Gemini native files into the package-standard authored layout:
+For migrating current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout:
 
 - Good fit: teams adopting managed source-of-truth workflows without hand-editing vendor files
 - Guarantee level: supported import bridge into the authored package model
@@ -126,7 +128,7 @@ For migrating current Claude/Codex/Gemini native files into the package-standard
 
 Current behavior and contract details:
 
-- `init`: package-standard scaffold for `codex-runtime`, `codex-package`, `claude`, `gemini`, or `opencode`; launcher-based targets support Go-first or executable runtimes, while Gemini, Codex package, and OpenCode stay launcher-less
+- `init`: package-standard scaffold for `codex-runtime`, `codex-package`, `claude`, `gemini`, `opencode`, or `cursor`; launcher-based targets support Go-first or executable runtimes, while Gemini, Codex package, OpenCode, and Cursor stay launcher-less
 - `bootstrap`: stable repo-local first-run helper for `python` and `node` launcher-based projects on `codex-runtime` and `claude`; `public-beta` for `shell`; no-op for `go`, `codex-package`, and `gemini`
 - `doctor`: stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`; `public-beta` for `shell`
 - `export`: stable deterministic `.tar.gz` handoff bundle for `python` and `node` launcher-based projects on `codex-runtime` and `claude`; `public-beta` for `shell`
@@ -143,8 +145,9 @@ Current behavior and contract details:
 - `init --platform claude`: stable-default Claude scaffold; `--claude-extended-hooks` opts into the full runtime-supported hook set
 - `init --platform gemini`: richer packaging starter with `targets/gemini/package.yaml`, `targets/gemini/contexts/GEMINI.md`, and no launcher/runtime scaffold
 - `init --platform opencode`: workspace-config starter with `targets/opencode/package.yaml`, optional `targets/opencode/config.extra.json`, and optional OpenCode command/agent/theme starters plus an OpenCode-compatible skill stub when `--extras` is used; OpenCode extras now use official-style named async plugin exports, and helper-based custom tools belong in `targets/opencode/package.json`; no launcher/runtime scaffold
-- `render`: render native Claude artifacts, Codex package/runtime lane artifacts, Gemini CLI extension packaging artifacts, and OpenCode workspace config artifacts from `plugin.yaml` plus `targets/<platform>/...`
-- `import`: create the package-standard authored layout from current native Claude/Codex/Gemini/OpenCode artifacts; Gemini import remains extension-packaging-only and OpenCode import remains workspace-config-only with explicit `--include-user-scope` support for home-dir OpenCode sources
+- `init --platform cursor`: workspace-config starter with `targets/cursor/rules/project.mdc`, optional `targets/cursor/AGENTS.md` via `--extras`, and no launcher/runtime scaffold
+- `render`: render native Claude artifacts, Codex package/runtime lane artifacts, Gemini CLI extension packaging artifacts, OpenCode workspace config artifacts, and Cursor workspace config artifacts from `plugin.yaml` plus `targets/<platform>/...`
+- `import`: create the package-standard authored layout from current native Claude/Codex/Gemini/OpenCode/Cursor artifacts; Gemini import remains extension-packaging-only, OpenCode import remains workspace-config-only with explicit `--include-user-scope` support for home-dir OpenCode sources, and Cursor import remains workspace-config-only for the documented `.cursor` subset
 - `inspect`: explain the discovered package graph, target class, and managed artifacts
 - `normalize`: rewrite `plugin.yaml` into the package-standard shape and drop unknown fields
 - `validate`: package-standard project validation, generated-artifact drift checks, and non-failing manifest warnings; `--strict` promotes warnings to errors for CI
@@ -155,7 +158,7 @@ Current behavior and contract details:
 
 For the experimental skills subsystem, handwritten `skills/<name>/SKILL.md` is supported directly. `skills init` is convenience scaffold, not a required entrypoint.
 For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself; use Homebrew as the recommended local install path, the `public-beta` npm wrapper as the official JS ecosystem path, the `public-beta` PyPI/pipx wrapper when that release was published to PyPI, `scripts/install.sh` as the verified fallback, or `setup-plugin-kit-ai@v1` in CI.
-Executable runtime scaffolds for `python` and `node` are the stable repo-local local-runtime subset on `codex-runtime` and `claude`; launcher-based `shell` authoring remains `public-beta`. These paths provide bounded ecosystem bootstrap rather than a universal dependency-management contract for interpreted runtimes. `plugin.yaml` plus `targets/<platform>/...` is the only supported authored package standard; native Claude/Codex/Gemini/OpenCode config files are rendered managed artifacts, and `import` exists to recover authored state from those native layouts. Unknown manifest keys warn via `validate`. Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target; the supported Gemini contract is the full official extension packaging lane through `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and local `gemini extensions link|config|disable|enable` workflows. OpenCode is a `workspace-config OpenCode target` in this CLI surface; the supported OpenCode contract is `opencode.json` or `opencode.jsonc`, `plugin` package refs, inline `mcp`, validated skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes mirrored into `.opencode/{commands,agents,themes}/`, first-class standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for both tools and plugins, beta `custom_tools` spanning standalone tools and plugin code, explicit `--include-user-scope` import for `~/.config/opencode`, env-config import compatibility for `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR`, and `targets/opencode/config.extra.json` passthrough for broader permission-first config with deprecated tools-config compatibility. `plugin-kit-ai capabilities` defaults to the target/package view so package authors can see target class, production boundary, and managed artifacts first. For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, and `plugin-kit-ai export <path> --platform <target>` is the stable portable handoff surface for that subset. When teams need a shared helper dependency instead of vendored helper files, `plugin-kit-ai init ... --runtime-package` is the official opt-in scaffold mode; see [../../docs/CHOOSING_HELPER_DELIVERY_MODE.md](../../docs/CHOOSING_HELPER_DELIVERY_MODE.md).
+Executable runtime scaffolds for `python` and `node` are the stable repo-local local-runtime subset on `codex-runtime` and `claude`; launcher-based `shell` authoring remains `public-beta`. These paths provide bounded ecosystem bootstrap rather than a universal dependency-management contract for interpreted runtimes. `plugin.yaml` plus `targets/<platform>/...` is the only supported authored package standard; native Claude/Codex/Gemini/OpenCode/Cursor config files are rendered managed artifacts, and `import` exists to recover authored state from those native layouts. Unknown manifest keys warn via `validate`. Gemini is a `packaging-only Gemini CLI extension target` in this CLI surface, not a production-ready runtime target; the supported Gemini contract is the full official extension packaging lane through `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and local `gemini extensions link|config|disable|enable` workflows. OpenCode is a `workspace-config OpenCode target` in this CLI surface; the supported OpenCode contract is `opencode.json` or `opencode.jsonc`, `plugin` package refs, inline `mcp`, validated skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes mirrored into `.opencode/{commands,agents,themes}/`, first-class standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for both tools and plugins, beta `custom_tools` spanning standalone tools and plugin code, explicit `--include-user-scope` import for `~/.config/opencode`, env-config import compatibility for `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR`, and `targets/opencode/config.extra.json` passthrough for broader permission-first config with deprecated tools-config compatibility. Cursor is a `workspace-config Cursor target` in this CLI surface; the supported Cursor contract is `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, compatibility import for `.cursorrules`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC. `plugin-kit-ai capabilities` defaults to the target/package view so package authors can see target class, production boundary, and managed artifacts first. For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, and `plugin-kit-ai export <path> --platform <target>` is the stable portable handoff surface for that subset. When teams need a shared helper dependency instead of vendored helper files, `plugin-kit-ai init ... --runtime-package` is the official opt-in scaffold mode; see [../../docs/CHOOSING_HELPER_DELIVERY_MODE.md](../../docs/CHOOSING_HELPER_DELIVERY_MODE.md).
 Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface; `render --check` and the deterministic `polyglot-smoke` lane are the primary drift guards for that wiring. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced by `validate --strict`.
 
 Executable runtime matrix:
@@ -178,6 +181,7 @@ Production-ready target boundary in the current contract:
 - Codex package: production-ready official plugin package lane
 - Gemini: full packaging-only Gemini CLI extension lane through `render|import|validate` and local `extensions link|config|disable|enable`
 - OpenCode: workspace-config-only lane through `render|import|validate`, package refs, inline MCP, validated portable skills, first-class workspace commands/agents/themes, beta standalone tools, stable local plugin code plus stable shared package metadata for tools and plugins, JSON/JSONC plus explicit user-scope and env-config import compatibility, permission-first passthrough config semantics with deprecated tools-config compatibility, and beta `custom_tools` spanning standalone tools and plugin code
+- Cursor: workspace-config-only lane through `render|import|validate`, `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and `.cursorrules` compatibility import, without a VS Code extension packaging contract or broader undocumented Cursor surface claims
 
 Canonical production plugin lane:
 
@@ -206,4 +210,4 @@ See [../../docs/SKILLS.md](../../docs/SKILLS.md) for the skills workflow, positi
 Repo-local maintainer development is handled by the checked-in workspace wiring in this monorepo.
 Public Go starter and scaffold flows should consume the released SDK module directly:
 
-- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.5`
+- `go get github.com/777genius/plugin-kit-ai/sdk@v1.0.6`

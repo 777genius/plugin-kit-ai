@@ -21,7 +21,7 @@ from .platform import asset_name_for_version, detect_platform
 
 DEFAULT_REPOSITORY = "777genius/plugin-kit-ai"
 DEFAULT_API_BASE = "https://api.github.com"
-PLACEHOLDER_VERSION = "0.0.0-development"
+PLACEHOLDER_VERSION = "0.0.0.dev0"
 
 
 def normalize_tag(raw: str) -> str:

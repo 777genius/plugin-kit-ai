@@ -29,10 +29,10 @@ This is the default because it is the smoothest first-run path for repo-local in
 Current opt-in scaffold commands:
 
 ```bash
-plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.5
-plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
-plugin-kit-ai init my-plugin --platform claude --runtime python --runtime-package --runtime-package-version 1.0.5
-plugin-kit-ai init my-plugin --platform claude --runtime node --typescript --runtime-package --runtime-package-version 1.0.5
+plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package --runtime-package-version 1.0.6
+plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
+plugin-kit-ai init my-plugin --platform claude --runtime python --runtime-package --runtime-package-version 1.0.6
+plugin-kit-ai init my-plugin --platform claude --runtime node --typescript --runtime-package --runtime-package-version 1.0.6
 ```
 
 Released stable CLIs can infer that pin automatically from their own tagged version.

@@ -135,6 +135,7 @@ func mustDefaultRegistry() *Registry {
 		claudeAdapter{},
 		codexPackageAdapter{},
 		codexRuntimeAdapter{},
+		cursorAdapter{},
 		geminiAdapter{},
 		opencodeAdapter{},
 	} {
