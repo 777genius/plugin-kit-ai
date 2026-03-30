@@ -45,6 +45,15 @@ var generatedPlatforms = map[string]PlatformDefinition{
 			{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
 		},
 	},
+	"cursor": {
+		Name: "cursor",
+		Files: []TemplateFile{
+			{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
+			{Path: "README.md", Template: "cursor.README.md.tmpl", Extra: false},
+			{Path: "targets/cursor/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
+			{Path: "targets/cursor/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
+		},
+	},
 	"gemini": {
 		Name: "gemini",
 		Files: []TemplateFile{

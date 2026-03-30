@@ -8,6 +8,7 @@ This document is the canonical production authoring path for plugin authors usin
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`; not a production-ready runtime target
+- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and compatibility import for legacy `.cursorrules`; not a production-ready runtime target
 - OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools, explicit env-config import compatibility, and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
@@ -25,7 +26,7 @@ This workflow does not imply a universal package-management contract or packaged
 Use Homebrew to install the `plugin-kit-ai` CLI locally when possible, use `npm i -g plugin-kit-ai` as the official `public-beta` JavaScript ecosystem path, use `pipx install plugin-kit-ai` as the `public-beta` Python ecosystem path only when that release was published to PyPI, use `scripts/install.sh` as the verified fallback, and use `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
 
 Supported authored inputs are root `plugin.yaml` plus `targets/<platform>/...`.
-Committed Claude/Codex/Gemini native config files are rendered managed artifacts and should be treated as generated outputs.
+Committed Claude/Codex/Gemini/Cursor/OpenCode native config files are rendered managed artifacts and should be treated as generated outputs.
 
 ## Canonical Production Lane
 
@@ -35,13 +36,14 @@ Run this exact sequence before shipping a plugin repo:
 plugin-kit-ai normalize .
 plugin-kit-ai render .
 plugin-kit-ai render --check .
-plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package|opencode> --strict
+plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package|cursor|opencode> --strict
 ```
 
 Then run the target-specific smoke:
 
 - Claude: execute the built binary with documented stable hook payloads for `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - Codex: execute the built binary with a documented `notify` payload
+- Cursor: treat `render --check` plus `validate --strict` as the repo-local readiness gate for the documented workspace-config subset
 - OpenCode: run `make test-opencode-live` when recording stable local-plugin-loading evidence, and run `make test-opencode-tools-live` when recording standalone-tools beta evidence; both remain opt-in and require `opencode` in `PATH`
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
@@ -112,6 +114,17 @@ Reference implementation:
 
 - [examples/plugins/opencode-basic](../examples/plugins/opencode-basic)
 
+## Cursor Workspace Path
+
+- Start from `plugin-kit-ai init --platform cursor` or `plugin-kit-ai import --from cursor`
+- Keep `plugin.yaml`, `mcp/servers.json`, and `targets/cursor/...` as the authored source of truth
+- Commit generated `.cursor/mcp.json`, `.cursor/rules/**`, and optional shared root `AGENTS.md`
+- Treat this lane as the documented Cursor workspace-config subset only; do not assume support for root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or VS Code extension packaging through this target
+
+Reference implementation:
+
+- [examples/plugins/cursor-basic](../examples/plugins/cursor-basic)
+
 ## What This Workflow Guarantees
 
 - normalized `plugin.yaml` with no unknown fields
@@ -120,6 +133,7 @@ Reference implementation:
 - the committed example-shaped repo can build and execute a deterministic local smoke path
 - OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` smoke path
 - OpenCode standalone tools beta evidence is recorded separately through the deterministic marker-based `test-opencode-tools-live` smoke path
+- Cursor workspace-config readiness is bounded to deterministic render/import/validate behavior for the documented repo-local subset
 
 ## Gemini Packaging Boundary
 

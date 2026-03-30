@@ -12,12 +12,12 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/777genius/plugin-kit-ai/cli/internal/targetcontracts"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
+	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -1845,6 +1845,18 @@ func expectedManagedPaths(root string, graph PackageGraph, selected []string) []
 			case platformmeta.ManagedArtifactPortableSkills:
 				addManagedCopies(seen, graph.Portable.Paths("skills"), "skills", spec.OutputRoot)
 			case platformmeta.ManagedArtifactMirror:
+				if spec.OutputRoot == "" {
+					rel := filepath.ToSlash(strings.TrimSpace(tc.DocPath(spec.ComponentKind)))
+					if rel == "" {
+						continue
+					}
+					relPath, err := filepath.Rel(filepath.ToSlash(spec.SourceRoot), rel)
+					if err != nil {
+						continue
+					}
+					seen[filepath.ToSlash(filepath.Join(spec.OutputRoot, relPath))] = struct{}{}
+					continue
+				}
 				addManagedCopies(seen, tc.ComponentPaths(spec.ComponentKind), spec.SourceRoot, spec.OutputRoot)
 			case platformmeta.ManagedArtifactSelectedContext:
 				continue

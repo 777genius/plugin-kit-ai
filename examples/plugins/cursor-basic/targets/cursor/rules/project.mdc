@@ -1,0 +1,10 @@
+---
+description: "Keep repo-local Cursor automation aligned with the authored package contract"
+globs:
+  - "**/*"
+alwaysApply: false
+---
+
+- Treat `plugin.yaml`, `mcp/servers.json`, and `targets/cursor/**` as the authored source of truth.
+- Keep generated `.cursor/**` artifacts in sync through `plugin-kit-ai render`.
+- Treat root `AGENTS.md` as a shared instruction surface that may be read by tools beyond Cursor.

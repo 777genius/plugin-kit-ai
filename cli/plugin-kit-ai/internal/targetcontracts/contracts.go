@@ -3,6 +3,7 @@ package targetcontracts
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -121,6 +122,19 @@ func fromProfile(profile platformmeta.PlatformProfile) Entry {
 		case platformmeta.ManagedArtifactPortableSkills:
 			managed = append(managed, item.OutputRoot+"/**")
 		case platformmeta.ManagedArtifactMirror:
+			if item.OutputRoot == "" {
+				docPath := ""
+				for _, doc := range profile.NativeDocs {
+					if doc.Kind == item.ComponentKind {
+						docPath = doc.Path
+						break
+					}
+				}
+				if strings.TrimSpace(docPath) != "" {
+					managed = append(managed, filepath.Base(docPath))
+				}
+				continue
+			}
 			managed = append(managed, item.OutputRoot+"/**")
 		case platformmeta.ManagedArtifactSelectedContext:
 			managed = append(managed, "GEMINI.md or selected root context")

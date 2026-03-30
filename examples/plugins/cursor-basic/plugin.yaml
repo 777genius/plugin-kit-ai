@@ -1,0 +1,6 @@
+format: "plugin-kit-ai/package"
+name: "cursor-basic"
+version: "0.1.0"
+description: "Cursor workspace-config example"
+targets:
+  - "cursor"

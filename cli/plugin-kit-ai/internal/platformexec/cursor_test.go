@@ -1,0 +1,142 @@
+package platformexec
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+)
+
+func TestCursorDetectNativeIgnoresStandaloneRootAgents(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Shared agents\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if (cursorAdapter{}).DetectNative(root) {
+		t.Fatal("DetectNative unexpectedly matched standalone root AGENTS.md")
+	}
+}
+
+func TestCursorImportRejectsIncludeUserScope(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	_, err := (cursorAdapter{}).Import(root, ImportSeed{
+		Manifest:         pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo", Targets: []string{"cursor"}},
+		IncludeUserScope: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "--include-user-scope") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestCursorValidateRejectsNonMdcRules(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "targets", "cursor", "rules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "cursor", "rules", "project.md"), []byte("# bad\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Portable: pluginmodel.NewPortableComponents(),
+	}, pluginmodel.TargetState{
+		Target: "cursor",
+		Components: map[string][]string{
+			"rules": {filepath.ToSlash(filepath.Join("targets", "cursor", "rules", "project.md"))},
+		},
+		Docs: map[string]string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 {
+		t.Fatal("expected validation diagnostics")
+	}
+	var found bool
+	for _, diagnostic := range diagnostics {
+		if strings.Contains(diagnostic.Message, ".mdc") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
+func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	rulesDir := filepath.Join(root, "targets", "cursor", "rules")
+	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "real.mdc"), []byte("content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real.mdc", filepath.Join(rulesDir, "linked.mdc")); err != nil {
+		t.Fatal(err)
+	}
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Portable: pluginmodel.NewPortableComponents(),
+	}, pluginmodel.TargetState{
+		Target: "cursor",
+		Components: map[string][]string{
+			"rules": {
+				"targets/cursor/rules/../escape.mdc",
+				filepath.ToSlash(filepath.Join("targets", "cursor", "rules", "linked.mdc")),
+			},
+		},
+		Docs: map[string]string{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundTraversal, foundSymlink bool
+	for _, diagnostic := range diagnostics {
+		if strings.Contains(diagnostic.Message, "path traversal") {
+			foundTraversal = true
+		}
+		if strings.Contains(diagnostic.Message, "must not be a symlink") {
+			foundSymlink = true
+		}
+	}
+	if !foundTraversal || !foundSymlink {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
+func TestCursorMCPPreservesInterpolationStrings(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	graph := pluginmodel.PackageGraph{
+		Portable: pluginmodel.PortableComponents{
+			Items: map[string][]string{},
+			MCP: &pluginmodel.PortableMCP{
+				Path: "mcp/servers.json",
+				Servers: map[string]any{
+					"demo": map[string]any{
+						"type":    "stdio",
+						"command": []any{"env", "API_KEY=${env:API_KEY}", "ROOT=${workspaceFolder}", "TOKEN=${input:token}"},
+					},
+				},
+			},
+		},
+	}
+	artifacts, err := (cursorAdapter{}).Render(root, graph, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(artifacts) != 1 {
+		t.Fatalf("artifacts = %v", artifacts)
+	}
+	got := string(artifacts[0].Content)
+	for _, want := range []string{"${env:API_KEY}", "${workspaceFolder}", "${input:token}"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("rendered mcp missing %q:\n%s", want, got)
+		}
+	}
+}

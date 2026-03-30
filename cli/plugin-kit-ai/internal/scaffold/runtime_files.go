@@ -9,7 +9,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 	files := []TemplateFile{
 		{Path: "plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
 	}
-	if platform != "gemini" && platform != "codex-package" && platform != "opencode" {
+	if platform != "gemini" && platform != "codex-package" && platform != "opencode" && platform != "cursor" {
 		files = append(files, TemplateFile{Path: "launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false})
 	}
 
@@ -66,6 +66,17 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 				TemplateFile{Path: "targets/opencode/tools/{{.ProjectName}}.ts", Template: "opencode.tool.ts.tmpl", Extra: true},
 				TemplateFile{Path: "targets/opencode/plugins/example.js", Template: "opencode.plugin.js.tmpl", Extra: true},
 				TemplateFile{Path: "targets/opencode/package.json", Template: "opencode.package.json.tmpl", Extra: true},
+			)
+		}
+		return files
+	case "cursor":
+		files = append(files,
+			TemplateFile{Path: "README.md", Template: "cursor.README.md.tmpl", Extra: false},
+			TemplateFile{Path: "targets/cursor/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
+		)
+		if extras {
+			files = append(files,
+				TemplateFile{Path: "targets/cursor/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
 			)
 		}
 		return files

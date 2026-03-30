@@ -503,6 +503,76 @@ func All() []PlatformProfile {
 			},
 		},
 		{
+			ID: "cursor",
+			Contract: TargetContractMeta{
+				PlatformFamily:         FamilyCodePlugin,
+				TargetClass:            "workspace_config_lane",
+				TargetNoun:             "workspace",
+				ProductionClass:        "packaging-only target",
+				RuntimeContract:        "workspace-config lane with first-class MCP config, project rules, and optional root AGENTS.md support",
+				InstallModel:           "workspace config files",
+				DevModel:               "config authoring workspace",
+				ActivationModel:        "config reload or restart",
+				NativeRoot:             ".cursor/mcp.json",
+				ImportSupport:          true,
+				RenderSupport:          true,
+				ValidateSupport:        true,
+				PortableComponentKinds: []string{"mcp_servers"},
+				TargetComponentKinds:   []string{"rules", "agents_md"},
+				Summary:                "Cursor compiles as a workspace-config lane with repo-local MCP, project rules, optional root AGENTS.md support, and a strict documented-subset contract.",
+			},
+			SDK: SDKMeta{
+				PublicPackage:   "cursor",
+				InternalPackage: "cursor",
+				InternalImport:  "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/cursor",
+				Status:          StatusScaffoldOnly,
+				TransportModes:  []TransportMode{TransportProcess},
+				LiveTestProfile: "cursor_workspace",
+			},
+			Launcher: LauncherMeta{Requirement: LauncherIgnored},
+			NativeDocs: []NativeDocSpec{
+				{Kind: "agents_md", Path: "targets/cursor/AGENTS.md", Format: NativeDocMarkdown, Role: NativeDocRoleStructured},
+			},
+			SurfaceTiers: []SurfaceSupport{
+				{Kind: "mcp", Tier: SurfaceTierStable},
+				{Kind: "rules", Tier: SurfaceTierStable},
+				{Kind: "agents_md", Tier: SurfaceTierStable},
+				{Kind: "claude_md", Tier: SurfaceTierUnsupported},
+			},
+			ManagedArtifacts: []ManagedArtifactSpec{
+				{Kind: ManagedArtifactPortableMCP, Path: ".cursor/mcp.json"},
+				{Kind: ManagedArtifactMirror, ComponentKind: "rules", SourceRoot: "targets/cursor/rules", OutputRoot: ".cursor/rules"},
+				{Kind: ManagedArtifactMirror, ComponentKind: "agents_md", SourceRoot: "targets/cursor", OutputRoot: ""},
+			},
+			Scaffold: ScaffoldMeta{
+				RequiredFiles: []string{
+					"plugin.yaml",
+					"README.md",
+					"targets/cursor/rules/project.mdc",
+				},
+				OptionalFiles: []string{
+					"targets/cursor/AGENTS.md",
+				},
+				ForbiddenFiles: []string{
+					"launcher.yaml",
+				},
+				TemplateFiles: []TemplateFile{
+					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
+					{Path: "README.md", Template: "cursor.README.md.tmpl"},
+					{Path: "targets/cursor/rules/project.mdc", Template: "cursor.rule.mdc.tmpl"},
+					{Path: "targets/cursor/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
+				},
+			},
+			Validate: ValidateMeta{
+				RequiredFiles: []string{
+					"plugin.yaml",
+				},
+				ForbiddenFiles: []string{
+					"launcher.yaml",
+				},
+			},
+		},
+		{
 			ID: "opencode",
 			Contract: TargetContractMeta{
 				PlatformFamily:         FamilyCodePlugin,

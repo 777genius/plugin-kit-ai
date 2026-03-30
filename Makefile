@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-opencode-live test-opencode-tools-live test-e2e-live generated-check version-sync-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-opencode-live test-opencode-tools-live test-cursor-live test-e2e-live generated-check version-sync-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -49,6 +49,9 @@ test-opencode-live:
 
 test-opencode-tools-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeStandaloneToolsSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-cursor-live:
+	PLUGIN_KIT_AI_RUN_CURSOR_CLI=1 go test -count=1 -run '^TestCursorCLI' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-e2e-live: test-install-live
 

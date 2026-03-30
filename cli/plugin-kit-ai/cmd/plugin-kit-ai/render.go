@@ -21,7 +21,8 @@ var renderCmd = &cobra.Command{
 
 Claude and Codex runtime/package lanes render their managed native artifacts from the package graph.
 Gemini rendering is packaging-only: it produces a native extension manifest, but does not imply runtime parity or a production-ready Gemini runtime path.
-OpenCode rendering is workspace-config-only: it produces opencode.json plus mirrored skills, commands, agents, themes, local plugin code, and plugin-local package metadata without introducing a launcher/runtime contract.`,
+OpenCode rendering is workspace-config-only: it produces opencode.json plus mirrored skills, commands, agents, themes, local plugin code, and plugin-local package metadata without introducing a launcher/runtime contract.
+Cursor rendering is workspace-config-only: it produces .cursor/mcp.json, mirrored .cursor/rules/**, and optional root AGENTS.md without introducing a launcher/runtime contract.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		root := "."
@@ -49,6 +50,6 @@ OpenCode rendering is workspace-config-only: it produces opencode.json plus mirr
 }
 
 func init() {
-	renderCmd.Flags().StringVar(&renderTarget, "target", "all", `render target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode")`)
+	renderCmd.Flags().StringVar(&renderTarget, "target", "all", `render target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor")`)
 	renderCmd.Flags().BoolVar(&renderCheck, "check", false, "fail if generated artifacts are out of date")
 }

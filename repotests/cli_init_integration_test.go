@@ -8,7 +8,7 @@ import (
 )
 
 func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
-	for _, platform := range []string{"claude", "codex-runtime", "codex-package", "gemini"} {
+	for _, platform := range []string{"claude", "codex-runtime", "codex-package", "gemini", "cursor"} {
 		t.Run(platform, func(t *testing.T) {
 			root := RepoRoot(t)
 			cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
@@ -23,14 +23,14 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 
 			plugRoot := t.TempDir()
 			args := []string{"init", "genplug", "--platform", platform, "-o", plugRoot, "--extras"}
-			if platform != "gemini" && platform != "codex-package" {
+			if platform != "gemini" && platform != "codex-package" && platform != "cursor" {
 				args = append(args, "--runtime", "go")
 			}
 			run := exec.Command(bin, args...)
 			if out, err := run.CombinedOutput(); err != nil {
 				t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 			}
-			if platform == "gemini" || platform == "codex-package" {
+			if platform == "gemini" || platform == "codex-package" || platform == "cursor" {
 				validate := exec.Command(bin, "validate", plugRoot, "--platform", platform)
 				validate.Env = append(os.Environ(), "GOWORK=off")
 				if out, err := validate.CombinedOutput(); err != nil {

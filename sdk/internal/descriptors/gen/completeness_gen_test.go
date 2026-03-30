@@ -8,7 +8,7 @@ import (
 func TestGeneratedRegistryCompleteness(t *testing.T) {
 	profiles := defs.Profiles()
 	events := defs.Events()
-	if len(profiles) != 4 {
+	if len(profiles) != 5 {
 		t.Fatalf("profiles count = %d", len(profiles))
 	}
 	if len(events) != 19 {

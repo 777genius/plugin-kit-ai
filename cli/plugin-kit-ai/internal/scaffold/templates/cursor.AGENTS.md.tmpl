@@ -1,0 +1,9 @@
+# {{.ProjectName}} Agent Notes
+
+Use `plugin.yaml` and `targets/cursor/**` as the repo-owned source of truth for Cursor workspace config.
+
+When updating Cursor integration:
+
+- prefer editing `targets/cursor/rules/**` over hand-editing `.cursor/rules/**`
+- prefer editing `mcp/servers.json` over hand-editing `.cursor/mcp.json`
+- run `plugin-kit-ai render .` and `plugin-kit-ai validate . --platform cursor --strict` after changes

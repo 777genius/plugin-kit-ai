@@ -49,6 +49,11 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 			platform: "gemini",
 		},
 		{
+			name:     "cursor",
+			dir:      filepath.Join(root, "examples", "plugins", "cursor-basic"),
+			platform: "cursor",
+		},
+		{
 			name:     "opencode",
 			dir:      filepath.Join(root, "examples", "plugins", "opencode-basic"),
 			platform: "opencode",
@@ -73,6 +78,10 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 				assertCodexPackageManifest(t, workDir, "codex-package-prod")
 			}
 			if tc.platform == "gemini" {
+				return
+			}
+			if tc.platform == "cursor" {
+				assertCursorConfig(t, workDir)
 				return
 			}
 			if tc.platform == "opencode" {
@@ -106,6 +115,45 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 				tc.smoke(t, binPath)
 			}
 		})
+	}
+}
+
+func assertCursorConfig(t *testing.T, root string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]struct {
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("parse cursor mcp config: %v\n%s", err, body)
+	}
+	server, ok := doc["release-checks"]
+	if !ok {
+		t.Fatalf(".cursor/mcp.json missing release-checks server: %s", body)
+	}
+	if server.Command != "node" {
+		t.Fatalf("release-checks command = %q want %q", server.Command, "node")
+	}
+	if len(server.Args) != 1 || server.Args[0] != "${workspaceFolder}/bin/release-checks.mjs" {
+		t.Fatalf("release-checks args = %v", server.Args)
+	}
+	ruleBody, err := os.ReadFile(filepath.Join(root, ".cursor", "rules", "project.mdc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(ruleBody, []byte("shared instruction surface")) {
+		t.Fatalf("unexpected cursor rule file:\n%s", ruleBody)
+	}
+	agentsBody, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(agentsBody, []byte("Cursor Example Instructions")) {
+		t.Fatalf("unexpected root AGENTS.md:\n%s", agentsBody)
 	}
 }
 

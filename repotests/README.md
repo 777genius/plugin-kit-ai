@@ -13,6 +13,7 @@
 - **Live GitHub:** `TestLiveInstall_*` — только с **`PLUGIN_KIT_AI_E2E_LIVE=1`** и без `-short`; см. `make test-e2e-live`.
 - **Claude / plugin-kit-ai-e2e:** JSON-фикстуры в `testdata/e2e_claude/` и opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CLAUDE_CLI=1`**, флаг **`-args -claude-model=...`**.
 - **Codex / plugin-kit-ai-e2e:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CODEX_CLI=1`**, флаг **`-args -codex-model=...`**. Для hermetic smoke `notify` подаётся через CLI config override; project-scoped `.codex/config.toml` остаётся частью scaffold/validate contract, а не runtime env prerequisite теста.
+- **Cursor / workspace-config live smoke:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CURSOR_CLI=1`**, флаг **`-args -cursor-model=...`**. Тесты проверяют documented repo-local subset: `.cursor/mcp.json`, `.cursor/rules/**`, optional root `AGENTS.md`, structured `--output-format`, и deterministic local MCP tool invocation.
 - **Gemini / extension lifecycle:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_GEMINI_BIN=/path/to/gemini`** or **`GEMINI_BIN=/path/to/gemini`**. Тест работает в `Temp HOME` и проверяет `gemini extensions link|config|disable|enable` против rendered reference extension, не трогая реальный user state.
 - Codex smoke intentionally distinguishes repo failures from Codex runtime-environment failures. If `codex exec` hits known runtime panics before the hook fires, the test skips instead of reporting a false plugin-kit-ai regression.
 
@@ -47,6 +48,9 @@
 | `PLUGIN_KIT_AI_RUN_CODEX_CLI=1` | Реальный бинарник `codex` для CLI E2E. |
 | `PLUGIN_KIT_AI_SKIP_CODEX_CLI=1` | Явно выключить Codex CLI E2E. |
 | `PLUGIN_KIT_AI_E2E_CODEX` | Путь к бинарнику `codex`, если не в `PATH`. |
+| `PLUGIN_KIT_AI_RUN_CURSOR_CLI=1` | Реальный бинарник `cursor-agent` для CLI E2E. |
+| `PLUGIN_KIT_AI_SKIP_CURSOR_CLI=1` | Явно выключить Cursor CLI E2E. |
+| `PLUGIN_KIT_AI_E2E_CURSOR` | Путь к бинарнику `cursor-agent`, если не в `PATH`. |
 | `PLUGIN_KIT_AI_GEMINI_BIN` | Путь к бинарнику `gemini` для local Gemini extension E2E. |
 | `GEMINI_BIN` | Fallback-путь к бинарнику `gemini` для local Gemini extension E2E. |
 | `PLUGIN_KIT_AI_BIND_TESTS=1` | Явно включить bind/listen-зависимые install/integration tests в средах, где loopback может быть недоступен. |
@@ -60,6 +64,7 @@ make test-required
 make test-plugin-manifest-workflow
 make test-install-compat
 make test-extended
+make test-cursor-live
 make test-live-cli
 make test-e2e-live
 ```
