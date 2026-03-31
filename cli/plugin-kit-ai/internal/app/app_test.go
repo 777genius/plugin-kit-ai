@@ -242,6 +242,46 @@ func TestInitRunner_geminiPackagingStarter(t *testing.T) {
 	assertRuntimeTestAssetsAbsent(t, out)
 }
 
+func TestInitRunner_geminiPackagingStarterWithPortableMCP(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	_, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "gemini", OutputDir: out, Extras: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rel := range []string{
+		filepath.Join("mcp", "servers.yaml"),
+		"gemini-extension.json",
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(out, "mcp", "servers.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"format: plugin-kit-ai/mcp",
+		`url: "https://example.com/mcp"`,
+		"- \"gemini\"",
+	} {
+		if !strings.Contains(string(mcpBody), want) {
+			t.Fatalf("gemini portable MCP missing %q:\n%s", want, mcpBody)
+		}
+	}
+	manifestBody, err := os.ReadFile(filepath.Join(out, "gemini-extension.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"mcpServers"`, `"https://example.com/mcp"`} {
+		if !strings.Contains(string(manifestBody), want) {
+			t.Fatalf("gemini-extension.json missing %q:\n%s", want, manifestBody)
+		}
+	}
+}
+
 func TestInitRunner_geminiRejectsInvalidExtensionNameEarly(t *testing.T) {
 	t.Parallel()
 	var r InitRunner
@@ -281,6 +321,7 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("targets", "opencode", "package.json"),
@@ -319,10 +360,11 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 	}
 	for _, want := range []string{
 		"name: genplug",
-		"description: OpenCode-compatible skill stub for genplug.",
+		"description: Portable shared skill stub for genplug.",
 		"execution_mode: docs_only",
 		"supported_agents:",
-		"  - opencode",
+		"  - claude",
+		"  - codex",
 	} {
 		if !strings.Contains(string(skillBody), want) {
 			t.Fatalf("OpenCode skill stub missing %q:\n%s", want, skillBody)
@@ -338,6 +380,24 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 	if strings.Contains(string(pluginBody), "export default") {
 		t.Fatalf("OpenCode plugin starter still uses deprecated export default shape:\n%s", pluginBody)
 	}
+	opencodeBody, err := os.ReadFile(filepath.Join(out, "opencode.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"mcp"`, `"https://example.com/mcp"`} {
+		if !strings.Contains(string(opencodeBody), want) {
+			t.Fatalf("opencode.json missing %q:\n%s", want, opencodeBody)
+		}
+	}
+	packageJSONBody, err := os.ReadFile(filepath.Join(out, "targets", "opencode", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"@opencode-ai/plugin": "1.3.11"`, `"type": "module"`} {
+		if !strings.Contains(string(packageJSONBody), want) {
+			t.Fatalf("OpenCode package.json missing %q:\n%s", want, packageJSONBody)
+		}
+	}
 	readmeBody, err := os.ReadFile(filepath.Join(out, "README.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -346,6 +406,7 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 		"official-style named async plugin exports",
 		"targets/opencode/tools/",
 		"@opencode-ai/plugin",
+		"mcp/servers.yaml",
 	} {
 		if !strings.Contains(string(readmeBody), want) {
 			t.Fatalf("OpenCode README missing %q:\n%s", want, readmeBody)
@@ -379,11 +440,13 @@ func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		"README.md",
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
 		filepath.Join("targets", "cursor", "AGENTS.md"),
 		filepath.Join(".cursor", "rules", "project.mdc"),
 		"AGENTS.md",
+		filepath.Join(".cursor", "mcp.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -392,13 +455,21 @@ func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
 	for _, rel := range []string{
 		"launcher.yaml",
 		"go.mod",
-		filepath.Join(".cursor", "mcp.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
 			t.Fatalf("unexpected cursor starter file %s", rel)
 		}
 	}
 	assertRuntimeTestAssetsAbsent(t, out)
+	mcpBody, err := os.ReadFile(filepath.Join(out, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"https://example.com/mcp"`, `"type": "http"`} {
+		if !strings.Contains(string(mcpBody), want) {
+			t.Fatalf(".cursor/mcp.json missing %q:\n%s", want, mcpBody)
+		}
+	}
 }
 
 func TestInitRunner_cursorRejectsRuntimeFlag(t *testing.T) {
@@ -732,8 +803,10 @@ func TestInitRunner_codexPackage(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "codex-package", "package.yaml"),
 		filepath.Join(".codex-plugin", "plugin.json"),
+		".mcp.json",
 		filepath.Join("skills", "genplug", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
@@ -751,4 +824,13 @@ func TestInitRunner_codexPackage(t *testing.T) {
 		}
 	}
 	assertRuntimeTestAssetsAbsent(t, out)
+	manifestBody, err := os.ReadFile(filepath.Join(out, ".codex-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"mcpServers": "./.mcp.json"`, `"name": "genplug"`} {
+		if !strings.Contains(string(manifestBody), want) {
+			t.Fatalf("codex plugin manifest missing %q:\n%s", want, manifestBody)
+		}
+	}
 }

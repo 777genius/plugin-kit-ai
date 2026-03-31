@@ -23,16 +23,16 @@ Reply with exactly one word in uppercase: DENY or ALLOW. No other words or punct
 	defer cancel()
 	cmd := exec.CommandContext(ctx, claudeBin,
 		"-p",
-		"--bare",
 		"--model", *claudeModel,
-		"--no-session-persistence",
-		"--max-turns", "2",
 		"--permission-mode", "bypassPermissions",
 		prompt,
 	)
 	cmd.Dir = t.TempDir()
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if claudeEnvironmentIssue(string(out)) {
+			t.Skipf("claude environment is not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
+		}
 		t.Logf("claude output:\n%s", out)
 		t.Fatalf("claude -p: %v", err)
 	}

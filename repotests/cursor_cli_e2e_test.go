@@ -104,22 +104,18 @@ func cursorBinaryOrSkip(t *testing.T) string {
 		var err error
 		cursorBin, err = exec.LookPath("cursor-agent")
 		if err != nil {
-			const bundledCursor = "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
-			if _, statErr := os.Stat(bundledCursor); statErr == nil {
-				cursorBin = bundledCursor
-			} else {
-				t.Skip("cursor-agent not in PATH; set PLUGIN_KIT_AI_E2E_CURSOR or install Cursor CLI")
+			if cursorBin, err = exec.LookPath("cursor"); err != nil {
+				const bundledCursor = "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+				if _, statErr := os.Stat(bundledCursor); statErr == nil {
+					cursorBin = bundledCursor
+				} else {
+					t.Skip("cursor-agent/cursor not in PATH; set PLUGIN_KIT_AI_E2E_CURSOR or install Cursor CLI")
+				}
 			}
 		}
 	}
-	if out, err := exec.Command(cursorStatusCommand(cursorBin)[0], cursorStatusCommand(cursorBin)[1:]...).CombinedOutput(); err != nil {
+	if out, err := exec.Command(cursorVersionCommand(cursorBin)[0], cursorVersionCommand(cursorBin)[1:]...).CombinedOutput(); err != nil {
 		t.Skipf("Cursor CLI is not runnable in this environment: %v\n%s", err, out)
-	} else {
-		text := string(out)
-		lower := strings.ToLower(text)
-		if strings.Contains(lower, "not logged in") || strings.Contains(lower, "no models available") {
-			t.Skipf("Cursor CLI is not ready for live smoke:\n%s", text)
-		}
 	}
 	return cursorBin
 }
@@ -129,6 +125,13 @@ func cursorStatusCommand(cursorBin string) []string {
 		return []string{cursorBin, "agent", "status"}
 	}
 	return []string{cursorBin, "status"}
+}
+
+func cursorVersionCommand(cursorBin string) []string {
+	if filepath.Base(cursorBin) == "cursor" {
+		return []string{cursorBin, "--version"}
+	}
+	return []string{cursorBin, "--version"}
 }
 
 func newCursorSmokeWorkspace(t *testing.T, pluginKitAIBin string, opts cursorSmokeWorkspaceOptions) string {

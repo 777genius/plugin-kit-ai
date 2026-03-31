@@ -136,13 +136,12 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 	}
 
 	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" {
-		if runtime == "python" {
-			lines = append(lines, "  Create a project .venv, then run:")
-		} else if runtime == "node" {
-			lines = append(lines, "  npm install")
+		if opts.Extras {
+			lines = append(lines, "  Portable MCP starter: mcp/servers.yaml")
 		}
 		lines = append(lines,
 			"  plugin-kit-ai render .",
+			"  plugin-kit-ai render --check .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			"  See README.md for the full first run",
 		)

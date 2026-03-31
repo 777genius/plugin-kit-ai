@@ -1,0 +1,11 @@
+format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      url: "https://example.com/mcp"
+      protocol: "streamable_http"
+    targets:
+      - "{{.Platform}}"

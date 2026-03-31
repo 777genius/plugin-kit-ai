@@ -18,26 +18,22 @@ type devRunner interface {
 	Dev(context.Context, app.PluginDevOptions, func(app.PluginDevUpdate)) (app.PluginDevSummary, error)
 }
 
-var (
-	devPlatform  string
-	devEvent     string
-	devFixture   string
-	devGoldenDir string
-	devAll       bool
-	devOnce      bool
-	devInterval  time.Duration
-)
+type devFlagState struct {
+	platform  string
+	event     string
+	fixture   string
+	goldenDir string
+	all       bool
+	once      bool
+	interval  time.Duration
+}
 
 var devCmd = newDevCmd(pluginService)
 
 func newDevCmd(runner devRunner) *cobra.Command {
-	devPlatform = ""
-	devEvent = ""
-	devFixture = ""
-	devGoldenDir = ""
-	devAll = false
-	devOnce = false
-	devInterval = 750 * time.Millisecond
+	flags := devFlagState{
+		interval: 750 * time.Millisecond,
+	}
 
 	cmd := &cobra.Command{
 		Use:           "dev [path]",
@@ -60,13 +56,13 @@ runs strict validation, and reruns the configured stable Claude or Codex fixture
 			var lastPassed = true
 			summary, err := runner.Dev(ctx, app.PluginDevOptions{
 				Root:      root,
-				Platform:  devPlatform,
-				Event:     devEvent,
-				Fixture:   devFixture,
-				GoldenDir: devGoldenDir,
-				All:       devAll,
-				Once:      devOnce,
-				Interval:  devInterval,
+				Platform:  flags.platform,
+				Event:     flags.event,
+				Fixture:   flags.fixture,
+				GoldenDir: flags.goldenDir,
+				All:       flags.all,
+				Once:      flags.once,
+				Interval:  flags.interval,
 			}, func(update app.PluginDevUpdate) {
 				lastPassed = update.Passed
 				for _, line := range update.Lines {
@@ -76,21 +72,21 @@ runs strict validation, and reruns the configured stable Claude or Codex fixture
 			if err != nil {
 				return err
 			}
-			if devOnce && !summary.LastPassed {
+			if flags.once && !summary.LastPassed {
 				return exitx.Wrap(errors.New("dev cycle failed"), 1)
 			}
-			if devOnce && !lastPassed {
+			if flags.once && !lastPassed {
 				return exitx.Wrap(errors.New("dev cycle failed"), 1)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&devPlatform, "platform", "", `target override ("claude" or "codex-runtime")`)
-	cmd.Flags().StringVar(&devEvent, "event", "", "stable event to execute (for example Stop, PreToolUse, UserPromptSubmit, or Notify)")
-	cmd.Flags().BoolVar(&devAll, "all", false, "run every stable event for the selected platform on each cycle")
-	cmd.Flags().StringVar(&devFixture, "fixture", "", "fixture JSON path for single-event runs (default: fixtures/<platform>/<event>.json)")
-	cmd.Flags().StringVar(&devGoldenDir, "golden-dir", "", "golden output directory (default: goldens/<platform>)")
-	cmd.Flags().BoolVar(&devOnce, "once", false, "run a single render/validate/test cycle and exit")
-	cmd.Flags().DurationVar(&devInterval, "interval", 750*time.Millisecond, "poll interval for watch mode")
+	cmd.Flags().StringVar(&flags.platform, "platform", "", `target override ("claude" or "codex-runtime")`)
+	cmd.Flags().StringVar(&flags.event, "event", "", "stable event to execute (for example Stop, PreToolUse, UserPromptSubmit, or Notify)")
+	cmd.Flags().BoolVar(&flags.all, "all", false, "run every stable event for the selected platform on each cycle")
+	cmd.Flags().StringVar(&flags.fixture, "fixture", "", "fixture JSON path for single-event runs (default: fixtures/<platform>/<event>.json)")
+	cmd.Flags().StringVar(&flags.goldenDir, "golden-dir", "", "golden output directory (default: goldens/<platform>)")
+	cmd.Flags().BoolVar(&flags.once, "once", false, "run a single render/validate/test cycle and exit")
+	cmd.Flags().DurationVar(&flags.interval, "interval", 750*time.Millisecond, "poll interval for watch mode")
 	return cmd
 }

@@ -145,6 +145,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantPlatform: "codex-package",
 			want: []string{
 				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
 				"See README.md for the full first run",
 			},
@@ -156,6 +157,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantPlatform: "gemini",
 			want: []string{
 				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
 				"See README.md for the full first run",
 			},
@@ -167,8 +169,33 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantPlatform: "opencode",
 			want: []string{
 				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
 				"See README.md for the full first run",
+			},
+		},
+		{
+			name:         "cursor",
+			args:         []string{"demo", "--platform", "cursor"},
+			wantRuntime:  "",
+			wantPlatform: "cursor",
+			want: []string{
+				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
+				"plugin-kit-ai validate . --platform cursor --strict",
+				"See README.md for the full first run",
+			},
+		},
+		{
+			name:         "config-lane-extras",
+			args:         []string{"demo", "--platform", "cursor", "--extras"},
+			wantRuntime:  "",
+			wantPlatform: "cursor",
+			want: []string{
+				"Portable MCP starter: mcp/servers.yaml",
+				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
+				"plugin-kit-ai validate . --platform cursor --strict",
 			},
 		},
 	}

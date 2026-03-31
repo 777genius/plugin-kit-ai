@@ -23,6 +23,7 @@ plugin-kit-ai validate . --platform opencode --strict
 
 - `targets/opencode/package.yaml`: authored OpenCode package metadata; `plugins` renders to `opencode.json.plugin`
 - `targets/opencode/config.extra.json`: optional OpenCode config passthrough for non-managed fields
+- `mcp/servers.yaml`: portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and render projects it into `opencode.json.mcp`
 - `targets/opencode/commands/`: markdown commands mirrored into `.opencode/commands/`
 - `targets/opencode/agents/`: markdown agents mirrored into `.opencode/agents/`
 - `targets/opencode/themes/`: JSON theme definitions mirrored into `.opencode/themes/`

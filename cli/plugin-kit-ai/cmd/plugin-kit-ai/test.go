@@ -15,26 +15,22 @@ type testRunner interface {
 	Test(context.Context, app.PluginTestOptions) (app.PluginTestResult, error)
 }
 
-var (
-	testPlatform     string
-	testEvent        string
-	testFixture      string
-	testGoldenDir    string
-	testFormat       string
-	testUpdateGolden bool
-	testAll          bool
-)
+type testFlagState struct {
+	platform     string
+	event        string
+	fixture      string
+	goldenDir    string
+	format       string
+	updateGolden bool
+	all          bool
+}
 
 var testCmd = newTestCmd(pluginService)
 
 func newTestCmd(runner testRunner) *cobra.Command {
-	testPlatform = ""
-	testEvent = ""
-	testFixture = ""
-	testGoldenDir = ""
-	testFormat = "text"
-	testUpdateGolden = false
-	testAll = false
+	flags := testFlagState{
+		format: "text",
+	}
 
 	cmd := &cobra.Command{
 		Use:           "test [path]",
@@ -52,22 +48,22 @@ golden stdout/stderr/exitcode files for CI-grade regression checks.`,
 			if len(args) == 1 {
 				root = args[0]
 			}
-			if testFormat != "text" && testFormat != "json" {
-				return fmt.Errorf("unsupported format %q (use text or json)", testFormat)
+			if flags.format != "text" && flags.format != "json" {
+				return fmt.Errorf("unsupported format %q (use text or json)", flags.format)
 			}
 			result, err := runner.Test(cmd.Context(), app.PluginTestOptions{
 				Root:         root,
-				Platform:     testPlatform,
-				Event:        testEvent,
-				Fixture:      testFixture,
-				GoldenDir:    testGoldenDir,
-				UpdateGolden: testUpdateGolden,
-				All:          testAll,
+				Platform:     flags.platform,
+				Event:        flags.event,
+				Fixture:      flags.fixture,
+				GoldenDir:    flags.goldenDir,
+				UpdateGolden: flags.updateGolden,
+				All:          flags.all,
 			})
 			if err != nil {
 				return err
 			}
-			if testFormat == "json" {
+			if flags.format == "json" {
 				body, err := json.MarshalIndent(result, "", "  ")
 				if err != nil {
 					return err
@@ -84,12 +80,12 @@ golden stdout/stderr/exitcode files for CI-grade regression checks.`,
 			return exitx.Wrap(errors.New("test failures"), 1)
 		},
 	}
-	cmd.Flags().StringVar(&testPlatform, "platform", "", `target override ("claude" or "codex-runtime")`)
-	cmd.Flags().StringVar(&testEvent, "event", "", "stable event to execute (for example Stop, PreToolUse, UserPromptSubmit, or Notify)")
-	cmd.Flags().BoolVar(&testAll, "all", false, "run every stable event for the selected platform")
-	cmd.Flags().StringVar(&testFixture, "fixture", "", "fixture JSON path for single-event runs (default: fixtures/<platform>/<event>.json)")
-	cmd.Flags().StringVar(&testGoldenDir, "golden-dir", "", "golden output directory (default: goldens/<platform>)")
-	cmd.Flags().BoolVar(&testUpdateGolden, "update-golden", false, "write current stdout/stderr/exitcode outputs into the golden files")
-	cmd.Flags().StringVar(&testFormat, "format", "text", "output format: text or json")
+	cmd.Flags().StringVar(&flags.platform, "platform", "", `target override ("claude" or "codex-runtime")`)
+	cmd.Flags().StringVar(&flags.event, "event", "", "stable event to execute (for example Stop, PreToolUse, UserPromptSubmit, or Notify)")
+	cmd.Flags().BoolVar(&flags.all, "all", false, "run every stable event for the selected platform")
+	cmd.Flags().StringVar(&flags.fixture, "fixture", "", "fixture JSON path for single-event runs (default: fixtures/<platform>/<event>.json)")
+	cmd.Flags().StringVar(&flags.goldenDir, "golden-dir", "", "golden output directory (default: goldens/<platform>)")
+	cmd.Flags().BoolVar(&flags.updateGolden, "update-golden", false, "write current stdout/stderr/exitcode outputs into the golden files")
+	cmd.Flags().StringVar(&flags.format, "format", "text", "output format: text or json")
 	return cmd
 }

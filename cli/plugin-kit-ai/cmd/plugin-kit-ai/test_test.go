@@ -42,6 +42,11 @@ func TestTestWritesJSONOutput(t *testing.T) {
 	cmd := newTestCmd(fakeTestRunner{
 		result: app.PluginTestResult{
 			Passed: true,
+			Summary: app.PluginTestSummary{
+				Total:         1,
+				Passed:        1,
+				GoldenMatched: 1,
+			},
 			Cases: []app.PluginTestCase{{
 				Platform:     "claude",
 				Event:        "Stop",
@@ -58,7 +63,7 @@ func TestTestWritesJSONOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := buf.String()
-	for _, want := range []string{`"passed": true`, `"event": "Stop"`, `"golden_status": "matched"`} {
+	for _, want := range []string{`"passed": true`, `"event": "Stop"`, `"golden_status": "matched"`, `"summary": {`, `"golden_matched": 1`} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("json output missing %q:\n%s", want, output)
 		}

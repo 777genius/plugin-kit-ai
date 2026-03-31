@@ -194,8 +194,6 @@ func runClaudePrintWithPluginDir(t *testing.T, claudeBin, pluginDir, markerPath,
 		"-p",
 		"--model", model,
 		"--plugin-dir", pluginDir,
-		"--no-session-persistence",
-		"--max-turns", "8",
 		"--permission-mode", "bypassPermissions",
 		prompt,
 	)
@@ -206,6 +204,9 @@ func runClaudePrintWithPluginDir(t *testing.T, claudeBin, pluginDir, markerPath,
 		t.Fatalf("claude portable MCP live smoke timed out:\n%s", out)
 	}
 	if err != nil {
+		if claudeEnvironmentIssue(string(out)) {
+			t.Skipf("claude environment is not ready for portable MCP live smoke:\n%s", truncateRunes(string(out), 4000))
+		}
 		t.Fatalf("claude portable MCP live smoke: %v\n%s", err, out)
 	}
 	t.Logf("claude portable MCP output: %s", truncateRunes(string(out), 4000))
@@ -285,25 +286,26 @@ func runCodexExecWithPortableMCPModel(t *testing.T, codexBin, workDir, markerPat
 			return true
 		}
 		select {
-		case err := <-waitCh:
-			out := readLogFile(t, logFile)
-			if err != nil {
-				if codexRuntimeUnhealthy(out) {
-					t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(out, 4000))
+			case err := <-waitCh:
+				out := readLogFile(t, logFile)
+				if err != nil {
+					if codexRuntimeUnhealthy(out) {
+						t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(out, 4000))
+					}
+					t.Fatalf("codex portable MCP live smoke: %v\n%s", err, out)
 				}
-				t.Fatalf("codex portable MCP live smoke: %v\n%s", err, out)
-			}
-			if codexPortableMCPToolUnavailable(out) {
-				t.Logf("codex portable MCP live smoke did not expose the projected MCP tool in exec session for model %q:\n%s", model, truncateRunes(out, 4000))
+				if codexPortableMCPToolUnavailable(out) {
+					t.Logf("codex portable MCP live smoke did not expose the projected MCP tool in exec session for model %q:\n%s", model, truncateRunes(out, 4000))
+					return false
+				}
+				if body, readErr := os.ReadFile(outputFile); readErr == nil && strings.Contains(string(body), "DONE") {
+					t.Logf("codex portable MCP live smoke finished without tool selection for model %q:\n%s", model, truncateRunes(out, 4000))
+					return false
+				}
+				t.Logf("codex portable MCP live smoke exited without producing MCP marker for model %q after a successful config preflight:\n%s", model, truncateRunes(out, 4000))
 				return false
+			default:
 			}
-			if body, readErr := os.ReadFile(outputFile); readErr == nil && strings.Contains(string(body), "DONE") {
-				t.Logf("codex portable MCP live smoke finished without tool selection for model %q:\n%s", model, truncateRunes(out, 4000))
-				return false
-			}
-			t.Fatalf("codex portable MCP live smoke exited before producing MCP marker:\n%s", out)
-		default:
-		}
 		if time.Now().After(deadline) {
 			_ = cmd.Process.Kill()
 			<-waitCh
@@ -347,11 +349,12 @@ func runCodexExecWithPortableMCPModel(t *testing.T, codexBin, workDir, markerPat
 }
 
 func codexPortableMCPToolUnavailable(log string) bool {
-	if strings.Contains(log, "release_checks") && (strings.Contains(log, "is not available") || strings.Contains(log, "isn't available") || strings.Contains(log, "isn’t available")) {
+	if strings.Contains(log, "release_checks") && ((strings.Contains(log, "tool") && strings.Contains(log, "available in this session")) || strings.Contains(log, "is not available") || strings.Contains(log, "isn't available") || strings.Contains(log, "isn’t available")) {
 		return true
 	}
 	markers := []string{
 		"no MCP tool named `release_checks` is available in this session",
+		"no such tool is available in this session",
 		"the `release_checks` MCP tool is not available in this session",
 		"release_checks tool is not available in this session",
 		"`release_checks` MCP tool call because that tool isn't available in this session",

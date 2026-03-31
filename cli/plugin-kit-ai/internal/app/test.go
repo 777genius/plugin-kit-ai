@@ -31,26 +31,45 @@ type PluginTestOptions struct {
 }
 
 type PluginTestCase struct {
-	Platform     string   `json:"platform"`
-	Event        string   `json:"event"`
-	FixturePath  string   `json:"fixture_path"`
-	Carrier      string   `json:"carrier"`
-	Command      []string `json:"command,omitempty"`
-	Stdout       string   `json:"stdout"`
-	Stderr       string   `json:"stderr"`
-	ExitCode     int      `json:"exit_code"`
-	GoldenDir    string   `json:"golden_dir,omitempty"`
-	GoldenStatus string   `json:"golden_status,omitempty"`
-	GoldenFiles  []string `json:"golden_files,omitempty"`
-	Mismatches   []string `json:"mismatches,omitempty"`
-	Failure      string   `json:"failure,omitempty"`
-	Passed       bool     `json:"passed"`
+	Platform     string               `json:"platform"`
+	Event        string               `json:"event"`
+	FixturePath  string               `json:"fixture_path"`
+	Carrier      string               `json:"carrier"`
+	Command      []string             `json:"command,omitempty"`
+	Stdout       string               `json:"stdout"`
+	Stderr       string               `json:"stderr"`
+	ExitCode     int                  `json:"exit_code"`
+	GoldenDir    string               `json:"golden_dir,omitempty"`
+	GoldenStatus string               `json:"golden_status,omitempty"`
+	GoldenFiles  []string             `json:"golden_files,omitempty"`
+	Mismatches   []string             `json:"mismatches,omitempty"`
+	MismatchInfo []PluginTestMismatch `json:"mismatch_info,omitempty"`
+	Failure      string               `json:"failure,omitempty"`
+	Passed       bool                 `json:"passed"`
+}
+
+type PluginTestMismatch struct {
+	Field           string `json:"field"`
+	GoldenFile      string `json:"golden_file,omitempty"`
+	ExpectedPreview string `json:"expected_preview,omitempty"`
+	ActualPreview   string `json:"actual_preview,omitempty"`
+}
+
+type PluginTestSummary struct {
+	Total               int `json:"total"`
+	Passed              int `json:"passed"`
+	Failed              int `json:"failed"`
+	GoldenMatched       int `json:"golden_matched"`
+	GoldenUpdated       int `json:"golden_updated"`
+	GoldenNotConfigured int `json:"golden_not_configured"`
+	GoldenMismatch      int `json:"golden_mismatch"`
 }
 
 type PluginTestResult struct {
-	Passed bool             `json:"passed"`
-	Lines  []string         `json:"lines"`
-	Cases  []PluginTestCase `json:"cases"`
+	Passed  bool              `json:"passed"`
+	Summary PluginTestSummary `json:"summary"`
+	Lines   []string          `json:"lines"`
+	Cases   []PluginTestCase  `json:"cases"`
 }
 
 type runtimeTestSupport struct {
@@ -124,6 +143,7 @@ func (PluginService) Test(ctx context.Context, opts PluginTestOptions) (PluginTe
 	cases := make([]PluginTestCase, 0, len(selected))
 	anyNotConfigured := false
 	passed := true
+	summary := PluginTestSummary{Total: len(selected)}
 	for _, item := range selected {
 		tc := runRuntimeTestCase(ctx, root, project, opts, item)
 		if tc.GoldenStatus == "not_configured" {
@@ -131,17 +151,34 @@ func (PluginService) Test(ctx context.Context, opts PluginTestOptions) (PluginTe
 		}
 		if !tc.Passed {
 			passed = false
+			summary.Failed++
+		} else {
+			summary.Passed++
+		}
+		switch tc.GoldenStatus {
+		case "matched":
+			summary.GoldenMatched++
+		case "updated":
+			summary.GoldenUpdated++
+		case "not_configured":
+			summary.GoldenNotConfigured++
+		case "mismatch":
+			summary.GoldenMismatch++
 		}
 		cases = append(cases, tc)
 		lines = append(lines, formatRuntimeTestCaseLine(tc))
+		lines = append(lines, formatRuntimeTestCaseDetails(tc)...)
 	}
+	lines = append(lines, formatRuntimeTestSummary(summary))
 	if anyNotConfigured {
 		lines = append(lines, "Tip: rerun with --update-golden to capture the current stdout/stderr/exit contract.")
+		lines = append(lines, "CI hint: once goldens are committed, `plugin-kit-ai test --format json` provides machine-readable case and summary output.")
 	}
 	return PluginTestResult{
-		Passed: passed,
-		Lines:  lines,
-		Cases:  cases,
+		Passed:  passed,
+		Summary: summary,
+		Lines:   lines,
+		Cases:   cases,
 	}, nil
 }
 
@@ -274,10 +311,11 @@ func runRuntimeTestCase(ctx context.Context, root string, project runtimecheck.P
 	tc.Stderr = stderr
 	tc.ExitCode = exitCode
 
-	status, files, mismatches, failure := processGoldenAssertions(tc.GoldenDir, support.Event, stdout, stderr, exitCode, opts.UpdateGolden)
+	status, files, mismatches, mismatchInfo, failure := processGoldenAssertions(tc.GoldenDir, support.Event, stdout, stderr, exitCode, opts.UpdateGolden)
 	tc.GoldenStatus = status
 	tc.GoldenFiles = files
 	tc.Mismatches = mismatches
+	tc.MismatchInfo = mismatchInfo
 	tc.Failure = failure
 	switch status {
 	case "updated":
@@ -356,23 +394,23 @@ func executeRuntimeTestCommand(ctx context.Context, root string, args []string, 
 	return stdout.String(), stderr.String(), exitCode, nil
 }
 
-func processGoldenAssertions(goldenDir, event, stdout, stderr string, exitCode int, update bool) (string, []string, []string, string) {
+func processGoldenAssertions(goldenDir, event, stdout, stderr string, exitCode int, update bool) (string, []string, []string, []PluginTestMismatch, string) {
 	stdoutPath, stderrPath, exitCodePath := runtimeTestGoldenPaths(goldenDir, event)
 	files := []string{stdoutPath, stderrPath, exitCodePath}
 	if update {
 		if err := os.MkdirAll(goldenDir, 0o755); err != nil {
-			return "mismatch", files, nil, fmt.Sprintf("golden write failed: %v", err)
+			return "mismatch", files, nil, nil, fmt.Sprintf("golden write failed: %v", err)
 		}
 		if err := os.WriteFile(stdoutPath, []byte(stdout), 0o644); err != nil {
-			return "mismatch", files, nil, fmt.Sprintf("golden write failed: %v", err)
+			return "mismatch", files, nil, nil, fmt.Sprintf("golden write failed: %v", err)
 		}
 		if err := os.WriteFile(stderrPath, []byte(stderr), 0o644); err != nil {
-			return "mismatch", files, nil, fmt.Sprintf("golden write failed: %v", err)
+			return "mismatch", files, nil, nil, fmt.Sprintf("golden write failed: %v", err)
 		}
 		if err := os.WriteFile(exitCodePath, []byte(strconv.Itoa(exitCode)+"\n"), 0o644); err != nil {
-			return "mismatch", files, nil, fmt.Sprintf("golden write failed: %v", err)
+			return "mismatch", files, nil, nil, fmt.Sprintf("golden write failed: %v", err)
 		}
-		return "updated", files, nil, ""
+		return "updated", files, nil, nil, ""
 	}
 
 	existing := 0
@@ -382,42 +420,65 @@ func processGoldenAssertions(goldenDir, event, stdout, stderr string, exitCode i
 		}
 	}
 	if existing == 0 {
-		return "not_configured", files, nil, ""
+		return "not_configured", files, nil, nil, ""
 	}
 	if existing != len(files) {
-		return "mismatch", files, []string{"golden_files"}, "golden files are partially configured"
+		return "mismatch", files, []string{"golden_files"}, []PluginTestMismatch{{
+			Field:           "golden_files",
+			ExpectedPreview: "stdout/stderr/exitcode goldens must all exist",
+			ActualPreview:   fmt.Sprintf("%d of %d files present", existing, len(files)),
+		}}, "golden files are partially configured"
 	}
 
 	var mismatches []string
+	var mismatchInfo []PluginTestMismatch
 	wantStdout, err := os.ReadFile(stdoutPath)
 	if err != nil {
-		return "mismatch", files, nil, fmt.Sprintf("golden read failed: %v", err)
+		return "mismatch", files, nil, nil, fmt.Sprintf("golden read failed: %v", err)
 	}
 	if string(wantStdout) != stdout {
 		mismatches = append(mismatches, "stdout")
+		mismatchInfo = append(mismatchInfo, PluginTestMismatch{
+			Field:           "stdout",
+			GoldenFile:      stdoutPath,
+			ExpectedPreview: runtimeTestPreview(string(wantStdout)),
+			ActualPreview:   runtimeTestPreview(stdout),
+		})
 	}
 	wantStderr, err := os.ReadFile(stderrPath)
 	if err != nil {
-		return "mismatch", files, nil, fmt.Sprintf("golden read failed: %v", err)
+		return "mismatch", files, nil, nil, fmt.Sprintf("golden read failed: %v", err)
 	}
 	if string(wantStderr) != stderr {
 		mismatches = append(mismatches, "stderr")
+		mismatchInfo = append(mismatchInfo, PluginTestMismatch{
+			Field:           "stderr",
+			GoldenFile:      stderrPath,
+			ExpectedPreview: runtimeTestPreview(string(wantStderr)),
+			ActualPreview:   runtimeTestPreview(stderr),
+		})
 	}
 	wantExitCodeRaw, err := os.ReadFile(exitCodePath)
 	if err != nil {
-		return "mismatch", files, nil, fmt.Sprintf("golden read failed: %v", err)
+		return "mismatch", files, nil, nil, fmt.Sprintf("golden read failed: %v", err)
 	}
 	wantExitCode, err := strconv.Atoi(strings.TrimSpace(string(wantExitCodeRaw)))
 	if err != nil {
-		return "mismatch", files, nil, fmt.Sprintf("golden read failed: invalid exit code in %s", exitCodePath)
+		return "mismatch", files, nil, nil, fmt.Sprintf("golden read failed: invalid exit code in %s", exitCodePath)
 	}
 	if wantExitCode != exitCode {
 		mismatches = append(mismatches, "exit_code")
+		mismatchInfo = append(mismatchInfo, PluginTestMismatch{
+			Field:           "exit_code",
+			GoldenFile:      exitCodePath,
+			ExpectedPreview: strconv.Itoa(wantExitCode),
+			ActualPreview:   strconv.Itoa(exitCode),
+		})
 	}
 	if len(mismatches) > 0 {
-		return "mismatch", files, mismatches, ""
+		return "mismatch", files, mismatches, mismatchInfo, ""
 	}
-	return "matched", files, nil, ""
+	return "matched", files, nil, nil, ""
 }
 
 func runtimeTestGoldenPaths(goldenDir, event string) (string, string, string) {
@@ -446,4 +507,45 @@ func formatRuntimeTestCaseLine(tc PluginTestCase) string {
 		line += " mismatches=" + strings.Join(tc.Mismatches, ",")
 	}
 	return line
+}
+
+func formatRuntimeTestCaseDetails(tc PluginTestCase) []string {
+	var lines []string
+	if tc.GoldenStatus == "not_configured" {
+		lines = append(lines, "  goldens: not configured")
+	}
+	for _, mismatch := range tc.MismatchInfo {
+		label := mismatch.Field
+		if mismatch.GoldenFile != "" {
+			label += " (" + mismatch.GoldenFile + ")"
+		}
+		lines = append(lines, fmt.Sprintf("  %s expected=%s actual=%s", label, mismatch.ExpectedPreview, mismatch.ActualPreview))
+	}
+	return lines
+}
+
+func formatRuntimeTestSummary(summary PluginTestSummary) string {
+	return fmt.Sprintf(
+		"Summary: total=%d passed=%d failed=%d golden_matched=%d golden_updated=%d golden_not_configured=%d golden_mismatch=%d",
+		summary.Total,
+		summary.Passed,
+		summary.Failed,
+		summary.GoldenMatched,
+		summary.GoldenUpdated,
+		summary.GoldenNotConfigured,
+		summary.GoldenMismatch,
+	)
+}
+
+func runtimeTestPreview(text string) string {
+	switch {
+	case text == "":
+		return `"<empty>"`
+	default:
+		text = strings.ReplaceAll(text, "\n", `\n`)
+		if len(text) > 120 {
+			text = text[:120] + "..."
+		}
+		return strconv.Quote(text)
+	}
 }

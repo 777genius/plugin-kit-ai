@@ -53,6 +53,9 @@ func TestPluginServiceTestClaudeStableEventsUpdateAndMatchGoldens(t *testing.T) 
 	if !matched.Passed {
 		t.Fatalf("expected match run to pass:\n%s", strings.Join(matched.Lines, "\n"))
 	}
+	if matched.Summary.Total != 3 || matched.Summary.Passed != 3 || matched.Summary.GoldenMatched != 3 {
+		t.Fatalf("summary = %+v", matched.Summary)
+	}
 	for _, tc := range matched.Cases {
 		if tc.GoldenStatus != "matched" {
 			t.Fatalf("golden status for %s = %q", tc.Event, tc.GoldenStatus)
@@ -88,6 +91,15 @@ func TestPluginServiceTestCodexNotifyReportsGoldenMismatch(t *testing.T) {
 	}
 	if !contains(result.Cases[0].Mismatches, "stdout") {
 		t.Fatalf("mismatches = %#v", result.Cases[0].Mismatches)
+	}
+	if len(result.Cases[0].MismatchInfo) == 0 || result.Cases[0].MismatchInfo[0].Field != "stdout" {
+		t.Fatalf("mismatch info = %#v", result.Cases[0].MismatchInfo)
+	}
+	if result.Summary.Failed != 1 || result.Summary.GoldenMismatch != 1 {
+		t.Fatalf("summary = %+v", result.Summary)
+	}
+	if !strings.Contains(strings.Join(result.Lines, "\n"), "expected=") {
+		t.Fatalf("lines missing mismatch details:\n%s", strings.Join(result.Lines, "\n"))
 	}
 }
 

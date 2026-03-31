@@ -98,12 +98,8 @@ func claudeBinaryOrSkip(t *testing.T) string {
 			}
 		}
 	}
-	if out, err := exec.Command(claudeBin, "auth", "status").CombinedOutput(); err != nil {
-		text := string(out)
-		if strings.Contains(text, "ENOSPC") || strings.Contains(strings.ToLower(text), "no space left on device") {
-			t.Skipf("claude auth status could not run because the current machine is out of disk space:\n%s", out)
-		}
-		t.Skipf("claude auth status failed (need login): %v\n%s", err, out)
+	if out, err := exec.Command(claudeBin, "--version").CombinedOutput(); err != nil {
+		t.Skipf("claude binary is not runnable in this environment: %v\n%s", err, out)
 	}
 	return claudeBin
 }
@@ -155,8 +151,6 @@ func runClaudePrint(t *testing.T, claudeBin, projectDir, traceFile, model, promp
 		"-p",
 		"--model", model,
 		"--setting-sources", "project",
-		"--no-session-persistence",
-		"--max-turns", "8",
 		"--permission-mode", "bypassPermissions",
 		prompt,
 	)
@@ -164,10 +158,32 @@ func runClaudePrint(t *testing.T, claudeBin, projectDir, traceFile, model, promp
 	cmd.Env = append(os.Environ(), append([]string{"PLUGIN_KIT_AI_E2E_TRACE=" + traceFile}, extraEnv...)...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if claudeEnvironmentIssue(string(out)) {
+			t.Skipf("claude environment is not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
+		}
 		t.Logf("claude output:\n%s", out)
 		t.Fatalf("claude: %v", err)
 	}
 	t.Logf("claude output (truncated): %s", truncateRunes(string(out), 4000))
+}
+
+func claudeEnvironmentIssue(output string) bool {
+	lower := strings.ToLower(output)
+	markers := []string{
+		"invalid api key",
+		"please run /login",
+		"not authenticated",
+		"authentication required",
+		"login required",
+		"unauthorized",
+		"forbidden",
+	}
+	for _, marker := range markers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func truncateRunes(s string, max int) string {

@@ -42,6 +42,7 @@ func TestPaths_Gemini(t *testing.T) {
 	got := Paths("gemini", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
 		"README.md",
@@ -58,6 +59,7 @@ func TestPaths_OpenCode(t *testing.T) {
 	got := Paths("opencode", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
@@ -85,6 +87,7 @@ func TestPaths_Cursor(t *testing.T) {
 	got := Paths("cursor", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		"README.md",
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
 		filepath.Join("targets", "cursor", "AGENTS.md"),
@@ -123,6 +126,7 @@ func TestPaths_CodexPackage(t *testing.T) {
 	got := Paths("codex-package", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "codex-package", "package.yaml"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
@@ -497,10 +501,11 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 	}
 	for _, want := range []string{
 		"name: my-plugin",
-		"description: OpenCode-compatible skill stub for my-plugin.",
+		"description: Portable shared skill stub for my-plugin.",
 		"execution_mode: docs_only",
 		"supported_agents:",
-		"  - opencode",
+		"  - claude",
+		"  - codex",
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("OpenCode skill stub missing %q:\n%s", want, body)
@@ -1184,7 +1189,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Package lane: `codex-package`",
 				"Status: `production-ready` package contract",
 				"Launcher: not used",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
+				"`mcp/servers.yaml`",
 				"`targets/codex-package/manifest.extra.json`: official Codex manifest passthrough",
 				".codex-plugin/plugin.json",
 			},
@@ -1215,7 +1222,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher contract: `none`",
 				"Runtime claim: `packaging-only target`",
 				"plugin-kit-ai render .",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
+				"`mcp/servers.yaml`",
 				"no `launcher.yaml`",
 				"`targets/gemini/package.yaml`",
 			},
@@ -1227,7 +1236,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Target lane: `opencode`",
 				"Platform family: `code_plugin`",
 				"Launcher: not used",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
+				"`mcp/servers.yaml`",
 				"`targets/opencode/package.yaml`",
 				"`targets/opencode/config.extra.json`",
 				"`targets/opencode/commands/`",
@@ -1248,7 +1259,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Target lane: `cursor`",
 				"Platform family: `code_plugin`",
 				"Launcher: not used",
+				"plugin-kit-ai render --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
+				"`mcp/servers.yaml`",
 				"`targets/cursor/rules/`",
 				"`targets/cursor/AGENTS.md`",
 				"`.cursor/mcp.json`",
@@ -1443,13 +1456,22 @@ func TestRenderTemplate_RuntimeTestScaffoldTemplates(t *testing.T) {
 		{template: "goldens.claude.stdout.tmpl", want: `{}`},
 		{template: "goldens.empty.tmpl", want: ``},
 		{template: "goldens.exitcode.tmpl", want: "0\n"},
+		{template: "mcp.servers.yaml.tmpl", want: "format: plugin-kit-ai/mcp"},
 	}
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.template, func(t *testing.T) {
-			body, _, err := RenderTemplate(tc.template, Data{})
+			body, _, err := RenderTemplate(tc.template, Data{Platform: "cursor"})
 			if err != nil {
 				t.Fatal(err)
+			}
+			if tc.template == "mcp.servers.yaml.tmpl" {
+				for _, want := range []string{"format: plugin-kit-ai/mcp", `- "cursor"`} {
+					if !strings.Contains(string(body), want) {
+						t.Fatalf("%s missing %q:\n%s", tc.template, want, body)
+					}
+				}
+				return
 			}
 			if string(body) != tc.want {
 				t.Fatalf("%s = %q, want %q", tc.template, string(body), tc.want)

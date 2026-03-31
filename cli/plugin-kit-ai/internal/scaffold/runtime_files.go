@@ -35,6 +35,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		)
 		if extras {
 			files = append(files,
+				TemplateFile{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
 				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 			)
 		}
@@ -47,6 +48,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		)
 		if extras {
 			files = append(files,
+				TemplateFile{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
 				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 			)
 		}
@@ -58,6 +60,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		)
 		if extras {
 			files = append(files,
+				TemplateFile{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
 				TemplateFile{Path: "targets/opencode/config.extra.json", Template: "empty.json.tmpl", Extra: true},
 				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "opencode.SKILL.md.tmpl", Extra: true},
 				TemplateFile{Path: "targets/opencode/commands/{{.ProjectName}}.md", Template: "opencode.command.md.tmpl", Extra: true},
@@ -76,6 +79,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		)
 		if extras {
 			files = append(files,
+				TemplateFile{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
 				TemplateFile{Path: "targets/cursor/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
 			)
 		}

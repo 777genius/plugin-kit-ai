@@ -31,6 +31,7 @@ func TestPluginKitAITestClaudeShellStableFlow(t *testing.T) {
 		"PASS claude/PreToolUse",
 		"PASS claude/UserPromptSubmit",
 		"golden=matched",
+		"Summary: total=3 passed=3 failed=0",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("test output missing %q:\n%s", want, text)
@@ -72,6 +73,8 @@ func TestPluginKitAITestCodexShellNotifyJSONFlow(t *testing.T) {
 		`"passed": true`,
 		`"event": "Notify"`,
 		`"golden_status": "matched"`,
+		`"summary": {`,
+		`"golden_matched": 1`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("json output missing %q:\n%s", want, text)

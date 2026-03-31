@@ -52,6 +52,7 @@ For interpreted runtimes, add the bootstrap step before `validate --strict`:
 - `python`: run `plugin-kit-ai bootstrap .`; `venv`, `requirements.txt`, and `uv` end in repo-local `.venv`, while `poetry` and `pipenv` can end in manager-owned envs
 - `node`: run `plugin-kit-ai bootstrap .`; it chooses the detected install manager, and TypeScript-shaped Node projects also run `build`
 - `test`: run `plugin-kit-ai test . --platform <claude|codex-runtime> --event <event>` for a single stable event, or `--all` for the full stable event set on the selected platform; fixtures default to `fixtures/<platform>/<event>.json`, goldens default to `goldens/<platform>/<event>.*`, generated launcher-based Claude and Codex runtime projects now pre-seed that layout during `init`, and `--update-golden` rewrites the current stdout/stderr/exitcode contract
+- `test` output: the command now emits a per-run summary plus short mismatch previews, and `--format json` carries the same counters for CI consumers
 - `shared helper packages`: `plugin-kit-ai-runtime` on PyPI and npm mirrors the supported Python/Node helper API when teams want a shared dependency instead of per-repo helper files; the default scaffold remains self-contained for hermetic first run, and `plugin-kit-ai init ... --runtime-package` is the official opt-in path when you want new projects to start on the shared dependency mode; released CLIs auto-pin the helper version, while development builds should pass `--runtime-package-version`
 - helper delivery tradeoff: see [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)
 - `shell`: ensure the launcher target remains executable on Unix and `bash` is available on Windows; this path remains `public-beta`
@@ -92,7 +93,7 @@ Reference implementation:
 ## Codex Package Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform codex-package` or `plugin-kit-ai import --from codex-package`
-- Keep `plugin.yaml` plus `targets/codex-package/...` as the authored source of truth
+- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/codex-package/...` as the authored source of truth
 - Commit generated `.codex-plugin/plugin.json` plus optional `.mcp.json` and `.app.json`
 - Treat this lane as the official Codex plugin bundle, separate from local notify/runtime wiring
 
@@ -103,7 +104,7 @@ Reference implementation:
 ## OpenCode Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform opencode` or `plugin-kit-ai import --from opencode`
-- Keep `plugin.yaml` plus `targets/opencode/...` as the authored source of truth
+- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/opencode/...` as the authored source of truth
 - Commit generated `opencode.json`, `.opencode/tools/**`, `.opencode/plugins/**`, and `.opencode/package.json`
 - Treat the stable promise as applying to repo-local authored/render/import/validate for local plugin subtree ownership and shared dependency metadata in `.opencode/package.json`
 - Treat standalone `.opencode/tools/**` authoring as first-class `public-beta`
@@ -139,7 +140,7 @@ Reference implementation:
 ## Gemini Packaging Boundary
 
 - Start from `plugin-kit-ai init --platform gemini` or `plugin-kit-ai import --from gemini`
-- Keep `plugin.yaml` plus `targets/gemini/...` as the authored source of truth
+- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/gemini/...` as the authored source of truth
 - Commit generated `gemini-extension.json` plus rendered `hooks/`, `commands/`, `policies/`, and selected context artifacts
 - Treat Gemini as official extension packaging only: inline `mcpServers`, `contextFileName`, `settings`, `themes`, `excludeTools`, `plan.directory`, and `manifest.extra.json`
 - Use `gemini extensions link` for local development, `gemini extensions config` for install-time settings, and `gemini extensions disable|enable` to exercise scope changes; restart Gemini CLI after changes
