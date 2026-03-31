@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -82,7 +82,11 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 			result.Manifest.Description = data.Description
 		}
 		if len(data.MCPServers) > 0 {
-			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join("mcp", "servers.json"), Content: mustJSON(data.MCPServers)})
+			artifact, err := importedPortableMCPArtifact("gemini", data.MCPServers)
+			if err != nil {
+				return ImportResult{}, err
+			}
+			result.Artifacts = append(result.Artifacts, artifact)
 		}
 		if body := importedGeminiPackageYAML(data.Meta); len(body) > 0 {
 			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join("targets", "gemini", "package.yaml"), Content: body})
@@ -123,7 +127,11 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 		"description": graph.Manifest.Description,
 	}
 	if graph.Portable.MCP != nil {
-		manifest["mcpServers"] = graph.Portable.MCP.Servers
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "gemini")
+		if err != nil {
+			return nil, err
+		}
+		manifest["mcpServers"] = projected
 	}
 	var artifacts []pluginmodel.Artifact
 	if len(meta.ExcludeTools) > 0 {
@@ -217,7 +225,11 @@ func (geminiAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 		})
 	}
 	if graph.Portable.MCP != nil {
-		diagnostics = append(diagnostics, validateGeminiMCPServers(graph.Portable.MCP.Path, graph.Portable.MCP.Servers)...)
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "gemini")
+		if err != nil {
+			return nil, err
+		}
+		diagnostics = append(diagnostics, validateGeminiMCPServers(graph.Portable.MCP.Path, projected)...)
 	}
 	diagnostics = append(diagnostics, validateGeminiExcludeTools(state.DocPath("package_metadata"), meta.ExcludeTools)...)
 	diagnostics = append(diagnostics, validateGeminiContext(graph, state, meta)...)
@@ -249,7 +261,11 @@ func validateGeminiRenderReady(root string, graph pluginmodel.PackageGraph, stat
 		return fmt.Errorf(failures[0])
 	}
 	if graph.Portable.MCP != nil {
-		if failures := collectDiagnosticMessages(validateGeminiMCPServers(graph.Portable.MCP.Path, graph.Portable.MCP.Servers), SeverityFailure); len(failures) > 0 {
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "gemini")
+		if err != nil {
+			return err
+		}
+		if failures := collectDiagnosticMessages(validateGeminiMCPServers(graph.Portable.MCP.Path, projected), SeverityFailure); len(failures) > 0 {
 			return fmt.Errorf(failures[0])
 		}
 	}

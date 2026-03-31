@@ -77,7 +77,18 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node server.mjs","trust":true}}`)
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  demo:
+    type: stdio
+    stdio:
+      command: "node server.mjs"
+    overrides:
+      gemini:
+        trust: true
+`)
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "FIRST.md"), "# First\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "SECOND.md"), "# Second\n")
 
@@ -598,31 +609,53 @@ description: "demo"
 targets: ["gemini"]
 `)
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.json"), `{
-  "stdio-and-sse":{"command":"node","url":"https://example.com/sse"},
-  "bad-args":{"url":"https://example.com/http","args":["serve"]},
-  "bad-env":{"command":"node","args":["server.mjs"],"env":{"TOKEN":1}},
-  "bad-cwd":{"command":"node","args":["server.mjs"],"cwd":true}
-}`)
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  stdio-and-sse:
+    type: stdio
+    stdio:
+      command: node
+    overrides:
+      gemini:
+        url: "https://example.com/sse"
+  bad-args:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/http"
+    overrides:
+      gemini:
+        args:
+          - serve
+  bad-cwd:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - server.mjs
+    overrides:
+      gemini:
+        cwd: true
+`)
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var foundTransport, foundArgs, foundEnv, foundCwd bool
+	var foundTransport, foundArgs, foundCwd bool
 	for _, failure := range report.Failures {
 		switch {
 		case strings.Contains(failure.Message, "must define exactly one transport"):
 			foundTransport = true
 		case strings.Contains(failure.Message, "may only use args with command-based stdio transport"):
 			foundArgs = true
-		case strings.Contains(failure.Message, "env must be an object of string values"):
-			foundEnv = true
 		case strings.Contains(failure.Message, "cwd must be a non-empty string"):
 			foundCwd = true
 		}
 	}
-	if !foundTransport || !foundArgs || !foundEnv || !foundCwd {
+	if !foundTransport || !foundArgs || !foundCwd {
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 }

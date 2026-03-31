@@ -1,0 +1,13 @@
+format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp"
+    targets:
+      - opencode

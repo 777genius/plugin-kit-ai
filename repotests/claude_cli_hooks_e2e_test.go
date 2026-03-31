@@ -90,10 +90,19 @@ func claudeBinaryOrSkip(t *testing.T) string {
 		var err error
 		claudeBin, err = exec.LookPath("claude")
 		if err != nil {
-			t.Skip("claude not in PATH; set PLUGIN_KIT_AI_E2E_CLAUDE or install Claude Code CLI")
+			matches, globErr := filepath.Glob(filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "Claude", "claude-code", "*", "claude"))
+			if globErr == nil && len(matches) > 0 {
+				claudeBin = matches[len(matches)-1]
+			} else {
+				t.Skip("claude not in PATH; set PLUGIN_KIT_AI_E2E_CLAUDE or install Claude Code CLI")
+			}
 		}
 	}
 	if out, err := exec.Command(claudeBin, "auth", "status").CombinedOutput(); err != nil {
+		text := string(out)
+		if strings.Contains(text, "ENOSPC") || strings.Contains(strings.ToLower(text), "no space left on device") {
+			t.Skipf("claude auth status could not run because the current machine is out of disk space:\n%s", out)
+		}
 		t.Skipf("claude auth status failed (need login): %v\n%s", err, out)
 	}
 	return claudeBin

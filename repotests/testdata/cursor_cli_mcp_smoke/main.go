@@ -57,6 +57,7 @@ func main() {
 		}
 		switch msg.Method {
 		case "initialize":
+			_ = writeMarker("initialize", "", "")
 			_ = writeMCPMessage(out, envelope{
 				JSONRPC: "2.0",
 				ID:      msg.ID,
@@ -117,7 +118,7 @@ func main() {
 			if token == "" {
 				token = "MISSING"
 			}
-			_ = writeMarker(token)
+			_ = writeMarker("tools/call", "release_checks", token)
 			_ = writeMCPMessage(out, envelope{
 				JSONRPC: "2.0",
 				ID:      msg.ID,
@@ -193,13 +194,17 @@ func writeMCPMessage(w io.Writer, value any) error {
 	return nil
 }
 
-func writeMarker(token string) error {
-	path := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_CURSOR_MCP_MARKER"))
+func writeMarker(event, tool, token string) error {
+	path := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_MCP_SMOKE_MARKER"))
+	if path == "" {
+		path = strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_CURSOR_MCP_MARKER"))
+	}
 	if path == "" {
 		return nil
 	}
 	body, err := json.MarshalIndent(map[string]any{
-		"tool":      "release_checks",
+		"event":     event,
+		"tool":      tool,
 		"token":     token,
 		"timestamp": time.Now().UTC().Format(time.RFC3339Nano),
 	}, "", "  ")

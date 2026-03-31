@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
+	"github.com/pelletier/go-toml/v2"
 )
 
 const (
@@ -53,6 +53,7 @@ type Launcher struct {
 type PortableMCP struct {
 	Path    string
 	Servers map[string]any
+	File    *PortableMCPFile
 }
 
 type PortableComponents struct {

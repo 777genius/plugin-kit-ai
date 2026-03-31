@@ -650,7 +650,7 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 		imported.Warnings = append(imported.Warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.json",
+			Message: "portable MCP will be preserved under mcp/servers.yaml",
 		})
 	}
 	if err := Save(root, imported.Manifest, force); err != nil {
@@ -728,7 +728,7 @@ func importCombinedCodex(root string, force bool) (Manifest, []Warning, error) {
 		warnings = append(warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.json",
+			Message: "portable MCP will be preserved under mcp/servers.yaml",
 		})
 	}
 	artifacts = compactArtifacts(artifacts)
@@ -923,26 +923,22 @@ func discoverFiles(root, dir string, keep func(rel string) bool) []string {
 }
 
 func discoverMCP(root string) (*PortableMCP, bool, error) {
-	for _, rel := range []string{"mcp/servers.yaml", "mcp/servers.yml", "mcp/servers.json"} {
+	for _, legacyRel := range []string{"mcp/servers.json", "mcp/servers.yml"} {
+		if fileExists(filepath.Join(root, legacyRel)) {
+			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use mcp/servers.yaml", legacyRel)
+		}
+	}
+	for _, rel := range []string{"mcp/servers.yaml"} {
 		full := filepath.Join(root, rel)
 		body, err := os.ReadFile(full)
 		if err != nil {
 			continue
 		}
-		servers := map[string]any{}
-		if strings.HasSuffix(rel, ".json") {
-			if err := json.Unmarshal(body, &servers); err != nil {
-				return nil, false, fmt.Errorf("parse %s: %w", rel, err)
-			}
-		} else {
-			if err := yaml.Unmarshal(body, &servers); err != nil {
-				return nil, false, fmt.Errorf("parse %s: %w", rel, err)
-			}
+		parsed, err := pluginmodel.ParsePortableMCP(rel, body)
+		if err != nil {
+			return nil, false, err
 		}
-		if nested, ok := servers["servers"].(map[string]any); ok {
-			servers = nested
-		}
-		return &PortableMCP{Path: rel, Servers: servers}, true, nil
+		return &PortableMCP{Path: rel, Servers: parsed.Servers, File: parsed.File}, true, nil
 	}
 	return nil, false, nil
 }
@@ -1028,7 +1024,7 @@ func enrichFromNative(root string, manifest *Manifest, launcher *Launcher, from 
 		*warnings = append(*warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.json",
+			Message: "portable MCP will be preserved under mcp/servers.yaml",
 		})
 	}
 	if from == "codex" && fileExists(filepath.Join(root, "agents")) {
@@ -1523,7 +1519,11 @@ func renderManagedPluginArtifacts(opts managedPluginArtifactOptions) ([]Artifact
 	}
 	artifacts := []Artifact{{RelPath: opts.RelPath, Content: pluginJSON}}
 	if opts.Portable.MCP != nil {
-		mcpJSON, err := marshalJSON(opts.Portable.MCP.Servers)
+		projected, err := opts.Portable.MCP.RenderForTarget("")
+		if err != nil {
+			return nil, err
+		}
+		mcpJSON, err := marshalJSON(projected)
 		if err != nil {
 			return nil, err
 		}
@@ -1702,7 +1702,22 @@ func copySingleArtifactIfExists(root, srcRel, dstRel string) ([]Artifact, error)
 }
 
 func importedPortableMCPArtifacts(root string) ([]Artifact, error) {
-	return copySingleArtifactIfExists(root, ".mcp.json", filepath.Join("mcp", "servers.json"))
+	body, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	doc := map[string]any{}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("parse portable MCP .mcp.json: %w", err)
+	}
+	normalized, err := pluginmodel.ImportedPortableMCPYAML("", doc)
+	if err != nil {
+		return nil, err
+	}
+	return []Artifact{{RelPath: filepath.Join("mcp", "servers.yaml"), Content: normalized}}, nil
 }
 
 func importedGeminiArtifacts(root string) ([]Artifact, []Warning, error) {
@@ -1728,7 +1743,11 @@ func importedGeminiArtifacts(root string) ([]Artifact, []Warning, error) {
 	}
 	if ok {
 		if len(data.MCPServers) > 0 {
-			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("mcp", "servers.json"), Content: mustJSON(data.MCPServers)})
+			normalized, err := pluginmodel.ImportedPortableMCPYAML("gemini", data.MCPServers)
+			if err != nil {
+				return nil, nil, err
+			}
+			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("mcp", "servers.yaml"), Content: normalized})
 		}
 		if body, ok := importedGeminiPackageYAML(data.Meta); ok {
 			artifacts = append(artifacts, Artifact{RelPath: filepath.Join("targets", "gemini", "package.yaml"), Content: body})

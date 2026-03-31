@@ -112,18 +112,26 @@ func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
 func TestCursorMCPPreservesInterpolationStrings(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	parsed, err := pluginmodel.ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  demo:
+    type: stdio
+    stdio:
+      command: env
+      args:
+        - "API_KEY=${env:API_KEY}"
+        - "ROOT=${workspaceFolder}"
+        - "TOKEN=${input:token}"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	graph := pluginmodel.PackageGraph{
 		Portable: pluginmodel.PortableComponents{
 			Items: map[string][]string{},
-			MCP: &pluginmodel.PortableMCP{
-				Path: "mcp/servers.json",
-				Servers: map[string]any{
-					"demo": map[string]any{
-						"type":    "stdio",
-						"command": []any{"env", "API_KEY=${env:API_KEY}", "ROOT=${workspaceFolder}", "TOKEN=${input:token}"},
-					},
-				},
-			},
+			MCP:   &pluginmodel.PortableMCP{Path: "mcp/servers.yaml", Servers: parsed.Servers, File: parsed.File},
 		},
 	}
 	artifacts, err := (cursorAdapter{}).Render(root, graph, pluginmodel.NewTargetState("cursor"))

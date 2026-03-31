@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type codexPackageAdapter struct{}
@@ -218,7 +218,11 @@ func (codexPackageAdapter) Render(root string, graph pluginmodel.PackageGraph, s
 		Content: pluginJSON,
 	})
 	if graph.Portable.MCP != nil {
-		mcpJSON, err := marshalJSON(graph.Portable.MCP.Servers)
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "codex-package")
+		if err != nil {
+			return nil, err
+		}
+		mcpJSON, err := marshalJSON(projected)
 		if err != nil {
 			return nil, err
 		}

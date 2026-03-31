@@ -117,7 +117,7 @@ Reference implementation:
 ## Cursor Workspace Path
 
 - Start from `plugin-kit-ai init --platform cursor` or `plugin-kit-ai import --from cursor`
-- Keep `plugin.yaml`, `mcp/servers.json`, and `targets/cursor/...` as the authored source of truth
+- Keep `plugin.yaml`, `mcp/servers.yaml`, and `targets/cursor/...` as the authored source of truth
 - Commit generated `.cursor/mcp.json`, `.cursor/rules/**`, and optional shared root `AGENTS.md`
 - Treat this lane as the documented Cursor workspace-config subset only; do not assume support for root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or VS Code extension packaging through this target
 

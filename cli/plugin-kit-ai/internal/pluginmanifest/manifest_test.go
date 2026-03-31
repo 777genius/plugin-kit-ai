@@ -58,7 +58,18 @@ func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
+	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp"
+`)
 	mustWritePluginFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo skill\nexecution_mode: docs_only\nsupported_agents:\n  - opencode\n---\n\n# Demo\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
@@ -117,6 +128,107 @@ func TestRender_OpenCodeRejectsManagedOverridesInConfigExtra(t *testing.T) {
 	}
 }
 
+func TestRender_PortableMCPStandardProjectsAcrossExistingTargets(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "claude", "go", "demo plugin", true)
+	manifest.Targets = []string{"claude", "codex-package", "gemini", "opencode", "cursor"}
+	mustSavePackage(t, root, manifest, "go")
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    description: Remote docs
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+      headers:
+        Authorization: "Bearer ${env.DOCS_TOKEN}"
+    targets:
+      - claude
+      - codex-package
+      - gemini
+      - opencode
+      - cursor
+    overrides:
+      gemini:
+        excludeTools:
+          - delete_docs
+
+  release-checks:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - "${package.root}/bin/release-checks.mjs"
+      env:
+        LOG_LEVEL: info
+`)
+
+	result, err := Render(root, "all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, rel := range []string{
+		filepath.Join(".claude-plugin", "plugin.json"),
+		".mcp.json",
+		filepath.Join(".codex-plugin", "plugin.json"),
+		"gemini-extension.json",
+		"opencode.json",
+		filepath.Join(".cursor", "mcp.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+
+	sharedMCP, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sharedText := string(sharedMCP)
+	for _, want := range []string{`"release-checks"`, `"command": "node"`, `"docs"`, `"type": "http"`} {
+		if !strings.Contains(sharedText, want) {
+			t.Fatalf(".mcp.json missing %q:\n%s", want, sharedText)
+		}
+	}
+
+	geminiBody, err := os.ReadFile(filepath.Join(root, "gemini-extension.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	geminiText := string(geminiBody)
+	for _, want := range []string{`"mcpServers"`, `"httpUrl": "https://example.com/mcp"`, `"excludeTools": [`, `"${extensionPath}/bin/release-checks.mjs"`} {
+		if !strings.Contains(geminiText, want) {
+			t.Fatalf("gemini-extension.json missing %q:\n%s", want, geminiText)
+		}
+	}
+
+	opencodeBody, err := os.ReadFile(filepath.Join(root, "opencode.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	opencodeText := string(opencodeBody)
+	for _, want := range []string{`"mcp": {`, `"type": "local"`, `"command": [`, `"environment": {`, `"type": "remote"`} {
+		if !strings.Contains(opencodeText, want) {
+			t.Fatalf("opencode.json missing %q:\n%s", want, opencodeText)
+		}
+	}
+
+	cursorBody, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(cursorBody), `"type": "http"`) {
+		t.Fatalf(".cursor/mcp.json missing remote http projection:\n%s", cursorBody)
+	}
+}
+
 func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.json", `{
@@ -149,7 +261,7 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("targets", "opencode", "package.json"),
-		filepath.Join("mcp", "servers.json"),
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("skills", "demo", "SKILL.md"),
 		filepath.Join("targets", "opencode", "commands", "ship.md"),
 		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
@@ -318,12 +430,12 @@ func TestImport_OpenCodeEnvSourcesLayerDeterministically(t *testing.T) {
 			t.Fatalf("config.extra.json missing %q:\n%s", want, configText)
 		}
 	}
-	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.json"))
+	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(mcpBody), `"envdir"`) || !strings.Contains(string(mcpBody), `"project"`) {
-		t.Fatalf("servers.json = %s", mcpBody)
+	if !strings.Contains(string(mcpBody), "envdir:") || !strings.Contains(string(mcpBody), "project:") {
+		t.Fatalf("servers.yaml = %s", mcpBody)
 	}
 	commandBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "commands", "ship.md"))
 	if err != nil {
@@ -373,7 +485,7 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	for _, rel := range []string{
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
-		filepath.Join("mcp", "servers.json"),
+		filepath.Join("mcp", "servers.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -746,7 +858,18 @@ func TestRender_CursorRendersWorkspaceConfig(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
+	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp"
+`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "AGENTS.md"), "# Cursor agents\n")
 
@@ -814,7 +937,7 @@ func TestRender_CursorTracksRootAgentsAsManagedArtifact(t *testing.T) {
 
 func TestImport_CursorNativeLayout(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, filepath.Join(".cursor", "mcp.json"), `{"context7":{"type":"local","command":["npx","-y","@upstash/context7-mcp"]}}`)
+	mustWritePluginFile(t, root, filepath.Join(".cursor", "mcp.json"), `{"context7":{"command":"npx","args":["-y","@upstash/context7-mcp"]}}`)
 	mustWritePluginFile(t, root, filepath.Join(".cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
 	mustWritePluginFile(t, root, "AGENTS.md", "# Cursor agents\n")
 
@@ -826,7 +949,7 @@ func TestImport_CursorNativeLayout(t *testing.T) {
 		t.Fatalf("targets = %v", imported.Targets)
 	}
 	for _, rel := range []string{
-		filepath.Join("mcp", "servers.json"),
+		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
 		filepath.Join("targets", "cursor", "AGENTS.md"),
 	} {
@@ -1259,7 +1382,7 @@ func TestImport_ClaudeNormalizesMultiPathArrays(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "lsp.json")); err != nil {
 		t.Fatalf("stat lsp: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.yaml")); err != nil {
 		t.Fatalf("stat mcp: %v", err)
 	}
 
@@ -1380,7 +1503,7 @@ targets: ["codex"]
 	for _, rel := range []string{
 		filepath.Join("targets", "codex-package", "package.yaml"),
 		filepath.Join("targets", "codex-runtime", "package.yaml"),
-		filepath.Join("mcp", "servers.json"),
+		filepath.Join("mcp", "servers.yaml"),
 	} {
 		if _, statErr := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(statErr) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, statErr)
@@ -1422,7 +1545,7 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "package.yaml")); err != nil {
 		t.Fatalf("stat gemini package metadata: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.yaml")); err != nil {
 		t.Fatalf("stat mcp servers: %v", err)
 	}
 	for _, rel := range []string{
@@ -1488,7 +1611,17 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["${extensionPath}/server.mjs"]}}`)
+	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  demo:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - "${package.root}/server.mjs"
+`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nmigrated_to: https://github.com/example/demo-gemini-v2\nplan_directory: .gemini/plans\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\ntext:\n  primary: \"#2e1f14\"\n")
@@ -1581,15 +1714,48 @@ func TestRender_GeminiRejectsInvalidMCPTransportAndExcludeTools(t *testing.T) {
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","url":"https://example.com/sse"}}`)
-	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "must define exactly one transport") {
+	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  demo:
+    type: stdio
+    stdio:
+      command: node
+    remote:
+      protocol: sse
+      url: "https://example.com/sse"
+`)
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "type stdio may not define remote config") {
 		t.Fatalf("Render error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["server.mjs"]}}`)
+	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  demo:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - server.mjs
+`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
 	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), "exclude_tools entries must be non-empty strings") {
 		t.Fatalf("Render error = %v", err)
+	}
+}
+
+func TestDiscover_RejectsLegacyPortableMCPAuthoredPaths(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "cursor", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["server.mjs"]}}`)
+
+	_, _, err := Discover(root)
+	if err == nil || !strings.Contains(err.Error(), "unsupported portable MCP authored path mcp/servers.json") {
+		t.Fatalf("Discover error = %v", err)
 	}
 }
 
@@ -1883,7 +2049,7 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
-	mustWritePluginFile(t, root, ".mcp.json", "{}\n")
+	mustWritePluginFile(t, root, ".mcp.json", `{"demo":{"command":"node","args":["server.mjs"]}}`)
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
 	_, warnings, err := Import(root, "codex-native", false, false)
@@ -1936,6 +2102,11 @@ func mustWritePluginFile(t *testing.T, root, rel, body string) {
 	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustWritePortableMCPFile(t *testing.T, root, body string) {
+	t.Helper()
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), body)
 }
 
 func mustSavePackage(t *testing.T, root string, manifest Manifest, runtime string) {

@@ -52,22 +52,22 @@ Today portable MCP is already first-class, but still low-level.
 
 What is already good:
 
-- canonical authored path already exists: `mcp/servers.json|yaml|yml`
+- canonical authored path should be `mcp/servers.yaml`
 - native import already normalizes back into one portable location
 - portable MCP is supported by `claude`, `codex-package`, `gemini`, `cursor`, and `opencode`
-- current renderer preserves vendor-native object shapes instead of over-normalizing too early
+- typed authored schema now exists and projects cleanly into current target-native MCP shapes
 
 What is still weak:
 
-- the authored file is basically an opaque `map[string]any`
-- users still think in vendor-native shapes instead of one clear package-standard contract
-- validation catches incompatibilities after authoring instead of guiding authoring
-- variable interpolation is still effectively vendor-shaped in examples
+- the public contract still needs careful wording about what is truly portable versus merely projected
+- env-variable interpolation semantics still differ too much across vendors to be part of one strict portable variable set
+- some behaviors intentionally normalize friendly input instead of rejecting every non-ideal shape
+- examples and surrounding docs still need to keep teaching the narrow stable core, not the full union of vendor options
 
 Current maturity:
 
 - normalization/render/import layer: `Увер. 9/10`, `Надёж. 9/10`
-- authoring UX layer: `Увер. 9/10`, `Надёж. 6/10`
+- typed authoring contract: `Увер. 9/10`, `Надёж. 8/10`
 
 ## Decision Options
 
@@ -108,16 +108,22 @@ The real stable shared subset is narrower than "all MCP fields", but strong enou
 Common stable concepts:
 
 - server alias
-- enablement
 - connection transport
 - process launch data for stdio servers
 - remote URL data for network servers
 - basic process environment
-- basic working directory
 - basic HTTP headers
 - target selection
+- optional author-facing metadata
 
 This is the actual cross-target core.
+
+More careful comparison across Claude, Codex, Gemini, OpenCode, and Cursor shows:
+
+- `command`, `args`, and `env` are the strongest stdio intersection
+- remote `url` plus headers/auth shape is a strong intersection, but advanced auth semantics diverge
+- `cwd`, `enabled`, and timeout-related fields are not strong enough to call universal across all supported targets
+- server naming rules differ enough that the portable standard should choose one conservative alias format
 
 ## What Should Not Be In The Stable Core
 
@@ -125,11 +131,14 @@ These fields should not be force-standardized in `v1`:
 
 - OAuth configuration
 - trust / approval semantics
+- per-server enable/disable controls
+- per-server working directory
 - Gemini-specific `includeTools` and `excludeTools`
 - OpenCode-specific `type: local|remote` naming
 - Cursor-native interpolation strings
 - Claude-specific plugin-root variables
 - Codex runtime-specific MCP config surface
+- Codex-specific `required`, `enabled_tools`, and `disabled_tools`
 - target-specific auth helpers or secret storage semantics
 
 Reason:
@@ -148,7 +157,6 @@ version: 1
 servers:
   context7:
     description: Documentation MCP server
-    enabled: true
 
     type: stdio
     stdio:
@@ -156,16 +164,14 @@ servers:
       args:
         - -y
         - "@upstash/context7-mcp"
-      cwd: "${workspace.root}"
       env: {}
 
     targets:
-      include:
-        - claude
-        - codex-package
-        - gemini
-        - opencode
-        - cursor
+      - claude
+      - codex-package
+      - gemini
+      - opencode
+      - cursor
 
     overrides:
       gemini:
@@ -173,8 +179,8 @@ servers:
           - "run_shell_command(rm -rf)"
 
     passthrough:
-      opencode:
-        timeout: 10000
+      codex-package:
+        startup_timeout_sec: 10
 ```
 
 ## Proposed Schema
@@ -188,7 +194,6 @@ Top-level fields:
 `servers.<alias>` fields:
 
 - `description`
-- `enabled`
 - `type`
 - `stdio`
 - `remote`
@@ -196,11 +201,20 @@ Top-level fields:
 - `overrides`
 - `passthrough`
 
+`<alias>` recommendation:
+
+- use lowercase letters, digits, and hyphens only
+- avoid underscores
+- prefer short stable ids that can survive target-native tool qualification
+
+Recommended alias regex:
+
+- `^[a-z0-9]+(?:-[a-z0-9]+)*$`
+
 `stdio` fields:
 
 - `command`
 - `args`
-- `cwd`
 - `env`
 
 `remote` fields:
@@ -209,10 +223,10 @@ Top-level fields:
 - `url`
 - `headers`
 
-`targets` fields:
+`targets`:
 
-- `include`
-- `exclude`
+- optional array of target ids
+- when omitted, the server applies to every enabled target in `plugin.yaml`
 
 `type` allowed values:
 
@@ -229,6 +243,24 @@ Implementation note:
 - `http` may be accepted as a user-friendly alias and normalized to `streamable_http`
 
 This is the smallest clear vocabulary that still maps well to the vendor set you support.
+
+## Naming Rules Matter More Than They Seem
+
+This standard should be conservative about server ids.
+
+Why:
+
+- Gemini qualifies tool names from the server alias and warns about underscores
+- different clients surface MCP tool names differently in prompts and UIs
+- user-facing reliability is better when server ids are boring and portable
+
+Recommended naming options:
+
+1. lowercase letters, digits, hyphens only. `Увер. 10/10`, `Надёж. 10/10`
+2. allow underscores too. `Увер. 6/10`, `Надёж. 5/10`
+3. preserve any target-native alias string. `Увер. 4/10`, `Надёж. 3/10`
+
+Recommended choice: option 1.
 
 ## Why The Format Should Use A Discriminated Union
 
@@ -265,6 +297,34 @@ Why this is better:
 - Gemini separates remote variants by `url` vs `httpUrl`
 - Codex package/runtime docs clearly support stdio and streamable HTTP, but not a broad "all remote transports are equal" promise
 
+## Final Cross-Agent Intersection
+
+If we compare the supported CLI agent surfaces conservatively, the strongest shared subset is:
+
+- server alias
+- stdio command
+- stdio args
+- stdio env
+- remote protocol kind
+- remote URL
+- remote headers
+
+Secondary but weaker fields:
+
+- description
+- target scoping
+
+Fields that look common but are not strong enough for strict `v1` portability:
+
+- `cwd`
+- `enabled`
+- `timeout`
+- trust / approval flags
+- tool include/exclude lists
+- OAuth config objects
+
+This is the main correction from earlier drafts: a good public standard for all supported CLI agents must be narrower than the union of their docs.
+
 Recommended connection model options:
 
 1. `type: stdio|remote` plus `stdio:` / `remote:` blocks. `Увер. 10/10`, `Надёж. 9/10`
@@ -280,15 +340,11 @@ The authored standard should not expose vendor-native variables directly.
 Recommended standard variables:
 
 - `${package.root}`
-- `${workspace.root}`
-- `${env.NAME}`
 - `${path.sep}`
 
 Meaning:
 
 - `${package.root}`: absolute root of the rendered package or workspace-owned target output
-- `${workspace.root}`: current active project workspace when the target supports it
-- `${env.NAME}`: environment lookup
 - `${path.sep}`: platform path separator
 
 Why this matters:
@@ -297,9 +353,28 @@ Why this matters:
 - renderers should translate these to vendor-native forms where needed
 - examples should stop teaching vendor-specific interpolation as the portable contract
 
+Important constraint:
+
+- `${workspace.root}` should not be part of the strict portable core in `v1`
+- different targets treat "workspace" differently, while `package.root` maps more cleanly to both packaged and workspace-config lanes
+- `${env.NAME}` should also stay out of the strict portable variable set in `v1`
+
+Why `${env.NAME}` is deferred:
+
+- Claude documents `${VAR}`-style expansion in `.mcp.json`
+- Cursor uses `${env:NAME}`-style interpolation
+- Gemini strongly documents `${extensionPath}` and path separators, but not one shared universal env-token syntax across all MCP surfaces
+- OpenCode and Codex do not give one clearly matching env-interpolation contract here
+
+Recommended env guidance for `v1`:
+
+- use literal values in the portable core when possible
+- use target-native env interpolation through `overrides.<target>` or `passthrough.<target>` when needed
+- standardize env-token syntax only in a later version if the cross-target evidence becomes strong enough
+
 Recommended variable design:
 
-1. package-standard variable namespace with renderer translation. `Увер. 10/10`, `Надёж. 9/10`
+1. package-standard path variables with renderer translation, while deferring env-token standardization. `Увер. 10/10`, `Надёж. 9/10`
 2. preserve vendor-native variables in the authored file. `Увер. 5/10`, `Надёж. 5/10`
 3. ban variables in the authored file. `Увер. 3/10`, `Надёж. 4/10`
 
@@ -315,12 +390,12 @@ Portable projection:
 
 - render portable MCP to `.mcp.json`
 - plugin manifest points `mcpServers` to `./.mcp.json`
-- `${package.root}` can project to `${CLAUDE_PLUGIN_ROOT}`
+- `${package.root}` should project to package-local relative paths inside shared `.mcp.json`
 
 Notes:
 
 - Claude supports package-local MCP
-- Claude has plugin-specific variable semantics that should stay renderer-owned
+- if a repo also targets Codex package, `.mcp.json` stays a shared managed artifact and should not diverge per target
 
 ### Codex Package
 
@@ -342,7 +417,6 @@ Portable projection:
 
 - render portable MCP inline into `gemini-extension.json` under `mcpServers`
 - `${package.root}` can project to `${extensionPath}`
-- `${workspace.root}` can project to `${workspacePath}`
 
 Notes:
 
@@ -388,8 +462,8 @@ Package-standard validation should reject or flag:
 - `type: remote` without `remote.url`
 - `type: remote` without `remote.protocol`
 - `type: remote` with a `stdio` block
-- invalid `targets.include` or `targets.exclude`
-- both `include` and `exclude` producing an empty effective target set
+- unknown target ids in `targets`
+- normalize an empty `targets` array the same way as an omitted `targets` field
 
 Projection validation should additionally check:
 
@@ -398,36 +472,40 @@ Projection validation should additionally check:
 - variable usage is legal for that target
 - target overrides do not conflict with generated managed keys
 - target passthrough is well-typed JSON/YAML-object data
+- server aliases remain valid under the portable alias rule
 
 ## Stable Core Field Recommendation
 
 Recommended stable core fields for `v1`:
 
 - `description`
-- `enabled`
 - `type`
 - `stdio.command`
 - `stdio.args`
-- `stdio.cwd`
 - `stdio.env`
 - `remote.protocol`
 - `remote.url`
 - `remote.headers`
-- `targets.include`
-- `targets.exclude`
+- `targets`
 
 Field candidates that should stay out of the stable core in `v1`:
 
+- `enabled`
+- `cwd`
 - `timeout`
 - `oauth`
 - `includeTools`
 - `excludeTools`
 - `trust`
+- `required`
+- `enabled_tools`
+- `disabled_tools`
 - vendor-native root variables
+- `${workspace.root}`
 
-Why `timeout` stays out for now:
+Why these stay out for now:
 
-- it is attractive, but current evidence across all five supported targets is not clean enough to call it stable and universal
+- they are useful, but current evidence across all five supported targets is not clean enough to call them stable and universal without misleading users
 
 ## Example: Stdio Server
 
@@ -443,7 +521,6 @@ servers:
       command: node
       args:
         - "${package.root}/bin/release-checks.mjs"
-      cwd: "${workspace.root}"
       env:
         LOG_LEVEL: info
 ```
@@ -456,12 +533,17 @@ version: 1
 
 servers:
   docs:
+    description: Remote documentation server
     type: remote
     remote:
       protocol: streamable_http
       url: "https://example.com/mcp"
       headers:
-        Authorization: "Bearer ${env.DOCS_MCP_TOKEN}"
+        Authorization: "Bearer DOCS_MCP_TOKEN"
+
+    targets:
+      - gemini
+      - opencode
 
     overrides:
       gemini:
@@ -471,23 +553,18 @@ servers:
     passthrough:
       opencode:
         oauth:
-          clientId: "${env.DOCS_MCP_CLIENT_ID}"
-          clientSecret: "${env.DOCS_MCP_CLIENT_SECRET}"
+          clientId: "docs-mcp-client-id"
+          clientSecret: "docs-mcp-client-secret"
 ```
 
 ## Migration Plan From Current State
 
 Recommended migration path:
 
-1. keep accepting `mcp/servers.json`, `mcp/servers.yml`, and `mcp/servers.yaml`. `Увер. 10/10`, `Надёж. 10/10`
-2. make `mcp/servers.yaml` the preferred scaffolded human-authored format. `Увер. 10/10`, `Надёж. 9/10`
-3. support both current raw object shape and the new envelope during a transition period. `Увер. 9/10`, `Надёж. 9/10`
-4. normalize imports into the new envelope when safe, otherwise preserve vendor-specific data in `passthrough`. `Увер. 8/10`, `Надёж. 8/10`
-
-Transition rule:
-
-- if the file is a raw object map, treat it as legacy `servers`
-- if the file has `format` and `version`, treat it as the new authored standard
+1. standardize immediately on `mcp/servers.yaml` as the only authored portable MCP path. `Увер. 10/10`, `Надёж. 10/10`
+2. require the typed envelope with `format`, `version`, and `servers`; do not keep raw object-map authoring compatibility. `Увер. 10/10`, `Надёж. 10/10`
+3. normalize native imports directly into the new envelope, preserving non-portable vendor data under `passthrough.<target>` when needed. `Увер. 9/10`, `Надёж. 9/10`
+4. fail fast on old authored paths and shapes so the public contract becomes clear immediately, before users depend on ambiguous behavior. `Увер. 9/10`, `Надёж. 10/10`
 
 ## What This Standard Should Promise Publicly
 
@@ -512,6 +589,7 @@ Recommended product decision:
 3. use a small stable core with `type: stdio|remote` and explicit `stdio:` / `remote:` blocks. `Увер. 10/10`, `Надёж. 9/10`
 4. keep `plugin.yaml` lean and do not move full MCP into it. `Увер. 10/10`, `Надёж. 10/10`
 5. add first-class `overrides.<target>` and `passthrough.<target>` rather than pretending every vendor field is portable. `Увер. 10/10`, `Надёж. 10/10`
+6. keep the strict portable core narrower than the union of vendor docs, especially excluding `cwd`, `enabled`, `timeout`, trust, and tool-filter semantics. `Увер. 10/10`, `Надёж. 10/10`
 
 If the goal is broad audience adoption, this is the right balance:
 

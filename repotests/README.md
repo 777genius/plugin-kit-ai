@@ -15,6 +15,7 @@
 - **Codex / plugin-kit-ai-e2e:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CODEX_CLI=1`**, флаг **`-args -codex-model=...`**. Для hermetic smoke `notify` подаётся через CLI config override; project-scoped `.codex/config.toml` остаётся частью scaffold/validate contract, а не runtime env prerequisite теста.
 - **Cursor / workspace-config live smoke:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CURSOR_CLI=1`**, флаг **`-args -cursor-model=...`**. Тесты проверяют documented repo-local subset: `.cursor/mcp.json`, `.cursor/rules/**`, optional root `AGENTS.md`, structured `--output-format`, и deterministic local MCP tool invocation.
 - **Gemini / extension lifecycle:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_GEMINI_BIN=/path/to/gemini`** or **`GEMINI_BIN=/path/to/gemini`**. Тест работает в `Temp HOME` и проверяет `gemini extensions link|config|disable|enable` против rendered reference extension, не трогая реальный user state.
+- **Portable MCP multi-agent live smoke:** opt-in shared authored-config suite — **`PLUGIN_KIT_AI_RUN_PORTABLE_MCP_LIVE=1`** плюс target-specific live env vars. Один `mcp/servers.yaml` рендерится в Claude, Codex package, Gemini, OpenCode и Cursor; дальше suite проверяет реальный vendor CLI path в честной для каждой платформы глубине: Claude `--plugin-dir`, Codex `mcp get` preflight plus `exec`, Gemini `extensions link` plus `extensions list`, Cursor live MCP tool call, OpenCode `serve` init smoke. Если Codex CLI видит projected MCP config, но `exec`-сессия не экспонирует tool или модель завершает задачу без tool call, тест делает explicit skip как vendor-session variability, а не ложный red на portable MCP projection.
 - Codex smoke intentionally distinguishes repo failures from Codex runtime-environment failures. If `codex exec` hits known runtime panics before the hook fires, the test skips instead of reporting a false plugin-kit-ai regression.
 
 ## Линии запуска
@@ -48,6 +49,8 @@
 | `PLUGIN_KIT_AI_RUN_CODEX_CLI=1` | Реальный бинарник `codex` для CLI E2E. |
 | `PLUGIN_KIT_AI_SKIP_CODEX_CLI=1` | Явно выключить Codex CLI E2E. |
 | `PLUGIN_KIT_AI_E2E_CODEX` | Путь к бинарнику `codex`, если не в `PATH`. |
+| `PLUGIN_KIT_AI_RUN_PORTABLE_MCP_LIVE=1` | Включить shared portable MCP live suite поверх реальных CLI. |
+| `PLUGIN_KIT_AI_PORTABLE_MCP_CODEX_FALLBACK_MODEL` | Опциональная fallback-model для Codex portable MCP live suite (по умолчанию `gpt-5.4`). |
 | `PLUGIN_KIT_AI_RUN_CURSOR_CLI=1` | Реальный бинарник `cursor-agent` для CLI E2E. |
 | `PLUGIN_KIT_AI_SKIP_CURSOR_CLI=1` | Явно выключить Cursor CLI E2E. |
 | `PLUGIN_KIT_AI_E2E_CURSOR` | Путь к бинарнику `cursor-agent`, если не в `PATH`. |
@@ -65,6 +68,7 @@ make test-plugin-manifest-workflow
 make test-install-compat
 make test-extended
 make test-cursor-live
+make test-portable-mcp-live
 make test-live-cli
 make test-e2e-live
 ```

@@ -76,7 +76,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(plugRoot, "scripts", "main.sh"), []byte("#!/usr/bin/env bash\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(plugRoot, ".mcp.json"), []byte("{}\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(plugRoot, ".mcp.json"), []byte("{\"demo\":{\"command\":\"node\",\"args\":[\"server.mjs\"]}}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -86,7 +86,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 		t.Fatalf("plugin-kit-ai import: %v\n%s", err, out)
 	}
 	text := string(out)
-	if !strings.Contains(text, "Warning: portable MCP will be preserved under mcp/servers.json") {
+	if !strings.Contains(text, "Warning: portable MCP will be preserved under mcp/servers.yaml") {
 		t.Fatalf("missing .mcp.json warning:\n%s", text)
 	}
 	if !strings.Contains(text, "Warning: ignored unsupported import asset: agents") {

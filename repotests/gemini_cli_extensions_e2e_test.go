@@ -79,8 +79,11 @@ func geminiBinaryOrSkip(t *testing.T) string {
 	if value := strings.TrimSpace(os.Getenv("GEMINI_BIN")); value != "" {
 		return value
 	}
-	t.Skip("set PLUGIN_KIT_AI_GEMINI_BIN or GEMINI_BIN to run local Gemini CLI extension e2e")
-	return ""
+	geminiBin, err := exec.LookPath("gemini")
+	if err != nil {
+		t.Skip("set PLUGIN_KIT_AI_GEMINI_BIN or GEMINI_BIN, or install gemini in PATH, to run local Gemini CLI extension e2e")
+	}
+	return geminiBin
 }
 
 func runGeminiLink(t *testing.T, geminiBin, homeDir, extensionDir string) string {

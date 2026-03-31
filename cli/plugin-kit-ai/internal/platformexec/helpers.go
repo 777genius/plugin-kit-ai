@@ -11,8 +11,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/tailscale/hujson"
 	"gopkg.in/yaml.v3"
 )
@@ -200,13 +200,35 @@ func renderManagedPluginArtifacts(name string, manifest pluginmodel.Manifest, po
 	}
 	artifacts := []pluginmodel.Artifact{{RelPath: relPath, Content: pluginJSON}}
 	if portable.MCP != nil {
-		mcpJSON, err := marshalJSON(portable.MCP.Servers)
+		projected, err := renderPortableMCPForTarget(portable.MCP, "")
+		if err != nil {
+			return nil, err
+		}
+		mcpJSON, err := marshalJSON(projected)
 		if err != nil {
 			return nil, err
 		}
 		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: ".mcp.json", Content: mcpJSON})
 	}
 	return artifacts, nil
+}
+
+func renderPortableMCPForTarget(mcp *pluginmodel.PortableMCP, target string) (map[string]any, error) {
+	if mcp == nil {
+		return nil, nil
+	}
+	return mcp.RenderForTarget(target)
+}
+
+func importedPortableMCPArtifact(sourceTarget string, servers map[string]any) (pluginmodel.Artifact, error) {
+	body, err := pluginmodel.ImportedPortableMCPYAML(sourceTarget, servers)
+	if err != nil {
+		return pluginmodel.Artifact{}, err
+	}
+	return pluginmodel.Artifact{
+		RelPath: filepath.ToSlash(filepath.Join("mcp", "servers.yaml")),
+		Content: body,
+	}, nil
 }
 
 func discoverFiles(root, dir string, allow func(string) bool) []string {

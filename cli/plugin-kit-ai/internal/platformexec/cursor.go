@@ -42,10 +42,11 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		if err != nil {
 			return ImportResult{}, err
 		}
-		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("mcp", "servers.json"),
-			Content: mustJSON(doc),
-		})
+		artifact, err := importedPortableMCPArtifact("cursor", doc)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		result.Artifacts = append(result.Artifacts, artifact)
 		hasCursorState = true
 	} else if !os.IsNotExist(err) {
 		return ImportResult{}, err
@@ -97,7 +98,11 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 func (cursorAdapter) Render(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]pluginmodel.Artifact, error) {
 	var artifacts []pluginmodel.Artifact
 	if graph.Portable.MCP != nil {
-		body, err := marshalJSON(graph.Portable.MCP.Servers)
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "cursor")
+		if err != nil {
+			return nil, err
+		}
+		body, err := marshalJSON(projected)
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +139,7 @@ func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 			Code:     CodeManifestInvalid,
 			Path:     filepath.ToSlash(filepath.Join("targets", "cursor")),
 			Target:   "cursor",
-			Message:  "Cursor target requires at least one of mcp/servers.json, targets/cursor/rules/**, or targets/cursor/AGENTS.md",
+			Message:  "Cursor target requires at least one of mcp/servers.yaml, targets/cursor/rules/**, or targets/cursor/AGENTS.md",
 		})
 	}
 	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)

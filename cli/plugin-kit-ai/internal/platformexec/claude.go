@@ -207,7 +207,11 @@ func (claudeAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 		Content: pluginJSON,
 	}}
 	if graph.Portable.MCP != nil {
-		mcpJSON, err := marshalJSON(graph.Portable.MCP.Servers)
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "claude")
+		if err != nil {
+			return nil, err
+		}
+		mcpJSON, err := marshalJSON(projected)
 		if err != nil {
 			return nil, err
 		}
@@ -457,10 +461,14 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 	}
 	switch {
 	case manifest.InlineMCP != nil:
-		return []pluginmodel.Artifact{{RelPath: filepath.Join("mcp", "servers.json"), Content: mustJSON(manifest.InlineMCP)}}, []pluginmodel.Warning{{
+		artifact, err := importedPortableMCPArtifact("claude", manifest.InlineMCP)
+		if err != nil {
+			return nil, nil, err
+		}
+		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "inline Claude mcpServers were normalized into mcp/servers.json",
+			Message: "inline Claude mcpServers were normalized into mcp/servers.yaml",
 		}}, nil
 	case len(manifest.MCPRefs) == 1:
 		ref := cleanRelativeRef(manifest.MCPRefs[0])
@@ -468,17 +476,33 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 		if err != nil {
 			return nil, nil, err
 		}
-		return []pluginmodel.Artifact{{RelPath: filepath.Join("mcp", "servers.json"), Content: body}}, []pluginmodel.Warning{{
+		doc, err := decodeJSONObject(body, "Claude mcpServers")
+		if err != nil {
+			return nil, nil, err
+		}
+		artifact, err := importedPortableMCPArtifact("claude", doc)
+		if err != nil {
+			return nil, nil, err
+		}
+		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "custom Claude mcpServers path was normalized into mcp/servers.json",
+			Message: "custom Claude mcpServers path was normalized into mcp/servers.yaml",
 		}}, nil
 	case len(manifest.MCPRefs) > 1:
 		body, err := mergeClaudeObjectRefs(root, manifest.MCPRefs, "Claude mcpServers")
 		if err != nil {
 			return nil, nil, err
 		}
-		return []pluginmodel.Artifact{{RelPath: filepath.Join("mcp", "servers.json"), Content: body}}, []pluginmodel.Warning{{
+		doc, err := decodeJSONObject(body, "Claude mcpServers")
+		if err != nil {
+			return nil, nil, err
+		}
+		artifact, err := importedPortableMCPArtifact("claude", doc)
+		if err != nil {
+			return nil, nil, err
+		}
+		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
 			Message: "custom Claude mcpServers path array was normalized into canonical package-standard layout",

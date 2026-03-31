@@ -5,7 +5,7 @@ Reference Gemini CLI extension repo for the current `plugin-kit-ai` packaging wo
 Packaging contract:
 
 - official-style `gemini-extension.json`
-- inline `mcpServers` rendered from `mcp/servers.json`
+- inline `mcpServers` rendered from `mcp/servers.yaml`
 - one primary target-native context source plus extra extension contexts rendered to the Gemini root layout
 - native Gemini commands, hooks, and policies
 - manifest-driven `migratedTo`, settings, themes, and `plan.directory`

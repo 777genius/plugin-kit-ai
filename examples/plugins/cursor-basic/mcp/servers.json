@@ -1,8 +1,0 @@
-{
-  "release-checks": {
-    "command": "node",
-    "args": [
-      "${workspaceFolder}/bin/release-checks.mjs"
-    ]
-  }
-}

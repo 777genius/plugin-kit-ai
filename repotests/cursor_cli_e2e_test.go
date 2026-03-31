@@ -69,7 +69,7 @@ alwaysApply: true
 ---
 
 - When explicitly asked to use the MCP tool release_checks, do so exactly once.`,
-		MCPServersJSON: fmt.Sprintf("{\n  \"release-checks\": {\n    \"command\": %q,\n    \"args\": []\n  }\n}\n", filepath.ToSlash(mcpBin)),
+		PortableMCPYAML: fmt.Sprintf("format: plugin-kit-ai/mcp\nversion: 1\n\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: %q\n", filepath.ToSlash(mcpBin)),
 	})
 
 	env := []string{"PLUGIN_KIT_AI_CURSOR_MCP_MARKER=" + marker}
@@ -86,9 +86,9 @@ alwaysApply: true
 }
 
 type cursorSmokeWorkspaceOptions struct {
-	RuleBody       string
-	AgentsBody     string
-	MCPServersJSON string
+	RuleBody        string
+	AgentsBody      string
+	PortableMCPYAML string
 }
 
 func cursorBinaryOrSkip(t *testing.T) string {
@@ -104,13 +104,31 @@ func cursorBinaryOrSkip(t *testing.T) string {
 		var err error
 		cursorBin, err = exec.LookPath("cursor-agent")
 		if err != nil {
-			t.Skip("cursor-agent not in PATH; set PLUGIN_KIT_AI_E2E_CURSOR or install Cursor CLI")
+			const bundledCursor = "/Applications/Cursor.app/Contents/Resources/app/bin/cursor"
+			if _, statErr := os.Stat(bundledCursor); statErr == nil {
+				cursorBin = bundledCursor
+			} else {
+				t.Skip("cursor-agent not in PATH; set PLUGIN_KIT_AI_E2E_CURSOR or install Cursor CLI")
+			}
 		}
 	}
-	if out, err := exec.Command(cursorBin, "--help").CombinedOutput(); err != nil {
-		t.Skipf("cursor-agent is not runnable in this environment: %v\n%s", err, out)
+	if out, err := exec.Command(cursorStatusCommand(cursorBin)[0], cursorStatusCommand(cursorBin)[1:]...).CombinedOutput(); err != nil {
+		t.Skipf("Cursor CLI is not runnable in this environment: %v\n%s", err, out)
+	} else {
+		text := string(out)
+		lower := strings.ToLower(text)
+		if strings.Contains(lower, "not logged in") || strings.Contains(lower, "no models available") {
+			t.Skipf("Cursor CLI is not ready for live smoke:\n%s", text)
+		}
 	}
 	return cursorBin
+}
+
+func cursorStatusCommand(cursorBin string) []string {
+	if filepath.Base(cursorBin) == "cursor" {
+		return []string{cursorBin, "agent", "status"}
+	}
+	return []string{cursorBin, "status"}
 }
 
 func newCursorSmokeWorkspace(t *testing.T, pluginKitAIBin string, opts cursorSmokeWorkspaceOptions) string {
@@ -137,12 +155,12 @@ func newCursorSmokeWorkspace(t *testing.T, pluginKitAIBin string, opts cursorSmo
 			t.Fatal(err)
 		}
 	}
-	if strings.TrimSpace(opts.MCPServersJSON) != "" {
-		path := filepath.Join(dir, "mcp", "servers.json")
+	if strings.TrimSpace(opts.PortableMCPYAML) != "" {
+		path := filepath.Join(dir, "mcp", "servers.yaml")
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, []byte(opts.MCPServersJSON), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(opts.PortableMCPYAML), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -172,6 +190,9 @@ func runCursorCommand(t *testing.T, cursorBin, workDir string, extraEnv []string
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
+	if filepath.Base(cursorBin) == "cursor" {
+		args = append([]string{"agent"}, args...)
+	}
 	cmd := exec.CommandContext(ctx, cursorBin, args...)
 	cmd.Dir = workDir
 	cmd.Env = append(os.Environ(), extraEnv...)

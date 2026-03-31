@@ -50,22 +50,21 @@ These surfaces are too asymmetric across vendor ecosystems and are better repres
 
 Current authored source:
 
-- `mcp/servers.json`
 - `mcp/servers.yaml`
-- `mcp/servers.yml`
 
 Current internal model:
 
 - portable component kind: `mcp_servers`
 - graph carrier: `PortableMCP`
-- payload shape: `map[string]any`
+- typed authored payload: `PortableMCPFile`
+- projected native payload: target-specific JSON object maps generated from the typed file
 
 Important implementation details:
 
-- discovery reads `mcp/servers.{json,yaml,yml}` and normalizes the object into `PortableMCP`
+- discovery reads `mcp/servers.yaml` as the canonical authored portable MCP file
 - `plugin.yaml` does not currently contain MCP definitions; it only carries package metadata and enabled targets
-- render emits target-native MCP artifacts without trying to semantically narrow the object more than necessary
-- import normalizes native target MCP back into canonical `mcp/servers.json` where supported
+- render projects the typed portable MCP model into target-native MCP artifacts
+- import normalizes native target MCP back into canonical `mcp/servers.yaml`
 - validation checks that the selected targets support `mcp_servers`, then applies target-specific rules
 
 Representative code points:
@@ -79,7 +78,7 @@ Representative code points:
 
 The current design is already strong in several ways:
 
-- canonical authored path exists: `mcp/servers.json`
+- canonical authored path: `mcp/servers.yaml`
 - the same authored MCP source is reused by Claude, Codex package, Gemini, OpenCode, and Cursor
 - import normalizes divergent native MCP layouts back into one package-standard source
 - the system preserves target-native strings and object fields where possible instead of over-normalizing too early
@@ -91,7 +90,7 @@ This means the project already has a real shared core for MCP, not just a loose 
 
 The current design is still relatively low-level:
 
-- the authored file is mostly an opaque object map, not a richer authoring model
+- the authored file is now typed, but the public contract still needs careful limits around what is truly portable versus merely projected
 - target-aware ergonomics are limited
 - there is little first-class guidance for expressing intent such as local stdio server vs SSE vs streamable HTTP vs target-only fields
 - target-specific incompatibilities are mostly caught by validation after authoring, not guided during authoring
@@ -100,7 +99,7 @@ The current design is still relatively low-level:
 In short:
 
 - today `portable MCP` is a solid normalization and transport layer
-- it is not yet a highly ergonomic authoring layer
+- it is now a typed authoring layer, but still a deliberately narrow one
 
 ## Recommendation
 
@@ -112,8 +111,8 @@ Recommended direction:
 
 Recommended next-step contract:
 
-1. keep `mcp/servers.yaml` as the preferred human-authored format
-2. allow a small package-standard envelope instead of raw object-only authoring
+1. keep `mcp/servers.yaml` as the canonical human-authored format
+2. require the small package-standard envelope instead of raw object-only authoring
 3. keep the rendered target output native and target-specific
 4. preserve a target-specific passthrough area for fields that should not be force-normalized
 5. validate against both package-standard rules and target projection rules

@@ -1,0 +1,12 @@
+format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  release-checks:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - "${package.root}/bin/release-checks.mjs"
+    targets:
+      - gemini

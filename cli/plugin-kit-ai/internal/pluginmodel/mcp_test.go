@@ -1,0 +1,199 @@
+package pluginmodel
+
+import "testing"
+
+func TestParsePortableMCPStandardProjectsAcrossTargets(t *testing.T) {
+	t.Parallel()
+	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    description: Remote docs
+    type: remote
+    remote:
+      protocol: http
+      url: "https://example.com/mcp"
+      headers:
+        Authorization: "Bearer ${env.DOCS_TOKEN}"
+    targets:
+      - claude
+      - codex-package
+      - gemini
+      - opencode
+      - cursor
+    overrides:
+      gemini:
+        excludeTools:
+          - delete_docs
+      codex-package:
+        startup_timeout_sec: 10
+
+  local-tools:
+    type: stdio
+    stdio:
+      command: node
+      args:
+        - "${package.root}/server.mjs"
+      env:
+        TOKEN: "${env.LOCAL_TOKEN}"
+    targets:
+      - opencode
+      - cursor
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.File == nil {
+		t.Fatal("expected parsed portable MCP file")
+	}
+	mcp := &PortableMCP{Path: "mcp/servers.yaml", Servers: parsed.Servers, File: parsed.File}
+
+	gemini, err := mcp.RenderForTarget("gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, ok := gemini["docs"].(map[string]any)
+	if !ok {
+		t.Fatalf("gemini docs = %#v", gemini["docs"])
+	}
+	if _, ok := docs["httpUrl"].(string); !ok {
+		t.Fatalf("gemini docs missing httpUrl: %#v", docs)
+	}
+	if _, ok := docs["excludeTools"].([]any); !ok {
+		t.Fatalf("gemini docs missing excludeTools override: %#v", docs)
+	}
+	if _, ok := gemini["local-tools"]; ok {
+		t.Fatalf("gemini projection unexpectedly included local-tools: %#v", gemini)
+	}
+
+	opencode, err := mcp.RenderForTarget("opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	local, ok := opencode["local-tools"].(map[string]any)
+	if !ok {
+		t.Fatalf("opencode local-tools = %#v", opencode["local-tools"])
+	}
+	if got, _ := local["type"].(string); got != "local" {
+		t.Fatalf("opencode local type = %q, want local", got)
+	}
+	command, ok := local["command"].([]any)
+	if !ok || len(command) != 2 || command[0] != "node" || command[1] != "./server.mjs" {
+		t.Fatalf("opencode local command = %#v", local["command"])
+	}
+	if _, ok := local["environment"].(map[string]any); !ok {
+		t.Fatalf("opencode local missing environment: %#v", local)
+	}
+
+	cursor, err := mcp.RenderForTarget("cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursorLocal, ok := cursor["local-tools"].(map[string]any)
+	if !ok {
+		t.Fatalf("cursor local-tools = %#v", cursor["local-tools"])
+	}
+	cursorArgs, ok := cursorLocal["args"].([]any)
+	if !ok || len(cursorArgs) != 1 || cursorArgs[0] != "${workspaceFolder}/server.mjs" {
+		t.Fatalf("cursor local-tools args = %#v", cursorLocal["args"])
+	}
+
+	claude, err := mcp.RenderForTarget("claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claudeDocs, ok := claude["docs"].(map[string]any)
+	if !ok {
+		t.Fatalf("claude docs = %#v", claude["docs"])
+	}
+	if got, _ := claudeDocs["type"].(string); got != "http" {
+		t.Fatalf("claude docs type = %q, want http", got)
+	}
+
+	codex, err := mcp.RenderForTarget("codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	codexDocs, ok := codex["docs"].(map[string]any)
+	if !ok {
+		t.Fatalf("codex docs = %#v", codex["docs"])
+	}
+	if got, _ := codexDocs["startup_timeout_sec"].(int); got != 10 {
+		t.Fatalf("codex docs startup_timeout_sec = %#v", codexDocs["startup_timeout_sec"])
+	}
+}
+
+func TestParsePortableMCPStandardRejectsInvalidAlias(t *testing.T) {
+	t.Parallel()
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+servers:
+  bad_alias:
+    type: stdio
+    stdio:
+      command: node
+`))
+	if err == nil {
+		t.Fatal("expected invalid alias error")
+	}
+}
+
+func TestParsePortableMCPStandardRejectsUnsupportedOverrideTarget(t *testing.T) {
+	t.Parallel()
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    overrides:
+      unknown-target:
+        excludeTools:
+          - delete_docs
+`))
+	if err == nil {
+		t.Fatal("expected unsupported override target error")
+	}
+}
+
+func TestParsePortableMCPStandardRejectsManagedOverrideConflict(t *testing.T) {
+	t.Parallel()
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    overrides:
+      gemini:
+        httpUrl: "https://override.example.com/mcp"
+`))
+	if err == nil {
+		t.Fatal("expected managed override conflict error")
+	}
+}
+
+func TestParsePortableMCPStandardRejectsManagedPassthroughConflict(t *testing.T) {
+	t.Parallel()
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+servers:
+  local-tools:
+    type: stdio
+    stdio:
+      command: node
+    passthrough:
+      opencode:
+        command:
+          - node
+          - server.mjs
+`))
+	if err == nil {
+		t.Fatal("expected managed passthrough conflict error")
+	}
+}

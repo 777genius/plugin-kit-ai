@@ -184,10 +184,11 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		Content: mustYAML(opencodePackageMeta{Plugins: append([]string(nil), state.plugins...)}),
 	}}
 	if len(state.mcp) > 0 {
-		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("mcp", "servers.json"),
-			Content: mustJSON(state.mcp),
-		})
+		artifact, err := importedPortableMCPArtifact("opencode", state.mcp)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		artifacts = append(artifacts, artifact)
 	}
 	if len(state.extra) > 0 {
 		artifacts = append(artifacts, pluginmodel.Artifact{
@@ -232,7 +233,11 @@ func (opencodeAdapter) Render(root string, graph pluginmodel.PackageGraph, state
 		doc["plugin"] = append([]string(nil), meta.Plugins...)
 	}
 	if graph.Portable.MCP != nil {
-		doc["mcp"] = graph.Portable.MCP.Servers
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "opencode")
+		if err != nil {
+			return nil, err
+		}
+		doc["mcp"] = projected
 	}
 	if err := pluginmodel.MergeNativeExtraObject(doc, extra, "opencode config.extra.json", managedPaths); err != nil {
 		return nil, err
