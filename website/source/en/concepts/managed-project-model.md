@@ -16,6 +16,14 @@ If you want one page that explains what `plugin-kit-ai` actually is, read this p
 
 `plugin-kit-ai` is a managed plugin project system: keep one authored repo, render the outputs each target needs, validate the result, and grow deliberately without turning the repo into ad-hoc glue.
 
+## Quick Mental Reset
+
+| What you notice first | Wrong conclusion | Correct reading |
+| --- | --- | --- |
+| Starter names like Codex or Claude | The repo is permanently locked to one agent family | Starter names only optimize the first correct path |
+| A visible CLI workflow | The product is mainly a generator tool | The CLI is the reproducible workflow surface for the managed project |
+| Runtime, package, and workspace targets | Everything has the same operational contract | Outputs differ on purpose and carry explicit support boundaries |
+
 ## The Model In Four Parts
 
 1. **One authored project**

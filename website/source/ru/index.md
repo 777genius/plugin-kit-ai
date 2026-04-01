@@ -25,6 +25,14 @@ outline: false
 
 Если нужна одна страница, которая объясняет продукт максимально ясно, прочитайте [Managed Project Model](/ru/concepts/managed-project-model).
 
+## Быстрая перенастройка мышления
+
+| Что бросается в глаза первым | Неверный вывод | Правильное чтение |
+| --- | --- | --- |
+| agent-specific starter’ы | Продукт — это просто набор starter’ов | Starter’ы — это входы в одну managed project model |
+| много target’ов и выходных форм | Все target’ы обещают одно и то же | Target’ы — это rendered outputs с явной границей поддержки |
+| заметный CLI и generated API | Продукт по сути сводится к CLI или helper package | CLI и API только открывают workflow; сам продукт — это управляемая модель репозитория |
+
 ## Карта системы
 
 <div class="docs-flow" aria-label="Схема системы plugin-kit-ai">
@@ -83,7 +91,7 @@ outline: false
 - списки target’ов заметны, потому что система умеет рендерить больше одной выходной формы
 - CLI находится на виду, потому что workflow должен быть воспроизводимым, а не потому что продукт — “просто CLI”
 
-Сам проект — это managed repo model, которая стоит за всеми этими входными точками.
+Сам продукт — это managed repo model, которая стоит за всеми этими входными точками.
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/">

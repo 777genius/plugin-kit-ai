@@ -25,6 +25,14 @@ outline: false
 
 If you want the one page that explains the product clearly, read [Managed Project Model](/en/concepts/managed-project-model).
 
+## Quick Mental Reset
+
+| What you notice first | Wrong conclusion | Correct reading |
+| --- | --- | --- |
+| Agent-specific starter names | The product is just a starter collection | Starters are entrypoints into one managed project model |
+| Many targets and output shapes | Every target has the same promise | Targets are rendered outputs with explicit support boundaries |
+| A visible CLI and generated API | The product is basically a CLI or helper package | The CLI and APIs expose the workflow; the product is the managed repo system behind them |
+
 ## System Map
 
 <div class="docs-flow" aria-label="plugin-kit-ai system map">
@@ -83,7 +91,7 @@ If you want the one page that explains the product clearly, read [Managed Projec
 - target lists are visible because the system can render more than one output shape
 - the CLI is prominent because the workflow is reproducible, not because the product is “just a CLI”
 
-The project itself is the managed repo model behind those entrypoints.
+The product itself is the managed repo model behind those entrypoints.
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/">
