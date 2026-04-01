@@ -116,45 +116,101 @@ function buildSidebar(locale, entities) {
   const capabilityItems = surfaceItems("capabilities");
 
   return {
-    [`${prefix}guide/`]: section(labels.guide, [
-      linkItem(labels.guideOverview, `${prefix}guide/`),
-      linkItem(labels.quickstart, `${prefix}guide/quickstart`),
-      linkItem(labels.installation, `${prefix}guide/installation`),
-      linkItem(labels.whatYouCanBuild, `${prefix}guide/what-you-can-build`),
-      linkItem(labels.chooseTarget, `${prefix}guide/choose-a-target`),
-      linkItem(labels.firstPlugin, `${prefix}guide/first-plugin`),
-      linkItem(labels.teamReadyPlugin, `${prefix}guide/team-ready-plugin`),
-      linkItem(labels.claudePlugin, `${prefix}guide/claude-plugin`),
-      linkItem(labels.nodeTypescriptRuntime, `${prefix}guide/node-typescript-runtime`),
-      linkItem(labels.starterTemplates, `${prefix}guide/starter-templates`),
-      linkItem(labels.examplesAndRecipes, `${prefix}guide/examples-and-recipes`),
-      linkItem(labels.chooseStarterRepo, `${prefix}guide/choose-a-starter`),
-      linkItem(labels.chooseDeliveryModel, `${prefix}guide/choose-delivery-model`),
-      linkItem(labels.bundleHandoff, `${prefix}guide/bundle-handoff`),
-      linkItem(labels.packageAndWorkspaceTargets, `${prefix}guide/package-and-workspace-targets`),
-      linkItem(labels.migrateExistingConfig, `${prefix}guide/migrate-existing-config`),
-      linkItem(labels.productionReadiness, `${prefix}guide/production-readiness`),
-      linkItem(labels.ciIntegration, `${prefix}guide/ci-integration`)
-    ]),
-    [`${prefix}concepts/`]: section(labels.concepts, [
-      linkItem(labels.conceptsOverview, `${prefix}concepts/`),
-      linkItem(labels.whyPluginKitAi, `${prefix}concepts/why-plugin-kit-ai`),
-      linkItem(labels.authoringArchitecture, `${prefix}concepts/authoring-architecture`),
-      linkItem(labels.stabilityModel, `${prefix}concepts/stability-model`),
-      linkItem(labels.targetModel, `${prefix}concepts/target-model`),
-      linkItem(labels.choosingRuntime, `${prefix}concepts/choosing-runtime`)
-    ]),
-    [`${prefix}reference/`]: section(labels.reference, [
-      linkItem(labels.referenceOverview, `${prefix}reference/`),
-      linkItem(labels.installChannels, `${prefix}reference/install-channels`),
-      linkItem(labels.authoringWorkflow, `${prefix}reference/authoring-workflow`),
-      linkItem(labels.repositoryStandard, `${prefix}reference/repository-standard`),
-      linkItem(labels.supportBoundary, `${prefix}reference/support-boundary`),
-      linkItem(labels.targetSupport, `${prefix}reference/target-support`),
-      linkItem(labels.faq, `${prefix}reference/faq`),
-      linkItem(labels.troubleshooting, `${prefix}reference/troubleshooting`),
-      linkItem(labels.glossary, `${prefix}reference/glossary`)
-    ]),
+    [`${prefix}guide/`]: [
+      {
+        text: labels.guideStart,
+        items: [
+          linkItem(labels.guideOverview, `${prefix}guide/`),
+          linkItem(labels.installation, `${prefix}guide/installation`),
+          linkItem(labels.quickstart, `${prefix}guide/quickstart`)
+        ]
+      },
+      {
+        text: labels.guideCoreIdea,
+        items: [
+          linkItem(labels.whatYouCanBuild, `${prefix}guide/what-you-can-build`),
+          linkItem(labels.oneProjectMultipleTargets, `${prefix}guide/one-project-multiple-targets`),
+          linkItem(labels.chooseTarget, `${prefix}guide/choose-a-target`)
+        ]
+      },
+      {
+        text: labels.guideBuild,
+        items: [
+          linkItem(labels.firstPlugin, `${prefix}guide/first-plugin`),
+          linkItem(labels.teamReadyPlugin, `${prefix}guide/team-ready-plugin`),
+          linkItem(labels.claudePlugin, `${prefix}guide/claude-plugin`),
+          linkItem(labels.nodeTypescriptRuntime, `${prefix}guide/node-typescript-runtime`)
+        ]
+      },
+      {
+        text: labels.guideStarters,
+        items: [
+          linkItem(labels.starterTemplates, `${prefix}guide/starter-templates`),
+          linkItem(labels.chooseStarterRepo, `${prefix}guide/choose-a-starter`),
+          linkItem(labels.examplesAndRecipes, `${prefix}guide/examples-and-recipes`)
+        ]
+      },
+      {
+        text: labels.guideDelivery,
+        items: [
+          linkItem(labels.chooseDeliveryModel, `${prefix}guide/choose-delivery-model`),
+          linkItem(labels.bundleHandoff, `${prefix}guide/bundle-handoff`),
+          linkItem(labels.packageAndWorkspaceTargets, `${prefix}guide/package-and-workspace-targets`),
+          linkItem(labels.migrateExistingConfig, `${prefix}guide/migrate-existing-config`)
+        ]
+      },
+      {
+        text: labels.guideOperate,
+        items: [
+          linkItem(labels.productionReadiness, `${prefix}guide/production-readiness`),
+          linkItem(labels.ciIntegration, `${prefix}guide/ci-integration`)
+        ]
+      }
+    ],
+    [`${prefix}concepts/`]: [
+      {
+        text: labels.conceptsFoundation,
+        items: [
+          linkItem(labels.conceptsOverview, `${prefix}concepts/`),
+          linkItem(labels.whyPluginKitAi, `${prefix}concepts/why-plugin-kit-ai`),
+          linkItem(labels.authoringArchitecture, `${prefix}concepts/authoring-architecture`)
+        ]
+      },
+      {
+        text: labels.conceptsDecisions,
+        items: [
+          linkItem(labels.stabilityModel, `${prefix}concepts/stability-model`),
+          linkItem(labels.targetModel, `${prefix}concepts/target-model`),
+          linkItem(labels.choosingRuntime, `${prefix}concepts/choosing-runtime`)
+        ]
+      }
+    ],
+    [`${prefix}reference/`]: [
+      {
+        text: labels.referenceOperational,
+        items: [
+          linkItem(labels.referenceOverview, `${prefix}reference/`),
+          linkItem(labels.installChannels, `${prefix}reference/install-channels`),
+          linkItem(labels.authoringWorkflow, `${prefix}reference/authoring-workflow`),
+          linkItem(labels.repositoryStandard, `${prefix}reference/repository-standard`)
+        ]
+      },
+      {
+        text: labels.referenceSupport,
+        items: [
+          linkItem(labels.supportBoundary, `${prefix}reference/support-boundary`),
+          linkItem(labels.targetSupport, `${prefix}reference/target-support`)
+        ]
+      },
+      {
+        text: labels.referenceHelp,
+        items: [
+          linkItem(labels.faq, `${prefix}reference/faq`),
+          linkItem(labels.troubleshooting, `${prefix}reference/troubleshooting`),
+          linkItem(labels.glossary, `${prefix}reference/glossary`)
+        ]
+      }
+    ],
     [`${prefix}api/`]: section(labels.apiOverview, [
       linkItem(labels.apiOverview, `${prefix}api/`),
       linkItem(labels.cliReference, pageLink("page:api:cli:index", `${prefix}api/cli/`)),
@@ -226,10 +282,17 @@ function localeLabels(locale) {
   if (locale === "ru") {
     return {
       guide: "Гайды",
+      guideStart: "Старт",
+      guideCoreIdea: "Суть проекта",
+      guideBuild: "Сборка плагина",
+      guideStarters: "Starter'ы и примеры",
+      guideDelivery: "Поставка и target'ы",
+      guideOperate: "Продакшен и CI",
       guideOverview: "Обзор",
       quickstart: "Быстрый старт",
       installation: "Установка",
       whatYouCanBuild: "Что можно построить",
+      oneProjectMultipleTargets: "Один проект, несколько target’ов",
       chooseTarget: "Выбор target",
       firstPlugin: "Соберите первый плагин",
       teamReadyPlugin: "Плагин для команды",
@@ -245,6 +308,8 @@ function localeLabels(locale) {
       productionReadiness: "Готовность к продакшену",
       ciIntegration: "Интеграция с CI",
       concepts: "Концепции",
+      conceptsFoundation: "Основа",
+      conceptsDecisions: "Модели выбора",
       conceptsOverview: "Обзор",
       whyPluginKitAi: "Зачем plugin-kit-ai",
       authoringArchitecture: "Архитектура авторинга",
@@ -252,6 +317,9 @@ function localeLabels(locale) {
       targetModel: "Модель target’ов",
       choosingRuntime: "Выбор runtime",
       reference: "Справочник",
+      referenceOperational: "Рабочий контур",
+      referenceSupport: "Поддержка и границы",
+      referenceHelp: "Помощь",
       referenceOverview: "Обзор",
       installChannels: "Каналы установки",
       authoringWorkflow: "Процесс авторинга",
@@ -285,10 +353,17 @@ function localeLabels(locale) {
 
   return {
     guide: "Guide",
+    guideStart: "Start",
+    guideCoreIdea: "Core Idea",
+    guideBuild: "Build Plugins",
+    guideStarters: "Starters And Examples",
+    guideDelivery: "Delivery And Targets",
+    guideOperate: "Production And CI",
     guideOverview: "Overview",
     quickstart: "Quickstart",
     installation: "Installation",
     whatYouCanBuild: "What You Can Build",
+    oneProjectMultipleTargets: "One Project, Multiple Targets",
     chooseTarget: "Choose A Target",
     firstPlugin: "Build Your First Plugin",
     teamReadyPlugin: "Build A Team-Ready Plugin",
@@ -304,6 +379,8 @@ function localeLabels(locale) {
     productionReadiness: "Production Readiness",
     ciIntegration: "CI Integration",
     concepts: "Concepts",
+    conceptsFoundation: "Foundation",
+    conceptsDecisions: "Decision Models",
     conceptsOverview: "Overview",
     whyPluginKitAi: "Why plugin-kit-ai",
     authoringArchitecture: "Authoring Architecture",
@@ -311,6 +388,9 @@ function localeLabels(locale) {
     targetModel: "Target Model",
     choosingRuntime: "Choosing Runtime",
     reference: "Reference",
+    referenceOperational: "Operational Reference",
+    referenceSupport: "Support And Boundaries",
+    referenceHelp: "Help",
     referenceOverview: "Overview",
     installChannels: "Install Channels",
     authoringWorkflow: "Authoring Workflow",

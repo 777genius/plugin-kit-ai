@@ -14,10 +14,17 @@ outline: false
   <p class="docs-kicker">PUBLIC DOCUMENTATION</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Build plugins, package them cleanly, and support multiple platforms without turning
-    your repo into a pile of one-off templates and fragile glue scripts.
+    Keep one managed plugin project, render the outputs each agent or target actually needs,
+    and avoid turning your repo into a pile of one-off templates and fragile glue scripts.
   </p>
 </div>
+
+## Core Idea
+
+- one authored project instead of hand-maintained target files everywhere
+- one managed workflow through `render`, `validate`, and CI
+- multiple supported output shapes across runtime, package, extension, and workspace-config targets
+- honest support boundaries instead of fake parity claims
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/">

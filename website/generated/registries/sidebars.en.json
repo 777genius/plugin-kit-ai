@@ -1,28 +1,42 @@
 {
   "/en/guide/": [
     {
-      "text": "Guide",
+      "text": "Start",
       "items": [
         {
           "text": "Overview",
           "link": "/en/guide/"
         },
         {
-          "text": "Quickstart",
-          "link": "/en/guide/quickstart"
-        },
-        {
           "text": "Installation",
           "link": "/en/guide/installation"
         },
+        {
+          "text": "Quickstart",
+          "link": "/en/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "Core Idea",
+      "items": [
         {
           "text": "What You Can Build",
           "link": "/en/guide/what-you-can-build"
         },
         {
+          "text": "One Project, Multiple Targets",
+          "link": "/en/guide/one-project-multiple-targets"
+        },
+        {
           "text": "Choose A Target",
           "link": "/en/guide/choose-a-target"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Build Plugins",
+      "items": [
         {
           "text": "Build Your First Plugin",
           "link": "/en/guide/first-plugin"
@@ -38,19 +52,29 @@
         {
           "text": "Node/TypeScript Runtime",
           "link": "/en/guide/node-typescript-runtime"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Starters And Examples",
+      "items": [
         {
           "text": "Starter Templates",
           "link": "/en/guide/starter-templates"
         },
         {
-          "text": "Examples And Recipes",
-          "link": "/en/guide/examples-and-recipes"
-        },
-        {
           "text": "Choose A Starter Repo",
           "link": "/en/guide/choose-a-starter"
         },
+        {
+          "text": "Examples And Recipes",
+          "link": "/en/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "Delivery And Targets",
+      "items": [
         {
           "text": "Choose Delivery Model",
           "link": "/en/guide/choose-delivery-model"
@@ -66,7 +90,12 @@
         {
           "text": "Migrate Existing Config",
           "link": "/en/guide/migrate-existing-config"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Production And CI",
+      "items": [
         {
           "text": "Production Readiness",
           "link": "/en/guide/production-readiness"
@@ -80,7 +109,7 @@
   ],
   "/en/concepts/": [
     {
-      "text": "Concepts",
+      "text": "Foundation",
       "items": [
         {
           "text": "Overview",
@@ -93,7 +122,12 @@
         {
           "text": "Authoring Architecture",
           "link": "/en/concepts/authoring-architecture"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Decision Models",
+      "items": [
         {
           "text": "Stability Model",
           "link": "/en/concepts/stability-model"
@@ -111,7 +145,7 @@
   ],
   "/en/reference/": [
     {
-      "text": "Reference",
+      "text": "Operational Reference",
       "items": [
         {
           "text": "Overview",
@@ -128,7 +162,12 @@
         {
           "text": "Repository Standard",
           "link": "/en/reference/repository-standard"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Support And Boundaries",
+      "items": [
         {
           "text": "Support Boundary",
           "link": "/en/reference/support-boundary"
@@ -136,7 +175,12 @@
         {
           "text": "Target Support",
           "link": "/en/reference/target-support"
-        },
+        }
+      ]
+    },
+    {
+      "text": "Help",
+      "items": [
         {
           "text": "FAQ",
           "link": "/en/reference/faq"

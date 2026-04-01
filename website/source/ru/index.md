@@ -14,9 +14,17 @@ outline: false
   <p class="docs-kicker">ПУБЛИЧНАЯ ДОКУМЕНТАЦИЯ</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Делайте плагины, аккуратно их упаковывайте и работайте с несколькими платформами без хаотичных шаблонов и хрупких ручных обвязок.
+    Ведите один managed plugin project, рендерите выходы под нужные agent'ы и target'ы,
+    и не превращайте репозиторий в набор одноразовых шаблонов и хрупких glue scripts.
   </p>
 </div>
+
+## Главная идея
+
+- один authored project вместо россыпи вручную поддерживаемых target files
+- один управляемый workflow через `render`, `validate` и CI
+- несколько поддерживаемых выходных форм для runtime, package, extension и workspace-config target’ов
+- честные границы поддержки вместо обещаний фальшивой parity
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/">
