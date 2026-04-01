@@ -57,4 +57,16 @@ These targets are useful, but they should not be confused with the main runtime 
 - choose package or extension targets when the product is an artifact to publish or install
 - choose workspace-configuration targets when the real goal is repo-owned configuration
 
+## Important Distinction
+
+One project does not have to mean one target forever.
+
+The important boundary is not "one starter name forever". The important boundary is:
+
+- one managed authored project
+- clear primary target choices
+- honest support expectations for each rendered output
+
+Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if you want the public explanation of that broader project shape.
+
 See [Target Support](/en/reference/target-support) for the compact support matrix and [Support Boundary](/en/reference/support-boundary) for the public contract framing.

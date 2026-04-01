@@ -1,6 +1,6 @@
 ---
 title: "Стартовые шаблоны"
-description: "Официальные starter repositories для типовых сценариев в plugin-kit-ai."
+description: "Официальные starter repositories для типовых входных путей в plugin-kit-ai, а не граница managed project model."
 canonicalId: "page:guide:starter-templates"
 section: "guide"
 locale: "ru"
@@ -11,6 +11,22 @@ translationRequired: true
 # Стартовые шаблоны
 
 Если нужен проверенный старт вместо пустой директории, используйте официальные starter repositories.
+
+## Важно: starter’ы — это точки входа
+
+Названия starter’ов специально разделены по основному пути, например Codex или Claude.
+
+Это **не** означает, что модель продукта навсегда запирается в одном agent family.
+
+Starter помогает выбрать правильную первую форму для:
+
+- основного runtime-требования
+- языка команды
+- первого поддерживаемого target’а
+
+После этого сохраняйте repo в managed project model и расширяйте его по реальной необходимости.
+
+Для более широкой картины прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
 
 ## Codex Runtime
 
@@ -37,3 +53,9 @@ translationRequired: true
 - нужен fresh repo from first principles
 - нужно явно выбрать флаги и path
 - вы встраиваете plugin-kit-ai в уже существующую структуру репозитория
+
+## Безопасная mental model
+
+- выбирайте starter под **первый** правильный путь
+- не считайте семейство starter’а окончательной границей repo
+- считайте managed project model долгосрочным source of truth

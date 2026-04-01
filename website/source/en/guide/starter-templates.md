@@ -1,6 +1,6 @@
 ---
 title: "Starter Templates"
-description: "Official starter repositories for common plugin-kit-ai authoring lanes."
+description: "Official starter repositories for common plugin-kit-ai entrypoints, not the limit of the managed project model."
 canonicalId: "page:guide:starter-templates"
 section: "guide"
 locale: "en"
@@ -11,6 +11,22 @@ translationRequired: true
 # Starter Templates
 
 If you want a known-good starting point instead of scaffolding from a blank directory, use the official starter repositories.
+
+## Important: Starters Are Entry Points
+
+The starter names are intentionally split by primary path such as Codex or Claude.
+
+That does **not** mean the product model is permanently locked to one agent family.
+
+A starter helps you choose the best first shape for:
+
+- your primary runtime requirement
+- your team language choice
+- your first supported target
+
+After that, keep the repo in the managed project model and grow it as needed.
+
+Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if you want the broader system view.
 
 ## Codex Runtime
 
@@ -37,3 +53,9 @@ Use `plugin-kit-ai init` directly when:
 - you want a fresh repo from first principles
 - you need to choose flags explicitly
 - you are building around an existing repository structure
+
+## Safe Mental Model
+
+- choose a starter for the **first** correct path
+- do not treat the starter family as the final boundary of the repo
+- treat the managed project model as the long-term source of truth

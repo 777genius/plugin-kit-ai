@@ -49,7 +49,21 @@ Runtime-плагины для Codex можно делать на:
 - явный выбор пути и target’а
 - предсказуемая передача между авторами и downstream-пользователями
 
-## 4. Portable bundle handoff для Python и Node
+## 4. Один managed project, который может покрывать несколько выходов
+
+Продукт шире, чем это кажется по названиям starter’ов.
+
+Публичные starter family разделены по **первому** runtime или target path, но managed project model шире этого.
+
+Это означает, что один проект может оставаться единым source of truth и при этом управлять:
+
+- основным runtime path
+- дополнительными package или workspace-config target’ами
+- а когда продукту это действительно нужно, и несколькими agent-facing output family
+
+Практическая mental model описана в [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
+
+## 5. Portable bundle handoff для Python и Node
 
 Для поддерживаемых Python и Node путей можно выйти за пределы локального authoring и собирать portable bundle artifacts для handoff.
 
@@ -61,7 +75,7 @@ Runtime-плагины для Codex можно делать на:
 
 Подробный public flow описан в [Bundle handoff](/ru/guide/bundle-handoff).
 
-## 5. Shared runtime package
+## 6. Shared runtime package
 
 Python и Node helper-логика может жить либо:
 
@@ -74,7 +88,7 @@ Python и Node helper-логика может жить либо:
 - более чистые обновления зависимостей
 - стандартизированного helper API без ручного копирования scaffolded files
 
-## 6. Targets для package, extension и workspace-config
+## 7. Targets для package, extension и workspace-config
 
 Не каждая публичная форма — это repo-local runtime plugin.
 
@@ -88,7 +102,7 @@ Python и Node helper-логика может жить либо:
 
 Перед выбором этих путей прочитайте [Package и workspace targets](/ru/guide/package-and-workspace-targets).
 
-## 7. Generated public reference
+## 8. Generated public reference
 
 Этот docs site также даёт generated reference для:
 

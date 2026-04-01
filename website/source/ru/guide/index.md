@@ -21,7 +21,7 @@ outline: false
 ## Типовые маршруты чтения
 
 - Первый вход: прочитайте [Установку](/ru/guide/installation), потом [Быстрый старт](/ru/guide/quickstart), потом [Соберите первый плагин](/ru/guide/first-plugin).
-- Выбор пути: прочитайте [Что можно построить](/ru/guide/what-you-can-build), [Выбор runtime](/ru/concepts/choosing-runtime) и [Package и workspace targets](/ru/guide/package-and-workspace-targets).
+- Выбор пути: прочитайте [Что можно построить](/ru/guide/what-you-can-build), [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), [Выбор runtime](/ru/concepts/choosing-runtime) и [Package и workspace targets](/ru/guide/package-and-workspace-targets).
 - Внедрение в команду: прочитайте [Плагин для команды](/ru/guide/team-ready-plugin), [Готовность к продакшену](/ru/guide/production-readiness) и [Интеграцию с CI](/ru/guide/ci-integration).
 - Поставка Python или Node: прочитайте [Выбор модели поставки](/ru/guide/choose-delivery-model) и [Bundle handoff](/ru/guide/bundle-handoff).
 
@@ -37,6 +37,10 @@ outline: false
   <a class="docs-card" href="./what-you-can-build">
     <h2>Что можно построить</h2>
     <p>Посмотрите реальные формы продукта: плагины Codex и Claude, bundle handoff, shared runtime package и цели для упаковки и конфигурации.</p>
+  </a>
+  <a class="docs-card" href="./one-project-multiple-targets">
+    <h2>Один проект, несколько target’ов</h2>
+    <p>Поймите ключевую идею продукта: starter — это вход, а managed project model может покрывать больше одной выходной формы.</p>
   </a>
   <a class="docs-card" href="./choose-a-target">
     <h2>Выбор target</h2>

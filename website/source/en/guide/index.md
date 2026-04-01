@@ -21,7 +21,7 @@ outline: false
 ## Common Journeys
 
 - New here: read [Installation](/en/guide/installation), then [Quickstart](/en/guide/quickstart), then [Build Your First Plugin](/en/guide/first-plugin).
-- Choosing a path: read [What You Can Build](/en/guide/what-you-can-build), [Choosing Runtime](/en/concepts/choosing-runtime), and [Package And Workspace Targets](/en/guide/package-and-workspace-targets).
+- Choosing a path: read [What You Can Build](/en/guide/what-you-can-build), [One Project, Multiple Targets](/en/guide/one-project-multiple-targets), [Choosing Runtime](/en/concepts/choosing-runtime), and [Package And Workspace Targets](/en/guide/package-and-workspace-targets).
 - Team adoption: read [Build A Team-Ready Plugin](/en/guide/team-ready-plugin), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Python or Node delivery: read [Choose Delivery Model](/en/guide/choose-delivery-model) and [Bundle Handoff](/en/guide/bundle-handoff).
 
@@ -37,6 +37,10 @@ outline: false
   <a class="docs-card" href="./what-you-can-build">
     <h2>What You Can Build</h2>
     <p>Scan the real product shapes: Codex runtime plugins, Claude hook plugins, bundles, shared runtime helpers, and packaging lanes.</p>
+  </a>
+  <a class="docs-card" href="./one-project-multiple-targets">
+    <h2>One Project, Multiple Targets</h2>
+    <p>Understand the key product idea: starters are entrypoints, while the managed project model can support more than one output family.</p>
   </a>
   <a class="docs-card" href="./choose-a-target">
     <h2>Choose A Target</h2>

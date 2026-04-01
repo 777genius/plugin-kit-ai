@@ -57,4 +57,16 @@ translationRequired: true
 - выбирайте package или extension target’ы, когда продуктом является артефакт для публикации или установки
 - выбирайте workspace-config target’ы, когда настоящая цель — конфигурация под управлением репозитория
 
+## Важное различие
+
+Один проект не обязан навсегда означать только один target.
+
+Ключевая граница здесь не в духе "одно имя starter’а навсегда". Ключевая граница такая:
+
+- один managed authored project
+- явный выбор основного target’а
+- честные ожидания по поддержке для каждого rendered output
+
+Публичное объяснение этой более широкой модели описано в [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
+
 См. [Поддержку target’ов](/ru/reference/target-support) для компактной support matrix, [Границу поддержки](/ru/reference/support-boundary) для публичного контракта и [Package и workspace targets](/ru/guide/package-and-workspace-targets) для практического выбора пути.

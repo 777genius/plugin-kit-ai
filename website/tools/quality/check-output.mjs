@@ -123,6 +123,15 @@ if (!whatYouCanBuild.includes("Codex Runtime Plugins")) {
   hasError = true;
 }
 
+const oneProjectMultipleTargets = await fs.readFile(
+  path.join(distRoot, "en", "guide", "one-project-multiple-targets.html"),
+  "utf8"
+);
+if (!oneProjectMultipleTargets.includes("The Short Rule")) {
+  console.error("One Project, Multiple Targets page is missing its expected mental-model section.");
+  hasError = true;
+}
+
 const chooseTarget = await fs.readFile(path.join(distRoot, "en", "guide", "choose-a-target.html"), "utf8");
 if (!chooseTarget.includes("Target Directory")) {
   console.error("Choose A Target page is missing its expected target-decision section.");

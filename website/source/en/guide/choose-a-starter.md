@@ -12,6 +12,13 @@ translationRequired: true
 
 Use this page when you want the fastest path to a known-good repo and do not want to guess the right starter from template names alone.
 
+Before you choose, remember one important rule:
+
+- the starter tells you how to begin
+- it does not tell you the final limit of the project
+
+If that distinction is still fuzzy, read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) first.
+
 ## Fast Rule
 
 - choose Go when you want the strongest production path

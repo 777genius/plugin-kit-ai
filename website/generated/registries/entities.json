@@ -1662,6 +1662,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:one-project-multiple-targets",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "One Project, Multiple Targets",
+    "summary": "How one plugin-kit-ai project can stay managed while supporting more than one agent or output target.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/one-project-multiple-targets.md",
+    "pathEn": "/en/guide/one-project-multiple-targets",
+    "pathRu": "/ru/guide/one-project-multiple-targets",
+    "relatedIds": [],
+    "searchTerms": [
+      "One Project, Multiple Targets"
+    ]
+  },
+  {
     "canonicalId": "page:guide:package-and-workspace-targets",
     "kind": "page",
     "surface": "guide",
@@ -1724,7 +1743,7 @@
     "surface": "guide",
     "localeStrategy": "mirrored",
     "title": "Starter Templates",
-    "summary": "Official starter repositories for common plugin-kit-ai authoring lanes.",
+    "summary": "Official starter repositories for common plugin-kit-ai entrypoints, not the limit of the managed project model.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",

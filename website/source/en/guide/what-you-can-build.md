@@ -49,7 +49,21 @@ That means the system supports:
 - explicit lane and target choices
 - predictable handoff between authors and downstream consumers
 
-## 4. Portable Python And Node Handoff Bundles
+## 4. One Managed Project That Can Cover More Than One Output
+
+The product is bigger than the starter names suggest.
+
+The public starter families are split by the **first** runtime or target path, but the managed project model is broader than that.
+
+That means one project can stay organized as one source of truth while it manages:
+
+- a primary runtime path
+- additional package or workspace-config targets
+- and, when the product really needs it, more than one agent-facing output family
+
+See [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) for the practical mental model.
+
+## 5. Portable Python And Node Handoff Bundles
 
 For supported Python and Node lanes, you can move beyond local authoring and produce portable bundle handoff artifacts.
 
@@ -61,7 +75,7 @@ This matters when:
 
 See [Bundle Handoff](/en/guide/bundle-handoff) for the actual public flow.
 
-## 5. Shared Runtime Package Flows
+## 6. Shared Runtime Package Flows
 
 Python and Node helper behavior can live either:
 
@@ -74,7 +88,7 @@ This gives teams a supported path for:
 - cleaner dependency upgrades
 - a standardized helper API without copying scaffolded files by hand
 
-## 6. Package, Extension, And Workspace-Config Targets
+## 7. Package, Extension, And Workspace-Config Targets
 
 Not every public shape is a repo-local runtime plugin.
 
@@ -88,7 +102,7 @@ These targets matter when the end product is packaging or configuration, not an 
 
 See [Package And Workspace Targets](/en/guide/package-and-workspace-targets) before you treat these targets like runtime plugins.
 
-## 7. Generated Public Reference
+## 8. Generated Public Reference
 
 The docs site also gives you generated reference for:
 
