@@ -18,6 +18,34 @@ outline: false
   </p>
 </div>
 
+## If You Remember One Thing
+
+Start with the starter or target that matches your first real requirement, but keep thinking in terms of one managed project that can render more than one output shape over time.
+
+## Read The Guide Like This
+
+<div class="docs-flow" aria-label="How to read the guide">
+  <div class="docs-flow__step">
+    <strong>Understand The Product</strong>
+    <span>Read <a href="/en/guide/what-you-can-build">What You Can Build</a> and <a href="/en/guide/one-project-multiple-targets">One Project, Multiple Targets</a>.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Choose The First Path</strong>
+    <span>Pick the target, runtime, or starter that matches the first real requirement instead of optimizing for every future case.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Build And Validate</strong>
+    <span>Use the narrowest supported tutorial path, then prove the repo with <code>validate --strict</code>.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Expand Only When Needed</strong>
+    <span>Add delivery flows, more targets, and CI once the core managed project is already healthy.</span>
+  </div>
+</div>
+
 ## Common Journeys
 
 - New here: read [Installation](/en/guide/installation), then [Quickstart](/en/guide/quickstart), then [Build Your First Plugin](/en/guide/first-plugin).

@@ -18,6 +18,10 @@ outline: false
   </p>
 </div>
 
+## The Main Idea
+
+The project is easiest to understand when you treat it as a managed plugin project system, not as a collection of starters, commands, or target files.
+
 ## Core Ideas
 
 - Public docs describe supported user-facing behavior, not internal process.

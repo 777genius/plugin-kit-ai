@@ -47,6 +47,49 @@
   margin: 2rem 0;
 }
 
+.docs-flow {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+  margin: 1.5rem 0 2rem;
+}
+
+.docs-flow__step {
+  grid-column: span 2;
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem 1rem 1.05rem;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--vp-c-brand-soft) 48%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--vp-c-bg-soft) 90%, transparent), transparent);
+}
+
+.docs-flow__step strong {
+  font-size: 0.98rem;
+  line-height: 1.35;
+  color: var(--vp-c-text-1);
+}
+
+.docs-flow__step span {
+  color: var(--vp-c-text-2);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.docs-flow__step a {
+  font-weight: 600;
+}
+
+.docs-flow__arrow {
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  color: var(--vp-c-text-3);
+}
+
 .docs-card {
   display: grid;
   gap: 0.7rem;
@@ -248,5 +291,18 @@ a.docs-card * {
 
   .language-gateway__grid {
     grid-template-columns: 1fr;
+  }
+
+  .docs-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .docs-flow__step {
+    grid-column: span 1;
+  }
+
+  .docs-flow__arrow {
+    transform: rotate(90deg);
+    min-height: 1rem;
   }
 }

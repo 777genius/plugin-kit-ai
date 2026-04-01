@@ -18,6 +18,34 @@ outline: false
   </p>
 </div>
 
+## Если запомнить только одну мысль
+
+Начинайте со starter’а или target’а под первое реальное требование, но дальше мыслите проект как один managed repo, который со временем может рендерить больше одной выходной формы.
+
+## Как читать этот раздел
+
+<div class="docs-flow" aria-label="Как читать раздел Guide">
+  <div class="docs-flow__step">
+    <strong>Сначала поймите продукт</strong>
+    <span>Прочитайте <a href="/ru/guide/what-you-can-build">Что можно построить</a> и <a href="/ru/guide/one-project-multiple-targets">Один проект, несколько target’ов</a>.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Потом выберите первый путь</strong>
+    <span>Определите target, runtime или starter под первое реальное требование, а не под все возможные будущие сценарии сразу.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Соберите и проверьте</strong>
+    <span>Идите по самому узкому поддерживаемому tutorial path, затем докажите корректность через <code>validate --strict</code>.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Расширяйте только по необходимости</strong>
+    <span>Добавляйте delivery flow, новые target’ы и CI только после того, как core managed project уже здоров.</span>
+  </div>
+</div>
+
 ## Типовые маршруты чтения
 
 - Первый вход: прочитайте [Установку](/ru/guide/installation), потом [Быстрый старт](/ru/guide/quickstart), потом [Соберите первый плагин](/ru/guide/first-plugin).

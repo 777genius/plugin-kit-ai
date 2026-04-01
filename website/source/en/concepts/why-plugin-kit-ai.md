@@ -10,7 +10,17 @@ translationRequired: true
 
 # Why plugin-kit-ai
 
-`plugin-kit-ai` exists to solve a very specific problem: teams want real plugin repos with a clear support boundary, not a pile of hand-edited target files and one-off helper scripts.
+`plugin-kit-ai` is a managed plugin project system for teams that want one authored repo, target-specific outputs, and an explicit support boundary.
+
+It exists to solve a very specific problem: teams want real plugin repos with a clear support boundary, not a pile of hand-edited target files and one-off helper scripts.
+
+## What It Is Not
+
+`plugin-kit-ai` is not:
+
+- a magic layer that makes every agent and every target equally mature
+- a promise that starter names define the long-term boundary of the repo
+- a replacement for engineering judgment about ownership, release cadence, or repo split decisions
 
 ## What It Gives You
 

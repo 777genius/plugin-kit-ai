@@ -1,7 +1,7 @@
 {
   "/en/guide/": [
     {
-      "text": "Start",
+      "text": "First Steps",
       "items": [
         {
           "text": "Overview",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "text": "Core Idea",
+      "text": "Project Model",
       "items": [
         {
           "text": "What You Can Build",
@@ -35,7 +35,7 @@
       ]
     },
     {
-      "text": "Build Plugins",
+      "text": "Core Build Paths",
       "items": [
         {
           "text": "Build Your First Plugin",
@@ -56,7 +56,7 @@
       ]
     },
     {
-      "text": "Starters And Examples",
+      "text": "Starters, Examples, And Recipes",
       "items": [
         {
           "text": "Starter Templates",
@@ -73,7 +73,7 @@
       ]
     },
     {
-      "text": "Delivery And Targets",
+      "text": "Delivery, Targets, And Migration",
       "items": [
         {
           "text": "Choose Delivery Model",
@@ -94,7 +94,7 @@
       ]
     },
     {
-      "text": "Production And CI",
+      "text": "Team Operations",
       "items": [
         {
           "text": "Production Readiness",
@@ -109,7 +109,7 @@
   ],
   "/en/concepts/": [
     {
-      "text": "Foundation",
+      "text": "Project Model",
       "items": [
         {
           "text": "Overview",
@@ -126,7 +126,7 @@
       ]
     },
     {
-      "text": "Decision Models",
+      "text": "How To Decide",
       "items": [
         {
           "text": "Stability Model",
@@ -145,7 +145,7 @@
   ],
   "/en/reference/": [
     {
-      "text": "Operational Reference",
+      "text": "Daily Operations",
       "items": [
         {
           "text": "Overview",
@@ -166,7 +166,7 @@
       ]
     },
     {
-      "text": "Support And Boundaries",
+      "text": "Support Boundary",
       "items": [
         {
           "text": "Support Boundary",
@@ -179,7 +179,7 @@
       ]
     },
     {
-      "text": "Help",
+      "text": "FAQ And Troubleshooting",
       "items": [
         {
           "text": "FAQ",

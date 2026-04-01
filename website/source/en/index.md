@@ -19,12 +19,69 @@ outline: false
   </p>
 </div>
 
+## In One Sentence
+
+`plugin-kit-ai` is a managed plugin project system: author one repo, render the outputs each target needs, validate the result, and hand off something another person or CI can trust.
+
+## System Map
+
+<div class="docs-flow" aria-label="plugin-kit-ai system map">
+  <div class="docs-flow__step">
+    <strong>Start From A Real Need</strong>
+    <span>Use a starter or migrate an existing repo when you already know the first target or runtime you need.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Keep One Managed Project</strong>
+    <span>Treat the package-standard project as the authored source of truth instead of hand-maintaining target files.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Render And Validate</strong>
+    <span>Generate only the outputs you need, then prove they agree with the project through strict validation.</span>
+  </div>
+  <div class="docs-flow__arrow" aria-hidden="true">→</div>
+  <div class="docs-flow__step">
+    <strong>Grow Deliberately</strong>
+    <span>Add runtime, package, extension, or workspace-config outputs without turning the repo into ad-hoc glue.</span>
+  </div>
+</div>
+
+## What It Is
+
+- one authored project instead of hand-maintained target files spread everywhere
+- one managed workflow through `render`, `validate`, and CI
+- one place to review stable, beta, and target-specific support boundaries
+
+## What It Is Not
+
+- not a promise that every agent or target has the same maturity
+- not a universal runtime library for every ecosystem
+- not a pile of unrelated starter repos that force you to split work too early
+- not a docs story centered on starters, wrappers, or commands instead of the project model itself
+
 ## Core Idea
 
 - one authored project instead of hand-maintained target files everywhere
 - one managed workflow through `render`, `validate`, and CI
 - multiple supported output shapes across runtime, package, extension, and workspace-config targets
 - honest support boundaries instead of fake parity claims
+
+## System Model
+
+1. Start from the narrowest real requirement, usually a starter or an existing repo you want to migrate.
+2. Keep the package-standard project as the authored source of truth.
+3. Render only the outputs and target artifacts the repo actually needs.
+4. Validate the result with strict checks before handoff.
+5. Reuse the same managed project as the repo grows to more targets, outputs, or delivery shapes.
+
+## Why People Get The Wrong First Impression
+
+- starter repo names are intentionally specific because they optimize the first correct path
+- target lists are visible because the system can render more than one output shape
+- the CLI is prominent because the workflow is reproducible, not because the product is “just a CLI”
+
+The project itself is the managed repo model behind those entrypoints.
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/">

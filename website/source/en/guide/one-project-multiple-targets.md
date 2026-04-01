@@ -17,6 +17,17 @@ This is one of the most important ideas in `plugin-kit-ai`:
 
 Do not confuse the starter family with the long-term limit of the project.
 
+## The Product Promise
+
+The promise is not “one starter forever.”
+
+The promise is:
+
+- one managed project model
+- one authored source of truth
+- as many rendered outputs as the real product needs
+- without pretending every target has the same maturity
+
 ## The Short Rule
 
 Start with the runtime or target that is your **primary requirement today**.
