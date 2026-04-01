@@ -14,6 +14,7 @@ website/.site/
 website/.docs-tools/
 website/.vitepress/cache/
 website/.vitepress/temp/
+website/.vitepress/.temp/
 website/playwright-report/
 website/test-results/
 website/.playwright-artifacts/
