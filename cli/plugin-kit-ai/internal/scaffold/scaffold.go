@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -249,7 +250,7 @@ func Apply(root string, plan ProjectPlan, force bool) error {
 }
 
 func RenderTemplate(tplName string, d Data) ([]byte, fs.FileMode, error) {
-	raw, err := tmplFS.ReadFile(filepath.Join("templates", tplName))
+	raw, err := tmplFS.ReadFile(path.Join("templates", tplName))
 	if err != nil {
 		return nil, 0, err
 	}

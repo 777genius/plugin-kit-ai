@@ -470,9 +470,11 @@ func runCodexExecWithPortableMCPModel(t *testing.T, codexBin, workDir, markerPat
 	}()
 
 	deadline := time.Now().Add(75 * time.Second)
-	for {
+	sawMarker := false
+	for !sawMarker {
 		if _, err := os.Stat(markerPath); err == nil {
-			return true
+			sawMarker = true
+			break
 		}
 		select {
 		case err := <-waitCh:

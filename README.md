@@ -52,7 +52,8 @@ Stable in the current source tree:
 - typed Go SDK authoring for the approved Claude and Codex event set
 - CLI commands `init`, `validate`, `test`, `capabilities`, `inspect`, `install`, `version`
 - Go scaffold contract for Claude and Codex
-- repo-local local-runtime authoring for `python` and `node` on `codex-runtime` and `claude`, including `doctor`, `bootstrap`, `validate --strict`, fixture-driven `test`, and `export`
+- repo-local local-runtime authoring for `python` and `node` on `codex-runtime` and `claude`, including `doctor`, `bootstrap`, `validate --strict`, and `export`
+- fixture-driven `test` for the declared stable Claude and Codex runtime events in that same repo-local subset
 - generated helper-layer authoring API for `python` and `node` scaffolds, so users write handlers instead of hand-parsing argv/stdin
 - TypeScript as the stable `node` authoring mode via `--runtime node --typescript`
 - `bundle install` for local exported Python/Node bundles on `codex-runtime` and `claude`

@@ -1,6 +1,7 @@
 # plugin-kit-ai CLI
 
 Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submodule `github.com/777genius/plugin-kit-ai/cli` and builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `dev`, `test`, `export`, `bundle install`, `bundle fetch`, `bundle publish`, `render`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`, plus experimental `skills` authoring commands.
+The canonical shipped command set is still described as: builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `export`, `bundle install`, `bundle fetch`, `bundle publish`, `render`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`.
 
 Current CLI contract status in this source tree: `public-stable` shipped in `v1.0.0`, with additional post-`v1.0.x` hardening on `main`. Repository-wide compatibility and release policy live in [../../docs/SUPPORT.md](../../docs/SUPPORT.md) and [../../docs/RELEASE.md](../../docs/RELEASE.md).
 
