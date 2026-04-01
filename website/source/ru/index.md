@@ -195,6 +195,10 @@ outline: false
     <h2>Рано проверить неверный выбор</h2>
     <p>Откройте smell-test страницу, если repo уже работает, но starter, target, runtime или delivery model ощущаются неправильными.</p>
   </a>
+  <a class="docs-card" href="./guide/path-recovery">
+    <h2>Вернуться с неверного пути</h2>
+    <p>Используйте playbook восстановления, если repo ещё работает, но курс нужно поправить до того, как ошибка закрепится в rollout, CI и templates.</p>
+  </a>
   <a class="docs-card" href="./guide/examples-and-recipes">
     <h2>Открыть живой пример</h2>
     <p>Сразу переходите к production examples, starter repos, local runtime references и support skills.</p>

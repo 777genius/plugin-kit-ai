@@ -92,6 +92,10 @@
           "link": "/ru/guide/package-and-workspace-targets"
         },
         {
+          "text": "Восстановление пути",
+          "link": "/ru/guide/path-recovery"
+        },
+        {
           "text": "Миграция существующей конфигурации",
           "link": "/ru/guide/migrate-existing-config"
         },

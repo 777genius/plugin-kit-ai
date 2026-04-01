@@ -1738,6 +1738,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:path-recovery",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Path Recovery",
+    "summary": "How to recover safely when a repo already works, but the starter, target, runtime, or delivery model was the wrong long-term choice.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/path-recovery.md",
+    "pathEn": "/en/guide/path-recovery",
+    "pathRu": "/ru/guide/path-recovery",
+    "relatedIds": [],
+    "searchTerms": [
+      "Path Recovery"
+    ]
+  },
+  {
     "canonicalId": "page:guide:production-readiness",
     "kind": "page",
     "surface": "guide",

@@ -92,6 +92,10 @@
           "link": "/en/guide/package-and-workspace-targets"
         },
         {
+          "text": "Path Recovery",
+          "link": "/en/guide/path-recovery"
+        },
+        {
           "text": "Migrate Existing Config",
           "link": "/en/guide/migrate-existing-config"
         },

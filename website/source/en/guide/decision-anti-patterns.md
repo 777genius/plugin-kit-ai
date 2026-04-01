@@ -105,6 +105,7 @@ Do **not** restart just because another path looks more elegant on paper. Restar
 - Wrong runtime suspicion: [Choosing Runtime](/en/concepts/choosing-runtime)
 - Wrong delivery-model suspicion: [Choose Delivery Model](/en/guide/choose-delivery-model)
 - Wrong support expectation: [Support Promise By Path](/en/reference/support-promise-by-path)
+- Ready to correct the repo without spreading the mistake further: [Path Recovery](/en/guide/path-recovery)
 
 ## Final Rule
 

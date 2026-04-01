@@ -75,6 +75,7 @@ translationRequired: true
 - Нужен путь rollout на команду: [Внедрение в команду](/ru/guide/team-adoption)
 - Нужен путь rollout сразу на несколько repo: [Rollout на уровне команды](/ru/guide/team-scale-rollout)
 - Нужна миграция из native config: [Миграция существующей конфигурации](/ru/guide/migrate-existing-config)
+- Нужен безопасный путь коррекции после неверного раннего выбора: [Восстановление пути](/ru/guide/path-recovery)
 - Нужен точный контракт репозитория: [Стандарт репозитория](/ru/reference/repository-standard)
 - Нужны точные границы поддержки: [Граница поддержки](/ru/reference/support-boundary)
 

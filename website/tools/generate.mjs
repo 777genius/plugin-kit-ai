@@ -157,6 +157,7 @@ function buildSidebar(locale, entities) {
           linkItem(labels.chooseDeliveryModel, `${prefix}guide/choose-delivery-model`),
           linkItem(labels.bundleHandoff, `${prefix}guide/bundle-handoff`),
           linkItem(labels.packageAndWorkspaceTargets, `${prefix}guide/package-and-workspace-targets`),
+          linkItem(labels.pathRecovery, `${prefix}guide/path-recovery`),
           linkItem(labels.migrateExistingConfig, `${prefix}guide/migrate-existing-config`),
           linkItem(labels.upgradeAndMigrationPlaybook, `${prefix}guide/upgrade-and-migration-playbook`)
         ]
@@ -315,6 +316,7 @@ function localeLabels(locale) {
       chooseDeliveryModel: "Выбор модели поставки",
       bundleHandoff: "Bundle handoff",
       packageAndWorkspaceTargets: "Package и workspace targets",
+      pathRecovery: "Восстановление пути",
       migrateExistingConfig: "Миграция существующей конфигурации",
       upgradeAndMigrationPlaybook: "Плейбук обновлений и миграции",
       productionReadiness: "Готовность к продакшену",
@@ -394,6 +396,7 @@ function localeLabels(locale) {
     chooseDeliveryModel: "Choose Delivery Model",
     bundleHandoff: "Bundle Handoff",
     packageAndWorkspaceTargets: "Package And Workspace Targets",
+    pathRecovery: "Path Recovery",
     migrateExistingConfig: "Migrate Existing Config",
     upgradeAndMigrationPlaybook: "Upgrade And Migration Playbook",
     productionReadiness: "Production Readiness",

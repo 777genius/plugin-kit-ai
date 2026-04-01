@@ -75,6 +75,7 @@ translationRequired: true
 - Нужна version rule под rollout: [Политика версий и совместимости](/ru/reference/version-and-compatibility)
 - Нужен repo-level adoption path: [Внедрение в команду](/ru/guide/team-adoption)
 - Нужна механика обновления внутри одного repo: [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook)
+- Нужен безопасный reset пути до того, как rollout размножит ошибку: [Восстановление пути](/ru/guide/path-recovery)
 - Нужна точная support line перед rollout: [Обещания поддержки по путям](/ru/reference/support-promise-by-path)
 
 ## Финальное правило

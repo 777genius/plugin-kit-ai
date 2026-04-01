@@ -75,6 +75,7 @@ Use this page when your team already has live repos and the real question is how
 - Need the team rollout path: [Team Adoption](/en/guide/team-adoption)
 - Need the multi-repo rollout path: [Team-Scale Rollout](/en/guide/team-scale-rollout)
 - Need the migration from native config: [Migrate Existing Native Config](/en/guide/migrate-existing-config)
+- Need the safe correction path after a wrong earlier choice: [Path Recovery](/en/guide/path-recovery)
 - Need the exact repository contract: [Repository Standard](/en/reference/repository-standard)
 - Need the exact support limits: [Support Boundary](/en/reference/support-boundary)
 
