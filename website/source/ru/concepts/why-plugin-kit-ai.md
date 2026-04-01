@@ -43,4 +43,5 @@ translationRequired: true
 - явные stable/beta boundaries вместо притворства, что всё одинаково зрелое
 - рабочий процесс, в котором `render` и `validate --strict` действительно имеют значение
 
+Прочитайте [Модель управляемого проекта](/ru/concepts/managed-project-model), если вам нужно самое короткое определение продукта до выбора путей.
 Свяжите эту страницу с [Выбором runtime](/ru/concepts/choosing-runtime) и [Границей поддержки](/ru/reference/support-boundary).

@@ -21,11 +21,16 @@ outline: false
 ## Common Journeys
 
 - New here: read [Installation](/en/guide/installation), then [Quickstart](/en/guide/quickstart), then [Build Your First Plugin](/en/guide/first-plugin).
+- Understanding the system: read [Managed Project Model](/en/concepts/managed-project-model), [One Project, Multiple Targets](/en/guide/one-project-multiple-targets), and [Target Model](/en/concepts/target-model).
 - Choosing a path: read [What You Can Build](/en/guide/what-you-can-build), [One Project, Multiple Targets](/en/guide/one-project-multiple-targets), [Choosing Runtime](/en/concepts/choosing-runtime), and [Package And Workspace Targets](/en/guide/package-and-workspace-targets).
 - Team adoption: read [Build A Team-Ready Plugin](/en/guide/team-ready-plugin), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Python or Node delivery: read [Choose Delivery Model](/en/guide/choose-delivery-model) and [Bundle Handoff](/en/guide/bundle-handoff).
 
 <div class="docs-grid">
+  <a class="docs-card" href="../concepts/managed-project-model">
+    <h2>Managed Project Model</h2>
+    <p>Start with the shortest product definition before you choose a starter, runtime, or target.</p>
+  </a>
   <a class="docs-card" href="./quickstart">
     <h2>Quickstart</h2>
     <p>Use the shortest supported path to get from install to a validated plugin repo.</p>

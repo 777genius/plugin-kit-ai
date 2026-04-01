@@ -120,6 +120,10 @@
           "link": "/en/concepts/why-plugin-kit-ai"
         },
         {
+          "text": "Managed Project Model",
+          "link": "/en/concepts/managed-project-model"
+        },
+        {
           "text": "Authoring Architecture",
           "link": "/en/concepts/authoring-architecture"
         }
@@ -154,6 +158,10 @@
         {
           "text": "Install Channels",
           "link": "/en/reference/install-channels"
+        },
+        {
+          "text": "Version And Compatibility Policy",
+          "link": "/en/reference/version-and-compatibility"
         },
         {
           "text": "Authoring Workflow",

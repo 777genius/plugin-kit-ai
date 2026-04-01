@@ -43,4 +43,5 @@ In return, you accept:
 - explicit stable/beta boundaries instead of pretending everything is equally mature
 - a workflow that expects `render` and `validate --strict` to matter
 
+Read [Managed Project Model](/en/concepts/managed-project-model) if you want the shortest product definition before choosing paths.
 Pair this page with [Choosing Runtime](/en/concepts/choosing-runtime) and [Support Boundary](/en/reference/support-boundary).

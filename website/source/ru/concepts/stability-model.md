@@ -53,4 +53,4 @@ Experimental значит именно это:
 2. Предпочитайте явно стабильные CLI и runtime области вместо convenience beta paths.
 3. Используйте `validate --strict` как главную проверку готовности для локальных Python и Node runtime-проектов.
 
-См. [Выбор runtime](/ru/concepts/choosing-runtime) для модели выбора пути.
+См. [Выбор runtime](/ru/concepts/choosing-runtime) для модели выбора пути и [Политику версий и совместимости](/ru/reference/version-and-compatibility) для публичного policy-слоя, который команда может сделать стандартом.

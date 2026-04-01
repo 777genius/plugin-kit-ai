@@ -28,6 +28,7 @@ outline: false
 ## Read These In Order
 
 - Start with [Why plugin-kit-ai](/en/concepts/why-plugin-kit-ai) if you are still deciding whether this project fits your team.
+- Read [Managed Project Model](/en/concepts/managed-project-model) when you want the shortest explanation of what the product actually is.
 - Read [Choosing Runtime](/en/concepts/choosing-runtime) before choosing Go, Python, Node, or shell.
 - Read [Target Model](/en/concepts/target-model) before assuming every target behaves like a runtime plugin.
 - Read [Stability Model](/en/concepts/stability-model) before you promise long-term compatibility to other users.
@@ -36,6 +37,10 @@ outline: false
   <a class="docs-card" href="./why-plugin-kit-ai">
     <h2>Why plugin-kit-ai</h2>
     <p>Understand the problem this project solves and when it is the wrong tool.</p>
+  </a>
+  <a class="docs-card" href="./managed-project-model">
+    <h2>Managed Project Model</h2>
+    <p>See the shortest product definition: one authored repo, rendered outputs, strict validation, and explicit path boundaries.</p>
   </a>
   <a class="docs-card" href="./authoring-architecture">
     <h2>Authoring Architecture</h2>

@@ -27,6 +27,7 @@ outline: false
 ## Start Here For
 
 - installation questions: [Install Channels](/en/reference/install-channels)
+- version and compatibility policy: [Version And Compatibility Policy](/en/reference/version-and-compatibility)
 - repository health: [Repository Standard](/en/reference/repository-standard) and [Authoring Workflow](/en/reference/authoring-workflow)
 - support limits: [Support Boundary](/en/reference/support-boundary) and [Target Support](/en/reference/target-support)
 - terminology cleanup: [Glossary](/en/reference/glossary)
@@ -35,6 +36,10 @@ outline: false
   <a class="docs-card" href="./install-channels">
     <h2>Install Channels</h2>
     <p>Understand Homebrew, npm, PyPI, and the verified script without confusing install paths with runtime APIs.</p>
+  </a>
+  <a class="docs-card" href="./version-and-compatibility">
+    <h2>Version And Compatibility Policy</h2>
+    <p>Keep release baselines, stable-versus-beta promises, wrappers, and SDK/runtime expectations in one place.</p>
   </a>
   <a class="docs-card" href="./authoring-workflow">
     <h2>Authoring Workflow</h2>

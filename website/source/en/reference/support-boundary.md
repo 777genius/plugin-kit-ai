@@ -37,4 +37,4 @@ This page is the compact answer to a simple question: what can you rely on today
 - treating wrapper packages as SDKs or runtime contracts
 - assuming experimental surfaces carry long-term compatibility promises
 
-Pair this page with [Target Support](/en/reference/target-support) and [Stability Model](/en/concepts/stability-model).
+Pair this page with [Version And Compatibility Policy](/en/reference/version-and-compatibility), [Target Support](/en/reference/target-support), and [Stability Model](/en/concepts/stability-model).

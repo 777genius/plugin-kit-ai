@@ -22,3 +22,5 @@ translationRequired: true
 ## Important Boundary
 
 These install packages are not documented as public SDKs or runtime APIs. Public API lives under the generated [API](/en/api/) section.
+
+Read [Version And Compatibility Policy](/en/reference/version-and-compatibility) if your real question is not "how do I install it?" but "what exactly carries the public compatibility promise?".

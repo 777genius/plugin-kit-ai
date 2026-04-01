@@ -53,4 +53,4 @@ The safe default is:
 2. Prefer declared stable CLI and runtime areas over convenience beta paths.
 3. Use `validate --strict` as the main readiness check for local Python and Node runtimes.
 
-See [Choosing Runtime](/en/concepts/choosing-runtime) for the runtime decision model.
+See [Choosing Runtime](/en/concepts/choosing-runtime) for the runtime decision model and [Version And Compatibility Policy](/en/reference/version-and-compatibility) for the public policy layer teams can standardize on.

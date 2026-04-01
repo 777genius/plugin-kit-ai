@@ -1377,6 +1377,25 @@
     ]
   },
   {
+    "canonicalId": "page:concepts:managed-project-model",
+    "kind": "page",
+    "surface": "concepts",
+    "localeStrategy": "mirrored",
+    "title": "Managed Project Model",
+    "summary": "The core product model behind plugin-kit-ai: one authored repo, rendered outputs, strict validation, and honest path boundaries.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "concepts/managed-project-model.md",
+    "pathEn": "/en/concepts/managed-project-model",
+    "pathRu": "/ru/concepts/managed-project-model",
+    "relatedIds": [],
+    "searchTerms": [
+      "Managed Project Model"
+    ]
+  },
+  {
     "canonicalId": "page:concepts:stability-model",
     "kind": "page",
     "surface": "concepts",
@@ -1963,6 +1982,25 @@
     "relatedIds": [],
     "searchTerms": [
       "Troubleshooting"
+    ]
+  },
+  {
+    "canonicalId": "page:reference:version-and-compatibility",
+    "kind": "page",
+    "surface": "reference",
+    "localeStrategy": "mirrored",
+    "title": "Version And Compatibility Policy",
+    "summary": "How to think about releases, support promises, wrappers, SDKs, and compatibility boundaries in plugin-kit-ai.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "reference/version-and-compatibility.md",
+    "pathEn": "/en/reference/version-and-compatibility",
+    "pathRu": "/ru/reference/version-and-compatibility",
+    "relatedIds": [],
+    "searchTerms": [
+      "Version And Compatibility Policy"
     ]
   },
   {

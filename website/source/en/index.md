@@ -47,6 +47,7 @@ outline: false
 
 ## Recommended Starting Points
 
+- Read [Managed Project Model](/en/concepts/managed-project-model) if you want the shortest explanation of what this product actually is.
 - Start with `go` when you want the strongest production path and the fewest moving parts.
 - Choose `node --typescript` when you want a supported JavaScript or TypeScript path inside the repo.
 - Treat npm and PyPI `plugin-kit-ai` packages as ways to install the CLI, not as runtime libraries.
@@ -69,6 +70,10 @@ outline: false
 ## Choose Your Path
 
 <div class="docs-grid">
+  <a class="docs-card" href="./concepts/managed-project-model">
+    <h2>Understand The Product Model</h2>
+    <p>See the shortest explanation of the system: one authored repo, rendered outputs, strict validation, and explicit path boundaries.</p>
+  </a>
   <a class="docs-card" href="./guide/first-plugin">
     <h2>First Production Plugin</h2>
     <p>Follow the narrowest recommended path from scaffold to a strict validation gate.</p>
@@ -107,6 +112,7 @@ outline: false
 - Generated API reference from the actual code and command tree.
 - Public support and platform metadata.
 - User-facing releases and migration notes.
+- Public policy pages for versioning, compatibility, and support expectations.
 
 ## What Stays Out
 

@@ -47,6 +47,7 @@ outline: false
 
 ## С чего лучше начинать
 
+- Прочитайте [Модель управляемого проекта](/ru/concepts/managed-project-model), если вам нужно самое короткое объяснение того, чем вообще является этот продукт.
 - Начинайте с `go`, когда нужен самый сильный путь для продакшена и минимум лишних зависимостей.
 - Выбирайте `node --typescript`, когда команде нужен поддерживаемый путь на JavaScript или TypeScript внутри репозитория.
 - Воспринимайте npm и PyPI пакеты `plugin-kit-ai` как способы установить CLI, а не как runtime-библиотеки.
@@ -69,6 +70,10 @@ outline: false
 ## Выберите свой путь
 
 <div class="docs-grid">
+  <a class="docs-card" href="./concepts/managed-project-model">
+    <h2>Понять модель управляемого проекта</h2>
+    <p>Посмотрите на самое короткое объяснение системы: один authored repo, rendered outputs, строгая validation и явные границы путей.</p>
+  </a>
   <a class="docs-card" href="./guide/first-plugin">
     <h2>Первый production plugin</h2>
     <p>Пройдите самый короткий рекомендуемый путь от создания проекта до строгой проверки готовности.</p>
@@ -107,6 +112,7 @@ outline: false
 - Сгенерированный API reference из реального кода и дерева команд.
 - Публичные support и platform metadata.
 - Пользовательские release notes и migration notes.
+- Публичные policy-страницы про versioning, совместимость и ожидания по поддержке.
 
 ## Что сознательно вынесено
 

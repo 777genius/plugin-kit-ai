@@ -28,6 +28,7 @@ outline: false
 ## В каком порядке читать
 
 - Начните с [Зачем plugin-kit-ai](/ru/concepts/why-plugin-kit-ai), если ещё решаете, подходит ли проект вашей команде.
+- Прочитайте [Модель управляемого проекта](/ru/concepts/managed-project-model), если вам нужно самое короткое объяснение того, чем вообще является продукт.
 - Прочитайте [Выбор runtime](/ru/concepts/choosing-runtime) до того, как выбирать Go, Python, Node или shell.
 - Прочитайте [Модель target’ов](/ru/concepts/target-model), прежде чем считать любой target полноценным runtime-плагином.
 - Прочитайте [Модель стабильности](/ru/concepts/stability-model), прежде чем обещать долгую совместимость другим пользователям.
@@ -36,6 +37,10 @@ outline: false
   <a class="docs-card" href="./why-plugin-kit-ai">
     <h2>Зачем plugin-kit-ai</h2>
     <p>Поймите, какую проблему решает проект и когда это вообще не ваш инструмент.</p>
+  </a>
+  <a class="docs-card" href="./managed-project-model">
+    <h2>Модель управляемого проекта</h2>
+    <p>Посмотрите на самое короткое определение продукта: один authored repo, rendered outputs, строгая validation и явные границы путей.</p>
   </a>
   <a class="docs-card" href="./authoring-architecture">
     <h2>Архитектура авторинга</h2>

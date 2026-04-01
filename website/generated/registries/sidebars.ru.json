@@ -120,6 +120,10 @@
           "link": "/ru/concepts/why-plugin-kit-ai"
         },
         {
+          "text": "Модель управляемого проекта",
+          "link": "/ru/concepts/managed-project-model"
+        },
+        {
           "text": "Архитектура авторинга",
           "link": "/ru/concepts/authoring-architecture"
         }
@@ -154,6 +158,10 @@
         {
           "text": "Каналы установки",
           "link": "/ru/reference/install-channels"
+        },
+        {
+          "text": "Политика версий и совместимости",
+          "link": "/ru/reference/version-and-compatibility"
         },
         {
           "text": "Процесс авторинга",

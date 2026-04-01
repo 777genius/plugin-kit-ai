@@ -37,4 +37,4 @@ translationRequired: true
 - относиться к wrapper packages как к SDK или runtime-контрактам
 - считать, что experimental surfaces несут долгосрочные compatibility promises
 
-Свяжите эту страницу с [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).
+Свяжите эту страницу с [Политикой версий и совместимости](/ru/reference/version-and-compatibility), [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).

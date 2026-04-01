@@ -29,6 +29,10 @@ outline: false
     <h2>Каналы установки</h2>
     <p>Поймите разницу между Homebrew, npm, PyPI и verified script, не смешивая способы установки с runtime API.</p>
   </a>
+  <a class="docs-card" href="./version-and-compatibility">
+    <h2>Политика версий и совместимости</h2>
+    <p>Держите release baselines, границы stable и beta, wrappers и ожидания по SDK/runtime в одном месте.</p>
+  </a>
   <a class="docs-card" href="./authoring-workflow">
     <h2>Процесс авторинга</h2>
     <p>Посмотрите на канонический `init -> render -> validate --strict -> test -> handoff` flow.</p>

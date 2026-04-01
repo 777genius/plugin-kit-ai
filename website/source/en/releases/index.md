@@ -24,6 +24,11 @@ outline: false
 - Read [v1.0.4 Go SDK](/en/releases/v1-0-4-go-sdk) if you are integrating through Go and want the release that cleaned up normal SDK consumption.
 - Read [v1.0.0](/en/releases/v1-0-0) if you want the first stable public baseline for the project.
 
+## Read This With
+
+- Read [Version And Compatibility Policy](/en/reference/version-and-compatibility) when your real goal is to decide what your team should standardize.
+- Read [Support Boundary](/en/reference/support-boundary) when you want the shortest contract framing for what is stable today.
+
 <div class="docs-grid">
   <a class="docs-card" href="./v1-0-6">
     <h2>v1.0.6</h2>

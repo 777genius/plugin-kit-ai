@@ -173,6 +173,7 @@ function buildSidebar(locale, entities) {
         items: [
           linkItem(labels.conceptsOverview, `${prefix}concepts/`),
           linkItem(labels.whyPluginKitAi, `${prefix}concepts/why-plugin-kit-ai`),
+          linkItem(labels.managedProjectModel, `${prefix}concepts/managed-project-model`),
           linkItem(labels.authoringArchitecture, `${prefix}concepts/authoring-architecture`)
         ]
       },
@@ -191,6 +192,7 @@ function buildSidebar(locale, entities) {
         items: [
           linkItem(labels.referenceOverview, `${prefix}reference/`),
           linkItem(labels.installChannels, `${prefix}reference/install-channels`),
+          linkItem(labels.versionAndCompatibility, `${prefix}reference/version-and-compatibility`),
           linkItem(labels.authoringWorkflow, `${prefix}reference/authoring-workflow`),
           linkItem(labels.repositoryStandard, `${prefix}reference/repository-standard`)
         ]
@@ -312,6 +314,7 @@ function localeLabels(locale) {
       conceptsDecisions: "Модели выбора",
       conceptsOverview: "Обзор",
       whyPluginKitAi: "Зачем plugin-kit-ai",
+      managedProjectModel: "Модель управляемого проекта",
       authoringArchitecture: "Архитектура авторинга",
       stabilityModel: "Модель стабильности",
       targetModel: "Модель target’ов",
@@ -322,6 +325,7 @@ function localeLabels(locale) {
       referenceHelp: "Помощь",
       referenceOverview: "Обзор",
       installChannels: "Каналы установки",
+      versionAndCompatibility: "Политика версий и совместимости",
       authoringWorkflow: "Процесс авторинга",
       repositoryStandard: "Стандарт репозитория",
       supportBoundary: "Граница поддержки",
@@ -383,6 +387,7 @@ function localeLabels(locale) {
     conceptsDecisions: "Decision Models",
     conceptsOverview: "Overview",
     whyPluginKitAi: "Why plugin-kit-ai",
+    managedProjectModel: "Managed Project Model",
     authoringArchitecture: "Authoring Architecture",
     stabilityModel: "Stability Model",
     targetModel: "Target Model",
@@ -393,6 +398,7 @@ function localeLabels(locale) {
     referenceHelp: "Help",
     referenceOverview: "Overview",
     installChannels: "Install Channels",
+    versionAndCompatibility: "Version And Compatibility Policy",
     authoringWorkflow: "Authoring Workflow",
     repositoryStandard: "Repository Standard",
     supportBoundary: "Support Boundary",
