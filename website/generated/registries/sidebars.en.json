@@ -90,6 +90,10 @@
         {
           "text": "Migrate Existing Config",
           "link": "/en/guide/migrate-existing-config"
+        },
+        {
+          "text": "Upgrade And Migration Playbook",
+          "link": "/en/guide/upgrade-and-migration-playbook"
         }
       ]
     },

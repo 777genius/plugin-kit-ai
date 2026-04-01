@@ -1814,6 +1814,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:upgrade-and-migration-playbook",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Upgrade And Migration Playbook",
+    "summary": "Upgrade plugin-kit-ai safely across existing repos and teams without relying on guesswork.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/upgrade-and-migration-playbook.md",
+    "pathEn": "/en/guide/upgrade-and-migration-playbook",
+    "pathRu": "/ru/guide/upgrade-and-migration-playbook",
+    "relatedIds": [],
+    "searchTerms": [
+      "Upgrade And Migration Playbook"
+    ]
+  },
+  {
     "canonicalId": "page:guide:what-you-can-build",
     "kind": "page",
     "surface": "guide",

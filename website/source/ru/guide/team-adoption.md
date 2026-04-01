@@ -17,6 +17,7 @@ translationRequired: true
 - Запускаете новый командный репозиторий: начните здесь, потом читайте [Плагин для команды](/ru/guide/team-ready-plugin).
 - Стандартизируете существующий репозиторий: начните здесь, потом читайте [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Раскатываете plugin-kit-ai сразу на несколько repo: начните здесь, потом читайте [Стандарт репозитория](/ru/reference/repository-standard) и [Интеграцию с CI](/ru/guide/ci-integration).
+- Обновляете сразу несколько существующих repo после нового релиза или нового default: начните здесь, потом читайте [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook).
 
 ## Кому это особенно полезно
 
@@ -69,3 +70,4 @@ translationRequired: true
 - Читайте [Плагин для команды](/ru/guide/team-ready-plugin), если нужен практический tutorial на уровне самого repo.
 - Читайте [Готовность к продакшену](/ru/guide/production-readiness), когда нужен checklist перед более широким rollout.
 - Читайте [Интеграцию с CI](/ru/guide/ci-integration), когда готовы сделать контракт исполнимым в автоматике.
+- Читайте [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), когда у команды уже есть живые repo и нужно безопасно принять новую guidance.

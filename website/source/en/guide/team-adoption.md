@@ -17,6 +17,7 @@ Use this page when the question is no longer “can one person make it work?” 
 - Starting a fresh team repo: begin here, then read [Build A Team-Ready Plugin](/en/guide/team-ready-plugin).
 - Standardizing an existing repo: begin here, then read [Migrate Existing Config](/en/guide/migrate-existing-config).
 - Rolling plugin-kit-ai out across several repos: begin here, then read [Repository Standard](/en/reference/repository-standard) and [CI Integration](/en/guide/ci-integration).
+- Upgrading several existing repos after a new release or new default: begin here, then read [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook).
 
 ## Read This If
 
@@ -69,3 +70,4 @@ Use this page when the question is no longer “can one person make it work?” 
 - Read [Build A Team-Ready Plugin](/en/guide/team-ready-plugin) for the practical repo-level tutorial.
 - Read [Production Readiness](/en/guide/production-readiness) for the checklist you can apply before broader rollout.
 - Read [CI Integration](/en/guide/ci-integration) when you are ready to make the contract executable.
+- Read [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook) when the team already has live repos and must adopt new guidance safely.

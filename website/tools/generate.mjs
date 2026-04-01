@@ -156,7 +156,8 @@ function buildSidebar(locale, entities) {
           linkItem(labels.chooseDeliveryModel, `${prefix}guide/choose-delivery-model`),
           linkItem(labels.bundleHandoff, `${prefix}guide/bundle-handoff`),
           linkItem(labels.packageAndWorkspaceTargets, `${prefix}guide/package-and-workspace-targets`),
-          linkItem(labels.migrateExistingConfig, `${prefix}guide/migrate-existing-config`)
+          linkItem(labels.migrateExistingConfig, `${prefix}guide/migrate-existing-config`),
+          linkItem(labels.upgradeAndMigrationPlaybook, `${prefix}guide/upgrade-and-migration-playbook`)
         ]
       },
       {
@@ -309,6 +310,7 @@ function localeLabels(locale) {
       bundleHandoff: "Bundle handoff",
       packageAndWorkspaceTargets: "Package и workspace targets",
       migrateExistingConfig: "Миграция существующей конфигурации",
+      upgradeAndMigrationPlaybook: "Плейбук обновлений и миграции",
       productionReadiness: "Готовность к продакшену",
       ciIntegration: "Интеграция с CI",
       concepts: "Концепции",
@@ -383,6 +385,7 @@ function localeLabels(locale) {
     bundleHandoff: "Bundle Handoff",
     packageAndWorkspaceTargets: "Package And Workspace Targets",
     migrateExistingConfig: "Migrate Existing Config",
+    upgradeAndMigrationPlaybook: "Upgrade And Migration Playbook",
     productionReadiness: "Production Readiness",
     ciIntegration: "CI Integration",
     concepts: "Concepts",

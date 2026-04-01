@@ -90,6 +90,10 @@
         {
           "text": "Миграция существующей конфигурации",
           "link": "/ru/guide/migrate-existing-config"
+        },
+        {
+          "text": "Плейбук обновлений и миграции",
+          "link": "/ru/guide/upgrade-and-migration-playbook"
         }
       ]
     },
