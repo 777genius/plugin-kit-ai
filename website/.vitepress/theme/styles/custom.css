@@ -194,12 +194,32 @@ a.docs-card * {
   transition: color 0.25s;
 }
 
+.locale-switcher--navbar .locale-switcher__button {
+  margin-left: 14px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 86%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 94%, transparent);
+}
+
 .locale-switcher__button:hover {
   color: var(--vp-c-text-2);
 }
 
+.locale-switcher--navbar .locale-switcher__button:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 32%, var(--vp-c-divider));
+  background: color-mix(in srgb, var(--vp-c-default-soft) 92%, transparent);
+}
+
 .locale-switcher__button-icon {
   font-size: 16px;
+}
+
+.locale-switcher__button-code {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .locale-switcher__button-chevron {

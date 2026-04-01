@@ -36,6 +36,7 @@ const localeLinks = computed(() =>
 );
 
 const buttonLabel = computed(() => currentLocale.value?.title || "Language");
+const buttonCode = computed(() => currentLocale.value?.shortTitle || "EN");
 const currentLocaleCode = computed(() => currentLocale.value?.code || null);
 
 function localeFromPath(path: string): LocaleCode | null {
@@ -124,6 +125,7 @@ onBeforeUnmount(() => {
     >
       <span class="vpi-languages locale-switcher__button-icon" />
       <span v-if="props.variant === 'screen'" class="locale-switcher__button-text">{{ buttonLabel }}</span>
+      <span v-else class="locale-switcher__button-code">{{ buttonCode }}</span>
       <span class="vpi-chevron-down locale-switcher__button-chevron" />
     </button>
 
