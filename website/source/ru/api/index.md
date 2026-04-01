@@ -61,6 +61,43 @@ outline: false
 - Нужна детализация по событиям платформы: начинайте с [Platform Events](./platform-events/).
 - Нужна карта поведения между платформами: начинайте с [Capabilities](./capabilities/).
 
+## Выбор по роли
+
+<div class="docs-grid">
+  <a class="docs-card" href="./cli/">
+    <h2>Я веду plugin repo</h2>
+    <p>Начинайте с CLI, когда нужны реальные команды для init, render, validate, inspect и bundle-операций.</p>
+  </a>
+  <a class="docs-card" href="./go-sdk/">
+    <h2>Мне нужен самый сильный runtime path</h2>
+    <p>Начинайте с Go SDK, когда нужен самый сильный поддерживаемый runtime-контракт и наименьшая downstream runtime-нагрузка.</p>
+  </a>
+  <a class="docs-card" href="./runtime-node/">
+    <h2>Я отвечаю за Node или TypeScript путь</h2>
+    <p>Начинайте с Node Runtime, когда repo уже выбрал поддерживаемый локальный Node path и теперь нужны helper APIs.</p>
+  </a>
+  <a class="docs-card" href="./runtime-python/">
+    <h2>Я отвечаю за Python путь</h2>
+    <p>Начинайте с Python Runtime, когда repo уже выбрал поддерживаемый локальный Python path и теперь нужны helper APIs.</p>
+  </a>
+  <a class="docs-card" href="./platform-events/">
+    <h2>Я глубоко интегрируюсь с одной платформой</h2>
+    <p>Начинайте с Platform Events, когда главный вопрос — event-level поведение одной целевой платформы.</p>
+  </a>
+  <a class="docs-card" href="./capabilities/">
+    <h2>Я сравниваю поведение между платформами</h2>
+    <p>Начинайте с Capabilities, когда нужен единый cross-platform map, а не чтение platform trees по одной.</p>
+  </a>
+</div>
+
+## Выбор по вопросу
+
+- «Какую команду запускать дальше?» Начинайте с [CLI](./cli/).
+- «Какие пакеты должен импортировать мой Go plugin?» Начинайте с [Go SDK](./go-sdk/).
+- «Какой helper API нужен моему поддерживаемому Node или Python path?» Начинайте с [Node Runtime](./runtime-node/) или [Python Runtime](./runtime-python/).
+- «Какие события вообще есть у этой платформы?» Начинайте с [Platform Events](./platform-events/).
+- «Какая capability есть сразу на нескольких платформах?» Начинайте с [Capabilities](./capabilities/).
+
 ## Как выбрать нужную поверхность
 
 - Открывайте `CLI`, когда нужны команды, флаги и сам рабочий процесс автора плагина.
@@ -82,3 +119,9 @@ outline: false
 - Это не лучший первый вход, если вы ещё выбираете target, runtime или starter.
 - Она не заменяет guide-страницы для first-time setup, delivery и team handoff.
 - Это generated reference, привязанный к реальным исходным данным, поэтому лучше всего он работает после того, как вы уже понимаете, какая поверхность вам нужна.
+
+## С чем читать вместе
+
+- [Что можно построить](/ru/guide/what-you-can-build), если вы ещё выбираете между runtime, package и workspace outputs.
+- [Выбор target](/ru/guide/choose-a-target), если вам ещё нужен правильный target family.
+- [Обещания поддержки по путям](/ru/reference/support-promise-by-path), если главное решение связано с силой promise и операционной ценой.
