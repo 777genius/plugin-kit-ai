@@ -121,6 +121,10 @@
           "link": "/en/guide/baseline-drift-signals"
         },
         {
+          "text": "Healthy Exception Policy",
+          "link": "/en/guide/healthy-exception-policy"
+        },
+        {
           "text": "Team-Scale Rollout",
           "link": "/en/guide/team-scale-rollout"
         },

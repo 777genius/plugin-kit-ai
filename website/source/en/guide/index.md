@@ -56,6 +56,7 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
 - Need to recover from a wrong path safely: read [Path Recovery](/en/guide/path-recovery), [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook), and [Team-Scale Rollout](/en/guide/team-scale-rollout).
 - Need one repo to become the standard others copy: read [Reference Repo Strategy](/en/guide/reference-repo-strategy), [Team Adoption](/en/guide/team-adoption), and [Repository Standard](/en/reference/repository-standard).
 - Need to detect whether the team baseline is already drifting: read [Baseline Drift Signals](/en/guide/baseline-drift-signals), [Reference Repo Strategy](/en/guide/reference-repo-strategy), and [Repository Standard](/en/reference/repository-standard).
+- Need to decide whether a special-case repo is healthy or not: read [Healthy Exception Policy](/en/guide/healthy-exception-policy), [Baseline Drift Signals](/en/guide/baseline-drift-signals), and [Path Recovery](/en/guide/path-recovery).
 - Team adoption: read [Team Adoption](/en/guide/team-adoption), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Team-scale upgrades or migrations: read [Team-Scale Rollout](/en/guide/team-scale-rollout), [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook), [Releases](/en/releases/), and [Migrate Existing Native Config](/en/guide/migrate-existing-config).
 - Python or Node delivery: read [Choose Delivery Model](/en/guide/choose-delivery-model) and [Bundle Handoff](/en/guide/bundle-handoff).
@@ -67,6 +68,7 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
 - Repo owner planning coordinated rollout: go to [Team-Scale Rollout](/en/guide/team-scale-rollout), [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook), and [Version And Compatibility Policy](/en/reference/version-and-compatibility).
 - Repo owner choosing the repo everyone else should copy: go to [Reference Repo Strategy](/en/guide/reference-repo-strategy), [Repository Standard](/en/reference/repository-standard), and [Path Recovery](/en/guide/path-recovery).
 - Repo owner checking whether the standard is already drifting: go to [Baseline Drift Signals](/en/guide/baseline-drift-signals), [Reference Repo Strategy](/en/guide/reference-repo-strategy), and [Team-Scale Rollout](/en/guide/team-scale-rollout).
+- Repo owner deciding whether one repo is a justified exception: go to [Healthy Exception Policy](/en/guide/healthy-exception-policy), [Support Boundary](/en/reference/support-boundary), and [Path Recovery](/en/guide/path-recovery).
 - Repo owner planning upgrades: go to [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook), [Releases](/en/releases/), and [Migrate Existing Native Config](/en/guide/migrate-existing-config).
 - Python or Node owner: go to [Choose Delivery Model](/en/guide/choose-delivery-model), [Bundle Handoff](/en/guide/bundle-handoff), and [Node/TypeScript Runtime](/en/guide/node-typescript-runtime).
 - Packaging or workspace-config owner: go to [Choose A Target](/en/guide/choose-a-target), [Package And Workspace Targets](/en/guide/package-and-workspace-targets), and [Target Support](/en/reference/target-support).
@@ -79,6 +81,7 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
 - Need to recover after a wrong choice without spreading it further: [Path Recovery](/en/guide/path-recovery)
 - Need to choose one repo as the clean team baseline: [Reference Repo Strategy](/en/guide/reference-repo-strategy)
 - Need to check whether the team baseline is already drifting: [Baseline Drift Signals](/en/guide/baseline-drift-signals)
+- Need to decide whether one repo is a healthy exception or unhealthy drift: [Healthy Exception Policy](/en/guide/healthy-exception-policy)
 - Need a real example before deciding: [Examples And Recipes](/en/guide/examples-and-recipes)
 - Need a safe production path: [Production Readiness](/en/guide/production-readiness)
 
@@ -118,6 +121,10 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
   <a class="docs-card" href="./baseline-drift-signals">
     <h2>Baseline Drift Signals</h2>
     <p>Spot when a repo still looks healthy, but the declared standard and the actual team baseline are already starting to split apart.</p>
+  </a>
+  <a class="docs-card" href="./healthy-exception-policy">
+    <h2>Healthy Exception Policy</h2>
+    <p>Decide when a special-case repo is justified and narrow, and when it has already become unhealthy drift wearing a nicer label.</p>
   </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Build Your First Plugin</h2>

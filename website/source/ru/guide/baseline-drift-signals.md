@@ -79,6 +79,7 @@ translationRequired: true
 - Нужен безопасный путь коррекции после неверного выбора: [Восстановление пути](/ru/guide/path-recovery)
 - Нужна командная дисциплина rollout: [Rollout на уровне команды](/ru/guide/team-scale-rollout)
 - Нужно проверить силу обещаний: [Обещания поддержки по путям](/ru/reference/support-promise-by-path)
+- Нужно правило, оправдано ли одно особое исключение: [Политика здоровых исключений](/ru/guide/healthy-exception-policy)
 
 ## Финальное правило
 

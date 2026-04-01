@@ -102,6 +102,7 @@ Restart from a cleaner baseline when:
 - Need the corrected runtime: [Choosing Runtime](/en/concepts/choosing-runtime)
 - Need the corrected delivery model: [Choose Delivery Model](/en/guide/choose-delivery-model)
 - Need team-level recovery discipline: [Team Adoption](/en/guide/team-adoption), [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook), and [Team-Scale Rollout](/en/guide/team-scale-rollout)
+- Need the rule for whether a “special” repo should stay special at all: [Healthy Exception Policy](/en/guide/healthy-exception-policy)
 
 ## Final Rule
 

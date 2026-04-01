@@ -1662,6 +1662,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:healthy-exception-policy",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Healthy Exception Policy",
+    "summary": "When a special-case repo is acceptable, and when it has already become unhealthy drift instead of a justified exception.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/healthy-exception-policy.md",
+    "pathEn": "/en/guide/healthy-exception-policy",
+    "pathRu": "/ru/guide/healthy-exception-policy",
+    "relatedIds": [],
+    "searchTerms": [
+      "Healthy Exception Policy"
+    ]
+  },
+  {
     "canonicalId": "page:guide:index",
     "kind": "page",
     "surface": "guide",

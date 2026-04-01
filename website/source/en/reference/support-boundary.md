@@ -52,3 +52,4 @@ This page is the compact answer to a simple question: what can you rely on today
 - whether you are accidentally treating install, packaging, or workspace lanes like runtime contracts
 
 Pair this page with [Support Promise By Path](/en/reference/support-promise-by-path), [Target Support](/en/reference/target-support), and [Stability Model](/en/concepts/stability-model).
+If the real question is whether one repo may stay special without becoming unhealthy drift, read [Healthy Exception Policy](/en/guide/healthy-exception-policy).

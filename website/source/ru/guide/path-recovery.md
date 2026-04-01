@@ -102,6 +102,7 @@ translationRequired: true
 - Нужен исправленный runtime: [Выбор runtime](/ru/concepts/choosing-runtime)
 - Нужна исправленная delivery model: [Выбор модели поставки](/ru/guide/choose-delivery-model)
 - Нужна командная дисциплина восстановления: [Внедрение в команду](/ru/guide/team-adoption), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook) и [Rollout на уровне команды](/ru/guide/team-scale-rollout)
+- Нужно правило, должен ли “особый” repo вообще оставаться особым: [Политика здоровых исключений](/ru/guide/healthy-exception-policy)
 
 ## Финальное правило
 

@@ -79,6 +79,7 @@ If new repos keep choosing different starters, targets, or delivery paths becaus
 - Need safe correction after the wrong path: [Path Recovery](/en/guide/path-recovery)
 - Need team rollout discipline: [Team-Scale Rollout](/en/guide/team-scale-rollout)
 - Need support-level confirmation: [Support Promise By Path](/en/reference/support-promise-by-path)
+- Need the rule for whether one repo is a justified exception: [Healthy Exception Policy](/en/guide/healthy-exception-policy)
 
 ## Final Rule
 

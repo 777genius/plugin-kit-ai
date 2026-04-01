@@ -56,6 +56,7 @@ outline: false
 - Нужно безопасно вернуться с неверного пути: прочитайте [Восстановление пути](/ru/guide/path-recovery), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook) и [Rollout на уровне команды](/ru/guide/team-scale-rollout).
 - Нужно выбрать один repo как стандарт для остальных: прочитайте [Стратегию reference repo](/ru/guide/reference-repo-strategy), [Внедрение в команду](/ru/guide/team-adoption) и [Стандарт репозитория](/ru/reference/repository-standard).
 - Нужно понять, не уплыл ли уже baseline команды: прочитайте [Сигналы drift baseline](/ru/guide/baseline-drift-signals), [Стратегию reference repo](/ru/guide/reference-repo-strategy) и [Стандарт репозитория](/ru/reference/repository-standard).
+- Нужно решить, является ли special-case repo здоровым исключением или нет: прочитайте [Политику здоровых исключений](/ru/guide/healthy-exception-policy), [Сигналы drift baseline](/ru/guide/baseline-drift-signals) и [Восстановление пути](/ru/guide/path-recovery).
 - Внедрение в команду: прочитайте [Внедрение в команду](/ru/guide/team-adoption), [Готовность к продакшену](/ru/guide/production-readiness) и [Интеграцию с CI](/ru/guide/ci-integration).
 - Обновления и миграции на уровне команды: прочитайте [Rollout на уровне команды](/ru/guide/team-scale-rollout), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), [Релизы](/ru/releases/) и [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Поставка Python или Node: прочитайте [Выбор модели поставки](/ru/guide/choose-delivery-model) и [Bundle handoff](/ru/guide/bundle-handoff).
@@ -67,6 +68,7 @@ outline: false
 - Владелец repo, который планирует координированный rollout: идите в [Rollout на уровне команды](/ru/guide/team-scale-rollout), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook) и [Политику версий и совместимости](/ru/reference/version-and-compatibility).
 - Владелец repo, который выбирает эталонный repo для команды: идите в [Стратегию reference repo](/ru/guide/reference-repo-strategy), [Стандарт репозитория](/ru/reference/repository-standard) и [Восстановление пути](/ru/guide/path-recovery).
 - Владелец repo, который проверяет, не начал ли стандарт уже плыть: идите в [Сигналы drift baseline](/ru/guide/baseline-drift-signals), [Стратегию reference repo](/ru/guide/reference-repo-strategy) и [Rollout на уровне команды](/ru/guide/team-scale-rollout).
+- Владелец repo, который решает, оправдано ли одно особое исключение: идите в [Политику здоровых исключений](/ru/guide/healthy-exception-policy), [Границу поддержки](/ru/reference/support-boundary) и [Восстановление пути](/ru/guide/path-recovery).
 - Владелец repo, который планирует обновления: идите в [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), [Релизы](/ru/releases/) и [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Ответственный за Python или Node путь: идите в [Выбор модели поставки](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff) и [Node/TypeScript runtime](/ru/guide/node-typescript-runtime).
 - Ответственный за packaging или workspace-config: идите в [Выбор target](/ru/guide/choose-a-target), [Package и workspace targets](/ru/guide/package-and-workspace-targets) и [Поддержку target’ов](/ru/reference/target-support).
@@ -79,6 +81,7 @@ outline: false
 - Нужно исправить неверный выбор и не разнести его дальше: [Восстановление пути](/ru/guide/path-recovery)
 - Нужно выбрать один repo как чистый baseline для команды: [Стратегия reference repo](/ru/guide/reference-repo-strategy)
 - Нужно проверить, не расходится ли уже baseline команды: [Сигналы drift baseline](/ru/guide/baseline-drift-signals)
+- Нужно понять, является ли один repo здоровым исключением или уже drift: [Политика здоровых исключений](/ru/guide/healthy-exception-policy)
 - Нужен живой пример до выбора: [Примеры и рецепты](/ru/guide/examples-and-recipes)
 - Нужен безопасный production path: [Готовность к продакшену](/ru/guide/production-readiness)
 
@@ -118,6 +121,10 @@ outline: false
   <a class="docs-card" href="./baseline-drift-signals">
     <h2>Сигналы drift baseline</h2>
     <p>Поймайте момент, когда repo ещё выглядит здоровым, но объявленный стандарт и реальный baseline команды уже начинают расходиться.</p>
+  </a>
+  <a class="docs-card" href="./healthy-exception-policy">
+    <h2>Политика здоровых исключений</h2>
+    <p>Решите, когда special-case repo ещё оправдан и узок, а когда он уже стал нездоровым drift под более мягким названием.</p>
   </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Соберите первый плагин</h2>

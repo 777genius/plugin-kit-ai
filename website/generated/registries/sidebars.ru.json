@@ -121,6 +121,10 @@
           "link": "/ru/guide/baseline-drift-signals"
         },
         {
+          "text": "Политика здоровых исключений",
+          "link": "/ru/guide/healthy-exception-policy"
+        },
+        {
           "text": "Rollout на уровне команды",
           "link": "/ru/guide/team-scale-rollout"
         },

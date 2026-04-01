@@ -168,6 +168,7 @@ function buildSidebar(locale, entities) {
           linkItem(labels.teamAdoption, `${prefix}guide/team-adoption`),
           linkItem(labels.referenceRepoStrategy, `${prefix}guide/reference-repo-strategy`),
           linkItem(labels.baselineDriftSignals, `${prefix}guide/baseline-drift-signals`),
+          linkItem(labels.healthyExceptionPolicy, `${prefix}guide/healthy-exception-policy`),
           linkItem(labels.teamScaleRollout, `${prefix}guide/team-scale-rollout`),
           linkItem(labels.productionReadiness, `${prefix}guide/production-readiness`),
           linkItem(labels.ciIntegration, `${prefix}guide/ci-integration`)
@@ -311,6 +312,7 @@ function localeLabels(locale) {
       teamAdoption: "Внедрение в команду",
       referenceRepoStrategy: "Стратегия reference repo",
       baselineDriftSignals: "Сигналы drift baseline",
+      healthyExceptionPolicy: "Политика здоровых исключений",
       teamScaleRollout: "Rollout на уровне команды",
       teamReadyPlugin: "Плагин для команды",
       claudePlugin: "Плагин для Claude",
@@ -394,6 +396,7 @@ function localeLabels(locale) {
     teamAdoption: "Team Adoption",
     referenceRepoStrategy: "Reference Repo Strategy",
     baselineDriftSignals: "Baseline Drift Signals",
+    healthyExceptionPolicy: "Healthy Exception Policy",
     teamScaleRollout: "Team-Scale Rollout",
     teamReadyPlugin: "Build A Team-Ready Plugin",
     claudePlugin: "Build A Claude Plugin",

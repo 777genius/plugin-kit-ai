@@ -52,3 +52,4 @@ translationRequired: true
 - не путаете ли вы install, packaging или workspace lanes с runtime contract
 
 Свяжите эту страницу с [Обещаниями поддержки по путям](/ru/reference/support-promise-by-path), [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).
+Если реальный вопрос уже в том, может ли один repo оставаться особым без превращения в нездоровый drift, прочитайте [Политику здоровых исключений](/ru/guide/healthy-exception-policy).
