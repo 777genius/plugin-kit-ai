@@ -18,6 +18,21 @@ translationRequired: true
 исходное состояние проекта -> render -> target outputs -> validate --strict -> handoff
 ```
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Source[Исходное состояние проекта] --> Render[plugin-kit-ai render]
+  Render --> Runtime[Runtime outputs]
+  Render --> Package[Package or extension outputs]
+  Render --> Workspace[Workspace config outputs]
+  Runtime --> Validate[validate --strict]
+  Package --> Validate
+  Workspace --> Validate
+  Doctor[doctor and bootstrap when needed] -. supports .-> Validate
+  Validate --> Handoff[Handoff to teammate, CI, machine, or downstream user]
+`"
+/>
+
 Это основной цикл, на котором держатся публичная документация, generated API и поддерживаемые сценарии авторинга.
 
 ## Исходное состояние проекта

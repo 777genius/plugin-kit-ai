@@ -12,6 +12,17 @@ translationRequired: true
 
 Python and Node plugins have two supported ways to ship helper logic. Neither is legacy. They solve different practical problems.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Python or Node plugin] --> Shared{Need one reusable dependency across repos}
+  Shared -->|Yes| Package[shared runtime package]
+  Shared -->|No| Smooth{Need the smoothest self contained start}
+  Smooth -->|Yes| Vendored[vendored helper]
+  Smooth -->|No| Package
+`"
+/>
+
 ## The Two Modes
 
 - `vendored helper`: the default scaffold writes helper files into the repo itself

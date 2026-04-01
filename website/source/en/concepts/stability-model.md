@@ -12,6 +12,17 @@ translationRequired: true
 
 `plugin-kit-ai` is intentionally explicit about which areas are stable and which are still moving.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Stable[public stable] --> Beta[public beta]
+  Beta --> Experimental[experimental]
+  StableNote[Normal production expectations] -.-> Stable
+  BetaNote[Supported but not frozen] -.-> Beta
+  ExperimentalNote[High churn and no normal compatibility expectation] -.-> Experimental
+`"
+/>
+
 ## Public-Stable
 
 Treat `public-stable` as the level you can build against with normal production expectations.

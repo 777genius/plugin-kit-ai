@@ -15,6 +15,7 @@ outline: false
   <h1>Start Here</h1>
   <p class="docs-lead">
     Use the guide section when you need the shortest path to a correct setup, not a deep tour of internals.
+    The main product idea is that one managed repo can own multiple targets, while the starter or first tutorial is only the entrypoint.
   </p>
 </div>
 

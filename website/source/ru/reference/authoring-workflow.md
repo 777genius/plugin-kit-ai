@@ -16,6 +16,18 @@ translationRequired: true
 init -> render -> validate --strict -> test -> handoff
 ```
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Init[init or migrate] --> Render[render]
+  Render --> Validate[validate --strict]
+  Validate --> Test[test or smoke checks]
+  Test --> Handoff[handoff]
+  Bootstrap[doctor or bootstrap when needed] -. supports .-> Render
+  Bootstrap -. supports .-> Validate
+`"
+/>
+
 ## Что означает каждый шаг
 
 | Шаг | Назначение |
@@ -31,6 +43,10 @@ init -> render -> validate --strict -> test -> handoff
 - исходное состояние проекта живёт в package-standard layout
 - generated target files — это outputs, а не долгосрочный source of truth
 - strict validation — это обязательная проверка, а не необязательная опция
+
+Этот workflow одинаково важен и для single-target, и для multi-target repo.
+
+Разница только в том, что в multi-target проекте цикл `render` и `validate` повторяется для каждого target’а, который repo действительно обещает поддерживать.
 
 ## Когда workflow меняется
 

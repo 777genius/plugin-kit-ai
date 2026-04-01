@@ -45,7 +45,7 @@ Starter'ы важны, но это только точка входа.
 Обещание продукта звучит так:
 
 - авторьте проект в одном месте
-- рендерите выходы под выбранный target и delivery model
+- рендерите выходы под нужные target’ы и delivery model по мере реальной необходимости
 - валидируйте repo против заявленного стандарта
 - держите границы поддержки явными, а не делайте вид, что все пути одинаково сильны
 
@@ -53,8 +53,17 @@ Starter'ы важны, но это только точка входа.
 
 Публичный workflow проще всего держать в голове в четырёх шагах:
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Author[Author managed repo] --> Render[Render outputs]
+  Render --> Validate[Validate strictly]
+  Validate --> Expand[Expand only for real product need]
+`"
+/>
+
 1. Авторьте managed repo.
-2. Рендерите выходные файлы под нужный target и delivery model.
+2. Рендерите выходные файлы под нужный target или набор target’ов и delivery model.
 3. Строго валидируйте repo перед handoff, CI и rollout.
 4. Расширяйте набор путей только тогда, когда это оправдано реальной задачей команды или продукта.
 

@@ -20,16 +20,17 @@ translationRequired: true
 
 - исходное состояние проекта легко найти
 - generated target files явно являются outputs
-- target и выбранный runtime видимы
+- основной target или набор target’ов в scope видимы
+- выбранный runtime или runtime-политика видимы
 - validation command задокументирована
 
 ## Что должно быть легко найти
 
 В здоровом репозитории без копания должны быть понятны такие вещи:
 
-- выбранный target
-- выбранный runtime
-- canonical команда `validate --strict`
+- основной target или target’ы в scope
+- выбранный runtime или политика runtime по target’ам
+- canonical команда `validate --strict` или набор validation-команд, если target’ов несколько
 - runtime prerequisites вроде Go, Python или Node
 - использует ли repo Go SDK path или shared runtime package
 
@@ -44,7 +45,7 @@ translationRequired: true
 ## Признаки здорового репозитория
 
 - `render` воспроизводит target outputs
-- `validate --strict` чисто проходит для intended target
+- `validate --strict` чисто проходит для intended target или для каждого target’а, который repo публично обещает
 - repo объясняет выбранный путь в публичных docs или README
 - CI использует тот же public readiness flow, что и локальная разработка
 

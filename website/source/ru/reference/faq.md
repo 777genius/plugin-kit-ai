@@ -34,6 +34,18 @@ translationRequired: true
 
 Воспринимайте его как главную проверку готовности, особенно для локальных Python и Node runtime-проектов.
 
+## Один repo может вести несколько target’ов?
+
+Да. Это одна из основных идей `plugin-kit-ai`.
+
+Практическое правило такое:
+
+- держите authored state в одном managed repo
+- начинайте с главного target’а сегодня
+- добавляйте другие target’ы, когда появляются реальные product, delivery или integration требования
+
+См. [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets) и [Модель target’ов](/ru/concepts/target-model).
+
 ## Все targets одинаково стабильны?
 
 Нет. Runtime, packaging, extension и workspace-config target’ы не несут одинаковое обещание по поддержке.

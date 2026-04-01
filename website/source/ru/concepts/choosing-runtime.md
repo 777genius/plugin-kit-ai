@@ -12,6 +12,20 @@ translationRequired: true
 
 Выбор runtime — это не только вопрос любимого языка. Он меняет то, как запускается плагин, что должно быть установлено на машине исполнения и насколько простыми будут CI и handoff.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Нужен runtime path] --> Prod{Нужен самый сильный production path}
+  Prod -->|Да| Go[go]
+  Prod -->|Нет| Local{Плагин repo local по дизайну}
+  Local -->|Да| Team{Команда Python first или Node first}
+  Team --> Python[python]
+  Team --> Node[node or node --typescript]
+  Local -->|Нет| Escape{Нужен только узкий escape hatch}
+  Escape --> Shell[shell beta]
+`"
+/>
+
 ## Выбирайте Go, когда
 
 - нужен самый сильный поддерживаемый путь

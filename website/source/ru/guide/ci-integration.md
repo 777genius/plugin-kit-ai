@@ -12,6 +12,16 @@ translationRequired: true
 
 Самая безопасная история для CI не обязана быть сложной. Она просто должна строго проверять публичный контракт проекта.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Doctor[doctor] --> Bootstrap[bootstrap when needed]
+  Bootstrap --> Render[render]
+  Render --> Validate[validate --strict]
+  Validate --> Smoke[smoke or bundle checks]
+`"
+/>
+
 ## Минимальный CI gate
 
 Для большинства authored projects базовый путь такой:
@@ -29,6 +39,8 @@ plugin-kit-ai validate . --platform <target> --strict
 - `doctor` рано ловит отсутствующие runtime prerequisites
 - `render` доказывает, что generated outputs можно воспроизвести из исходного состояния проекта
 - `validate --strict` доказывает, что repo внутренне согласован для выбранного target
+
+Если repo multi-target, эта же логика должна выполняться по каждому target’у, который команда реально обещает поддерживать.
 
 ## Заметки по runtime
 
@@ -61,5 +73,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ## Рекомендуемое правило
 
 Если CI не может воспроизвести authored outputs и пройти `validate --strict`, значит repo не готов к стабильному handoff.
+
+Для multi-target repo это означает не "один зелёный прогон где-то рядом", а явный зелёный прогон по каждому target’у в support scope.
 
 Свяжите эту страницу с [Готовностью к продакшену](/ru/guide/production-readiness), [Границей поддержки](/ru/reference/support-boundary) и [Диагностикой проблем](/ru/reference/troubleshooting).

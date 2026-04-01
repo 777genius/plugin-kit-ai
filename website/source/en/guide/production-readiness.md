@@ -12,6 +12,17 @@ translationRequired: true
 
 Use this checklist before you call a project production-ready, handoff-ready, or stable enough to share broadly.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Path[Path chosen on purpose] --> Source[One source of truth]
+  Source --> Checks[render and validate gates]
+  Checks --> Boundary[Support boundary confirmed]
+  Boundary --> Handoff[Docs and handoff are explicit]
+  Handoff --> Ready[Production ready]
+`"
+/>
+
 ## 1. Pick The Right Path On Purpose
 
 - default to Go when you want the strongest production contract
@@ -37,9 +48,11 @@ plugin-kit-ai validate . --platform <target> --strict
 
 For Python and Node runtime paths, `doctor` and `bootstrap` are part of readiness, not optional polish.
 
+If the repo supports multiple targets, this gate should be repeated explicitly for each target in the declared support scope.
+
 ## 4. Verify The Support Boundary
 
-- confirm that the chosen target is actually inside the public support boundary
+- confirm that the primary target, and each additional target in scope, is actually inside the public support boundary
 - confirm whether the path is stable, beta, or intentionally narrower than the main path
 - check the generated target support matrix before you promise compatibility to downstream users
 
@@ -53,9 +66,10 @@ For Python and Node runtime paths, `doctor` and `bootstrap` are part of readines
 
 A public-facing repo should make these things obvious:
 
-- which target and runtime it uses
+- which target is primary and which additional targets are genuinely supported
+- which runtime it uses and whether that changes by target
 - how to install prerequisites
-- which command is the canonical validation gate
+- which command, or set of commands, is the canonical validation gate
 - whether it depends on a shared runtime package or a Go SDK path
 
 ## 7. Link To Current Release Notes

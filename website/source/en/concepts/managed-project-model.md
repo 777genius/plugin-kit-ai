@@ -45,7 +45,7 @@ The product promise is not "pick a starter name and stay inside that starter for
 The product promise is:
 
 - author the project in one place
-- render the outputs the chosen path needs
+- render the outputs the needed target or targets require as the product grows
 - validate the repo against the declared standard
 - keep support boundaries explicit instead of pretending every path is equally strong
 
@@ -53,8 +53,17 @@ The product promise is:
 
 The public workflow is easier to understand when you collapse it into four steps:
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Author[Author managed repo] --> Render[Render outputs]
+  Render --> Validate[Validate strictly]
+  Validate --> Expand[Expand only for real product need]
+`"
+/>
+
 1. Author the managed repo.
-2. Render the output files for the chosen target and delivery model.
+2. Render the output files for the needed target or targets and delivery model.
 3. Validate strictly before handoff, CI, or rollout.
 4. Expand only when the next path is justified by a real team or product need.
 

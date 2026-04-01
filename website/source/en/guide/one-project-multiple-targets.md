@@ -23,6 +23,19 @@ Start with the runtime or target that is your **primary requirement today**.
 
 After that, keep treating the repo as one managed source of truth and render the target-specific artifacts you actually need.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Repo[One authored repo] --> Render[render]
+  Render --> CodexRuntime[codex-runtime]
+  Render --> Claude[claude]
+  Render --> CodexPackage[codex-package]
+  Render --> Gemini[gemini]
+  Render --> OpenCode[opencode]
+  Render --> Cursor[cursor]
+`"
+/>
+
 That means a project can begin as:
 
 - a Codex-first plugin repo

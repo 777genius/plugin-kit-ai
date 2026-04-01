@@ -12,6 +12,18 @@ translationRequired: true
 
 This page is the broad map of the product. Read it when you want to understand the real things `plugin-kit-ai` can produce before choosing a runtime, starter, or target.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Product[plugin-kit-ai product shapes] --> Runtime[Runtime plugins]
+  Product --> Multi[One managed repo with multiple outputs]
+  Product --> Bundle[Portable bundle handoff]
+  Product --> Shared[Shared runtime package]
+  Product --> Package[Package and extension targets]
+  Product --> Workspace[Workspace config targets]
+`"
+/>
+
 ## 1. Codex Runtime Plugins
 
 This is the default public path.
@@ -52,6 +64,8 @@ That means the system supports:
 ## 4. One Managed Project That Can Cover More Than One Output
 
 The product is bigger than the starter names suggest.
+
+This is not a side capability. It is one of the central product ideas.
 
 The public starter families are split by the **first** runtime or target path, but the managed project model is broader than that.
 

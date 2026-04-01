@@ -34,6 +34,18 @@ Not if you want the managed project model. `render` is part of the workflow, not
 
 Treat it as the main readiness check, especially for local Python and Node runtime projects.
 
+## Can One Repo Own Multiple Targets?
+
+Yes. That is one of the main ideas in `plugin-kit-ai`.
+
+The practical rule is:
+
+- keep the authored state in one managed repo
+- start with the primary target you need today
+- add other targets when real product, delivery, or integration requirements appear
+
+See [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) and [Target Model](/en/concepts/target-model).
+
 ## Are All Targets Equally Stable?
 
 No. Runtime, packaging, extension, and workspace-configuration targets do not all carry the same support promise.

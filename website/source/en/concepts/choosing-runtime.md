@@ -12,6 +12,20 @@ translationRequired: true
 
 The runtime choice is not just about language preference. It changes how the plugin runs, what the execution machine must have installed, and how simple CI and handoff will be.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Need a runtime path] --> Prod{Need the strongest production path}
+  Prod -->|Yes| Go[go]
+  Prod -->|No| Local{Is the plugin repo local by design}
+  Local -->|Yes| Team{Is the team Python first or Node first}
+  Team --> Python[python]
+  Team --> Node[node or node --typescript]
+  Local -->|No| Escape{Need only a bounded escape hatch}
+  Escape --> Shell[shell beta]
+`"
+/>
+
 ## Choose Go When
 
 - you want the strongest supported path

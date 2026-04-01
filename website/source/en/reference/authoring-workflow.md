@@ -16,6 +16,18 @@ The recommended workflow is intentionally simple:
 init -> render -> validate --strict -> test -> handoff
 ```
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Init[init or migrate] --> Render[render]
+  Render --> Validate[validate --strict]
+  Validate --> Test[test or smoke checks]
+  Test --> Handoff[handoff]
+  Bootstrap[doctor or bootstrap when needed] -. supports .-> Render
+  Bootstrap -. supports .-> Validate
+`"
+/>
+
 ## What Each Step Means
 
 | Step | Purpose |
@@ -31,6 +43,10 @@ init -> render -> validate --strict -> test -> handoff
 - the project source lives in the package-standard project layout
 - generated target files are outputs, not the long-term source of truth
 - strict validation is a required check, not an optional extra
+
+This workflow matters equally for single-target and multi-target repos.
+
+The only difference is that in a multi-target project, the `render` and `validate` loop is repeated for each target the repo actually promises to support.
 
 ## When The Workflow Changes
 

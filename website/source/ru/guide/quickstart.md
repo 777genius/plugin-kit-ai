@@ -12,9 +12,15 @@ translationRequired: true
 
 Это самый короткий поддерживаемый путь, если вам нужен реальный plugin repo без ручного редактирования target-файлов.
 
+Он специально показывает один рекомендуемый стартовый path, а не конечную границу продукта.
+
+`plugin-kit-ai` задуман как managed project model, в которой один repo может вести несколько target’ов и output shapes из одного authored source of truth.
+
 ## Если читать только одно
 
 Начинайте с Go по умолчанию, если вы уже заранее не знаете, что вам нужны Claude hooks, Node/TypeScript или Python.
+
+Но не путайте стартовый path с permanent limit: выбрать первый target не значит навсегда запретить остальные.
 
 ## Рекомендуемый старт по умолчанию
 
@@ -48,6 +54,8 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 | Workspace config для OpenCode | `opencode` |
 | Workspace config для Cursor | `cursor` |
 
+Если продукту нужны несколько target’ов, всё равно начинайте с главного требования сегодня, а затем расширяйте один и тот же managed repo.
+
 ## Типовые первые команды
 
 ```bash
@@ -67,6 +75,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ## Что читать дальше
 
 - Переходите к [Первому плагину](/ru/guide/first-plugin), если хотите самый узкий рекомендуемый tutorial.
+- Переходите к [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если multi-target path является для вас ключевой частью продукта.
 - Переходите к [Что можно построить](/ru/guide/what-you-can-build), если всё ещё сравниваете формы продукта.
 - Переходите к [Выбору target](/ru/guide/choose-a-target), если уже понимаете продукт, но ещё решаете между Codex, Claude, Gemini, Cursor и OpenCode.
 - Переходите к [Выбору starter repo](/ru/guide/choose-a-starter), если хотите стартовать не с пустого repo, а с шаблона.

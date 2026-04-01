@@ -15,6 +15,7 @@ translationRequired: true
 ## What It Gives You
 
 - one managed project model instead of target-file drift
+- one source of truth that can render multiple targets without turning into a pile of hand-maintained repos
 - a strong default Go path and stable local Python and Node paths
 - deterministic render and validation flows
 - generated API and support metadata that stay tied to real source data
@@ -37,6 +38,8 @@ It is probably the wrong choice when:
 
 You get stronger structure, stronger boundaries, and more predictable workflows.
 
+That is also one of the main product values: you do not have to choose between "one repo" and "multiple targets" when the product genuinely needs both.
+
 In return, you accept:
 
 - a more opinionated project model
@@ -44,4 +47,5 @@ In return, you accept:
 - a workflow that expects `render` and `validate --strict` to matter
 
 Read [Managed Project Model](/en/concepts/managed-project-model) if you want the shortest product definition before choosing paths.
+Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if you want the direct product-level explanation of that idea.
 Pair this page with [Choosing Runtime](/en/concepts/choosing-runtime) and [Support Boundary](/en/reference/support-boundary).

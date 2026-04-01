@@ -16,6 +16,12 @@ translationRequired: true
 - runtime: `go`
 - readiness gate: `validate --strict`
 
+Это важно понимать правильно: узость этого tutorial нужна только для первого запуска.
+
+Сам продукт не ограничен одним target'ом на репозиторий. Нормальная managed model в `plugin-kit-ai` допускает один source of truth, который затем рендерит несколько target-specific outputs по мере реальной необходимости.
+
+Если вам важно именно это product promise, прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets) сразу после этого гайда.
+
 ## 1. Установите CLI
 
 ```bash
@@ -57,8 +63,17 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 - выбирайте `--runtime python`, когда проект остаётся локальным для репозитория, а команда осознанно Python-first
 - выбирайте `codex-package`, `gemini`, `opencode` или `cursor`, только если ваша модель поставки действительно требует эти target’ы
 
+Это не означает, что репозиторий должен навсегда остаться single-target.
+
+Практическое правило такое:
+
+- начинайте с самого важного target'а сегодня
+- держите authored state в одном managed repo
+- добавляйте другие target'ы, когда продукт действительно расширяется
+
 ## Следующие шаги
 
 - Прочитайте [Выбор runtime](/ru/concepts/choosing-runtime), прежде чем уходить с пути по умолчанию.
+- Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если для вас важен multi-target путь как основная идея продукта.
 - Используйте [Стартовые шаблоны](/ru/guide/starter-templates), когда нужен проверенный пример репозитория.
 - Откройте [Справочник CLI](/ru/api/cli/), когда нужно точное поведение команд.

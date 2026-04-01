@@ -12,9 +12,15 @@ translationRequired: true
 
 This is the shortest supported path when you want a real plugin repo quickly, without hand-authoring target files.
 
+It intentionally shows one recommended starting path, not the final limit of the product.
+
+`plugin-kit-ai` is designed as a managed project model where one repo can own multiple targets and output shapes from one authored source of truth.
+
 ## If You Only Read One Thing
 
 Start with the default Go path unless you already know you need Claude hooks, Node/TypeScript, or Python.
+
+But do not confuse the starting path with a permanent limit: choosing the first target does not ban the others forever.
 
 ## Recommended Default
 
@@ -48,6 +54,8 @@ That gives you the strongest default path:
 | OpenCode workspace config | `opencode` |
 | Cursor workspace config | `cursor` |
 
+If the product needs several targets, still start with the primary requirement today and then expand the same managed repo.
+
 ## Common First Commands
 
 ```bash
@@ -67,6 +75,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ## After Quickstart
 
 - Continue with [Build Your First Plugin](/en/guide/first-plugin) if you want the narrowest recommended tutorial.
+- Continue with [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if the multi-target path is one of the main reasons you care about the product.
 - Continue with [What You Can Build](/en/guide/what-you-can-build) if you are still comparing product shapes.
 - Continue with [Choose A Target](/en/guide/choose-a-target) if you understand the product but are still deciding between Codex, Claude, Gemini, Cursor, or OpenCode.
 - Continue with [Choose A Starter Repo](/en/guide/choose-a-starter) if you want to start from a template instead of a blank repo.

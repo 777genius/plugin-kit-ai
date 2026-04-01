@@ -222,6 +222,39 @@ a.docs-card * {
   color: inherit;
 }
 
+.mermaid-diagram {
+  margin: 1.25rem 0 1.5rem;
+}
+
+.mermaid-diagram__surface {
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--vp-c-divider) 84%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--vp-c-brand-soft) 38%, transparent), transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--vp-c-bg-soft) 94%, transparent), transparent);
+  overflow-x: auto;
+}
+
+.mermaid-diagram__surface svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.mermaid-diagram__error {
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, #d96c6c 48%, var(--vp-c-divider));
+  border-radius: 14px;
+  background: color-mix(in srgb, #fff1f1 80%, var(--vp-c-bg-soft));
+  white-space: pre-wrap;
+}
+
+.dark .mermaid-diagram__error {
+  background: color-mix(in srgb, #3a1717 74%, var(--vp-c-bg-soft));
+}
+
 @media (max-width: 640px) {
   .docs-hero--feature {
     padding: 1.25rem 1rem;

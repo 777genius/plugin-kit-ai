@@ -12,6 +12,17 @@ translationRequired: true
 
 `plugin-kit-ai` специально явно показывает, какие области стабильны, а какие ещё меняются.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Stable[public stable] --> Beta[public beta]
+  Beta --> Experimental[experimental]
+  StableNote[Normal production expectations] -.-> Stable
+  BetaNote[Supported but not frozen] -.-> Beta
+  ExperimentalNote[High churn and no normal compatibility expectation] -.-> Experimental
+`"
+/>
+
 ## Public-Stable
 
 Воспринимайте `public-stable` как уровень, на который можно опираться с нормальными production-ожиданиями.

@@ -20,6 +20,18 @@ Read this page before you choose `codex-package`, `gemini`, `opencode`, or `curs
 - choose `codex-package` or `gemini` when the product is a packaged target or extension artifact
 - choose `opencode` or `cursor` when the product is repo-owned workspace configuration
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Product[What is the product] --> Exec{Executable plugin}
+  Product --> Artifact{Package or extension artifact}
+  Product --> Config{Workspace config}
+  Exec --> Runtime[codex-runtime or claude]
+  Artifact --> Package[codex-package or gemini]
+  Config --> Workspace[opencode or cursor]
+`"
+/>
+
 ## Codex Package
 
 Use `codex-package` when the end result is a Codex package, not an executable plugin repo.

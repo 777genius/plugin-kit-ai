@@ -18,6 +18,21 @@ translationRequired: true
 - выбирайте package или extension target, когда результатом должен быть артефакт для публикации или установки
 - выбирайте workspace-config target, когда репозиторий должен управлять конфигурацией редактора или инструмента
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Goal[What are you shipping] --> Runtime{Executable plugin}
+  Goal --> Package{Install or publish artifact}
+  Goal --> Workspace{Repo owned workspace config}
+  Runtime --> CodexRuntime[codex-runtime]
+  Runtime --> Claude[claude]
+  Package --> CodexPackage[codex-package]
+  Package --> Gemini[gemini]
+  Workspace --> OpenCode[opencode]
+  Workspace --> Cursor[cursor]
+`"
+/>
+
 ## Runtime target’ы
 
 Выбирайте runtime target’ы, когда проект сам владеет исполняемым поведением плагина.

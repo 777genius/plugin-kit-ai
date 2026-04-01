@@ -18,6 +18,21 @@ translationRequired: true
 project source -> render -> target outputs -> validate --strict -> handoff
 ```
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Source[Project source] --> Render[plugin-kit-ai render]
+  Render --> Runtime[Runtime outputs]
+  Render --> Package[Package or extension outputs]
+  Render --> Workspace[Workspace config outputs]
+  Runtime --> Validate[validate --strict]
+  Package --> Validate
+  Workspace --> Validate
+  Doctor[doctor and bootstrap when needed] -. supports .-> Validate
+  Validate --> Handoff[Handoff to teammate, CI, machine, or downstream user]
+`"
+/>
+
 This is the core loop behind the public documentation, the generated API, and the supported authoring flows.
 
 ## Project Source

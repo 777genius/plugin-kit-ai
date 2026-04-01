@@ -23,6 +23,7 @@ outline: false
 
 - one authored project instead of hand-maintained target files everywhere
 - one managed workflow through `render`, `validate`, and CI
+- one managed repo can own multiple targets at once when the product requires them
 - multiple supported output shapes across runtime, package, extension, and workspace-config targets
 - honest support boundaries instead of fake parity claims
 

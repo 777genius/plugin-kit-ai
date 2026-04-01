@@ -23,6 +23,19 @@ translationRequired: true
 
 После этого продолжайте считать репозиторий одним managed source of truth и рендерите именно те target-specific artifacts, которые реально нужны.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Repo[One authored repo] --> Render[render]
+  Render --> CodexRuntime[codex-runtime]
+  Render --> Claude[claude]
+  Render --> CodexPackage[codex-package]
+  Render --> Gemini[gemini]
+  Render --> OpenCode[opencode]
+  Render --> Cursor[cursor]
+`"
+/>
+
 То есть проект может стартовать как:
 
 - Codex-first plugin repo

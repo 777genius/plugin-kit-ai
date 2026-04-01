@@ -12,6 +12,25 @@ translationRequired: true
 
 Используйте эту страницу, когда вы уже понимаете, что хотите работать с `plugin-kit-ai`, но ещё выбираете target под свой продукт.
 
+Выбор target на этой странице означает выбор главного требования сейчас, а не вечный lock-in на один target.
+
+Один managed repo в `plugin-kit-ai` может рендерить несколько target-specific outputs, если продукт действительно этого требует.
+
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Need[Что нужно продукту сейчас] --> Exec{Исполняемый plugin}
+  Need --> Artifact{Package or extension}
+  Need --> Config{Workspace config}
+  Exec --> Codex[codex-runtime]
+  Exec --> Claude[claude]
+  Artifact --> CodexPackage[codex-package]
+  Artifact --> Gemini[gemini]
+  Config --> OpenCode[opencode]
+  Config --> Cursor[cursor]
+`"
+/>
+
 ## Короткое правило
 
 - выбирайте `codex-runtime`, когда нужен исполняемый плагин с самым сильным путём по умолчанию
@@ -44,9 +63,22 @@ translationRequired: true
 
 Это даёт самую чистую стартовую точку для продакшена, прежде чем вы пойдёте в более узкий или специализированный target.
 
+## Что делать, если target'ов нужно несколько
+
+Не пытайтесь выбрать "идеальный единственный target навсегда".
+
+Безопасное правило такое:
+
+- сначала выберите основной target, который определяет продукт сегодня
+- держите authored state в одном managed repo
+- затем добавляйте другие target’ы, когда для них появляется реальная delivery или integration задача
+
+Если вам нужен именно этот mental model, сначала прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
+
 ## Что читать дальше
 
 - Прочитайте [Выбор runtime](/ru/concepts/choosing-runtime), если вы выбрали runtime target и ещё решаете между Go, Python, Node и shell.
+- Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если вы боитесь, что выбор target'а здесь слишком рано зафиксирует границу репозитория.
 - Прочитайте [Package и workspace targets](/ru/guide/package-and-workspace-targets), если выбираете между packaging и workspace-config targets.
 - Прочитайте [Примеры и рецепты](/ru/guide/examples-and-recipes), если хотите увидеть реальные repos для разных форм продукта.
 - Прочитайте [Поддержку target’ов](/ru/reference/target-support), если вам нужна компактная support matrix.

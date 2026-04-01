@@ -20,16 +20,17 @@ In practice, that means:
 
 - the project source is easy to locate
 - generated target files are clearly outputs
-- the target and runtime choice are visible
+- the primary target or targets in scope are visible
+- the runtime choice or runtime policy is visible
 - the validation command is documented
 
 ## What Should Be Easy To Find
 
 A healthy repo should make these things discoverable without digging:
 
-- the chosen target
-- the chosen runtime
-- the canonical `validate --strict` command
+- the primary target or targets in scope
+- the chosen runtime or runtime policy by target
+- the canonical `validate --strict` command, or the validation commands if there are several targets
 - runtime prerequisites such as Go, Python, or Node
 - whether the repo uses a Go SDK path or a shared runtime package
 
@@ -44,7 +45,7 @@ These should not act as the main source of truth:
 ## Healthy Repository Signals
 
 - `render` can reproduce the target outputs
-- `validate --strict` passes cleanly for the intended target
+- `validate --strict` passes cleanly for the intended target, or for each target the repo publicly claims to support
 - the repo explains its chosen path in public-facing docs or README material
 - CI uses the same public readiness flow as local development
 

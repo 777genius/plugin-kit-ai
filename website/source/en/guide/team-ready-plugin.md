@@ -12,6 +12,17 @@ translationRequired: true
 
 This tutorial picks up where the first successful plugin stops. The goal is not just “it works on my machine,” but a repo another teammate can clone, validate, and ship without hidden knowledge.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Scaffold[Scaffolded repo] --> Explicit[Document path and target scope]
+  Explicit --> Honest[Keep generated files honest]
+  Honest --> CI[Add repeatable CI gate]
+  CI --> Handoff[Visible handoff for teammates]
+  Handoff --> TeamReady[Team ready repo]
+`"
+/>
+
 ## Outcome
 
 By the end, you should have:
@@ -19,7 +30,8 @@ By the end, you should have:
 - a package-standard authored repo
 - generated files reproduced from the project source
 - a strict validation check that passes cleanly
-- a clear runtime and target choice documented for teammates
+- a clear primary target or targets in scope documented for teammates
+- a clear runtime choice or runtime policy by target
 - a CI-friendly path that can be repeated on another machine
 
 ## 1. Start From The Narrowest Stable Path
@@ -39,9 +51,9 @@ This gives you the cleanest base for later handoff.
 
 A team-ready repo should say, at minimum:
 
-- which target it uses
-- which runtime it uses
-- what the main validation command is
+- which target is primary and which additional targets are genuinely supported
+- which runtime it uses and whether that changes by target
+- what the main validation command is, or what validation commands are required for a multi-target repo
 - whether it depends on a Go SDK path or a shared runtime package
 
 If that information is only in one maintainer's head, the repo is not ready.
@@ -68,6 +80,8 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 If the chosen path is Node or Python, include `bootstrap` and pin the runtime version in CI.
 
+If the repo supports multiple targets, the CI gate should check each supported target explicitly rather than assuming indirect coverage.
+
 ## 5. Check Whether You Actually Need A Different Path
 
 Only move away from the default path when the tradeoff is real:
@@ -77,6 +91,8 @@ Only move away from the default path when the tradeoff is real:
 - use `python` when the project is intentionally local to the repo and Python-first
 
 Changing lanes should solve a product or team problem, not just mirror language preference.
+
+If the product is truly multi-target, say that directly: the repo has a primary path, but it also carries additional targets inside the supported scope.
 
 ## 6. Make Handoff Visible
 

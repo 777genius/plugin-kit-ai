@@ -18,6 +18,21 @@ translationRequired: true
 - choose a package or extension target when the output is an artifact to install or publish
 - choose a workspace-configuration target when the repo should manage editor or tool configuration
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Goal[What are you shipping] --> Runtime{Executable plugin}
+  Goal --> Package{Install or publish artifact}
+  Goal --> Workspace{Repo owned workspace config}
+  Runtime --> CodexRuntime[codex-runtime]
+  Runtime --> Claude[claude]
+  Package --> CodexPackage[codex-package]
+  Package --> Gemini[gemini]
+  Workspace --> OpenCode[opencode]
+  Workspace --> Cursor[cursor]
+`"
+/>
+
 ## Runtime Targets
 
 Use runtime targets when the project owns executable plugin behavior directly.

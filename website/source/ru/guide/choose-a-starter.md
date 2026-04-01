@@ -12,10 +12,22 @@ translationRequired: true
 
 Используйте эту страницу, когда нужен самый быстрый путь к проверенному репозиторию и вы не хотите угадывать правильный starter только по имени шаблона.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Нужен starter] --> Product{Основной путь Codex или Claude}
+  Product --> Codex[Codex starter family]
+  Product --> Claude[Claude starter family]
+  Codex --> Runtime{Go, Node or Python}
+  Claude --> Runtime2{Go, Node or Python}
+`"
+/>
+
 Перед выбором держите в голове одно важное правило:
 
 - starter показывает, **как начать**
 - но не определяет окончательную границу проекта
+- и не запрещает одному repo позже вести несколько target’ов
 
 Если эта разница пока неочевидна, сначала прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
 
@@ -25,6 +37,8 @@ translationRequired: true
 - выбирайте Node/TypeScript, когда нужен основной поддерживаемый путь без Go
 - выбирайте Python, когда репозиторий осознанно Python-first и остаётся локальным для репозитория
 - выбирайте Claude starters только тогда, когда Claude hooks — это реальное product requirement
+
+Starter нужно выбирать под первый правильный path, а не под воображаемую окончательную форму продукта.
 
 ## Матрица starter’ов
 
@@ -64,5 +78,7 @@ translationRequired: true
 - все узнавали layout репозитория
 - CI использовал один и тот же readiness flow
 - handoff не зависел от объяснений maintainer’а
+
+Но стабильный starter choice не мешает одному managed repo позже добавить другие target’ы, если этого требует продукт.
 
 Свяжите эту страницу со [Стартовыми шаблонами](/ru/guide/starter-templates), [Выбором модели поставки](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff) и [Стандартом репозитория](/ru/reference/repository-standard).

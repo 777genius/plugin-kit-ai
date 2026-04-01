@@ -12,6 +12,17 @@ translationRequired: true
 
 Этот гайд начинается там, где заканчивается первый успешный плагин. Цель здесь не просто “оно работает у меня”, а репозиторий, который другой коллега может клонировать, проверить и использовать без скрытых устных договорённостей.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Scaffold[Scaffolded repo] --> Explicit[Document path and target scope]
+  Explicit --> Honest[Keep generated files honest]
+  Honest --> CI[Add repeatable CI gate]
+  CI --> Handoff[Visible handoff for teammates]
+  Handoff --> TeamReady[Team ready repo]
+`"
+/>
+
 ## Итоговый результат
 
 К концу у вас должно быть:
@@ -19,7 +30,8 @@ translationRequired: true
 - репозиторий с package-standard layout
 - generated-файлы, которые воспроизводятся из исходного состояния проекта
 - строгая проверка готовности, которая проходит чисто
-- явный выбор runtime и target’а, задокументированный для команды
+- явный выбор основного target’а или target’ов в scope, задокументированный для команды
+- явный выбор runtime или runtime-политики по target’ам
 - CI-friendly путь, который можно повторить на другой машине
 
 ## 1. Начните с самого узкого стабильного пути
@@ -39,9 +51,9 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 Для team-ready repo должно быть явно сказано как минимум:
 
-- какой target используется
-- какой runtime используется
-- какая команда является главной командой проверки
+- какой target является основным и какие ещё target’ы реально поддерживаются
+- какой runtime используется и меняется ли он по target’ам
+- какая команда является главной командой проверки, или какой набор команд нужен для multi-target repo
 - зависит ли репозиторий от Go SDK path или от shared runtime package
 
 Если эта информация живёт только в голове одного maintainer'а, репозиторий ещё не готов.
@@ -68,6 +80,8 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 Если выбран Node или Python путь, добавьте `bootstrap` и зафиксируйте версию runtime в CI.
 
+Если repo поддерживает несколько target’ов, CI gate должен явно проверять каждый из них, а не надеяться на косвенную совместимость.
+
 ## 5. Проверьте, действительно ли вам нужен другой путь
 
 Уходите от пути по умолчанию только тогда, когда компромисс действительно оправдан:
@@ -77,6 +91,8 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 - используйте `python`, когда проект сознательно остаётся локальным для репозитория и Python-first
 
 Смена пути должна решать продуктовую или командную задачу, а не просто отражать вкусы по языку.
+
+Если продукт реально multi-target, формулируйте это прямо: у repo есть primary path, но есть и дополнительные target’ы в поддерживаемом scope.
 
 ## 6. Сделайте handoff видимым
 

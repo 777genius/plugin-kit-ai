@@ -12,6 +12,18 @@ translationRequired: true
 
 Эта страница — широкая карта продукта. Читайте её, когда нужно понять, какие реальные результаты даёт `plugin-kit-ai`, ещё до выбора runtime, стартового репозитория или target.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Product[plugin-kit-ai product shapes] --> Runtime[Runtime plugins]
+  Product --> Multi[One managed repo with multiple outputs]
+  Product --> Bundle[Portable bundle handoff]
+  Product --> Shared[Shared runtime package]
+  Product --> Package[Package and extension targets]
+  Product --> Workspace[Workspace config targets]
+`"
+/>
+
 ## 1. Runtime-плагины для Codex
 
 Это основной публичный путь по умолчанию.
@@ -52,6 +64,8 @@ Runtime-плагины для Codex можно делать на:
 ## 4. Один managed project, который может покрывать несколько выходов
 
 Продукт шире, чем это кажется по названиям starter’ов.
+
+Это не побочная возможность, а одна из центральных идей продукта.
 
 Публичные starter family разделены по **первому** runtime или target path, но managed project model шире этого.
 

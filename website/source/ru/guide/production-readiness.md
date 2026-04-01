@@ -12,6 +12,17 @@ translationRequired: true
 
 Используйте этот checklist перед тем, как называть проект production-ready, handoff-ready или достаточно стабильным для широкого показа.
 
+<MermaidDiagram
+  :chart="`
+flowchart LR
+  Path[Выбран путь] --> Source[Один source of truth]
+  Source --> Checks[render and validate gates]
+  Checks --> Boundary[Support boundary confirmed]
+  Boundary --> Handoff[Docs and handoff are explicit]
+  Handoff --> Ready[Production ready]
+`"
+/>
+
 ## 1. Осознанно выберите путь
 
 - по умолчанию выбирайте Go, когда нужен самый сильный путь для продакшена
@@ -37,9 +48,11 @@ plugin-kit-ai validate . --platform <target> --strict
 
 Для Python и Node runtime-путей `doctor` и `bootstrap` — это часть готовности, а не необязательная полировка.
 
+Если repo поддерживает несколько target’ов, этот gate должен явно повторяться для каждого target’а в заявленном support scope.
+
 ## 4. Проверяйте границу поддержки
 
-- убедитесь, что выбранный target действительно находится внутри публичной границы поддержки
+- убедитесь, что основной target и каждый дополнительный target в scope действительно находятся внутри публичной границы поддержки
 - подтвердите, является ли путь stable, beta или сознательно уже основного пути
 - смотрите generated target support matrix до того, как обещать совместимость другим пользователям
 
@@ -53,9 +66,10 @@ plugin-kit-ai validate . --platform <target> --strict
 
 Для публичного repo должны быть очевидны такие вещи:
 
-- какой target и какой runtime используются
+- какой target является основным и какие дополнительные target’ы реально поддерживаются
+- какой runtime используется и меняется ли он по target’ам
 - как ставятся prerequisites
-- какая команда является главной проверкой готовности
+- какая команда или какой набор команд являются главной проверкой готовности
 - зависит ли проект от shared runtime package или от Go SDK path
 
 ## 7. Ссылайтесь на актуальные release notes

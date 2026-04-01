@@ -20,6 +20,18 @@ translationRequired: true
 - выбирайте `codex-package` или `gemini`, когда продуктом являются package или extension artifacts
 - выбирайте `opencode` или `cursor`, когда продуктом является конфигурация workspace внутри репозитория
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Product[Что является продуктом] --> Exec{Исполняемый plugin}
+  Product --> Artifact{Package or extension artifact}
+  Product --> Config{Workspace config}
+  Exec --> Runtime[codex-runtime or claude]
+  Artifact --> Package[codex-package or gemini]
+  Config --> Workspace[opencode or cursor]
+`"
+/>
+
 ## Codex Package
 
 Используйте `codex-package`, когда конечным результатом должен быть package для Codex, а не репозиторий с исполняемым плагином.

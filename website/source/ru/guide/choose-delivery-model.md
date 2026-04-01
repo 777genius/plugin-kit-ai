@@ -12,6 +12,17 @@ translationRequired: true
 
 У Python и Node плагинов есть два поддерживаемых способа доставки helper-логики. Ни один из них не является legacy. Они решают разные практические задачи.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Python or Node plugin] --> Shared{Нужна одна reusable dependency across repos}
+  Shared -->|Да| Package[shared runtime package]
+  Shared -->|Нет| Smooth{Нужен самый гладкий self contained start}
+  Smooth -->|Да| Vendored[vendored helper]
+  Smooth -->|Нет| Package
+`"
+/>
+
 ## Два режима
 
 - `vendored helper`: scaffold записывает helper-файлы прямо в репозиторий

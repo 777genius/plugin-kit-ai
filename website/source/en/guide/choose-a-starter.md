@@ -12,10 +12,22 @@ translationRequired: true
 
 Use this page when you want the fastest path to a known-good repo and do not want to guess the right starter from template names alone.
 
+<MermaidDiagram
+  :chart="`
+flowchart TD
+  Start[Need a starter] --> Product{Primary path is Codex or Claude}
+  Product --> Codex[Codex starter family]
+  Product --> Claude[Claude starter family]
+  Codex --> Runtime{Go, Node or Python}
+  Claude --> Runtime2{Go, Node or Python}
+`"
+/>
+
 Before you choose, remember one important rule:
 
 - the starter tells you how to begin
 - it does not tell you the final limit of the project
+- and it does not prevent one repo from later managing multiple targets
 
 If that distinction is still fuzzy, read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) first.
 
@@ -25,6 +37,8 @@ If that distinction is still fuzzy, read [One Project, Multiple Targets](/en/gui
 - choose Node/TypeScript when you want the main supported non-Go path
 - choose Python when the repo is intentionally Python-first and stays local to the repo
 - choose Claude starters only when Claude hooks are the actual product requirement
+
+Pick the starter for the first correct path, not for an imagined permanent product boundary.
 
 ## Starter Matrix
 
@@ -64,5 +78,7 @@ A team-wide starter choice should stay consistent long enough that:
 - everyone recognizes the repo layout
 - CI uses the same readiness flow
 - handoff does not depend on maintainer explanation
+
+But a stable starter choice still does not stop one managed repo from adding other targets later if the product requires them.
 
 Pair this page with [Starter Templates](/en/guide/starter-templates), [Choose Delivery Model](/en/guide/choose-delivery-model), and [Repository Standard](/en/reference/repository-standard).

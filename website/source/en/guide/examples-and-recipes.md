@@ -29,6 +29,8 @@ Read these when you want:
 - real rendered outputs
 - a truthful public example of what “healthy” looks like
 
+Important: these examples show distinct public product shapes. They do not imply that a real system must be split into a separate repo for every target.
+
 ## 2. Starter Repos
 
 Use starter repos when you want to begin from a known-good baseline instead of from an empty directory.
@@ -38,6 +40,8 @@ They are best for:
 - first-time setup
 - team onboarding
 - choosing between Go, Python, Node, Claude, and Codex starting points
+
+But do not confuse the starter catalog with a product limitation: one managed repo can still grow to own multiple targets later.
 
 If you are still choosing, pair this with [Choose A Starter Repo](/en/guide/choose-a-starter).
 
@@ -73,3 +77,5 @@ These are not the main entrypoint for most plugin authors, but they are valuable
 Examples should clarify the public contract, not replace it.
 
 Use example repos to see shape, layout, and healthy outputs. Use the rest of the docs to understand what is stable, what is optional, and what the project actually promises.
+
+If you want to understand how those shapes can live inside the same repo, read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets).

@@ -23,6 +23,7 @@ outline: false
 
 - один authored project вместо россыпи вручную поддерживаемых target files
 - один управляемый workflow через `render`, `validate` и CI
+- один managed repo может одновременно владеть несколькими target’ами, когда этого требует продукт
 - несколько поддерживаемых выходных форм для runtime, package, extension и workspace-config target’ов
 - честные границы поддержки вместо обещаний фальшивой parity
 
