@@ -12,6 +12,23 @@ translationRequired: true
 
 Эта страница — широкая карта продукта. Читайте её, когда нужно понять, какие реальные результаты даёт `plugin-kit-ai`, ещё до выбора runtime, стартового репозитория или target.
 
+## Выбор по конечному результату
+
+- Нужен исполняемый плагин с самым сильным путём по умолчанию: начинайте с **runtime-плагинов для Codex**.
+- Нужны Claude-specific hooks: начинайте с **плагинов для Claude Hooks**.
+- Нужен package или extension artifact вместо исполняемого плагина: начинайте с **package и extension targets**.
+- Нужны repo-owned integration files и workspace configuration: начинайте с **workspace-config targets**.
+- Нужен репозиторий, который другой участник команды сможет уверенно проверить и выпустить: дочитайте до секций про **team-ready repo** и **managed project**.
+
+## Лучшие первые примеры
+
+- Runtime plugin по умолчанию: [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod)
+- Пример для Claude hooks: [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod)
+- Пример для Codex package: [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod)
+- Пример для Gemini extension: [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package)
+- Пример для Cursor workspace-config: [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic)
+- Пример для OpenCode workspace-config: [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic)
+
 ## 1. Runtime-плагины для Codex
 
 Это основной публичный путь по умолчанию.
@@ -90,7 +107,7 @@ Python и Node helper-логика может жить либо:
 
 ## 7. Targets для package, extension и workspace-config
 
-Не каждая публичная форма — это repo-local runtime plugin.
+Не каждая публичная форма — это runtime-плагин.
 
 `plugin-kit-ai` также покрывает:
 
@@ -119,8 +136,9 @@ Python и Node helper-логика может жить либо:
 Если вы ещё решаете, что именно делать:
 
 1. прочитайте эту страницу
-2. прочитайте [Выбор runtime](/ru/concepts/choosing-runtime)
-3. прочитайте [Модель target’ов](/ru/concepts/target-model)
-4. выберите starter repo или default `init` path
+2. прочитайте [Managed Project Model](/ru/concepts/managed-project-model)
+3. прочитайте [Выбор target](/ru/guide/choose-a-target)
+4. прочитайте [Выбор runtime](/ru/concepts/choosing-runtime), если вы на runtime-пути
+5. выберите starter repo или default `init` path
 
 Свяжите эту страницу с [Примерами и рецептами](/ru/guide/examples-and-recipes), [Выбором starter repo](/ru/guide/choose-a-starter), [Выбором delivery model](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff), [Package и workspace targets](/ru/guide/package-and-workspace-targets) и [API поверхностями](/ru/api/).

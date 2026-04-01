@@ -12,6 +12,23 @@ translationRequired: true
 
 This page is the broad map of the product. Read it when you want to understand the real things `plugin-kit-ai` can produce before choosing a runtime, starter, or target.
 
+## Choose By End Result
+
+- Want an executable plugin with the strongest default path: start with **Codex runtime plugins**.
+- Want Claude-specific hook behavior: start with **Claude hook plugins**.
+- Want a package or extension artifact instead of a running plugin: start with **package and extension targets**.
+- Want repo-owned integration files and workspace configuration: start with **workspace-config targets**.
+- Want a repo another teammate can validate and ship confidently: keep reading through the **team-ready** and **managed project** sections.
+
+## Best First Examples
+
+- Runtime plugin default: [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod)
+- Claude hook example: [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod)
+- Codex package example: [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod)
+- Gemini extension example: [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package)
+- Cursor workspace-config example: [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic)
+- OpenCode workspace-config example: [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic)
+
 ## 1. Codex Runtime Plugins
 
 This is the default public path.
@@ -90,7 +107,7 @@ This gives teams a supported path for:
 
 ## 7. Package, Extension, And Workspace-Config Targets
 
-Not every public shape is a repo-local runtime plugin.
+Not every public shape is a runtime plugin.
 
 `plugin-kit-ai` also covers:
 
@@ -119,8 +136,9 @@ That is how the public docs stay tied to real source-of-truth data instead of dr
 If you are still deciding what to do:
 
 1. read this page
-2. read [Choosing Runtime](/en/concepts/choosing-runtime)
-3. read [Target Model](/en/concepts/target-model)
-4. choose a starter or the default `init` path
+2. read [Managed Project Model](/en/concepts/managed-project-model)
+3. read [Choose A Target](/en/guide/choose-a-target)
+4. read [Choosing Runtime](/en/concepts/choosing-runtime) if you are on a runtime path
+5. choose a starter or the default `init` path
 
 Pair this page with [Examples And Recipes](/en/guide/examples-and-recipes), [Choose A Starter Repo](/en/guide/choose-a-starter), [Choose Delivery Model](/en/guide/choose-delivery-model), [Bundle Handoff](/en/guide/bundle-handoff), [Package And Workspace Targets](/en/guide/package-and-workspace-targets), and [API Surfaces](/en/api/).
