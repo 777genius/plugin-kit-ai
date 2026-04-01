@@ -27,7 +27,7 @@ Start with the starter or target that matches your first real requirement, but k
 <div class="docs-flow" aria-label="How to read the guide">
   <div class="docs-flow__step">
     <strong>Understand The Product</strong>
-    <span>Read <a href="/en/guide/what-you-can-build">What You Can Build</a> and <a href="/en/guide/one-project-multiple-targets">One Project, Multiple Targets</a>.</span>
+    <span>Read <a href="./what-you-can-build">What You Can Build</a> and <a href="./one-project-multiple-targets">One Project, Multiple Targets</a>.</span>
   </div>
   <div class="docs-flow__arrow" aria-hidden="true">→</div>
   <div class="docs-flow__step">

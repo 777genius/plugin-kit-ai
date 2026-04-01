@@ -27,7 +27,7 @@ outline: false
 <div class="docs-flow" aria-label="Как читать раздел Guide">
   <div class="docs-flow__step">
     <strong>Сначала поймите продукт</strong>
-    <span>Прочитайте <a href="/ru/guide/what-you-can-build">Что можно построить</a> и <a href="/ru/guide/one-project-multiple-targets">Один проект, несколько target’ов</a>.</span>
+    <span>Прочитайте <a href="./what-you-can-build">Что можно построить</a> и <a href="./one-project-multiple-targets">Один проект, несколько target’ов</a>.</span>
   </div>
   <div class="docs-flow__arrow" aria-hidden="true">→</div>
   <div class="docs-flow__step">
