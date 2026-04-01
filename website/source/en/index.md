@@ -119,7 +119,7 @@ The managed project model stays the same even when the output shape changes.
 ## Start Here By Scenario
 
 - New plugin author: start with [Installation](/en/guide/installation), [Quickstart](/en/guide/quickstart), and [Build Your First Plugin](/en/guide/first-plugin).
-- Team lead or maintainer: start with [Build A Team-Ready Plugin](/en/guide/team-ready-plugin), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
+- Team lead or maintainer: start with [Team Adoption](/en/guide/team-adoption), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Python or Node team: start with [Choose Delivery Model](/en/guide/choose-delivery-model), [Bundle Handoff](/en/guide/bundle-handoff), and [v1.0.6](/en/releases/v1-0-6).
 - Packaging or workspace config: start with [Choose A Target](/en/guide/choose-a-target), [Package And Workspace Targets](/en/guide/package-and-workspace-targets), and [Target Support](/en/reference/target-support).
 
@@ -130,9 +130,9 @@ The managed project model stays the same even when the output shape changes.
     <h2>I Am A New Plugin Author</h2>
     <p>Start with the shortest supported path from installation to a validated first plugin.</p>
   </a>
-  <a class="docs-card" href="./guide/team-ready-plugin">
+  <a class="docs-card" href="./guide/team-adoption">
     <h2>I Lead A Team</h2>
-    <p>Focus on repo standards, readiness gates, CI, and handoff instead of one-person local success.</p>
+    <p>Start with the team adoption path: repo standards, readiness gates, CI, release guidance, and safe rollout.</p>
   </a>
   <a class="docs-card" href="./guide/choose-delivery-model">
     <h2>I Own A Python Or Node Lane</h2>

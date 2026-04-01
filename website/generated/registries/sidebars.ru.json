@@ -97,6 +97,10 @@
       "text": "Работа в команде",
       "items": [
         {
+          "text": "Внедрение в команду",
+          "link": "/ru/guide/team-adoption"
+        },
+        {
           "text": "Готовность к продакшену",
           "link": "/ru/guide/production-readiness"
         },

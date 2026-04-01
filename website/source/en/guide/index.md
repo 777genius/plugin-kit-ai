@@ -52,13 +52,13 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
 
 - New here: read [Installation](/en/guide/installation), then [Quickstart](/en/guide/quickstart), then [Build Your First Plugin](/en/guide/first-plugin).
 - Choosing a path: read [What You Can Build](/en/guide/what-you-can-build), [One Project, Multiple Targets](/en/guide/one-project-multiple-targets), [Choosing Runtime](/en/concepts/choosing-runtime), and [Package And Workspace Targets](/en/guide/package-and-workspace-targets).
-- Team adoption: read [Build A Team-Ready Plugin](/en/guide/team-ready-plugin), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
+- Team adoption: read [Team Adoption](/en/guide/team-adoption), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Python or Node delivery: read [Choose Delivery Model](/en/guide/choose-delivery-model) and [Bundle Handoff](/en/guide/bundle-handoff).
 
 ## Choose By Role
 
 - New plugin author: go to [Quickstart](/en/guide/quickstart), [Build Your First Plugin](/en/guide/first-plugin), and [Examples And Recipes](/en/guide/examples-and-recipes).
-- Team lead or maintainer: go to [Build A Team-Ready Plugin](/en/guide/team-ready-plugin), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
+- Team lead or maintainer: go to [Team Adoption](/en/guide/team-adoption), [Production Readiness](/en/guide/production-readiness), and [CI Integration](/en/guide/ci-integration).
 - Python or Node owner: go to [Choose Delivery Model](/en/guide/choose-delivery-model), [Bundle Handoff](/en/guide/bundle-handoff), and [Node/TypeScript Runtime](/en/guide/node-typescript-runtime).
 - Packaging or workspace-config owner: go to [Choose A Target](/en/guide/choose-a-target), [Package And Workspace Targets](/en/guide/package-and-workspace-targets), and [Target Support](/en/reference/target-support).
 
@@ -93,6 +93,10 @@ If the project still feels fuzzy, read [Managed Project Model](/en/concepts/mana
   <a class="docs-card" href="./first-plugin">
     <h2>Build Your First Plugin</h2>
     <p>Follow the narrowest supported path from scaffold to `validate --strict`.</p>
+  </a>
+  <a class="docs-card" href="./team-adoption">
+    <h2>Team Adoption</h2>
+    <p>Use the public path for rolling plugin-kit-ai out across a team without relying on tribal knowledge.</p>
   </a>
   <a class="docs-card" href="./team-ready-plugin">
     <h2>Build A Team-Ready Plugin</h2>

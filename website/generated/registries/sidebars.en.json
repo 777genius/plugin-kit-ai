@@ -97,6 +97,10 @@
       "text": "Team Operations",
       "items": [
         {
+          "text": "Team Adoption",
+          "link": "/en/guide/team-adoption"
+        },
+        {
           "text": "Production Readiness",
           "link": "/en/guide/production-readiness"
         },

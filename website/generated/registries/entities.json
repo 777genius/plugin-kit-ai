@@ -1776,6 +1776,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:team-adoption",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Team Adoption",
+    "summary": "Adopt plugin-kit-ai across a team without relying on tribal knowledge or one-person local success.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/team-adoption.md",
+    "pathEn": "/en/guide/team-adoption",
+    "pathRu": "/ru/guide/team-adoption",
+    "relatedIds": [],
+    "searchTerms": [
+      "Team Adoption"
+    ]
+  },
+  {
     "canonicalId": "page:guide:team-ready-plugin",
     "kind": "page",
     "surface": "guide",

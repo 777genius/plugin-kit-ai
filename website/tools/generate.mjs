@@ -162,6 +162,7 @@ function buildSidebar(locale, entities) {
       {
         text: labels.guideOperate,
         items: [
+          linkItem(labels.teamAdoption, `${prefix}guide/team-adoption`),
           linkItem(labels.productionReadiness, `${prefix}guide/production-readiness`),
           linkItem(labels.ciIntegration, `${prefix}guide/ci-integration`)
         ]
@@ -296,6 +297,7 @@ function localeLabels(locale) {
       oneProjectMultipleTargets: "Один проект, несколько target’ов",
       chooseTarget: "Выбор target",
       firstPlugin: "Соберите первый плагин",
+      teamAdoption: "Внедрение в команду",
       teamReadyPlugin: "Плагин для команды",
       claudePlugin: "Плагин для Claude",
       nodeTypescriptRuntime: "Node/TypeScript runtime",
@@ -368,6 +370,7 @@ function localeLabels(locale) {
     oneProjectMultipleTargets: "One Project, Multiple Targets",
     chooseTarget: "Choose A Target",
     firstPlugin: "Build Your First Plugin",
+    teamAdoption: "Team Adoption",
     teamReadyPlugin: "Build A Team-Ready Plugin",
     claudePlugin: "Build A Claude Plugin",
     nodeTypescriptRuntime: "Node/TypeScript Runtime",
