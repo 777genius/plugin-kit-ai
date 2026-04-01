@@ -31,6 +31,12 @@ outline: false
 - Integrating through Go and want the release that made everyday consumption smoother: read [v1.0.4 Go SDK](/en/releases/v1-0-4-go-sdk).
 - Upgrading an existing repo and want to know whether you should change course: start with the newest note, then follow its migration callouts.
 
+## Read By Role
+
+- Plugin author: read the newest note that changes setup defaults, starter guidance, or delivery recommendations.
+- Team lead or repo owner: read the newest note plus its migration callouts before standardizing a path across repos.
+- Integrator or SDK consumer: jump straight to the note that matches your language surface, then follow its next-reading links.
+
 ## Which Release Should I Read?
 
 - Read [v1.0.6](/en/releases/v1-0-6) if you care about the current recommended Python and Node delivery story.
@@ -48,6 +54,12 @@ outline: false
 - whether a new release changes the recommended path for your runtime or delivery model
 - whether you need to migrate an existing repo now or can stay on the current path
 - which release note to link inside your team when someone asks "what changed for users?"
+
+## Fastest Team Reading Pattern
+
+1. The repo owner reads the newest matching note first.
+2. The runtime owner checks the "What changed" and "What did not change" sections there.
+3. The team links the note in planning or migration work instead of relying on memory.
 
 <div class="docs-grid">
   <a class="docs-card" href="./v1-0-6">
