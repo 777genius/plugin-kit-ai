@@ -142,6 +142,20 @@ a.docs-card * {
   text-decoration: none;
 }
 
+.docs-grid--layers {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.docs-card--static {
+  cursor: default;
+}
+
+.docs-card--static:hover {
+  transform: none;
+  border-color: color-mix(in srgb, var(--vp-c-divider) 82%, transparent);
+  box-shadow: none;
+}
+
 .language-gateway {
   width: min(100%, 860px);
   max-width: 860px;

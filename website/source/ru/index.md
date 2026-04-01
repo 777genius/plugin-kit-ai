@@ -33,6 +33,23 @@ outline: false
 | много target’ов и выходных форм | Все target’ы обещают одно и то же | Target’ы — это rendered outputs с явной границей поддержки |
 | заметный CLI и generated API | Продукт по сути сводится к CLI или helper package | CLI и API только открывают workflow; сам продукт — это управляемая модель репозитория |
 
+## Три слоя продукта
+
+<div class="docs-grid docs-grid--layers">
+  <div class="docs-card docs-card--static">
+    <h2>1. Модель проекта</h2>
+    <p>Один authored repo остаётся source of truth. Это и есть настоящее ядро продукта.</p>
+  </div>
+  <div class="docs-card docs-card--static">
+    <h2>2. Workflow-поверхность</h2>
+    <p>`init`, `render`, `validate`, CI и generated API открывают воспроизводимый workflow вокруг этой модели.</p>
+  </div>
+  <div class="docs-card docs-card--static">
+    <h2>3. Выходные формы</h2>
+    <p>Runtime, package, extension и workspace-config target’ы — это выходы, которые способен производить managed project.</p>
+  </div>
+</div>
+
 ## Карта системы
 
 <div class="docs-flow" aria-label="Схема системы plugin-kit-ai">

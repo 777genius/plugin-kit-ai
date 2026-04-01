@@ -33,6 +33,23 @@ If you want the one page that explains the product clearly, read [Managed Projec
 | Many targets and output shapes | Every target has the same promise | Targets are rendered outputs with explicit support boundaries |
 | A visible CLI and generated API | The product is basically a CLI or helper package | The CLI and APIs expose the workflow; the product is the managed repo system behind them |
 
+## Three Product Layers
+
+<div class="docs-grid docs-grid--layers">
+  <div class="docs-card docs-card--static">
+    <h2>1. Project Model</h2>
+    <p>One authored repo stays the source of truth. This is the actual product core.</p>
+  </div>
+  <div class="docs-card docs-card--static">
+    <h2>2. Workflow Surface</h2>
+    <p>`init`, `render`, `validate`, CI, and generated API expose a reproducible workflow around that model.</p>
+  </div>
+  <div class="docs-card docs-card--static">
+    <h2>3. Output Shapes</h2>
+    <p>Runtime, package, extension, and workspace-config targets are the outputs the managed project can produce.</p>
+  </div>
+</div>
+
 ## System Map
 
 <div class="docs-flow" aria-label="plugin-kit-ai system map">

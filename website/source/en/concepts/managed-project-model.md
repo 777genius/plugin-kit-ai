@@ -24,6 +24,12 @@ If you want one page that explains what `plugin-kit-ai` actually is, read this p
 | A visible CLI workflow | The product is mainly a generator tool | The CLI is the reproducible workflow surface for the managed project |
 | Runtime, package, and workspace targets | Everything has the same operational contract | Outputs differ on purpose and carry explicit support boundaries |
 
+## Three Product Layers
+
+1. **Project model**: one authored repo stays authoritative.
+2. **Workflow surface**: CLI, render, validation, and CI make the model reproducible.
+3. **Output shapes**: runtime, package, extension, and workspace-config targets are rendered from that model.
+
 ## The Model In Four Parts
 
 1. **One authored project**

@@ -24,6 +24,12 @@ translationRequired: true
 | Видимый CLI workflow | Продукт в основном сводится к generator tool | CLI — это воспроизводимая workflow-поверхность для managed project |
 | Runtime, package и workspace target’ы | Всё имеет один и тот же operational contract | Разные outputs задуманы специально и имеют явные границы поддержки |
 
+## Три слоя продукта
+
+1. **Модель проекта**: один authored repo остаётся главным.
+2. **Workflow-поверхность**: CLI, render, validation и CI делают модель воспроизводимой.
+3. **Выходные формы**: runtime, package, extension и workspace-config target’ы рендерятся из этой модели.
+
 ## Модель в четырёх частях
 
 1. **Один authored project**
