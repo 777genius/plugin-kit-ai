@@ -17,6 +17,7 @@ translationRequired: true
 - Обновляете существующий managed repo: начните здесь, потом читайте самый свежий подходящий [release note](/ru/releases/).
 - Переводите native target files в managed project model: начните здесь, потом читайте [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Раскатываете новый default сразу на несколько repo: начните здесь, потом читайте [Внедрение в команду](/ru/guide/team-adoption) и [Готовность к продакшену](/ru/guide/production-readiness).
+- Раскатываете новый default сразу на несколько repo: начните здесь, потом читайте [Внедрение в команду](/ru/guide/team-adoption), [Готовность к продакшену](/ru/guide/production-readiness) и [Rollout на уровне команды](/ru/guide/team-scale-rollout).
 
 ## Что помогает решить этот playbook
 
@@ -45,7 +46,7 @@ translationRequired: true
 - Существующий native-config repo:
   относитесь к изменению как к миграции в managed project model, а не как к маленькому patch.
 - Несколько repo в одной команде:
-  сначала выберите один reference repo, проверьте новый путь на нём, а уже потом раскатывайте дальше.
+  сначала выберите один reference repo, проверьте новый путь на нём, а уже потом раскатывайте дальше через [Rollout на уровне команды](/ru/guide/team-scale-rollout).
 
 ## Что проверить до любого изменения
 
@@ -72,6 +73,7 @@ translationRequired: true
 
 - Нужны текущие user-facing changes: [Релизы](/ru/releases/)
 - Нужен путь rollout на команду: [Внедрение в команду](/ru/guide/team-adoption)
+- Нужен путь rollout сразу на несколько repo: [Rollout на уровне команды](/ru/guide/team-scale-rollout)
 - Нужна миграция из native config: [Миграция существующей конфигурации](/ru/guide/migrate-existing-config)
 - Нужен точный контракт репозитория: [Стандарт репозитория](/ru/reference/repository-standard)
 - Нужны точные границы поддержки: [Граница поддержки](/ru/reference/support-boundary)

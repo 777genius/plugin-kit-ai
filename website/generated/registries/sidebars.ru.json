@@ -105,6 +105,10 @@
           "link": "/ru/guide/team-adoption"
         },
         {
+          "text": "Rollout на уровне команды",
+          "link": "/ru/guide/team-scale-rollout"
+        },
+        {
           "text": "Готовность к продакшену",
           "link": "/ru/guide/production-readiness"
         },

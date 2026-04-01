@@ -105,6 +105,10 @@
           "link": "/en/guide/team-adoption"
         },
         {
+          "text": "Team-Scale Rollout",
+          "link": "/en/guide/team-scale-rollout"
+        },
+        {
           "text": "Production Readiness",
           "link": "/en/guide/production-readiness"
         },

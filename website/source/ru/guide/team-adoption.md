@@ -18,6 +18,7 @@ translationRequired: true
 - Стандартизируете существующий репозиторий: начните здесь, потом читайте [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Раскатываете plugin-kit-ai сразу на несколько repo: начните здесь, потом читайте [Стандарт репозитория](/ru/reference/repository-standard) и [Интеграцию с CI](/ru/guide/ci-integration).
 - Обновляете сразу несколько существующих repo после нового релиза или нового default: начните здесь, потом читайте [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook).
+- Координируете один rollout plan сразу на несколько repo: начните здесь, потом читайте [Rollout на уровне команды](/ru/guide/team-scale-rollout).
 
 ## Кому это особенно полезно
 
@@ -43,6 +44,7 @@ translationRequired: true
 - Нужен минимальный CI gate: [Интеграция с CI](/ru/guide/ci-integration)
 - Нужен публичный checklist готовности: [Готовность к продакшену](/ru/guide/production-readiness)
 - Нужна актуальная рекомендация по delivery path: [v1.0.6](/ru/releases/v1-0-6)
+- Нужен путь rollout сразу на несколько repo: [Rollout на уровне команды](/ru/guide/team-scale-rollout)
 
 ## Новый repo или существующий repo
 
@@ -71,3 +73,4 @@ translationRequired: true
 - Читайте [Готовность к продакшену](/ru/guide/production-readiness), когда нужен checklist перед более широким rollout.
 - Читайте [Интеграцию с CI](/ru/guide/ci-integration), когда готовы сделать контракт исполнимым в автоматике.
 - Читайте [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), когда у команды уже есть живые repo и нужно безопасно принять новую guidance.
+- Читайте [Rollout на уровне команды](/ru/guide/team-scale-rollout), когда работа уже идёт не с одним repo, а с целым набором repo.

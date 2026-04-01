@@ -151,7 +151,7 @@ outline: false
 ## С чего начать по сценарию
 
 - Новый автор плагина: начните с [Установки](/ru/guide/installation), [Быстрого старта](/ru/guide/quickstart) и [Первого плагина](/ru/guide/first-plugin).
-- Тимлид или maintainer: начните с [Внедрения в команду](/ru/guide/team-adoption), [Готовности к продакшену](/ru/guide/production-readiness) и [Интеграции с CI](/ru/guide/ci-integration).
+- Тимлид или maintainer: начните с [Внедрения в команду](/ru/guide/team-adoption), [Rollout на уровне команды](/ru/guide/team-scale-rollout) и [Интеграции с CI](/ru/guide/ci-integration).
 - Команда на Python или Node: начните с [Выбора модели поставки](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff) и [v1.0.6](/ru/releases/v1-0-6).
 - Packaging или workspace config: начните с [Выбора target](/ru/guide/choose-a-target), [Package и workspace targets](/ru/guide/package-and-workspace-targets) и [Поддержки target’ов](/ru/reference/target-support).
 
@@ -165,6 +165,10 @@ outline: false
   <a class="docs-card" href="./guide/team-adoption">
     <h2>Я веду команду</h2>
     <p>Начните с пути внедрения в команду: стандарт репозитория, readiness gates, CI, release guidance и безопасный rollout.</p>
+  </a>
+  <a class="docs-card" href="./guide/team-scale-rollout">
+    <h2>Я раскатываю изменения на несколько repo</h2>
+    <p>Начинайте здесь, когда работа уже не про один repo, а про координированный rollout новых defaults и release guidance.</p>
   </a>
   <a class="docs-card" href="./guide/choose-delivery-model">
     <h2>Я отвечаю за Python или Node путь</h2>

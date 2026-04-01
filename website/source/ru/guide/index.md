@@ -53,13 +53,14 @@ outline: false
 - Первый вход: прочитайте [Установку](/ru/guide/installation), потом [Быстрый старт](/ru/guide/quickstart), потом [Соберите первый плагин](/ru/guide/first-plugin).
 - Выбор пути: прочитайте [Что можно построить](/ru/guide/what-you-can-build), [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), [Выбор runtime](/ru/concepts/choosing-runtime) и [Package и workspace targets](/ru/guide/package-and-workspace-targets).
 - Внедрение в команду: прочитайте [Внедрение в команду](/ru/guide/team-adoption), [Готовность к продакшену](/ru/guide/production-readiness) и [Интеграцию с CI](/ru/guide/ci-integration).
-- Обновления и миграции на уровне команды: прочитайте [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), [Релизы](/ru/releases/) и [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
+- Обновления и миграции на уровне команды: прочитайте [Rollout на уровне команды](/ru/guide/team-scale-rollout), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), [Релизы](/ru/releases/) и [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Поставка Python или Node: прочитайте [Выбор модели поставки](/ru/guide/choose-delivery-model) и [Bundle handoff](/ru/guide/bundle-handoff).
 
 ## Выбор по роли
 
 - Новый автор плагина: идите в [Быстрый старт](/ru/guide/quickstart), [Соберите первый плагин](/ru/guide/first-plugin) и [Примеры и рецепты](/ru/guide/examples-and-recipes).
 - Тимлид или maintainer: идите в [Внедрение в команду](/ru/guide/team-adoption), [Готовность к продакшену](/ru/guide/production-readiness) и [Интеграцию с CI](/ru/guide/ci-integration).
+- Владелец repo, который планирует координированный rollout: идите в [Rollout на уровне команды](/ru/guide/team-scale-rollout), [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook) и [Политику версий и совместимости](/ru/reference/version-and-compatibility).
 - Владелец repo, который планирует обновления: идите в [Плейбук обновлений и миграции](/ru/guide/upgrade-and-migration-playbook), [Релизы](/ru/releases/) и [Миграцию существующей конфигурации](/ru/guide/migrate-existing-config).
 - Ответственный за Python или Node путь: идите в [Выбор модели поставки](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff) и [Node/TypeScript runtime](/ru/guide/node-typescript-runtime).
 - Ответственный за packaging или workspace-config: идите в [Выбор target](/ru/guide/choose-a-target), [Package и workspace targets](/ru/guide/package-and-workspace-targets) и [Поддержку target’ов](/ru/reference/target-support).
@@ -103,6 +104,10 @@ outline: false
   <a class="docs-card" href="./upgrade-and-migration-playbook">
     <h2>Плейбук обновлений и миграции</h2>
     <p>Используйте безопасный публичный путь для принятия новых defaults, релизов и managed project model в существующих repo.</p>
+  </a>
+  <a class="docs-card" href="./team-scale-rollout">
+    <h2>Rollout на уровне команды</h2>
+    <p>Раскатывайте новые defaults, release guidance и support decisions сразу на несколько repo без drift и устных договорённостей.</p>
   </a>
   <a class="docs-card" href="./team-ready-plugin">
     <h2>Сделайте плагин готовым для команды</h2>

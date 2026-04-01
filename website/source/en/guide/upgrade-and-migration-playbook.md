@@ -17,6 +17,7 @@ Use this page when your team already has live repos and the real question is how
 - Upgrading an existing managed repo: start here, then read the newest matching [release note](/en/releases/).
 - Moving from native target files into the managed project model: start here, then read [Migrate Existing Native Config](/en/guide/migrate-existing-config).
 - Rolling a new default across several repos: start here, then read [Team Adoption](/en/guide/team-adoption) and [Production Readiness](/en/guide/production-readiness).
+- Rolling a new default across several repos: start here, then read [Team Adoption](/en/guide/team-adoption), [Production Readiness](/en/guide/production-readiness), and [Team-Scale Rollout](/en/guide/team-scale-rollout).
 
 ## What This Playbook Helps You Decide
 
@@ -45,7 +46,7 @@ Use this page when your team already has live repos and the real question is how
 - Existing native-config repo:
   treat the change as a migration into the managed project model, not as a small patch.
 - Several repos owned by one team:
-  choose one reference repo first, validate the path there, then roll it out deliberately.
+  choose one reference repo first, validate the path there, then roll it out deliberately through [Team-Scale Rollout](/en/guide/team-scale-rollout).
 
 ## What To Check Before You Change Anything
 
@@ -72,6 +73,7 @@ Use this page when your team already has live repos and the real question is how
 
 - Need the current user-facing changes: [Releases](/en/releases/)
 - Need the team rollout path: [Team Adoption](/en/guide/team-adoption)
+- Need the multi-repo rollout path: [Team-Scale Rollout](/en/guide/team-scale-rollout)
 - Need the migration from native config: [Migrate Existing Native Config](/en/guide/migrate-existing-config)
 - Need the exact repository contract: [Repository Standard](/en/reference/repository-standard)
 - Need the exact support limits: [Support Boundary](/en/reference/support-boundary)

@@ -1814,6 +1814,25 @@
     ]
   },
   {
+    "canonicalId": "page:guide:team-scale-rollout",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Team-Scale Rollout",
+    "summary": "Roll out new plugin-kit-ai defaults, release guidance, and support decisions across several repos without guesswork.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/team-scale-rollout.md",
+    "pathEn": "/en/guide/team-scale-rollout",
+    "pathRu": "/ru/guide/team-scale-rollout",
+    "relatedIds": [],
+    "searchTerms": [
+      "Team-Scale Rollout"
+    ]
+  },
+  {
     "canonicalId": "page:guide:upgrade-and-migration-playbook",
     "kind": "page",
     "surface": "guide",

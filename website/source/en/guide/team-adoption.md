@@ -18,6 +18,7 @@ Use this page when the question is no longer “can one person make it work?” 
 - Standardizing an existing repo: begin here, then read [Migrate Existing Config](/en/guide/migrate-existing-config).
 - Rolling plugin-kit-ai out across several repos: begin here, then read [Repository Standard](/en/reference/repository-standard) and [CI Integration](/en/guide/ci-integration).
 - Upgrading several existing repos after a new release or new default: begin here, then read [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook).
+- Coordinating one rollout plan across several repos: begin here, then read [Team-Scale Rollout](/en/guide/team-scale-rollout).
 
 ## Read This If
 
@@ -43,6 +44,7 @@ Use this page when the question is no longer “can one person make it work?” 
 - Need the minimum CI gate: [CI Integration](/en/guide/ci-integration)
 - Need the public readiness checklist: [Production Readiness](/en/guide/production-readiness)
 - Need the current delivery recommendation: [v1.0.6](/en/releases/v1-0-6)
+- Need the multi-repo rollout path: [Team-Scale Rollout](/en/guide/team-scale-rollout)
 
 ## Fresh Repo vs Existing Repo
 
@@ -71,3 +73,4 @@ Use this page when the question is no longer “can one person make it work?” 
 - Read [Production Readiness](/en/guide/production-readiness) for the checklist you can apply before broader rollout.
 - Read [CI Integration](/en/guide/ci-integration) when you are ready to make the contract executable.
 - Read [Upgrade And Migration Playbook](/en/guide/upgrade-and-migration-playbook) when the team already has live repos and must adopt new guidance safely.
+- Read [Team-Scale Rollout](/en/guide/team-scale-rollout) when the work is no longer one repo at a time.
