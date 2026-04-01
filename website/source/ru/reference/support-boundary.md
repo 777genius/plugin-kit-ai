@@ -18,6 +18,7 @@ translationRequired: true
 - Нужен самый безопасный ориентир для interpreted runtimes: доверяйте `validate --strict` для поддерживаемых Python и Node путей.
 - Нужно простое правило про wrappers: относитесь к ним как к путям установки CLI, а не как к runtime API.
 - Нужна быстрая матрица по target’ам: свяжите эту страницу с [Поддержкой target’ов](/ru/reference/target-support).
+- Нужна короткая сравнительная таблица по обещаниям разных путей: откройте [Обещания поддержки по путям](/ru/reference/support-promise-by-path).
 
 ## Безопасные значения по умолчанию
 
@@ -50,4 +51,4 @@ translationRequired: true
 - достаточно ли стабилен путь для долгосрочного командного использования
 - не путаете ли вы install, packaging или workspace lanes с runtime contract
 
-Свяжите эту страницу с [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).
+Свяжите эту страницу с [Обещаниями поддержки по путям](/ru/reference/support-promise-by-path), [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).

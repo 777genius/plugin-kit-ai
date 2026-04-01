@@ -163,6 +163,10 @@ outline: false
     <h2>Проверить границу безопасности</h2>
     <p>Быстро поймите, что stable, что beta и где package или workspace outputs перестают вести себя как runtime path.</p>
   </a>
+  <a class="docs-card" href="./reference/support-promise-by-path">
+    <h2>Сравнить обещания по путям</h2>
+    <p>Посмотрите, как Go, Node, Python, shell, package и workspace-config пути отличаются по силе обещаний и операционной цене.</p>
+  </a>
   <a class="docs-card" href="./reference/get-help-and-contribute">
     <h2>Получить помощь или внести вклад</h2>
     <p>Найдите публичный путь для issues, docs feedback, pull requests и аккуратного security-reporting.</p>

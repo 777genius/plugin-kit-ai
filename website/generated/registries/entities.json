@@ -2023,6 +2023,25 @@
     ]
   },
   {
+    "canonicalId": "page:reference:support-promise-by-path",
+    "kind": "page",
+    "surface": "reference",
+    "localeStrategy": "mirrored",
+    "title": "Support Promise By Path",
+    "summary": "Compare the support promise, operational cost, and safe default status of Go, Node, Python, shell, package, and workspace-config paths.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "reference/support-promise-by-path.md",
+    "pathEn": "/en/reference/support-promise-by-path",
+    "pathRu": "/ru/reference/support-promise-by-path",
+    "relatedIds": [],
+    "searchTerms": [
+      "Support Promise By Path"
+    ]
+  },
+  {
     "canonicalId": "page:reference:troubleshooting",
     "kind": "page",
     "surface": "reference",

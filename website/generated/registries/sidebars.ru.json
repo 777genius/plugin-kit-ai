@@ -185,6 +185,10 @@
           "link": "/ru/reference/support-boundary"
         },
         {
+          "text": "Обещания поддержки по путям",
+          "link": "/ru/reference/support-promise-by-path"
+        },
+        {
           "text": "Поддержка Target'ов",
           "link": "/ru/reference/target-support"
         },

@@ -24,6 +24,7 @@ outline: false
 - Need the exact repo contract: open [Repository Standard](/en/reference/repository-standard).
 - Need the exact day-to-day authoring path: open [Authoring Workflow](/en/reference/authoring-workflow).
 - Need the exact support limit: open [Support Boundary](/en/reference/support-boundary) and [Target Support](/en/reference/target-support).
+- Need the shortest decision sheet by path: open [Support Promise By Path](/en/reference/support-promise-by-path).
 - Need the version and compatibility rule: open [Version And Compatibility Policy](/en/reference/version-and-compatibility).
 - Need the shortest answer to a common problem: open [FAQ](/en/reference/faq) or [Troubleshooting](/en/reference/troubleshooting).
 - Need the public path for help or contribution: open [Get Help And Contribute](/en/reference/get-help-and-contribute).
@@ -38,6 +39,7 @@ outline: false
 
 - First-time install confusion: [Install Channels](/en/reference/install-channels)
 - “What is actually supported?”: [Support Boundary](/en/reference/support-boundary)
+- “Which path carries the strongest promise?”: [Support Promise By Path](/en/reference/support-promise-by-path)
 - “Which targets are runtime-ready?”: [Target Support](/en/reference/target-support)
 - “What should a healthy repo look like?”: [Repository Standard](/en/reference/repository-standard)
 - “What does the canonical workflow look like?”: [Authoring Workflow](/en/reference/authoring-workflow)
@@ -47,6 +49,7 @@ outline: false
 - installation questions: [Install Channels](/en/reference/install-channels)
 - repository health: [Repository Standard](/en/reference/repository-standard) and [Authoring Workflow](/en/reference/authoring-workflow)
 - support limits: [Support Boundary](/en/reference/support-boundary) and [Target Support](/en/reference/target-support)
+- path-by-path operational promise: [Support Promise By Path](/en/reference/support-promise-by-path)
 - versions and compatibility expectations: [Version And Compatibility Policy](/en/reference/version-and-compatibility)
 - terminology cleanup: [Glossary](/en/reference/glossary)
 - help, bug reports, or contribution path: [Get Help And Contribute](/en/reference/get-help-and-contribute)
@@ -71,6 +74,10 @@ outline: false
   <a class="docs-card" href="./target-support">
     <h2>Target Support</h2>
     <p>See which targets are runtime-ready, package-only, or intentionally outside the main stable runtime path.</p>
+  </a>
+  <a class="docs-card" href="./support-promise-by-path">
+    <h2>Support Promise By Path</h2>
+    <p>Compare Go, Node, Python, shell, package, and workspace-config paths by promise strength and operational cost.</p>
   </a>
   <a class="docs-card" href="./version-and-compatibility">
     <h2>Version And Compatibility Policy</h2>

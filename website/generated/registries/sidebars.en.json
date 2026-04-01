@@ -185,6 +185,10 @@
           "link": "/en/reference/support-boundary"
         },
         {
+          "text": "Support Promise By Path",
+          "link": "/en/reference/support-promise-by-path"
+        },
+        {
           "text": "Target Support",
           "link": "/en/reference/target-support"
         },

@@ -24,6 +24,7 @@ outline: false
 - Нужен точный контракт репозитория: откройте [Стандарт репозитория](/ru/reference/repository-standard).
 - Нужен точный повседневный authoring path: откройте [Процесс авторинга](/ru/reference/authoring-workflow).
 - Нужна точная граница поддержки: откройте [Границу поддержки](/ru/reference/support-boundary) и [Поддержку target’ов](/ru/reference/target-support).
+- Нужна короткая сравнительная таблица по путям: откройте [Обещания поддержки по путям](/ru/reference/support-promise-by-path).
 - Нужна rule по версиям и совместимости: откройте [Политику версий и совместимости](/ru/reference/version-and-compatibility).
 - Нужен короткий ответ на частую проблему: откройте [Частые вопросы](/ru/reference/faq) или [Диагностику проблем](/ru/reference/troubleshooting).
 - Нужен публичный путь для помощи или contribution: откройте [Как получить помощь и внести вклад](/ru/reference/get-help-and-contribute).
@@ -38,6 +39,7 @@ outline: false
 
 - Путаетесь в установке: [Каналы установки](/ru/reference/install-channels)
 - Нужно понять, что реально поддерживается: [Граница поддержки](/ru/reference/support-boundary)
+- Нужно быстро понять, у какого пути сильнее обещание: [Обещания поддержки по путям](/ru/reference/support-promise-by-path)
 - Нужно быстро увидеть, какие target’ы готовы для runtime: [Поддержка target’ов](/ru/reference/target-support)
 - Нужно понять, как выглядит здоровый repo: [Стандарт репозитория](/ru/reference/repository-standard)
 - Нужно увидеть канонический рабочий путь: [Процесс авторинга](/ru/reference/authoring-workflow)
@@ -62,6 +64,10 @@ outline: false
   <a class="docs-card" href="./target-support">
     <h2>Поддержка target’ов</h2>
     <p>Смотрите, какие target’ы подходят для runtime, какие относятся только к packaging, а какие сознательно стоят вне главного стабильного пути.</p>
+  </a>
+  <a class="docs-card" href="./support-promise-by-path">
+    <h2>Обещания поддержки по путям</h2>
+    <p>Сравните Go, Node, Python, shell, package и workspace-config пути по силе обещаний и операционной цене.</p>
   </a>
   <a class="docs-card" href="./version-and-compatibility">
     <h2>Политика версий и совместимости</h2>

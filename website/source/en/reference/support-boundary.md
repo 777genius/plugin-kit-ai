@@ -18,6 +18,7 @@ This page is the compact answer to a simple question: what can you rely on today
 - Need the safest rule for interpreted runtimes: trust `validate --strict` for supported Python and Node lanes.
 - Need the safest rule about wrappers: treat them as CLI install paths, not runtime APIs.
 - Need the safest quick matrix by target: pair this page with [Target Support](/en/reference/target-support).
+- Need the shortest comparison of promises by path: open [Support Promise By Path](/en/reference/support-promise-by-path).
 
 ## Safe Defaults
 
@@ -50,4 +51,4 @@ This page is the compact answer to a simple question: what can you rely on today
 - whether a path is stable enough for long-term team use
 - whether you are accidentally treating install, packaging, or workspace lanes like runtime contracts
 
-Pair this page with [Target Support](/en/reference/target-support) and [Stability Model](/en/concepts/stability-model).
+Pair this page with [Support Promise By Path](/en/reference/support-promise-by-path), [Target Support](/en/reference/target-support), and [Stability Model](/en/concepts/stability-model).
