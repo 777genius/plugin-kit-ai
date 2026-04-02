@@ -30,6 +30,24 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, docsLinks, `locale.value === "ru" ? "ru" : "en"`)
 	mustContain(t, docsLinks, `supportBoundaryUrl`)
 
+	releaseComposableBody, err := os.ReadFile(filepath.Join(root, "composables", "useReleaseDownloads.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseComposable := string(releaseComposableBody)
+	mustContain(t, releaseComposable, `"/api/releases/latest"`)
+	mustContain(t, releaseComposable, `server: true`)
+	mustContain(t, releaseComposable, `lazy: false`)
+
+	releaseRouteBody, err := os.ReadFile(filepath.Join(root, "server", "api", "releases", "latest.get.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseRoute := string(releaseRouteBody)
+	mustContain(t, releaseRoute, `https://api.github.com/repos/${githubRepo}/releases/latest`)
+	mustContain(t, releaseRoute, `cache-control`)
+	mustContain(t, releaseRoute, `RELEASE_CACHE_TTL`)
+
 	ruContentBody, err := os.ReadFile(filepath.Join(root, "content", "ru.json"))
 	if err != nil {
 		t.Fatal(err)
