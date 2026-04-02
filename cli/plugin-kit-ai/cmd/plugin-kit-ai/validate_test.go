@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -91,6 +93,48 @@ func TestValidateWritesGeminiWarningHints(t *testing.T) {
 		`Warning: Gemini extension directory basename "tmp-ext" does not match extension name "demo-ext"`,
 		"Hint: rename the extension directory to match plugin.yaml name before running gemini extensions link .",
 		"Hint: Gemini extension-tier policies ignore allow/yolo; keep only documented extension policy keys in targets/gemini/policies/*.toml.",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestValidateWritesGeminiSuccessHintsForRuntimeLane(t *testing.T) {
+	t.Parallel()
+	prevPlatform := validatePlatform
+	prevStrict := validateStrict
+	validatePlatform = ""
+	validateStrict = false
+	t.Cleanup(func() {
+		validatePlatform = prevPlatform
+		validateStrict = prevStrict
+	})
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "launcher.yaml"), []byte("runtime: go\nentrypoint: ./bin/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newValidateCmd(validateRunnerFunc(func(gotRoot, platform string) (validate.Report, error) {
+		if gotRoot != root {
+			t.Fatalf("root = %q, want %q", gotRoot, root)
+		}
+		return validate.Report{Platform: "gemini"}, nil
+	}))
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{root})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Validated " + root,
+		"Hint: Gemini Go beta lane is validate-clean; run make test-gemini-runtime-smoke before relinking the extension.",
+		"Hint: relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
+		"Hint: use make test-gemini-runtime-live when you need real CLI evidence after the repo-local smoke is green.",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout missing %q:\n%s", want, output)

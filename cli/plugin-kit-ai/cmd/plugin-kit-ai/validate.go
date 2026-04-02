@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/validate"
@@ -52,6 +54,9 @@ func newValidateCmd(runner validateRunner) *cobra.Command {
 				return fmt.Errorf("validation warnings treated as errors (%d warning(s))", len(report.Warnings))
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Validated %s\n", args[0])
+			for _, hint := range geminiValidateSuccessHints(args[0], report) {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Hint: %s\n", hint)
+			}
 			return nil
 		},
 	}
@@ -97,6 +102,21 @@ func geminiValidateFailureHints(report validate.Report) []string {
 		appendHint(&hints, seen, "after validate is green, run make test-gemini-runtime-smoke, relink the extension with gemini extensions link ., then use make test-gemini-runtime-live when you need real CLI evidence.")
 	}
 	return hints
+}
+
+func geminiValidateSuccessHints(root string, report validate.Report) []string {
+	if !strings.EqualFold(strings.TrimSpace(report.Platform), "gemini") {
+		return nil
+	}
+	launcherPath := filepath.Join(root, "launcher.yaml")
+	if _, err := os.Stat(launcherPath); err != nil {
+		return nil
+	}
+	return []string{
+		"Gemini Go beta lane is validate-clean; run make test-gemini-runtime-smoke before relinking the extension.",
+		"relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
+		"use make test-gemini-runtime-live when you need real CLI evidence after the repo-local smoke is green.",
+	}
 }
 
 func reportTouchesGemini(report validate.Report) bool {
