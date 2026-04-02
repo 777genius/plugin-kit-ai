@@ -197,6 +197,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(sdkReadme), "`github.com/777genius/plugin-kit-ai/sdk/gemini`")
 	mustContain(t, string(sdkReadme), "## Gemini Example")
 	mustContain(t, string(sdkReadme), "app.Gemini().OnBeforeTool")
+	mustContain(t, string(sdkReadme), "return gemini.BeforeToolContinue()")
 	mustContain(t, string(sdkReadme), "`gemini/BeforeTool` (`public-beta`)")
 	mustContain(t, string(architectureDoc), "`sdk/gemini`")
 	mustContain(t, string(architectureDoc), "`sdk/internal/platforms/gemini`")

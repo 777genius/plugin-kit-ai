@@ -353,6 +353,21 @@ func TestInitRunner_geminiGoRuntimeStarter(t *testing.T) {
 			t.Fatalf("gemini runtime README missing %q:\n%s", want, readme)
 		}
 	}
+	mainBody, err := os.ReadFile(filepath.Join(out, "cmd", "genplug", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainGo := string(mainBody)
+	for _, want := range []string{
+		"return gemini.SessionStartContinue()",
+		"return gemini.SessionEndContinue()",
+		"return gemini.BeforeToolContinue()",
+		"return gemini.AfterToolContinue()",
+	} {
+		if !strings.Contains(mainGo, want) {
+			t.Fatalf("gemini runtime main.go missing %q:\n%s", want, mainGo)
+		}
+	}
 	assertDevSDKReplace(t, out)
 }
 

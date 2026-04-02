@@ -11,19 +11,19 @@ func main() {
 	app := pluginkitai.New(pluginkitai.Config{Name: "{{.ProjectName}}"})
 	app.Gemini().OnSessionStart(func(e *gemini.SessionStartEvent) *gemini.SessionStartResponse {
 		_ = e
-		return nil
+		return gemini.SessionStartContinue()
 	})
 	app.Gemini().OnSessionEnd(func(e *gemini.SessionEndEvent) *gemini.SessionEndResponse {
 		_ = e
-		return nil
+		return gemini.SessionEndContinue()
 	})
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		_ = e
-		return nil
+		return gemini.BeforeToolContinue()
 	})
 	app.Gemini().OnAfterTool(func(e *gemini.AfterToolEvent) *gemini.AfterToolResponse {
 		_ = e
-		return nil
+		return gemini.AfterToolContinue()
 	})
 	os.Exit(app.Run())
 }

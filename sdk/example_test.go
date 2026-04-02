@@ -26,7 +26,7 @@ func ExampleApp_Codex() {
 func ExampleApp_Gemini() {
 	app := pluginkitai.New(pluginkitai.Config{Name: "demo"})
 	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
-		return nil
+		return gemini.BeforeToolContinue()
 	})
 	_ = app
 }

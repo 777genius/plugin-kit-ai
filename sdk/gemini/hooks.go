@@ -47,6 +47,56 @@ type BeforeToolResponse struct {
 // AfterToolResponse is the AfterTool response type.
 type AfterToolResponse = CommonResponse
 
+// SessionStartContinue returns an explicit no-op SessionStart response.
+func SessionStartContinue() *SessionStartResponse {
+	return &SessionStartResponse{}
+}
+
+// SessionStartAddContext appends additional context during SessionStart.
+func SessionStartAddContext(context string) *SessionStartResponse {
+	return &SessionStartResponse{AdditionalContext: context}
+}
+
+// SessionEndContinue returns an explicit no-op SessionEnd response.
+func SessionEndContinue() *SessionEndResponse {
+	return &SessionEndResponse{}
+}
+
+// BeforeToolContinue returns an explicit no-op BeforeTool response.
+func BeforeToolContinue() *BeforeToolResponse {
+	return &BeforeToolResponse{}
+}
+
+// BeforeToolAllow returns an explicit allow decision for BeforeTool.
+func BeforeToolAllow() *BeforeToolResponse {
+	return &BeforeToolResponse{CommonResponse: CommonResponse{Decision: "allow"}}
+}
+
+// BeforeToolDeny blocks the tool invocation with a deny decision.
+func BeforeToolDeny(reason string) *BeforeToolResponse {
+	return &BeforeToolResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// BeforeToolRewriteInput continues with a rewritten tool_input payload.
+func BeforeToolRewriteInput(input json.RawMessage) *BeforeToolResponse {
+	return &BeforeToolResponse{ToolInput: input}
+}
+
+// AfterToolContinue returns an explicit no-op AfterTool response.
+func AfterToolContinue() *AfterToolResponse {
+	return &AfterToolResponse{}
+}
+
+// AfterToolAllow returns an explicit allow decision for AfterTool.
+func AfterToolAllow() *AfterToolResponse {
+	return &AfterToolResponse{Decision: "allow"}
+}
+
+// AfterToolDeny blocks the follow-up path with a deny decision.
+func AfterToolDeny(reason string) *AfterToolResponse {
+	return &AfterToolResponse{Decision: "deny", Reason: reason}
+}
+
 // AllowTool returns an explicit allow decision for BeforeTool or AfterTool.
 func AllowTool() *CommonResponse {
 	return &CommonResponse{Decision: "allow"}

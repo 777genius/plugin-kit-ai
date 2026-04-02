@@ -165,7 +165,7 @@ import (
 func main() {
 	app := pluginkitai.New(pluginkitai.Config{Name: "gemini-demo"})
 	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
-		return nil
+		return gemini.BeforeToolContinue()
 	})
 	os.Exit(app.Run())
 }
