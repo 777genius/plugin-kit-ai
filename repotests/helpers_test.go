@@ -135,17 +135,10 @@ func copyTree(t *testing.T, src, dst string) {
 
 func launcherCommand(entry string, args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Ext(entry), ".cmd") {
-		parts := []string{"call", quoteWindowsCmdArg(entry)}
-		for _, arg := range args {
-			parts = append(parts, quoteWindowsCmdArg(arg))
-		}
-		return exec.Command("cmd", "/d", "/s", "/c", `"`+strings.Join(parts, " ")+`"`)
+		cmdArgs := append([]string{"/d", "/c", entry}, args...)
+		return exec.Command("cmd", cmdArgs...)
 	}
 	return exec.Command(entry, args...)
-}
-
-func quoteWindowsCmdArg(arg string) string {
-	return `"` + strings.ReplaceAll(arg, `"`, `""`) + `"`
 }
 
 func runInstall(t *testing.T, pluginKitAIBin, workDir, apiBase string, extraArgs ...string) (exitCode int, output []byte) {
