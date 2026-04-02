@@ -59,6 +59,25 @@ func TestBeforeToolHelpers(t *testing.T) {
 	} else if !bytes.Equal(got.ToolInput, input) {
 		t.Fatalf("BeforeToolRewriteInput().ToolInput = %s", string(got.ToolInput))
 	}
+
+	got, err := BeforeToolRewriteInputValue(map[string]any{"content": "rewritten"})
+	if err != nil {
+		t.Fatalf("BeforeToolRewriteInputValue() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("BeforeToolRewriteInputValue() = nil")
+	}
+	if string(got.ToolInput) != `{"content":"rewritten"}` {
+		t.Fatalf("BeforeToolRewriteInputValue().ToolInput = %s", string(got.ToolInput))
+	}
+}
+
+func TestBeforeToolRewriteInputValueRejectsNonObject(t *testing.T) {
+	t.Parallel()
+
+	if _, err := BeforeToolRewriteInputValue([]string{"not", "an", "object"}); err == nil {
+		t.Fatal("BeforeToolRewriteInputValue() error = nil, want error")
+	}
 }
 
 func TestAfterToolHelpers(t *testing.T) {

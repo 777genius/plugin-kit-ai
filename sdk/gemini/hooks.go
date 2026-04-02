@@ -2,6 +2,8 @@ package gemini
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	internalgemini "github.com/777genius/plugin-kit-ai/sdk/internal/platforms/gemini"
 	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
@@ -82,6 +84,20 @@ func BeforeToolRewriteInput(input json.RawMessage) *BeforeToolResponse {
 	return &BeforeToolResponse{ToolInput: input}
 }
 
+// BeforeToolRewriteInputValue marshals a replacement tool_input object for
+// Gemini BeforeTool hooks. Gemini expects hookSpecificOutput.tool_input to be a
+// JSON object, so non-object values return an error.
+func BeforeToolRewriteInputValue(v any) (*BeforeToolResponse, error) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Gemini tool_input rewrite: %w", err)
+	}
+	if !looksLikeJSONObject(body) {
+		return nil, fmt.Errorf("marshal Gemini tool_input rewrite: expected JSON object")
+	}
+	return BeforeToolRewriteInput(body), nil
+}
+
 // AfterToolContinue returns an explicit no-op AfterTool response.
 func AfterToolContinue() *AfterToolResponse {
 	return &AfterToolResponse{}
@@ -113,6 +129,10 @@ func AllowTool() *CommonResponse {
 // DenyTool returns a deny decision with a reason for BeforeTool or AfterTool.
 func DenyTool(reason string) *CommonResponse {
 	return &CommonResponse{Decision: "deny", Reason: reason}
+}
+
+func looksLikeJSONObject(body []byte) bool {
+	return strings.HasPrefix(strings.TrimSpace(string(body)), "{")
 }
 
 func commonOutcomeFromResponse(r *CommonResponse) internalgemini.CommonOutcome {

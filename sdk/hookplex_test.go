@@ -232,7 +232,11 @@ func TestApp_GeminiBeforeToolRewriteInputEncodesHookSpecificOutput(t *testing.T)
 		Env:  testEnv{},
 	})
 	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
-		return gemini.BeforeToolRewriteInput([]byte(`{"content":"rewritten"}`))
+		resp, err := gemini.BeforeToolRewriteInputValue(map[string]any{"content": "rewritten"})
+		if err != nil {
+			t.Fatalf("BeforeToolRewriteInputValue() error = %v", err)
+		}
+		return resp
 	})
 	if c := app.Run(); c != 0 {
 		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
