@@ -48,10 +48,12 @@ SDK packages and stable root API:
 - `github.com/777genius/plugin-kit-ai/sdk`
 - `github.com/777genius/plugin-kit-ai/sdk/claude`
 - `github.com/777genius/plugin-kit-ai/sdk/codex`
+- `github.com/777genius/plugin-kit-ai/sdk/gemini`
 - `plugin-kit-ai.New`, `plugin-kit-ai.Config`, `plugin-kit-ai.App`
 - `(*plugin-kit-ai.App).Use`
 - `(*plugin-kit-ai.App).Claude`
 - `(*plugin-kit-ai.App).Codex`
+- `(*plugin-kit-ai.App).Gemini`
 - `(*plugin-kit-ai.App).Run`
 - `(*plugin-kit-ai.App).RunContext`
 - `plugin-kit-ai.Supported`
@@ -168,6 +170,11 @@ Current beta surfaces that remain intentionally outside the stable set:
 - any newly added surfaces after the first stable set, until separately reviewed and promoted
 - experimental local typed Claude hook registration helpers in `sdk/claude`
 - experimental local typed Codex hook registration helper in `sdk/codex`
+- approved-export-shaped Gemini event and response types for:
+  - `SessionStart`
+  - `SessionEnd`
+  - `BeforeTool`
+  - `AfterTool`
 
 Config contract:
 
