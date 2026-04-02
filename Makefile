@@ -45,7 +45,7 @@ test-install-live:
 	PLUGIN_KIT_AI_E2E_LIVE=1 go test -count=1 -timeout=15m -run '^TestLiveInstall_' ./repotests
 
 test-gemini-live:
-	go test -count=1 -run '^TestGeminiCLIExtensionLink$$' ./repotests $(EXTENDED_TEST_ARGS)
+	PLUGIN_KIT_AI_RUN_GEMINI_CLI=1 go test -count=1 -run '^TestGeminiCLIExtensionLink$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-gemini-runtime-live:
 	PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1 go test -count=1 -run '^TestGeminiCLIRuntimeSessionStart$$' ./repotests $(EXTENDED_TEST_ARGS)

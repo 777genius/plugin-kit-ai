@@ -14,8 +14,12 @@ import (
 )
 
 const geminiRuntimeLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE"
+const geminiExtensionLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_CLI"
 
 func TestGeminiCLIExtensionLink(t *testing.T) {
+	if strings.TrimSpace(os.Getenv(geminiExtensionLiveEnvVar)) != "1" {
+		t.Skipf("set %s=1 to run real Gemini extension lifecycle smoke", geminiExtensionLiveEnvVar)
+	}
 	geminiBin := geminiBinaryOrSkip(t)
 	root := RepoRoot(t)
 	pluginKitAIBin := buildPluginKitAI(t)
