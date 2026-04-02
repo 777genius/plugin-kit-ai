@@ -18,6 +18,8 @@ import (
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
+var runtimeFoundPathPattern = regexp.MustCompile(`\bat (.+?) but\b`)
+
 type FailureKind string
 
 const (
@@ -300,6 +302,23 @@ func extractFailurePath(message string) string {
 			return ""
 		}
 		return rest[:idx]
+	case strings.HasPrefix(message, "runtime not found: "):
+		rest := strings.TrimPrefix(message, "runtime not found: ")
+		if idx := strings.Index(rest, "parse "); idx >= 0 {
+			if path := extractFailurePath(rest[idx:]); path != "" {
+				return path
+			}
+		}
+		switch {
+		case strings.HasPrefix(rest, "node runtime required; checked PATH for node"):
+			return "node"
+		case strings.HasPrefix(rest, "bash"), strings.HasPrefix(rest, "shell runtime requires bash"):
+			return "bash"
+		}
+		if match := runtimeFoundPathPattern.FindStringSubmatch(rest); len(match) == 2 {
+			return strings.TrimSpace(match[1])
+		}
+		return ""
 	case strings.Contains(message, " file "):
 		idx := strings.LastIndex(message, " file ")
 		if idx < 0 {
@@ -453,9 +472,11 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		validatePluginLauncher(root, launcher, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
 		if err := validatePythonRuntime(root, manifest.EnabledTargets(), launcher); err != nil {
+			msg := err.Error()
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: err.Error(),
+				Path:    extractFailurePath(msg),
+				Message: msg,
 			})
 		}
 	case "node":
@@ -463,9 +484,11 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		validateRuntimeFileExists(root, "package.json", report)
 		validateNodeRuntimeTarget(root, launcher.Entrypoint, report)
 		if err := validateNodeRuntime(); err != nil {
+			msg := err.Error()
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: err.Error(),
+				Path:    extractFailurePath(msg),
+				Message: msg,
 			})
 		}
 	case "shell":
@@ -475,6 +498,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 			if _, err := exec.LookPath("bash"); err != nil {
 				report.Failures = append(report.Failures, Failure{
 					Kind:    FailureRuntimeNotFound,
+					Path:    "bash",
 					Message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
 				})
 			}

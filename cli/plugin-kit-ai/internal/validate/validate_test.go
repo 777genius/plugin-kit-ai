@@ -164,6 +164,51 @@ targets: ["codex-package"]
 	}
 }
 
+func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		message string
+		want    string
+	}{
+		{
+			name:    "missing node in path",
+			message: "runtime not found: node runtime required; checked PATH for node. Install Node.js 20+",
+			want:    "node",
+		},
+		{
+			name:    "node binary found but unsupported",
+			message: "runtime not found: found node at /usr/local/bin/node but version 18.17.0 is below the supported minimum 20.0; install or repair Node.js 20+",
+			want:    "/usr/local/bin/node",
+		},
+		{
+			name:    "python interpreter found via pyenv",
+			message: "runtime not found: found pyenv interpreter at /Users/demo/.pyenv/shims/python but version 3.9.0 is below the supported minimum 3.10. Run plugin-kit-ai doctor ., then plugin-kit-ai bootstrap .",
+			want:    "/Users/demo/.pyenv/shims/python",
+		},
+		{
+			name:    "windows bash required",
+			message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
+			want:    "bash",
+		},
+		{
+			name:    "nested parse error",
+			message: "runtime not found: python runtime inspection failed: parse targets/codex-runtime/package.yaml: yaml: line 1: did not find expected key",
+			want:    filepath.ToSlash(filepath.Join("targets", "codex-runtime", "package.yaml")),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := extractFailurePath(tc.message); got != tc.want {
+				t.Fatalf("extractFailurePath(%q) = %q, want %q", tc.message, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestValidate_GeminiRejectsInvalidExtensionName(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -614,7 +659,9 @@ targets: ["codex-runtime"]
 	if _, bashErr := exec.LookPath("bash"); bashErr != nil {
 		var found bool
 		for _, failure := range report.Failures {
-			if failure.Kind == FailureRuntimeNotFound && strings.Contains(failure.Message, "bash") {
+			if failure.Kind == FailureRuntimeNotFound &&
+				failure.Path == "bash" &&
+				strings.Contains(failure.Message, "bash") {
 				found = true
 			}
 		}
