@@ -466,7 +466,7 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 	inspection := Inspection{
 		Manifest:    graph.Manifest,
 		Portable:    graph.Portable,
-		SourceFiles: append([]string(nil), graph.SourceFiles...),
+		SourceFiles: cloneStringSlice(graph.SourceFiles),
 	}
 	for _, name := range selected {
 		entry, ok := targetcontracts.Lookup(name)
@@ -486,13 +486,13 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 			DevModel:            entry.DevModel,
 			ActivationModel:     entry.ActivationModel,
 			NativeRoot:          entry.NativeRoot,
-			PortableKinds:       entry.PortableComponentKinds,
-			TargetNativeKinds:   DiscoveredTargetKinds(tc),
+			PortableKinds:       cloneStringSlice(entry.PortableComponentKinds),
+			TargetNativeKinds:   cloneStringSlice(DiscoveredTargetKinds(tc)),
 			NativeDocPaths:      discoveredNativeDocPaths(tc),
 			NativeSurfaces:      append([]targetcontracts.Surface(nil), entry.NativeSurfaces...),
 			NativeSurfaceTiers:  cloneStringMap(entry.NativeSurfaceTiers),
-			ManagedArtifacts:    expectedManagedPaths(root, graph, []string{name}),
-			UnsupportedKinds:    unsupportedKinds(entry, graph, tc),
+			ManagedArtifacts:    cloneStringSlice(expectedManagedPaths(root, graph, []string{name})),
+			UnsupportedKinds:    cloneStringSlice(unsupportedKinds(entry, graph, tc)),
 		})
 	}
 	return inspection, warnings, nil
@@ -602,6 +602,13 @@ func cloneStringMap(items map[string]string) map[string]string {
 		return nil
 	}
 	return out
+}
+
+func cloneStringSlice(items []string) []string {
+	if len(items) == 0 {
+		return []string{}
+	}
+	return append([]string{}, items...)
 }
 
 func Drift(root string, target string) ([]string, error) {

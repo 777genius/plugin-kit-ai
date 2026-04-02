@@ -47,14 +47,13 @@ func TestInspectTextIncludesNativeDocPathsForCodexLanes(t *testing.T) {
 
 func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	root := t.TempDir()
-	manifest := pluginmanifest.Default("codex-inspect", "codex-runtime", "go", "codex inspect", true)
-	if err := pluginmanifest.Save(root, manifest, true); err != nil {
-		t.Fatal(err)
-	}
-	if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher("codex-inspect", "go"), true); err != nil {
-		t.Fatal(err)
-	}
-	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteInspectFile(t, root, "plugin.yaml", `format: plugin-kit-ai/package
+name: "codex-inspect"
+version: "0.1.0"
+description: "codex inspect"
+targets: ["codex-runtime"]
+`)
+	mustWriteInspectFile(t, root, "launcher.yaml", "runtime: go\nentrypoint: ./bin/codex-inspect\n")
 
 	var buf bytes.Buffer
 	cmd := rootCmd
@@ -79,6 +78,9 @@ func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	if _, found := portable["Items"]; found {
 		t.Fatalf("portable should not expose legacy field name: %+v", portable)
 	}
+	if sourceFiles, ok := report["source_files"].([]any); !ok || len(sourceFiles) != 2 {
+		t.Fatalf("source_files should be a non-null array with plugin and launcher, got %+v", report["source_files"])
+	}
 	targets, ok := report["targets"].([]any)
 	if !ok || len(targets) != 1 {
 		t.Fatalf("targets payload = %+v", report["targets"])
@@ -89,6 +91,12 @@ func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	}
 	if _, ok := target["native_surface_tiers"].(map[string]any); !ok {
 		t.Fatalf("native_surface_tiers missing from inspect json target: %+v", target)
+	}
+	if kinds, ok := target["target_native_kinds"].([]any); !ok || len(kinds) != 0 {
+		t.Fatalf("target_native_kinds should be an empty array, got %+v", target["target_native_kinds"])
+	}
+	if kinds, ok := target["portable_kinds"].([]any); !ok || len(kinds) != 0 {
+		t.Fatalf("portable_kinds should be an empty array, got %+v", target["portable_kinds"])
 	}
 }
 
