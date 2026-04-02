@@ -175,6 +175,7 @@ Current beta surfaces that remain intentionally outside the stable set:
   - `SessionEnd`
   - `BeforeTool`
   - `AfterTool`
+- approved exported Gemini helper constructors for the current beta lane, including lifecycle no-op/context helpers, tool decision helpers, `BeforeToolRewriteInputValue`, `AfterToolAddContext`, and `AfterToolTailCallValue`
 
 Config contract:
 

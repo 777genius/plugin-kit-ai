@@ -35,6 +35,11 @@ Current SDK beta surface added after the first promotion:
   - `SessionEnd`
   - `BeforeTool`
   - `AfterTool`
+- approved exported Gemini helper constructors for the current beta lane, including:
+  - lifecycle no-op/context helpers such as `SessionStartContinue`, `SessionStartAddContext`, and `SessionEndContinue`
+  - tool decision helpers such as `BeforeToolContinue`, `BeforeToolAllow`, `BeforeToolDeny`, `AfterToolContinue`, `AfterToolAllow`, and `AfterToolDeny`
+  - typed JSON-object helpers such as `BeforeToolRewriteInputValue` and `AfterToolTailCallValue`
+  - `AfterToolAddContext` for appending tool-result context
 
 These hooks are runtime-supported and scaffolded, but remain outside the stable compatibility promise until they are promoted through the audit ledger.
 
