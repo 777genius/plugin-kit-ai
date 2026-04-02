@@ -100,6 +100,10 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 	}
 	validateGeneratedProject(t, pluginKitAIBin, plugRoot, "gemini", env, "plugin-kit-ai validate after render")
 
+	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "gemini")
+	target := requireInspectTarget(t, report, "gemini")
+	mustHaveManagedArtifacts(t, target.ManagedArtifacts, "gemini-extension.json", "hooks/hooks.json")
+
 	entry := filepath.Join(plugRoot, "bin", binName)
 	assertGeminiBetaSubsetEntry(t, entry)
 

@@ -173,3 +173,47 @@ func TestGeminiRenderGeneratesDefaultHooksFromLauncher(t *testing.T) {
 		t.Fatalf("mismatches = %v", mismatches)
 	}
 }
+
+func TestGeminiManagedPathsIncludesGeneratedHooksForDedicatedRuntimeRepo(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "targets", "gemini", "contexts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "gemini", "package.yaml"), []byte("context_file_name: GEMINI.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "gemini", "contexts", "GEMINI.md"), []byte("# Gemini\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	graph := pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "demo-gemini", Version: "0.1.0", Description: "demo", Targets: []string{"gemini"}},
+		Launcher: &pluginmodel.Launcher{Runtime: "go", Entrypoint: "./bin/demo"},
+	}
+	state := pluginmodel.NewTargetState("gemini")
+	state.SetDoc("package_metadata", filepath.Join("targets", "gemini", "package.yaml"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "GEMINI.md"))
+	paths, err := (geminiAdapter{}).ManagedPaths(root, graph, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("expected managed paths")
+	}
+	foundHooks := false
+	foundContext := false
+	for _, path := range paths {
+		if path == "hooks/hooks.json" {
+			foundHooks = true
+		}
+		if path == "GEMINI.md" {
+			foundContext = true
+		}
+	}
+	if !foundHooks {
+		t.Fatalf("managed paths = %v, want hooks/hooks.json", paths)
+	}
+	if !foundContext {
+		t.Fatalf("managed paths = %v, want GEMINI.md", paths)
+	}
+}

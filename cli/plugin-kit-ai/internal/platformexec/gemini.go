@@ -200,7 +200,7 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 			return nil, err
 		}
 		artifacts = append(artifacts, copied...)
-	} else if entrypoint != "" && slices.Equal(graph.Manifest.Targets, []string{"gemini"}) {
+	} else if geminiUsesGeneratedHooks(graph, state) {
 		artifacts = append(artifacts, pluginmodel.Artifact{
 			RelPath: filepath.Join("hooks", "hooks.json"),
 			Content: defaultGeminiHooks(entrypoint),
@@ -221,11 +221,15 @@ func (geminiAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, s
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
 	}
+	seen := map[string]struct{}{}
+	if geminiUsesGeneratedHooks(graph, state) {
+		seen[filepath.ToSlash(filepath.Join("hooks", "hooks.json"))] = struct{}{}
+	}
 	selected, ok, err := selectGeminiPrimaryContext(graph, state, meta)
 	if err != nil || !ok {
-		return nil, err
+		return sortedKeys(seen), err
 	}
-	seen := map[string]struct{}{selected.ArtifactName: {}}
+	seen[selected.ArtifactName] = struct{}{}
 	for _, rel := range state.ComponentPaths("contexts") {
 		if rel == selected.SourcePath {
 			continue
@@ -238,6 +242,16 @@ func (geminiAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, s
 	}
 	slices.Sort(out)
 	return out, nil
+}
+
+func geminiUsesGeneratedHooks(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
+	if graph.Launcher == nil || strings.TrimSpace(graph.Launcher.Entrypoint) == "" {
+		return false
+	}
+	if len(state.ComponentPaths("hooks")) > 0 {
+		return false
+	}
+	return slices.Equal(graph.Manifest.Targets, []string{"gemini"})
 }
 
 func (geminiAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
