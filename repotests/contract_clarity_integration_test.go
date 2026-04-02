@@ -143,7 +143,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustContain(t, string(rootReadme), "Build one plugin repo, then render supported outputs for AI coding CLIs from the same workflow.")
+	mustContain(t, string(rootReadme), "Build your plugin once and easily export it to any AI agent, like Claude, Codex, or Gemini, without duplicating code.")
 	mustContain(t, string(rootReadme), "supported outputs for Codex, Claude, Gemini, and other targets")
 	mustContain(t, string(rootReadme), "one repo and one workflow can cover many supported outputs")
 	mustContain(t, string(rootReadme), "the honest promise is `one repo / many supported outputs`, not fake parity everywhere")

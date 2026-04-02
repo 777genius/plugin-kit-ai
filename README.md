@@ -1,8 +1,8 @@
 # plugin-kit-ai
 
-Build one plugin repo, then render supported outputs for AI coding CLIs from the same workflow.
+Build your plugin once and easily export it to any AI agent, like Claude, Codex, or Gemini, without duplicating code.
 
-`plugin-kit-ai` helps you create, validate, and maintain a single plugin repo that can later cover supported outputs for Codex, Claude, Gemini, and other targets. Start from `init` or a starter repo, pick Go, Node/TypeScript, or Python for the first path, and use `validate --strict` before handoff or CI.
+`plugin-kit-ai` helps you create, validate, and maintain a single plugin repo that can later cover supported outputs for Codex, Claude, Gemini, and other targets. Build it once, keep one workflow, start from `init` or a starter repo, pick Go, Node/TypeScript, or Python for the first path, and use `validate --strict` before handoff or CI.
 
 Common use cases:
 

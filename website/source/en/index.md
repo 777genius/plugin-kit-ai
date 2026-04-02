@@ -14,8 +14,8 @@ outline: false
   <p class="docs-kicker">PUBLIC DOCUMENTATION</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Build your plugin in one repo, then render supported outputs for Claude, Codex, Gemini,
-    and other targets from the same workflow instead of hand-maintaining separate setups.
+    Build your plugin once and easily export it to any AI agent, like Claude, Codex,
+    or Gemini, without duplicating code.
   </p>
 </div>
 

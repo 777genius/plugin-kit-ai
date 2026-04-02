@@ -481,7 +481,7 @@ func TestValidate_ManifestProject_ShellRequiresBashOnWindows(t *testing.T) {
 name: "x"
 version: "0.1.0"
 description: "x"
-targets: ["codex"]
+targets: ["codex-runtime"]
 `)
 	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: shell\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
@@ -943,6 +943,9 @@ func TestValidateRuntimeTargetExecutable_NonExecutableScriptFails(t *testing.T) 
 
 func TestShellLauncherPassthrough(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("windows shell launcher is mediated through the generated .cmd wrapper")
+	}
 	parent := t.TempDir()
 	dir := filepath.Join(parent, "project with spaces")
 	if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -64,7 +64,7 @@ async function runSmoke(browser, base) {
   const desktopChecks = [
     ["en home", `${base}/en/`, "plugin-kit-ai"],
     ["ru home", `${base}/ru/`, "plugin-kit-ai"],
-    ["what you can build", `${base}/en/guide/what-you-can-build`, "Codex Runtime Plugins"],
+    ["what you can build", `${base}/en/guide/what-you-can-build`, "One Repo, Many Supported Outputs"],
     ["one project multiple targets", `${base}/en/guide/one-project-multiple-targets`, "The Short Rule"],
     ["choose a target", `${base}/en/guide/choose-a-target`, "Target Directory"],
     ["why plugin-kit-ai", `${base}/en/concepts/why-plugin-kit-ai`, "What It Gives You"],
