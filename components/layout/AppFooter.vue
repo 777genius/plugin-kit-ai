@@ -3,6 +3,7 @@ const { t } = useI18n();
 const config = useRuntimeConfig();
 const year = new Date().getFullYear();
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
+const { docsUrl } = useDocsLinks();
 </script>
 
 <template>
@@ -10,9 +11,9 @@ const githubUrl = `https://github.com/${config.public.githubRepo}`;
     <v-container class="app-footer__inner">
       <span class="app-footer__copy">{{ t("footer.copyright", { year }) }} · {{ t("footer.tagline") }}</span>
       <div class="app-footer__links">
-        <a class="app-footer__link" :href="githubUrl" target="_blank">{{ t("footer.github") }}</a>
+        <a class="app-footer__link" :href="githubUrl" target="_blank" rel="noopener noreferrer">{{ t("footer.github") }}</a>
         <span class="app-footer__divider" />
-        <a class="app-footer__link" :href="config.public.docsUrl" target="_blank">{{ t("footer.docs") }}</a>
+        <a class="app-footer__link" :href="docsUrl" target="_blank" rel="noopener noreferrer">{{ t("footer.docs") }}</a>
       </div>
     </v-container>
   </footer>

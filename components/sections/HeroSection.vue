@@ -39,6 +39,7 @@ const releaseDate = computed(() => {
               size="large"
               :href="githubUrl"
               target="_blank"
+              rel="noopener noreferrer"
               class="hero-section__btn-primary"
             >
               {{ t("hero.primaryCta") }}
@@ -57,7 +58,7 @@ const releaseDate = computed(() => {
             <div v-if="releaseVersion" class="hero-section__release-badge">
               {{ t("hero.latestRelease") }} · v{{ releaseVersion }}<template v-if="releaseDate"> · {{ releaseDate }}</template>
             </div>
-            <a class="hero-section__release-link" :href="fallbackUrl" target="_blank">
+            <a class="hero-section__release-link" :href="fallbackUrl" target="_blank" rel="noopener noreferrer">
               {{ t("hero.status") }}
             </a>
           </div>

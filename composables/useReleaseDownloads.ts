@@ -1,4 +1,5 @@
-import type { DownloadArch, DownloadOs } from "~/data/downloads"
+type DownloadOs = "macos" | "windows" | "linux"
+type DownloadArch = "arm64" | "x64" | "universal"
 
 type ReleaseAsset = {
   name: string

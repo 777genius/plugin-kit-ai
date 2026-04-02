@@ -2,6 +2,7 @@
 const { content } = useLandingContent()
 const { t, locale } = useI18n()
 const { data: releaseData, fallbackUrl } = useReleaseDownloads()
+const { quickstartUrl } = useDocsLinks()
 
 const releaseVersion = computed(() => releaseData.value?.version || null)
 const releaseDate = computed(() => {
@@ -17,6 +18,14 @@ const releaseDate = computed(() => {
 })
 
 const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]
+
+const installChannels = computed(() =>
+  content.value.installChannels.map((channel) =>
+    channel.id === "docs"
+      ? { ...channel, href: quickstartUrl.value }
+      : channel
+  )
+)
 </script>
 
 <template>
@@ -27,7 +36,7 @@ const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]
         <p class="download-section__subtitle">{{ content.download.note }}</p>
         <p v-if="releaseVersion" class="download-section__release-info">
           {{ t("download.latestRelease") }} ·
-          <a :href="fallbackUrl" target="_blank">v{{ releaseVersion }}</a>
+          <a :href="fallbackUrl" target="_blank" rel="noopener noreferrer">v{{ releaseVersion }}</a>
           <template v-if="releaseDate"> · {{ releaseDate }}</template>
         </p>
       </div>
@@ -88,7 +97,7 @@ const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]
 
       <div class="download-section__cards">
         <div
-          v-for="(channel, index) in content.installChannels"
+          v-for="(channel, index) in installChannels"
           :key="channel.id"
           class="download-section__card"
           :class="{ 'download-section__card--active': channel.recommended }"
@@ -114,7 +123,7 @@ const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]
 
           <p class="download-section__card-note">{{ channel.note }}</p>
 
-          <a class="download-section__btn" :href="channel.href" target="_blank">
+          <a class="download-section__btn" :href="channel.href" target="_blank" rel="noopener noreferrer">
             <span>{{ t("download.open") }}</span>
           </a>
         </div>

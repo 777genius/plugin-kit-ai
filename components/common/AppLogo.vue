@@ -1,5 +1,10 @@
+<script setup lang="ts">
+const localePath = useLocalePath();
+const homePath = computed(() => localePath("/"));
+</script>
+
 <template>
-  <NuxtLink to="/" class="app-logo">
+  <NuxtLink :to="homePath" class="app-logo">
     <span class="app-logo__mark">H</span>
     <span class="app-logo__copy">
       <span class="app-logo__text">Hookplex</span>

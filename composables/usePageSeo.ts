@@ -26,6 +26,7 @@ export const usePageSeo = (
   const route = useRoute()
   const config = useRuntimeConfig()
   const switchLocale = useSwitchLocalePath()
+  const { docsUrl } = useDocsLinks()
   const siteUrl = config.public.siteUrl || "https://hookplex.dev"
   const siteName = "Hookplex"
   const githubUrl = `https://github.com/${config.public.githubRepo}`
@@ -136,7 +137,7 @@ export const usePageSeo = (
         url: canonicalUrl.value,
         downloadUrl:
           config.public.githubReleasesUrl || `${githubUrl}/releases`,
-        softwareHelp: config.public.docsUrl,
+        softwareHelp: docsUrl.value,
         offers: {
           "@type": "Offer",
           price: "0",

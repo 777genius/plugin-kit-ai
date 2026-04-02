@@ -2,9 +2,12 @@
 import { mdiClose, mdiGithub, mdiMenu } from "@mdi/js";
 
 const { t } = useI18n();
+const route = useRoute();
+const localePath = useLocalePath();
 const config = useRuntimeConfig();
 const menuOpen = ref(false);
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
+const homePath = computed(() => localePath("/"));
 
 const navItems = computed(() => [
   { id: "features", label: t("nav.features") },
@@ -14,6 +17,15 @@ const navItems = computed(() => [
   { id: "pricing", label: t("nav.pricing") },
   { id: "faq", label: t("nav.faq") }
 ]);
+
+const normalizePath = (value: string) => (value !== "/" ? value.replace(/\/+$/, "") : "/");
+
+const isHomePage = computed(
+  () => normalizePath(route.path) === normalizePath(homePath.value)
+);
+
+const sectionHref = (sectionId: string) =>
+  isHomePage.value ? `#${sectionId}` : `${homePath.value}#${sectionId}`;
 </script>
 
 <template>
@@ -21,7 +33,7 @@ const navItems = computed(() => [
     <v-container class="app-header__inner">
       <AppLogo />
       <nav class="app-header__nav">
-        <v-btn v-for="item in navItems" :key="item.id" variant="text" :href="`#${item.id}`">
+        <v-btn v-for="item in navItems" :key="item.id" variant="text" :href="sectionHref(item.id)">
           {{ item.label }}
         </v-btn>
       </nav>
@@ -35,6 +47,7 @@ const navItems = computed(() => [
           size="small"
           :href="githubUrl"
           target="_blank"
+          rel="noopener noreferrer"
           class="app-header__github-btn"
           :prepend-icon="mdiGithub"
         >
@@ -49,7 +62,9 @@ const navItems = computed(() => [
             <div v-if="menuOpen" class="mobile-menu-overlay" @click.self="menuOpen = false">
               <div class="mobile-menu">
                 <div class="mobile-menu__header">
-                  <AppLogo />
+                  <div @click="menuOpen = false">
+                    <AppLogo />
+                  </div>
                   <div style="flex: 1" />
                   <v-btn :icon="mdiClose" variant="text" @click="menuOpen = false" />
                 </div>
@@ -58,7 +73,7 @@ const navItems = computed(() => [
                   <a
                     v-for="item in navItems"
                     :key="item.id"
-                    :href="`#${item.id}`"
+                    :href="sectionHref(item.id)"
                     class="mobile-menu__link"
                     @click="menuOpen = false"
                   >
@@ -67,6 +82,7 @@ const navItems = computed(() => [
                   <a
                     :href="githubUrl"
                     target="_blank"
+                    rel="noopener noreferrer"
                     class="mobile-menu__link"
                     @click="menuOpen = false"
                   >
