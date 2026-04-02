@@ -48,9 +48,9 @@ func TestStarterTemplateSyncContractFilesStayAligned(t *testing.T) {
 	mustContain(t, workflow, "run: ./scripts/update-starter-template.sh")
 	mustContain(t, workflow, "default: \"all\"")
 	mustContain(t, workflow, "- all-runtime-package")
-	mustContain(t, rootReadme, "Official starter templates:")
+	mustContain(t, rootReadme, "starter templates for Codex and Claude across Go, Python, and Node/TypeScript")
 	mustContain(t, cliReadme, "Official starter templates:")
-	mustContain(t, startersReadme, "These in-repo starter folders are the canonical source of truth.")
+	mustContain(t, startersReadme, "These starter repos are the fastest way to get one working plugin repo that can later expand to more supported outputs.")
 	mustContain(t, startersReadme, "Use this template")
 	mustContain(t, startersReadme, "manual `all-runtime-package` lane")
 }
