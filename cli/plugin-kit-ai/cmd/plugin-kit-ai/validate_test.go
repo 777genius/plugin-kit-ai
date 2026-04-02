@@ -172,3 +172,26 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateHelpMentionsJSONContract(t *testing.T) {
+	t.Parallel()
+	cmd := newValidateCmd(fakeValidateRunner{}.Run)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--help"})
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		`--format json`,
+		`plugin-kit-ai/validate-report`,
+		`schema_version=1`,
+		`failed_strict_warnings`,
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("help output missing %q:\n%s", want, output)
+		}
+	}
+}

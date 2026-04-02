@@ -235,8 +235,39 @@ func TestGeneratedConfigCanaries_ClaudeAuthoredHookEntrypointDriftIsCaughtByVali
 	}
 }
 
+func TestGeneratedConfigCanaries_CodexValidateJSONContract(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "codex-runtime")
+
+	report := validateGeneratedProjectJSON(t, pluginKitAIBin, plugRoot, "codex-runtime", true)
+	if report.Format != "plugin-kit-ai/validate-report" || report.SchemaVersion != 1 {
+		t.Fatalf("contract = %#v", report)
+	}
+	if report.RequestedPlatform != "codex-runtime" || report.Outcome != "passed" {
+		t.Fatalf("platform/outcome = %#v", report)
+	}
+	if !report.OK || !report.StrictMode || report.StrictFailed {
+		t.Fatalf("summary = %#v", report)
+	}
+	if report.WarningCount != 0 || report.FailureCount != 0 {
+		t.Fatalf("counts = %#v", report)
+	}
+}
+
 type inspectReport struct {
 	Targets []inspectTarget `json:"targets"`
+}
+
+type validateJSONCanaryReport struct {
+	Format            string `json:"format"`
+	SchemaVersion     int    `json:"schema_version"`
+	RequestedPlatform string `json:"requested_platform"`
+	Outcome           string `json:"outcome"`
+	OK                bool   `json:"ok"`
+	StrictMode        bool   `json:"strict_mode"`
+	StrictFailed      bool   `json:"strict_failed"`
+	WarningCount      int    `json:"warning_count"`
+	FailureCount      int    `json:"failure_count"`
 }
 
 type inspectTarget struct {
@@ -254,6 +285,9 @@ func initGeneratedCanaryProject(t *testing.T, pluginKitAIBin, platform string) s
 		args = append(args, "--runtime", "go")
 	}
 	runPluginKitAICommand(t, pluginKitAIBin, args...)
+	if platform != "codex-package" {
+		bootstrapGeneratedGoPlugin(t, plugRoot)
+	}
 	return plugRoot
 }
 
@@ -267,6 +301,24 @@ func inspectGeneratedProject(t *testing.T, pluginKitAIBin, root, target string) 
 	var report inspectReport
 	if err := json.Unmarshal(out, &report); err != nil {
 		t.Fatalf("parse inspect json: %v\n%s", err, out)
+	}
+	return report
+}
+
+func validateGeneratedProjectJSON(t *testing.T, pluginKitAIBin, root, target string, strict bool) validateJSONCanaryReport {
+	t.Helper()
+	args := []string{"validate", root, "--platform", target, "--format", "json"}
+	if strict {
+		args = append(args, "--strict")
+	}
+	cmd := exec.Command(pluginKitAIBin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai validate json: %v\n%s", err, out)
+	}
+	var report validateJSONCanaryReport
+	if err := json.Unmarshal(out, &report); err != nil {
+		t.Fatalf("parse validate json: %v\n%s", err, out)
 	}
 	return report
 }

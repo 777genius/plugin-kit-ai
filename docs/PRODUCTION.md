@@ -63,6 +63,7 @@ For interpreted runtimes, add the bootstrap step before `validate --strict`:
 - `init --extras`: for the stable interpreted `python`/`node` subset on `codex-runtime` and `claude`, this now emits `.github/workflows/bundle-release.yml`, which uses `setup-plugin-kit-ai@v1` and runs `doctor -> bootstrap -> validate --strict -> bundle publish`
 
 After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.
+When CI or another tool needs structured output, use `plugin-kit-ai validate --format json`; it emits the versioned `plugin-kit-ai/validate-report` contract with `schema_version: 1` and `outcome` values `passed`, `failed`, or `failed_strict_warnings`.
 
 ## Claude Release-Ready Path
 

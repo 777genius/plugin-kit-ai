@@ -34,7 +34,13 @@ func newValidateCmd(run validateRunner) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate [path]",
 		Short: "Validate a package-standard plugin-kit-ai project",
-		Args:  cobra.ExactArgs(1),
+		Long: `Validate a package-standard plugin-kit-ai project.
+
+Text mode is the human-readable default and prints Warning:/Failure: lines.
+Use --format json for CI or automation. That mode emits the versioned
+"plugin-kit-ai/validate-report" contract with schema_version=1 and an
+explicit outcome of "passed", "failed", or "failed_strict_warnings".`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			report, err := run(args[0], platform)
 			var reportErr *validate.ReportError
