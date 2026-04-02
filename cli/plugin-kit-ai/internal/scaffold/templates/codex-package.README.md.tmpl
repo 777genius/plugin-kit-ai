@@ -21,10 +21,10 @@ plugin-kit-ai validate . --platform codex-package --strict
 ## Target Files
 
 - `targets/codex-package/package.yaml`: first-class Codex package metadata (`author`, `homepage`, `repository`, `license`, `keywords`)
-- `targets/codex-package/interface.json`: optional structured Codex `interface` doc rendered into `.codex-plugin/plugin.json`
+- `targets/codex-package/interface.json`: optional structured Codex `interface` doc rendered into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape
 - `targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed
 - `mcp/servers.yaml`: optional portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and render projects it into managed `.mcp.json` plus `.codex-plugin/plugin.json#mcpServers`
-- `targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`
+- `targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter is an empty placeholder until you have a real app manifest
 - `.codex-plugin/plugin.json`: rendered managed Codex plugin manifest
 
 Use this lane for skills, MCP, interface/app metadata, and marketplace-ready package output.
