@@ -18,6 +18,12 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	if got := packageEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("targets", "codex-package", "package.yaml") {
 		t.Fatalf("codex-package native_doc_paths[package_metadata] = %q", got)
 	}
+	if got := packageEntry.NativeSurfaceTiers["interface"]; got != "stable" {
+		t.Fatalf("codex-package native_surface_tiers[interface] = %q", got)
+	}
+	if got := packageEntry.NativeSurfaceTiers["app_manifest"]; got != "beta" {
+		t.Fatalf("codex-package native_surface_tiers[app_manifest] = %q", got)
+	}
 
 	runtimeEntry, ok := Lookup("codex-runtime")
 	if !ok {
@@ -28,6 +34,12 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	}
 	if got := runtimeEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("targets", "codex-runtime", "package.yaml") {
 		t.Fatalf("codex-runtime native_doc_paths[package_metadata] = %q", got)
+	}
+	if got := runtimeEntry.NativeSurfaceTiers["config_extra"]; got != "stable" {
+		t.Fatalf("codex-runtime native_surface_tiers[config_extra] = %q", got)
+	}
+	if got := runtimeEntry.NativeSurfaceTiers["commands"]; got != "beta" {
+		t.Fatalf("codex-runtime native_surface_tiers[commands] = %q", got)
 	}
 }
 

@@ -30,6 +30,7 @@ type Entry struct {
 	NativeDocs             []string          `json:"native_docs,omitempty"`
 	NativeDocPaths         map[string]string `json:"native_doc_paths,omitempty"`
 	NativeSurfaces         []Surface         `json:"native_surfaces,omitempty"`
+	NativeSurfaceTiers     map[string]string `json:"native_surface_tiers,omitempty"`
 	ManagedArtifacts       []string          `json:"managed_artifacts"`
 	Summary                string            `json:"summary"`
 }
@@ -163,6 +164,7 @@ func fromProfile(profile platformmeta.PlatformProfile) Entry {
 		NativeDocs:             nativeDocs(profile.NativeDocs),
 		NativeDocPaths:         nativeDocPaths(profile.NativeDocs),
 		NativeSurfaces:         fromSurfaceSupport(profile.SurfaceTiers),
+		NativeSurfaceTiers:     nativeSurfaceTiers(profile.SurfaceTiers),
 		ManagedArtifacts:       managed,
 		Summary:                profile.Contract.Summary,
 	}
@@ -203,6 +205,23 @@ func fromSurfaceSupport(items []platformmeta.SurfaceSupport) []Surface {
 			Kind: item.Kind,
 			Tier: string(item.Tier),
 		})
+	}
+	return out
+}
+
+func nativeSurfaceTiers(items []platformmeta.SurfaceSupport) map[string]string {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.Kind) == "" || strings.TrimSpace(string(item.Tier)) == "" {
+			continue
+		}
+		out[item.Kind] = string(item.Tier)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

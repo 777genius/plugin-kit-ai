@@ -77,4 +77,14 @@ func TestPluginKitAICapabilities(t *testing.T) {
 	if nativeDocPaths["package_metadata"] != "targets/codex-package/package.yaml" {
 		t.Fatalf("native_doc_paths[package_metadata] = %v", nativeDocPaths["package_metadata"])
 	}
+	nativeSurfaceTiers, ok := target["native_surface_tiers"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing native_surface_tiers entry: %+v", target)
+	}
+	if nativeSurfaceTiers["interface"] != "stable" {
+		t.Fatalf("native_surface_tiers[interface] = %v", nativeSurfaceTiers["interface"])
+	}
+	if nativeSurfaceTiers["app_manifest"] != "beta" {
+		t.Fatalf("native_surface_tiers[app_manifest] = %v", nativeSurfaceTiers["app_manifest"])
+	}
 }
