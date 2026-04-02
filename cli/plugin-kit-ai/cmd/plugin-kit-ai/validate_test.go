@@ -41,6 +41,11 @@ func TestValidateWritesJSONOutput(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		`"platform": "codex-runtime"`,
+		`"ok": true`,
+		`"strict_mode": false`,
+		`"strict_failed": false`,
+		`"warning_count": 1`,
+		`"failure_count": 0`,
 		`"checks": [`,
 		`"warnings": [`,
 		`"failures": []`,
@@ -78,5 +83,47 @@ func TestValidateJSONPrintsReportOnFailure(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"failures": [`) {
 		t.Fatalf("json output missing failures array:\n%s", buf.String())
+	}
+	for _, want := range []string{
+		`"ok": false`,
+		`"strict_mode": false`,
+		`"strict_failed": false`,
+		`"warning_count": 0`,
+		`"failure_count": 1`,
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("json output missing %q:\n%s", want, buf.String())
+		}
+	}
+}
+
+func TestValidateJSONMarksStrictWarningFailure(t *testing.T) {
+	t.Parallel()
+	cmd := newValidateCmd(fakeValidateRunner{
+		report: validate.Report{
+			Warnings: []validate.Warning{{
+				Kind:    validate.WarningManifestUnknownField,
+				Message: "unknown plugin.yaml field: extra_field",
+			}},
+		},
+	}.Run)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--strict", "--format", "json", "."})
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil {
+		t.Fatal("expected strict warning error")
+	}
+	for _, want := range []string{
+		`"ok": false`,
+		`"strict_mode": true`,
+		`"strict_failed": true`,
+		`"warning_count": 1`,
+		`"failure_count": 0`,
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("json output missing %q:\n%s", want, buf.String())
+		}
 	}
 }
