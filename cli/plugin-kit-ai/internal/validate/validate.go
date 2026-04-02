@@ -191,7 +191,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if len(graph.Portable.Paths("skills")) > 0 && !supportedPortable["skills"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    "skills",
+				Path:    unsupportedPortablePath(graph.Portable, "skills"),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support portable component kind skills", targetName),
 			})
@@ -199,7 +199,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if graph.Portable.MCP != nil && !supportedPortable["mcp_servers"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    "mcp",
+				Path:    unsupportedPortablePath(graph.Portable, "mcp_servers"),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support portable component kind mcp_servers", targetName),
 			})
@@ -211,7 +211,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 			}
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    kind,
+				Path:    unsupportedTargetKindPath(targetName, tc, kind),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support target-native component kind %s", targetName, kind),
 			})
@@ -333,6 +333,33 @@ func extractFailurePath(message string) string {
 	default:
 		return ""
 	}
+}
+
+func unsupportedPortablePath(portable pluginmanifest.PortableComponents, kind string) string {
+	switch kind {
+	case "skills":
+		if len(portable.Paths("skills")) > 0 {
+			return "skills"
+		}
+		return "skills"
+	case "mcp_servers":
+		if portable.MCP != nil && strings.TrimSpace(portable.MCP.Path) != "" {
+			return portable.MCP.Path
+		}
+		return "mcp"
+	default:
+		return kind
+	}
+}
+
+func unsupportedTargetKindPath(target string, tc pluginmanifest.TargetComponents, kind string) string {
+	if path := strings.TrimSpace(tc.DocPath(kind)); path != "" {
+		return path
+	}
+	if len(tc.ComponentPaths(kind)) > 0 {
+		return filepath.ToSlash(filepath.Join("targets", target, kind))
+	}
+	return filepath.ToSlash(filepath.Join("targets", target, kind))
 }
 
 func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.PlatformProfile) []string {

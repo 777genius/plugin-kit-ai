@@ -164,6 +164,73 @@ targets: ["codex-package"]
 	}
 }
 
+func TestValidate_UnsupportedPortableMCPUsesAuthoredPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-runtime"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`)
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureUnsupportedTargetKind &&
+			failure.Path == filepath.ToSlash(filepath.Join("mcp", "servers.yaml")) &&
+			strings.Contains(failure.Message, "does not support portable component kind mcp_servers") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
+	t.Parallel()
+	t.Run("doc path", func(t *testing.T) {
+		t.Parallel()
+		tc := pluginmanifest.TargetComponents{
+			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))},
+			Components: map[string][]string{},
+		}
+		want := filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))
+		if got := unsupportedTargetKindPath("codex-package", tc, "interface"); got != want {
+			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("component directory", func(t *testing.T) {
+		t.Parallel()
+		tc := pluginmanifest.TargetComponents{
+			Docs: map[string]string{},
+			Components: map[string][]string{
+				"commands": {filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands", "review.md"))},
+			},
+		}
+		want := filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands"))
+		if got := unsupportedTargetKindPath("codex-runtime", tc, "commands"); got != want {
+			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
