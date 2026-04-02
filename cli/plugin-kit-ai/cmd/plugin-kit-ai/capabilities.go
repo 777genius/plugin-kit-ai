@@ -22,7 +22,7 @@ var capabilitiesCmd = &cobra.Command{
 Default mode is target/package-oriented because plugin authors usually need to understand target class,
 production boundary, import/render/validate support, and supported component kinds.
 
-Use --mode runtime to inspect runtime-event support for Claude and Codex.`,
+Use --mode runtime to inspect runtime-event support for Claude, Codex, and Gemini.`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		switch strings.ToLower(strings.TrimSpace(capabilitiesMode)) {
