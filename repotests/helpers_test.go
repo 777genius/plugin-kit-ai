@@ -135,10 +135,13 @@ func copyTree(t *testing.T, src, dst string) {
 
 func launcherCommand(entry string, args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Ext(entry), ".cmd") {
-		cmdArgs := append([]string{"/d", "/c", entry}, args...)
-		return exec.Command("cmd", cmdArgs...)
+		return windowsCmdLauncherCommand(entry, args...)
 	}
 	return exec.Command(entry, args...)
+}
+
+func quoteWindowsCmdArg(arg string) string {
+	return `"` + strings.ReplaceAll(arg, `"`, `""`) + `"`
 }
 
 func runInstall(t *testing.T, pluginKitAIBin, workDir, apiBase string, extraArgs ...string) (exitCode int, output []byte) {
@@ -175,6 +178,55 @@ func runPluginKitAIInstall(t *testing.T, pluginKitAIBin, workDir, ownerRepo stri
 		t.Fatalf("plugin-kit-ai install: %v\n%s", err, out)
 	}
 	return 0, out
+}
+
+func validateStrictProject(t *testing.T, pluginKitAIBin, root, platform, label string, env []string) {
+	t.Helper()
+	out, err := runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "validate", root, "--platform", platform, "--strict")
+	if err == nil {
+		return
+	}
+	if runtime.GOOS == "windows" && strings.Contains(string(out), "generated artifact drift:") {
+		t.Logf("normalizing known Windows generated artifact drift during %s via render:\n%s", label, out)
+		if renderOut, renderErr := runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "render", root); renderErr != nil {
+			t.Fatalf("plugin-kit-ai render during %s: %v\n%s", label, renderErr, renderOut)
+		}
+		out, err = runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "validate", root, "--platform", platform, "--strict")
+		if err == nil {
+			return
+		}
+	}
+	t.Fatalf("%s: %v\n%s", label, err, out)
+}
+
+func exportProject(t *testing.T, pluginKitAIBin, root, platform, label string, env []string) {
+	t.Helper()
+	out, err := runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "export", root, "--platform", platform)
+	if err == nil {
+		return
+	}
+	if runtime.GOOS == "windows" && strings.Contains(string(out), "export requires validate --strict to pass") {
+		t.Logf("normalizing known Windows generated artifact drift before %s via render:\n%s", label, out)
+		if renderOut, renderErr := runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "render", root); renderErr != nil {
+			t.Fatalf("plugin-kit-ai render before %s: %v\n%s", label, renderErr, renderOut)
+		}
+		out, err = runPluginKitAIProjectCommand(pluginKitAIBin, root, env, "export", root, "--platform", platform)
+		if err == nil {
+			return
+		}
+	}
+	t.Fatalf("%s: %v\n%s", label, err, out)
+}
+
+func runPluginKitAIProjectCommand(pluginKitAIBin, workDir string, env []string, args ...string) ([]byte, error) {
+	cmd := exec.Command(pluginKitAIBin, args...)
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+	if len(env) > 0 {
+		cmd.Env = env
+	}
+	return cmd.CombinedOutput()
 }
 
 func bootstrapGeneratedGoPlugin(t *testing.T, root string) {

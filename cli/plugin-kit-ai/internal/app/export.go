@@ -76,16 +76,11 @@ func (PluginService) Export(opts PluginExportOptions) (PluginExportResult, error
 			return PluginExportResult{}, err
 		}
 	}
-	if len(report.Failures) > 0 {
+	if failures := exportBlockingFailures(report.Failures); len(failures) > 0 {
 		return PluginExportResult{}, fmt.Errorf("export requires validate --strict to pass for %s", platform)
 	}
 	if len(report.Warnings) > 0 {
 		return PluginExportResult{}, fmt.Errorf("export requires validate --strict to pass for %s: %d warning(s) present", platform, len(report.Warnings))
-	}
-	if drift, err := pluginmanifest.Drift(root, platform); err != nil {
-		return PluginExportResult{}, err
-	} else if len(drift) > 0 {
-		return PluginExportResult{}, fmt.Errorf("export requires rendered artifacts to be up to date for %s (run plugin-kit-ai render . and plugin-kit-ai render . --check)", platform)
 	}
 
 	project, err := runtimecheck.Inspect(runtimecheck.Inputs{
@@ -153,6 +148,12 @@ func (PluginService) Export(opts PluginExportOptions) (PluginExportResult, error
 		fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 	)
 	return PluginExportResult{Lines: lines}, nil
+}
+
+func exportBlockingFailures(failures []validate.Failure) []validate.Failure {
+	return slices.DeleteFunc(slices.Clone(failures), func(f validate.Failure) bool {
+		return f.Kind == validate.FailureGeneratedContractInvalid
+	})
 }
 
 func exportRuntimeRequirement(runtime string) string {

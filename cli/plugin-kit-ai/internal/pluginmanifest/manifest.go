@@ -516,13 +516,14 @@ func Render(root string, target string) (RenderResult, error) {
 			return RenderResult{}, err
 		}
 		for _, artifact := range rendered {
-			if existing, ok := artifactMap[artifact.RelPath]; ok {
+			relPath := filepath.ToSlash(filepath.Clean(artifact.RelPath))
+			if existing, ok := artifactMap[relPath]; ok {
 				if !bytes.Equal(existing, artifact.Content) {
-					return RenderResult{}, fmt.Errorf("conflicting generated artifact %s across targets", artifact.RelPath)
+					return RenderResult{}, fmt.Errorf("conflicting generated artifact %s across targets", relPath)
 				}
 				continue
 			}
-			artifactMap[artifact.RelPath] = artifact.Content
+			artifactMap[relPath] = artifact.Content
 		}
 	}
 	artifacts := make([]Artifact, 0, len(artifactMap))
@@ -550,7 +551,7 @@ func Render(root string, target string) (RenderResult, error) {
 
 func WriteArtifacts(root string, artifacts []Artifact) error {
 	for _, artifact := range artifacts {
-		full := filepath.Join(root, artifact.RelPath)
+		full := filepath.Join(root, filepath.FromSlash(artifact.RelPath))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return err
 		}
@@ -563,7 +564,7 @@ func WriteArtifacts(root string, artifacts []Artifact) error {
 
 func RemoveArtifacts(root string, relPaths []string) error {
 	for _, relPath := range relPaths {
-		full := filepath.Join(root, relPath)
+		full := filepath.Join(root, filepath.FromSlash(relPath))
 		if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -578,7 +579,7 @@ func Drift(root string, target string) ([]string, error) {
 	}
 	var drift []string
 	for _, artifact := range result.Artifacts {
-		body, err := os.ReadFile(filepath.Join(root, artifact.RelPath))
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(artifact.RelPath)))
 		if err != nil {
 			drift = append(drift, artifact.RelPath)
 			continue

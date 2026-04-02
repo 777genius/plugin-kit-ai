@@ -3,6 +3,7 @@ package pluginkitairepo_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -199,5 +200,5 @@ func readRepoFile(t *testing.T, root string, parts ...string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return string(body)
+	return strings.ReplaceAll(string(body), "\r\n", "\n")
 }

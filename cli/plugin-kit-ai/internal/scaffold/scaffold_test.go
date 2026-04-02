@@ -842,7 +842,8 @@ func TestRenderTemplate_ShellLauncherWindowsRequiresBash(t *testing.T) {
 	for _, want := range []string{
 		`where bash`,
 		`plugin-kit-ai launcher: bash not found`,
-		`bash "%ROOT%\scripts\main.sh" %*`,
+		`set "_ARGS="`,
+		`bash "%ROOT%\scripts\main.sh"%_ARGS%`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("launcher missing %q:\n%s", want, got)

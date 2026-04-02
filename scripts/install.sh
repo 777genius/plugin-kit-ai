@@ -132,6 +132,15 @@ write_output() {
   fi
 }
 
+display_path() {
+  path="$1"
+  if [ "$OS_NAME" = "windows" ]; then
+    printf '%s' "$path" | sed 's#/#\\#g'
+    return
+  fi
+  printf '%s' "$path"
+}
+
 OS_NAME="$(detect_os)"
 ARCH_NAME="$(detect_arch)"
 TAG="$(normalize_tag "$VERSION_INPUT")"
@@ -185,6 +194,7 @@ fi
 
 mkdir -p "$BIN_DIR"
 DEST_PATH="$BIN_DIR/$(basename "$BINARY_PATH")"
+DISPLAY_DEST_PATH="$(display_path "$DEST_PATH")"
 cp "$BINARY_PATH" "$DEST_PATH"
 chmod 0755 "$DEST_PATH" 2>/dev/null || true
 
@@ -192,7 +202,7 @@ echo "Installed plugin-kit-ai"
 echo "Version: ${TAG}"
 echo "Repository: ${REPOSITORY}"
 echo "Asset: ${ASSET_NAME}"
-echo "Installed path: ${DEST_PATH}"
+echo "Installed path: ${DISPLAY_DEST_PATH}"
 echo "Checksum: verified via checksums.txt"
 
 case ":${PATH}:" in
@@ -203,6 +213,6 @@ case ":${PATH}:" in
 esac
 
 write_output "version" "$TAG"
-write_output "path" "$DEST_PATH"
+write_output "path" "$DISPLAY_DEST_PATH"
 write_output "bin_dir" "$BIN_DIR"
 write_output "asset" "$ASSET_NAME"

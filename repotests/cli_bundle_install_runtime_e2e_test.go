@@ -25,10 +25,7 @@ func TestPluginKitAIBundleInstallPythonRequirementsFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before bundle install: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export before bundle install", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_python_bundle.tar.gz")
 	dest := filepath.Join(t.TempDir(), "installed")
@@ -54,10 +51,7 @@ func TestPluginKitAIBundleInstallPythonRequirementsFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after bundle install: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after bundle install: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "codex-runtime", "plugin-kit-ai validate after bundle install", nil)
 }
 
 func TestPluginKitAIBundleInstallPythonPoetryFlow(t *testing.T) {
@@ -86,11 +80,7 @@ func TestPluginKitAIBundleInstallPythonPoetryFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	export.Env = env
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before bundle install: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export before bundle install", env)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_python_bundle.tar.gz")
 	dest := filepath.Join(t.TempDir(), "installed")
@@ -115,11 +105,7 @@ func TestPluginKitAIBundleInstallPythonPoetryFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap poetry after bundle install: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "codex-runtime", "--strict")
-	validate.Env = env
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate poetry after bundle install: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "codex-runtime", "plugin-kit-ai validate poetry after bundle install", env)
 }
 
 func TestPluginKitAIBundleInstallNodeTypeScriptFlow(t *testing.T) {
@@ -140,10 +126,7 @@ func TestPluginKitAIBundleInstallNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before bundle install: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export before bundle install", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_node_bundle.tar.gz")
 	dest := filepath.Join(t.TempDir(), "installed")
@@ -169,10 +152,7 @@ func TestPluginKitAIBundleInstallNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after bundle install: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after bundle install: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "codex-runtime", "plugin-kit-ai validate after bundle install", nil)
 }
 
 func TestPluginKitAIBundleInstallClaudeNodeTypeScriptFlow(t *testing.T) {
@@ -194,10 +174,7 @@ func TestPluginKitAIBundleInstallClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before claude export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "claude")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export claude node typescript: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "claude", "plugin-kit-ai export claude node typescript", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_claude_node_bundle.tar.gz")
 	dest := filepath.Join(t.TempDir(), "installed")
@@ -223,8 +200,5 @@ func TestPluginKitAIBundleInstallClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after claude bundle install: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after claude bundle install: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "claude", "plugin-kit-ai validate after claude bundle install", nil)
 }

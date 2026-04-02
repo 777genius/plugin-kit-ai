@@ -29,10 +29,7 @@ func TestPluginKitAIExportPythonRequirementsBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
 
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export python requirements: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export python requirements", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_python_bundle.tar.gz")
 	unpackRoot := filepath.Join(t.TempDir(), "bundle")
@@ -55,10 +52,7 @@ func TestPluginKitAIExportPythonRequirementsBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap after unpack: %v\n%s", err, out)
 	}
 
-	validate := exec.Command(pluginKitAIBin, "validate", unpackRoot, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after unpack: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, unpackRoot, "codex-runtime", "plugin-kit-ai validate after unpack", nil)
 }
 
 func TestPluginKitAIExportPythonPoetryBundleFlow(t *testing.T) {
@@ -88,11 +82,7 @@ func TestPluginKitAIExportPythonPoetryBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
 
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	export.Env = env
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export python poetry: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export python poetry", env)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_python_bundle.tar.gz")
 	unpackRoot := filepath.Join(t.TempDir(), "bundle")
@@ -117,11 +107,7 @@ func TestPluginKitAIExportPythonPoetryBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap poetry after unpack: %v\n%s", err, out)
 	}
 
-	validate := exec.Command(pluginKitAIBin, "validate", unpackRoot, "--platform", "codex-runtime", "--strict")
-	validate.Env = env
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate poetry after unpack: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, unpackRoot, "codex-runtime", "plugin-kit-ai validate poetry after unpack", env)
 }
 
 func TestPluginKitAIExportNodeTypeScriptBundleFlow(t *testing.T) {
@@ -144,10 +130,7 @@ func TestPluginKitAIExportNodeTypeScriptBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
 
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export node typescript: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export node typescript", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_node_bundle.tar.gz")
 	unpackRoot := filepath.Join(t.TempDir(), "bundle")
@@ -173,10 +156,7 @@ func TestPluginKitAIExportNodeTypeScriptBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai bootstrap after unpack: %v\n%s", err, out)
 	}
 
-	validate := exec.Command(pluginKitAIBin, "validate", unpackRoot, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after unpack: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, unpackRoot, "codex-runtime", "plugin-kit-ai validate after unpack", nil)
 }
 
 func TestPluginKitAIExportShellBundleFlow(t *testing.T) {
@@ -191,15 +171,8 @@ func TestPluginKitAIExportShellBundleFlow(t *testing.T) {
 		t.Fatalf("plugin-kit-ai init shell runtime: %v\n%s", err, out)
 	}
 
-	validate := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate shell runtime before export: %v\n%s", err, out)
-	}
-
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export shell bundle: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai validate shell runtime before export", nil)
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export shell bundle", nil)
 
 	bundle := filepath.Join(plugRoot, "genplug_codex-runtime_shell_bundle.tar.gz")
 	unpackRoot := filepath.Join(t.TempDir(), "bundle")
@@ -217,10 +190,7 @@ func TestPluginKitAIExportShellBundleFlow(t *testing.T) {
 		t.Fatalf("doctor output missing ready status after shell unpack:\n%s", out)
 	}
 
-	validate = exec.Command(pluginKitAIBin, "validate", unpackRoot, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate shell runtime after unpack: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, unpackRoot, "codex-runtime", "plugin-kit-ai validate shell runtime after unpack", nil)
 }
 
 func extractTarGz(t *testing.T, archivePath, dest string) {

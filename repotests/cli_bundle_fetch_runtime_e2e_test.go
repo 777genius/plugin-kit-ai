@@ -33,10 +33,7 @@ func TestPluginKitAIBundleFetchURLPythonRequirementsFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "codex-runtime")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before fetch: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "codex-runtime", "plugin-kit-ai export before fetch", nil)
 
 	bundlePath := filepath.Join(plugRoot, "genplug_codex-runtime_python_bundle.tar.gz")
 	bundleBody, err := os.ReadFile(bundlePath)
@@ -80,10 +77,7 @@ func TestPluginKitAIBundleFetchURLPythonRequirementsFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after bundle fetch: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "codex-runtime", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after bundle fetch: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "codex-runtime", "plugin-kit-ai validate after bundle fetch", nil)
 }
 
 func TestPluginKitAIBundleFetchURLClaudeNodeTypeScriptFlow(t *testing.T) {
@@ -105,10 +99,7 @@ func TestPluginKitAIBundleFetchURLClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before claude export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "claude")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before fetch: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "claude", "plugin-kit-ai export before fetch", nil)
 
 	bundlePath := filepath.Join(plugRoot, "genplug_claude_node_bundle.tar.gz")
 	bundleBody, err := os.ReadFile(bundlePath)
@@ -152,10 +143,7 @@ func TestPluginKitAIBundleFetchURLClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after bundle fetch: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after bundle fetch: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "claude", "plugin-kit-ai validate after bundle fetch", nil)
 }
 
 func TestPluginKitAIBundleFetchGitHubClaudeNodeTypeScriptFlow(t *testing.T) {
@@ -177,10 +165,7 @@ func TestPluginKitAIBundleFetchGitHubClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before github fetch export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "claude")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before github fetch: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "claude", "plugin-kit-ai export before github fetch", nil)
 
 	bundleName := "genplug_claude_node_bundle.tar.gz"
 	bundlePath := filepath.Join(plugRoot, bundleName)
@@ -225,10 +210,7 @@ func TestPluginKitAIBundleFetchGitHubClaudeNodeTypeScriptFlow(t *testing.T) {
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after github bundle fetch: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after github bundle fetch: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "claude", "plugin-kit-ai validate after github bundle fetch", nil)
 }
 
 func TestPluginKitAIBundleFetchGitHubLatestClaudeNodeTypeScriptFlow(t *testing.T) {
@@ -250,10 +232,7 @@ func TestPluginKitAIBundleFetchGitHubLatestClaudeNodeTypeScriptFlow(t *testing.T
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap before latest fetch export: %v\n%s", err, out)
 	}
-	export := exec.Command(pluginKitAIBin, "export", plugRoot, "--platform", "claude")
-	if out, err := export.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai export before latest fetch: %v\n%s", err, out)
-	}
+	exportProject(t, pluginKitAIBin, plugRoot, "claude", "plugin-kit-ai export before latest fetch", nil)
 
 	bundleName := "genplug_claude_node_bundle.tar.gz"
 	bundlePath := filepath.Join(plugRoot, bundleName)
@@ -295,10 +274,7 @@ func TestPluginKitAIBundleFetchGitHubLatestClaudeNodeTypeScriptFlow(t *testing.T
 	if out, err := bootstrap.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai bootstrap after github latest bundle fetch: %v\n%s", err, out)
 	}
-	validate := exec.Command(pluginKitAIBin, "validate", dest, "--platform", "claude", "--strict")
-	if out, err := validate.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate after github latest bundle fetch: %v\n%s", err, out)
-	}
+	validateStrictProject(t, pluginKitAIBin, dest, "claude", "plugin-kit-ai validate after github latest bundle fetch", nil)
 }
 
 func TestPluginKitAIBundlePublishFetchPythonRequirementsFlow(t *testing.T) {
