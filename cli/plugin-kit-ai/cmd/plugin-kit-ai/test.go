@@ -44,8 +44,8 @@ The command loads a fixture, invokes the configured launcher entrypoint with the
 golden stdout/stderr/exitcode files for CI-grade regression checks.
 
 Gemini's Go hook lane stays public-beta and is intentionally outside this stable fixture surface.
-For Gemini use go test, render --check, validate --strict, and a real Gemini CLI session via
-gemini extensions link .`,
+For Gemini use go test, render --check, validate --strict, inspect, capabilities --mode runtime,
+make test-gemini-runtime-smoke, then gemini extensions link . and optionally make test-gemini-runtime-live.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := "."

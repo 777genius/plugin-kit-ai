@@ -46,8 +46,9 @@ Each cycle re-renders the selected target, performs runtime-aware rebuilds when 
 runs strict validation, and reruns the configured stable Claude or Codex fixture smoke tests.
 
 Gemini's Go hook lane stays public-beta and is intentionally outside this stable watch loop.
-For Gemini use render, render --check, validate --strict, then gemini extensions link . and rerun
-a real Gemini CLI session after changes.`,
+For Gemini use render, render --check, validate --strict, inspect, capabilities --mode runtime,
+make test-gemini-runtime-smoke, then gemini extensions link . and optionally rerun
+make test-gemini-runtime-live after changes.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := "."
