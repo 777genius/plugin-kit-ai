@@ -869,7 +869,6 @@ func TestInitRunner_codexPackage(t *testing.T) {
 		filepath.Join("targets", "codex-package", "interface.json"),
 		filepath.Join("targets", "codex-package", "app.json"),
 		filepath.Join(".codex-plugin", "plugin.json"),
-		".app.json",
 		".mcp.json",
 		filepath.Join("skills", "genplug", "SKILL.md"),
 	} {
@@ -897,8 +896,11 @@ func TestInitRunner_codexPackage(t *testing.T) {
 			t.Fatalf("codex plugin manifest missing %q:\n%s", want, manifestBody)
 		}
 	}
-	if !strings.Contains(string(manifestBody), `"apps": "./.app.json"`) {
-		t.Fatalf("codex plugin manifest missing apps starter:\n%s", manifestBody)
+	if strings.Contains(string(manifestBody), `"apps": "./.app.json"`) {
+		t.Fatalf("codex plugin manifest unexpectedly enables empty app placeholder:\n%s", manifestBody)
+	}
+	if _, err := os.Stat(filepath.Join(out, ".app.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected .app.json rendered for empty app placeholder")
 	}
 	interfaceBody, err := os.ReadFile(filepath.Join(out, "targets", "codex-package", "interface.json"))
 	if err != nil {

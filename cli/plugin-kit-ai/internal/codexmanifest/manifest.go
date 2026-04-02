@@ -139,6 +139,10 @@ func ParseAppManifestDoc(body []byte) (map[string]any, error) {
 	return doc, nil
 }
 
+func AppManifestEnabled(doc map[string]any) bool {
+	return len(doc) > 0
+}
+
 func ValidateInterfaceDoc(doc map[string]any) error {
 	if doc == nil {
 		return nil

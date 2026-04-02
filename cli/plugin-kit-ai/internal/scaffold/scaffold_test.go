@@ -1247,6 +1247,7 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-package --strict",
 				"`mcp/servers.yaml`",
 				"`targets/codex-package/interface.json`: optional structured Codex `interface` doc rendered into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape",
+				"`targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter stays ignored until you replace the empty placeholder with a real app manifest",
 				"`targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed",
 				".codex-plugin/plugin.json",
 			},

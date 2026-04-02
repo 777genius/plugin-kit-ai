@@ -1278,6 +1278,33 @@ func TestRender_CodexRejectsInvalidStructuredDocs(t *testing.T) {
 	}
 }
 
+func TestRender_CodexSkipsEmptyAppPlaceholder(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "codex-package", "", "demo plugin", false)
+	manifest.Targets = []string{"codex-package"}
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{}`)
+
+	result, err := Render(root, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	pluginBody, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(pluginBody), `"apps": "./.app.json"`) {
+		t.Fatalf("plugin manifest unexpectedly enables apps placeholder:\n%s", pluginBody)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".app.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected .app.json artifact")
+	}
+}
+
 func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
