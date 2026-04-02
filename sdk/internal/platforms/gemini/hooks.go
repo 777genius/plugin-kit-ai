@@ -85,6 +85,9 @@ func EncodeBeforeTool(v any) runtime.Result {
 	if !ok {
 		return runtime.Result{ExitCode: 1, Stderr: "encode Gemini BeforeTool response: internal outcome type mismatch\n"}
 	}
+	if err := validateToolInputObject(out.ToolInput); err != nil {
+		return runtime.Result{ExitCode: 1, Stderr: fmt.Sprintf("Gemini BeforeTool: %v\n", err)}
+	}
 	var hookSpecific any
 	if len(out.ToolInput) > 0 {
 		hookSpecific = toolHookSpecificDTO{
@@ -99,6 +102,9 @@ func EncodeAfterTool(v any) runtime.Result {
 	out, ok := v.(AfterToolOutcome)
 	if !ok {
 		return runtime.Result{ExitCode: 1, Stderr: "encode Gemini AfterTool response: internal outcome type mismatch\n"}
+	}
+	if err := validateTailToolCallRequest(out.TailToolCallRequest); err != nil {
+		return runtime.Result{ExitCode: 1, Stderr: fmt.Sprintf("Gemini AfterTool: %v\n", err)}
 	}
 	var hookSpecific any
 	if strings.TrimSpace(out.AdditionalContext) != "" || out.TailToolCallRequest != nil {
@@ -159,6 +165,33 @@ func sanitizeLifecycleOutcome(out CommonOutcome) CommonOutcome {
 	out.Decision = ""
 	out.Reason = ""
 	return out
+}
+
+func looksLikeJSONObject(body []byte) bool {
+	return strings.HasPrefix(strings.TrimSpace(string(body)), "{")
+}
+
+func validateToolInputObject(body json.RawMessage) error {
+	if len(body) == 0 {
+		return nil
+	}
+	if !looksLikeJSONObject(body) {
+		return fmt.Errorf("hookSpecificOutput.tool_input must be a JSON object")
+	}
+	return nil
+}
+
+func validateTailToolCallRequest(req *TailToolCallRequest) error {
+	if req == nil {
+		return nil
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		return fmt.Errorf("hookSpecificOutput.tailToolCallRequest.name is required")
+	}
+	if !looksLikeJSONObject(req.Args) {
+		return fmt.Errorf("hookSpecificOutput.tailToolCallRequest.args must be a JSON object")
+	}
+	return nil
 }
 
 func validateDecision(decision string) error {

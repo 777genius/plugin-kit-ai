@@ -49,6 +49,18 @@ func TestEncodeBeforeToolOutcome(t *testing.T) {
 	}
 }
 
+func TestEncodeBeforeToolOutcomeRejectsNonObjectToolInput(t *testing.T) {
+	res := EncodeBeforeTool(BeforeToolOutcome{
+		ToolInput: json.RawMessage(`["bad"]`),
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.tool_input must be a JSON object") {
+		t.Fatalf("stderr = %q", res.Stderr)
+	}
+}
+
 func TestEncodeSessionStartOutcome(t *testing.T) {
 	res := EncodeSessionStart(SessionStartOutcome{
 		AdditionalContext: "repo memory",
@@ -144,5 +156,34 @@ func TestEncodeAfterToolOutcomeTailToolCall(t *testing.T) {
 	}
 	if got := string(res.Stdout); !strings.Contains(got, `"tailToolCallRequest":{"name":"read_file","args":{"path":"README.md"}}`) {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeAfterToolOutcomeRejectsTailToolCallWithoutName(t *testing.T) {
+	res := EncodeAfterTool(AfterToolOutcome{
+		TailToolCallRequest: &TailToolCallRequest{
+			Args: json.RawMessage(`{"path":"README.md"}`),
+		},
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.tailToolCallRequest.name is required") {
+		t.Fatalf("stderr = %q", res.Stderr)
+	}
+}
+
+func TestEncodeAfterToolOutcomeRejectsNonObjectTailToolCallArgs(t *testing.T) {
+	res := EncodeAfterTool(AfterToolOutcome{
+		TailToolCallRequest: &TailToolCallRequest{
+			Name: "read_file",
+			Args: json.RawMessage(`["bad"]`),
+		},
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.tailToolCallRequest.args must be a JSON object") {
+		t.Fatalf("stderr = %q", res.Stderr)
 	}
 }

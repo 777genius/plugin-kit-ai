@@ -313,6 +313,25 @@ func TestApp_GeminiBeforeToolRewriteInputEncodesHookSpecificOutput(t *testing.T)
 	}
 }
 
+func TestApp_GeminiBeforeToolRejectsNonObjectRewriteInput(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"write_file","tool_input":{"content":"hello"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeTool"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
+		return gemini.BeforeToolRewriteInput([]byte(`["bad"]`))
+	})
+	if c := app.Run(); c != 1 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.err.String(); !strings.Contains(got, "hookSpecificOutput.tool_input must be a JSON object") {
+		t.Fatalf("stderr = %q", got)
+	}
+}
+
 func TestApp_GeminiAfterToolContinueIsMinimal(t *testing.T) {
 	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_output":{"ok":true}}`)}
 	app := New(Config{
@@ -390,6 +409,25 @@ func TestApp_GeminiAfterToolTailCallEncodesHookSpecificOutput(t *testing.T) {
 	}
 	if got := iox.out.String(); !strings.Contains(got, `"tailToolCallRequest":{"name":"read_file","args":{"path":"README.md"}}`) {
 		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiAfterToolRejectsInvalidTailCall(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_response":{"llmContent":"ok"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterTool(func(*gemini.AfterToolEvent) *gemini.AfterToolResponse {
+		return gemini.AfterToolTailCall("", []byte(`["bad"]`))
+	})
+	if c := app.Run(); c != 1 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.err.String(); !strings.Contains(got, "hookSpecificOutput.tailToolCallRequest.name is required") {
+		t.Fatalf("stderr = %q", got)
 	}
 }
 
