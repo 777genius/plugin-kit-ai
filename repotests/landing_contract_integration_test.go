@@ -38,6 +38,8 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, ruContent, `https://777genius.github.io/plugin-kit-ai/ru/guide/quickstart.html`)
 	mustNotContain(t, ruContent, `"testimonials"`)
 	mustContain(t, ruContent, `"title": "Проверяемый установочный скрипт"`)
+	mustContain(t, ruContent, `"status": "Публичная бета"`)
+	mustNotContain(t, ruContent, `Public-beta обёртка`)
 
 	headerBody, err := os.ReadFile(filepath.Join(root, "components", "layout", "AppHeader.vue"))
 	if err != nil {
