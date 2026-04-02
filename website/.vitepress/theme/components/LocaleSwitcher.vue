@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
-import { useRoute, withBase } from "vitepress";
+import { useData, useRoute, withBase } from "vitepress";
 
 type Variant = "navbar" | "screen";
 type LocaleCode = "en" | "ru";
@@ -14,6 +14,7 @@ const props = withDefaults(
   }
 );
 
+const { site } = useData();
 const route = useRoute();
 const open = ref(false);
 const rootEl = ref<HTMLElement | null>(null);
@@ -40,7 +41,7 @@ const buttonCode = computed(() => currentLocale.value?.shortTitle || "EN");
 const currentLocaleCode = computed(() => currentLocale.value?.code || null);
 
 function localeFromPath(path: string): LocaleCode | null {
-  const normalized = normalizePath(path);
+  const normalized = stripBase(normalizePath(path));
   if (normalized === "/en" || normalized.startsWith("/en/")) {
     return "en";
   }
@@ -57,8 +58,17 @@ function normalizePath(path: string): string {
   return path.replace(/\/+$/, "");
 }
 
+function stripBase(path: string): string {
+  const base = normalizePath(site.value.base || "/");
+  if (base === "/" || !path.startsWith(base)) {
+    return path;
+  }
+  const stripped = path.slice(base.length);
+  return stripped.startsWith("/") ? stripped : `/${stripped}`;
+}
+
 function buildLocalePath(target: LocaleCode): string {
-  const normalized = normalizePath(route.path);
+  const normalized = stripBase(normalizePath(route.path));
   if (normalized === "/") {
     return target === "ru" ? "/ru/" : "/en/";
   }

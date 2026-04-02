@@ -87,6 +87,8 @@ a.docs-card * {
 
 .docs-card h2 {
   margin: 0;
+  padding-top: 0;
+  border-top: 0;
   font-size: 1.08rem;
   color: var(--vp-c-text-1);
   text-decoration: none;

@@ -118,7 +118,7 @@ if (!packageAndWorkspaceTargets.includes("The Short Rule")) {
 }
 
 const whatYouCanBuild = await fs.readFile(path.join(distRoot, "en", "guide", "what-you-can-build.html"), "utf8");
-if (!whatYouCanBuild.includes("Codex Runtime Plugins")) {
+if (!whatYouCanBuild.includes("One Repo, Many Supported Outputs")) {
   console.error("What You Can Build page is missing its expected product-shape section.");
   hasError = true;
 }
