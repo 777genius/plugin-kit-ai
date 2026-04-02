@@ -135,7 +135,10 @@ func TestGeminiCLIRuntimeSessionStart(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedGeminiHome(t, homeDir)
-	runGeminiLink(t, geminiBin, homeDir, extensionDir)
+	linkOutput := runGeminiLink(t, geminiBin, homeDir, extensionDir)
+	if !strings.Contains(linkOutput, `linked successfully and enabled`) {
+		t.Fatalf("gemini runtime live link did not report success:\n%s", linkOutput)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
@@ -144,18 +147,18 @@ func TestGeminiCLIRuntimeSessionStart(t *testing.T) {
 	cmd.Env = append(geminiCLIEnv(homeDir), "PLUGIN_KIT_AI_E2E_TRACE="+tracePath)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("gemini runtime smoke timed out:\n%s", out)
+		t.Fatalf("gemini runtime smoke timed out; %s rerun make test-gemini-runtime-live.\ntrace=%s\noutput:\n%s", geminiAuthRecoveryHint(string(out)), tracePath, truncateRunes(string(out), 4000))
 	}
 	if err != nil {
-		if bytes.Contains(out, []byte("Please set an Auth method")) {
-			t.Skipf("gemini auth is not usable for isolated runtime live e2e:\n%s", out)
+		if geminiEnvironmentIssue(string(out)) {
+			t.Skipf("gemini environment is not ready for isolated runtime live e2e; %s\n%s", geminiAuthRecoveryHint(string(out)), truncateRunes(string(out), 4000))
 		}
-		t.Fatalf("gemini runtime smoke: %v\n%s", err, out)
+		t.Fatalf("gemini runtime smoke: %v\ntrace=%s\nhint=confirm gemini extensions link . succeeded, then inspect hooks/hooks.json command wiring and rerun the live smoke.\noutput:\n%s", err, tracePath, truncateRunes(string(out), 4000))
 	}
 
 	lines := waitForTraceLines(t, tracePath, 3*time.Second)
 	if !traceHas(t, lines, "SessionStart", "allow") {
-		t.Fatalf("expected SessionStart allow in trace; got:\n%s", strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionStart allow in trace; hint=confirm the linked extension still points at the generated runtime repo, then inspect hooks/hooks.json and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 }
 
@@ -196,17 +199,104 @@ func runGeminiCommandWithInput(t *testing.T, geminiBin, homeDir, extensionDir, i
 	cmd.Stdin = strings.NewReader(input)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("gemini command %q timed out:\n%s", strings.Join(args, " "), out)
+		t.Fatalf("gemini command %q timed out; %s\n%s", strings.Join(args, " "), geminiAuthRecoveryHint(string(out)), truncateRunes(string(out), 4000))
 	}
 	if err != nil {
-		if bytes.Contains(out, []byte("Please set an Auth method")) {
-			t.Skipf("gemini auth is not usable for isolated live e2e:\n%s", out)
+		if geminiEnvironmentIssue(string(out)) {
+			t.Skipf("gemini environment is not ready for isolated live e2e; %s\n%s", geminiAuthRecoveryHint(string(out)), truncateRunes(string(out), 4000))
 		}
-		t.Fatalf("gemini command %q: %v\n%s", strings.Join(args, " "), err, out)
+		t.Fatalf("gemini command %q: %v\nhint=verify the extension repo renders cleanly, then rerun gemini extensions link/config/enable/disable.\n%s", strings.Join(args, " "), err, truncateRunes(string(out), 4000))
 	}
 	text := string(out)
 	t.Logf("gemini %s output: %s", strings.Join(args, " "), truncateRunes(text, 4000))
 	return text
+}
+
+func geminiEnvironmentIssue(output string) bool {
+	lower := strings.ToLower(output)
+	markers := []string{
+		"please set an auth method",
+		"not authenticated",
+		"authentication required",
+		"login required",
+		"unauthorized",
+		"forbidden",
+		"failed to sign in",
+		"current account is not eligible",
+		"not currently available in your location",
+		"please contact your administrator to request an entitlement",
+		"unable_to_get_issuer_cert_locally",
+		"unable to get local issuer certificate",
+	}
+	for _, marker := range markers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func geminiAuthRecoveryHint(output string) string {
+	lower := strings.ToLower(output)
+	switch {
+	case strings.Contains(lower, "unable_to_get_issuer_cert_locally"),
+		strings.Contains(lower, "unable to get local issuer certificate"):
+		return "per Gemini CLI troubleshooting, corporate TLS interception may require NODE_USE_SYSTEM_CA=1 or NODE_EXTRA_CA_CERTS; then retry."
+	case strings.Contains(lower, "google_cloud_project"),
+		strings.Contains(lower, "google_cloud_project_id"),
+		strings.Contains(lower, "gemini code assist"),
+		strings.Contains(lower, "current account is not eligible"),
+		strings.Contains(lower, "request contains an invalid argument"),
+		strings.Contains(lower, "administrator to request an entitlement"):
+		return "per Gemini CLI auth docs, headless mode needs cached auth or env-based auth, and Workspace/Code Assist accounts often also need GOOGLE_CLOUD_PROJECT."
+	default:
+		return "per Gemini CLI auth docs, headless mode needs cached auth or env-based auth (GEMINI_API_KEY or Vertex AI); verify auth and retry."
+	}
+}
+
+func TestGeminiEnvironmentIssue(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{name: "auth method missing", output: "Please set an auth method before continuing.", want: true},
+		{name: "workspace entitlement missing", output: "Please contact your administrator to request an entitlement.", want: true},
+		{name: "tls interception", output: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", want: true},
+		{name: "plain runtime failure", output: "hook command exited with status 1", want: false},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := geminiEnvironmentIssue(tc.output); got != tc.want {
+				t.Fatalf("geminiEnvironmentIssue(%q) = %v, want %v", tc.output, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGeminiAuthRecoveryHint(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name         string
+		output       string
+		wantContains string
+	}{
+		{name: "tls", output: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", wantContains: "NODE_USE_SYSTEM_CA=1"},
+		{name: "workspace project", output: "Set GOOGLE_CLOUD_PROJECT before using Gemini Code Assist", wantContains: "GOOGLE_CLOUD_PROJECT"},
+		{name: "default", output: "not authenticated", wantContains: "GEMINI_API_KEY"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := geminiAuthRecoveryHint(tc.output); !strings.Contains(got, tc.wantContains) {
+				t.Fatalf("geminiAuthRecoveryHint(%q) = %q, want substring %q", tc.output, got, tc.wantContains)
+			}
+		})
+	}
 }
 
 func geminiCLIEnv(homeDir string) []string {
