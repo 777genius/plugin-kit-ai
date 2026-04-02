@@ -135,7 +135,7 @@ func copyTree(t *testing.T, src, dst string) {
 
 func launcherCommand(entry string, args ...string) *exec.Cmd {
 	if runtime.GOOS == "windows" && strings.EqualFold(filepath.Ext(entry), ".cmd") {
-		parts := []string{"call", quoteWindowsCmdArg(entry)}
+		parts := []string{quoteWindowsCmdArg(entry)}
 		for _, arg := range args {
 			parts = append(parts, quoteWindowsCmdArg(arg))
 		}
