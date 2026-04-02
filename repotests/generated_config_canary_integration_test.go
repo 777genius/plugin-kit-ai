@@ -139,6 +139,25 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 			t.Fatalf("inspect text missing managed artifact %q:\n%s", want, textReport)
 		}
 	}
+
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "gemini")
+	validateOut, err := validateCmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai validate: %v\n%s", err, validateOut)
+	}
+	validateText := string(validateOut)
+	for _, want := range []string{
+		`Warning: Gemini extension directory basename "project with spaces" does not match extension name "genplug"`,
+		"Hint: rename the extension directory to match plugin.yaml name before running gemini extensions link .",
+		"Validated " + plugRoot,
+		"Hint: Gemini Go beta lane is validate-clean; run make test-gemini-runtime-smoke before relinking the extension.",
+		"Hint: relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
+		"Hint: use make test-gemini-runtime-live when you need real CLI evidence after the repo-local smoke is green.",
+	} {
+		if !strings.Contains(validateText, want) {
+			t.Fatalf("validate output missing %q:\n%s", want, validateText)
+		}
+	}
 }
 
 func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
