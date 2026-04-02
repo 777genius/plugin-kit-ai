@@ -53,6 +53,25 @@ func TestRender_RendersVersionIntoEveryNativeManifest(t *testing.T) {
 	}
 }
 
+func TestRender_NormalizesGeneratedArtifactPaths(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "codex-runtime", "python", "demo plugin", true)
+	mustSavePackage(t, root, manifest, "python")
+
+	result, err := Render(root, "all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Artifacts) == 0 {
+		t.Fatal("expected generated artifacts")
+	}
+	for _, artifact := range result.Artifacts {
+		if strings.ContainsRune(artifact.RelPath, '\\') {
+			t.Fatalf("artifact path %q must use slash separators", artifact.RelPath)
+		}
+	}
+}
+
 func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
