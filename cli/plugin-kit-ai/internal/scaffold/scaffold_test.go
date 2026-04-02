@@ -42,7 +42,6 @@ func TestPaths_Gemini(t *testing.T) {
 	got := Paths("gemini", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
-		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "gemini", "package.yaml"),
 		filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
 		"README.md",
@@ -59,7 +58,6 @@ func TestPaths_OpenCode(t *testing.T) {
 	got := Paths("opencode", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
-		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "opencode", "package.yaml"),
 		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
@@ -87,7 +85,6 @@ func TestPaths_Cursor(t *testing.T) {
 	got := Paths("cursor", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
-		filepath.Join("mcp", "servers.yaml"),
 		"README.md",
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
 		filepath.Join("targets", "cursor", "AGENTS.md"),
@@ -126,7 +123,6 @@ func TestPaths_CodexPackage(t *testing.T) {
 	got := Paths("codex-package", "my-plugin", true)
 	for _, want := range []string{
 		"plugin.yaml",
-		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "codex-package", "package.yaml"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
