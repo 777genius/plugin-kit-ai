@@ -30,17 +30,20 @@ Rule: the CLI must not construct `plugininstall` adapters directly. It uses the 
 - Public platform APIs are peer packages:
   - `sdk/claude`
   - `sdk/codex`
+  - `sdk/gemini`
 - Core runtime lives under `sdk/internal/runtime`.
 - Descriptor definitions live under `sdk/internal/descriptors/defs`.
 - Generated runtime registries and resolvers live under `sdk/internal/descriptors/gen`.
 - Platform wire codecs live under:
   - `sdk/internal/platforms/claude`
   - `sdk/internal/platforms/codex`
+  - `sdk/internal/platforms/gemini`
 
 Current runtime carriers:
 
 - Claude events use `stdin_json`
 - Codex `Notify` uses `argv_json`
+- Gemini beta hooks use `stdin_json`
 
 ## CLI Application Layer
 

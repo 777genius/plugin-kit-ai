@@ -107,6 +107,14 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	architectureDoc, err := os.ReadFile(filepath.Join(root, "docs", "ARCHITECTURE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	maintainerArchitectureDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "ARCHITECTURE.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	supportDoc, err := os.ReadFile(filepath.Join(root, "docs", "SUPPORT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -181,6 +189,12 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	}
 
 	mustContain(t, string(rootReadme), "Build your plugin once and easily export it to any AI agent, like Claude, Codex, or Gemini, without duplicating code.")
+	mustContain(t, string(architectureDoc), "`sdk/gemini`")
+	mustContain(t, string(architectureDoc), "`sdk/internal/platforms/gemini`")
+	mustContain(t, string(architectureDoc), "Gemini beta hooks use `stdin_json`")
+	mustContain(t, string(maintainerArchitectureDoc), "`sdk/gemini`")
+	mustContain(t, string(maintainerArchitectureDoc), "`sdk/internal/platforms/gemini`")
+	mustContain(t, string(maintainerArchitectureDoc), "Gemini beta hooks use `stdin_json`")
 	mustContain(t, string(rootReadme), "supported outputs for Codex, Claude, Gemini, and other targets")
 	mustContain(t, string(rootReadme), "one repo and one workflow can cover many supported outputs")
 	mustContain(t, string(rootReadme), "the honest promise is `one repo / many supported outputs`, not fake parity everywhere")
