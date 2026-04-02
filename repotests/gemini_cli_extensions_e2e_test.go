@@ -164,6 +164,9 @@ func TestGeminiCLIRuntimeSessionStart(t *testing.T) {
 
 func geminiBinaryOrSkip(t *testing.T) string {
 	t.Helper()
+	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_GEMINI_CLI")) == "1" {
+		t.Skip("PLUGIN_KIT_AI_SKIP_GEMINI_CLI=1")
+	}
 	if value := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_GEMINI_BIN")); value != "" {
 		return value
 	}

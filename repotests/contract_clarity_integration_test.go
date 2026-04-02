@@ -167,6 +167,10 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repoTestsReadme, err := os.ReadFile(filepath.Join(root, "repotests", "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	makefile, err := os.ReadFile(filepath.Join(root, "Makefile"))
 	if err != nil {
 		t.Fatal(err)
@@ -438,6 +442,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(releaseDoc), "beta change notes")
 	mustContain(t, string(maintainerPatchRehearsalDoc), "Gemini `public-beta` Go runtime lane")
 	mustContain(t, string(maintainerPatchRehearsalDoc), "Gemini remains outside the stable runtime promise even with the new `public-beta` Go lane")
+	mustContain(t, string(repoTestsReadme), "`PLUGIN_KIT_AI_SKIP_GEMINI_CLI=1`")
 	mustContain(t, string(releaseChecklist), "beta change note written when beta user code, scaffold output, readiness semantics, or bundle contents change")
 	mustContain(t, string(releaseChecklist), "Homebrew tap update result recorded when the `plugin-kit-ai` CLI install path changed")
 	mustContain(t, string(releaseChecklist), "npm publish result recorded when the `plugin-kit-ai` CLI npm channel changed")
