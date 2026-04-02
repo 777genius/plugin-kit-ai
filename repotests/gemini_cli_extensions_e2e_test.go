@@ -227,6 +227,11 @@ func geminiEnvironmentIssue(output string) bool {
 		"please contact your administrator to request an entitlement",
 		"unable_to_get_issuer_cert_locally",
 		"unable to get local issuer certificate",
+		"safe mode",
+		"untrusted workspace",
+		"extension management is restricted",
+		"workspace settings are ignored",
+		"mcp servers do not connect",
 	}
 	for _, marker := range markers {
 		if strings.Contains(lower, marker) {
@@ -242,6 +247,12 @@ func geminiAuthRecoveryHint(output string) string {
 	case strings.Contains(lower, "unable_to_get_issuer_cert_locally"),
 		strings.Contains(lower, "unable to get local issuer certificate"):
 		return "per Gemini CLI troubleshooting, corporate TLS interception may require NODE_USE_SYSTEM_CA=1 or NODE_EXTRA_CA_CERTS; then retry."
+	case strings.Contains(lower, "safe mode"),
+		strings.Contains(lower, "untrusted workspace"),
+		strings.Contains(lower, "extension management is restricted"),
+		strings.Contains(lower, "workspace settings are ignored"),
+		strings.Contains(lower, "mcp servers do not connect"):
+		return "per Gemini CLI trusted-folders docs, trust this workspace or parent folder in ~/.gemini/trustedFolders.json or via /permissions, then rerun the Gemini live smoke."
 	case strings.Contains(lower, "google_cloud_project"),
 		strings.Contains(lower, "google_cloud_project_id"),
 		strings.Contains(lower, "gemini code assist"),
@@ -264,6 +275,7 @@ func TestGeminiEnvironmentIssue(t *testing.T) {
 		{name: "auth method missing", output: "Please set an auth method before continuing.", want: true},
 		{name: "workspace entitlement missing", output: "Please contact your administrator to request an entitlement.", want: true},
 		{name: "tls interception", output: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", want: true},
+		{name: "safe mode", output: "The CLI is running in safe mode because this is an untrusted workspace.", want: true},
 		{name: "plain runtime failure", output: "hook command exited with status 1", want: false},
 	}
 	for _, tc := range cases {
@@ -285,6 +297,7 @@ func TestGeminiAuthRecoveryHint(t *testing.T) {
 		wantContains string
 	}{
 		{name: "tls", output: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY", wantContains: "NODE_USE_SYSTEM_CA=1"},
+		{name: "trusted folder", output: "Extension management is restricted in safe mode for an untrusted workspace", wantContains: "trustedFolders.json"},
 		{name: "workspace project", output: "Set GOOGLE_CLOUD_PROJECT before using Gemini Code Assist", wantContains: "GOOGLE_CLOUD_PROJECT"},
 		{name: "default", output: "not authenticated", wantContains: "GEMINI_API_KEY"},
 	}
