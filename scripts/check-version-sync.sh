@@ -24,7 +24,13 @@ check_rg_matches() {
   shift 3
   local files=("$@")
   local out
-  out="$(rg -n -o -- "$pattern" "${files[@]}" || true)"
+  if command -v rg >/dev/null 2>&1; then
+    out="$(rg -n -o -- "$pattern" "${files[@]}" || true)"
+  else
+    out="$(
+      grep -n -E -o -- "$pattern" "${files[@]}" 2>/dev/null || true
+    )"
+  fi
   if [[ -z "$out" ]]; then
     echo "version sync check found no matches for ${label}" >&2
     exit 1

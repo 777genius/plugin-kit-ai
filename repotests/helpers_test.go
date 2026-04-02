@@ -139,7 +139,7 @@ func launcherCommand(entry string, args ...string) *exec.Cmd {
 		for _, arg := range args {
 			parts = append(parts, quoteWindowsCmdArg(arg))
 		}
-		return exec.Command("cmd", "/d", "/s", "/c", strings.Join(parts, " "))
+		return exec.Command("cmd", "/d", "/s", "/c", `"`+strings.Join(parts, " ")+`"`)
 	}
 	return exec.Command(entry, args...)
 }
