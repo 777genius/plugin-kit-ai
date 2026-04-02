@@ -51,7 +51,8 @@
     "quickstartTitle": "Recommended quickstart",
     "quickstartSubtitle": "This is the fastest supported path from install to a validated repo.",
     "supportTitle": "Support snapshot",
-    "supportSubtitle": "Real support depth today, based on the current support policy and target matrix."
+    "supportSubtitle": "Real support depth today, based on the current support policy and target matrix.",
+    "supportLink": "Read the support boundary"
   },
   "common": {
     "previous": "Previous",

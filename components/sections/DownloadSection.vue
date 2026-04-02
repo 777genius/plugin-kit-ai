@@ -2,7 +2,7 @@
 const { content } = useLandingContent()
 const { t, locale } = useI18n()
 const { data: releaseData, fallbackUrl } = useReleaseDownloads()
-const { quickstartUrl } = useDocsLinks()
+const { quickstartUrl, supportBoundaryUrl } = useDocsLinks()
 
 const releaseVersion = computed(() => releaseData.value?.version || null)
 const releaseDate = computed(() => {
@@ -92,6 +92,15 @@ const installChannels = computed(() =>
               <p class="download-section__support-note">{{ lane.note }}</p>
             </div>
           </div>
+
+          <a
+            class="download-section__support-link"
+            :href="supportBoundaryUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{ t("download.supportLink") }}
+          </a>
         </article>
       </div>
 
@@ -283,6 +292,20 @@ const installChannels = computed(() =>
 .download-section__support-list {
   display: grid;
   gap: 12px;
+}
+
+.download-section__support-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 16px;
+  color: #00f0ff;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.download-section__support-link:hover {
+  text-decoration: underline;
 }
 
 .download-section__support-item {

@@ -190,17 +190,17 @@
     {
       "id": "npm",
       "title": "npm",
-      "description": "Official JavaScript ecosystem path for teams that already center their workflow on npm.",
+      "description": "Official JavaScript ecosystem wrapper for teams that already center their workflow on npm.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Downloads the matching verified release binary.",
+      "note": "Public-beta wrapper that downloads the matching verified release binary.",
       "command": "npm i -g plugin-kit-ai"
     },
     {
       "id": "pipx",
       "title": "pipx",
-      "description": "Python ecosystem path when the corresponding release is published to PyPI.",
+      "description": "Python ecosystem wrapper when the corresponding release is published to PyPI.",
       "href": "https://pypi.org/project/plugin-kit-ai/",
-      "note": "Use this channel only when the target release is available on PyPI.",
+      "note": "Public-beta wrapper. Use this channel only when the target release is available on PyPI.",
       "command": "pipx install plugin-kit-ai"
     },
     {
@@ -259,7 +259,7 @@
       "id": "claude",
       "name": "Claude plugin package",
       "status": "Production-ready stable subset",
-      "note": "Stable default hook subset plus first-class package metadata and settings surfaces."
+      "note": "Production-ready within the stable default hook subset, plus package metadata and settings surfaces."
     },
     {
       "id": "codex",

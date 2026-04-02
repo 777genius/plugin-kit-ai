@@ -181,48 +181,48 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Рекомендуемый локальный install для машин, где уже используется Homebrew.",
+      "description": "Рекомендуемый локальный способ установки для машин, где уже используется Homebrew.",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Лучший дефолт, когда Homebrew уже есть в системе.",
+      "note": "Лучший вариант по умолчанию, если Homebrew уже есть в системе.",
       "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
       "recommended": true
     },
     {
       "id": "npm",
       "title": "npm",
-      "description": "Официальный JavaScript ecosystem path для команд, где workflow уже построен вокруг npm.",
+      "description": "Официальный JavaScript-обёртка для команд, где рабочий процесс уже построен вокруг npm.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Загружает соответствующий проверенный release binary.",
+      "note": "Public-beta обёртка, которая загружает соответствующий проверенный бинарный релиз.",
       "command": "npm i -g plugin-kit-ai"
     },
     {
       "id": "pipx",
       "title": "pipx",
-      "description": "Путь для Python ecosystem, когда соответствующий релиз уже опубликован в PyPI.",
+      "description": "Python-обёртка для случаев, когда нужный релиз уже опубликован в PyPI.",
       "href": "https://pypi.org/project/plugin-kit-ai/",
-      "note": "Используйте канал только если целевой релиз действительно есть в PyPI.",
+      "note": "Public-beta обёртка. Используйте этот канал только если нужный релиз действительно есть в PyPI.",
       "command": "pipx install plugin-kit-ai"
     },
     {
       "id": "script",
-      "title": "Проверяемый install script",
-      "description": "Fallback bootstrap path, который находит последний published stable release и проверяет checksums.",
+      "title": "Проверяемый установочный скрипт",
+      "description": "Резервный путь установки, который находит последний опубликованный стабильный релиз и проверяет контрольные суммы.",
       "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
-      "note": "Подходит, когда package-manager путь не хочется делать первым шагом.",
+      "note": "Подходит, когда не хочется начинать с пакетного менеджера.",
       "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
     },
     {
       "id": "releases",
       "title": "GitHub Releases",
-      "description": "Откройте опубликованные release notes, артефакты и историю версий напрямую.",
+      "description": "Откройте опубликованные заметки к релизам, артефакты и историю версий напрямую.",
       "href": "https://github.com/777genius/plugin-kit-ai/releases",
-      "note": "Подходит, когда нужен raw release surface.",
+      "note": "Подходит, когда нужен прямой доступ к поверхности релизов.",
       "command": "https://github.com/777genius/plugin-kit-ai/releases"
     },
     {
       "id": "docs",
-      "title": "Docs quickstart",
-      "description": "Перейдите сразу в quickstart и в полноценный docs site.",
+      "title": "Быстрый старт в документации",
+      "description": "Перейдите сразу к быстрому старту и в полную документацию.",
       "href": "https://777genius.github.io/plugin-kit-ai/ru/guide/quickstart.html",
       "note": "Лучший следующий шаг после установки CLI.",
       "command": "plugin-kit-ai init my-plugin"
@@ -239,7 +239,7 @@
       "id": "init",
       "title": "Сначала создайте самый сильный базовый репозиторий",
       "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "Дефолтный путь стартует с самого сильного поддерживаемого production-сценария."
+      "note": "Путь по умолчанию стартует с самого сильного поддерживаемого production-сценария."
     },
     {
       "id": "render",
@@ -251,39 +251,39 @@
       "id": "validate",
       "title": "Проверьте всё перед передачей дальше",
       "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "Используйте strict validation до CI, handoff или релиза."
+      "note": "Используйте строгую проверку до CI, передачи коллеге или релиза."
     }
   ],
   "supportLanes": [
     {
       "id": "claude",
-      "name": "Пакетный lane для Claude",
+      "name": "Пакетный target для Claude",
       "status": "Стабильный production-ready subset",
-      "note": "Стабильный набор hook-событий по умолчанию и first-class package metadata/settings surfaces."
+      "note": "Production-ready в рамках стабильного набора hook-событий по умолчанию, плюс поддержка package metadata и settings."
     },
     {
       "id": "codex",
-      "name": "Runtime и package lanes для Codex",
+      "name": "Runtime и package target-ы для Codex",
       "status": "Production-ready",
-      "note": "Notify runtime lane для Codex и официальный package lane уже production-ready."
+      "note": "Notify runtime target для Codex и официальный package target уже production-ready."
     },
     {
       "id": "gemini",
-      "name": "Extension lane для Gemini",
+      "name": "Extension target для Gemini",
       "status": "Public beta",
-      "note": "Extension packaging поддерживается, но весь lane пока ещё не считается production-ready."
+      "note": "Сборка extension-пакета поддерживается, но весь target пока ещё не считается production-ready."
     },
     {
       "id": "opencode",
-      "name": "Workspace lane для OpenCode",
-      "status": "Только packaging lane",
-      "note": "Workspace config, plugins и MCP поддерживаются, но это не production-ready runtime target."
+      "name": "Workspace target для OpenCode",
+      "status": "Только packaging target",
+      "note": "Workspace-конфиг, плагины и MCP поддерживаются, но это не production-ready runtime target."
     },
     {
       "id": "cursor",
-      "name": "Workspace lane для Cursor",
-      "status": "Только packaging lane",
-      "note": "Project rules и MCP config поддерживаются как строгий workspace-config lane."
+      "name": "Workspace target для Cursor",
+      "status": "Только packaging target",
+      "note": "Project rules и MCP-конфиг поддерживаются как строгий workspace-config target."
     }
   ],
   "pricing": [
@@ -292,13 +292,13 @@
       "name": "Стартуйте бесплатно",
       "price": "$0",
       "period": "на старте",
-      "description": "Используйте open-source toolkit уже сейчас, пока первая линейка плагинов растёт.",
+      "description": "Используйте open-source тулкит уже сейчас, пока первая линейка плагинов растёт.",
       "features": [
-        "Модель одного репозитория для plugin authoring",
-        "Понятные install и release paths",
+        "Модель одного репозитория для авторинга плагина",
+        "Понятные пути установки и релизов",
         "Лендинг на английском и русском",
-        "Документированная граница stable и beta",
-        "Концепты первой линейки с badge поддерживаемых агентов"
+        "Документированная граница между stable и beta",
+        "Концепты первой линейки с метками поддерживаемых агентов"
       ],
       "highlighted": true
     }

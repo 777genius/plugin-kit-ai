@@ -38,5 +38,12 @@ export const useDocsLinks = () => {
     )
   );
 
-  return { docsUrl, quickstartUrl };
+  const supportBoundaryUrl = computed(() =>
+    replaceDocsLocale(
+      "https://777genius.github.io/plugin-kit-ai/en/reference/support-boundary.html",
+      currentLocale.value
+    )
+  );
+
+  return { docsUrl, quickstartUrl, supportBoundaryUrl };
 };

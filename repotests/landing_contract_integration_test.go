@@ -28,6 +28,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	docsLinks := string(docsLinksBody)
 	mustContain(t, docsLinks, `const docsLocalePattern = /\/(en|ru)(?=\/|$)/;`)
 	mustContain(t, docsLinks, `locale.value === "ru" ? "ru" : "en"`)
+	mustContain(t, docsLinks, `supportBoundaryUrl`)
 
 	ruContentBody, err := os.ReadFile(filepath.Join(root, "content", "ru.json"))
 	if err != nil {
@@ -36,6 +37,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	ruContent := string(ruContentBody)
 	mustContain(t, ruContent, `https://777genius.github.io/plugin-kit-ai/ru/guide/quickstart.html`)
 	mustNotContain(t, ruContent, `"testimonials"`)
+	mustContain(t, ruContent, `"title": "Проверяемый установочный скрипт"`)
 
 	headerBody, err := os.ReadFile(filepath.Join(root, "components", "layout", "AppHeader.vue"))
 	if err != nil {
