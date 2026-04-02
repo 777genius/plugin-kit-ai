@@ -175,3 +175,4 @@ Gemini helper rule of thumb:
 
 - use `gemini.SessionStartContinue()`, `gemini.SessionEndContinue()`, `gemini.BeforeToolContinue()`, and `gemini.AfterToolContinue()` for a true no-op response that renders as minimal `{}` output
 - use `gemini.BeforeToolAllow()` or `gemini.AfterToolAllow()` only when you intentionally want an explicit `"decision":"allow"` in the Gemini hook response
+- avoid legacy `gemini.AllowTool()` / `gemini.DenyTool()` in new code; Gemini typed handlers should return the specific response structs

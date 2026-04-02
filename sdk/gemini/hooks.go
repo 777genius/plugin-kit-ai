@@ -97,11 +97,19 @@ func AfterToolDeny(reason string) *AfterToolResponse {
 	return &AfterToolResponse{Decision: "deny", Reason: reason}
 }
 
+// Deprecated: prefer BeforeToolAllow, BeforeToolContinue, AfterToolAllow, or
+// AfterToolContinue. Gemini handlers return typed response structs, and these
+// CommonResponse helpers are kept only for backward compatibility.
+//
 // AllowTool returns an explicit allow decision for BeforeTool or AfterTool.
 func AllowTool() *CommonResponse {
 	return &CommonResponse{Decision: "allow"}
 }
 
+// Deprecated: prefer BeforeToolDeny or AfterToolDeny. Gemini handlers return
+// typed response structs, and this CommonResponse helper is kept only for
+// backward compatibility.
+//
 // DenyTool returns a deny decision with a reason for BeforeTool or AfterTool.
 func DenyTool(reason string) *CommonResponse {
 	return &CommonResponse{Decision: "deny", Reason: reason}
