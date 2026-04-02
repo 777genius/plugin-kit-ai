@@ -29,14 +29,14 @@
       "outputs": "outputs",
       "supportedAgents": "supported agents",
       "steps": {
-        "author": "author",
-        "render": "render",
+        "author": "define plugin",
+        "render": "generate outputs",
         "validate": "validate --strict",
-        "ship": "ship"
+        "ship": "publish"
       },
       "logs": {
-        "author": "Writing plugin.yaml from one managed repo...",
-        "render": "Rendering supported targets for the current product need...",
+        "author": "Defining the plugin once from one managed repo...",
+        "render": "Generating the supported outputs for the current product need...",
         "validate": "Running validate --strict before handoff...",
         "ship": "Publishing through releases, docs, and install channels..."
       }

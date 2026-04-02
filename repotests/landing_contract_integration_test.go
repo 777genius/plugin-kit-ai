@@ -87,9 +87,11 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, enLocale, `"copied": "Copied"`)
 	mustContain(t, enLocale, `"comparison": "Why plugin-kit-ai"`)
 	mustContain(t, enLocale, `"pluginKitAi": "plugin-kit-ai"`)
+	mustContain(t, enLocale, `"render": "generate outputs"`)
 	mustNotContain(t, enLocale, `"pricing"`)
 	mustNotContain(t, enLocale, `Hookplex`)
 	mustNotContain(t, enLocale, `"hookplex":`)
+	mustNotContain(t, enLocale, `"render": "render"`)
 
 	ruLocaleBody, err := os.ReadFile(filepath.Join(root, "locales", "ru.json"))
 	if err != nil {
@@ -100,9 +102,11 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, ruLocale, `"copied": "Скопировано"`)
 	mustContain(t, ruLocale, `"comparison": "Почему plugin-kit-ai"`)
 	mustContain(t, ruLocale, `"pluginKitAi": "plugin-kit-ai"`)
+	mustContain(t, ruLocale, `"render": "собрать варианты"`)
 	mustNotContain(t, ruLocale, `"pricing"`)
 	mustNotContain(t, ruLocale, `Hookplex`)
 	mustNotContain(t, ruLocale, `"hookplex":`)
+	mustNotContain(t, ruLocale, `"render": "render"`)
 
 	headerBody, err := os.ReadFile(filepath.Join(root, "components", "layout", "AppHeader.vue"))
 	if err != nil {
