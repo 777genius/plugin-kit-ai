@@ -349,6 +349,10 @@ func TestInitRunner_geminiGoRuntimeStarter(t *testing.T) {
 		"plugin-kit-ai capabilities --mode runtime --platform gemini",
 		"make test-gemini-runtime-live",
 		"`gemini.*Continue()` helpers mean a true no-op Gemini hook response",
+		"Gemini treats `SessionStart` and `SessionEnd` as advisory hooks",
+		"`gemini.BeforeToolRewriteInputValue(...)`",
+		"`gemini.AfterToolAddContext(...)`",
+		"`gemini.AfterToolTailCallValue(...)`",
 	} {
 		if !strings.Contains(readme, want) {
 			t.Fatalf("gemini runtime README missing %q:\n%s", want, readme)

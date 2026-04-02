@@ -34,6 +34,9 @@ gemini extensions link .
 
 - This lane is `public-beta`, not production-ready.
 - For the generated Go starter, `gemini.*Continue()` helpers mean a true no-op Gemini hook response. Use `gemini.BeforeToolAllow()` or `gemini.AfterToolAllow()` only when you explicitly want `"decision":"allow"` in the emitted JSON.
+- Gemini treats `SessionStart` and `SessionEnd` as advisory hooks, so `continue`, `decision`, `reason`, and `stopReason` are ignored there. Prefer `SessionStartAddContext(...)` and `systemMessage` for lifecycle behavior.
+- Use `gemini.BeforeToolRewriteInputValue(...)` when you want to rewrite `tool_input` from a normal Go map or struct.
+- Use `gemini.AfterToolAddContext(...)` to append extra text to the tool result, or `gemini.AfterToolTailCallValue(...)` to request an immediate follow-up tool call with typed Go args.
 - `plugin-kit-ai test` and `plugin-kit-ai dev` stay focused on the stable Claude/Codex runtime fixture lanes. For Gemini beta, use `go test ./...`, `plugin-kit-ai render --check .`, `plugin-kit-ai validate . --platform gemini --strict`, `plugin-kit-ai inspect . --target gemini`, `plugin-kit-ai capabilities --mode runtime --platform gemini`, then exercise the extension through `gemini extensions link .` and a real Gemini CLI session.
 - Use `make test-gemini-runtime-live` when you need the dedicated opt-in real CLI runtime smoke for this lane.
 - Keep Gemini-specific authored assets inside `targets/gemini/...`.
