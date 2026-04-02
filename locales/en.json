@@ -48,6 +48,8 @@
     "recommended": "Recommended",
     "latestRelease": "Latest release",
     "command": "Command",
+    "copy": "Copy",
+    "copied": "Copied",
     "quickstartTitle": "Recommended quickstart",
     "quickstartSubtitle": "This is the fastest supported path from install to a validated repo.",
     "supportTitle": "Support snapshot",

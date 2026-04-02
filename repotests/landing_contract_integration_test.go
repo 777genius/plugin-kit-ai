@@ -41,6 +41,22 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, ruContent, `"status": "Публичная бета"`)
 	mustNotContain(t, ruContent, `Public-beta обёртка`)
 
+	enLocaleBody, err := os.ReadFile(filepath.Join(root, "locales", "en.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	enLocale := string(enLocaleBody)
+	mustContain(t, enLocale, `"copy": "Copy"`)
+	mustContain(t, enLocale, `"copied": "Copied"`)
+
+	ruLocaleBody, err := os.ReadFile(filepath.Join(root, "locales", "ru.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ruLocale := string(ruLocaleBody)
+	mustContain(t, ruLocale, `"copy": "Копировать"`)
+	mustContain(t, ruLocale, `"copied": "Скопировано"`)
+
 	headerBody, err := os.ReadFile(filepath.Join(root, "components", "layout", "AppHeader.vue"))
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +65,15 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, header, `const sectionHref = (sectionId: string) =>`)
 	mustContain(t, header, "isHomePage.value ? `#${sectionId}` : `${homePath.value}#${sectionId}`")
 	mustContain(t, header, `rel="noopener noreferrer"`)
+
+	downloadBody, err := os.ReadFile(filepath.Join(root, "components", "sections", "DownloadSection.vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	download := string(downloadBody)
+	mustContain(t, download, `navigator.clipboard?.writeText`)
+	mustContain(t, download, `download.copy`)
+	mustContain(t, download, `download.copied`)
 
 	logoBody, err := os.ReadFile(filepath.Join(root, "components", "common", "AppLogo.vue"))
 	if err != nil {

@@ -3,6 +3,15 @@ const { content } = useLandingContent()
 const { t, locale } = useI18n()
 const { data: releaseData, fallbackUrl } = useReleaseDownloads()
 const { quickstartUrl, supportBoundaryUrl } = useDocsLinks()
+const copiedCommandId = ref<string | null>(null)
+
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
+
+onBeforeUnmount(() => {
+  if (copiedTimer) {
+    clearTimeout(copiedTimer)
+  }
+})
 
 const releaseVersion = computed(() => releaseData.value?.version || null)
 const releaseDate = computed(() => {
@@ -26,6 +35,55 @@ const installChannels = computed(() =>
       : channel
   )
 )
+
+const setCopiedState = (commandId: string) => {
+  copiedCommandId.value = commandId
+
+  if (copiedTimer) {
+    clearTimeout(copiedTimer)
+  }
+
+  copiedTimer = setTimeout(() => {
+    if (copiedCommandId.value === commandId) {
+      copiedCommandId.value = null
+    }
+  }, 1800)
+}
+
+const fallbackCopy = async (text: string) => {
+  const textarea = document.createElement("textarea")
+  textarea.value = text
+  textarea.setAttribute("readonly", "")
+  textarea.style.position = "absolute"
+  textarea.style.left = "-9999px"
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand("copy")
+  document.body.removeChild(textarea)
+}
+
+const copyCommand = async (commandId: string, command: string) => {
+  if (!import.meta.client) {
+    return
+  }
+
+  const text = command.trim()
+
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      await fallbackCopy(text)
+    }
+  } catch {
+    await fallbackCopy(text)
+  }
+
+  setCopiedState(commandId)
+}
+
+const copyLabel = (commandId: string) =>
+  copiedCommandId.value === commandId ? t("download.copied") : t("download.copy")
 </script>
 
 <template>
@@ -61,7 +119,20 @@ const installChannels = computed(() =>
               <div class="download-section__step-index">0{{ index + 1 }}</div>
               <div class="download-section__step-body">
                 <h4 class="download-section__step-title">{{ step.title }}</h4>
-                <code class="download-section__step-command">{{ step.command }}</code>
+                <div class="download-section__command-wrap">
+                  <div class="download-section__command-head">
+                    <span class="download-section__command-label">{{ t("download.command") }}</span>
+                    <button
+                      type="button"
+                      class="download-section__copy-btn"
+                      :aria-label="copyLabel(`step-${step.id}`)"
+                      @click="copyCommand(`step-${step.id}`, step.command)"
+                    >
+                      {{ copyLabel(`step-${step.id}`) }}
+                    </button>
+                  </div>
+                  <code class="download-section__step-command">{{ step.command }}</code>
+                </div>
                 <p class="download-section__step-note">{{ step.note }}</p>
               </div>
             </div>
@@ -126,7 +197,17 @@ const installChannels = computed(() =>
           <p class="download-section__card-description">{{ channel.description }}</p>
 
           <div v-if="channel.command" class="download-section__command-wrap">
-            <span class="download-section__command-label">{{ t("download.command") }}</span>
+            <div class="download-section__command-head">
+              <span class="download-section__command-label">{{ t("download.command") }}</span>
+              <button
+                type="button"
+                class="download-section__copy-btn"
+                :aria-label="copyLabel(`channel-${channel.id}`)"
+                @click="copyCommand(`channel-${channel.id}`, channel.command)"
+              >
+                {{ copyLabel(`channel-${channel.id}`) }}
+              </button>
+            </div>
             <code class="download-section__command">{{ channel.command }}</code>
           </div>
 
@@ -466,14 +547,50 @@ const installChannels = computed(() =>
   margin-bottom: 14px;
 }
 
+.download-section__command-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .download-section__command-label {
   display: block;
-  margin-bottom: 8px;
   color: #8892b0;
   font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-family: "JetBrains Mono", monospace;
+}
+
+.download-section__copy-btn {
+  appearance: none;
+  border: 1px solid rgba(0, 240, 255, 0.16);
+  background: rgba(0, 240, 255, 0.07);
+  color: #00f0ff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.download-section__copy-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 240, 255, 0.28);
+  background: rgba(0, 240, 255, 0.12);
+}
+
+.download-section__copy-btn:focus-visible {
+  outline: 2px solid rgba(0, 240, 255, 0.4);
+  outline-offset: 2px;
 }
 
 .download-section__command {
@@ -573,6 +690,12 @@ const installChannels = computed(() =>
   border-color: rgba(15, 23, 42, 0.06);
 }
 
+.v-theme--light .download-section__copy-btn {
+  color: #0891b2;
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(8, 145, 178, 0.08);
+}
+
 .v-theme--light .download-section__card {
   background: rgba(255, 255, 255, 0.8);
   border-color: rgba(0, 180, 200, 0.16);
@@ -591,6 +714,11 @@ const installChannels = computed(() =>
 @media (max-width: 700px) {
   .download-section__cards {
     grid-template-columns: 1fr;
+  }
+
+  .download-section__command-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .download-section__step {
