@@ -626,6 +626,7 @@ func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
 	if err != nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
+			Path:    entrypoint,
 			Message: "node runtime inspection failed: " + err.Error(),
 		})
 		return

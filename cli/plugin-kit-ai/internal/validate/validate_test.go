@@ -1030,6 +1030,9 @@ func TestValidateNodeRuntimeTarget_TypeScriptLaneShowsTypeScriptGuidance(t *test
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 	failure := report.Failures[0]
+	if failure.Path != "dist/main.js" {
+		t.Fatalf("failure path = %q", failure.Path)
+	}
 	if !strings.Contains(failure.Message, "TypeScript scaffold expects built output") {
 		t.Fatalf("failure message = %q", failure.Message)
 	}
@@ -1055,6 +1058,9 @@ func TestValidateNodeRuntimeTarget_TypeScriptOutDirMismatchFails(t *testing.T) {
 	if failure.Kind != FailureLauncherInvalid {
 		t.Fatalf("failure kind = %q", failure.Kind)
 	}
+	if failure.Path != "build/main.js" {
+		t.Fatalf("failure path = %q", failure.Path)
+	}
 	if !strings.Contains(failure.Message, "outside tsconfig outDir dist") {
 		t.Fatalf("failure message = %q", failure.Message)
 	}
@@ -1077,6 +1083,9 @@ func TestValidateRuntimeTargetExecutable_NonExecutableScriptFails(t *testing.T) 
 	failure := report.Failures[0]
 	if failure.Kind != FailureRuntimeTargetMissing {
 		t.Fatalf("failure kind = %q", failure.Kind)
+	}
+	if failure.Path != filepath.Join("scripts", "main.sh") {
+		t.Fatalf("failure path = %q", failure.Path)
 	}
 	if !strings.Contains(failure.Message, "is not executable") {
 		t.Fatalf("failure message = %q", failure.Message)
