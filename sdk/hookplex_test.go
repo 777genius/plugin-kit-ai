@@ -284,6 +284,48 @@ func TestApp_GeminiAfterToolAllowIsExplicit(t *testing.T) {
 	}
 }
 
+func TestApp_GeminiAfterToolAddContextEncodesHookSpecificOutput(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_response":{"llmContent":"ok"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterTool(func(*gemini.AfterToolEvent) *gemini.AfterToolResponse {
+		return gemini.AfterToolAddContext("redacted details")
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); !strings.Contains(got, `"hookEventName":"AfterTool"`) || !strings.Contains(got, `"additionalContext":"redacted details"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiAfterToolTailCallEncodesHookSpecificOutput(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_response":{"llmContent":"ok"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterTool(func(*gemini.AfterToolEvent) *gemini.AfterToolResponse {
+		resp, err := gemini.AfterToolTailCallValue("read_file", map[string]any{"path": "README.md"})
+		if err != nil {
+			t.Fatalf("AfterToolTailCallValue() error = %v", err)
+		}
+		return resp
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); !strings.Contains(got, `"tailToolCallRequest":{"name":"read_file","args":{"path":"README.md"}}`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 type customClaudeEvent struct {
 	HookEventName string `json:"hook_event_name"`
 	Message       string `json:"message"`

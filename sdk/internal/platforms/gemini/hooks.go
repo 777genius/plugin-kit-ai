@@ -28,6 +28,17 @@ type toolHookSpecificDTO struct {
 	ToolInput     json.RawMessage `json:"tool_input,omitempty"`
 }
 
+type tailToolCallRequestDTO struct {
+	Name string          `json:"name"`
+	Args json.RawMessage `json:"args"`
+}
+
+type afterToolHookSpecificDTO struct {
+	HookEventName       string                  `json:"hookEventName"`
+	AdditionalContext   string                  `json:"additionalContext,omitempty"`
+	TailToolCallRequest *tailToolCallRequestDTO `json:"tailToolCallRequest,omitempty"`
+}
+
 func DecodeSessionStart(env runtime.Envelope) (any, string, error) {
 	return decodeJSONInput[SessionStartInput](env, "session start", "SessionStart")
 }
@@ -87,7 +98,21 @@ func EncodeAfterTool(v any) runtime.Result {
 	if !ok {
 		return runtime.Result{ExitCode: 1, Stderr: "encode Gemini AfterTool response: internal outcome type mismatch\n"}
 	}
-	return encodeSync("Gemini AfterTool", out.CommonOutcome, nil)
+	var hookSpecific any
+	if strings.TrimSpace(out.AdditionalContext) != "" || out.TailToolCallRequest != nil {
+		dto := afterToolHookSpecificDTO{
+			HookEventName:     "AfterTool",
+			AdditionalContext: out.AdditionalContext,
+		}
+		if out.TailToolCallRequest != nil {
+			dto.TailToolCallRequest = &tailToolCallRequestDTO{
+				Name: out.TailToolCallRequest.Name,
+				Args: out.TailToolCallRequest.Args,
+			}
+		}
+		hookSpecific = dto
+	}
+	return encodeSync("Gemini AfterTool", out.CommonOutcome, hookSpecific)
 }
 
 func decodeJSONInput[T any](env runtime.Envelope, label, eventName string) (any, string, error) {

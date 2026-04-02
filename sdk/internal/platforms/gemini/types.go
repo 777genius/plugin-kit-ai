@@ -59,6 +59,13 @@ type BeforeToolOutcome struct {
 	ToolInput json.RawMessage
 }
 
+type TailToolCallRequest struct {
+	Name string          `json:"name"`
+	Args json.RawMessage `json:"args"`
+}
+
 type AfterToolOutcome struct {
 	CommonOutcome
+	AdditionalContext   string
+	TailToolCallRequest *TailToolCallRequest
 }

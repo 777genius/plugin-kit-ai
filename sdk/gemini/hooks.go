@@ -46,8 +46,19 @@ type BeforeToolResponse struct {
 	ToolInput json.RawMessage
 }
 
+// TailToolCallRequest requests an immediate follow-up tool execution from an
+// AfterTool hook.
+type TailToolCallRequest struct {
+	Name string
+	Args json.RawMessage
+}
+
 // AfterToolResponse is the AfterTool response type.
-type AfterToolResponse = CommonResponse
+type AfterToolResponse struct {
+	CommonResponse
+	AdditionalContext   string
+	TailToolCallRequest *TailToolCallRequest
+}
 
 // SessionStartContinue returns an explicit no-op SessionStart response.
 func SessionStartContinue() *SessionStartResponse {
@@ -103,14 +114,44 @@ func AfterToolContinue() *AfterToolResponse {
 	return &AfterToolResponse{}
 }
 
+// AfterToolAddContext appends additional text to the tool result sent back to
+// the agent.
+func AfterToolAddContext(context string) *AfterToolResponse {
+	return &AfterToolResponse{AdditionalContext: context}
+}
+
 // AfterToolAllow returns an explicit allow decision for AfterTool.
 func AfterToolAllow() *AfterToolResponse {
-	return &AfterToolResponse{Decision: "allow"}
+	return &AfterToolResponse{CommonResponse: CommonResponse{Decision: "allow"}}
 }
 
 // AfterToolDeny blocks the follow-up path with a deny decision.
 func AfterToolDeny(reason string) *AfterToolResponse {
-	return &AfterToolResponse{Decision: "deny", Reason: reason}
+	return &AfterToolResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// AfterToolTailCall requests an immediate follow-up tool invocation.
+func AfterToolTailCall(name string, args json.RawMessage) *AfterToolResponse {
+	return &AfterToolResponse{
+		TailToolCallRequest: &TailToolCallRequest{
+			Name: name,
+			Args: args,
+		},
+	}
+}
+
+// AfterToolTailCallValue marshals a typed follow-up tool request. Gemini
+// expects tailToolCallRequest.args to be a JSON object, so non-object values
+// return an error.
+func AfterToolTailCallValue(name string, args any) (*AfterToolResponse, error) {
+	body, err := json.Marshal(args)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Gemini tail tool call args: %w", err)
+	}
+	if !looksLikeJSONObject(body) {
+		return nil, fmt.Errorf("marshal Gemini tail tool call args: expected JSON object")
+	}
+	return AfterToolTailCall(name, body), nil
 }
 
 // Deprecated: prefer BeforeToolAllow, BeforeToolContinue, AfterToolAllow, or
@@ -174,7 +215,20 @@ func sessionEndOutcomeFromResponse(r *SessionEndResponse) internalgemini.Session
 }
 
 func afterToolOutcomeFromResponse(r *AfterToolResponse) internalgemini.AfterToolOutcome {
-	return internalgemini.AfterToolOutcome{CommonOutcome: commonOutcomeFromResponse(r)}
+	if r == nil {
+		return internalgemini.AfterToolOutcome{}
+	}
+	out := internalgemini.AfterToolOutcome{
+		CommonOutcome:     commonOutcomeFromResponse(&r.CommonResponse),
+		AdditionalContext: r.AdditionalContext,
+	}
+	if r.TailToolCallRequest != nil {
+		out.TailToolCallRequest = &internalgemini.TailToolCallRequest{
+			Name: r.TailToolCallRequest.Name,
+			Args: r.TailToolCallRequest.Args,
+		}
+	}
+	return out
 }
 
 func wrapSessionStart(fn func(*SessionStartEvent) *SessionStartResponse) runtime.TypedHandler {

@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -66,6 +67,31 @@ func TestEncodeSessionStartOutcomeEmptyIsMinimal(t *testing.T) {
 		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
 	}
 	if got := string(res.Stdout); got != "{}" {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeAfterToolOutcomeAdditionalContext(t *testing.T) {
+	res := EncodeAfterTool(AfterToolOutcome{AdditionalContext: "redacted"})
+	if res.ExitCode != 0 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if got := string(res.Stdout); !strings.Contains(got, `"hookEventName":"AfterTool"`) || !strings.Contains(got, `"additionalContext":"redacted"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeAfterToolOutcomeTailToolCall(t *testing.T) {
+	res := EncodeAfterTool(AfterToolOutcome{
+		TailToolCallRequest: &TailToolCallRequest{
+			Name: "read_file",
+			Args: json.RawMessage(`{"path":"README.md"}`),
+		},
+	})
+	if res.ExitCode != 0 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if got := string(res.Stdout); !strings.Contains(got, `"tailToolCallRequest":{"name":"read_file","args":{"path":"README.md"}}`) {
 		t.Fatalf("stdout = %q", got)
 	}
 }

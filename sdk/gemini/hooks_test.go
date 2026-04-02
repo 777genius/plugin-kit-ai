@@ -100,4 +100,32 @@ func TestAfterToolHelpers(t *testing.T) {
 	} else if got.Decision != "deny" || got.Reason != "blocked" {
 		t.Fatalf("AfterToolDeny() = %#v", got)
 	}
+
+	if got := AfterToolAddContext("redacted"); got == nil {
+		t.Fatal("AfterToolAddContext() = nil")
+	} else if got.AdditionalContext != "redacted" {
+		t.Fatalf("AfterToolAddContext() = %#v", got)
+	}
+
+	got, err := AfterToolTailCallValue("read_file", map[string]any{"path": "README.md"})
+	if err != nil {
+		t.Fatalf("AfterToolTailCallValue() error = %v", err)
+	}
+	if got == nil || got.TailToolCallRequest == nil {
+		t.Fatal("AfterToolTailCallValue() missing tail call")
+	}
+	if got.TailToolCallRequest.Name != "read_file" {
+		t.Fatalf("AfterToolTailCallValue().Name = %q", got.TailToolCallRequest.Name)
+	}
+	if string(got.TailToolCallRequest.Args) != `{"path":"README.md"}` {
+		t.Fatalf("AfterToolTailCallValue().Args = %s", string(got.TailToolCallRequest.Args))
+	}
+}
+
+func TestAfterToolTailCallValueRejectsNonObject(t *testing.T) {
+	t.Parallel()
+
+	if _, err := AfterToolTailCallValue("read_file", []string{"README.md"}); err == nil {
+		t.Fatal("AfterToolTailCallValue() error = nil, want error")
+	}
 }
