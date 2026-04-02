@@ -333,14 +333,20 @@ func TestApp_GeminiBeforeToolRejectsNonObjectRewriteInput(t *testing.T) {
 }
 
 func TestApp_GeminiAfterToolContinueIsMinimal(t *testing.T) {
-	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_output":{"ok":true}}`)}
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_response":{"llmContent":"ok"}}`)}
 	app := New(Config{
 		Name: "t",
 		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
 		IO:   iox,
 		Env:  testEnv{},
 	})
-	app.Gemini().OnAfterTool(func(*gemini.AfterToolEvent) *gemini.AfterToolResponse {
+	app.Gemini().OnAfterTool(func(e *gemini.AfterToolEvent) *gemini.AfterToolResponse {
+		if e.ToolName != "write_file" {
+			t.Fatalf("tool = %q", e.ToolName)
+		}
+		if string(e.ToolResponse) == "" {
+			t.Fatal("tool_response missing")
+		}
 		return gemini.AfterToolContinue()
 	})
 	if c := app.Run(); c != 0 {
@@ -352,14 +358,17 @@ func TestApp_GeminiAfterToolContinueIsMinimal(t *testing.T) {
 }
 
 func TestApp_GeminiAfterToolAllowIsExplicit(t *testing.T) {
-	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_output":{"ok":true}}`)}
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"write_file","tool_input":{"content":"hello"},"tool_response":{"llmContent":"ok"}}`)}
 	app := New(Config{
 		Name: "t",
 		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
 		IO:   iox,
 		Env:  testEnv{},
 	})
-	app.Gemini().OnAfterTool(func(*gemini.AfterToolEvent) *gemini.AfterToolResponse {
+	app.Gemini().OnAfterTool(func(e *gemini.AfterToolEvent) *gemini.AfterToolResponse {
+		if string(e.ToolResponse) == "" {
+			t.Fatal("tool_response missing")
+		}
 		return gemini.AfterToolAllow()
 	})
 	if c := app.Run(); c != 0 {
