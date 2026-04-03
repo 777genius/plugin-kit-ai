@@ -21,25 +21,15 @@ const logs = computed(() => [
 const containerRef = ref<HTMLElement | null>(null);
 const activeStep = ref(0);
 const activeLog = ref(logs.value[0]);
-const activeOutputs = ref<string[]>([]);
 
 let observer: IntersectionObserver | null = null;
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
-const syncOutputs = (index: number) => {
-  if (index === 0) activeOutputs.value = ["Claude"];
-  if (index === 1) activeOutputs.value = ["Claude", "Codex", "Gemini"];
-  if (index === 2) activeOutputs.value = ["Claude", "Codex", "Gemini", "OpenCode"];
-  if (index === 3) activeOutputs.value = outputs;
-};
-
 const start = () => {
   if (intervalId) return;
-  syncOutputs(activeStep.value);
   intervalId = setInterval(() => {
     activeStep.value = (activeStep.value + 1) % steps.value.length;
     activeLog.value = logs.value[activeStep.value];
-    syncOutputs(activeStep.value);
   }, 1800);
 };
 
@@ -129,8 +119,7 @@ onUnmounted(() => {
             <span
               v-for="output in outputs"
               :key="output"
-              class="hero-demo__output"
-              :class="{ 'hero-demo__output--active': activeOutputs.includes(output) }"
+              class="hero-demo__output hero-demo__output--active"
             >
               {{ output }}
             </span>
