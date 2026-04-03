@@ -52,6 +52,14 @@ func geminiOverrideDeny(key string) (string, bool) {
 	return strings.TrimPrefix(override, "deny:"), true
 }
 
+func geminiOverrideDenyOnce(key string) (string, bool) {
+	override := geminiOverride(key)
+	if !strings.HasPrefix(override, "deny_once:") {
+		return "", false
+	}
+	return strings.TrimPrefix(override, "deny_once:"), true
+}
+
 func geminiOverrideStop(key string) (string, bool) {
 	override := geminiOverride(key)
 	if !strings.HasPrefix(override, "stop:") {
@@ -311,27 +319,50 @@ func main() {
 	app.Gemini().OnAfterAgent(func(e *gemini.AfterAgentEvent) *gemini.AfterAgentResponse {
 		if geminiOverride("AFTER_AGENT") == "clearcontext" {
 			trace(map[string]any{
-				"hook":         "AfterAgent",
-				"outcome":      "clear_context",
-				"prompt":       e.Prompt,
-				"has_response": strings.TrimSpace(e.PromptResponse) != "",
+				"hook":             "AfterAgent",
+				"outcome":          "clear_context",
+				"prompt":           e.Prompt,
+				"has_response":     strings.TrimSpace(e.PromptResponse) != "",
+				"stop_hook_active": e.StopHookActive,
 			})
 			return gemini.AfterAgentClearContext()
 		}
+		if reason, ok := geminiOverrideDenyOnce("AFTER_AGENT"); ok {
+			if e.StopHookActive {
+				trace(map[string]any{
+					"hook":             "AfterAgent",
+					"outcome":          "continue",
+					"prompt":           e.Prompt,
+					"has_response":     strings.TrimSpace(e.PromptResponse) != "",
+					"stop_hook_active": e.StopHookActive,
+				})
+				return gemini.AfterAgentContinue()
+			}
+			trace(map[string]any{
+				"hook":             "AfterAgent",
+				"outcome":          "deny",
+				"prompt":           e.Prompt,
+				"has_response":     strings.TrimSpace(e.PromptResponse) != "",
+				"stop_hook_active": e.StopHookActive,
+			})
+			return gemini.AfterAgentDeny(reason)
+		}
 		if reason, ok := geminiOverrideDeny("AFTER_AGENT"); ok {
 			trace(map[string]any{
-				"hook":         "AfterAgent",
-				"outcome":      "deny",
-				"prompt":       e.Prompt,
-				"has_response": strings.TrimSpace(e.PromptResponse) != "",
+				"hook":             "AfterAgent",
+				"outcome":          "deny",
+				"prompt":           e.Prompt,
+				"has_response":     strings.TrimSpace(e.PromptResponse) != "",
+				"stop_hook_active": e.StopHookActive,
 			})
 			return gemini.AfterAgentDeny(reason)
 		}
 		trace(map[string]any{
-			"hook":         "AfterAgent",
-			"outcome":      "continue",
-			"prompt":       e.Prompt,
-			"has_response": strings.TrimSpace(e.PromptResponse) != "",
+			"hook":             "AfterAgent",
+			"outcome":          "continue",
+			"prompt":           e.Prompt,
+			"has_response":     strings.TrimSpace(e.PromptResponse) != "",
+			"stop_hook_active": e.StopHookActive,
 		})
 		return gemini.AfterAgentContinue()
 	})

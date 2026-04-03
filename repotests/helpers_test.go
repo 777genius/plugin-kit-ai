@@ -302,6 +302,7 @@ type traceRec struct {
 	HasResponse         bool   `json:"has_response,omitempty"`
 	RequestSize         int    `json:"request_size,omitempty"`
 	ResponseSize        int    `json:"response_size,omitempty"`
+	StopHookActive      bool   `json:"stop_hook_active,omitempty"`
 }
 
 type repoVersionContractValue struct {
@@ -436,6 +437,21 @@ func traceFind(t *testing.T, lines []string, wantHook string) (traceRec, bool) {
 		}
 	}
 	return traceRec{}, false
+}
+
+func traceFindAll(t *testing.T, lines []string, wantHook string) []traceRec {
+	t.Helper()
+	var out []traceRec
+	for _, line := range lines {
+		var rec traceRec
+		if json.Unmarshal([]byte(line), &rec) != nil {
+			continue
+		}
+		if rec.Hook == wantHook {
+			out = append(out, rec)
+		}
+	}
+	return out
 }
 
 func traceIndex(t *testing.T, lines []string, wantHook string) (int, traceRec, bool) {

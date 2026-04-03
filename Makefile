@@ -54,7 +54,7 @@ test-gemini-runtime:
 	go test -count=1 -run 'TestPluginKitAIInitGeminiGoRuntimeLauncherFlow|TestGeneratedConfigCanaries_GeminiRuntimeContract|TestGeminiE2ETracePreservesOriginalRequestName|TestGeminiE2ETraceCapturesModelAndToolSelectionPayloads|TestGeminiE2ETraceCapturesRuntimeLifecycleHooks|TestGeminiE2ETraceCapturesRuntimeControlSemantics|TestGeminiE2ETraceCapturesRuntimeTransformSemantics|TestContractClarity_GeminiRuntimeDocsStayAligned' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-gemini-runtime-live:
-	PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1 go test -count=1 -run '^TestGeminiCLIRuntime(Hooks|BeforeToolDeny|BeforeModelDeny|DisableAllTools|AfterModelReplaceResponse|RewriteToolInput)$$' ./repotests $(EXTENDED_TEST_ARGS)
+	PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1 go test -count=1 -run '^TestGeminiCLIRuntime(Hooks|BeforeToolDeny|BeforeModelDeny|DisableAllTools|AfterModelReplaceResponse|AfterAgentRetry|RewriteToolInput)$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-opencode-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeLoaderSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)

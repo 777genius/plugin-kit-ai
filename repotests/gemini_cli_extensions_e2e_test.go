@@ -489,6 +489,49 @@ func TestGeminiCLIRuntimeAfterModelReplaceResponse(t *testing.T) {
 	}
 }
 
+func TestGeminiCLIRuntimeAfterAgentRetry(t *testing.T) {
+	if strings.TrimSpace(os.Getenv(geminiRuntimeLiveEnvVar)) != "1" {
+		t.Skipf("set %s=1 to run real Gemini runtime hook smoke", geminiRuntimeLiveEnvVar)
+	}
+	fixture := setupGeminiRuntimeLiveFixture(t)
+	linkOutput := runGeminiLink(t, fixture.GeminiBin, fixture.HomeDir, fixture.ExtensionDir)
+	if !strings.Contains(linkOutput, `linked successfully and enabled`) {
+		t.Fatalf("gemini runtime live link did not report success:\n%s", linkOutput)
+	}
+
+	out, envelope := runGeminiRuntimeLivePrompt(t, fixture, "Reply with exactly OK.", "PLUGIN_KIT_AI_E2E_GEMINI_AFTER_AGENT=deny_once:Your previous answer was rejected by a hook. Retry and reply with exactly RETRY_OK.")
+	if strings.TrimSpace(envelope.SessionID) == "" {
+		t.Fatalf("expected Gemini after-agent-retry output to include session_id\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if !strings.Contains(strings.ToUpper(envelope.Response), "RETRY_OK") {
+		t.Fatalf("expected Gemini after-agent-retry output to include RETRY_OK, got %q\noutput:\n%s", envelope.Response, truncateRunes(string(out), 4000))
+	}
+	if envelope.Stats.Tools.TotalCalls != 0 || envelope.Stats.Tools.TotalSuccess != 0 || envelope.Stats.Tools.TotalFail != 0 {
+		t.Fatalf("expected Gemini after-agent-retry output to skip all tool activity\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+
+	lines := waitForTraceHooks(t, fixture.TracePath, 5*time.Second, "SessionStart", "BeforeAgent", "BeforeModel", "AfterModel", "AfterAgent", "SessionEnd")
+	afterAgentRecs := traceFindAll(t, lines, "AfterAgent")
+	if len(afterAgentRecs) < 2 {
+		t.Fatalf("expected at least two AfterAgent traces for retry path; got %d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", len(afterAgentRecs), fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	first := afterAgentRecs[0]
+	last := afterAgentRecs[len(afterAgentRecs)-1]
+	if strings.TrimSpace(first.Outcome) != "deny" || first.StopHookActive {
+		t.Fatalf("expected first AfterAgent trace to deny without stop_hook_active; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", first, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if strings.TrimSpace(last.Outcome) != "continue" || !last.StopHookActive {
+		t.Fatalf("expected last AfterAgent trace to continue with stop_hook_active after retry; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", last, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if !first.HasResponse || !last.HasResponse {
+		t.Fatalf("expected AfterAgent retry path to keep prompt_response payloads on both attempts; first=%+v last=%+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", first, last, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	sessionEnd, ok := traceFind(t, lines, "SessionEnd")
+	if !ok || !isGeminiSessionEndReason(sessionEnd.Reason) {
+		t.Fatalf("expected documented SessionEnd reason after after-agent-retry live run; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionEnd, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+}
+
 func TestGeminiCLIRuntimeRewriteToolInput(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(geminiRuntimeLiveEnvVar)) != "1" {
 		t.Skipf("set %s=1 to run real Gemini runtime hook smoke", geminiRuntimeLiveEnvVar)
