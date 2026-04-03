@@ -120,13 +120,6 @@ func cursorBinaryOrSkip(t *testing.T) string {
 	return cursorBin
 }
 
-func cursorStatusCommand(cursorBin string) []string {
-	if filepath.Base(cursorBin) == "cursor" {
-		return []string{cursorBin, "agent", "status"}
-	}
-	return []string{cursorBin, "status"}
-}
-
 func cursorVersionCommand(cursorBin string) []string {
 	if filepath.Base(cursorBin) == "cursor" {
 		return []string{cursorBin, "--version"}

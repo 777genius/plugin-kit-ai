@@ -40,9 +40,9 @@ func TestPluginKitAIBootstrapScriptInstallsLatestRelease(t *testing.T) {
 	binDir := filepath.Join(t.TempDir(), "bin")
 	outputFile := filepath.Join(t.TempDir(), "install.outputs")
 	out := runBootstrapScript(t, srv.URL, map[string]string{
-		"BIN_DIR":                      binDir,
-		"PLUGIN_KIT_AI_OUTPUT_FILE":   outputFile,
-		"GITHUB_API_BASE":             srv.URL,
+		"BIN_DIR":                        binDir,
+		"PLUGIN_KIT_AI_OUTPUT_FILE":      outputFile,
+		"GITHUB_API_BASE":                srv.URL,
 		"PLUGIN_KIT_AI_RELEASE_BASE_URL": srv.URL,
 	})
 
@@ -108,7 +108,7 @@ func TestPluginKitAIBootstrapScriptSupportsExplicitVersion(t *testing.T) {
 	out := runBootstrapScript(t, srv.URL, map[string]string{
 		"BIN_DIR":                        binDir,
 		"VERSION":                        "9.9.9",
-		"GITHUB_API_BASE":               srv.URL,
+		"GITHUB_API_BASE":                srv.URL,
 		"PLUGIN_KIT_AI_RELEASE_BASE_URL": srv.URL,
 	})
 	if !strings.Contains(out, "Version: v9.9.9") {
@@ -248,8 +248,7 @@ type bootstrapReleaseConfig struct {
 
 func newBootstrapReleaseServer(t *testing.T, cfg bootstrapReleaseConfig) *httptest.Server {
 	t.Helper()
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/777genius/plugin-kit-ai/releases/latest":
 			w.Header().Set("Content-Type", "application/json")

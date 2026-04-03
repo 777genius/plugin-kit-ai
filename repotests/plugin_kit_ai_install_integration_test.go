@@ -457,8 +457,7 @@ func newMockGitHubServer(t *testing.T, cfg mockGitHubConfig) *httptest.Server {
 
 	var checksumHits int32
 
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := "http://" + r.Host
 		tagName := cfg.releaseTag
 		if tagName == "" {

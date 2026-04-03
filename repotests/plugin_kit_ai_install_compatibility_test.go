@@ -136,12 +136,6 @@ func loadInstallCompatibilityMatrix(t *testing.T) installCompatibilityMatrix {
 func newCompatibilityGitHubServer(t *testing.T, tc installCompatibilityCase) (*httptest.Server, map[string][]byte) {
 	t.Helper()
 
-	type ghAsset struct {
-		Name               string `json:"name"`
-		BrowserDownloadURL string `json:"browser_download_url"`
-		Size               int64  `json:"size"`
-	}
-
 	payloads := make(map[string][]byte)
 	assets := make([]materializedCompatibilityAsset, 0, len(tc.Assets))
 	for _, asset := range tc.Assets {
@@ -154,8 +148,7 @@ func newCompatibilityGitHubServer(t *testing.T, tc installCompatibilityCase) (*h
 		payloads["checksums.txt"] = checksums
 	}
 
-	var srv *httptest.Server
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		base := "http://" + r.Host
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == fmt.Sprintf("/repos/o/r/releases/tags/%s", tc.ReleaseTag) && tc.ReleaseSource != "latest":

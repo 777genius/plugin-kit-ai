@@ -140,10 +140,6 @@ func launcherCommand(entry string, args ...string) *exec.Cmd {
 	return exec.Command(entry, args...)
 }
 
-func quoteWindowsCmdArg(arg string) string {
-	return `"` + strings.ReplaceAll(arg, `"`, `""`) + `"`
-}
-
 func runInstall(t *testing.T, pluginKitAIBin, workDir, apiBase string, extraArgs ...string) (exitCode int, output []byte) {
 	t.Helper()
 	args := append([]string{"install", "o/r", "--github-api-base", apiBase}, extraArgs...)
