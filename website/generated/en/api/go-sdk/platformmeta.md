@@ -70,8 +70,6 @@ type ContextStrategy string
 
 ```go
 const (
-    // ContextStrategyNone means no special context projection is required.
-    ContextStrategyNone ContextStrategy = ""
     // ContextStrategyGeminiPrimaryRoot selects Gemini's primary context root strategy.
     ContextStrategyGeminiPrimaryRoot ContextStrategy = "gemini_primary_root"
 )
