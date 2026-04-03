@@ -9,6 +9,8 @@ func TestCanonicalInvocationNameGemini(t *testing.T) {
 		"GeminiSessionEnd":   "SessionEnd",
 		"GeminiNotification": "Notification",
 		"GeminiPreCompress":  "PreCompress",
+		"GeminiBeforeModel":  "BeforeModel",
+		"GeminiAfterModel":   "AfterModel",
 		"GeminiBeforeAgent":  "BeforeAgent",
 		"GeminiAfterAgent":   "AfterAgent",
 		"GeminiBeforeTool":   "BeforeTool",

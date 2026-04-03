@@ -27,6 +27,10 @@ func CanonicalInvocationName(platform PlatformID, raw string) string {
 			return "Notification"
 		case strings.EqualFold(raw, "GeminiPreCompress"):
 			return "PreCompress"
+		case strings.EqualFold(raw, "GeminiBeforeModel"):
+			return "BeforeModel"
+		case strings.EqualFold(raw, "GeminiAfterModel"):
+			return "AfterModel"
 		case strings.EqualFold(raw, "GeminiBeforeAgent"):
 			return "BeforeAgent"
 		case strings.EqualFold(raw, "GeminiAfterAgent"):

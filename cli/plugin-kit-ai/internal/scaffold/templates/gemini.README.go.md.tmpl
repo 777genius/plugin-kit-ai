@@ -27,7 +27,7 @@ gemini extensions link .
 - `cmd/{{.ProjectName}}/main.go`: typed Go hook registrar starter
 - `targets/gemini/package.yaml`: Gemini extension metadata
 - `targets/gemini/contexts/GEMINI.md`: primary authored Gemini context
-- `targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
+- `targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
 - `gemini-extension.json`: rendered native extension manifest
 
 ## Notes
@@ -36,6 +36,7 @@ gemini extensions link .
 - For the generated Go starter, `gemini.*Continue()` helpers mean a true no-op Gemini hook response. Use `gemini.BeforeToolAllow()` or `gemini.AfterToolAllow()` only when you explicitly want `"decision":"allow"` in the emitted JSON.
 - Gemini treats `SessionStart` and `SessionEnd` as advisory hooks, so `continue`, `decision`, `reason`, and `stopReason` are ignored there. Prefer `SessionStartAddContext(...)` and `systemMessage` for lifecycle behavior.
 - Gemini treats `Notification` and `PreCompress` as advisory system hooks. They are useful for observability and messaging, but they cannot block the CLI path.
+- Use `gemini.BeforeModelOverrideRequestValue(...)` to rewrite `llm_request`, `gemini.BeforeModelSyntheticResponseValue(...)` to short-circuit a model call with a synthetic response, and `gemini.AfterModelReplaceResponseValue(...)` to rewrite returned `llm_response` objects from normal Go maps or structs.
 - Use `gemini.BeforeAgentAddContext(...)` for turn-local prompt context, `gemini.BeforeAgentDeny(...)` to discard a prompt, `gemini.AfterAgentDeny(...)` to force a retry, and `gemini.AfterAgentClearContext()` when you intentionally want Gemini to clear prior conversation memory.
 - Use `gemini.BeforeToolRewriteInputValue(...)` when you want to rewrite `tool_input` from a normal Go map or struct.
 - Use `gemini.AfterToolAddContext(...)` to append extra text to the tool result, or `gemini.AfterToolTailCallValue(...)` to request an immediate follow-up tool call with typed Go args.

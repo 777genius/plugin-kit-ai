@@ -98,6 +98,25 @@ func main() {
 		})
 		return gemini.PreCompressContinue()
 	})
+	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
+		trace(map[string]any{
+			"hook":         "BeforeModel",
+			"outcome":      "continue",
+			"has_request":  strings.TrimSpace(string(e.LLMRequest)) != "",
+			"request_size": len(e.LLMRequest),
+		})
+		return gemini.BeforeModelContinue()
+	})
+	app.Gemini().OnAfterModel(func(e *gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		trace(map[string]any{
+			"hook":          "AfterModel",
+			"outcome":       "continue",
+			"has_request":   strings.TrimSpace(string(e.LLMRequest)) != "",
+			"has_response":  strings.TrimSpace(string(e.LLMResponse)) != "",
+			"response_size": len(e.LLMResponse),
+		})
+		return gemini.AfterModelContinue()
+	})
 	app.Gemini().OnBeforeAgent(func(e *gemini.BeforeAgentEvent) *gemini.BeforeAgentResponse {
 		trace(map[string]any{
 			"hook":    "BeforeAgent",

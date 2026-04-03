@@ -44,6 +44,12 @@ type afterToolHookSpecificDTO struct {
 	TailToolCallRequest *tailToolCallRequestDTO `json:"tailToolCallRequest,omitempty"`
 }
 
+type modelHookSpecificDTO struct {
+	HookEventName string          `json:"hookEventName"`
+	LLMRequest    json.RawMessage `json:"llm_request,omitempty"`
+	LLMResponse   json.RawMessage `json:"llm_response,omitempty"`
+}
+
 func DecodeSessionStart(env runtime.Envelope) (any, string, error) {
 	return decodeJSONInput[SessionStartInput](env, "session start", "SessionStart")
 }
@@ -58,6 +64,14 @@ func DecodeNotification(env runtime.Envelope) (any, string, error) {
 
 func DecodePreCompress(env runtime.Envelope) (any, string, error) {
 	return decodeJSONInput[PreCompressInput](env, "pre-compress", "PreCompress")
+}
+
+func DecodeBeforeModel(env runtime.Envelope) (any, string, error) {
+	return decodeJSONInput[BeforeModelInput](env, "before model", "BeforeModel")
+}
+
+func DecodeAfterModel(env runtime.Envelope) (any, string, error) {
+	return decodeJSONInput[AfterModelInput](env, "after model", "AfterModel")
 }
 
 func DecodeBeforeAgent(env runtime.Envelope) (any, string, error) {
@@ -117,6 +131,46 @@ func EncodePreCompress(v any) runtime.Result {
 	}
 	out.CommonOutcome = sanitizeAdvisoryOutcome(out.CommonOutcome)
 	return encodeSync("Gemini PreCompress", out.CommonOutcome, nil)
+}
+
+func EncodeBeforeModel(v any) runtime.Result {
+	out, ok := v.(BeforeModelOutcome)
+	if !ok {
+		return runtime.Result{ExitCode: 1, Stderr: "encode Gemini BeforeModel response: internal outcome type mismatch\n"}
+	}
+	if err := validateModelResponse(out.LLMResponse); err != nil {
+		return runtime.Result{ExitCode: 1, Stderr: fmt.Sprintf("Gemini BeforeModel: %v\n", err)}
+	}
+	if err := validateModelRequest(out.LLMRequest); err != nil {
+		return runtime.Result{ExitCode: 1, Stderr: fmt.Sprintf("Gemini BeforeModel: %v\n", err)}
+	}
+	var hookSpecific any
+	if len(out.LLMRequest) > 0 || len(out.LLMResponse) > 0 {
+		hookSpecific = modelHookSpecificDTO{
+			HookEventName: "BeforeModel",
+			LLMRequest:    out.LLMRequest,
+			LLMResponse:   out.LLMResponse,
+		}
+	}
+	return encodeSync("Gemini BeforeModel", out.CommonOutcome, hookSpecific)
+}
+
+func EncodeAfterModel(v any) runtime.Result {
+	out, ok := v.(AfterModelOutcome)
+	if !ok {
+		return runtime.Result{ExitCode: 1, Stderr: "encode Gemini AfterModel response: internal outcome type mismatch\n"}
+	}
+	if err := validateModelResponse(out.LLMResponse); err != nil {
+		return runtime.Result{ExitCode: 1, Stderr: fmt.Sprintf("Gemini AfterModel: %v\n", err)}
+	}
+	var hookSpecific any
+	if len(out.LLMResponse) > 0 {
+		hookSpecific = modelHookSpecificDTO{
+			HookEventName: "AfterModel",
+			LLMResponse:   out.LLMResponse,
+		}
+	}
+	return encodeSync("Gemini AfterModel", out.CommonOutcome, hookSpecific)
 }
 
 func EncodeBeforeAgent(v any) runtime.Result {
@@ -261,6 +315,20 @@ func validateTailToolCallRequest(req *TailToolCallRequest) error {
 		return err
 	}
 	return nil
+}
+
+func validateModelRequest(body json.RawMessage) error {
+	if len(body) == 0 {
+		return nil
+	}
+	return validateJSONObjectBytes(body, "hookSpecificOutput.llm_request")
+}
+
+func validateModelResponse(body json.RawMessage) error {
+	if len(body) == 0 {
+		return nil
+	}
+	return validateJSONObjectBytes(body, "hookSpecificOutput.llm_response")
 }
 
 func validateJSONObjectBytes(body []byte, field string) error {

@@ -77,6 +77,12 @@ func ResolveInvocation(args []string, _ runtime.Env) (runtime.Invocation, error)
 	if strings.EqualFold(raw, "GeminiPreCompress") {
 		return runtime.Invocation{Platform: "gemini", Event: "PreCompress", RawName: raw}, nil
 	}
+	if strings.EqualFold(raw, "GeminiBeforeModel") {
+		return runtime.Invocation{Platform: "gemini", Event: "BeforeModel", RawName: raw}, nil
+	}
+	if strings.EqualFold(raw, "GeminiAfterModel") {
+		return runtime.Invocation{Platform: "gemini", Event: "AfterModel", RawName: raw}, nil
+	}
 	if strings.EqualFold(raw, "GeminiBeforeAgent") {
 		return runtime.Invocation{Platform: "gemini", Event: "BeforeAgent", RawName: raw}, nil
 	}

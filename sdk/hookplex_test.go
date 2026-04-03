@@ -336,6 +336,119 @@ func TestApp_GeminiPreCompressIgnoresFlowControlFields(t *testing.T) {
 	}
 }
 
+func TestApp_GeminiBeforeModelContinueIsMinimal(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"hi"}]}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
+		if string(e.LLMRequest) == "" {
+			t.Fatal("llm_request missing")
+		}
+		return gemini.BeforeModelContinue()
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); got != "{}" {
+		t.Fatalf("stdout = %q, want {}", got)
+	}
+}
+
+func TestApp_GeminiBeforeModelOverrideRequest(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeModel(func(*gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
+		resp, err := gemini.BeforeModelOverrideRequestValue(map[string]any{"model": "gemini-2.5-flash"})
+		if err != nil {
+			t.Fatalf("BeforeModelOverrideRequestValue() error = %v", err)
+		}
+		return resp
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); !strings.Contains(got, `"hookEventName":"BeforeModel"`) || !strings.Contains(got, `"llm_request":{"model":"gemini-2.5-flash"}`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiBeforeModelSyntheticResponse(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeModel(func(*gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
+		resp, err := gemini.BeforeModelSyntheticResponseValue(map[string]any{"candidates": []any{map[string]any{"content": map[string]any{"role": "model"}}}})
+		if err != nil {
+			t.Fatalf("BeforeModelSyntheticResponseValue() error = %v", err)
+		}
+		return resp
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); !strings.Contains(got, `"hookEventName":"BeforeModel"`) || !strings.Contains(got, `"llm_response":`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiAfterModelContinueIsMinimal(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro"},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterModel(func(e *gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		if string(e.LLMResponse) == "" {
+			t.Fatal("llm_response missing")
+		}
+		return gemini.AfterModelContinue()
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); got != "{}" {
+		t.Fatalf("stdout = %q, want {}", got)
+	}
+}
+
+func TestApp_GeminiAfterModelReplaceResponse(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro"},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterModel(func(*gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		resp, err := gemini.AfterModelReplaceResponseValue(map[string]any{"candidates": []any{map[string]any{"content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": "rewritten"}}}}}})
+		if err != nil {
+			t.Fatalf("AfterModelReplaceResponseValue() error = %v", err)
+		}
+		return resp
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.out.String(); !strings.Contains(got, `"hookEventName":"AfterModel"`) || !strings.Contains(got, `"rewritten"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestApp_GeminiBeforeAgentContinueIsMinimal(t *testing.T) {
 	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeAgent","prompt":"hello"}`)}
 	app := New(Config{

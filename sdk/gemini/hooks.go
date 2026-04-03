@@ -21,6 +21,12 @@ type NotificationEvent = internalgemini.NotificationInput
 // PreCompressEvent is the Gemini PreCompress hook input.
 type PreCompressEvent = internalgemini.PreCompressInput
 
+// BeforeModelEvent is the Gemini BeforeModel hook input.
+type BeforeModelEvent = internalgemini.BeforeModelInput
+
+// AfterModelEvent is the Gemini AfterModel hook input.
+type AfterModelEvent = internalgemini.AfterModelInput
+
 // BeforeAgentEvent is the Gemini BeforeAgent hook input.
 type BeforeAgentEvent = internalgemini.BeforeAgentInput
 
@@ -57,6 +63,19 @@ type NotificationResponse = CommonResponse
 
 // PreCompressResponse is the PreCompress response type.
 type PreCompressResponse = CommonResponse
+
+// BeforeModelResponse is the BeforeModel response type.
+type BeforeModelResponse struct {
+	CommonResponse
+	LLMRequest  json.RawMessage
+	LLMResponse json.RawMessage
+}
+
+// AfterModelResponse is the AfterModel response type.
+type AfterModelResponse struct {
+	CommonResponse
+	LLMResponse json.RawMessage
+}
 
 // BeforeAgentResponse is the BeforeAgent response type.
 type BeforeAgentResponse struct {
@@ -113,6 +132,81 @@ func NotificationContinue() *NotificationResponse {
 // PreCompressContinue returns an explicit no-op PreCompress response.
 func PreCompressContinue() *PreCompressResponse {
 	return &PreCompressResponse{}
+}
+
+// BeforeModelContinue returns an explicit no-op BeforeModel response.
+func BeforeModelContinue() *BeforeModelResponse {
+	return &BeforeModelResponse{}
+}
+
+// BeforeModelDeny blocks the LLM request with a deny decision.
+func BeforeModelDeny(reason string) *BeforeModelResponse {
+	return &BeforeModelResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// BeforeModelOverrideRequest continues with a rewritten llm_request payload.
+func BeforeModelOverrideRequest(request json.RawMessage) *BeforeModelResponse {
+	return &BeforeModelResponse{LLMRequest: request}
+}
+
+// BeforeModelSyntheticResponse short-circuits the LLM request with a synthetic
+// llm_response payload.
+func BeforeModelSyntheticResponse(response json.RawMessage) *BeforeModelResponse {
+	return &BeforeModelResponse{LLMResponse: response}
+}
+
+// BeforeModelOverrideRequestValue marshals a replacement llm_request object for
+// Gemini BeforeModel hooks.
+func BeforeModelOverrideRequestValue(v any) (*BeforeModelResponse, error) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Gemini llm_request override: %w", err)
+	}
+	if !looksLikeJSONObject(body) {
+		return nil, fmt.Errorf("marshal Gemini llm_request override: expected JSON object")
+	}
+	return BeforeModelOverrideRequest(body), nil
+}
+
+// BeforeModelSyntheticResponseValue marshals a synthetic llm_response object
+// for Gemini BeforeModel hooks.
+func BeforeModelSyntheticResponseValue(v any) (*BeforeModelResponse, error) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Gemini llm_response override: %w", err)
+	}
+	if !looksLikeJSONObject(body) {
+		return nil, fmt.Errorf("marshal Gemini llm_response override: expected JSON object")
+	}
+	return BeforeModelSyntheticResponse(body), nil
+}
+
+// AfterModelContinue returns an explicit no-op AfterModel response.
+func AfterModelContinue() *AfterModelResponse {
+	return &AfterModelResponse{}
+}
+
+// AfterModelDeny blocks the model result with a deny decision.
+func AfterModelDeny(reason string) *AfterModelResponse {
+	return &AfterModelResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// AfterModelReplaceResponse continues with a rewritten llm_response payload.
+func AfterModelReplaceResponse(response json.RawMessage) *AfterModelResponse {
+	return &AfterModelResponse{LLMResponse: response}
+}
+
+// AfterModelReplaceResponseValue marshals a replacement llm_response object for
+// Gemini AfterModel hooks.
+func AfterModelReplaceResponseValue(v any) (*AfterModelResponse, error) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Gemini llm_response replacement: %w", err)
+	}
+	if !looksLikeJSONObject(body) {
+		return nil, fmt.Errorf("marshal Gemini llm_response replacement: expected JSON object")
+	}
+	return AfterModelReplaceResponse(body), nil
 }
 
 // BeforeAgentContinue returns an explicit no-op BeforeAgent response.
@@ -312,6 +406,27 @@ func preCompressOutcomeFromResponse(r *PreCompressResponse) internalgemini.PreCo
 	return internalgemini.PreCompressOutcome{CommonOutcome: lifecycleOutcomeFromResponse(r)}
 }
 
+func beforeModelOutcomeFromResponse(r *BeforeModelResponse) internalgemini.BeforeModelOutcome {
+	if r == nil {
+		return internalgemini.BeforeModelOutcome{}
+	}
+	return internalgemini.BeforeModelOutcome{
+		CommonOutcome: commonOutcomeFromResponse(&r.CommonResponse),
+		LLMRequest:    r.LLMRequest,
+		LLMResponse:   r.LLMResponse,
+	}
+}
+
+func afterModelOutcomeFromResponse(r *AfterModelResponse) internalgemini.AfterModelOutcome {
+	if r == nil {
+		return internalgemini.AfterModelOutcome{}
+	}
+	return internalgemini.AfterModelOutcome{
+		CommonOutcome: commonOutcomeFromResponse(&r.CommonResponse),
+		LLMResponse:   r.LLMResponse,
+	}
+}
+
 func beforeAgentOutcomeFromResponse(r *BeforeAgentResponse) internalgemini.BeforeAgentOutcome {
 	if r == nil {
 		return internalgemini.BeforeAgentOutcome{}
@@ -370,6 +485,18 @@ func wrapNotification(fn func(*NotificationEvent) *NotificationResponse) runtime
 func wrapPreCompress(fn func(*PreCompressEvent) *PreCompressResponse) runtime.TypedHandler {
 	return wrapGeminiHandler("PreCompress", fn, func(r *PreCompressResponse) any {
 		return preCompressOutcomeFromResponse(r)
+	})
+}
+
+func wrapBeforeModel(fn func(*BeforeModelEvent) *BeforeModelResponse) runtime.TypedHandler {
+	return wrapGeminiHandler("BeforeModel", fn, func(r *BeforeModelResponse) any {
+		return beforeModelOutcomeFromResponse(r)
+	})
+}
+
+func wrapAfterModel(fn func(*AfterModelEvent) *AfterModelResponse) runtime.TypedHandler {
+	return wrapGeminiHandler("AfterModel", fn, func(r *AfterModelResponse) any {
+		return afterModelOutcomeFromResponse(r)
 	})
 }
 

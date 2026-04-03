@@ -25,6 +25,14 @@ func main() {
 		_ = e
 		return gemini.PreCompressContinue()
 	})
+	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
+		_ = e
+		return gemini.BeforeModelContinue()
+	})
+	app.Gemini().OnAfterModel(func(e *gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		_ = e
+		return gemini.AfterModelContinue()
+	})
 	app.Gemini().OnBeforeAgent(func(e *gemini.BeforeAgentEvent) *gemini.BeforeAgentResponse {
 		_ = e
 		return gemini.BeforeAgentContinue()

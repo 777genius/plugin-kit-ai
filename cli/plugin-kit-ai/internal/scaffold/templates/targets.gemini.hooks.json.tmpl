@@ -48,6 +48,30 @@
         ]
       }
     ],
+    "BeforeModel": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "{{.ProjectName}}-before-model",
+            "type": "command",
+            "command": "${extensionPath}${/}bin${/}{{.ProjectName}} GeminiBeforeModel"
+          }
+        ]
+      }
+    ],
+    "AfterModel": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "name": "{{.ProjectName}}-after-model",
+            "type": "command",
+            "command": "${extensionPath}${/}bin${/}{{.ProjectName}} GeminiAfterModel"
+          }
+        ]
+      }
+    ],
     "BeforeAgent": [
       {
         "matcher": "*",

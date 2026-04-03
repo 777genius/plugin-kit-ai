@@ -35,12 +35,15 @@ Current SDK beta surface added after the first promotion:
   - `SessionEnd`
   - `Notification`
   - `PreCompress`
+  - `BeforeModel`
+  - `AfterModel`
   - `BeforeAgent`
   - `AfterAgent`
   - `BeforeTool`
   - `AfterTool`
 - approved exported Gemini helper constructors for the current beta lane, including:
   - lifecycle/system no-op/context helpers such as `SessionStartContinue`, `SessionStartAddContext`, `SessionEndContinue`, `NotificationContinue`, and `PreCompressContinue`
+  - model steering helpers such as `BeforeModelContinue`, `BeforeModelDeny`, `BeforeModelOverrideRequestValue`, `BeforeModelSyntheticResponseValue`, `AfterModelContinue`, `AfterModelDeny`, and `AfterModelReplaceResponseValue`
   - agent-turn helpers such as `BeforeAgentContinue`, `BeforeAgentAddContext`, `BeforeAgentDeny`, `AfterAgentContinue`, `AfterAgentDeny`, and `AfterAgentClearContext`
   - tool decision helpers such as `BeforeToolContinue`, `BeforeToolAllow`, `BeforeToolDeny`, `AfterToolContinue`, `AfterToolAllow`, and `AfterToolDeny`
   - typed JSON-object helpers such as `BeforeToolRewriteInputValue` and `AfterToolTailCallValue`

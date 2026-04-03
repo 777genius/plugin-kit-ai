@@ -355,7 +355,7 @@ func stableClaudeHookNames() []string {
 }
 
 func stableGeminiHookNames() []string {
-	return []string{"SessionStart", "SessionEnd", "Notification", "PreCompress", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool"}
+	return []string{"SessionStart", "SessionEnd", "Notification", "PreCompress", "BeforeModel", "AfterModel", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool"}
 }
 
 func geminiInvocationAlias(hookName string) string {
@@ -368,6 +368,10 @@ func geminiInvocationAlias(hookName string) string {
 		return "GeminiNotification"
 	case "PreCompress":
 		return "GeminiPreCompress"
+	case "BeforeModel":
+		return "GeminiBeforeModel"
+	case "AfterModel":
+		return "GeminiAfterModel"
 	case "BeforeAgent":
 		return "GeminiBeforeAgent"
 	case "AfterAgent":

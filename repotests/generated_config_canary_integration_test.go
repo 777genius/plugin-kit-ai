@@ -87,7 +87,7 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 	}
 
 	gotNames := sortedKeys(hooksFile.Hooks)
-	wantNames := []string{"AfterAgent", "AfterTool", "BeforeAgent", "BeforeTool", "Notification", "PreCompress", "SessionEnd", "SessionStart"}
+	wantNames := []string{"AfterAgent", "AfterModel", "AfterTool", "BeforeAgent", "BeforeModel", "BeforeTool", "Notification", "PreCompress", "SessionEnd", "SessionStart"}
 	if !slices.Equal(gotNames, wantNames) {
 		t.Fatalf("hook names = %v, want %v", gotNames, wantNames)
 	}
@@ -96,6 +96,8 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 		"SessionEnd":   "${extensionPath}${/}bin${/}genplug GeminiSessionEnd",
 		"Notification": "${extensionPath}${/}bin${/}genplug GeminiNotification",
 		"PreCompress":  "${extensionPath}${/}bin${/}genplug GeminiPreCompress",
+		"BeforeModel":  "${extensionPath}${/}bin${/}genplug GeminiBeforeModel",
+		"AfterModel":   "${extensionPath}${/}bin${/}genplug GeminiAfterModel",
 		"BeforeAgent":  "${extensionPath}${/}bin${/}genplug GeminiBeforeAgent",
 		"AfterAgent":   "${extensionPath}${/}bin${/}genplug GeminiAfterAgent",
 		"BeforeTool":   "${extensionPath}${/}bin${/}genplug GeminiBeforeTool",

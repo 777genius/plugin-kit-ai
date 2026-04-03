@@ -734,6 +734,60 @@ func Events() []EventDescriptor {
 		},
 		{
 			Platform: "gemini",
+			Event:    "BeforeModel",
+			Invocation: InvocationBinding{
+				Kind: runtime.InvocationArgvCommandCaseFold,
+				Name: "GeminiBeforeModel",
+			},
+			Carrier: runtime.CarrierStdinJSON,
+			Contract: ContractMeta{
+				Maturity: runtime.MaturityBeta,
+				V1Target: false,
+			},
+			DecodeFunc: "DecodeBeforeModel",
+			EncodeFunc: "EncodeBeforeModel",
+			Registrar: RegistrarMeta{
+				MethodName:   "OnBeforeModel",
+				EventType:    "*BeforeModelEvent",
+				ResponseType: "*BeforeModelResponse",
+				WrapFunc:     "wrapBeforeModel",
+			},
+			Docs: DocsMeta{
+				SnippetKey: "gemini-beforemodel",
+				TableGroup: "gemini",
+				Summary:    "Gemini BeforeModel beta hook",
+			},
+			Capabilities: []runtime.CapabilityID{"gemini_before_model"},
+		},
+		{
+			Platform: "gemini",
+			Event:    "AfterModel",
+			Invocation: InvocationBinding{
+				Kind: runtime.InvocationArgvCommandCaseFold,
+				Name: "GeminiAfterModel",
+			},
+			Carrier: runtime.CarrierStdinJSON,
+			Contract: ContractMeta{
+				Maturity: runtime.MaturityBeta,
+				V1Target: false,
+			},
+			DecodeFunc: "DecodeAfterModel",
+			EncodeFunc: "EncodeAfterModel",
+			Registrar: RegistrarMeta{
+				MethodName:   "OnAfterModel",
+				EventType:    "*AfterModelEvent",
+				ResponseType: "*AfterModelResponse",
+				WrapFunc:     "wrapAfterModel",
+			},
+			Docs: DocsMeta{
+				SnippetKey: "gemini-aftermodel",
+				TableGroup: "gemini",
+				Summary:    "Gemini AfterModel beta hook",
+			},
+			Capabilities: []runtime.CapabilityID{"gemini_after_model"},
+		},
+		{
+			Platform: "gemini",
 			Event:    "BeforeAgent",
 			Invocation: InvocationBinding{
 				Kind: runtime.InvocationArgvCommandCaseFold,

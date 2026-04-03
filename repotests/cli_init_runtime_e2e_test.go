@@ -145,6 +145,8 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiSessionEnd"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiNotification"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiPreCompress"`,
+		`"command": "${extensionPath}${/}bin${/}genplug GeminiBeforeModel"`,
+		`"command": "${extensionPath}${/}bin${/}genplug GeminiAfterModel"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiBeforeAgent"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiAfterAgent"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiBeforeTool"`,
@@ -745,6 +747,14 @@ func assertGeminiBetaSubsetEntry(t *testing.T, entry string) {
 		{
 			name:    "GeminiPreCompress",
 			payload: `{"session_id":"s","cwd":".","hook_event_name":"PreCompress","trigger":"auto"}`,
+		},
+		{
+			name:    "GeminiBeforeModel",
+			payload: `{"session_id":"s","cwd":".","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"hi"}]}}`,
+		},
+		{
+			name:    "GeminiAfterModel",
+			payload: `{"session_id":"s","cwd":".","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro"},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`,
 		},
 		{
 			name:    "GeminiBeforeAgent",

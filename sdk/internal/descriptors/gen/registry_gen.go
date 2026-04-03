@@ -167,6 +167,20 @@ var registry = map[key]runtime.Descriptor{
 		Decode:   internal_gemini.DecodePreCompress,
 		Encode:   internal_gemini.EncodePreCompress,
 	},
+	{platform: "gemini", event: "BeforeModel"}: {
+		Platform: "gemini",
+		Event:    "BeforeModel",
+		Carrier:  runtime.CarrierStdinJSON,
+		Decode:   internal_gemini.DecodeBeforeModel,
+		Encode:   internal_gemini.EncodeBeforeModel,
+	},
+	{platform: "gemini", event: "AfterModel"}: {
+		Platform: "gemini",
+		Event:    "AfterModel",
+		Carrier:  runtime.CarrierStdinJSON,
+		Decode:   internal_gemini.DecodeAfterModel,
+		Encode:   internal_gemini.EncodeAfterModel,
+	},
 	{platform: "gemini", event: "BeforeAgent"}: {
 		Platform: "gemini",
 		Event:    "BeforeAgent",

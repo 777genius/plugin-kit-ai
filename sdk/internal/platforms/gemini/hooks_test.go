@@ -84,6 +84,44 @@ func TestDecodePreCompress(t *testing.T) {
 	}
 }
 
+func TestDecodeBeforeModel(t *testing.T) {
+	v, name, err := DecodeBeforeModel(runtime.Envelope{
+		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"hi"}]}}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "BeforeModel" {
+		t.Fatalf("name = %q", name)
+	}
+	ev, ok := v.(*BeforeModelInput)
+	if !ok {
+		t.Fatalf("type = %T", v)
+	}
+	if string(ev.LLMRequest) == "" {
+		t.Fatal("llm_request missing")
+	}
+}
+
+func TestDecodeAfterModel(t *testing.T) {
+	v, name, err := DecodeAfterModel(runtime.Envelope{
+		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro"},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "AfterModel" {
+		t.Fatalf("name = %q", name)
+	}
+	ev, ok := v.(*AfterModelInput)
+	if !ok {
+		t.Fatalf("type = %T", v)
+	}
+	if string(ev.LLMRequest) == "" || string(ev.LLMResponse) == "" {
+		t.Fatalf("event = %#v", ev)
+	}
+}
+
 func TestDecodeBeforeAgent(t *testing.T) {
 	v, name, err := DecodeBeforeAgent(runtime.Envelope{
 		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeAgent","prompt":"hello"}`),
@@ -305,6 +343,66 @@ func TestEncodePreCompressIgnoresFlowControlFields(t *testing.T) {
 		if strings.Contains(got, unwanted) {
 			t.Fatalf("stdout unexpectedly contains %q: %s", unwanted, got)
 		}
+	}
+}
+
+func TestEncodeBeforeModelOutcomeRequestOverride(t *testing.T) {
+	res := EncodeBeforeModel(BeforeModelOutcome{
+		LLMRequest: json.RawMessage(`{"model":"gemini-2.5-pro"}`),
+	})
+	if res.ExitCode != 0 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if got := string(res.Stdout); !strings.Contains(got, `"hookEventName":"BeforeModel"`) || !strings.Contains(got, `"llm_request":{"model":"gemini-2.5-pro"}`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeBeforeModelOutcomeSyntheticResponse(t *testing.T) {
+	res := EncodeBeforeModel(BeforeModelOutcome{
+		LLMResponse: json.RawMessage(`{"candidates":[{"content":{"role":"model"}}]}`),
+	})
+	if res.ExitCode != 0 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if got := string(res.Stdout); !strings.Contains(got, `"hookEventName":"BeforeModel"`) || !strings.Contains(got, `"llm_response":{"candidates":[{"content":{"role":"model"}}]}`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeBeforeModelOutcomeRejectsNonObjectRequest(t *testing.T) {
+	res := EncodeBeforeModel(BeforeModelOutcome{
+		LLMRequest: json.RawMessage(`["bad"]`),
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.llm_request must be a JSON object") {
+		t.Fatalf("stderr = %q", res.Stderr)
+	}
+}
+
+func TestEncodeAfterModelOutcomeReplacement(t *testing.T) {
+	res := EncodeAfterModel(AfterModelOutcome{
+		LLMResponse: json.RawMessage(`{"candidates":[{"content":{"role":"model"}}]}`),
+	})
+	if res.ExitCode != 0 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if got := string(res.Stdout); !strings.Contains(got, `"hookEventName":"AfterModel"`) || !strings.Contains(got, `"llm_response":{"candidates":[{"content":{"role":"model"}}]}`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestEncodeAfterModelOutcomeRejectsNonObjectResponse(t *testing.T) {
+	res := EncodeAfterModel(AfterModelOutcome{
+		LLMResponse: json.RawMessage(`["bad"]`),
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.llm_response must be a JSON object") {
+		t.Fatalf("stderr = %q", res.Stderr)
 	}
 }
 

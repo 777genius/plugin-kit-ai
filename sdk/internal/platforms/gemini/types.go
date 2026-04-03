@@ -32,6 +32,17 @@ type PreCompressInput struct {
 	Trigger string `json:"trigger,omitempty"`
 }
 
+type BeforeModelInput struct {
+	BaseInput
+	LLMRequest json.RawMessage `json:"llm_request,omitempty"`
+}
+
+type AfterModelInput struct {
+	BaseInput
+	LLMRequest  json.RawMessage `json:"llm_request,omitempty"`
+	LLMResponse json.RawMessage `json:"llm_response,omitempty"`
+}
+
 type BeforeAgentInput struct {
 	BaseInput
 	Prompt string `json:"prompt,omitempty"`
@@ -84,6 +95,17 @@ type NotificationOutcome struct {
 
 type PreCompressOutcome struct {
 	CommonOutcome
+}
+
+type BeforeModelOutcome struct {
+	CommonOutcome
+	LLMRequest  json.RawMessage
+	LLMResponse json.RawMessage
+}
+
+type AfterModelOutcome struct {
+	CommonOutcome
+	LLMResponse json.RawMessage
 }
 
 type BeforeAgentOutcome struct {

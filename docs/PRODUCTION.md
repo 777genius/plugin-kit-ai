@@ -7,7 +7,7 @@ This document is the canonical production authoring path for plugin authors usin
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
-- Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
+- Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
 - Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and compatibility import for legacy `.cursorrules`; not a production-ready runtime target
 - OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools, explicit env-config import compatibility, and permission-first passthrough config semantics; `custom_tools` remain beta
 
@@ -144,7 +144,7 @@ Reference implementation:
 - Commit generated `gemini-extension.json` plus rendered `hooks/`, `commands/`, `policies/`, and selected context artifacts
 - Treat Gemini packaging as the primary path: inline `mcpServers`, `contextFileName`, `settings`, `themes`, `excludeTools`, `plan.directory`, and `manifest.extra.json`
 - Use `plugin-kit-ai inspect . --target gemini` to confirm the managed artifact set and whether the repo is still packaging-only or has the optional launcher-based beta hook lane enabled
-- Use `plugin-kit-ai init --platform gemini --runtime go` only when you intentionally want the `public-beta` Go hook lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
+- Use `plugin-kit-ai init --platform gemini --runtime go` only when you intentionally want the `public-beta` Go hook lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
 - Use `plugin-kit-ai capabilities --mode runtime --platform gemini` to inspect the current Gemini beta event contract, `make test-gemini-runtime-smoke` for the deterministic repo-local contract smoke, and `make test-gemini-runtime-live` for the dedicated opt-in real CLI runtime smoke when you need live evidence for that lane
 - Use `gemini extensions link` for local development, `gemini extensions config` for install-time settings, and `gemini extensions disable|enable` to exercise scope changes; restart Gemini CLI after changes
 

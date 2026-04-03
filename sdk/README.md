@@ -67,6 +67,8 @@ Platform packages:
   - `gemini/SessionEnd` (`public-beta`)
   - `gemini/Notification` (`public-beta`)
   - `gemini/PreCompress` (`public-beta`)
+  - `gemini/BeforeModel` (`public-beta`)
+  - `gemini/AfterModel` (`public-beta`)
   - `gemini/BeforeAgent` (`public-beta`)
   - `gemini/AfterAgent` (`public-beta`)
   - `gemini/BeforeTool` (`public-beta`)
@@ -177,9 +179,10 @@ func main() {
 
 Gemini helper rule of thumb:
 
-- use `gemini.SessionStartContinue()`, `gemini.SessionEndContinue()`, `gemini.NotificationContinue()`, `gemini.PreCompressContinue()`, `gemini.BeforeToolContinue()`, and `gemini.AfterToolContinue()` for a true no-op response that renders as minimal `{}` output
+- use `gemini.SessionStartContinue()`, `gemini.SessionEndContinue()`, `gemini.NotificationContinue()`, `gemini.PreCompressContinue()`, `gemini.BeforeModelContinue()`, `gemini.AfterModelContinue()`, `gemini.BeforeToolContinue()`, and `gemini.AfterToolContinue()` for a true no-op response that renders as minimal `{}` output
 - Gemini treats `SessionStart` and `SessionEnd` as advisory hooks: `continue`, `decision`, `reason`, and `stopReason` are ignored there, so only `systemMessage` and the documented hook-specific fields are emitted
 - Gemini treats `Notification` and `PreCompress` as advisory/system hooks: they cannot block the CLI path, so only `systemMessage` and `suppressOutput` are meaningful on output
+- use `gemini.BeforeModelOverrideRequestValue(...)` when you want to rewrite `llm_request` from a normal Go map/struct, `gemini.BeforeModelSyntheticResponseValue(...)` when you want to short-circuit the model call with a synthetic response, and `gemini.AfterModelReplaceResponseValue(...)` when you want to rewrite the returned `llm_response`
 - use `gemini.BeforeAgentAddContext(...)` when you want turn-local prompt context, and `gemini.AfterAgentClearContext()` when you intentionally want Gemini to drop prior conversation memory before the next retry/turn
 - use `gemini.BeforeAgentDeny(...)` to reject a turn and discard the prompt, or `gemini.AfterAgentDeny(...)` to reject a final answer and trigger a retry
 - use `gemini.BeforeToolAllow()` or `gemini.AfterToolAllow()` only when you intentionally want an explicit `"decision":"allow"` in the Gemini hook response

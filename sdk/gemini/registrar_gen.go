@@ -7,6 +7,11 @@ func (r *Registrar) OnAfterAgent(fn func(*AfterAgentEvent) *AfterAgentResponse) 
 	r.backend.Register("gemini", "AfterAgent", wrapAfterAgent(fn))
 }
 
+// OnAfterModel registers a handler for the gemini AfterModel.
+func (r *Registrar) OnAfterModel(fn func(*AfterModelEvent) *AfterModelResponse) {
+	r.backend.Register("gemini", "AfterModel", wrapAfterModel(fn))
+}
+
 // OnAfterTool registers a handler for the gemini AfterTool.
 func (r *Registrar) OnAfterTool(fn func(*AfterToolEvent) *AfterToolResponse) {
 	r.backend.Register("gemini", "AfterTool", wrapAfterTool(fn))
@@ -15,6 +20,11 @@ func (r *Registrar) OnAfterTool(fn func(*AfterToolEvent) *AfterToolResponse) {
 // OnBeforeAgent registers a handler for the gemini BeforeAgent.
 func (r *Registrar) OnBeforeAgent(fn func(*BeforeAgentEvent) *BeforeAgentResponse) {
 	r.backend.Register("gemini", "BeforeAgent", wrapBeforeAgent(fn))
+}
+
+// OnBeforeModel registers a handler for the gemini BeforeModel.
+func (r *Registrar) OnBeforeModel(fn func(*BeforeModelEvent) *BeforeModelResponse) {
+	r.backend.Register("gemini", "BeforeModel", wrapBeforeModel(fn))
 }
 
 // OnBeforeTool registers a handler for the gemini BeforeTool.
