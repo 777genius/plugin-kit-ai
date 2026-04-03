@@ -35,7 +35,7 @@ flowchart TD
 
 - выбирайте `codex-runtime`, когда нужен исполняемый плагин с самым сильным путём по умолчанию
 - выбирайте `claude`, когда реальным требованием продукта являются Claude hooks
-- выбирайте `codex-package`, когда нужен package output для Codex, а не репозиторий с исполняемым плагином
+- выбирайте `codex-package`, когда нужен package output для Codex, а не репозиторий с исполняемым плагином, и нужен официальный bundle layout с `.codex-plugin/plugin.json`
 - выбирайте `gemini`, когда нужен пакет расширения для Gemini
 - выбирайте `opencode` или `cursor`, когда репозиторий должен владеть workspace configuration, а не исполняемым плагином
 

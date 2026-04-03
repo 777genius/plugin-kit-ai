@@ -42,6 +42,12 @@ flowchart TD
 - вам нужно, чтобы исходное состояние проекта оставалось управляемым в одном месте
 - не нужно притворяться, что у этого target тот же runtime contract, что и у `codex-runtime`
 
+У Codex package есть и жёсткий контракт layout bundle:
+
+- `.codex-plugin/` содержит только `plugin.json`
+- optional `.app.json` и `.mcp.json` лежат в корне plugin, а не внутри `.codex-plugin/`
+- эти sidecar-файлы существуют только тогда, когда `.codex-plugin/plugin.json` ссылается на `./.app.json` или `./.mcp.json`
+
 ## Gemini
 
 Используйте `gemini`, когда цель — пакет расширения для Gemini CLI.

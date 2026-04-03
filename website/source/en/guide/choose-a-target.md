@@ -35,7 +35,7 @@ flowchart TD
 
 - choose `codex-runtime` when you want an executable plugin with the strongest default story
 - choose `claude` when Claude hooks are the real product requirement
-- choose `codex-package` when the output is a Codex package, not an executable plugin repo
+- choose `codex-package` when the output is a Codex package, not an executable plugin repo, and you want the official `.codex-plugin/plugin.json` bundle layout
 - choose `gemini` when the output is a Gemini extension package
 - choose `opencode` or `cursor` when the repo owns workspace configuration instead of an executable plugin
 

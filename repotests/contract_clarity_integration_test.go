@@ -407,6 +407,22 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	websitePackageTargetsEN, err := os.ReadFile(filepath.Join(root, "website", "source", "en", "guide", "package-and-workspace-targets.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	websitePackageTargetsRU, err := os.ReadFile(filepath.Join(root, "website", "source", "ru", "guide", "package-and-workspace-targets.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	websiteChooseTargetEN, err := os.ReadFile(filepath.Join(root, "website", "source", "en", "guide", "choose-a-target.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	websiteChooseTargetRU, err := os.ReadFile(filepath.Join(root, "website", "source", "ru", "guide", "choose-a-target.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	mustContain(t, string(validateJSONDoc), "plugin-kit-ai/validate-report")
 	mustContain(t, string(validateJSONDoc), "schema version: `1`")
 	mustContain(t, string(validateJSONDoc), "`passed`, `failed`, or `failed_strict_warnings`")
@@ -417,6 +433,12 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(codexBoundaryDoc), "`.app.json` must exist only when `.codex-plugin/plugin.json` references `./.app.json`")
 	mustContain(t, string(codexBoundaryDoc), "`.mcp.json` must exist only when `.codex-plugin/plugin.json` references `./.mcp.json`")
 	mustContain(t, string(codexBoundaryDoc), "plugin-kit-ai import --from codex-native")
+	mustContain(t, string(websitePackageTargetsEN), "`.codex-plugin/` contains only `plugin.json`")
+	mustContain(t, string(websitePackageTargetsEN), "optional `.app.json` and `.mcp.json` stay at the plugin root")
+	mustContain(t, string(websitePackageTargetsRU), "`.codex-plugin/` содержит только `plugin.json`")
+	mustContain(t, string(websitePackageTargetsRU), "optional `.app.json` и `.mcp.json` лежат в корне plugin")
+	mustContain(t, string(websiteChooseTargetEN), "official `.codex-plugin/plugin.json` bundle layout")
+	mustContain(t, string(websiteChooseTargetRU), "официальный bundle layout с `.codex-plugin/plugin.json`")
 	mustContain(t, string(hardeningDoc), "beta contract cleanup, change-note hygiene, and documentation follow-through for beta leftovers")
 	mustContain(t, string(hardeningDoc), "`python` and `node` are now the stable repo-local subset on `codex-runtime` and `claude`, while `shell` remains `public-beta`")
 	mustContain(t, string(hardeningDoc), "local exported bundle install for Python/Node is now part of the promoted stable subset")
