@@ -506,6 +506,10 @@
         {
           "text": "codex",
           "link": "/ru/api/platform-events/codex"
+        },
+        {
+          "text": "gemini",
+          "link": "/ru/api/platform-events/gemini"
         }
       ]
     }
@@ -521,6 +525,22 @@
         {
           "text": "config_change",
           "link": "/ru/api/capabilities/config_change"
+        },
+        {
+          "text": "gemini_after_tool",
+          "link": "/ru/api/capabilities/gemini_after_tool"
+        },
+        {
+          "text": "gemini_before_tool",
+          "link": "/ru/api/capabilities/gemini_before_tool"
+        },
+        {
+          "text": "gemini_session_end",
+          "link": "/ru/api/capabilities/gemini_session_end"
+        },
+        {
+          "text": "gemini_session_start",
+          "link": "/ru/api/capabilities/gemini_session_start"
         },
         {
           "text": "notify",

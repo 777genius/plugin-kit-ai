@@ -21,6 +21,8 @@ export async function extractNodeRuntime() {
       "typedoc-plugin-markdown",
       "--entryPoints",
       "../npm/plugin-kit-ai-runtime/index.d.ts",
+      "--tsconfig",
+      "../npm/plugin-kit-ai-runtime/tsconfig.docs.json",
       "--readme",
       "none",
       "--out",

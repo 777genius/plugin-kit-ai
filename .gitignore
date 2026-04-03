@@ -17,3 +17,10 @@ website/.vitepress/temp/
 website/playwright-report/
 website/test-results/
 website/.playwright-artifacts/
+node_modules/
+.nuxt/
+.output/
+.dist/
+dist/
+dist
+.env

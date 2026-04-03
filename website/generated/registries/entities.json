@@ -21,6 +21,82 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "gemini_after_tool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_after_tool",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_after_tool",
+    "summary": "Capability gemini_after_tool",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_after_tool",
+    "pathRu": "/ru/api/capabilities/gemini_after_tool"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_before_tool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_before_tool",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_before_tool",
+    "summary": "Capability gemini_before_tool",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_before_tool",
+    "pathRu": "/ru/api/capabilities/gemini_before_tool"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_session_end"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_session_end",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_session_end",
+    "summary": "Capability gemini_session_end",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_session_end",
+    "pathRu": "/ru/api/capabilities/gemini_session_end"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_session_start"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_session_start",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_session_start",
+    "summary": "Capability gemini_session_start",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_session_start",
+    "pathRu": "/ru/api/capabilities/gemini_session_start"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "notify"
     ],
     "publicVisibility": "public",
@@ -1005,6 +1081,29 @@
     "sourceRef": "docs/generated/support_matrix.md",
     "pathEn": "/en/api/platform-events/codex",
     "pathRu": "/ru/api/platform-events/codex"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini",
+      "SessionStart",
+      "SessionEnd",
+      "BeforeTool",
+      "AfterTool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "event-platform:gemini",
+    "kind": "event",
+    "surface": "platform-events",
+    "localeStrategy": "mirrored",
+    "title": "gemini",
+    "summary": "gemini event surface",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/platform-events/gemini",
+    "pathRu": "/ru/api/platform-events/gemini"
   },
   {
     "relatedIds": [],

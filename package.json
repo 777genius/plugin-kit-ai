@@ -1,0 +1,41 @@
+{
+  "name": "hookplex-landing",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@8.15.1",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "build:pages": "node ./scripts/build-pages-artifact.mjs",
+    "preview": "nuxt preview",
+    "lint": "eslint \"app.vue\" \"error.vue\" \"components/**/*.{vue,ts}\" \"composables/**/*.{ts,js}\" \"data/**/*.{ts,js}\" \"layouts/**/*.vue\" \"pages/**/*.vue\" \"plugins/**/*.{ts,js}\" \"server/**/*.{ts,js}\" \"stores/**/*.{ts,js}\" \"types/**/*.ts\" \"utils/**/*.{ts,js}\" \"nuxt.config.ts\" --no-error-on-unmatched-pattern",
+    "lint:fix": "pnpm run lint -- --fix",
+    "format": "prettier --check app.vue error.vue assets/styles/main.scss components composables content data layouts locales pages plugins server stores types utils nuxt.config.ts package.json",
+    "format:fix": "prettier --write app.vue error.vue assets/styles/main.scss components composables content data layouts locales pages plugins server stores types utils nuxt.config.ts package.json"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "@nuxtjs/i18n": "^9.5.6",
+    "@pinia/nuxt": "^0.11.3",
+    "@vueuse/nuxt": "^10.11.1",
+    "nuxt": "^3.20.2",
+    "nuxt-icon": "^0.6.10",
+    "pinia": "^3.0.4",
+    "swiper": "^12.1.2",
+    "vue": "^3.5.31",
+    "vue-i18n": "^11.3.0",
+    "vue-router": "^4.6.4",
+    "vuetify": "^3.11.6"
+  },
+  "devDependencies": {
+    "@typescript-eslint/parser": "^8.58.0",
+    "@mdi/font": "^7.4.47",
+    "@nuxt/eslint": "^1.12.1",
+    "eslint": "^9.39.2",
+    "prettier": "^3.8.0",
+    "sass": "^1.97.2",
+    "typescript": "^6.0.2",
+    "vite-plugin-vuetify": "^2.1.3"
+  }
+}

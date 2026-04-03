@@ -117,4 +117,4 @@ Supported alternatives still exist, but they are not encoded into the starter re
 
 - Shared-package variants are for teams that already know they want `plugin-kit-ai-runtime` as a reusable dependency instead of vendored helper files.
 - Starter choice is about the first correct path, not the final limit of the product.
-- If the repo later needs a wider scope, see [One Project, Multiple Targets](https://777genius.github.io/plugin-kit-ai/en/guide/one-project-multiple-targets.html).
+- If the repo later needs a wider scope, see [One Project, Multiple Targets](https://777genius.github.io/plugin-kit-ai/docs/en/guide/one-project-multiple-targets.html).

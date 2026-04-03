@@ -1,0 +1,115 @@
+{
+  "nav": {
+    "features": "Features",
+    "plugins": "Plugins",
+    "comparison": "Why plugin-kit-ai",
+    "download": "Get started",
+    "faq": "FAQ",
+    "viewOnGithub": "Open GitHub"
+  },
+  "hero": {
+    "primaryCta": "Open GitHub",
+    "secondaryCta": "See plugins",
+    "preview": "plugin-kit-ai flow preview",
+    "latestRelease": "Latest release",
+    "status": "First-party plugins coming soon",
+    "trust": {
+      "oneRepo": "One repo",
+      "validated": "Validate --strict",
+      "openSource": "Open Source"
+    },
+    "demo": {
+      "title": "plugin-kit-ai flow",
+      "subtitle": "One repo. Clear stages. Multiple outputs.",
+      "live": "Active",
+      "ready": "ready",
+      "waiting": "waiting",
+      "repo": "repo",
+      "sourceOfTruth": "source of truth",
+      "outputs": "outputs",
+      "supportedAgents": "supported agents",
+      "steps": {
+        "author": "define plugin",
+        "render": "generate outputs",
+        "validate": "validate --strict",
+        "ship": "publish"
+      },
+      "logs": {
+        "author": "Defining the plugin once from one managed repo...",
+        "render": "Generating the supported outputs for the current product need...",
+        "validate": "Running validate --strict before handoff...",
+        "ship": "Publishing through releases, docs, and install channels..."
+      }
+    }
+  },
+  "download": {
+    "open": "Open",
+    "recommended": "Recommended",
+    "latestRelease": "Latest release",
+    "command": "Command",
+    "copy": "Copy",
+    "copied": "Copied",
+    "quickstartTitle": "Recommended quickstart",
+    "quickstartSubtitle": "This is the fastest supported path from install to a validated repo.",
+    "supportTitle": "Support snapshot",
+    "supportSubtitle": "Real support depth today, based on the current support policy and target matrix.",
+    "supportLink": "Read the support boundary"
+  },
+  "common": {
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "toggle": "Toggle theme"
+  },
+  "language": {
+    "label": "Language",
+    "search": "Search language…"
+  },
+  "features": {
+    "sectionTitle": "A clean path from one plugin repo to many agents",
+    "sectionSubtitle": "Plain-language positioning, honest boundaries, and a workflow that stays manageable as the product grows."
+  },
+  "plugins": {
+    "sectionTitle": "Our first plugins start here",
+    "sectionSubtitle": "A first-party lineup designed for real repo work, with clear badges for the agent ecosystems each idea is meant to support.",
+    "supports": "Supports",
+    "preview": "Preview"
+  },
+  "faq": {
+    "sectionTitle": "Got questions? We've got answers",
+    "subtitle": "The short version of what plugin-kit-ai is, what it is not, and how to start without guessing."
+  },
+  "comparison": {
+    "sectionTitle": "Why this is cleaner than doing it by hand",
+    "sectionSubtitle": "Not a fight against competitors. Just a practical comparison against the three ways plugin teams usually create unnecessary drift.",
+    "feature": "Workflow",
+    "columns": {
+      "pluginKitAi": "plugin-kit-ai",
+      "manual": "Manual setup",
+      "duplicated": "Duplicated configs",
+      "scripts": "One-off scripts"
+    }
+  },
+  "footer": {
+    "copyright": "© {year} plugin-kit-ai",
+    "tagline": "Build once. Ship to many AI agents.",
+    "github": "GitHub",
+    "docs": "Docs"
+  },
+  "meta": {
+    "homeTitle": "plugin-kit-ai | Build AI plugins once, ship them to many agents",
+    "homeDescription": "plugin-kit-ai is the home for our first-party AI plugins and the open-source toolkit for building one plugin repo and targeting multiple agent ecosystems.",
+    "downloadTitle": "Get started with plugin-kit-ai | Install plugin-kit-ai",
+    "downloadDescription": "Choose an install path for plugin-kit-ai, open the docs, and start from one clean plugin repo."
+  },
+  "error": {
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you are looking for does not exist or has been moved.",
+    "genericTitle": "Something went wrong",
+    "genericDescription": "An unexpected error occurred. Please try again later.",
+    "goHome": "Go to homepage"
+  }
+}

@@ -1,0 +1,289 @@
+{
+  "hero": {
+    "title": "plugin-kit-ai",
+    "subtitle": "Build a plugin once. Ship it to multiple AI agents from one repo. plugin-kit-ai is the home for our first-party plugin lineup and the open-source toolkit behind it."
+  },
+  "features": [
+    {
+      "id": "oneRepo",
+      "title": "One repo instead of scattered setup",
+      "description": "Keep one plugin repo as the source of truth instead of copying the same logic into separate agent-specific folders."
+    },
+    {
+      "id": "growOutputs",
+      "title": "Start with one strong path, add more later",
+      "description": "Begin with the output that matters now, then expand to more supported agents when your product actually needs it."
+    },
+    {
+      "id": "validate",
+      "title": "Validate before handoff",
+      "description": "Use a repeatable render and validate flow before another teammate, CI job, or end user touches the plugin."
+    },
+    {
+      "id": "clearBoundary",
+      "title": "Honest stable vs beta boundary",
+      "description": "plugin-kit-ai is explicit about what is production-ready, what is public beta, and where you should not promise fake parity yet."
+    },
+    {
+      "id": "releasePath",
+      "title": "Clear install and release path",
+      "description": "Homebrew, npm, pipx when published, verified install script, GitHub releases, and docs all point to one clean starting flow."
+    },
+    {
+      "id": "openSource",
+      "title": "Open source from day one",
+      "description": "Use the toolkit today, inspect the source, and follow a transparent workflow while our first-party plugin catalog grows."
+    }
+  ],
+  "plugins": [
+    {
+      "id": "reviewGuard",
+      "eyebrow": "First-party plugin concept",
+      "title": "Review Guard",
+      "description": "Flag risky tool usage, missing checks, and policy drift before a plugin reaches another teammate or customer.",
+      "status": "Coming soon",
+      "badges": ["Claude", "Codex", "Gemini"],
+      "previewLines": ["policy.yaml", "guard-rules/", "review-report.md"]
+    },
+    {
+      "id": "releaseNotesBuilder",
+      "eyebrow": "First-party plugin concept",
+      "title": "Release Notes Builder",
+      "description": "Turn commits, diffs, and handoff context into clear release notes and changelog drafts for fast publishing.",
+      "status": "Coming soon",
+      "badges": ["Codex", "Claude", "OpenCode"],
+      "previewLines": ["CHANGELOG.md", "release-draft.md", "git-summary.json"]
+    },
+    {
+      "id": "docsSync",
+      "eyebrow": "First-party plugin concept",
+      "title": "Docs Sync",
+      "description": "Keep README files, docs pages, and support notes aligned with what actually changed in the repo.",
+      "status": "Coming soon",
+      "badges": ["Claude", "Codex", "Cursor"],
+      "previewLines": ["README.md", "docs/", "support-boundary.md"]
+    },
+    {
+      "id": "repoOnboarding",
+      "eyebrow": "First-party plugin concept",
+      "title": "Repo Onboarding",
+      "description": "Set up contributor guidance, repo instructions, and agent-ready context so new people can start faster.",
+      "status": "Coming soon",
+      "badges": ["Claude", "Cursor", "OpenCode"],
+      "previewLines": ["AGENTS.md", "starter-notes.md", "workspace-map.json"]
+    },
+    {
+      "id": "commandSafety",
+      "eyebrow": "First-party plugin concept",
+      "title": "Command Safety",
+      "description": "Block unsafe command patterns, offer safer alternatives, and make approval-sensitive operations easier to review.",
+      "status": "Coming soon",
+      "badges": ["Codex", "Claude", "Gemini"],
+      "previewLines": ["command-policy.yaml", "safe-alternatives.md", "audit-log.json"]
+    },
+    {
+      "id": "workspaceSetup",
+      "eyebrow": "First-party plugin concept",
+      "title": "Workspace Setup",
+      "description": "Prepare agent-specific config, workspace wiring, and shared defaults from one managed source repo.",
+      "status": "Coming soon",
+      "badges": ["OpenCode", "Cursor", "Gemini"],
+      "previewLines": ["targets/", "workspace-config/", "render-check.txt"]
+    }
+  ],
+  "comparisonRows": [
+    {
+      "id": "oneRepo",
+      "feature": "One repo for many agent outputs",
+      "pluginKitAi": { "status": "yes", "note": "One source of truth" },
+      "manual": { "status": "no", "note": "New setup per agent" },
+      "duplicated": { "status": "partial", "note": "Possible, but drifts fast" },
+      "scripts": { "status": "no", "note": "Usually one local flow only" }
+    },
+    {
+      "id": "validate",
+      "feature": "Validation before handoff",
+      "pluginKitAi": { "status": "yes", "note": "Built around validate --strict" },
+      "manual": { "status": "partial", "note": "Depends on human review" },
+      "duplicated": { "status": "partial", "note": "Same check repeated everywhere" },
+      "scripts": { "status": "no", "note": "Easy to miss edge cases" }
+    },
+    {
+      "id": "boundary",
+      "feature": "Clear stable vs beta boundary",
+      "pluginKitAi": { "status": "yes", "note": "Documented and explicit" },
+      "manual": { "status": "no", "note": "Usually tribal knowledge" },
+      "duplicated": { "status": "no", "note": "Ambiguity gets copied too" },
+      "scripts": { "status": "no", "note": "No shared contract" }
+    },
+    {
+      "id": "expansion",
+      "feature": "Add outputs later without starting over",
+      "pluginKitAi": { "status": "yes", "note": "Grow from the same repo" },
+      "manual": { "status": "partial", "note": "Possible, but rework-heavy" },
+      "duplicated": { "status": "no", "note": "Every new output starts from scratch" },
+      "scripts": { "status": "no", "note": "Usually a rewrite" }
+    },
+    {
+      "id": "releasePath",
+      "feature": "Clear install and release channels",
+      "pluginKitAi": { "status": "yes", "note": "Docs, releases, and install paths line up" },
+      "manual": { "status": "no", "note": "You assemble the flow yourself" },
+      "duplicated": { "status": "partial", "note": "Possible, but repeated work" },
+      "scripts": { "status": "no", "note": "Mostly local and ad hoc" }
+    },
+    {
+      "id": "teamFlow",
+      "feature": "Team-friendly onboarding",
+      "pluginKitAi": { "status": "yes", "note": "Shared workflow and examples" },
+      "manual": { "status": "partial", "note": "Lives in people and chat" },
+      "duplicated": { "status": "no", "note": "More files, same confusion" },
+      "scripts": { "status": "no", "note": "Hard to hand off cleanly" }
+    }
+  ],
+  "faq": [
+    {
+      "id": "whatIsIt",
+      "question": "What is plugin-kit-ai?",
+      "answer": "plugin-kit-ai is the home for our first-party AI plugins and the open-source toolkit behind them. It is built around one clear idea: keep one plugin repo, then render and validate the supported agent outputs you actually need."
+    },
+    {
+      "id": "whoIsItFor",
+      "question": "Who is this for?",
+      "answer": "It is for teams and solo builders who want real plugin repos, shared workflows, and a cleaner path than one-off scripts or duplicated config files."
+    },
+    {
+      "id": "buildOnceShipMany",
+      "question": "What does “build once, ship to many agents” mean?",
+      "answer": "You keep one authored source repo, then use that same repo to target supported outputs for ecosystems such as Claude, Codex, Gemini, OpenCode, and Cursor instead of rebuilding everything from scratch."
+    },
+    {
+      "id": "stableBoundary",
+      "question": "Is every supported output equally stable today?",
+      "answer": "No. Some lanes are production-ready, and some remain public beta. plugin-kit-ai is explicit about that boundary so you can make honest product promises."
+    },
+    {
+      "id": "howToStart",
+      "question": "How do I start?",
+      "answer": "Install <code>plugin-kit-ai</code>, create a plugin repo with <code>init</code>, then run <code>render</code> and <code>validate --strict</code>. After that, grow into more supported outputs only when the product needs them."
+    },
+    {
+      "id": "openSource",
+      "question": "Is it open source?",
+      "answer": "Yes. The toolkit is open source, and this landing page is the front door for both the toolkit and the first-party plugin catalog we are building on top of it."
+    }
+  ],
+  "download": {
+    "title": "Get started",
+    "note": "Pick an install path, open the docs, and start from one clean plugin repo."
+  },
+  "installChannels": [
+    {
+      "id": "brew",
+      "title": "Homebrew",
+      "description": "Recommended local install for machines that already use Homebrew.",
+      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
+      "note": "Best default when Homebrew is available.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
+      "recommended": true
+    },
+    {
+      "id": "npm",
+      "title": "npm",
+      "description": "Official JavaScript ecosystem wrapper for teams that already center their workflow on npm.",
+      "href": "https://www.npmjs.com/package/plugin-kit-ai",
+      "note": "Public-beta wrapper that downloads the matching verified release binary.",
+      "command": "npm i -g plugin-kit-ai"
+    },
+    {
+      "id": "pipx",
+      "title": "pipx",
+      "description": "Python ecosystem wrapper when the corresponding release is published to PyPI.",
+      "href": "https://pypi.org/project/plugin-kit-ai/",
+      "note": "Public-beta wrapper. Use this channel only when the target release is available on PyPI.",
+      "command": "pipx install plugin-kit-ai"
+    },
+    {
+      "id": "script",
+      "title": "Verified install script",
+      "description": "Fallback bootstrap path that resolves the latest published stable release and verifies checksums.",
+      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
+      "note": "Good when package-manager setup is not what you want first.",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+    },
+    {
+      "id": "releases",
+      "title": "GitHub Releases",
+      "description": "Browse published release notes, artifacts, and version history directly.",
+      "href": "https://github.com/777genius/plugin-kit-ai/releases",
+      "note": "Use this when you want the raw release surface.",
+      "command": "https://github.com/777genius/plugin-kit-ai/releases"
+    },
+    {
+      "id": "docs",
+      "title": "Docs quickstart",
+      "description": "Jump straight into the quickstart and the broader docs site.",
+      "href": "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html",
+      "note": "Best next step once the CLI is installed.",
+      "command": "plugin-kit-ai init my-plugin"
+    }
+  ],
+  "quickstartSteps": [
+    {
+      "id": "install",
+      "title": "Install the CLI",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
+      "note": "Homebrew is the recommended local install path for the CLI itself."
+    },
+    {
+      "id": "init",
+      "title": "Create the strongest default repo first",
+      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
+      "note": "The default path starts with the strongest supported production story."
+    },
+    {
+      "id": "render",
+      "title": "Render managed target files",
+      "command": "plugin-kit-ai render .",
+      "note": "Generate the managed target artifacts from one authored repo."
+    },
+    {
+      "id": "validate",
+      "title": "Validate before handoff",
+      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
+      "note": "Use the strict validation gate before CI, teammate handoff, or release."
+    }
+  ],
+  "supportLanes": [
+    {
+      "id": "claude",
+      "name": "Claude plugin package",
+      "status": "Production-ready stable subset",
+      "note": "Production-ready within the stable default hook subset, plus package metadata and settings surfaces."
+    },
+    {
+      "id": "codex",
+      "name": "Codex runtime and package lanes",
+      "status": "Production-ready",
+      "note": "Codex runtime notify lane and the official Codex package lane are both production-ready."
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini extension lane",
+      "status": "Public beta",
+      "note": "Extension packaging is supported, but the overall lane is still not production-ready."
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode workspace lane",
+      "status": "Packaging-only target",
+      "note": "Workspace config, plugins, and MCP are supported, but this is not a production-ready runtime target."
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor workspace lane",
+      "status": "Packaging-only target",
+      "note": "Project rules and MCP config are supported as a strict workspace-config lane."
+    }
+  ]
+}

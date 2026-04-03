@@ -12,10 +12,11 @@ Common use cases:
 
 Docs site:
 
-- overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/en/)
-- fastest start: [Quickstart](https://777genius.github.io/plugin-kit-ai/en/guide/quickstart.html)
-- one repo, many outputs: [What You Can Build](https://777genius.github.io/plugin-kit-ai/en/guide/what-you-can-build.html)
-- honest caveat: [Support Boundary](https://777genius.github.io/plugin-kit-ai/en/reference/support-boundary.html)
+- overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)
+- overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)
+- fastest start: [Quickstart](https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html)
+- one repo, many outputs: [What You Can Build](https://777genius.github.io/plugin-kit-ai/docs/en/guide/what-you-can-build.html)
+- honest caveat: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
 
 ## What To Know Right Away
 

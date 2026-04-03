@@ -20,6 +20,10 @@ Capabilities показывают поведение runtime поперёк пл
 - Это лучший вход, если вы сравниваете похожее поведение между Claude и Codex.
 
 - [`config_change`](/ru/api/capabilities/config_change)
+- [`gemini_after_tool`](/ru/api/capabilities/gemini_after_tool)
+- [`gemini_before_tool`](/ru/api/capabilities/gemini_before_tool)
+- [`gemini_session_end`](/ru/api/capabilities/gemini_session_end)
+- [`gemini_session_start`](/ru/api/capabilities/gemini_session_start)
 - [`notify`](/ru/api/capabilities/notify)
 - [`permission_request`](/ru/api/capabilities/permission_request)
 - [`post_tool`](/ru/api/capabilities/post_tool)

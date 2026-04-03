@@ -20,4 +20,5 @@ translationRequired: false
 - Используйте `Capabilities`, когда нужен взгляд поперёк платформ, а не разбор по одной платформе.
 
 - [`claude`](/ru/api/platform-events/claude)
+- [`gemini`](/ru/api/platform-events/gemini)
 - [`codex`](/ru/api/platform-events/codex)

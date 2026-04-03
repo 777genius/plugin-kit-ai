@@ -32,6 +32,10 @@ The command loads a fixture, invokes the configured launcher entrypoint with the
 (stdin JSON for Claude stable hooks, argv JSON for Codex notify), and optionally compares or updates
 golden stdout/stderr/exitcode files for CI-grade regression checks.
 
+Gemini's Go hook lane stays public-beta and is intentionally outside this stable fixture surface.
+For Gemini use go test, render --check, validate --strict, and a real Gemini CLI session via
+gemini extensions link .
+
 ```
 plugin-kit-ai test [path] [flags]
 ```

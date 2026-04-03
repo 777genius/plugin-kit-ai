@@ -38,7 +38,7 @@ translationRequired: false
 
 ###### allowedHooks
 
-`string`[] \| readonly `string`[]
+readonly `string`[] \| `string`[]
 
 Имена hooks, которые этот бинарник принимает через argv.
 
