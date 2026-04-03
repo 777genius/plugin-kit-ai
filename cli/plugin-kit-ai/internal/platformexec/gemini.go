@@ -59,6 +59,9 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 	result.Artifacts = append(result.Artifacts, copied...)
 	if hookBodyErr == nil {
+		if _, err := parseGeminiHooks(hooksBody); err != nil {
+			return ImportResult{}, fmt.Errorf("parse %s: %w", filepath.ToSlash(filepath.Join("hooks", "hooks.json")), err)
+		}
 		if entrypoint, ok := inferGeminiEntrypoint(hooksBody); ok {
 			if result.Launcher == nil {
 				result.Launcher = &pluginmodel.Launcher{

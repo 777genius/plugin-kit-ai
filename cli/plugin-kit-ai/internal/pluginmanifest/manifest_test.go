@@ -1797,6 +1797,20 @@ func TestImport_CurrentNativeGeminiRejectsMalformedManifestShapes(t *testing.T) 
 	}
 }
 
+func TestImport_CurrentNativeGeminiRejectsMalformedHooksFile(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo-runtime",
+	  "version":"0.2.0",
+	  "description":"gemini runtime demo"
+	}`)
+	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), `{"hooks":[]}`)
+
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), "Gemini hooks file must define a top-level hooks object") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
 func TestImport_AmbiguousNativeLayoutsRequireExplicitFrom(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
