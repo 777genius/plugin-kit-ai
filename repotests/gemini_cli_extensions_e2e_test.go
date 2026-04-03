@@ -22,13 +22,24 @@ type geminiCLIEnvelope struct {
 	Response  string `json:"response"`
 	Stats     struct {
 		Tools struct {
-			TotalCalls int `json:"totalCalls"`
-			ByName     map[string]struct {
+			TotalCalls   int `json:"totalCalls"`
+			TotalSuccess int `json:"totalSuccess"`
+			TotalFail    int `json:"totalFail"`
+			ByName       map[string]struct {
 				Count      int `json:"count"`
 				TotalCalls int `json:"totalCalls"`
+				Success    int `json:"success"`
+				Fail       int `json:"fail"`
 			} `json:"byName"`
 		} `json:"tools"`
 	} `json:"stats"`
+}
+
+type geminiRuntimeLiveFixture struct {
+	GeminiBin    string
+	ExtensionDir string
+	HomeDir      string
+	TracePath    string
 }
 
 func TestGeminiCLIExtensionLink(t *testing.T) {
@@ -93,53 +104,53 @@ func TestGeminiCLIExtensionLink(t *testing.T) {
 	}
 }
 
-func TestGeminiCLIRuntimeHooks(t *testing.T) {
-	if strings.TrimSpace(os.Getenv(geminiRuntimeLiveEnvVar)) != "1" {
-		t.Skipf("set %s=1 to run real Gemini runtime hook smoke", geminiRuntimeLiveEnvVar)
+func setupGeminiRuntimeLiveFixture(t *testing.T) geminiRuntimeLiveFixture {
+	t.Helper()
+	fixture := geminiRuntimeLiveFixture{
+		GeminiBin: geminiBinaryOrSkip(t),
+		TracePath: filepath.Join(t.TempDir(), "trace.ndjson"),
 	}
-	geminiBin := geminiBinaryOrSkip(t)
 	root := RepoRoot(t)
 	pluginKitAIBin := buildPluginKitAI(t)
 	hookBin := buildPluginKitAIE2E(t)
 	env := newGoModuleEnv(t)
 
 	workRoot := t.TempDir()
-	extensionDir := filepath.Join(workRoot, "gemini-runtime-live")
-	run := exec.Command(pluginKitAIBin, "init", "gemini-runtime-live", "--platform", "gemini", "--runtime", "go", "-o", extensionDir)
+	fixture.ExtensionDir = filepath.Join(workRoot, "gemini-runtime-live")
+	run := exec.Command(pluginKitAIBin, "init", "gemini-runtime-live", "--platform", "gemini", "--runtime", "go", "-o", fixture.ExtensionDir)
 	run.Dir = root
 	if out, err := run.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 	}
 
-	wireGeneratedGoModuleToLocalSDK(t, extensionDir, env)
+	wireGeneratedGoModuleToLocalSDK(t, fixture.ExtensionDir, env)
 	tidy := exec.Command("go", "mod", "tidy")
-	tidy.Dir = extensionDir
+	tidy.Dir = fixture.ExtensionDir
 	tidy.Env = env
 	if out, err := tidy.CombinedOutput(); err != nil {
 		t.Fatalf("go mod tidy: %v\n%s", err, out)
 	}
 
-	tracePath := filepath.Join(workRoot, "trace.ndjson")
 	binName := "gemini-runtime-live"
 	if runtime.GOOS == "windows" {
 		binName += ".exe"
 	}
 	build := exec.Command("go", "build", "-o", filepath.Join("bin", binName), "./cmd/gemini-runtime-live")
-	build.Dir = extensionDir
+	build.Dir = fixture.ExtensionDir
 	build.Env = env
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build generated entrypoint: %v\n%s", err, out)
 	}
 
-	runCmd(t, root, exec.Command(pluginKitAIBin, "render", extensionDir))
-	runCmd(t, root, exec.Command(pluginKitAIBin, "render", extensionDir, "--check"))
-	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", extensionDir, "--platform", "gemini", "--strict"))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", fixture.ExtensionDir))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", fixture.ExtensionDir, "--check"))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", fixture.ExtensionDir, "--platform", "gemini", "--strict"))
 
 	absHook, err := filepath.Abs(hookBin)
 	if err != nil {
 		t.Fatal(err)
 	}
-	hooksPath := filepath.Join(extensionDir, "hooks", "hooks.json")
+	hooksPath := filepath.Join(fixture.ExtensionDir, "hooks", "hooks.json")
 	hooksBody, err := os.ReadFile(hooksPath)
 	if err != nil {
 		t.Fatal(err)
@@ -149,32 +160,44 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	homeDir := filepath.Join(t.TempDir(), "home")
-	if err := os.MkdirAll(homeDir, 0o755); err != nil {
+	fixture.HomeDir = filepath.Join(t.TempDir(), "home")
+	if err := os.MkdirAll(fixture.HomeDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	seedGeminiHome(t, homeDir, extensionDir)
-	linkOutput := runGeminiLink(t, geminiBin, homeDir, extensionDir)
-	if !strings.Contains(linkOutput, `linked successfully and enabled`) {
-		t.Fatalf("gemini runtime live link did not report success:\n%s", linkOutput)
-	}
+	seedGeminiHome(t, fixture.HomeDir, fixture.ExtensionDir)
+	return fixture
+}
 
+func runGeminiRuntimeLivePrompt(t *testing.T, fixture geminiRuntimeLiveFixture, prompt string, extraEnv ...string) ([]byte, geminiCLIEnvelope) {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, geminiBin, "-p", geminiRuntimeLiveToolPrompt, "--output-format", "json")
-	cmd.Dir = extensionDir
-	cmd.Env = append(geminiCLIEnv(homeDir), "PLUGIN_KIT_AI_E2E_TRACE="+tracePath)
+	cmd := exec.CommandContext(ctx, fixture.GeminiBin, "-p", prompt, "--output-format", "json")
+	cmd.Dir = fixture.ExtensionDir
+	cmd.Env = append(geminiCLIEnv(fixture.HomeDir), append([]string{"PLUGIN_KIT_AI_E2E_TRACE=" + fixture.TracePath}, extraEnv...)...)
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
-		t.Fatalf("gemini runtime smoke timed out; %s rerun make test-gemini-runtime first, then make test-gemini-runtime-live.\ntrace=%s\noutput:\n%s", geminiAuthRecoveryHint(string(out)), tracePath, truncateRunes(string(out), 4000))
+		t.Fatalf("gemini runtime smoke timed out; %s rerun make test-gemini-runtime first, then make test-gemini-runtime-live.\ntrace=%s\noutput:\n%s", geminiAuthRecoveryHint(string(out)), fixture.TracePath, truncateRunes(string(out), 4000))
 	}
 	if err != nil {
 		if geminiEnvironmentIssue(string(out)) {
 			t.Skipf("gemini environment is not ready for isolated runtime live e2e; %s\n%s", geminiAuthRecoveryHint(string(out)), truncateRunes(string(out), 4000))
 		}
-		t.Fatalf("gemini runtime smoke: %v\ntrace=%s\nhint=confirm make test-gemini-runtime passes, then confirm gemini extensions link . succeeded, inspect hooks/hooks.json command wiring, and rerun the live smoke.\noutput:\n%s", err, tracePath, truncateRunes(string(out), 4000))
+		t.Fatalf("gemini runtime smoke: %v\ntrace=%s\nhint=confirm make test-gemini-runtime passes, then confirm gemini extensions link . succeeded, inspect hooks/hooks.json command wiring, and rerun the live smoke.\noutput:\n%s", err, fixture.TracePath, truncateRunes(string(out), 4000))
 	}
-	envelope := parseGeminiJSONEnvelope(t, out)
+	return out, parseGeminiJSONEnvelope(t, out)
+}
+
+func TestGeminiCLIRuntimeHooks(t *testing.T) {
+	if strings.TrimSpace(os.Getenv(geminiRuntimeLiveEnvVar)) != "1" {
+		t.Skipf("set %s=1 to run real Gemini runtime hook smoke", geminiRuntimeLiveEnvVar)
+	}
+	fixture := setupGeminiRuntimeLiveFixture(t)
+	linkOutput := runGeminiLink(t, fixture.GeminiBin, fixture.HomeDir, fixture.ExtensionDir)
+	if !strings.Contains(linkOutput, `linked successfully and enabled`) {
+		t.Fatalf("gemini runtime live link did not report success:\n%s", linkOutput)
+	}
+	out, envelope := runGeminiRuntimeLivePrompt(t, fixture, geminiRuntimeLiveToolPrompt)
 	if strings.TrimSpace(envelope.SessionID) == "" {
 		t.Fatalf("expected Gemini live output to include session_id\noutput:\n%s", truncateRunes(string(out), 4000))
 	}
@@ -188,85 +211,137 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 		t.Fatalf("expected Gemini live output to report read_file tool usage\noutput:\n%s", truncateRunes(string(out), 4000))
 	}
 
-	lines := waitForTraceHooks(t, tracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "SessionEnd")
+	lines := waitForTraceHooks(t, fixture.TracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "SessionEnd")
 	sessionStartIndex, sessionStart, ok := traceIndex(t, lines, "SessionStart")
 	if !ok {
-		t.Fatalf("expected SessionStart trace; hint=confirm make test-gemini-runtime passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionStart trace; hint=confirm make test-gemini-runtime passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(sessionStart.Outcome) != "continue" || strings.TrimSpace(sessionStart.Source) != "startup" {
-		t.Fatalf("expected SessionStart continue trace with startup source; got outcome=%q source=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStart.Outcome, sessionStart.Source, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionStart continue trace with startup source; got outcome=%q source=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStart.Outcome, sessionStart.Source, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeModelIndex, beforeModel, ok := traceIndex(t, lines, "BeforeModel")
 	if !ok {
-		t.Fatalf("expected BeforeModel trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini model planning and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeModel trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini model planning and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	afterModelIndex, afterModel, ok := traceIndex(t, lines, "AfterModel")
 	if !ok {
-		t.Fatalf("expected AfterModel trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini response generation and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterModel trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini response generation and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeToolSelectionIndex, beforeToolSelection, ok := traceIndex(t, lines, "BeforeToolSelection")
 	if !ok {
-		t.Fatalf("expected BeforeToolSelection trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers Gemini tool routing and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeToolSelection trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers Gemini tool routing and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(beforeModel.Outcome) != "continue" || !beforeModel.HasRequest || beforeModel.RequestSize == 0 {
-		t.Fatalf("expected BeforeModel continue with request payload; got outcome=%q has_request=%v request_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeModel.Outcome, beforeModel.HasRequest, beforeModel.RequestSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeModel continue with request payload; got outcome=%q has_request=%v request_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeModel.Outcome, beforeModel.HasRequest, beforeModel.RequestSize, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(afterModel.Outcome) != "continue" || !afterModel.HasRequest || !afterModel.HasResponse || afterModel.ResponseSize == 0 {
-		t.Fatalf("expected AfterModel continue with request+response payloads; got outcome=%q has_request=%v has_response=%v response_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterModel.Outcome, afterModel.HasRequest, afterModel.HasResponse, afterModel.ResponseSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterModel continue with request+response payloads; got outcome=%q has_request=%v has_response=%v response_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterModel.Outcome, afterModel.HasRequest, afterModel.HasResponse, afterModel.ResponseSize, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(beforeToolSelection.Outcome) != "continue" {
-		t.Fatalf("expected BeforeToolSelection continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeToolSelection.Outcome, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeToolSelection continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeToolSelection.Outcome, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if beforeModelIndex >= afterModelIndex {
-		t.Fatalf("expected BeforeModel to occur before AfterModel; before=%d after=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeModelIndex, afterModelIndex, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeModel to occur before AfterModel; before=%d after=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeModelIndex, afterModelIndex, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeAgent, ok := traceFind(t, lines, "BeforeAgent")
 	if !ok {
-		t.Fatalf("expected BeforeAgent trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini planning and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeAgent trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still reaches Gemini planning and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	afterAgent, ok := traceFind(t, lines, "AfterAgent")
 	if !ok {
-		t.Fatalf("expected AfterAgent trace; hint=confirm make test-gemini-runtime passes, then confirm the turn reaches Gemini final response and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterAgent trace; hint=confirm make test-gemini-runtime passes, then confirm the turn reaches Gemini final response and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(beforeAgent.Outcome) != "continue" {
-		t.Fatalf("expected BeforeAgent continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeAgent.Outcome, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeAgent continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeAgent.Outcome, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(afterAgent.Outcome) != "continue" {
-		t.Fatalf("expected AfterAgent continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterAgent.Outcome, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterAgent continue outcome; got=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterAgent.Outcome, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeTool, ok := traceFind(t, lines, "BeforeTool")
 	if !ok || strings.TrimSpace(beforeTool.Tool) == "" {
-		t.Fatalf("expected BeforeTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if !beforeTool.HasInput || beforeTool.InputSize == 0 {
-		t.Fatalf("expected BeforeTool trace with tool_input payload; has_input=%v input_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.HasInput, beforeTool.InputSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeTool trace with tool_input payload; has_input=%v input_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.HasInput, beforeTool.InputSize, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	afterTool, ok := traceFind(t, lines, "AfterTool")
 	if !ok || strings.TrimSpace(afterTool.Tool) == "" {
-		t.Fatalf("expected AfterTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if !afterTool.HasInput || afterTool.InputSize == 0 || !afterTool.HasResponse || afterTool.ResponseSize == 0 {
-		t.Fatalf("expected AfterTool trace with tool_input+tool_response payloads; has_input=%v input_size=%d has_response=%v response_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterTool.HasInput, afterTool.InputSize, afterTool.HasResponse, afterTool.ResponseSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterTool trace with tool_input+tool_response payloads; has_input=%v input_size=%d has_response=%v response_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterTool.HasInput, afterTool.InputSize, afterTool.HasResponse, afterTool.ResponseSize, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeToolIndex, _, ok := traceIndex(t, lines, "BeforeTool")
 	if !ok {
-		t.Fatalf("expected BeforeTool trace index; trace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeTool trace index; trace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if beforeToolSelectionIndex >= beforeToolIndex {
-		t.Fatalf("expected BeforeToolSelection to occur before BeforeTool; selection=%d before_tool=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeToolSelectionIndex, beforeToolIndex, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeToolSelection to occur before BeforeTool; selection=%d before_tool=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeToolSelectionIndex, beforeToolIndex, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if beforeTool.Tool != afterTool.Tool {
-		t.Fatalf("expected BeforeTool and AfterTool to reference the same Gemini tool; before=%q after=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.Tool, afterTool.Tool, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeTool and AfterTool to reference the same Gemini tool; before=%q after=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.Tool, afterTool.Tool, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	sessionEndIndex, sessionEnd, ok := traceIndex(t, lines, "SessionEnd")
 	if !ok {
-		t.Fatalf("expected SessionEnd trace; hint=confirm make test-gemini-runtime passes, then confirm the Gemini CLI session exits cleanly and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionEnd trace; hint=confirm make test-gemini-runtime passes, then confirm the Gemini CLI session exits cleanly and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(sessionEnd.Outcome) != "continue" || !isGeminiSessionEndReason(sessionEnd.Reason) {
-		t.Fatalf("expected SessionEnd continue trace with documented reason; got outcome=%q reason=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionEnd.Outcome, sessionEnd.Reason, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionEnd continue trace with documented reason; got outcome=%q reason=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionEnd.Outcome, sessionEnd.Reason, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if sessionStartIndex >= sessionEndIndex {
-		t.Fatalf("expected SessionStart to occur before SessionEnd; start=%d end=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStartIndex, sessionEndIndex, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected SessionStart to occur before SessionEnd; start=%d end=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStartIndex, sessionEndIndex, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+}
+
+func TestGeminiCLIRuntimeBeforeToolDeny(t *testing.T) {
+	if strings.TrimSpace(os.Getenv(geminiRuntimeLiveEnvVar)) != "1" {
+		t.Skipf("set %s=1 to run real Gemini runtime hook smoke", geminiRuntimeLiveEnvVar)
+	}
+	fixture := setupGeminiRuntimeLiveFixture(t)
+	linkOutput := runGeminiLink(t, fixture.GeminiBin, fixture.HomeDir, fixture.ExtensionDir)
+	if !strings.Contains(linkOutput, `linked successfully and enabled`) {
+		t.Fatalf("gemini runtime live link did not report success:\n%s", linkOutput)
+	}
+
+	out, envelope := runGeminiRuntimeLivePrompt(t, fixture, geminiRuntimeLiveToolPrompt, "PLUGIN_KIT_AI_E2E_GEMINI_BEFORE_TOOL=deny:blocked by e2e")
+	if strings.TrimSpace(envelope.SessionID) == "" {
+		t.Fatalf("expected Gemini deny-path output to include session_id\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if !strings.Contains(envelope.Response, "OK") {
+		t.Fatalf("expected Gemini deny-path response to preserve the final OK reply, got %q\noutput:\n%s", envelope.Response, truncateRunes(string(out), 4000))
+	}
+	if !strings.Contains(string(out), "blocked by e2e") {
+		t.Fatalf("expected Gemini deny-path output to surface the denied-tool reason\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if envelope.Stats.Tools.TotalCalls <= 0 || envelope.Stats.Tools.TotalFail <= 0 {
+		t.Fatalf("expected Gemini deny-path output to report a failed tool call\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	stats, ok := envelope.Stats.Tools.ByName["read_file"]
+	if !ok {
+		t.Fatalf("expected Gemini deny-path output to report read_file tool usage\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if maxInt(stats.Count, stats.TotalCalls) <= 0 || stats.Fail <= 0 || stats.Success != 0 {
+		t.Fatalf("expected Gemini deny-path stats to show read_file failed without success; got count=%d totalCalls=%d fail=%d success=%d\noutput:\n%s", stats.Count, stats.TotalCalls, stats.Fail, stats.Success, truncateRunes(string(out), 4000))
+	}
+
+	lines := waitForTraceHooks(t, fixture.TracePath, 5*time.Second, "SessionStart", "BeforeModel", "BeforeToolSelection", "BeforeAgent", "BeforeTool", "AfterAgent", "SessionEnd")
+	beforeTool, ok := traceFind(t, lines, "BeforeTool")
+	if !ok {
+		t.Fatalf("expected BeforeTool deny trace; trace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if strings.TrimSpace(beforeTool.Outcome) != "deny" || strings.TrimSpace(beforeTool.Tool) != "read_file" || !beforeTool.HasInput || beforeTool.InputSize == 0 {
+		t.Fatalf("expected denied BeforeTool trace with read_file input; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if _, ok := traceFind(t, lines, "AfterTool"); ok {
+		t.Fatalf("expected denied Gemini tool path to skip AfterTool trace\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	afterAgent, ok := traceFind(t, lines, "AfterAgent")
+	if !ok || strings.TrimSpace(afterAgent.Outcome) != "continue" {
+		t.Fatalf("expected AfterAgent continue trace after denied tool path; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterAgent, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	sessionEnd, ok := traceFind(t, lines, "SessionEnd")
+	if !ok || !isGeminiSessionEndReason(sessionEnd.Reason) {
+		t.Fatalf("expected documented SessionEnd reason after deny-path live run; got %+v\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionEnd, fixture.TracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 }
 

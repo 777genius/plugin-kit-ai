@@ -514,7 +514,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(makefile), "TestGeminiE2ETraceCapturesRuntimeControlSemantics")
 	mustContain(t, string(makefile), "test-gemini-runtime-live:")
 	mustContain(t, string(makefile), "PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1")
-	mustContain(t, string(makefile), "^TestGeminiCLIRuntimeHooks")
+	mustContain(t, string(makefile), "^TestGeminiCLIRuntime(Hooks|BeforeToolDeny)")
 	mustContain(t, string(makefile), "test-opencode-live:")
 	mustContain(t, string(makefile), "test-opencode-tools-live:")
 	mustContain(t, string(makefile), "BootstrapScriptInstallsLatestRelease")
