@@ -24,6 +24,18 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	if got := packageEntry.NativeSurfaceTiers["app_manifest"]; got != "beta" {
 		t.Fatalf("codex-package native_surface_tiers[app_manifest] = %q", got)
 	}
+	var foundAppRule, foundMCPRule bool
+	for _, rule := range packageEntry.ManagedArtifactRules {
+		switch {
+		case rule.Path == ".app.json" && rule.Condition == "when app_manifest is enabled":
+			foundAppRule = true
+		case rule.Path == ".mcp.json" && rule.Condition == "when portable MCP is authored":
+			foundMCPRule = true
+		}
+	}
+	if !foundAppRule || !foundMCPRule {
+		t.Fatalf("codex-package managed_artifact_rules = %+v", packageEntry.ManagedArtifactRules)
+	}
 
 	runtimeEntry, ok := Lookup("codex-runtime")
 	if !ok {
@@ -40,6 +52,15 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	}
 	if got := runtimeEntry.NativeSurfaceTiers["commands"]; got != "beta" {
 		t.Fatalf("codex-runtime native_surface_tiers[commands] = %q", got)
+	}
+	var foundCommandsRule bool
+	for _, rule := range runtimeEntry.ManagedArtifactRules {
+		if rule.Path == "commands/**" && rule.Condition == "when commands are authored" {
+			foundCommandsRule = true
+		}
+	}
+	if !foundCommandsRule {
+		t.Fatalf("codex-runtime managed_artifact_rules = %+v", runtimeEntry.ManagedArtifactRules)
 	}
 	if runtimeEntry.PortableComponentKinds == nil {
 		t.Fatal("codex-runtime portable_component_kinds must be an empty slice, not nil")

@@ -87,6 +87,26 @@ func TestPluginKitAICapabilities(t *testing.T) {
 	if nativeSurfaceTiers["app_manifest"] != "beta" {
 		t.Fatalf("native_surface_tiers[app_manifest] = %v", nativeSurfaceTiers["app_manifest"])
 	}
+	managedArtifactRules, ok := target["managed_artifact_rules"].([]any)
+	if !ok {
+		t.Fatalf("missing managed_artifact_rules entry: %+v", target)
+	}
+	var foundAppRule, foundMCPRule bool
+	for _, raw := range managedArtifactRules {
+		rule, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("managed_artifact_rules entry = %#v", raw)
+		}
+		switch {
+		case rule["path"] == ".app.json" && rule["condition"] == "when app_manifest is enabled":
+			foundAppRule = true
+		case rule["path"] == ".mcp.json" && rule["condition"] == "when portable MCP is authored":
+			foundMCPRule = true
+		}
+	}
+	if !foundAppRule || !foundMCPRule {
+		t.Fatalf("managed_artifact_rules = %+v", managedArtifactRules)
+	}
 
 	runtimeTargetJSONCmd := exec.Command(pluginKitAIBin, "capabilities", "--mode", "targets", "--format", "json", "--platform", "codex-runtime")
 	runtimeTargetJSONOut, err := runtimeTargetJSONCmd.CombinedOutput()
@@ -110,5 +130,22 @@ func TestPluginKitAICapabilities(t *testing.T) {
 	}
 	if len(portables) != 0 {
 		t.Fatalf("portable_component_kinds = %+v, want empty array", portables)
+	}
+	runtimeRules, ok := runtimeTarget["managed_artifact_rules"].([]any)
+	if !ok {
+		t.Fatalf("missing runtime managed_artifact_rules entry: %+v", runtimeTarget)
+	}
+	var foundCommandsRule bool
+	for _, raw := range runtimeRules {
+		rule, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("runtime managed_artifact_rules entry = %#v", raw)
+		}
+		if rule["path"] == "commands/**" && rule["condition"] == "when commands are authored" {
+			foundCommandsRule = true
+		}
+	}
+	if !foundCommandsRule {
+		t.Fatalf("runtime managed_artifact_rules = %+v", runtimeRules)
 	}
 }
