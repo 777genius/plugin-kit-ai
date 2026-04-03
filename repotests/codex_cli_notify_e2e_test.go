@@ -41,6 +41,29 @@ func TestCodexCLINotify(t *testing.T) {
 	}
 }
 
+func TestCodexCLINotifyUsesRenderedProjectConfig(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	hookBin := buildPluginKitAIE2E(t)
+	trace := filepath.Join(t.TempDir(), "trace.ndjson")
+	dir := newCodexRenderedNotifyWorkspace(t, pluginKitAIBin, hookBin, trace, *codexModel)
+
+	logOutput, output, lines := runCodexExecWithProjectConfigProbe(t, codexBin, dir, trace, "Reply with exactly OK.")
+	if strings.TrimSpace(output) != "OK" {
+		t.Fatalf("codex exec last message = %q, want %q\n%s", strings.TrimSpace(output), "OK", logOutput)
+	}
+	if !strings.Contains(logOutput, "model: "+*codexModel) {
+		t.Skipf("real codex exec did not honor project-local .codex/config.toml model %q in this build:\n%s", *codexModel, truncateRunes(logOutput, 4000))
+	}
+	rec, ok := traceFind(t, lines, "Notify")
+	if !ok {
+		t.Skipf("real codex exec did not invoke notify from project-local .codex/config.toml in this build:\n%s", truncateRunes(logOutput, 4000))
+	}
+	if strings.TrimSpace(rec.Outcome) != "continue" {
+		t.Fatalf("notify outcome = %q; want continue", rec.Outcome)
+	}
+}
+
 func codexBinaryOrSkip(t *testing.T) string {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_CODEX_CLI")) == "1" {
@@ -97,6 +120,36 @@ func quoteTOMLString(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
 	return `"` + s + `"`
+}
+
+func newCodexRenderedNotifyWorkspace(t *testing.T, pluginKitAIBin, hookBin, traceFile, model string) string {
+	t.Helper()
+	root := RepoRoot(t)
+	dir := t.TempDir()
+	mustWriteRepoFile(t, dir, "README.md", "# codex rendered notify live smoke\n")
+	mustWriteRepoFile(t, dir, "plugin.yaml", `format: "plugin-kit-ai/package"
+name: "codex-rendered-live"
+version: "0.1.0"
+description: "codex rendered live smoke"
+targets:
+  - "codex-runtime"
+`)
+	mustWriteRepoFile(t, dir, "launcher.yaml", "runtime: shell\nentrypoint: ./bin/codex-rendered-live\n")
+	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: "+model+"\n")
+	mustWriteRepoExecutable(t, dir, filepath.Join("scripts", "main.sh"), "#!/bin/sh\nexit 0\n")
+	wrapper := "#!/bin/sh\n" +
+		"PLUGIN_KIT_AI_E2E_TRACE=" + quoteShell(traceFile) + " exec " + quoteShell(hookBin) + " \"$@\"\n"
+	mustWriteRepoExecutable(t, dir, filepath.Join("bin", "codex-rendered-live"), wrapper)
+
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir, "--check"))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", dir, "--platform", "codex-runtime", "--strict"))
+	assertCodexConfig(t, dir, model, "./bin/codex-rendered-live")
+	return dir
+}
+
+func quoteShell(s string) string {
+	return "\"" + strings.ReplaceAll(s, `"`, `\"`) + "\""
 }
 
 func runCodexExec(t *testing.T, codexBin, projectDir, traceFile, model, prompt string, extraArgs ...string) {
@@ -159,6 +212,70 @@ func runCodexExec(t *testing.T, codexBin, projectDir, traceFile, model, prompt s
 		out := readLogFile(t, logFile)
 		t.Logf("codex output (truncated, process killed after invariants): %s", truncateRunes(out, 4000))
 	}
+}
+
+func runCodexExecWithProjectConfigProbe(t *testing.T, codexBin, projectDir, traceFile, prompt string) (string, string, []string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	outputFile := filepath.Join(t.TempDir(), "last-message.txt")
+	logFile := filepath.Join(t.TempDir(), "codex.log")
+	args := []string{
+		"exec",
+		"--skip-git-repo-check",
+		"--ephemeral",
+		"-C", projectDir,
+		"--color", "never",
+		"--output-last-message", outputFile,
+		prompt,
+	}
+	cmd := exec.CommandContext(ctx, codexBin, args...)
+	cmd.Env = os.Environ()
+	logfh, err := os.Create(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logfh.Close()
+	cmd.Stdout = logfh
+	cmd.Stderr = logfh
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("codex exec start: %v", err)
+	}
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-waitCh:
+		out := readLogFile(t, logFile)
+		if err != nil {
+			if codexRuntimeUnhealthy(out) {
+				t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(out, 4000))
+			}
+			t.Logf("codex output:\n%s", out)
+			t.Fatalf("codex exec: %v", err)
+		}
+		t.Logf("codex output (truncated): %s", truncateRunes(out, 4000))
+		return out, readOptionalTextFile(outputFile), waitForTraceLines(t, traceFile, 3*time.Second)
+	case <-time.After(75 * time.Second):
+		_ = cmd.Process.Kill()
+		<-waitCh
+		out := readLogFile(t, logFile)
+		if codexRuntimeUnhealthy(out) {
+			t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(out, 4000))
+		}
+		t.Fatalf("timed out waiting for codex exec using rendered project config:\n%s", truncateRunes(out, 4000))
+		return "", "", nil
+	}
+}
+
+func readOptionalTextFile(path string) string {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(body))
 }
 
 func waitForCodexInvariants(t *testing.T, traceFile, outputFile string, waitCh <-chan error) error {
