@@ -1,7 +1,6 @@
 package platformexec
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -174,43 +173,6 @@ func readYAMLDoc[T any](root string, rel string) (T, bool, error) {
 		return out, true, err
 	}
 	return out, true, nil
-}
-
-func renderManagedPluginArtifacts(name string, manifest pluginmodel.Manifest, portable pluginmodel.PortableComponents, includeAgents bool, relPath string, extra pluginmodel.NativeExtraDoc, label string, managedPaths []string) ([]pluginmodel.Artifact, error) {
-	doc := map[string]any{
-		"name":        name,
-		"version":     manifest.Version,
-		"description": manifest.Description,
-	}
-	if len(portable.Paths("skills")) > 0 {
-		doc["skills"] = "./skills/"
-	}
-	if includeAgents {
-		doc["agents"] = "./agents/"
-	}
-	if portable.MCP != nil {
-		doc["mcpServers"] = "./.mcp.json"
-	}
-	if err := pluginmodel.MergeNativeExtraObject(doc, extra, label, managedPaths); err != nil {
-		return nil, err
-	}
-	pluginJSON, err := marshalJSON(doc)
-	if err != nil {
-		return nil, err
-	}
-	artifacts := []pluginmodel.Artifact{{RelPath: relPath, Content: pluginJSON}}
-	if portable.MCP != nil {
-		projected, err := renderPortableMCPForTarget(portable.MCP, "")
-		if err != nil {
-			return nil, err
-		}
-		mcpJSON, err := marshalJSON(projected)
-		if err != nil {
-			return nil, err
-		}
-		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: ".mcp.json", Content: mcpJSON})
-	}
-	return artifacts, nil
 }
 
 func renderPortableMCPForTarget(mcp *pluginmodel.PortableMCP, target string) (map[string]any, error) {
@@ -1260,10 +1222,6 @@ func readGeminiYAMLMap(root, rel string) ([]byte, map[string]any, error) {
 		return nil, nil, err
 	}
 	return body, raw, nil
-}
-
-func trimmedExtraBody(doc pluginmodel.NativeExtraDoc) []byte {
-	return bytes.TrimSpace(doc.Raw)
 }
 
 func validateGeminiSettingMap(_ string, raw map[string]any, setting geminiSetting) string {
