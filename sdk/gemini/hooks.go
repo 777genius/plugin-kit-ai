@@ -229,6 +229,12 @@ func AfterModelDeny(reason string) *AfterModelResponse {
 	return &AfterModelResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
 }
 
+// AfterModelStop stops the entire Gemini agent loop immediately.
+func AfterModelStop(reason string) *AfterModelResponse {
+	continueFalse := false
+	return &AfterModelResponse{CommonResponse: CommonResponse{Continue: &continueFalse, StopReason: reason}}
+}
+
 // AfterModelReplaceResponse continues with a rewritten llm_response payload.
 func AfterModelReplaceResponse(response json.RawMessage) *AfterModelResponse {
 	return &AfterModelResponse{LLMResponse: response}
@@ -306,6 +312,13 @@ func BeforeAgentDeny(reason string) *BeforeAgentResponse {
 	return &BeforeAgentResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
 }
 
+// BeforeAgentStop aborts the current turn but keeps the user's prompt in
+// history, matching Gemini's continue=false semantics.
+func BeforeAgentStop(reason string) *BeforeAgentResponse {
+	continueFalse := false
+	return &BeforeAgentResponse{CommonResponse: CommonResponse{Continue: &continueFalse, StopReason: reason, Reason: reason}}
+}
+
 // AfterAgentContinue returns an explicit no-op AfterAgent response.
 func AfterAgentContinue() *AfterAgentResponse {
 	return &AfterAgentResponse{}
@@ -319,6 +332,12 @@ func AfterAgentAllow() *AfterAgentResponse {
 // AfterAgentDeny rejects the response and requests a retry.
 func AfterAgentDeny(reason string) *AfterAgentResponse {
 	return &AfterAgentResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// AfterAgentStop stops the session without triggering a retry.
+func AfterAgentStop(reason string) *AfterAgentResponse {
+	continueFalse := false
+	return &AfterAgentResponse{CommonResponse: CommonResponse{Continue: &continueFalse, StopReason: reason}}
 }
 
 // AfterAgentClearContext clears LLM conversation memory while preserving the
@@ -340,6 +359,12 @@ func BeforeToolAllow() *BeforeToolResponse {
 // BeforeToolDeny blocks the tool invocation with a deny decision.
 func BeforeToolDeny(reason string) *BeforeToolResponse {
 	return &BeforeToolResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// BeforeToolStop stops the entire Gemini agent loop before the tool executes.
+func BeforeToolStop(reason string) *BeforeToolResponse {
+	continueFalse := false
+	return &BeforeToolResponse{CommonResponse: CommonResponse{Continue: &continueFalse, StopReason: reason}}
 }
 
 // BeforeToolRewriteInput continues with a rewritten tool_input payload.
@@ -380,6 +405,12 @@ func AfterToolAllow() *AfterToolResponse {
 // AfterToolDeny blocks the follow-up path with a deny decision.
 func AfterToolDeny(reason string) *AfterToolResponse {
 	return &AfterToolResponse{CommonResponse: CommonResponse{Decision: "deny", Reason: reason}}
+}
+
+// AfterToolStop stops the entire Gemini agent loop after tool execution.
+func AfterToolStop(reason string) *AfterToolResponse {
+	continueFalse := false
+	return &AfterToolResponse{CommonResponse: CommonResponse{Continue: &continueFalse, StopReason: reason}}
 }
 
 // AfterToolTailCall requests an immediate follow-up tool invocation.

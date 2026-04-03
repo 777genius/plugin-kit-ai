@@ -148,6 +148,12 @@ func TestAfterModelHelpers(t *testing.T) {
 		t.Fatalf("AfterModelDeny() = %#v", got)
 	}
 
+	if got := AfterModelStop("halt"); got == nil {
+		t.Fatal("AfterModelStop() = nil")
+	} else if got.Continue == nil || *got.Continue || got.StopReason != "halt" {
+		t.Fatalf("AfterModelStop() = %#v", got)
+	}
+
 	resp := json.RawMessage(`{"candidates":[{"content":{"role":"model"}}]}`)
 	if got := AfterModelReplaceResponse(resp); got == nil {
 		t.Fatal("AfterModelReplaceResponse() = nil")
@@ -243,6 +249,12 @@ func TestBeforeAgentHelpers(t *testing.T) {
 	} else if got.Decision != "deny" || got.Reason != "blocked" {
 		t.Fatalf("BeforeAgentDeny() = %#v", got)
 	}
+
+	if got := BeforeAgentStop("pause"); got == nil {
+		t.Fatal("BeforeAgentStop() = nil")
+	} else if got.Continue == nil || *got.Continue || got.StopReason != "pause" || got.Reason != "pause" {
+		t.Fatalf("BeforeAgentStop() = %#v", got)
+	}
 }
 
 func TestAfterAgentHelpers(t *testing.T) {
@@ -264,6 +276,12 @@ func TestAfterAgentHelpers(t *testing.T) {
 		t.Fatal("AfterAgentDeny() = nil")
 	} else if got.Decision != "deny" || got.Reason != "retry" {
 		t.Fatalf("AfterAgentDeny() = %#v", got)
+	}
+
+	if got := AfterAgentStop("stop"); got == nil {
+		t.Fatal("AfterAgentStop() = nil")
+	} else if got.Continue == nil || *got.Continue || got.StopReason != "stop" {
+		t.Fatalf("AfterAgentStop() = %#v", got)
 	}
 
 	if got := AfterAgentClearContext(); got == nil {
@@ -292,6 +310,12 @@ func TestBeforeToolHelpers(t *testing.T) {
 		t.Fatal("BeforeToolDeny() = nil")
 	} else if got.Decision != "deny" || got.Reason != "blocked" {
 		t.Fatalf("BeforeToolDeny() = %#v", got)
+	}
+
+	if got := BeforeToolStop("halt"); got == nil {
+		t.Fatal("BeforeToolStop() = nil")
+	} else if got.Continue == nil || *got.Continue || got.StopReason != "halt" {
+		t.Fatalf("BeforeToolStop() = %#v", got)
 	}
 
 	input := json.RawMessage(`{"content":"hello"}`)
@@ -340,6 +364,12 @@ func TestAfterToolHelpers(t *testing.T) {
 		t.Fatal("AfterToolDeny() = nil")
 	} else if got.Decision != "deny" || got.Reason != "blocked" {
 		t.Fatalf("AfterToolDeny() = %#v", got)
+	}
+
+	if got := AfterToolStop("halt"); got == nil {
+		t.Fatal("AfterToolStop() = nil")
+	} else if got.Continue == nil || *got.Continue || got.StopReason != "halt" {
+		t.Fatalf("AfterToolStop() = %#v", got)
 	}
 
 	if got := AfterToolAddContext("redacted"); got == nil {

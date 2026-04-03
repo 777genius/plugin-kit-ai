@@ -589,6 +589,66 @@ func TestApp_GeminiBeforeToolSelectionAllowOnly(t *testing.T) {
 	}
 }
 
+func TestApp_GeminiAfterModelStopEncodesContinueFalse(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro"},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiAfterModel"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnAfterModel(func(*gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		return gemini.AfterModelStop("halt")
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	got := iox.out.String()
+	if !strings.Contains(got, `"continue":false`) || !strings.Contains(got, `"stopReason":"halt"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiBeforeAgentStopEncodesContinueFalse(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeAgent","prompt":"hello"}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeAgent"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeAgent(func(*gemini.BeforeAgentEvent) *gemini.BeforeAgentResponse {
+		return gemini.BeforeAgentStop("pause")
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	got := iox.out.String()
+	if !strings.Contains(got, `"continue":false`) || !strings.Contains(got, `"stopReason":"pause"`) || !strings.Contains(got, `"reason":"pause"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
+func TestApp_GeminiBeforeToolStopEncodesContinueFalse(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"}}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "GeminiBeforeTool"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
+		return gemini.BeforeToolStop("halt")
+	})
+	if c := app.Run(); c != 0 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	got := iox.out.String()
+	if !strings.Contains(got, `"continue":false`) || !strings.Contains(got, `"stopReason":"halt"`) {
+		t.Fatalf("stdout = %q", got)
+	}
+}
+
 func TestApp_GeminiBeforeAgentContinueIsMinimal(t *testing.T) {
 	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeAgent","prompt":"hello"}`)}
 	app := New(Config{
