@@ -821,10 +821,40 @@ func cleanRelativeRef(path string) string {
 	return path
 }
 
+func resolveRelativeRef(root, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(ref) {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	cleaned := filepath.Clean(ref)
+	if cleaned == "." {
+		return "", nil
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	cleaned = strings.TrimPrefix(cleaned, "."+string(filepath.Separator))
+	cleaned = filepath.ToSlash(cleaned)
+	if cleaned == "" || cleaned == "." {
+		return "", nil
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	return cleaned, nil
+}
+
 func copyArtifactsFromRefs(root string, refs []string, dstRoot string) ([]pluginmodel.Artifact, error) {
 	var artifacts []pluginmodel.Artifact
 	for _, ref := range refs {
-		ref = cleanRelativeRef(ref)
+		var err error
+		ref, err = resolveRelativeRef(root, ref)
+		if err != nil {
+			return nil, err
+		}
 		if ref == "" {
 			continue
 		}

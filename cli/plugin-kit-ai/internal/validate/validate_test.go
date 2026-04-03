@@ -989,6 +989,35 @@ servers:
 	}
 }
 
+func TestValidate_CodexRejectsRefsOutsidePluginRoot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","apps":"../outside.app.json"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == ".codex-plugin/plugin.json" && strings.Contains(failure.Message, `uses an invalid apps ref "../outside.app.json"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsGeneratedMetadataMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

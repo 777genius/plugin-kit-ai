@@ -1415,6 +1415,20 @@ func TestImport_CurrentNativeCodexRejectsMalformedConfigShapes(t *testing.T) {
 	}
 }
 
+func TestImport_CurrentNativeCodexRejectsRefsOutsidePluginRoot(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "plugin")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","skills":"../shared-skills/"}`)
+	mustWritePluginFile(t, parent, filepath.Join("shared-skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo\n---\nRun the demo.\n")
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), `must stay within the plugin root`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
 func TestImport_CurrentNativeCodexImportsCustomSkillsAndMCPRefs(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","skills":"./custom-skills/","mcpServers":"./config/custom.mcp.json"}`)
