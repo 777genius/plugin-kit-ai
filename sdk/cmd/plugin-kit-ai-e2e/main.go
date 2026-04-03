@@ -145,11 +145,13 @@ func main() {
 	})
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		rec := map[string]any{
-			"hook":       "BeforeTool",
-			"outcome":    "continue",
-			"tool_name":  e.ToolName,
-			"has_input":  strings.TrimSpace(string(e.ToolInput)) != "",
-			"input_size": len(e.ToolInput),
+			"hook":             "BeforeTool",
+			"outcome":          "continue",
+			"tool_name":        e.ToolName,
+			"has_input":        strings.TrimSpace(string(e.ToolInput)) != "",
+			"input_size":       len(e.ToolInput),
+			"has_mcp_context":  strings.TrimSpace(string(e.MCPContext)) != "",
+			"mcp_context_size": len(e.MCPContext),
 		}
 		if strings.TrimSpace(e.OriginalRequestName) != "" {
 			rec["original_request_name"] = e.OriginalRequestName
@@ -159,13 +161,15 @@ func main() {
 	})
 	app.Gemini().OnAfterTool(func(e *gemini.AfterToolEvent) *gemini.AfterToolResponse {
 		rec := map[string]any{
-			"hook":          "AfterTool",
-			"outcome":       "continue",
-			"tool_name":     e.ToolName,
-			"has_input":     strings.TrimSpace(string(e.ToolInput)) != "",
-			"input_size":    len(e.ToolInput),
-			"has_response":  strings.TrimSpace(string(e.ToolResponse)) != "",
-			"response_size": len(e.ToolResponse),
+			"hook":             "AfterTool",
+			"outcome":          "continue",
+			"tool_name":        e.ToolName,
+			"has_input":        strings.TrimSpace(string(e.ToolInput)) != "",
+			"input_size":       len(e.ToolInput),
+			"has_response":     strings.TrimSpace(string(e.ToolResponse)) != "",
+			"response_size":    len(e.ToolResponse),
+			"has_mcp_context":  strings.TrimSpace(string(e.MCPContext)) != "",
+			"mcp_context_size": len(e.MCPContext),
 		}
 		if strings.TrimSpace(e.OriginalRequestName) != "" {
 			rec["original_request_name"] = e.OriginalRequestName

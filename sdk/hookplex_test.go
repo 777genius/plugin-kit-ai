@@ -609,7 +609,7 @@ func TestApp_GeminiBeforeToolSelectionQuiet(t *testing.T) {
 }
 
 func TestApp_GeminiBeforeToolExposesOriginalRequestName(t *testing.T) {
-	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"},"original_request_name":"tail.read_file"}`)}
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`)}
 	app := New(Config{
 		Name: "t",
 		Args: []string{"plugin-kit-ai", "GeminiBeforeTool"},
@@ -619,6 +619,9 @@ func TestApp_GeminiBeforeToolExposesOriginalRequestName(t *testing.T) {
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		if e.OriginalRequestName != "tail.read_file" {
 			t.Fatalf("original_request_name = %q", e.OriginalRequestName)
+		}
+		if string(e.MCPContext) == "" {
+			t.Fatal("mcp_context missing")
 		}
 		return gemini.BeforeToolContinue()
 	})
@@ -651,7 +654,7 @@ func TestApp_GeminiAfterModelStopEncodesContinueFalse(t *testing.T) {
 }
 
 func TestApp_GeminiAfterToolExposesOriginalRequestName(t *testing.T) {
-	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"original_request_name":"tail.read_file"}`)}
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`)}
 	app := New(Config{
 		Name: "t",
 		Args: []string{"plugin-kit-ai", "GeminiAfterTool"},
@@ -661,6 +664,9 @@ func TestApp_GeminiAfterToolExposesOriginalRequestName(t *testing.T) {
 	app.Gemini().OnAfterTool(func(e *gemini.AfterToolEvent) *gemini.AfterToolResponse {
 		if e.OriginalRequestName != "tail.read_file" {
 			t.Fatalf("original_request_name = %q", e.OriginalRequestName)
+		}
+		if string(e.MCPContext) == "" {
+			t.Fatal("mcp_context missing")
 		}
 		if strings.TrimSpace(string(e.ToolResponse)) == "" {
 			t.Fatal("tool_response missing")
@@ -798,7 +804,7 @@ func TestApp_GeminiAfterAgentClearContextEncodesHookSpecificOutput(t *testing.T)
 }
 
 func TestApp_GeminiBeforeTool(t *testing.T) {
-	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"write_file","tool_input":{"content":"hello"}}`)}
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"write_file","tool_input":{"content":"hello"},"mcp_context":{"server":"filesystem"}}`)}
 	app := New(Config{
 		Name: "t",
 		Args: []string{"plugin-kit-ai", "GeminiBeforeTool"},
@@ -808,6 +814,9 @@ func TestApp_GeminiBeforeTool(t *testing.T) {
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		if e.ToolName != "write_file" {
 			t.Fatalf("tool = %q", e.ToolName)
+		}
+		if string(e.MCPContext) == "" {
+			t.Fatal("mcp_context missing")
 		}
 		return &gemini.BeforeToolResponse{
 			CommonResponse: gemini.CommonResponse{Decision: "deny", Reason: "blocked"},

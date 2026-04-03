@@ -548,6 +548,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(repoTestsReadme), "`PLUGIN_KIT_AI_SKIP_GEMINI_CLI=1`")
 	mustContain(t, string(repoTestsReadme), "`tool_input`/`tool_response`")
 	mustContain(t, string(repoTestsReadme), "`original_request_name`")
+	mustContain(t, string(repoTestsReadme), "`mcp_context`")
 	mustContain(t, string(releaseChecklist), "beta change note written when beta user code, scaffold output, readiness semantics, or bundle contents change")
 	mustContain(t, string(releaseChecklist), "Homebrew tap update result recorded when the `plugin-kit-ai` CLI install path changed")
 	mustContain(t, string(releaseChecklist), "npm publish result recorded when the `plugin-kit-ai` CLI npm channel changed")

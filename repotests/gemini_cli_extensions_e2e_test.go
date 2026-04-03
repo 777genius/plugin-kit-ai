@@ -240,12 +240,12 @@ func TestGeminiE2ETracePreservesOriginalRequestName(t *testing.T) {
 		{
 			name:    "GeminiBeforeTool",
 			hook:    "BeforeTool",
-			payload: `{"session_id":"s","cwd":".","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"},"original_request_name":"tail.read_file"}`,
+			payload: `{"session_id":"s","cwd":".","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`,
 		},
 		{
 			name:    "GeminiAfterTool",
 			hook:    "AfterTool",
-			payload: `{"session_id":"s","cwd":".","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"original_request_name":"tail.read_file"}`,
+			payload: `{"session_id":"s","cwd":".","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`,
 		},
 	}
 
@@ -268,6 +268,9 @@ func TestGeminiE2ETracePreservesOriginalRequestName(t *testing.T) {
 		}
 		if rec.OriginalRequestName != "tail.read_file" {
 			t.Fatalf("%s original_request_name = %q, want %q\ntrace_lines:\n%s", tc.name, rec.OriginalRequestName, "tail.read_file", strings.Join(lines, "\n"))
+		}
+		if !rec.HasMCPContext || rec.MCPContextSize == 0 {
+			t.Fatalf("%s expected non-empty mcp_context trace; has_mcp_context=%v mcp_context_size=%d\ntrace_lines:\n%s", tc.name, rec.HasMCPContext, rec.MCPContextSize, strings.Join(lines, "\n"))
 		}
 		if !rec.HasInput || rec.InputSize == 0 {
 			t.Fatalf("%s expected non-empty tool_input trace; has_input=%v input_size=%d\ntrace_lines:\n%s", tc.name, rec.HasInput, rec.InputSize, strings.Join(lines, "\n"))

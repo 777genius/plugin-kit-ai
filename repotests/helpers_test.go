@@ -290,6 +290,8 @@ type traceRec struct {
 	RawJSON             string `json:"raw_json,omitempty"`
 	Tool                string `json:"tool_name,omitempty"`
 	OriginalRequestName string `json:"original_request_name,omitempty"`
+	HasMCPContext       bool   `json:"has_mcp_context,omitempty"`
+	MCPContextSize      int    `json:"mcp_context_size,omitempty"`
 	HasInput            bool   `json:"has_input,omitempty"`
 	InputSize           int    `json:"input_size,omitempty"`
 	HasRequest          bool   `json:"has_request,omitempty"`

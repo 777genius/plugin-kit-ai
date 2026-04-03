@@ -188,7 +188,7 @@ func TestDecodeBeforeToolMalformedJSON(t *testing.T) {
 
 func TestDecodeAfterTool(t *testing.T) {
 	v, name, err := DecodeAfterTool(runtime.Envelope{
-		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"original_request_name":"tail.read_file"}`),
+		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -205,6 +205,37 @@ func TestDecodeAfterTool(t *testing.T) {
 	}
 	if string(ev.ToolResponse) == "" {
 		t.Fatal("tool_response missing")
+	}
+	if string(ev.MCPContext) == "" {
+		t.Fatal("mcp_context missing")
+	}
+	if ev.OriginalRequestName != "tail.read_file" {
+		t.Fatalf("original_request_name = %q", ev.OriginalRequestName)
+	}
+}
+
+func TestDecodeBeforeTool(t *testing.T) {
+	v, name, err := DecodeBeforeTool(runtime.Envelope{
+		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if name != "BeforeTool" {
+		t.Fatalf("name = %q", name)
+	}
+	ev, ok := v.(*BeforeToolInput)
+	if !ok {
+		t.Fatalf("type = %T", v)
+	}
+	if ev.ToolName != "read_file" {
+		t.Fatalf("tool = %q", ev.ToolName)
+	}
+	if string(ev.ToolInput) == "" {
+		t.Fatal("tool_input missing")
+	}
+	if string(ev.MCPContext) == "" {
+		t.Fatal("mcp_context missing")
 	}
 	if ev.OriginalRequestName != "tail.read_file" {
 		t.Fatalf("original_request_name = %q", ev.OriginalRequestName)
