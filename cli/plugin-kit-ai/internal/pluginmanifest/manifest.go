@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/codexmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/geminimanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
@@ -140,23 +141,8 @@ type importedCodexTargetMeta struct {
 	ModelHint string `yaml:"model_hint,omitempty"`
 }
 
-type importedGeminiTargetMeta struct {
-	ContextFileName string   `yaml:"context_file_name,omitempty"`
-	ExcludeTools    []string `yaml:"exclude_tools,omitempty"`
-	MigratedTo      string   `yaml:"migrated_to,omitempty"`
-	PlanDirectory   string   `yaml:"plan_directory,omitempty"`
-}
-
-type importedGeminiExtension struct {
-	Name        string
-	Version     string
-	Description string
-	Meta        importedGeminiTargetMeta
-	MCPServers  map[string]any
-	Settings    []any
-	Themes      []any
-	Extra       map[string]any
-}
+type importedGeminiTargetMeta = geminimanifest.PackageMeta
+type importedGeminiExtension = geminimanifest.ImportedExtension
 
 func Load(root string) (Manifest, error) {
 	manifest, _, err := LoadWithWarnings(root)
@@ -1157,81 +1143,8 @@ func loadGeminiMetadata(root string, manifest *Manifest) {
 	}
 }
 
-func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error) {
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return importedGeminiExtension{}, err
-	}
-	out := importedGeminiExtension{}
-	if value, ok := raw["name"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Name = value
-	}
-	if value, ok := raw["version"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Version = value
-	}
-	if value, ok := raw["description"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Description = value
-	}
-	if servers, ok := raw["mcpServers"].(map[string]any); ok && len(servers) > 0 {
-		out.MCPServers = servers
-	}
-	if value, ok := raw["contextFileName"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Meta.ContextFileName = value
-	}
-	if values, ok := raw["excludeTools"].([]any); ok {
-		out.Meta.ExcludeTools = jsonStringArray(values)
-	}
-	if value, ok := raw["migratedTo"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Meta.MigratedTo = value
-	}
-	if plan, ok := raw["plan"].(map[string]any); ok {
-		if directory, ok := plan["directory"].(string); ok && strings.TrimSpace(directory) != "" {
-			out.Meta.PlanDirectory = directory
-			delete(plan, "directory")
-			if len(plan) == 0 {
-				delete(raw, "plan")
-			} else {
-				raw["plan"] = plan
-			}
-		}
-	}
-	if values, ok := raw["settings"].([]any); ok {
-		out.Settings = values
-	}
-	if values, ok := raw["themes"].([]any); ok {
-		out.Themes = values
-	}
-	delete(raw, "name")
-	delete(raw, "version")
-	delete(raw, "description")
-	delete(raw, "mcpServers")
-	delete(raw, "contextFileName")
-	delete(raw, "excludeTools")
-	delete(raw, "migratedTo")
-	delete(raw, "settings")
-	delete(raw, "themes")
-	if plan, ok := raw["plan"].(map[string]any); ok && len(plan) == 0 {
-		delete(raw, "plan")
-	}
-	if len(raw) > 0 {
-		out.Extra = raw
-	}
-	return out, nil
-}
-
 func readImportedGeminiExtension(root string) (importedGeminiExtension, bool, error) {
-	body, err := os.ReadFile(filepath.Join(root, "gemini-extension.json"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return importedGeminiExtension{}, false, nil
-		}
-		return importedGeminiExtension{}, false, err
-	}
-	data, err := decodeImportedGeminiExtension(body)
-	if err != nil {
-		return importedGeminiExtension{}, false, err
-	}
-	return data, true, nil
+	return geminimanifest.ReadImportedExtension(root)
 }
 
 func importedGeminiPrimaryContextName(root string, meta importedGeminiTargetMeta) string {

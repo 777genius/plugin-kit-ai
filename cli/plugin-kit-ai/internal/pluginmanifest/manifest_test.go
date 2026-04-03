@@ -1769,6 +1769,20 @@ func TestImport_CurrentNativeGeminiRuntimeLayoutCreatesLauncher(t *testing.T) {
 	}
 }
 
+func TestImport_CurrentNativeGeminiRejectsMalformedManifestShapes(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo",
+	  "version":"0.2.0",
+	  "description":"gemini demo",
+	  "excludeTools":"run_shell_command(rm -rf)"
+	}`)
+
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), `Gemini extension field "excludeTools" must be an array of strings`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
 func TestImport_AmbiguousNativeLayoutsRequireExplicitFrom(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
