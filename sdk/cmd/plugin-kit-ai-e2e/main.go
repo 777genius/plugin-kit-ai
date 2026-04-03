@@ -81,12 +81,23 @@ func main() {
 		})
 		return nil
 	})
+	app.Gemini().OnSessionEnd(func(e *gemini.SessionEndEvent) *gemini.SessionEndResponse {
+		trace(map[string]any{
+			"hook":    "SessionEnd",
+			"outcome": "continue",
+			"reason":  e.Reason,
+			"cwd":     e.CWD,
+		})
+		return gemini.SessionEndContinue()
+	})
 	app.Gemini().OnNotification(func(e *gemini.NotificationEvent) *gemini.NotificationResponse {
 		trace(map[string]any{
 			"hook":              "Notification",
 			"outcome":           "continue",
 			"notification_type": e.NotificationType,
 			"message":           e.Message,
+			"has_details":       strings.TrimSpace(string(e.Details)) != "",
+			"details_size":      len(e.Details),
 		})
 		return gemini.NotificationContinue()
 	})

@@ -288,6 +288,13 @@ type traceRec struct {
 	Outcome             string `json:"outcome"`
 	Client              string `json:"client,omitempty"`
 	RawJSON             string `json:"raw_json,omitempty"`
+	Source              string `json:"source,omitempty"`
+	Reason              string `json:"reason,omitempty"`
+	Trigger             string `json:"trigger,omitempty"`
+	NotificationType    string `json:"notification_type,omitempty"`
+	Message             string `json:"message,omitempty"`
+	HasDetails          bool   `json:"has_details,omitempty"`
+	DetailsSize         int    `json:"details_size,omitempty"`
 	Tool                string `json:"tool_name,omitempty"`
 	OriginalRequestName string `json:"original_request_name,omitempty"`
 	HasMCPContext       bool   `json:"has_mcp_context,omitempty"`
