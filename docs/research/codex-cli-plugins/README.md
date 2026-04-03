@@ -76,6 +76,7 @@
 
 - Real `codex exec` smoke against the repository-owned notify harness **passes** when the hook path is supplied via explicit CLI config override (`-c notify=...`).
 - The checked-in production runtime example `examples/plugins/codex-basic-prod` also passes a real `codex exec` smoke when rebuilt and projected through the same explicit `-c notify=...` override path.
+- The same checked-in production runtime example still does **not** prove project-local `.codex/config.toml` behavior on the current live CLI build: a separate no-override probe kept reporting model `gpt-5.4` instead of the rendered `gpt-5.4-mini`, so that evidence remains vendor-gap only.
 - Real `codex mcp get --json` and `codex mcp list --json` preflights **pass** when the MCP server is supplied via explicit CLI config overrides (`-c mcp_servers.release-checks...`).
 - Real `codex-package` MCP sidecar coverage can also be exercised without inventing an install flow: render `.mcp.json`, project it back into documented `-c mcp_servers...` overrides, and verify `codex mcp get --json`, `codex mcp list --json`, plus `codex exec` MCP-tool use against the live CLI.
 - The checked-in production example `examples/plugins/codex-package-prod` now also has live evidence through the same documented override path: real `codex mcp get --json` and `codex mcp list --json` both surface its rendered remote MCP server metadata from `.mcp.json`.

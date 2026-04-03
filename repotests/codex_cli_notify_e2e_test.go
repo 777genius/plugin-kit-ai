@@ -59,6 +59,25 @@ func TestCodexProductionExampleNotifyUsesRealCLI(t *testing.T) {
 	}
 }
 
+func TestCodexProductionExampleNotifyUsesRenderedProjectConfig(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	dir, binPath := newRenderedCodexRuntimeExampleWorkspace(t, pluginKitAIBin)
+	markerFile := filepath.Join(t.TempDir(), "notify-marker.txt")
+	wrapCodexRuntimeBinaryWithMarker(t, binPath, markerFile)
+
+	logOutput, output := runCodexExecWithProjectConfigMarkerProbe(t, codexBin, dir, "Reply with exactly OK.")
+	if strings.TrimSpace(output) != "OK" {
+		t.Fatalf("codex exec last message = %q, want %q\n%s", strings.TrimSpace(output), "OK", logOutput)
+	}
+	if !strings.Contains(logOutput, "model: gpt-5.4-mini") {
+		t.Skipf("real codex exec did not honor production example project-local .codex/config.toml model %q in this build:\n%s", "gpt-5.4-mini", truncateRunes(logOutput, 4000))
+	}
+	if _, err := os.Stat(markerFile); err != nil {
+		t.Skipf("real codex exec did not invoke notify from checked-in production example project-local .codex/config.toml in this build:\n%s", truncateRunes(logOutput, 4000))
+	}
+}
+
 func TestCodexCLINotifyUsesRenderedProjectConfig(t *testing.T) {
 	codexBin := codexBinaryOrSkip(t)
 	pluginKitAIBin := buildPluginKitAI(t)
@@ -375,6 +394,20 @@ func codexNotifyBinaryOverride(t *testing.T, markerFile, hookBin string) string 
 	return strings.Join(quoted, "")
 }
 
+func wrapCodexRuntimeBinaryWithMarker(t *testing.T, binPath, markerFile string) {
+	t.Helper()
+	realBin := binPath + ".real"
+	if err := os.Rename(binPath, realBin); err != nil {
+		t.Fatalf("rename runtime binary for marker wrapper: %v", err)
+	}
+	wrapper := "#!/bin/sh\n" +
+		"printf 'notify\\n' > " + quoteShell(markerFile) + "\n" +
+		"exec " + quoteShell(realBin) + " \"$@\"\n"
+	if err := os.WriteFile(binPath, []byte(wrapper), 0o755); err != nil {
+		t.Fatalf("write runtime marker wrapper: %v", err)
+	}
+}
+
 func quoteTOMLString(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, `"`, `\"`)
@@ -626,6 +659,44 @@ func runCodexExecWithProjectConfigProbe(t *testing.T, codexBin, projectDir, trac
 		t.Fatalf("timed out waiting for codex exec using rendered project config:\n%s", truncateRunes(out, 4000))
 		return "", "", nil
 	}
+}
+
+func runCodexExecWithProjectConfigMarkerProbe(t *testing.T, codexBin, projectDir, prompt string) (string, string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+	defer cancel()
+	outputFile := filepath.Join(t.TempDir(), "last-message.txt")
+	logFile := filepath.Join(t.TempDir(), "codex.log")
+	args := []string{
+		"exec",
+		"--skip-git-repo-check",
+		"--ephemeral",
+		"-C", projectDir,
+		"--color", "never",
+		"--output-last-message", outputFile,
+		prompt,
+	}
+	cmd := exec.CommandContext(ctx, codexBin, args...)
+	cmd.Env = os.Environ()
+	logfh, err := os.Create(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logfh.Close()
+	cmd.Stdout = logfh
+	cmd.Stderr = logfh
+	err = cmd.Run()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("timed out waiting for codex exec using production example project config:\n%s", truncateRunes(readLogFile(t, logFile), 4000))
+	}
+	logOutput := readLogFile(t, logFile)
+	if err != nil {
+		if codexRuntimeUnhealthy(logOutput) {
+			t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(logOutput, 4000))
+		}
+		t.Fatalf("codex exec: %v\n%s", err, logOutput)
+	}
+	return logOutput, readOptionalTextFile(outputFile)
 }
 
 func runCodexExecWithMarkerProbe(t *testing.T, codexBin, projectDir, markerFile, prompt string, extraArgs ...string) (string, string) {
