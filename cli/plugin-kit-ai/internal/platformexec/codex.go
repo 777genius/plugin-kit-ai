@@ -486,7 +486,7 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 				Target:   "codex-package",
 				Message:  fmt.Sprintf("Codex MCP manifest %s is not readable: %v", filepath.ToSlash(cleanRelativeRef(ref)), err),
 			})
-		} else if _, err := decodeJSONObject(mcpBody, fmt.Sprintf("Codex MCP manifest %s", filepath.ToSlash(cleanRelativeRef(ref)))); err != nil {
+		} else if renderedMCP, err := decodeJSONObject(mcpBody, fmt.Sprintf("Codex MCP manifest %s", filepath.ToSlash(cleanRelativeRef(ref)))); err != nil {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
@@ -494,9 +494,24 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 				Target:   "codex-package",
 				Message:  err.Error(),
 			})
+		} else if graph.Portable.MCP != nil {
+			projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "codex-package")
+			if err != nil {
+				return nil, err
+			}
+			if !jsonDocumentsEqual(projected, renderedMCP) {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeGeneratedContractInvalid,
+					Path:     filepath.ToSlash(cleanRelativeRef(ref)),
+					Target:   "codex-package",
+					Message:  "Codex MCP manifest .mcp.json does not match authored portable MCP projection",
+				})
+			}
 		}
 	}
 	var authoredAppEnabled bool
+	var authoredAppDoc map[string]any
 	if rel := strings.TrimSpace(state.DocPath("interface")); rel != "" {
 		body, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -557,6 +572,7 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 				Message:  fmt.Sprintf("Codex app manifest %s is invalid: %v", filepath.ToSlash(rel), err),
 			}}, nil
 		}
+		authoredAppDoc = appDoc
 		authoredAppEnabled = codexmanifest.AppManifestEnabled(appDoc)
 	}
 	if authoredAppEnabled && strings.TrimSpace(pluginManifest.AppsRef) == "" {
@@ -595,13 +611,21 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 				Target:   "codex-package",
 				Message:  fmt.Sprintf("Codex app manifest %s is not readable: %v", filepath.ToSlash(cleanRelativeRef(ref)), err),
 			})
-		} else if _, err := codexmanifest.ParseAppManifestDoc(body); err != nil {
+		} else if renderedAppDoc, err := codexmanifest.ParseAppManifestDoc(body); err != nil {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     filepath.ToSlash(cleanRelativeRef(ref)),
 				Target:   "codex-package",
 				Message:  fmt.Sprintf("Codex app manifest %s is invalid: %v", filepath.ToSlash(cleanRelativeRef(ref)), err),
+			})
+		} else if authoredAppEnabled && !jsonDocumentsEqual(authoredAppDoc, renderedAppDoc) {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeGeneratedContractInvalid,
+				Path:     filepath.ToSlash(cleanRelativeRef(ref)),
+				Target:   "codex-package",
+				Message:  "Codex app manifest .app.json does not match targets/codex-package/app.json",
 			})
 		}
 	}

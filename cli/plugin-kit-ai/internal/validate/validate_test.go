@@ -967,6 +967,51 @@ keywords:
 	}
 }
 
+func TestValidate_CodexRejectsGeneratedSidecarMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    targets:
+      - "codex-package"
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","mcpServers":"./.mcp.json","apps":"./.app.json"}`)
+	mustWriteValidateFile(t, dir, ".mcp.json", `{"other":{"url":"https://example.com/other"}}`)
+	mustWriteValidateFile(t, dir, ".app.json", `{"name":"other-app","url":"https://example.com/other"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundMCP, foundApp bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, "Codex MCP manifest .mcp.json does not match authored portable MCP projection"):
+			foundMCP = true
+		case strings.Contains(failure.Message, "Codex app manifest .app.json does not match targets/codex-package/app.json"):
+			foundApp = true
+		}
+	}
+	if !foundMCP || !foundApp {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
