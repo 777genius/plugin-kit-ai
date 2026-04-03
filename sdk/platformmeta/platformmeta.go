@@ -110,6 +110,8 @@ const (
 	SurfaceTierBeta SurfaceTier = "beta"
 	// SurfaceTierPreview marks a preview-only surface.
 	SurfaceTierPreview SurfaceTier = "preview"
+	// SurfaceTierPassthroughOnly marks config surfaces that are preserved but not modeled as first-class authored APIs.
+	SurfaceTierPassthroughOnly SurfaceTier = "passthrough_only"
 	// SurfaceTierUnsupported marks unsupported surfaces that should not be relied on.
 	SurfaceTierUnsupported SurfaceTier = "unsupported"
 )
@@ -386,8 +388,8 @@ func All() []PlatformProfile {
 				RenderSupport:          true,
 				ValidateSupport:        true,
 				PortableComponentKinds: []string{"skills", "mcp_servers"},
-				TargetComponentKinds:   []string{"package_metadata", "manifest_extra", "app_manifest"},
-				Summary:                "Codex package lane compiles the official plugin bundle: plugin.json plus optional MCP and app assets.",
+				TargetComponentKinds:   []string{"package_metadata", "interface", "manifest_extra", "app_manifest"},
+				Summary:                "Codex package lane compiles the official plugin bundle: plugin.json plus first-class package metadata, optional interface/app assets, and optional MCP wiring.",
 			},
 			SDK: SDKMeta{
 				PublicPackage:   "codex",
@@ -400,10 +402,12 @@ func All() []PlatformProfile {
 			Launcher: LauncherMeta{Requirement: LauncherIgnored},
 			NativeDocs: []NativeDocSpec{
 				{Kind: "package_metadata", Path: "targets/codex-package/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/codex-package/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "skills", "mcpServers", "apps"}},
+				{Kind: "interface", Path: "targets/codex-package/interface.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "manifest_extra", Path: "targets/codex-package/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "author", "homepage", "repository", "license", "keywords", "skills", "mcpServers", "apps", "interface"}},
 				{Kind: "app_manifest", Path: "targets/codex-package/app.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
 			},
 			SurfaceTiers: []SurfaceSupport{
+				{Kind: "interface", Tier: SurfaceTierStable},
 				{Kind: "manifest_extra", Tier: SurfaceTierStable},
 				{Kind: "app_manifest", Tier: SurfaceTierBeta},
 				{Kind: "agents", Tier: SurfaceTierUnsupported},
@@ -422,6 +426,10 @@ func All() []PlatformProfile {
 					"targets/codex-package/package.yaml",
 				},
 				OptionalFiles: []string{
+					"mcp/servers.yaml",
+					"targets/codex-package/interface.json",
+					"targets/codex-package/manifest.extra.json",
+					"targets/codex-package/app.json",
 					"skills/{{.ProjectName}}/SKILL.md",
 				},
 				ForbiddenFiles: []string{
@@ -433,6 +441,10 @@ func All() []PlatformProfile {
 					{Path: "plugin.yaml", Template: "plugin.yaml.tmpl"},
 					{Path: "targets/codex-package/package.yaml", Template: "targets.codex-package.package.yaml.tmpl"},
 					{Path: "README.md", Template: "codex-package.README.md.tmpl"},
+					{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
+					{Path: "targets/codex-package/interface.json", Template: "codex-package.interface.json.tmpl", Extra: true},
+					{Path: "targets/codex-package/manifest.extra.json", Template: "empty.json.tmpl", Extra: true},
+					{Path: "targets/codex-package/app.json", Template: "empty.json.tmpl", Extra: true},
 					{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 				},
 			},
@@ -501,6 +513,7 @@ func All() []PlatformProfile {
 				OptionalFiles: []string{
 					"Makefile",
 					".goreleaser.yml",
+					"targets/codex-runtime/config.extra.toml",
 				},
 				ForbiddenFiles: []string{
 					".claude-plugin/plugin.json",
@@ -513,6 +526,7 @@ func All() []PlatformProfile {
 					{Path: "launcher.yaml", Template: "launcher.yaml.tmpl"},
 					{Path: "targets/codex-runtime/package.yaml", Template: "targets.codex-runtime.package.yaml.tmpl"},
 					{Path: "README.md", Template: "codex-runtime.README.md.tmpl"},
+					{Path: "targets/codex-runtime/config.extra.toml", Template: "empty.toml.tmpl", Extra: true},
 					{Path: "Makefile", Template: "Makefile.tmpl", Extra: true},
 					{Path: ".goreleaser.yml", Template: "goreleaser.yml.tmpl", Extra: true},
 				},
@@ -537,8 +551,8 @@ func All() []PlatformProfile {
 				PlatformFamily:         FamilyExtensionPackage,
 				TargetClass:            "mcp_extension",
 				TargetNoun:             "extension",
-				ProductionClass:        "production-ready extension target",
-				RuntimeContract:        "Gemini production-ready Go runtime for SessionStart, SessionEnd, BeforeModel, AfterModel, BeforeToolSelection, BeforeAgent, AfterAgent, BeforeTool, and AfterTool",
+				ProductionClass:        "runtime-supported beta extension target",
+				RuntimeContract:        "Gemini Go runtime beta lane plus full extension packaging lane; not production-ready",
 				InstallModel:           "copy install",
 				DevModel:               "link",
 				ActivationModel:        "restart required",
@@ -548,7 +562,7 @@ func All() []PlatformProfile {
 				ValidateSupport:        true,
 				PortableComponentKinds: []string{"skills", "mcp_servers"},
 				TargetComponentKinds:   []string{"package_metadata", "hooks", "commands", "policies", "themes", "settings", "contexts", "manifest_extra"},
-				Summary:                "Gemini compiles as an official-style extension package with MCP, a primary root context, target-native extension assets, and a production-ready Go runtime for the supported hook set.",
+				Summary:                "Gemini compiles as an official-style extension package with MCP, a primary root context, target-native extension assets, and an optional Go hook runtime lane.",
 			},
 			SDK: SDKMeta{
 				PublicPackage:   "gemini",
@@ -561,7 +575,7 @@ func All() []PlatformProfile {
 			Launcher: LauncherMeta{Requirement: LauncherOptional},
 			NativeDocs: []NativeDocSpec{
 				{Kind: "package_metadata", Path: "targets/gemini/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "settings", "themes", "plan.directory"}},
+				{Kind: "manifest_extra", Path: "targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "migratedTo", "settings", "themes", "plan.directory"}},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "commands", Tier: SurfaceTierStable},
@@ -687,7 +701,7 @@ func All() []PlatformProfile {
 				TargetClass:            "workspace_config_lane",
 				TargetNoun:             "workspace",
 				ProductionClass:        "packaging-only target",
-				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope import, and beta custom tools across standalone tools and plugin code",
+				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope and env-config import compatibility, permission-first passthrough config semantics, and beta custom tools across standalone tools and plugin code",
 				InstallModel:           "workspace config file",
 				DevModel:               "config authoring workspace",
 				ActivationModel:        "config reload or restart",
@@ -720,6 +734,10 @@ func All() []PlatformProfile {
 				{Kind: "agents", Tier: SurfaceTierStable},
 				{Kind: "themes", Tier: SurfaceTierStable},
 				{Kind: "tools", Tier: SurfaceTierBeta},
+				{Kind: "config_extra", Tier: SurfaceTierStable},
+				{Kind: "agent_config", Tier: SurfaceTierPassthroughOnly},
+				{Kind: "permission_config", Tier: SurfaceTierPassthroughOnly},
+				{Kind: "instructions_config", Tier: SurfaceTierPassthroughOnly},
 				{Kind: "modes", Tier: SurfaceTierUnsupported},
 				{Kind: "local_plugin_code", Tier: SurfaceTierStable},
 				{Kind: "custom_tools", Tier: SurfaceTierBeta},

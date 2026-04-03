@@ -38,5 +38,5 @@ plugin-kit-ai validate . --platform opencode --strict
 - Supported in v1: plugin package refs, shared MCP, portable skills, workspace commands, workspace agents, workspace themes, local JS/TS plugin subtree import/render/validate, plugin-local dependency metadata, JSON/JSONC native config import, explicit `--include-user-scope` import
 - Beta-only in v1: standalone `.opencode/tools/**` authoring and the broader custom-tools capability across standalone tools and plugin code
 - Canonical local plugin starter shape: official-style named async plugin exports; canonical standalone tool starter shape: `export default tool({...})`; helper-based tools and plugins require `@opencode-ai/plugin` in `targets/opencode/package.json`
-- Native OpenCode config can be imported from `opencode.json` or `opencode.jsonc`; portable skills come from canonical `.opencode/skills/**`
-- Unsupported native config fields are skipped during import instead of being carried as authored passthrough
+- Native OpenCode config can be imported from `opencode.json` or `opencode.jsonc`; authored skills must live under `skills/**`
+- Broader product config still stays under `targets/opencode/config.extra.json`; config-level `tools` settings remain passthrough-only and are distinct from first-class standalone tool files under `targets/opencode/tools/`

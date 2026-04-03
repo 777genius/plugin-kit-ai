@@ -251,14 +251,27 @@ func assertCodexPackageManifest(t *testing.T, root, wantName string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var manifest struct {
-		Name string `json:"name"`
-	}
+	var manifest map[string]any
 	if err := json.Unmarshal(body, &manifest); err != nil {
 		t.Fatalf("parse codex package manifest: %v\n%s", err, body)
 	}
-	if manifest.Name != wantName {
-		t.Fatalf(".codex-plugin/plugin.json name = %q want %q", manifest.Name, wantName)
+	if manifest["name"] != wantName {
+		t.Fatalf(".codex-plugin/plugin.json name = %q want %q", manifest["name"], wantName)
+	}
+	if manifest["apps"] != "./.app.json" {
+		t.Fatalf(".codex-plugin/plugin.json apps = %+v", manifest["apps"])
+	}
+	if manifest["mcpServers"] != "./.mcp.json" {
+		t.Fatalf(".codex-plugin/plugin.json mcpServers = %+v", manifest["mcpServers"])
+	}
+	if manifest["homepage"] == "" || manifest["repository"] == "" || manifest["license"] == "" {
+		t.Fatalf(".codex-plugin/plugin.json missing package metadata: %+v", manifest)
+	}
+	if _, ok := manifest["interface"].(map[string]any); !ok {
+		t.Fatalf(".codex-plugin/plugin.json missing interface: %+v", manifest)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mcp.json")); err != nil {
+		t.Fatalf("stat .mcp.json: %v", err)
 	}
 }
 

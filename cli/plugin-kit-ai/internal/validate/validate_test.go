@@ -23,8 +23,40 @@ func TestValidate_ManifestMissing(t *testing.T) {
 	if got := re.Report.Failures[0].Kind; got != FailureManifestMissing {
 		t.Fatalf("failure kind = %q", got)
 	}
+	if got := re.Report.Failures[0].Path; got != pluginmanifest.FileName {
+		t.Fatalf("failure path = %q", got)
+	}
 	if re.Error() != "required manifest missing: plugin.yaml" {
 		t.Fatalf("error = %q", re.Error())
+	}
+}
+
+func TestValidate_MissingRequiredLauncherSetsFailurePath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-runtime"]
+`)
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) == 0 {
+		t.Fatal("expected at least one failure")
+	}
+	first := report.Failures[0]
+	if first.Kind != FailureManifestInvalid {
+		t.Fatalf("failure kind = %q", first.Kind)
+	}
+	if first.Path != pluginmanifest.LauncherFileName {
+		t.Fatalf("failure path = %q", first.Path)
+	}
+	if !strings.Contains(first.Message, "required launcher missing") {
+		t.Fatalf("failure message = %q", first.Message)
 	}
 }
 
@@ -41,8 +73,206 @@ func TestValidate_LegacyProjectManifestRejected(t *testing.T) {
 	if got := re.Report.Failures[0].Kind; got != FailureManifestInvalid {
 		t.Fatalf("failure kind = %q", got)
 	}
+	if got := re.Report.Failures[0].Path; got != filepath.Join(".plugin-kit-ai", "project.toml") {
+		t.Fatalf("failure path = %q", got)
+	}
 	if !strings.Contains(re.Error(), ".plugin-kit-ai/project.toml is not supported") {
 		t.Fatalf("error = %q", re.Error())
+	}
+}
+
+func TestValidate_TargetNotEnabledSetsPluginPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureManifestInvalid &&
+			failure.Path == pluginmanifest.FileName &&
+			strings.Contains(failure.Message, `plugin.yaml does not enable target "codex-runtime"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_InvalidLauncherSetsLauncherPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-runtime"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\n")
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureManifestInvalid &&
+			failure.Path == pluginmanifest.LauncherFileName &&
+			strings.Contains(failure.Message, "entrypoint required") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_LegacyPortableMCPPathSetsFailurePath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.json"), "{}\n")
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureManifestInvalid &&
+			failure.Path == filepath.Join("mcp", "servers.json") &&
+			strings.Contains(failure.Message, "unsupported portable MCP authored path") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_UnsupportedPortableMCPUsesAuthoredPath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-runtime"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`)
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureUnsupportedTargetKind &&
+			failure.Path == filepath.ToSlash(filepath.Join("mcp", "servers.yaml")) &&
+			strings.Contains(failure.Message, "does not support portable component kind mcp_servers") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
+	t.Parallel()
+	t.Run("doc path", func(t *testing.T) {
+		t.Parallel()
+		tc := pluginmanifest.TargetComponents{
+			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))},
+			Components: map[string][]string{},
+		}
+		want := filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))
+		if got := unsupportedTargetKindPath("codex-package", tc, "interface"); got != want {
+			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("component directory", func(t *testing.T) {
+		t.Parallel()
+		tc := pluginmanifest.TargetComponents{
+			Docs: map[string]string{},
+			Components: map[string][]string{
+				"commands": {filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands", "review.md"))},
+			},
+		}
+		want := filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands"))
+		if got := unsupportedTargetKindPath("codex-runtime", tc, "commands"); got != want {
+			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name    string
+		message string
+		want    string
+	}{
+		{
+			name:    "missing node in path",
+			message: "runtime not found: node runtime required; checked PATH for node. Install Node.js 20+",
+			want:    "node",
+		},
+		{
+			name:    "node binary found but unsupported",
+			message: "runtime not found: found node at /usr/local/bin/node but version 18.17.0 is below the supported minimum 20.0; install or repair Node.js 20+",
+			want:    "/usr/local/bin/node",
+		},
+		{
+			name:    "python interpreter found via pyenv",
+			message: "runtime not found: found pyenv interpreter at /Users/demo/.pyenv/shims/python but version 3.9.0 is below the supported minimum 3.10. Run plugin-kit-ai doctor ., then plugin-kit-ai bootstrap .",
+			want:    "/Users/demo/.pyenv/shims/python",
+		},
+		{
+			name:    "windows bash required",
+			message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
+			want:    "bash",
+		},
+		{
+			name:    "nested parse error",
+			message: "runtime not found: python runtime inspection failed: parse targets/codex-runtime/package.yaml: yaml: line 1: did not find expected key",
+			want:    filepath.ToSlash(filepath.Join("targets", "codex-runtime", "package.yaml")),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := extractFailurePath(tc.message); got != tc.want {
+				t.Fatalf("extractFailurePath(%q) = %q, want %q", tc.message, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -527,7 +757,9 @@ targets: ["codex-runtime"]
 	if _, bashErr := exec.LookPath("bash"); bashErr != nil {
 		var found bool
 		for _, failure := range report.Failures {
-			if failure.Kind == FailureRuntimeNotFound && strings.Contains(failure.Message, "bash") {
+			if failure.Kind == FailureRuntimeNotFound &&
+				failure.Path == "bash" &&
+				strings.Contains(failure.Message, "bash") {
 				found = true
 			}
 		}
@@ -565,6 +797,342 @@ targets: ["codex-package"]
 	}
 }
 
+func TestValidate_CodexRejectsManifestExtraPackageAndInterfaceOverrides(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundHomepage bool
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, `codex-package manifest.extra.json may not override canonical field "homepage"`) {
+			foundHomepage = true
+		}
+	}
+	if !foundHomepage {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
+	report, err = Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundInterface bool
+	for _, failure := range report.Failures {
+		if strings.Contains(failure.Message, `codex-package manifest.extra.json may not override canonical field "interface"`) {
+			foundInterface = true
+		}
+	}
+	if !foundInterface {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsMalformedStructuredDocs(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":"override"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundInterface bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.Join("targets", "codex-package", "interface.json") &&
+			strings.Contains(failure.Message, "interface.defaultPrompt must be an array of strings") {
+			foundInterface = true
+		}
+	}
+	if !foundInterface {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["override"]}`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `["demo-app"]`)
+	report, err = Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundApp bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.Join("targets", "codex-package", "app.json") &&
+			strings.Contains(failure.Message, "Codex app manifest must be a JSON object") {
+			foundApp = true
+		}
+	}
+	if !foundApp {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsMalformedGeneratedPluginManifest(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","author":"maintainer"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join(".codex-plugin", "plugin.json")) &&
+			strings.Contains(failure.Message, "Codex plugin author must be a JSON object") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsUnexpectedPluginDirEntries(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "notes.txt"), "unexpected\n")
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join(".codex-plugin", "notes.txt")) &&
+			strings.Contains(failure.Message, "may only contain plugin.json") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsUnreferencedBundleSidecars(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x"}`)
+	mustWriteValidateFile(t, dir, ".app.json", `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, ".mcp.json", `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundApp, foundMCP bool
+	for _, failure := range report.Failures {
+		switch {
+		case failure.Path == ".app.json" && strings.Contains(failure.Message, "without a matching .codex-plugin/plugin.json ref"):
+			foundApp = true
+		case failure.Path == ".mcp.json" && strings.Contains(failure.Message, "without a matching .codex-plugin/plugin.json ref"):
+			foundMCP = true
+		}
+	}
+	if !foundApp || !foundMCP {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsNonCanonicalGeneratedManifestRefs(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("skills", "x", "SKILL.md"), "---\nname: x\ndescription: x\n---\nDo x.\n")
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    targets:
+      - "codex-package"
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","skills":"./custom-skills/","mcpServers":"./custom.mcp.json","apps":"./custom.app.json"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundSkills, foundMCP, foundApps bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, `must use "./skills/" for skills when present`):
+			foundSkills = true
+		case strings.Contains(failure.Message, `must use "./.mcp.json" for mcpServers when present`):
+			foundMCP = true
+		case strings.Contains(failure.Message, `must use "./.app.json" for apps when present`):
+			foundApps = true
+		}
+	}
+	if !foundSkills || !foundMCP || !foundApps {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsRefsOutsidePluginRoot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","apps":"../outside.app.json"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == ".codex-plugin/plugin.json" && strings.Contains(failure.Message, `uses an invalid apps ref "../outside.app.json"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsGeneratedMetadataMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "package.yaml"), `author:
+  name: Example Maintainer
+homepage: https://example.com/x
+keywords:
+  - codex
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Help with x."]}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"other","version":"9.9.9","description":"other","author":{"name":"Different Maintainer"},"homepage":"https://example.com/other","keywords":["wrong"],"interface":{"defaultPrompt":["Different"]}}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundName, foundMeta, foundInterface bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, `sets name "other"; expected "x"`):
+			foundName = true
+		case strings.Contains(failure.Message, "package metadata does not match targets/codex-package/package.yaml"):
+			foundMeta = true
+		case strings.Contains(failure.Message, "interface does not match targets/codex-package/interface.json"):
+			foundInterface = true
+		}
+	}
+	if !foundName || !foundMeta || !foundInterface {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsGeneratedSidecarMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    targets:
+      - "codex-package"
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","mcpServers":"./.mcp.json","apps":"./.app.json"}`)
+	mustWriteValidateFile(t, dir, ".mcp.json", `{"other":{"url":"https://example.com/other"}}`)
+	mustWriteValidateFile(t, dir, ".app.json", `{"name":"other-app","url":"https://example.com/other"}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundMCP, foundApp bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, "Codex MCP manifest .mcp.json does not match authored portable MCP projection"):
+			foundMCP = true
+		case strings.Contains(failure.Message, "Codex app manifest .app.json does not match targets/codex-package/app.json"):
+			foundApp = true
+		}
+	}
+	if !foundMCP || !foundApp {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -594,11 +1162,59 @@ targets: ["codex-runtime"]
 		if strings.Contains(failure.Message, `entrypoint mismatch: Codex notify argv uses ["./bin/other" "notify"]`) {
 			foundNotify = true
 		}
-		if strings.Contains(failure.Message, `does not match targets/codex-runtime/package.yaml model_hint "gpt-5.4-mini"`) {
+		if strings.Contains(failure.Message, `does not match expected model "gpt-5.4-mini"`) {
 			foundModel = true
 		}
 	}
 	if !foundExtra || !foundNotify || !foundModel {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_CodexRejectsMalformedGeneratedConfigShapeAndExtraMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-runtime"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
+	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = [\"bad\"]\nnotify = [\"./bin/x\", \"notify\"]\n")
+
+	report, err := Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundMalformed bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join(".codex", "config.toml")) &&
+			strings.Contains(failure.Message, `Codex config field "model" must be a string`) {
+			foundMalformed = true
+		}
+	}
+	if !foundMalformed {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/x\", \"notify\"]\napproval_policy = \"on-request\"\n[ui]\nverbose = false\n")
+	report, err = Validate(dir, "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundMismatch bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join(".codex", "config.toml")) &&
+			strings.Contains(failure.Message, "passthrough fields do not match targets/codex-runtime/config.extra.toml") {
+			foundMismatch = true
+		}
+	}
+	if !foundMismatch {
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 }
@@ -757,6 +1373,180 @@ targets: ["gemini"]
 	}
 }
 
+func TestValidate_GeminiRejectsMalformedGeneratedExtensionManifest(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-assets"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","settings":{}}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == "gemini-extension.json" &&
+			strings.Contains(failure.Message, `Gemini extension field "settings" must be an array of JSON objects`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsGeneratedContextMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-assets"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"OTHER.md"}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == "gemini-extension.json" &&
+			strings.Contains(failure.Message, `sets contextFileName "OTHER.md"; expected "GEMINI.md"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsGeneratedMetadataMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-assets"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
+exclude_tools:
+  - run_shell_command(rm -rf)
+migrated_to: https://example.com/new-home
+plan_directory: .gemini/plans
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: Release profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    targets:
+      - "gemini"
+`)
+	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"wrong-name","version":"2.0.0","description":"other","contextFileName":"OTHER.md","excludeTools":["other_tool"],"migratedTo":"https://example.com/other","plan":{"directory":"other-plans"},"settings":[{"name":"wrong","description":"Wrong","envVar":"WRONG","sensitive":false}],"themes":[{"name":"wrong-theme","background":{"primary":"#000000"}}],"mcpServers":{"other":{"command":"node","args":["server.mjs"]}}}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundName, foundMeta, foundSettings, foundThemes, foundMCP bool
+	for _, failure := range report.Failures {
+		switch {
+		case strings.Contains(failure.Message, `sets name "wrong-name"; expected "gemini-assets"`):
+			foundName = true
+		case strings.Contains(failure.Message, "package metadata does not match targets/gemini/package.yaml"):
+			foundMeta = true
+		case strings.Contains(failure.Message, "settings do not match authored targets/gemini/settings/**"):
+			foundSettings = true
+		case strings.Contains(failure.Message, "themes do not match authored targets/gemini/themes/**"):
+			foundThemes = true
+		case strings.Contains(failure.Message, "mcpServers do not match authored portable MCP projection"):
+			foundMCP = true
+		}
+	}
+	if !foundName || !foundMeta || !foundSettings || !foundThemes || !foundMCP {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsGeneratedHooksMismatch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-assets"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"./bin/demo GeminiSessionStart"}]}]}}`)
+	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join("hooks", "hooks.json")) &&
+			strings.Contains(failure.Message, "does not match authored targets/gemini/hooks/hooks.json") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_GeminiRejectsManagedGeneratedHooksDrift(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "gemini-managed"
+version: "0.1.0"
+description: "demo"
+targets: ["gemini"]
+`)
+	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, "go.mod", "module example.com/gemini-managed\n\ngo 1.22\n")
+	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-managed","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
+
+	report, err := Validate(dir, "gemini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join("hooks", "hooks.json")) &&
+			strings.Contains(failure.Message, "does not match the managed launcher-derived hooks projection") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_RejectsRemovedPortableAgents(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -905,6 +1695,31 @@ func TestValidateNodeRuntimeTarget_BuiltOutputWithoutTSConfigFails(t *testing.T)
 	}
 }
 
+func TestValidatePluginLauncher_MissingEntrypointSetsFailurePath(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	var report Report
+
+	validatePluginLauncher(dir, &pluginmanifest.Launcher{
+		Runtime:    "python",
+		Entrypoint: "./bin/missing-launcher",
+	}, &report)
+
+	if len(report.Failures) != 1 {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+	failure := report.Failures[0]
+	if failure.Kind != FailureLauncherInvalid {
+		t.Fatalf("failure kind = %q", failure.Kind)
+	}
+	if failure.Path != "./bin/missing-launcher" {
+		t.Fatalf("failure path = %q", failure.Path)
+	}
+	if !strings.Contains(failure.Message, "launcher invalid: missing ./bin/missing-launcher") {
+		t.Fatalf("failure message = %q", failure.Message)
+	}
+}
+
 func TestValidateNodeRuntimeTarget_TypeScriptLaneShowsTypeScriptGuidance(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -919,6 +1734,9 @@ func TestValidateNodeRuntimeTarget_TypeScriptLaneShowsTypeScriptGuidance(t *test
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 	failure := report.Failures[0]
+	if failure.Path != "dist/main.js" {
+		t.Fatalf("failure path = %q", failure.Path)
+	}
 	if !strings.Contains(failure.Message, "TypeScript scaffold expects built output") {
 		t.Fatalf("failure message = %q", failure.Message)
 	}
@@ -944,6 +1762,9 @@ func TestValidateNodeRuntimeTarget_TypeScriptOutDirMismatchFails(t *testing.T) {
 	if failure.Kind != FailureLauncherInvalid {
 		t.Fatalf("failure kind = %q", failure.Kind)
 	}
+	if failure.Path != "build/main.js" {
+		t.Fatalf("failure path = %q", failure.Path)
+	}
 	if !strings.Contains(failure.Message, "outside tsconfig outDir dist") {
 		t.Fatalf("failure message = %q", failure.Message)
 	}
@@ -966,6 +1787,9 @@ func TestValidateRuntimeTargetExecutable_NonExecutableScriptFails(t *testing.T) 
 	failure := report.Failures[0]
 	if failure.Kind != FailureRuntimeTargetMissing {
 		t.Fatalf("failure kind = %q", failure.Kind)
+	}
+	if failure.Path != filepath.Join("scripts", "main.sh") {
+		t.Fatalf("failure path = %q", failure.Path)
 	}
 	if !strings.Contains(failure.Message, "is not executable") {
 		t.Fatalf("failure message = %q", failure.Message)

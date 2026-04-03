@@ -17,26 +17,6 @@ func main() {
 		_ = e
 		return gemini.SessionEndContinue()
 	})
-	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
-		_ = e
-		return gemini.BeforeModelContinue()
-	})
-	app.Gemini().OnAfterModel(func(e *gemini.AfterModelEvent) *gemini.AfterModelResponse {
-		_ = e
-		return gemini.AfterModelContinue()
-	})
-	app.Gemini().OnBeforeToolSelection(func(e *gemini.BeforeToolSelectionEvent) *gemini.BeforeToolSelectionResponse {
-		_ = e
-		return gemini.BeforeToolSelectionContinue()
-	})
-	app.Gemini().OnBeforeAgent(func(e *gemini.BeforeAgentEvent) *gemini.BeforeAgentResponse {
-		_ = e
-		return gemini.BeforeAgentContinue()
-	})
-	app.Gemini().OnAfterAgent(func(e *gemini.AfterAgentEvent) *gemini.AfterAgentResponse {
-		_ = e
-		return gemini.AfterAgentContinue()
-	})
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		_ = e
 		return gemini.BeforeToolContinue()

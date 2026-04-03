@@ -3,7 +3,6 @@ package platformexec
 import (
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -21,14 +20,18 @@ type opencodeImportedState struct {
 	plugins         []string
 	pluginsProvided bool
 	mcp             map[string]any
+	extra           map[string]any
 	artifacts       map[string]pluginmodel.Artifact
 	warnings        []pluginmodel.Warning
 	hasInput        bool
 }
 
 type opencodeImportSource struct {
-	dir     string
-	display string
+	dir       string
+	display   string
+	warnOnUse bool
+	warnPath  string
+	warnMsg   string
 }
 
 func (opencodeAdapter) ID() string { return "opencode" }
@@ -66,6 +69,17 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		if err != nil {
 			return ImportResult{}, fmt.Errorf("resolve user home for OpenCode import: %w", err)
 		}
+		for _, reject := range []struct {
+			full    string
+			display string
+		}{
+			{full: filepath.Join(home, ".agents", "skills"), display: filepath.ToSlash(filepath.Join("~", ".agents", "skills"))},
+			{full: filepath.Join(home, ".claude", "skills"), display: filepath.ToSlash(filepath.Join("~", ".claude", "skills"))},
+		} {
+			if err := rejectOpenCodeCompatSkillRoot(reject.full, reject.display); err != nil {
+				return ImportResult{}, err
+			}
+		}
 		globalRoot := filepath.Join(home, ".config", "opencode")
 		if err := importOpenCodeScope(&state, opencodeScopeConfig{
 			root:              globalRoot,
@@ -77,6 +91,17 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		}
 	}
 
+	for _, reject := range []struct {
+		full    string
+		display string
+	}{
+		{full: filepath.Join(root, ".agents", "skills"), display: filepath.ToSlash(filepath.Join(".agents", "skills"))},
+		{full: filepath.Join(root, ".claude", "skills"), display: filepath.ToSlash(filepath.Join(".claude", "skills"))},
+	} {
+		if err := rejectOpenCodeCompatSkillRoot(reject.full, reject.display); err != nil {
+			return ImportResult{}, err
+		}
+	}
 	if err := importOpenCodeScope(&state, opencodeScopeConfig{
 		root:              root,
 		displayConfigRoot: "",
@@ -86,8 +111,56 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		return ImportResult{}, err
 	}
 
+	if seed.Explicit {
+		if envDir, ok, err := resolveOpenCodeEnvConfigDir(); err != nil {
+			return ImportResult{}, err
+		} else if ok {
+			if err := importOpenCodeScope(&state, opencodeScopeConfig{
+				root:              envDir,
+				displayConfigRoot: filepath.ToSlash(filepath.Join("$OPENCODE_CONFIG_DIR")),
+				workspaceRoot:     envDir,
+				workspaceDisplay:  filepath.ToSlash(filepath.Join("$OPENCODE_CONFIG_DIR")),
+			}); err != nil {
+				return ImportResult{}, err
+			}
+		}
+		if envFile, ok, err := resolveOpenCodeEnvConfigFile(); err != nil {
+			return ImportResult{}, err
+		} else if ok {
+			importedConfig, configPath, _, _, err := readImportedOpenCodeConfigFromFile(envFile, filepath.ToSlash("$OPENCODE_CONFIG"))
+			if err != nil {
+				return ImportResult{}, err
+			}
+			commandArtifacts, remainingCommands, commandWarnings, err := importedOpenCodeInlineCommandArtifacts(importedConfig.Commands, configPath)
+			if err != nil {
+				return ImportResult{}, err
+			}
+			agentArtifacts, remainingAgents, agentWarnings, err := importedOpenCodeInlineAgentArtifacts(importedConfig.Agents, configPath)
+			if err != nil {
+				return ImportResult{}, err
+			}
+			state.warnings = append(state.warnings, commandWarnings...)
+			state.warnings = append(state.warnings, agentWarnings...)
+			state.addArtifacts(commandArtifacts...)
+			state.addArtifacts(agentArtifacts...)
+			if len(remainingCommands) > 0 {
+				if importedConfig.Extra == nil {
+					importedConfig.Extra = map[string]any{}
+				}
+				importedConfig.Extra["command"] = remainingCommands
+			}
+			if len(remainingAgents) > 0 {
+				if importedConfig.Extra == nil {
+					importedConfig.Extra = map[string]any{}
+				}
+				importedConfig.Extra["agent"] = remainingAgents
+			}
+			state.mergeConfig(importedConfig)
+			state.hasInput = true
+		}
+	}
 	if !state.hasInput {
-		return ImportResult{}, fmt.Errorf("OpenCode import requires opencode.json, opencode.jsonc, supported workspace directories, or --include-user-scope with OpenCode native sources")
+		return ImportResult{}, fmt.Errorf("OpenCode import requires opencode.json, opencode.jsonc, supported workspace directories, OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, or --include-user-scope with OpenCode native sources")
 	}
 
 	artifacts := []pluginmodel.Artifact{{
@@ -100,6 +173,12 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 			return ImportResult{}, err
 		}
 		artifacts = append(artifacts, artifact)
+	}
+	if len(state.extra) > 0 {
+		artifacts = append(artifacts, pluginmodel.Artifact{
+			RelPath: filepath.Join("targets", "opencode", "config.extra.json"),
+			Content: mustJSON(state.extra),
+		})
 	}
 	for _, rel := range sortedArtifactKeys(state.artifacts) {
 		artifacts = append(artifacts, state.artifacts[rel])
@@ -123,6 +202,14 @@ func (opencodeAdapter) Render(root string, graph pluginmodel.PackageGraph, state
 		}
 		meta.Plugins[i] = strings.TrimSpace(plugin)
 	}
+	extra, err := loadNativeExtraDoc(root, state, "config_extra", pluginmodel.NativeDocFormatJSON)
+	if err != nil {
+		return nil, err
+	}
+	managedPaths := []string{"$schema", "plugin", "mcp"}
+	if err := pluginmodel.ValidateNativeExtraDocConflicts(extra, "opencode config.extra.json", managedPaths); err != nil {
+		return nil, err
+	}
 	doc := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 	}
@@ -135,6 +222,9 @@ func (opencodeAdapter) Render(root string, graph pluginmodel.PackageGraph, state
 			return nil, err
 		}
 		doc["mcp"] = projected
+	}
+	if err := pluginmodel.MergeNativeExtraObject(doc, extra, "opencode config.extra.json", managedPaths); err != nil {
+		return nil, err
 	}
 	body, err := marshalJSON(doc)
 	if err != nil {
@@ -193,12 +283,30 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 		return nil, err
 	}
 	if !ok {
+		if envFile, envOK, envErr := resolveOpenCodeEnvConfigFile(); envErr != nil {
+			return nil, envErr
+		} else if envOK {
+			configPath = filepath.ToSlash(envFile)
+			ok = true
+		} else if envDir, dirOK, dirErr := resolveOpenCodeEnvConfigDir(); dirErr != nil {
+			return nil, dirErr
+		} else if dirOK {
+			configPath, warnings, ok, err = resolveOpenCodeConfigPathInDir(envDir, filepath.ToSlash("$OPENCODE_CONFIG_DIR"))
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				configPath = filepath.ToSlash(configPath)
+			}
+		}
+	}
+	if !ok {
 		return []Diagnostic{{
 			Severity: SeverityFailure,
 			Code:     CodeGeneratedContractInvalid,
 			Path:     "opencode.json",
 			Target:   "opencode",
-			Message:  "OpenCode config opencode.json or opencode.jsonc is required",
+			Message:  "OpenCode config opencode.json, opencode.jsonc, OPENCODE_CONFIG, or OPENCODE_CONFIG_DIR is required",
 		}}, nil
 	}
 	for _, warning := range warnings {
@@ -211,6 +319,16 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 		})
 	}
 	configReadPath := filepath.Join(root, configPath)
+	if filepath.IsAbs(configPath) || strings.HasPrefix(configPath, "$OPENCODE_CONFIG_DIR/") {
+		configReadPath = configPath
+		if strings.HasPrefix(configPath, "$OPENCODE_CONFIG_DIR/") {
+			if envDir, ok, err := resolveOpenCodeEnvConfigDir(); err != nil {
+				return nil, err
+			} else if ok {
+				configReadPath = filepath.Join(envDir, filepath.Base(configPath))
+			}
+		}
+	}
 	body, err := os.ReadFile(configReadPath)
 	if err != nil {
 		return []Diagnostic{{
@@ -325,14 +443,29 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 	}
 	state.warnings = append(state.warnings, warnings...)
 	if ok {
-		if len(importedConfig.Extra) > 0 {
-			for _, key := range slices.Sorted(maps.Keys(importedConfig.Extra)) {
-				state.warnings = append(state.warnings, pluginmodel.Warning{
-					Kind:    pluginmodel.WarningFidelity,
-					Path:    configDisplayPath,
-					Message: fmt.Sprintf("skipped unsupported OpenCode config field %q because config passthrough was removed", key),
-				})
+		commandArtifacts, remainingCommands, commandWarnings, err := importedOpenCodeInlineCommandArtifacts(importedConfig.Commands, configDisplayPath)
+		if err != nil {
+			return err
+		}
+		agentArtifacts, remainingAgents, agentWarnings, err := importedOpenCodeInlineAgentArtifacts(importedConfig.Agents, configDisplayPath)
+		if err != nil {
+			return err
+		}
+		state.warnings = append(state.warnings, commandWarnings...)
+		state.warnings = append(state.warnings, agentWarnings...)
+		state.addArtifacts(commandArtifacts...)
+		state.addArtifacts(agentArtifacts...)
+		if len(remainingCommands) > 0 {
+			if importedConfig.Extra == nil {
+				importedConfig.Extra = map[string]any{}
 			}
+			importedConfig.Extra["command"] = remainingCommands
+		}
+		if len(remainingAgents) > 0 {
+			if importedConfig.Extra == nil {
+				importedConfig.Extra = map[string]any{}
+			}
+			importedConfig.Extra["agent"] = remainingAgents
 		}
 		state.mergeConfig(importedConfig)
 		state.hasInput = true
@@ -396,7 +529,7 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		state.hasInput = true
 	}
 
-	skillArtifacts, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{{
+	skillArtifacts, _, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{{
 		dir:     filepath.Join(cfg.workspaceRoot, "skills"),
 		display: filepath.ToSlash(filepath.Join(cfg.workspaceDisplay, "skills")),
 	}}, "skills", func(rel string) bool {
@@ -441,6 +574,15 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 	return nil
 }
 
+func rejectOpenCodeCompatSkillRoot(full, display string) error {
+	if _, err := os.Stat(full); err == nil {
+		return fmt.Errorf("unsupported OpenCode native skill path %s: use skills/**", display)
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 func (s *opencodeImportedState) addArtifacts(artifacts ...pluginmodel.Artifact) {
 	for _, artifact := range artifacts {
 		s.artifacts[artifact.RelPath] = artifact
@@ -457,6 +599,12 @@ func (s *opencodeImportedState) mergeConfig(config importedOpenCodeConfig) {
 			s.mcp = map[string]any{}
 		}
 		mergeOpenCodeObject(s.mcp, config.MCP)
+	}
+	if len(config.Extra) > 0 {
+		if s.extra == nil {
+			s.extra = map[string]any{}
+		}
+		mergeOpenCodeObject(s.extra, config.Extra)
 	}
 }
 
@@ -481,17 +629,19 @@ func readImportedOpenCodeConfigFromDir(root string, displayBase string) (importe
 }
 
 func importDirectoryArtifacts(source opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, error) {
-	artifacts, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{source}, dstRoot, keep)
+	artifacts, _, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{source}, dstRoot, keep)
 	return artifacts, err
 }
 
-func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, error) {
+func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
 	artifacts := map[string]pluginmodel.Artifact{}
+	var warnings []pluginmodel.Warning
 	for _, source := range sources {
 		full := source.dir
 		if _, err := os.Stat(full); err != nil {
 			continue
 		}
+		var used bool
 		err := filepath.WalkDir(full, func(path string, d os.DirEntry, err error) error {
 			if err != nil || d == nil || d.IsDir() {
 				return err
@@ -512,20 +662,34 @@ func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoo
 				RelPath: filepath.ToSlash(filepath.Join(dstRoot, rel)),
 				Content: body,
 			}
+			used = true
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if source.warnOnUse && used {
+			warnings = append(warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    source.warnPath,
+				Message: source.warnMsg,
+			})
 		}
 	}
 	out := make([]pluginmodel.Artifact, 0, len(artifacts))
 	for _, rel := range sortedArtifactKeys(artifacts) {
 		out = append(out, artifacts[rel])
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
 func importOpenCodeToolArtifacts(workspaceRoot, workspaceDisplay string) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
+	legacyDir := filepath.Join(workspaceRoot, "tool")
+	if _, err := os.Stat(legacyDir); err == nil {
+		return nil, nil, fmt.Errorf("unsupported OpenCode native path %s: use %s", filepath.ToSlash(filepath.Join(workspaceDisplay, "tool")), filepath.ToSlash(filepath.Join(workspaceDisplay, "tools")))
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, nil, err
+	}
 	sources := []opencodeImportSource{
 		{
 			dir:     filepath.Join(workspaceRoot, "tools"),
@@ -593,6 +757,197 @@ func mergeOpenCodeObject(dst, src map[string]any) {
 		}
 		dst[key] = value
 	}
+}
+
+func importedOpenCodeInlineCommandArtifacts(raw map[string]any, configPath string) ([]pluginmodel.Artifact, map[string]any, []pluginmodel.Warning, error) {
+	return importedOpenCodeInlineMarkdownArtifacts("command", raw, configPath, "commands", normalizeInlineOpenCodeCommand)
+}
+
+func importedOpenCodeInlineAgentArtifacts(raw map[string]any, configPath string) ([]pluginmodel.Artifact, map[string]any, []pluginmodel.Warning, error) {
+	return importedOpenCodeInlineMarkdownArtifacts("agent", raw, configPath, "agents", normalizeInlineOpenCodeAgent)
+}
+
+type openCodeInlineNormalizer func(name string, spec map[string]any) (map[string]any, string, bool)
+
+func importedOpenCodeInlineMarkdownArtifacts(field string, raw map[string]any, configPath string, dstKind string, normalize openCodeInlineNormalizer) ([]pluginmodel.Artifact, map[string]any, []pluginmodel.Warning, error) {
+	if len(raw) == 0 {
+		return nil, nil, nil, nil
+	}
+	var (
+		artifacts []pluginmodel.Artifact
+		warnings  []pluginmodel.Warning
+		remaining = map[string]any{}
+	)
+	for name, value := range raw {
+		spec, ok := value.(map[string]any)
+		if !ok {
+			remaining[name] = value
+			warnings = append(warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    configPath,
+				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because it is not representable as targets/opencode/%s/*.md", field, name, dstKind),
+			})
+			continue
+		}
+		frontmatter, body, ok := normalize(name, spec)
+		if !ok {
+			remaining[name] = value
+			warnings = append(warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    configPath,
+				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because it is not representable as targets/opencode/%s/*.md", field, name, dstKind),
+			})
+			continue
+		}
+		relPath, ok := canonicalOpenCodeNamedMarkdownPath(dstKind, name)
+		if !ok {
+			remaining[name] = value
+			warnings = append(warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    configPath,
+				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because its name cannot be normalized into a canonical markdown file path", field, name),
+			})
+			continue
+		}
+		content, err := marshalOpenCodeMarkdown(frontmatter, body)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: relPath, Content: content})
+	}
+	return compactArtifacts(artifacts), remaining, warnings, nil
+}
+
+func normalizeInlineOpenCodeCommand(name string, spec map[string]any) (map[string]any, string, bool) {
+	template, ok := spec["template"].(string)
+	if !ok || strings.TrimSpace(template) == "" {
+		return nil, "", false
+	}
+	for key := range spec {
+		switch key {
+		case "template", "description", "agent", "subtask", "model":
+		default:
+			return nil, "", false
+		}
+	}
+	frontmatter := map[string]any{}
+	if description, ok := spec["description"]; ok {
+		text, ok := description.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["description"] = strings.TrimSpace(text)
+	}
+	if agent, ok := spec["agent"]; ok {
+		text, ok := agent.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["agent"] = strings.TrimSpace(text)
+	}
+	if subtask, ok := spec["subtask"]; ok {
+		flag, ok := subtask.(bool)
+		if !ok {
+			return nil, "", false
+		}
+		frontmatter["subtask"] = flag
+	}
+	if model, ok := spec["model"]; ok {
+		text, ok := model.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["model"] = strings.TrimSpace(text)
+	}
+	return frontmatter, strings.TrimSpace(template), true
+}
+
+func normalizeInlineOpenCodeAgent(name string, spec map[string]any) (map[string]any, string, bool) {
+	description, ok := spec["description"].(string)
+	if !ok || strings.TrimSpace(description) == "" {
+		return nil, "", false
+	}
+	for key := range spec {
+		switch key {
+		case "description", "mode", "model", "temperature", "tools", "permission", "disable", "steps", "prompt":
+		default:
+			return nil, "", false
+		}
+	}
+	frontmatter := map[string]any{
+		"description": strings.TrimSpace(description),
+	}
+	if mode, ok := spec["mode"]; ok {
+		text, ok := mode.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["mode"] = strings.TrimSpace(text)
+	}
+	if model, ok := spec["model"]; ok {
+		text, ok := model.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["model"] = strings.TrimSpace(text)
+	}
+	if temperature, ok := spec["temperature"]; ok {
+		switch value := temperature.(type) {
+		case float64:
+			frontmatter["temperature"] = value
+		default:
+			return nil, "", false
+		}
+	}
+	if tools, ok := spec["tools"]; ok {
+		frontmatter["tools"] = tools
+	}
+	if permission, ok := spec["permission"]; ok {
+		frontmatter["permission"] = permission
+	}
+	if disable, ok := spec["disable"]; ok {
+		flag, ok := disable.(bool)
+		if !ok {
+			return nil, "", false
+		}
+		frontmatter["disable"] = flag
+	}
+	if steps, ok := spec["steps"]; ok {
+		value, ok := steps.(float64)
+		if !ok || value != float64(int(value)) {
+			return nil, "", false
+		}
+		frontmatter["steps"] = int(value)
+	}
+	body := ""
+	if prompt, ok := spec["prompt"]; ok {
+		text, ok := prompt.(string)
+		if !ok {
+			return nil, "", false
+		}
+		if strings.Contains(text, "{file:") {
+			return nil, "", false
+		}
+		body = strings.TrimSpace(text)
+	}
+	return frontmatter, body, true
+}
+
+func marshalOpenCodeMarkdown(frontmatter map[string]any, body string) ([]byte, error) {
+	fm := strings.TrimSpace(string(mustYAML(frontmatter)))
+	text := "---\n" + fm + "\n---\n"
+	if strings.TrimSpace(body) != "" {
+		text += "\n" + strings.TrimSpace(body) + "\n"
+	}
+	return []byte(text), nil
+}
+
+func canonicalOpenCodeNamedMarkdownPath(kind, name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" || strings.Contains(name, "/") || strings.Contains(name, `\`) || strings.Contains(name, "..") {
+		return "", false
+	}
+	return filepath.ToSlash(filepath.Join("targets", "opencode", kind, name+".md")), true
 }
 
 func sortedArtifactKeys(artifacts map[string]pluginmodel.Artifact) []string {

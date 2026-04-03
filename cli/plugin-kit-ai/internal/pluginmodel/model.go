@@ -51,14 +51,14 @@ type Launcher struct {
 }
 
 type PortableMCP struct {
-	Path    string
-	Servers map[string]any
-	File    *PortableMCPFile
+	Path    string           `json:"path"`
+	Servers map[string]any   `json:"servers"`
+	File    *PortableMCPFile `json:"file,omitempty"`
 }
 
 type PortableComponents struct {
-	Items map[string][]string
-	MCP   *PortableMCP
+	Items map[string][]string `json:"items"`
+	MCP   *PortableMCP        `json:"mcp,omitempty"`
 }
 
 type NativeDocFormat string
@@ -99,6 +99,9 @@ func NewPortableComponents() PortableComponents {
 }
 
 func (p *PortableComponents) Add(kind string, paths ...string) {
+	if len(paths) == 0 {
+		return
+	}
 	if p.Items == nil {
 		p.Items = map[string][]string{}
 	}

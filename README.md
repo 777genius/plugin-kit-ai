@@ -110,7 +110,7 @@ Practical default:
 
 ## Deep Product Details
 
-Everything below this point is for people comparing delivery models and detailed support boundaries. If you only needed the main promise and first path, you can stop above.
+Everything below this point is for people comparing delivery models, import paths, and detailed support boundaries. If you only needed the main promise and first path, you can stop above.
 
 ## Go Deeper By Goal
 
@@ -205,6 +205,9 @@ Common CLI commands:
 
 `plugin-kit-ai install` stays intentionally narrow: it installs third-party plugin binaries from GitHub Releases, verifies `checksums.txt`, and does not act as a self-update path for the CLI itself.
 
+For automation, `plugin-kit-ai validate --format json` now emits the versioned `plugin-kit-ai/validate-report` contract with `schema_version: 1` and explicit outcomes `passed`, `failed`, or `failed_strict_warnings`.
+For Codex lane selection, use [docs/CODEX_TARGET_BOUNDARY.md](docs/CODEX_TARGET_BOUNDARY.md). For the validation ABI itself, use [docs/VALIDATE_JSON_CONTRACT.md](docs/VALIDATE_JSON_CONTRACT.md).
+
 ## Build And Test
 
 Requirements:
@@ -240,6 +243,8 @@ Canonical docs:
 - [docs/generated/support_matrix.md](docs/generated/support_matrix.md)
 - [docs/generated/target_support_matrix.md](docs/generated/target_support_matrix.md)
 - [docs/SUPPORT.md](docs/SUPPORT.md)
+- [docs/CODEX_TARGET_BOUNDARY.md](docs/CODEX_TARGET_BOUNDARY.md)
+- [docs/VALIDATE_JSON_CONTRACT.md](docs/VALIDATE_JSON_CONTRACT.md)
 - [docs/PRODUCTION.md](docs/PRODUCTION.md)
 - [docs/INSTALL_COMPATIBILITY.md](docs/INSTALL_COMPATIBILITY.md)
 - [docs/STATUS.md](docs/STATUS.md)

@@ -496,3 +496,17 @@ func assertCodexConfig(t *testing.T, root, wantModel, wantEntrypoint string) {
 		}
 	}
 }
+
+func assertCodexConfigContains(t *testing.T, root string, want ...string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, needle := range want {
+		if !strings.Contains(text, needle) {
+			t.Fatalf(".codex/config.toml missing %q:\n%s", needle, text)
+		}
+	}
+}

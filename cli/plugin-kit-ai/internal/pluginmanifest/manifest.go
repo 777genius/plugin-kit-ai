@@ -12,6 +12,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/codexconfig"
+	"github.com/777genius/plugin-kit-ai/cli/internal/codexmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/geminimanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
@@ -83,7 +86,9 @@ type InspectTarget struct {
 	NativeRoot          string                    `json:"native_root,omitempty"`
 	PortableKinds       []string                  `json:"portable_kinds"`
 	TargetNativeKinds   []string                  `json:"target_native_kinds"`
+	NativeDocPaths      map[string]string         `json:"native_doc_paths,omitempty"`
 	NativeSurfaces      []targetcontracts.Surface `json:"native_surfaces,omitempty"`
+	NativeSurfaceTiers  map[string]string         `json:"native_surface_tiers,omitempty"`
 	ManagedArtifacts    []string                  `json:"managed_artifacts"`
 	UnsupportedKinds    []string                  `json:"unsupported_kinds,omitempty"`
 }
@@ -100,6 +105,30 @@ type RenderResult struct {
 	Artifacts  []Artifact
 	StalePaths []string
 }
+
+type importedClaudeHooksFile struct {
+	Hooks map[string][]importedClaudeHookEntry `json:"hooks"`
+}
+
+type importedClaudeHookEntry struct {
+	Hooks []importedClaudeHookCommand `json:"hooks"`
+}
+
+type importedClaudeHookCommand struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
+}
+
+type importedCodexPluginManifest = codexmanifest.ImportedPluginManifest
+
+type importedCodexNativeConfig = codexconfig.ImportedConfig
+
+type importedCodexTargetMeta struct {
+	ModelHint string `yaml:"model_hint,omitempty"`
+}
+
+type importedGeminiTargetMeta = geminimanifest.PackageMeta
+type importedGeminiExtension = geminimanifest.ImportedExtension
 
 func Load(root string) (Manifest, error) {
 	manifest, _, err := LoadWithWarnings(root)
@@ -149,8 +178,8 @@ func Analyze(body []byte) (Manifest, []Warning, error) {
 		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: flat components inventory is not supported; use package-standard plugin.yaml plus conventions")
 	}
 	if rawTargets, ok := raw["targets"]; ok {
-		if _, legacy := rawTargets.(map[string]any); legacy {
-			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: legacy targets object is not supported; use targets as a YAML sequence")
+		if _, oldShape := rawTargets.(map[string]any); oldShape {
+			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: targets must be a YAML sequence")
 		}
 	}
 	if _, ok := raw["runtime"]; ok {
@@ -406,7 +435,7 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 		Manifest:    graph.Manifest,
 		Launcher:    graph.Launcher,
 		Portable:    graph.Portable,
-		SourceFiles: append([]string(nil), graph.SourceFiles...),
+		SourceFiles: cloneStringSlice(graph.SourceFiles),
 	}
 	for _, name := range selected {
 		entry, ok := targetcontracts.Lookup(name)
@@ -426,11 +455,13 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 			DevModel:            entry.DevModel,
 			ActivationModel:     entry.ActivationModel,
 			NativeRoot:          entry.NativeRoot,
-			PortableKinds:       entry.PortableComponentKinds,
-			TargetNativeKinds:   DiscoveredTargetKinds(tc),
+			PortableKinds:       cloneStringSlice(entry.PortableComponentKinds),
+			TargetNativeKinds:   cloneStringSlice(DiscoveredTargetKinds(tc)),
+			NativeDocPaths:      discoveredNativeDocPaths(tc),
 			NativeSurfaces:      append([]targetcontracts.Surface(nil), entry.NativeSurfaces...),
-			ManagedArtifacts:    expectedManagedPaths(root, graph, []string{name}),
-			UnsupportedKinds:    unsupportedKinds(entry, graph, tc),
+			NativeSurfaceTiers:  cloneStringMap(entry.NativeSurfaceTiers),
+			ManagedArtifacts:    cloneStringSlice(expectedManagedPaths(root, graph, []string{name})),
+			UnsupportedKinds:    cloneStringSlice(unsupportedKinds(entry, graph, tc)),
 		})
 	}
 	return inspection, warnings, nil
@@ -506,6 +537,47 @@ func RemoveArtifacts(root string, relPaths []string) error {
 		}
 	}
 	return nil
+}
+
+func discoveredNativeDocPaths(tc TargetComponents) map[string]string {
+	if len(tc.Docs) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(tc.Docs))
+	for kind, path := range tc.Docs {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		out[kind] = path
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cloneStringMap(items map[string]string) map[string]string {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(items))
+	for key, value := range items {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cloneStringSlice(items []string) []string {
+	if len(items) == 0 {
+		return []string{}
+	}
+	return append([]string{}, items...)
 }
 
 func Drift(root string, target string) ([]string, error) {
@@ -781,6 +853,251 @@ func walkNode(node *yaml.Node, path string, spec schemaSpec, seen map[string]str
 	}
 }
 
+func importManifest(root, from string) (Manifest, Launcher, []Warning, error) {
+	warnings := []Warning{}
+	manifest := Default(defaultName(root), from, inferRuntime(root), "plugin-kit-ai plugin", false)
+	launcher := DefaultLauncher(defaultName(root), inferRuntime(root))
+	enrichFromNative(root, &manifest, &launcher, from, &warnings)
+	return manifest, launcher, warnings, nil
+}
+
+func enrichFromNative(root string, manifest *Manifest, launcher *Launcher, from string, warnings *[]Warning) {
+	switch from {
+	case "claude":
+		loadClaudeMetadata(root, manifest, launcher)
+	case "codex":
+		loadCodexMetadata(root, manifest, launcher)
+	case "gemini":
+		loadGeminiMetadata(root, manifest)
+	}
+	if fileExists(filepath.Join(root, ".mcp.json")) {
+		*warnings = append(*warnings, Warning{
+			Kind:    WarningFidelity,
+			Path:    ".mcp.json",
+			Message: "portable MCP will be preserved under mcp/servers.yaml",
+		})
+	}
+	if from == "codex" && fileExists(filepath.Join(root, "agents")) {
+		*warnings = append(*warnings, Warning{
+			Kind:    WarningIgnoredImport,
+			Path:    "agents",
+			Message: "ignored unsupported import asset: agents",
+		})
+	}
+}
+
+func loadClaudeMetadata(root string, manifest *Manifest, launcher *Launcher) {
+	type meta struct {
+		Name        string `json:"name"`
+		Version     string `json:"version"`
+		Description string `json:"description"`
+	}
+	if body, err := os.ReadFile(filepath.Join(root, ".claude-plugin", "plugin.json")); err == nil {
+		var m meta
+		if json.Unmarshal(body, &m) == nil {
+			if strings.TrimSpace(m.Name) != "" {
+				manifest.Name = m.Name
+			}
+			if strings.TrimSpace(m.Version) != "" {
+				manifest.Version = m.Version
+			}
+			if strings.TrimSpace(m.Description) != "" {
+				manifest.Description = m.Description
+			}
+		}
+	}
+	if body, err := os.ReadFile(filepath.Join(root, "hooks", "hooks.json")); err == nil {
+		if entrypoint, ok := inferClaudeEntrypoint(body); ok {
+			launcher.Entrypoint = entrypoint
+		}
+	}
+}
+
+func loadCodexMetadata(root string, manifest *Manifest, launcher *Launcher) {
+	if data, _, err := readImportedCodexPluginManifest(root); err == nil {
+		if strings.TrimSpace(data.Name) != "" {
+			manifest.Name = data.Name
+		}
+		if strings.TrimSpace(data.Version) != "" {
+			manifest.Version = data.Version
+		}
+		if strings.TrimSpace(data.Description) != "" {
+			manifest.Description = data.Description
+		}
+	}
+	if config, _, err := readImportedCodexConfig(root); err == nil {
+		if len(config.Notify) > 0 && strings.TrimSpace(config.Notify[0]) != "" {
+			launcher.Entrypoint = strings.TrimSpace(config.Notify[0])
+		}
+	}
+}
+
+func loadGeminiMetadata(root string, manifest *Manifest) {
+	if data, ok, err := readImportedGeminiExtension(root); err == nil && ok {
+		if strings.TrimSpace(data.Name) != "" {
+			manifest.Name = data.Name
+		}
+		if strings.TrimSpace(data.Version) != "" {
+			manifest.Version = data.Version
+		}
+		if strings.TrimSpace(data.Description) != "" {
+			manifest.Description = data.Description
+		}
+	}
+}
+
+func readImportedGeminiExtension(root string) (importedGeminiExtension, bool, error) {
+	return geminimanifest.ReadImportedExtension(root)
+}
+
+func importedGeminiPrimaryContextName(root string, meta importedGeminiTargetMeta) string {
+	if strings.TrimSpace(meta.ContextFileName) != "" {
+		return filepath.Base(strings.TrimSpace(meta.ContextFileName))
+	}
+	if fileExists(filepath.Join(root, "GEMINI.md")) {
+		return "GEMINI.md"
+	}
+	return ""
+}
+
+func jsonStringArray(values []any) []string {
+	var out []string
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		out = append(out, text)
+	}
+	return out
+}
+
+func importCodexModel(root string) string {
+	config, _, err := readImportedCodexConfig(root)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(config.Model)
+}
+
+func readImportedCodexConfig(root string) (importedCodexNativeConfig, []byte, error) {
+	return codexconfig.ReadImportedConfig(root)
+}
+
+func readImportedCodexPluginManifest(root string) (importedCodexPluginManifest, []byte, error) {
+	return codexmanifest.ReadImportedPluginManifest(root)
+}
+
+func inferClaudeEntrypoint(body []byte) (string, bool) {
+	hooks, err := parseClaudeHooks(body)
+	if err != nil {
+		return "", false
+	}
+	for _, hookName := range claudeHookNames() {
+		for _, entry := range hooks.Hooks[hookName] {
+			for _, command := range entry.Hooks {
+				if command.Type != "command" {
+					continue
+				}
+				entrypoint, ok := trimClaudeHookCommand(command.Command, hookName)
+				if ok {
+					return entrypoint, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+func ValidateClaudeHookEntrypoints(body []byte, entrypoint string) ([]string, error) {
+	hooks, err := parseClaudeHooks(body)
+	if err != nil {
+		return nil, err
+	}
+	var mismatches []string
+	for hookName, entries := range hooks.Hooks {
+		expected := entrypoint + " " + hookName
+		foundCommand := false
+		for _, entry := range entries {
+			for _, command := range entry.Hooks {
+				foundCommand = true
+				if command.Type != "command" {
+					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses type %q; expected command %q", hookName, command.Type, expected))
+					continue
+				}
+				if command.Command != expected {
+					mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q uses %q; expected %q from launcher.yaml entrypoint", hookName, command.Command, expected))
+				}
+			}
+		}
+		if !foundCommand {
+			mismatches = append(mismatches, fmt.Sprintf("entrypoint mismatch: Claude hook %q declares no command hooks; expected %q", hookName, expected))
+		}
+	}
+	return mismatches, nil
+}
+
+func parseClaudeHooks(body []byte) (importedClaudeHooksFile, error) {
+	var hooks importedClaudeHooksFile
+	if err := json.Unmarshal(body, &hooks); err != nil {
+		return importedClaudeHooksFile{}, err
+	}
+	return hooks, nil
+}
+
+func trimClaudeHookCommand(command, hookName string) (string, bool) {
+	command = strings.TrimSpace(command)
+	suffix := " " + strings.TrimSpace(hookName)
+	if !strings.HasSuffix(command, suffix) {
+		return "", false
+	}
+	entrypoint := strings.TrimSpace(strings.TrimSuffix(command, suffix))
+	if entrypoint == "" {
+		return "", false
+	}
+	return entrypoint, true
+}
+
+func inferNativePlatform(root string) string {
+	switch {
+	case fileExists(filepath.Join(root, ".claude-plugin", "plugin.json")) || fileExists(filepath.Join(root, "hooks", "hooks.json")):
+		return "claude"
+	case fileExists(filepath.Join(root, ".codex", "config.toml")) || fileExists(filepath.Join(root, ".codex-plugin", "plugin.json")):
+		return "codex"
+	case fileExists(filepath.Join(root, "gemini-extension.json")):
+		return "gemini"
+	default:
+		return ""
+	}
+}
+
+func claudeHookNames() []string {
+	return []string{
+		"SessionStart",
+		"SessionEnd",
+		"Notification",
+		"PostToolUse",
+		"PostToolUseFailure",
+		"PermissionRequest",
+		"SubagentStart",
+		"SubagentStop",
+		"PreCompact",
+		"Setup",
+		"Stop",
+		"PreToolUse",
+		"TeammateIdle",
+		"TaskCompleted",
+		"UserPromptSubmit",
+		"ConfigChange",
+		"WorktreeCreate",
+		"WorktreeRemove",
+	}
+}
+
 func inferRuntime(root string) string {
 	switch {
 	case fileExists(filepath.Join(root, "go.mod")):
@@ -898,6 +1215,19 @@ func importedPortableMCPArtifacts(root string) ([]Artifact, error) {
 	return []Artifact{{RelPath: filepath.Join("mcp", "servers.yaml"), Content: normalized}}, nil
 }
 
+func compactArtifacts(artifacts []Artifact) []Artifact {
+	slices.SortFunc(artifacts, func(a, b Artifact) int { return strings.Compare(a.RelPath, b.RelPath) })
+	out := make([]Artifact, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		n := len(out)
+		if n > 0 && out[n-1].RelPath == artifact.RelPath {
+			out[n-1] = artifact
+			continue
+		}
+		out = append(out, artifact)
+	}
+	return out
+}
 func expectedManagedPaths(root string, graph PackageGraph, selected []string) []string {
 	seen := map[string]struct{}{}
 	for _, target := range selected {
@@ -1071,4 +1401,13 @@ func joinPath(parent, child string) string {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func cleanRelativeRef(path string) string {
+	path = filepath.Clean(strings.TrimSpace(path))
+	path = strings.TrimPrefix(path, "./")
+	if path == "." {
+		return ""
+	}
+	return path
 }

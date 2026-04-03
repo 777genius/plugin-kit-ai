@@ -7,9 +7,9 @@ This document is the canonical production authoring path for plugin authors usin
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
-- Gemini: production-ready Go runtime for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`; full extension packaging remains first-class
+- Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
 - Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, and optional shared root `AGENTS.md`; not a production-ready runtime target
-- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools; `custom_tools` remain beta
+- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools, explicit env-config import compatibility, and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
 
@@ -62,6 +62,8 @@ For interpreted runtimes, add the bootstrap step before `validate --strict`:
 - `init --extras`: for the stable interpreted `python`/`node` subset on `codex-runtime` and `claude`, this now emits `.github/workflows/bundle-release.yml`, which uses `setup-plugin-kit-ai@v1` and runs `doctor -> bootstrap -> validate --strict -> bundle publish`
 
 After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.
+When CI or another tool needs structured output, use `plugin-kit-ai validate --format json`; it emits the versioned `plugin-kit-ai/validate-report` contract with `schema_version: 1` and `outcome` values `passed`, `failed`, or `failed_strict_warnings`.
+Use [VALIDATE_JSON_CONTRACT.md](./VALIDATE_JSON_CONTRACT.md) for the ABI details and [CODEX_TARGET_BOUNDARY.md](./CODEX_TARGET_BOUNDARY.md) when deciding between `codex-runtime` and `codex-package`.
 
 ## Claude Release-Ready Path
 
@@ -92,7 +94,8 @@ Reference implementation:
 ## Codex Package Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform codex-package` or `plugin-kit-ai import --from codex-package`
-- Keep `plugin.yaml` plus `targets/codex-package/...` as the authored source of truth
+- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/codex-package/...` as the authored source of truth
+- Use `targets/codex-package/package.yaml` for first-class package metadata and `targets/codex-package/interface.json` for prompt/interface UX; reserve `targets/codex-package/manifest.extra.json` for unsupported future manifest fields only
 - Commit generated `.codex-plugin/plugin.json` plus optional `.mcp.json` and `.app.json`
 - Treat this lane as the official Codex plugin bundle, separate from local notify/runtime wiring
 

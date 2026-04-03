@@ -83,9 +83,9 @@ Current production-ready target boundary:
 - Claude package authoring also supports first-class `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, and `targets/claude/manifest.extra.json`
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
-- Gemini: production-ready Go runtime for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`; full Gemini CLI extension packaging remains first-class
-- Gemini runtime evidence is guarded by deterministic repo-local gating via `make test-gemini-runtime` and dedicated opt-in real CLI runtime smoke via `make test-gemini-runtime-live`
-- OpenCode: workspace-config lane through `plugin-kit-ai render|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope import; not a production-ready runtime target
+- Codex package bundle contract: `.codex-plugin/` contains only `plugin.json`, while optional `.app.json` and `.mcp.json` stay at plugin root and must match manifest refs
+- Gemini: full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
+- OpenCode: workspace-config lane through `plugin-kit-ai render|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope and env-config import compatibility; not a production-ready runtime target
 
 Stable CLI commands:
 
@@ -133,6 +133,8 @@ Stable generated scaffold contract:
 
 - Codex runtime required authored files: `go.mod`, `README.md`, `plugin.yaml`, `launcher.yaml`, generated `cmd/<project>/main.go`
 - Codex package required authored files: `README.md`, `plugin.yaml`, `targets/codex-package/package.yaml`
+- Codex runtime optional authored docs: `targets/codex-runtime/config.extra.toml` for supported repo-local config passthrough beyond managed `model` and `notify`
+- Codex package optional authored docs: `targets/codex-package/interface.json`, `targets/codex-package/app.json`, and `targets/codex-package/manifest.extra.json`; first-class package metadata lives in `targets/codex-package/package.yaml`
 - Claude required authored files: `go.mod`, `README.md`, `plugin.yaml`, generated `cmd/<project>/main.go`
 - stable launcher-based local-runtime scaffold subset on `codex-runtime` and `claude`:
   - `python`: `plugin.yaml`, `launcher.yaml`, `README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin_runtime.py`, while `init ... --runtime-package` imports `plugin_kit_ai_runtime`; official shared helper package: `plugin-kit-ai-runtime`
@@ -153,7 +155,8 @@ Runtime recommendation contract:
 ## Current Public-Beta Surfaces
 
 Current beta surfaces that remain intentionally outside the stable set:
-- OpenCode workspace-config lane through `plugin-kit-ai render|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, and beta `custom_tools` across standalone tools and plugin code
+- Gemini full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate`, covering official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and deterministic local extension lifecycle checks
+- OpenCode workspace-config lane through `plugin-kit-ai render|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, env-config import compatibility from `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR`, `config.extra.json`, and passthrough config surfaces like `agent`, `permission`, and `instructions`; `custom_tools` remain beta across standalone tools and plugin code
 - Cursor workspace-config lane through `plugin-kit-ai render|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
@@ -187,7 +190,11 @@ Config contract:
 - `plugin-kit-ai normalize` is the canonical cleanup path for rewriting unknown manifest content into the package-standard shape
 - `plugin-kit-ai import` is the supported bridge from current native Claude/Codex/Gemini/OpenCode layouts back into the authored package-standard layout
 - Codex runtime project-local config generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform codex-runtime`
-- Codex package manifest generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform codex-package`
+- Codex runtime passthrough config lives in `targets/codex-runtime/config.extra.toml`; managed `model` and `notify` stay owned by `launcher.yaml` plus `targets/codex-runtime/package.yaml`
+- live Codex CLI evidence currently splits into two buckets:
+  - confirmed working paths: real `codex exec` with explicit `-c notify=...` override still reaches the repository-owned notify hook harness, the checked-in `examples/plugins/codex-basic-prod` runtime also passes that real `codex exec` path after rebuild, the same checked-in runtime example now also passes real `codex mcp get --json` and `codex mcp list --json` when its rendered runtime MCP config is projected back through documented `-c mcp_servers...` overrides, real `codex mcp get --json` and `codex mcp list --json` with explicit `-c mcp_servers...` overrides still expose the projected MCP server contract, real `codex mcp add|get|list|remove` also work through an isolated temporary home for both stdio and streamable HTTP servers, those same mutable CLI config-management commands also pass when seeded from the checked-in runtime and package production examples, their auth-seeded variants also pass for those checked-in runtime and package production examples, a rendered `codex-package` `.mcp.json` sidecar can be projected into those documented overrides for real `mcp get`, `mcp list`, plus `exec` MCP smoke, that same rendered stdio sidecar now also passes real `codex mcp add|get|list|remove` through both isolated and auth-seeded config homes, a synthetic rendered HTTP `codex-package` sidecar now also passes that same real `codex mcp add|get|list|remove` path in both isolated and auth-seeded config homes, auth-seeded live `codex mcp login|logout` also now prove the current CLI rejects stdio servers with stable OAuth-only diagnostics while preserving subsequent `get|list|remove`, and auth-seeded live `codex mcp get` plus `codex mcp remove` now also prove the current missing-server behavior after removal: `get` fails, while `remove` stays idempotent
+  - evidence-only project-config probes: on the current live Codex CLI build (`v0.117.0` in repo evidence), `codex exec`, `codex mcp get`, and `codex mcp list` do not reliably honor project-local `.codex/config.toml`; this now holds both for a synthetic rendered runtime workspace and for the checked-in `examples/plugins/codex-basic-prod` runtime example, across `exec`, `mcp get`, and `mcp list`. Separately, an isolated `CODEX_HOME` can successfully drive `codex mcp add|get|list|remove`, but a follow-up `codex exec` on that same isolated config currently loses live auth and therefore remains evidence-only. A stronger auth-seeded variant now also proves that copied live auth keeps `codex login status` plus documented stdio and HTTP `mcp add|get|list|remove` flows working inside a temporary `CODEX_HOME`, while the subsequent `codex exec` probe can still skip because the persisted MCP tool is not exposed in that session. The corresponding opt-in live tests record `skip` with captured output instead of claiming support that the vendor CLI did not prove
+- Codex package manifest generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform codex-package`; first-class package metadata and `interface` live under `targets/codex-package/`, while `manifest.extra.json` remains passthrough-only for unsupported future fields
 - Claude plugin metadata and hook routing files generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform claude`
 - Gemini CLI extension manifest generated by `plugin-kit-ai render --target gemini`, with optional Go launcher-based runtime support in the current production-ready runtime contract
 - OpenCode workspace config generated by `plugin-kit-ai render --target opencode`, with workspace-config-only status in the current contract
@@ -283,7 +290,7 @@ The custom hook helpers are intended as an escape hatch when Claude or Codex add
 ## Compatibility Rules
 
 - `public-beta` changes must be called out in changelogs or release notes when user code, scaffold output, readiness semantics, or bundle contents change.
-- `public-beta` surfaces are not covered by a backward-compatibility promise; before promotion, superseded paths may be removed directly as long as the current contract and resulting breakage are documented.
+- `public-beta` surfaces are not covered by a backward-compatibility promise; before promotion, older beta-only paths may be removed directly as long as the current contract and resulting breakage are documented.
 - The declared `v1` candidate set must be reviewed through [V0_9_AUDIT.md](./V0_9_AUDIT.md) before any surface is promoted.
 - post-`v1` stable-promotion candidates must be reviewed through a dedicated promotion ledger such as [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md)
 - OpenCode local plugin loading is promoted through [OPENCODE_STABLE_PROMOTION_AUDIT.md](./OPENCODE_STABLE_PROMOTION_AUDIT.md); helper-based custom tools remain `public-beta`
@@ -300,7 +307,7 @@ SDK and CLI stable promotion means:
 
 - no breaking changes outside a future major release
 - removal only through deprecation first
-- future replacements must be documented before they ship
+- documented replacement path required for future replacements
 - support docs and generated support metadata must match shipped behavior
 
 Codex stable promotion means:
@@ -374,5 +381,5 @@ Release evidence note:
 ## Deprecation Rules
 
 - Deprecated public surfaces must be marked in docs and changelogs before removal.
-- Removal requires documented scope and breakage.
+- Removal requires a documented replacement path.
 - Deprecated `public-beta` surface may still change before `v1`, but removal should not be silent.

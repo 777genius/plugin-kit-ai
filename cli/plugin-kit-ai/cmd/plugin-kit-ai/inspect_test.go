@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -28,10 +31,7 @@ func TestInspectTextShowsLauncherAndGeminiGuidance(t *testing.T) {
 				Version: "0.1.0",
 				Targets: []string{"gemini"},
 			},
-			Launcher: &pluginmanifest.Launcher{
-				Runtime:    "go",
-				Entrypoint: "./bin/demo",
-			},
+			Launcher: &pluginmanifest.Launcher{Runtime: "go", Entrypoint: "./bin/demo"},
 			Targets: []pluginmanifest.InspectTarget{{
 				Target:            "gemini",
 				TargetClass:       "mcp_extension",
@@ -102,6 +102,89 @@ func TestInspectTextShowsGeminiPackagingGuidanceWithoutLauncher(t *testing.T) {
 	}
 }
 
+func TestInspectTextIncludesNativeDocPathsForCodexLanes(t *testing.T) {
+	root := t.TempDir()
+	manifest := pluginmanifest.Default("codex-inspect", "codex-runtime", "go", "codex inspect", true)
+	manifest.Targets = []string{"codex-package", "codex-runtime"}
+	if err := pluginmanifest.Save(root, manifest, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher("codex-inspect", "go"), true); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n")
+
+	var buf bytes.Buffer
+	cmd := rootCmd
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"inspect", root, "--target", "all", "--format", "text"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		"docs=interface=targets/codex-package/interface.json,package_metadata=targets/codex-package/package.yaml",
+		"docs=config_extra=targets/codex-runtime/config.extra.toml,package_metadata=targets/codex-runtime/package.yaml",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestInspectJSONUsesPortableContractShape(t *testing.T) {
+	root := t.TempDir()
+	mustWriteInspectFile(t, root, "plugin.yaml", "format: plugin-kit-ai/package\nname: \"codex-inspect\"\nversion: \"0.1.0\"\ndescription: \"codex inspect\"\ntargets: [\"codex-runtime\"]\n")
+	mustWriteInspectFile(t, root, "launcher.yaml", "runtime: go\nentrypoint: ./bin/codex-inspect\n")
+
+	var buf bytes.Buffer
+	cmd := rootCmd
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"inspect", root, "--target", "codex-runtime", "--format", "json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var report map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &report); err != nil {
+		t.Fatalf("inspect json parse: %v\n%s", err, buf.Bytes())
+	}
+	portable, ok := report["portable"].(map[string]any)
+	if !ok {
+		t.Fatalf("portable payload missing: %+v", report)
+	}
+	if _, ok := portable["items"].(map[string]any); !ok {
+		t.Fatalf("portable.items missing or wrong shape: %+v", portable)
+	}
+	if _, found := portable["Items"]; found {
+		t.Fatalf("portable should not expose legacy field name: %+v", portable)
+	}
+	if sourceFiles, ok := report["source_files"].([]any); !ok || len(sourceFiles) != 2 {
+		t.Fatalf("source_files should be a non-null array with plugin and launcher, got %+v", report["source_files"])
+	}
+	targets, ok := report["targets"].([]any)
+	if !ok || len(targets) != 1 {
+		t.Fatalf("targets payload = %+v", report["targets"])
+	}
+	target, ok := targets[0].(map[string]any)
+	if !ok {
+		t.Fatalf("target payload = %+v", targets[0])
+	}
+	if _, ok := target["native_surface_tiers"].(map[string]any); !ok {
+		t.Fatalf("native_surface_tiers missing from inspect json target: %+v", target)
+	}
+	if kinds, ok := target["target_native_kinds"].([]any); !ok || len(kinds) != 0 {
+		t.Fatalf("target_native_kinds should be an empty array, got %+v", target["target_native_kinds"])
+	}
+	if kinds, ok := target["portable_kinds"].([]any); !ok || len(kinds) != 0 {
+		t.Fatalf("portable_kinds should be an empty array, got %+v", target["portable_kinds"])
+	}
+}
+
 func TestInspectHelpIncludesCursorTarget(t *testing.T) {
 	t.Parallel()
 	cmd := newInspectCmd(fakeInspectRunner{})
@@ -112,8 +195,18 @@ func TestInspectHelpIncludesCursorTarget(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	output := buf.String()
-	if !strings.Contains(output, `"cursor"`) {
-		t.Fatalf("help output missing cursor target:\n%s", output)
+	if !strings.Contains(buf.String(), `"cursor"`) {
+		t.Fatalf("help output missing cursor target:\n%s", buf.String())
+	}
+}
+
+func mustWriteInspectFile(t *testing.T, root, rel, body string) {
+	t.Helper()
+	full := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

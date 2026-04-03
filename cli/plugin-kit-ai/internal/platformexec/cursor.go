@@ -61,6 +61,11 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		hasCursorState = true
 	}
 
+	if _, err := os.Stat(filepath.Join(root, ".cursorrules")); err == nil {
+		return ImportResult{}, fmt.Errorf("unsupported Cursor native path .cursorrules: use .cursor/rules/*.mdc and optional root AGENTS.md")
+	} else if !os.IsNotExist(err) {
+		return ImportResult{}, err
+	}
 	if body, err := os.ReadFile(filepath.Join(root, "AGENTS.md")); err == nil {
 		if seed.Explicit || hasCursorState {
 			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
@@ -74,7 +79,7 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 
 	if !hasCursorState {
-		return ImportResult{}, fmt.Errorf("cursor import requires .cursor/mcp.json, .cursor/rules/**, or explicit --from cursor with root AGENTS.md")
+		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json, .cursor/rules/**, or explicit --from cursor with root AGENTS.md")
 	}
 	result.Artifacts = compactArtifacts(result.Artifacts)
 	return result, nil

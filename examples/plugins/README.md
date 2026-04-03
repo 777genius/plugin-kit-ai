@@ -3,9 +3,9 @@
 These examples are reference implementations for the current production plugin workflow.
 
 - [claude-basic-prod](./claude-basic-prod): Claude plugin repo with `plugin.yaml`, generated native artifacts, and deterministic local smoke path
-- [codex-basic-prod](./codex-basic-prod): Codex runtime lane repo with `plugin.yaml`, generated `.codex/config.toml`, and deterministic local notify smoke path
-- [codex-package-prod](./codex-package-prod): official Codex package lane with `plugin.yaml`, rendered `.codex-plugin/plugin.json`, and skills-first bundle output
-- [gemini-extension-package](./gemini-extension-package): Gemini CLI extension repo with `plugin.yaml`, rendered `gemini-extension.json`, shared MCP, packaging-first `inspect`/`capabilities` workflow, and packaging-only validation coverage
+- [codex-basic-prod](./codex-basic-prod): Codex runtime lane repo with `plugin.yaml`, generated `.codex/config.toml`, deterministic local notify smoke path, and repo-local MCP passthrough example
+- [codex-package-prod](./codex-package-prod): official Codex package lane with `plugin.yaml`, rendered `.codex-plugin/plugin.json`, optional `.app.json`, shared `.mcp.json`, and skills-first bundle output
+- [gemini-extension-package](./gemini-extension-package): Gemini CLI extension repo with `plugin.yaml`, rendered `gemini-extension.json`, shared MCP, and packaging-only validation coverage
 - [cursor-basic](./cursor-basic): Cursor workspace-config repo with `plugin.yaml`, rendered `.cursor/mcp.json`, mirrored `.cursor/rules/**`, and optional shared root `AGENTS.md`
 - [opencode-basic](./opencode-basic): OpenCode workspace-config repo with `plugin.yaml`, rendered `opencode.json`, shared MCP, and mirrored portable skills
 

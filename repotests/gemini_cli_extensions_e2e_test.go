@@ -63,6 +63,10 @@ func TestGeminiCLIExtensionLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedGeminiHome(t, homeDir, extensionDir)
+	validateOutput := runGeminiCommand(t, geminiBin, homeDir, extensionDir, "extensions", "validate", extensionDir)
+	if !strings.Contains(validateOutput, "successfully validated") {
+		t.Fatalf("gemini validate output missing success marker:\n%s", validateOutput)
+	}
 	output := runGeminiLink(t, geminiBin, homeDir, extensionDir)
 	if !strings.Contains(output, `Extension "gemini-extension-package" linked successfully and enabled.`) {
 		t.Fatalf("gemini link output missing success marker:\n%s", output)
@@ -77,6 +81,24 @@ func TestGeminiCLIExtensionLink(t *testing.T) {
 	}
 	envPath := filepath.Join(homeDir, ".gemini", "extensions", "gemini-extension-package", ".env")
 	assertFileContains(t, envPath, "RELEASE_PROFILE=stable")
+	listOutput := runGeminiCommand(t, geminiBin, homeDir, extensionDir, "extensions", "list")
+	if !strings.Contains(listOutput, "gemini-extension-package") {
+		t.Fatalf("gemini list output missing linked extension:\n%s", listOutput)
+	}
+	for _, want := range []string{
+		"MCP servers:",
+		"release-checks",
+		"Context files:",
+		"GEMINI.md",
+		"Settings:",
+		"release-profile: stable",
+		"Excluded tools:",
+		"run_shell_command(rm -rf)",
+	} {
+		if !strings.Contains(listOutput, want) {
+			t.Fatalf("gemini list output missing %q:\n%s", want, listOutput)
+		}
+	}
 
 	configOutput := runGeminiConfig(t, geminiBin, homeDir, extensionDir, "gemini-extension-package", "release-profile", "canary\n")
 	if !strings.Contains(configOutput, `Setting "release-profile" updated.`) {

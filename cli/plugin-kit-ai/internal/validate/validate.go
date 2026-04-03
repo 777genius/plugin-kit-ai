@@ -18,6 +18,8 @@ import (
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
+var runtimeFoundPathPattern = regexp.MustCompile(`\bat (.+?) but\b`)
+
 type FailureKind string
 
 const (
@@ -38,10 +40,10 @@ const (
 )
 
 type Failure struct {
-	Kind    FailureKind
-	Path    string
-	Target  string
-	Message string
+	Kind    FailureKind `json:"kind"`
+	Path    string      `json:"path,omitempty"`
+	Target  string      `json:"target,omitempty"`
+	Message string      `json:"message"`
 }
 
 type WarningKind string
@@ -54,16 +56,16 @@ const (
 )
 
 type Warning struct {
-	Kind    WarningKind
-	Path    string
-	Message string
+	Kind    WarningKind `json:"kind"`
+	Path    string      `json:"path,omitempty"`
+	Message string      `json:"message"`
 }
 
 type Report struct {
-	Platform string
-	Checks   []string
-	Warnings []Warning
-	Failures []Failure
+	Platform string    `json:"platform,omitempty"`
+	Checks   []string  `json:"checks"`
+	Warnings []Warning `json:"warnings"`
+	Failures []Failure `json:"failures"`
 }
 
 type ReportError struct {
@@ -112,30 +114,34 @@ func Validate(root, platform string) (Report, error) {
 		return validatePluginProject(root, platform)
 	}
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
-		return Report{}, &ReportError{Report: Report{
+		return Report{}, &ReportError{Report: normalizeReport(Report{
 			Failures: []Failure{{
 				Kind:    FailureManifestInvalid,
+				Path:    filepath.Join(".plugin-kit-ai", "project.toml"),
 				Message: "unsupported project format: .plugin-kit-ai/project.toml is not supported; use plugin.yaml and targets/<platform>/...",
 			}},
-		}}
+		})}
 	}
-	return Report{}, &ReportError{Report: Report{
+	return Report{}, &ReportError{Report: normalizeReport(Report{
 		Failures: []Failure{{
 			Kind:    FailureManifestMissing,
+			Path:    pluginmanifest.FileName,
 			Message: "required manifest missing: plugin.yaml",
 		}},
-	}}
+	})}
 }
 
 func validatePluginProject(root, platform string) (Report, error) {
 	manifest, warnings, err := pluginmanifest.LoadWithWarnings(root)
 	if err != nil {
-		return Report{}, &ReportError{Report: Report{
+		msg := err.Error()
+		return Report{}, &ReportError{Report: normalizeReport(Report{
 			Failures: []Failure{{
 				Kind:    FailureManifestInvalid,
-				Message: err.Error(),
+				Path:    extractFailurePath(msg),
+				Message: msg,
 			}},
-		}}
+		})}
 	}
 
 	report := Report{
@@ -145,6 +151,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 	if strings.TrimSpace(platform) != "" && !slices.Contains(manifest.EnabledTargets(), strings.TrimSpace(platform)) {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureManifestInvalid,
+			Path:    pluginmanifest.FileName,
 			Message: fmt.Sprintf("plugin.yaml does not enable target %q", platform),
 		})
 	}
@@ -157,11 +164,13 @@ func validatePluginProject(root, platform string) (Report, error) {
 	}
 	graph, _, err := pluginmanifest.Discover(root)
 	if err != nil {
+		msg := err.Error()
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureManifestInvalid,
-			Message: err.Error(),
+			Path:    extractFailurePath(msg),
+			Message: msg,
 		})
-		return report, nil
+		return normalizeReport(report), nil
 	}
 	for _, rel := range graph.SourceFiles {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
@@ -195,7 +204,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if len(graph.Portable.Paths("skills")) > 0 && !supportedPortable["skills"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    "skills",
+				Path:    unsupportedPortablePath(graph.Portable, "skills"),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support portable component kind skills", targetName),
 			})
@@ -203,7 +212,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if graph.Portable.MCP != nil && !supportedPortable["mcp_servers"] {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    "mcp",
+				Path:    unsupportedPortablePath(graph.Portable, "mcp_servers"),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support portable component kind mcp_servers", targetName),
 			})
@@ -215,7 +224,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 			}
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureUnsupportedTargetKind,
-				Path:    kind,
+				Path:    unsupportedTargetKindPath(targetName, tc, kind),
 				Target:  targetName,
 				Message: fmt.Sprintf("target %s does not support target-native component kind %s", targetName, kind),
 			})
@@ -225,10 +234,12 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if adapter, ok := platformexec.Lookup(targetName); ok {
 			diagnostics, err := adapter.Validate(root, graph, tc)
 			if err != nil {
+				msg := err.Error()
 				report.Failures = append(report.Failures, Failure{
 					Kind:    FailureManifestInvalid,
+					Path:    extractFailurePath(msg),
 					Target:  targetName,
-					Message: err.Error(),
+					Message: msg,
 				})
 				continue
 			}
@@ -236,9 +247,11 @@ func validatePluginProject(root, platform string) (Report, error) {
 		}
 	}
 	if drift, err := pluginmanifest.Drift(root, targetOrAll(platform)); err != nil {
+		msg := err.Error()
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureGeneratedContractInvalid,
-			Message: err.Error(),
+			Path:    extractFailurePath(msg),
+			Message: msg,
 		})
 	} else {
 		for _, rel := range drift {
@@ -250,7 +263,35 @@ func validatePluginProject(root, platform string) (Report, error) {
 		}
 	}
 	validatePluginRuntimeFiles(root, manifest, graph.Launcher, &report)
-	return report, nil
+	return normalizeReport(report), nil
+}
+
+func normalizeReport(report Report) Report {
+	report.Checks = cloneStrings(report.Checks)
+	report.Warnings = cloneWarnings(report.Warnings)
+	report.Failures = cloneFailures(report.Failures)
+	return report
+}
+
+func cloneStrings(items []string) []string {
+	if len(items) == 0 {
+		return []string{}
+	}
+	return append([]string{}, items...)
+}
+
+func cloneWarnings(items []Warning) []Warning {
+	if len(items) == 0 {
+		return []Warning{}
+	}
+	return append([]Warning{}, items...)
+}
+
+func cloneFailures(items []Failure) []Failure {
+	if len(items) == 0 {
+		return []Failure{}
+	}
+	return append([]Failure{}, items...)
 }
 
 func validateUnsupportedTargetSurfaces(root, target string, report *Report) {
@@ -271,6 +312,95 @@ func validateUnsupportedTargetSurfaces(root, target string, report *Report) {
 			})
 		}
 	}
+}
+
+func extractFailurePath(message string) string {
+	switch {
+	case strings.HasPrefix(message, "parse "):
+		rest := strings.TrimPrefix(message, "parse ")
+		idx := strings.Index(rest, ":")
+		if idx <= 0 {
+			return ""
+		}
+		return rest[:idx]
+	case strings.HasPrefix(message, "required launcher missing: "):
+		return strings.TrimSpace(strings.TrimPrefix(message, "required launcher missing: "))
+	case strings.HasPrefix(message, "launcher invalid: missing "):
+		return strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: missing "))
+	case strings.HasPrefix(message, "launcher invalid: not executable "):
+		return strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: not executable "))
+	case strings.HasPrefix(message, "invalid "):
+		rest := strings.TrimPrefix(message, "invalid ")
+		idx := strings.Index(rest, ":")
+		if idx <= 0 {
+			return ""
+		}
+		return rest[:idx]
+	case strings.HasPrefix(message, "unsupported portable MCP authored path "):
+		rest := strings.TrimPrefix(message, "unsupported portable MCP authored path ")
+		idx := strings.Index(rest, ":")
+		if idx <= 0 {
+			return ""
+		}
+		return rest[:idx]
+	case strings.HasPrefix(message, "runtime not found: "):
+		rest := strings.TrimPrefix(message, "runtime not found: ")
+		if idx := strings.Index(rest, "parse "); idx >= 0 {
+			if path := extractFailurePath(rest[idx:]); path != "" {
+				return path
+			}
+		}
+		switch {
+		case strings.HasPrefix(rest, "node runtime required; checked PATH for node"):
+			return "node"
+		case strings.HasPrefix(rest, "bash"), strings.HasPrefix(rest, "shell runtime requires bash"):
+			return "bash"
+		}
+		if match := runtimeFoundPathPattern.FindStringSubmatch(rest); len(match) == 2 {
+			return strings.TrimSpace(match[1])
+		}
+		return ""
+	case strings.Contains(message, " file "):
+		idx := strings.LastIndex(message, " file ")
+		if idx < 0 {
+			return ""
+		}
+		rest := message[idx+len(" file "):]
+		colon := strings.Index(rest, ":")
+		if colon <= 0 {
+			return ""
+		}
+		return rest[:colon]
+	default:
+		return ""
+	}
+}
+
+func unsupportedPortablePath(portable pluginmanifest.PortableComponents, kind string) string {
+	switch kind {
+	case "skills":
+		if len(portable.Paths("skills")) > 0 {
+			return "skills"
+		}
+		return "skills"
+	case "mcp_servers":
+		if portable.MCP != nil && strings.TrimSpace(portable.MCP.Path) != "" {
+			return portable.MCP.Path
+		}
+		return "mcp"
+	default:
+		return kind
+	}
+}
+
+func unsupportedTargetKindPath(target string, tc pluginmanifest.TargetComponents, kind string) string {
+	if path := strings.TrimSpace(tc.DocPath(kind)); path != "" {
+		return path
+	}
+	if len(tc.ComponentPaths(kind)) > 0 {
+		return filepath.ToSlash(filepath.Join("targets", target, kind))
+	}
+	return filepath.ToSlash(filepath.Join("targets", target, kind))
 }
 
 func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.PlatformProfile) []string {
@@ -410,9 +540,11 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		validatePluginLauncher(root, launcher, report)
 		validateRuntimeFileExists(root, "src/main.py", report)
 		if err := validatePythonRuntime(root, manifest.EnabledTargets(), launcher); err != nil {
+			msg := err.Error()
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: err.Error(),
+				Path:    extractFailurePath(msg),
+				Message: msg,
 			})
 		}
 	case "node":
@@ -420,9 +552,11 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		validateRuntimeFileExists(root, "package.json", report)
 		validateNodeRuntimeTarget(root, launcher.Entrypoint, report)
 		if err := validateNodeRuntime(); err != nil {
+			msg := err.Error()
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureRuntimeNotFound,
-				Message: err.Error(),
+				Path:    extractFailurePath(msg),
+				Message: msg,
 			})
 		}
 	case "shell":
@@ -432,6 +566,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 			if _, err := exec.LookPath("bash"); err != nil {
 				report.Failures = append(report.Failures, Failure{
 					Kind:    FailureRuntimeNotFound,
+					Path:    "bash",
 					Message: "runtime not found: bash (shell runtime on Windows requires bash in PATH; install Git Bash or another bash-compatible shell)",
 				})
 			}
@@ -452,6 +587,7 @@ func validatePluginLauncher(root string, launcher *pluginmanifest.Launcher, repo
 	if err != nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
+			Path:    launcher.Entrypoint,
 			Message: "launcher invalid: missing " + launcher.Entrypoint,
 		})
 		return
@@ -459,6 +595,7 @@ func validatePluginLauncher(root string, launcher *pluginmanifest.Launcher, repo
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
+			Path:    launcher.Entrypoint,
 			Message: "launcher invalid: not executable " + launcher.Entrypoint,
 		})
 	}
@@ -609,6 +746,7 @@ func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
 	if err != nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
+			Path:    entrypoint,
 			Message: "node runtime inspection failed: " + err.Error(),
 		})
 		return

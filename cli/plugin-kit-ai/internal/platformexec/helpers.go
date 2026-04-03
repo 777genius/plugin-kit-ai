@@ -1,6 +1,7 @@
 package platformexec
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -10,8 +11,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/codexconfig"
+	"github.com/777genius/plugin-kit-ai/cli/internal/codexmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/geminimanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
-	"github.com/pelletier/go-toml/v2"
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 	"github.com/tailscale/hujson"
 	"gopkg.in/yaml.v3"
 )
@@ -42,6 +46,18 @@ func mustJSON(value any) []byte {
 	return body
 }
 
+func jsonDocumentsEqual(left, right any) bool {
+	lb, err := json.Marshal(left)
+	if err != nil {
+		return false
+	}
+	rb, err := json.Marshal(right)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(lb, rb)
+}
+
 func decodeJSONObject(body []byte, label string) (map[string]any, error) {
 	var doc map[string]any
 	if err := json.Unmarshal(body, &doc); err != nil {
@@ -51,6 +67,22 @@ func decodeJSONObject(body []byte, label string) (map[string]any, error) {
 		doc = map[string]any{}
 	}
 	return doc, nil
+}
+
+func jsonStringArray(values []any) []string {
+	var out []string
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		text = strings.TrimSpace(text)
+		if text == "" {
+			continue
+		}
+		out = append(out, text)
+	}
+	return out
 }
 
 func parseMarkdownFrontmatterDocument(body []byte, label string) (map[string]any, string, error) {
@@ -158,6 +190,23 @@ func compactArtifacts(artifacts []pluginmodel.Artifact) []pluginmodel.Artifact {
 
 func loadNativeExtraDoc(root string, state pluginmodel.TargetState, kind string, format pluginmodel.NativeDocFormat) (pluginmodel.NativeExtraDoc, error) {
 	return pluginmodel.LoadNativeExtraDoc(root, state.DocPath(kind), format)
+}
+
+func managedKeysForNativeDoc(target, kind string) []string {
+	profile, ok := platformmeta.Lookup(target)
+	if !ok {
+		return nil
+	}
+	for _, doc := range profile.NativeDocs {
+		if doc.Kind != kind {
+			continue
+		}
+		if len(doc.ManagedKeys) == 0 {
+			return nil
+		}
+		return append([]string(nil), doc.ManagedKeys...)
+	}
+	return nil
 }
 
 func readYAMLDoc[T any](root string, rel string) (T, bool, error) {
@@ -317,7 +366,7 @@ func stableClaudeHookNames() []string {
 }
 
 func stableGeminiHookNames() []string {
-	return []string{"SessionStart", "SessionEnd", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool"}
+	return []string{"SessionStart", "SessionEnd", "BeforeTool", "AfterTool"}
 }
 
 func geminiInvocationAlias(hookName string) string {
@@ -326,16 +375,6 @@ func geminiInvocationAlias(hookName string) string {
 		return "GeminiSessionStart"
 	case "SessionEnd":
 		return "GeminiSessionEnd"
-	case "BeforeModel":
-		return "GeminiBeforeModel"
-	case "AfterModel":
-		return "GeminiAfterModel"
-	case "BeforeToolSelection":
-		return "GeminiBeforeToolSelection"
-	case "BeforeAgent":
-		return "GeminiBeforeAgent"
-	case "AfterAgent":
-		return "GeminiAfterAgent"
 	case "BeforeTool":
 		return "GeminiBeforeTool"
 	case "AfterTool":
@@ -360,9 +399,23 @@ type importedHookCommand struct {
 }
 
 func parseGeminiHooks(body []byte) (geminiHooksFile, error) {
+	var raw map[string]any
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return geminiHooksFile{}, err
+	}
+	hooksValue, ok := raw["hooks"]
+	if !ok {
+		return geminiHooksFile{}, fmt.Errorf("Gemini hooks file must define a top-level hooks object")
+	}
+	if _, ok := hooksValue.(map[string]any); !ok {
+		return geminiHooksFile{}, fmt.Errorf("Gemini hooks file must define a top-level hooks object")
+	}
 	var hooks geminiHooksFile
 	if err := json.Unmarshal(body, &hooks); err != nil {
 		return geminiHooksFile{}, err
+	}
+	if hooks.Hooks == nil {
+		return geminiHooksFile{}, fmt.Errorf("Gemini hooks file must define a top-level hooks object")
 	}
 	return hooks, nil
 }
@@ -541,50 +594,28 @@ type codexRuntimeMeta struct {
 	ModelHint string `yaml:"model_hint,omitempty"`
 }
 
-type codexPackageMeta struct{}
+type codexPackageMeta = codexmanifest.PackageMeta
 
-type geminiPackageMeta struct {
-	ContextFileName string   `yaml:"context_file_name,omitempty"`
-	ExcludeTools    []string `yaml:"exclude_tools,omitempty"`
-	PlanDirectory   string   `yaml:"plan_directory,omitempty"`
-}
+type geminiPackageMeta = geminimanifest.PackageMeta
 
 type opencodePackageMeta struct {
 	Plugins []string `yaml:"plugins,omitempty"`
 }
 
-type importedCodexPluginManifest struct {
-	Name          string
-	Version       string
-	Description   string
-	SkillsPath    string
-	MCPServersRef string
-	Extra         map[string]any
-}
+type importedCodexNativeConfig = codexconfig.ImportedConfig
 
-type importedCodexNativeConfig struct {
-	Model  string
-	Notify []string
-	Extra  map[string]any
-}
-
-type importedGeminiExtension struct {
-	Name        string
-	Version     string
-	Description string
-	Meta        geminiPackageMeta
-	MCPServers  map[string]any
-	Settings    []any
-	Themes      []any
-	Extra       map[string]any
-}
+type importedGeminiExtension = geminimanifest.ImportedExtension
 
 type importedOpenCodeConfig struct {
-	Plugins         []string
-	PluginsProvided bool
-	MCP             map[string]any
-	MCPProvided     bool
-	Extra           map[string]any
+	Plugins          []string
+	PluginsProvided  bool
+	MCP              map[string]any
+	MCPProvided      bool
+	Commands         map[string]any
+	CommandsProvided bool
+	Agents           map[string]any
+	AgentsProvided   bool
+	Extra            map[string]any
 }
 
 type importedClaudePluginManifest struct {
@@ -753,10 +784,40 @@ func cleanRelativeRef(path string) string {
 	return path
 }
 
+func resolveRelativeRef(root, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(ref) {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	cleaned := filepath.Clean(ref)
+	if cleaned == "." {
+		return "", nil
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	cleaned = strings.TrimPrefix(cleaned, "."+string(filepath.Separator))
+	cleaned = filepath.ToSlash(cleaned)
+	if cleaned == "" || cleaned == "." {
+		return "", nil
+	}
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("ref %q must stay within the plugin root", ref)
+	}
+	return cleaned, nil
+}
+
 func copyArtifactsFromRefs(root string, refs []string, dstRoot string) ([]pluginmodel.Artifact, error) {
 	var artifacts []pluginmodel.Artifact
 	for _, ref := range refs {
-		ref = cleanRelativeRef(ref)
+		var err error
+		ref, err = resolveRelativeRef(root, ref)
+		if err != nil {
+			return nil, err
+		}
 		if ref == "" {
 			continue
 		}
@@ -785,153 +846,16 @@ func copyArtifactsFromRefs(root string, refs []string, dstRoot string) ([]plugin
 	return compactArtifacts(artifacts), nil
 }
 
-func jsonStringArray(values []any) []string {
-	var out []string
-	for _, value := range values {
-		text, ok := value.(string)
-		if !ok {
-			continue
-		}
-		text = strings.TrimSpace(text)
-		if text == "" {
-			continue
-		}
-		out = append(out, text)
-	}
-	return out
-}
-
 func readImportedCodexConfig(root string) (importedCodexNativeConfig, []byte, error) {
-	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
-	if err != nil {
-		return importedCodexNativeConfig{}, nil, err
-	}
-	var raw map[string]any
-	if err := toml.Unmarshal(body, &raw); err != nil {
-		return importedCodexNativeConfig{}, nil, err
-	}
-	config := importedCodexNativeConfig{}
-	if value, ok := raw["model"].(string); ok {
-		config.Model = strings.TrimSpace(value)
-	}
-	if values, ok := raw["notify"].([]any); ok {
-		config.Notify = jsonStringArray(values)
-	}
-	delete(raw, "model")
-	delete(raw, "notify")
-	if len(raw) > 0 {
-		config.Extra = raw
-	}
-	return config, body, nil
+	return codexconfig.ReadImportedConfig(root)
 }
 
-func readImportedCodexPluginManifest(root string) (importedCodexPluginManifest, []byte, error) {
-	body, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json"))
-	if err != nil {
-		return importedCodexPluginManifest{}, nil, err
-	}
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return importedCodexPluginManifest{}, nil, err
-	}
-	out := importedCodexPluginManifest{}
-	if value, ok := raw["name"].(string); ok {
-		out.Name = strings.TrimSpace(value)
-	}
-	if value, ok := raw["version"].(string); ok {
-		out.Version = strings.TrimSpace(value)
-	}
-	if value, ok := raw["description"].(string); ok {
-		out.Description = strings.TrimSpace(value)
-	}
-	if value, ok := raw["skills"].(string); ok {
-		out.SkillsPath = strings.TrimSpace(value)
-	}
-	if value, ok := raw["mcpServers"].(string); ok {
-		out.MCPServersRef = strings.TrimSpace(value)
-	}
-	delete(raw, "name")
-	delete(raw, "version")
-	delete(raw, "description")
-	delete(raw, "skills")
-	delete(raw, "mcpServers")
-	if len(raw) > 0 {
-		out.Extra = raw
-	}
-	return out, body, nil
-}
-
-func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error) {
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return importedGeminiExtension{}, err
-	}
-	out := importedGeminiExtension{}
-	if value, ok := raw["name"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Name = value
-	}
-	if value, ok := raw["version"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Version = value
-	}
-	if value, ok := raw["description"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Description = value
-	}
-	if servers, ok := raw["mcpServers"].(map[string]any); ok && len(servers) > 0 {
-		out.MCPServers = servers
-	}
-	if value, ok := raw["contextFileName"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Meta.ContextFileName = value
-	}
-	if values, ok := raw["excludeTools"].([]any); ok {
-		out.Meta.ExcludeTools = jsonStringArray(values)
-	}
-	if plan, ok := raw["plan"].(map[string]any); ok {
-		if directory, ok := plan["directory"].(string); ok && strings.TrimSpace(directory) != "" {
-			out.Meta.PlanDirectory = directory
-			delete(plan, "directory")
-			if len(plan) == 0 {
-				delete(raw, "plan")
-			} else {
-				raw["plan"] = plan
-			}
-		}
-	}
-	if values, ok := raw["settings"].([]any); ok {
-		out.Settings = values
-	}
-	if values, ok := raw["themes"].([]any); ok {
-		out.Themes = values
-	}
-	delete(raw, "name")
-	delete(raw, "version")
-	delete(raw, "description")
-	delete(raw, "mcpServers")
-	delete(raw, "contextFileName")
-	delete(raw, "excludeTools")
-	delete(raw, "settings")
-	delete(raw, "themes")
-	if plan, ok := raw["plan"].(map[string]any); ok && len(plan) == 0 {
-		delete(raw, "plan")
-	}
-	if len(raw) > 0 {
-		out.Extra = raw
-	}
-	return out, nil
+func readImportedCodexPluginManifest(root string) (codexmanifest.ImportedPluginManifest, []byte, error) {
+	return codexmanifest.ReadImportedPluginManifest(root)
 }
 
 func readImportedGeminiExtension(root string) (importedGeminiExtension, bool, error) {
-	body, err := os.ReadFile(filepath.Join(root, "gemini-extension.json"))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return importedGeminiExtension{}, false, nil
-		}
-		return importedGeminiExtension{}, false, err
-	}
-	data, err := decodeImportedGeminiExtension(body)
-	if err != nil {
-		return importedGeminiExtension{}, false, err
-	}
-	return data, true, nil
+	return geminimanifest.ReadImportedExtension(root)
 }
 
 func decodeImportedOpenCodeConfig(body []byte) (importedOpenCodeConfig, error) {
@@ -967,9 +891,27 @@ func decodeImportedOpenCodeConfig(body []byte) (importedOpenCodeConfig, error) {
 		}
 		out.MCP = servers
 	}
+	if commandsRaw, ok := raw["command"]; ok {
+		out.CommandsProvided = true
+		values, ok := commandsRaw.(map[string]any)
+		if !ok {
+			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be a JSON object", "command")
+		}
+		out.Commands = values
+	}
+	if agentsRaw, ok := raw["agent"]; ok {
+		out.AgentsProvided = true
+		values, ok := agentsRaw.(map[string]any)
+		if !ok {
+			return importedOpenCodeConfig{}, fmt.Errorf("OpenCode config field %q must be a JSON object", "agent")
+		}
+		out.Agents = values
+	}
 	delete(raw, "$schema")
 	delete(raw, "plugin")
 	delete(raw, "mcp")
+	delete(raw, "command")
+	delete(raw, "agent")
 	if len(raw) > 0 {
 		out.Extra = raw
 	}
@@ -1013,6 +955,59 @@ func resolveOpenCodeConfigPath(root string) (string, []pluginmodel.Warning, bool
 		return "", nil, false, rerr
 	}
 	return filepath.ToSlash(rel), warnings, true, nil
+}
+
+func resolveOpenCodeEnvConfigFile() (string, bool, error) {
+	path, ok := os.LookupEnv("OPENCODE_CONFIG")
+	if !ok {
+		return "", false, nil
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", false, fmt.Errorf("OPENCODE_CONFIG must point to a non-empty config file path")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false, fmt.Errorf("stat OPENCODE_CONFIG %q: %w", path, err)
+	}
+	if info.IsDir() {
+		return "", false, fmt.Errorf("OPENCODE_CONFIG %q must point to a file, not a directory", path)
+	}
+	return path, true, nil
+}
+
+func resolveOpenCodeEnvConfigDir() (string, bool, error) {
+	path, ok := os.LookupEnv("OPENCODE_CONFIG_DIR")
+	if !ok {
+		return "", false, nil
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", false, fmt.Errorf("OPENCODE_CONFIG_DIR must point to a non-empty directory path")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", false, fmt.Errorf("stat OPENCODE_CONFIG_DIR %q: %w", path, err)
+	}
+	if !info.IsDir() {
+		return "", false, fmt.Errorf("OPENCODE_CONFIG_DIR %q must point to a directory", path)
+	}
+	return path, true, nil
+}
+
+func readImportedOpenCodeConfigFromFile(path string, displayPath string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return importedOpenCodeConfig{}, "", nil, false, err
+	}
+	data, err := decodeImportedOpenCodeConfig(body)
+	if err != nil {
+		return importedOpenCodeConfig{}, displayPath, nil, false, err
+	}
+	if strings.TrimSpace(displayPath) == "" {
+		displayPath = filepath.ToSlash(path)
+	}
+	return data, displayPath, nil, true, nil
 }
 
 func importedGeminiSettingsArtifacts(values []any) []pluginmodel.Artifact {

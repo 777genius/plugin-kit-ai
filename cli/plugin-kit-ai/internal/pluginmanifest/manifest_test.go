@@ -316,7 +316,7 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	}
 }
 
-func TestImport_OpenCodeSkipsInlineCommandsAndAgents(t *testing.T) {
+func TestImport_OpenCodeNormalizesInlineCommandsAndAgents(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.json", `{
   "$schema": "https://opencode.ai/config.json",
@@ -353,24 +353,22 @@ func TestImport_OpenCodeSkipsInlineCommandsAndAgents(t *testing.T) {
 		filepath.Join("targets", "opencode", "commands", "ship.md"),
 		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
 	} {
-		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
-			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{`"kept"`, `"command"`, `"agent"`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("config.extra.json missing %q:\n%s", want, text)
 		}
 	}
 	if len(warnings) < 2 {
-		t.Fatalf("warnings = %v, want fidelity warnings for skipped inline command and agent fields", warnings)
-	}
-	var foundCommand, foundAgent bool
-	for _, warning := range warnings {
-		if strings.Contains(warning.Message, `unsupported OpenCode config field "command"`) {
-			foundCommand = true
-		}
-		if strings.Contains(warning.Message, `unsupported OpenCode config field "agent"`) {
-			foundAgent = true
-		}
-	}
-	if !foundCommand || !foundAgent {
-		t.Fatalf("warnings = %+v", warnings)
+		t.Fatalf("warnings = %v, want fidelity warnings for preserved inline command and agent", warnings)
 	}
 }
 
@@ -475,6 +473,15 @@ func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	}
 }
 
+func TestImport_OpenCodeRejectsCompatibilitySkillRoots(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".claude", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: claude\n---\n")
+	mustWritePluginFile(t, root, filepath.Join(".agents", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: agents\n---\n")
+
+	if _, _, err := Import(root, "opencode", false, false); err == nil || !strings.Contains(err.Error(), "unsupported OpenCode native skill path .agents/skills: use skills/**") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
 func TestImport_OpenCodeUserScopeProjectOverridesPluginFiles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -700,6 +707,24 @@ func TestValidate_OpenCodeRejectsToolHelperImportWithoutDependency(t *testing.T)
 	}
 }
 
+func TestImport_OpenCodeRejectsLegacyToolDirectory(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
+	mustWritePluginFile(t, root, filepath.Join(".opencode", "tool", "echo.ts"), "export default { description: \"echo\", args: {}, async execute() { return \"ok\" } }\n")
+
+	if _, _, err := Import(root, "opencode", false, false); err == nil || !strings.Contains(err.Error(), "unsupported OpenCode native path .opencode/tool: use .opencode/tools") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CursorRejectsLegacyCursorRules(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, ".cursorrules", "Always review generated code.\n")
+
+	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "unsupported Cursor native path .cursorrules: use .cursor/rules/*.mdc and optional root AGENTS.md") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
 func TestRender_CursorRendersWorkspaceConfig(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
@@ -971,7 +996,9 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\nauthor:\n  name: Example Maintainer\nrepository: https://github.com/example/demo\nlicense: MIT\nkeywords:\n  - codex\n  - demo\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"x-example":{"enabled":true}}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 
@@ -997,11 +1024,20 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	if plugin["homepage"] != "https://example.com/demo" {
 		t.Fatalf("plugin manifest missing homepage: %+v", plugin)
 	}
+	if plugin["repository"] != "https://github.com/example/demo" || plugin["license"] != "MIT" {
+		t.Fatalf("plugin manifest missing package metadata: %+v", plugin)
+	}
+	if _, ok := plugin["author"].(map[string]any); !ok {
+		t.Fatalf("plugin manifest missing author object: %+v", plugin)
+	}
 	if _, ok := plugin["interface"].(map[string]any); !ok {
 		t.Fatalf("plugin manifest missing interface object: %+v", plugin)
 	}
-	if apps, ok := plugin["apps"].([]any); !ok || len(apps) != 1 || apps[0] != "./.app.json" {
+	if plugin["apps"] != "./.app.json" {
 		t.Fatalf("plugin manifest missing apps: %+v", plugin)
+	}
+	if _, ok := plugin["x-example"].(map[string]any); !ok {
+		t.Fatalf("plugin manifest missing passthrough extra: %+v", plugin)
 	}
 
 	configBody, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
@@ -1027,8 +1063,13 @@ func TestRender_CodexRejectsManagedOverridesInExtraDocs(t *testing.T) {
 	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
-	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "name"`) {
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
+	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "homepage"`) {
+		t.Fatalf("Render error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
+	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "interface"`) {
 		t.Fatalf("Render error = %v", err)
 	}
 
@@ -1039,11 +1080,56 @@ func TestRender_CodexRejectsManagedOverridesInExtraDocs(t *testing.T) {
 	}
 }
 
-func TestImport_CurrentNativeCodexPackagePreservesExtraDocs(t *testing.T) {
+func TestRender_CodexRejectsInvalidStructuredDocs(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "codex-package", "", "demo plugin", false)
+	manifest.Targets = []string{"codex-package"}
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":"Run the demo"}`)
+	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), "interface.defaultPrompt must be an array of strings") {
+		t.Fatalf("Render error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `["demo-app"]`)
+	if _, err := Render(root, "codex-package"); err == nil || !strings.Contains(err.Error(), "Codex app manifest must be a JSON object") {
+		t.Fatalf("Render error = %v", err)
+	}
+}
+
+func TestRender_CodexSkipsEmptyAppPlaceholder(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "codex-package", "", "demo plugin", false)
+	manifest.Targets = []string{"codex-package"}
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{}`)
+
+	result, err := Render(root, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	pluginBody, err := os.ReadFile(filepath.Join(root, ".codex-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(pluginBody), `"apps": "./.app.json"`) {
+		t.Fatalf("plugin manifest unexpectedly enables apps placeholder:\n%s", pluginBody)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".app.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected .app.json artifact")
+	}
+}
+
+func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\", \"extra\"]\napproval_policy = \"never\"\n[ui]\nverbose = true\n")
-	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","author":{"name":"Example Maintainer","email":"maintainer@example.com"},"homepage":"https://example.com/demo","repository":"https://github.com/example/demo","license":"MIT","keywords":["codex","demo"],"interface":{"defaultPrompt":["Run the demo"]},"apps":"./.app.json","x-extra":{"enabled":true}}`)
+	mustWritePluginFile(t, root, ".app.json", `{"name":"demo-app"}`)
 
 	_, warnings, err := Import(root, "codex-package", false, false)
 	if err != nil {
@@ -1053,15 +1139,158 @@ func TestImport_CurrentNativeCodexPackagePreservesExtraDocs(t *testing.T) {
 		t.Fatal("expected fidelity warnings")
 	}
 
+	packageBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"homepage: https://example.com/demo",
+		"repository: https://github.com/example/demo",
+		"license: MIT",
+		"- codex",
+		"email: maintainer@example.com",
+	} {
+		if !strings.Contains(string(packageBody), want) {
+			t.Fatalf("package.yaml missing %q:\n%s", want, packageBody)
+		}
+	}
+	interfaceBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "interface.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(interfaceBody), `"defaultPrompt": [`) || !strings.Contains(string(interfaceBody), `"Run the demo"`) {
+		t.Fatalf("interface.json = %s", interfaceBody)
+	}
+	appBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "app.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(appBody), `"name":"demo-app"`) {
+		t.Fatalf("app.json = %s", appBody)
+	}
 	manifestExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(manifestExtra), `"homepage": "https://example.com/demo"`) {
+	if !strings.Contains(string(manifestExtra), `"x-extra": {`) {
 		t.Fatalf("manifest.extra.json = %s", manifestExtra)
 	}
 	if _, err := os.Stat(filepath.Join(root, "targets", "codex-runtime", "config.extra.toml")); !os.IsNotExist(err) {
 		t.Fatalf("codex-runtime config.extra.toml should not exist for codex-package import: %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsLegacyPluginShapes(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","author":"Example Maintainer","apps":["./.app.json"]}`)
+	mustWritePluginFile(t, root, ".app.json", `{"name":"demo-app"}`)
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), "Codex plugin author must be a JSON object") {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","author":{"name":"Example Maintainer"},"apps":["./.app.json"]}`)
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), "Codex plugin apps must be a string") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsMalformedStructuredDocs(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","interface":{"defaultPrompt":"Run the demo"},"apps":"./.app.json"}`)
+	mustWritePluginFile(t, root, ".app.json", `["demo-app"]`)
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), "interface.defaultPrompt must be an array of strings") {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","interface":{"defaultPrompt":["Run the demo"]},"apps":"./.app.json"}`)
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), "Codex app manifest must be a JSON object") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsUnexpectedPluginDirEntries(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "notes.txt"), "unexpected\n")
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), ".codex-plugin/notes.txt") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsUnreferencedBundleSidecars(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
+	mustWritePluginFile(t, root, ".app.json", `{"name":"demo-app"}`)
+	mustWritePluginFile(t, root, ".mcp.json", `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), ".app.json") || !strings.Contains(err.Error(), ".mcp.json") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsMalformedConfigShapes(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = true\nnotify = [\"./bin/demo\", \"notify\"]\n")
+
+	if _, _, err := Import(root, "codex-runtime", false, false); err == nil || !strings.Contains(err.Error(), `Codex config field "model" must be a string`) {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = \"./bin/demo notify\"\n")
+	if _, _, err := Import(root, "codex-runtime", false, false); err == nil || !strings.Contains(err.Error(), `Codex config field "notify" must be an array of non-empty strings`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexRejectsRefsOutsidePluginRoot(t *testing.T) {
+	parent := t.TempDir()
+	root := filepath.Join(parent, "plugin")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","skills":"../shared-skills/"}`)
+	mustWritePluginFile(t, parent, filepath.Join("shared-skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo\n---\nRun the demo.\n")
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), `must stay within the plugin root`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeCodexImportsCustomSkillsAndMCPRefs(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","skills":"./custom-skills/","mcpServers":"./config/custom.mcp.json"}`)
+	mustWritePluginFile(t, root, filepath.Join("custom-skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo\n---\nRun the demo.\n")
+	mustWritePluginFile(t, root, filepath.Join("config", "custom.mcp.json"), `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	imported, warnings, err := Import(root, "codex-package", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsWarning(warnings, "normalized Codex plugin skills path to the managed ./skills/ location") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if !containsWarning(warnings, "normalized Codex plugin mcpServers path to the managed ./.mcp.json location") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	skillBody, err := os.ReadFile(filepath.Join(root, "skills", "demo", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(skillBody), "Run the demo.") {
+		t.Fatalf("imported skill = %q", string(skillBody))
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mcpBody), "https://example.com/mcp") {
+		t.Fatalf("imported mcp = %q", string(mcpBody))
+	}
+	if imported.Name != "demo" {
+		t.Fatalf("manifest name = %q", imported.Name)
 	}
 }
 
@@ -1454,6 +1683,54 @@ func TestImport_CurrentNativeGeminiRuntimeLayoutCreatesLauncher(t *testing.T) {
 	}
 }
 
+func TestImport_CurrentNativeGeminiRejectsMalformedManifestShapes(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo",
+	  "version":"0.2.0",
+	  "description":"gemini demo",
+	  "excludeTools":"run_shell_command(rm -rf)"
+	}`)
+
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), `Gemini extension field "excludeTools" must be an array of strings`) {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo",
+	  "version":"0.2.0",
+	  "description":"gemini demo",
+	  "settings":[{"name":"release-profile"}]
+	}`)
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), `Gemini extension field "settings" contains an invalid object`) {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo",
+	  "version":"0.2.0",
+	  "description":"gemini demo",
+	  "themes":[{"name":"release-dawn"}]
+	}`)
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), `Gemini extension field "themes" contains an invalid object`) {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
+func TestImport_CurrentNativeGeminiRejectsMalformedHooksFile(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "gemini-extension.json", `{
+	  "name":"demo-runtime",
+	  "version":"0.2.0",
+	  "description":"gemini runtime demo"
+	}`)
+	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), `{"hooks":[]}`)
+
+	if _, _, err := Import(root, "gemini", false, false); err == nil || !strings.Contains(err.Error(), "Gemini hooks file must define a top-level hooks object") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
 func TestImport_AmbiguousNativeLayoutsRequireExplicitFrom(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
@@ -1561,14 +1838,32 @@ func TestRender_GeminiRuntimeGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	for _, want := range []string{
 		"${extensionPath}${/}bin${/}demo-gemini GeminiSessionStart",
 		"${extensionPath}${/}bin${/}demo-gemini GeminiSessionEnd",
-		"${extensionPath}${/}bin${/}demo-gemini GeminiBeforeAgent",
-		"${extensionPath}${/}bin${/}demo-gemini GeminiAfterAgent",
 		"${extensionPath}${/}bin${/}demo-gemini GeminiBeforeTool",
 		"${extensionPath}${/}bin${/}demo-gemini GeminiAfterTool",
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("generated hooks missing %q:\n%s", want, body)
 		}
+	}
+}
+
+func TestRender_GeminiRejectsHookEntrypointMismatch(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "go")
+	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{
+  "hooks": {
+    "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}other GeminiSessionStart"}]}],
+    "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiSessionEnd"}]}],
+    "BeforeTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiBeforeTool"}]}],
+    "AfterTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiAfterTool"}]}]
+  }
+}`)
+
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), `entrypoint mismatch: Gemini hook "SessionStart"`) {
+		t.Fatalf("Render error = %v", err)
 	}
 }
 
@@ -1800,6 +2095,7 @@ func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com"}`)
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n")
 
 	inspection, _, err := Inspect(root, "all")
@@ -1815,9 +2111,33 @@ func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 			if !slices.Contains(target.TargetNativeKinds, "manifest_extra") {
 				t.Fatalf("codex-package target_native_kinds = %v", target.TargetNativeKinds)
 			}
+			if !slices.Contains(target.TargetNativeKinds, "interface") {
+				t.Fatalf("codex-package target_native_kinds = %v", target.TargetNativeKinds)
+			}
+			if got := target.NativeDocPaths["interface"]; got != filepath.Join("targets", "codex-package", "interface.json") {
+				t.Fatalf("codex-package native_doc_paths[interface] = %q", got)
+			}
+			if got := target.NativeDocPaths["manifest_extra"]; got != filepath.Join("targets", "codex-package", "manifest.extra.json") {
+				t.Fatalf("codex-package native_doc_paths[manifest_extra] = %q", got)
+			}
+			if got := target.NativeSurfaceTiers["interface"]; got != "stable" {
+				t.Fatalf("codex-package native_surface_tiers[interface] = %q", got)
+			}
+			if got := target.NativeSurfaceTiers["app_manifest"]; got != "beta" {
+				t.Fatalf("codex-package native_surface_tiers[app_manifest] = %q", got)
+			}
 		case "codex-runtime":
 			if !slices.Contains(target.TargetNativeKinds, "config_extra") {
 				t.Fatalf("codex-runtime target_native_kinds = %v", target.TargetNativeKinds)
+			}
+			if got := target.NativeDocPaths["config_extra"]; got != filepath.Join("targets", "codex-runtime", "config.extra.toml") {
+				t.Fatalf("codex-runtime native_doc_paths[config_extra] = %q", got)
+			}
+			if got := target.NativeSurfaceTiers["config_extra"]; got != "stable" {
+				t.Fatalf("codex-runtime native_surface_tiers[config_extra] = %q", got)
+			}
+			if got := target.NativeSurfaceTiers["commands"]; got != "beta" {
+				t.Fatalf("codex-runtime native_surface_tiers[commands] = %q", got)
 			}
 		default:
 			t.Fatalf("unexpected target %+v", target)
@@ -1851,6 +2171,12 @@ func TestInspect_ExposesSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
+	if got := target.NativeSurfaceTiers["agents"]; got != "beta" {
+		t.Fatalf("native_surface_tiers[agents] = %q", got)
+	}
+	if got := target.NativeSurfaceTiers["contexts"]; got != "unsupported" {
+		t.Fatalf("native_surface_tiers[contexts] = %q", got)
+	}
 	var foundAgents, foundContexts bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
@@ -1879,10 +2205,23 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
+	if got := target.NativeSurfaceTiers["commands"]; got != "stable" {
+		t.Fatalf("native_surface_tiers[commands] = %q", got)
+	}
+	if got := target.NativeSurfaceTiers["tools"]; got != "beta" {
+		t.Fatalf("native_surface_tiers[tools] = %q", got)
+	}
+	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig bool
 	var foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
 	var foundLocalPluginCode, foundCustomTools, foundLocalPluginDependencies bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
+		case surface.Kind == "agent_config" && surface.Tier == "passthrough_only":
+			foundAgentConfig = true
+		case surface.Kind == "permission_config" && surface.Tier == "passthrough_only":
+			foundPermissionConfig = true
+		case surface.Kind == "instructions_config" && surface.Tier == "passthrough_only":
+			foundInstructionsConfig = true
 		case surface.Kind == "commands" && surface.Tier == "stable":
 			foundCommands = true
 		case surface.Kind == "agents" && surface.Tier == "stable":
@@ -1901,7 +2240,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundLocalPluginDependencies = true
 		}
 	}
-	if !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
+	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }
@@ -1940,26 +2279,22 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
-	mustWritePluginFile(t, root, ".mcp.json", `{"demo":{"command":"node","args":["server.mjs"]}}`)
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
 	_, warnings, err := Import(root, "codex-package", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(warnings) < 2 {
+	if len(warnings) < 1 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	var foundMCP, foundAgents bool
+	var foundAgents bool
 	for _, warning := range warnings {
-		if warning.Path == ".mcp.json" {
-			foundMCP = true
-		}
 		if warning.Path == "agents" {
 			foundAgents = true
 		}
 	}
-	if !foundMCP || !foundAgents {
+	if !foundAgents {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

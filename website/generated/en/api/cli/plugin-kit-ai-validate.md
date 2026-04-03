@@ -24,6 +24,15 @@ Validate a package-standard plugin-kit-ai project
 
 Validate a package-standard plugin-kit-ai project
 
+### Synopsis
+
+Validate a package-standard plugin-kit-ai project.
+
+Text mode is the human-readable default and prints Warning:/Failure: lines.
+Use --format json for CI or automation. That mode emits the versioned
+"plugin-kit-ai/validate-report" contract with schema_version=1 and an
+explicit outcome of "passed", "failed", or "failed_strict_warnings".
+
 ```
 plugin-kit-ai validate [path] [flags]
 ```
@@ -31,6 +40,7 @@ plugin-kit-ai validate [path] [flags]
 ### Options
 
 ```
+      --format string     output format ("text" or "json") (default "text")
   -h, --help              help for validate
       --platform string   target override ("codex-package", "codex-runtime", "claude", "gemini", "opencode", or "cursor")
       --strict            treat validation warnings as errors

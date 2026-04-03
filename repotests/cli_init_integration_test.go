@@ -112,6 +112,19 @@ func assertConfigTargetRenderedOutputs(t *testing.T, root, platform string) {
 		if _, err := os.Stat(filepath.Join(root, ".mcp.json")); err != nil {
 			t.Fatalf("stat .mcp.json: %v", err)
 		}
+		if strings.Contains(string(body), `"apps": "./.app.json"`) {
+			t.Fatalf("codex-package output unexpectedly enables empty app placeholder:\n%s", body)
+		}
+		if _, err := os.Stat(filepath.Join(root, ".app.json")); !os.IsNotExist(err) {
+			t.Fatalf("unexpected .app.json rendered for empty app placeholder")
+		}
+		interfaceBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "interface.json"))
+		if err != nil {
+			t.Fatalf("read targets/codex-package/interface.json: %v", err)
+		}
+		if !strings.Contains(string(interfaceBody), `"defaultPrompt": [`) {
+			t.Fatalf("codex-package interface starter missing defaultPrompt array:\n%s", interfaceBody)
+		}
 	case "gemini":
 		body, err := os.ReadFile(filepath.Join(root, "gemini-extension.json"))
 		if err != nil {

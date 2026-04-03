@@ -49,6 +49,11 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 			TemplateFile{Path: "targets/codex-runtime/package.yaml", Template: "targets.codex-runtime.package.yaml.tmpl", Extra: false},
 			TemplateFile{Path: "README.md", Template: "codex-runtime.README.executable.md.tmpl", Extra: false},
 		)
+		if extras {
+			files = append(files,
+				TemplateFile{Path: "targets/codex-runtime/config.extra.toml", Template: "empty.toml.tmpl", Extra: true},
+			)
+		}
 	case "codex-package":
 		files = append(files,
 			TemplateFile{Path: "targets/codex-package/package.yaml", Template: "targets.codex-package.package.yaml.tmpl", Extra: false},
@@ -56,6 +61,9 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		)
 		if extras {
 			files = append(files,
+				TemplateFile{Path: "targets/codex-package/interface.json", Template: "codex-package.interface.json.tmpl", Extra: true},
+				TemplateFile{Path: "targets/codex-package/manifest.extra.json", Template: "empty.json.tmpl", Extra: true},
+				TemplateFile{Path: "targets/codex-package/app.json", Template: "empty.json.tmpl", Extra: true},
 				TemplateFile{Path: "mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
 				TemplateFile{Path: "skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
 			)

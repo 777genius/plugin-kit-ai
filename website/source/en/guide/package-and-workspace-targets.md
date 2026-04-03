@@ -42,6 +42,12 @@ This is useful when:
 - you want the repo to stay unified in one place
 - you do not want to pretend this target has the same runtime contract as `codex-runtime`
 
+Codex package also has a strict bundle-layout contract:
+
+- `.codex-plugin/` contains only `plugin.json`
+- optional `.app.json` and `.mcp.json` stay at the plugin root, not inside `.codex-plugin/`
+- those sidecars exist only when `.codex-plugin/plugin.json` references `./.app.json` or `./.mcp.json`
+
 ## Gemini
 
 Use `gemini` when the goal is a Gemini CLI extension package.

@@ -72,6 +72,33 @@
 
 После изменений — перезапуск Codex ([Plugins](https://developers.openai.com/codex/plugins/), [Build plugins](https://developers.openai.com/codex/plugins/build)).
 
+### Live CLI observations in this repo (`2026-04-03`)
+
+- Real `codex exec` smoke against the repository-owned notify harness **passes** when the hook path is supplied via explicit CLI config override (`-c notify=...`).
+- The checked-in production runtime example `examples/plugins/codex-basic-prod` also passes a real `codex exec` smoke when rebuilt and projected through the same explicit `-c notify=...` override path.
+- The same checked-in production runtime example now also passes real `codex mcp get --json` and `codex mcp list --json` when its rendered runtime MCP config is projected back into documented `-c mcp_servers...` overrides.
+- The same checked-in production runtime example still does **not** prove project-local `.codex/config.toml` behavior on the current live CLI build: a separate no-override probe kept reporting model `gpt-5.4` instead of the rendered `gpt-5.4-mini`, so that evidence remains vendor-gap only.
+- Real `codex mcp get --json` and `codex mcp list --json` preflights **pass** when the MCP server is supplied via explicit CLI config overrides (`-c mcp_servers.release-checks...`).
+- Real `codex mcp add|get|list|remove` also work noninteractively in an isolated temporary home for both documented stdio servers (`codex mcp add name -- /bin/echo ...`) and streamable HTTP servers (`codex mcp add name --url https://...`).
+- The same mutable CLI config-management path also works when seeded from this repo's checked-in reference examples: `codex-basic-prod` runtime MCP config and `codex-package-prod` `.mcp.json` can both be replayed into isolated `codex mcp add|get|list|remove` checks.
+- The same checked-in reference examples now also pass that mutable path inside an auth-seeded temporary `CODEX_HOME`, not only in a blank isolated home.
+- A follow-up `codex exec` probe against that same isolated `CODEX_HOME` did not become a clean positive signal in the current build: the persisted MCP server remained configurable, but `exec` lost live auth and therefore stays evidence-only.
+- A stronger auth-seeded temp-home probe now copies the current live Codex auth artifacts into a temporary `CODEX_HOME`; with that seed, `codex login status` plus documented stdio and HTTP `mcp add|get|list|remove` flows still work, but `codex exec` can still finish without exposing the persisted `release_checks` tool in-session. This is a stronger vendor fact than the older auth-loss probe: auth survives, tool materialization still remains session-variable.
+- The same auth-seeded temporary-home evidence now also covers the documented `codex mcp login` and `codex mcp logout` subcommands on a real stdio server configuration: on the live CLI they deterministically reject stdio transports with OAuth-only diagnostics, while `get`, `list`, and `remove` continue to work on that same persisted server entry.
+- The same auth-seeded temporary-home evidence now also covers missing-server behavior after removal: on the live CLI `codex mcp get <name> --json` fails with `No MCP server named '<name>' found.`, while `codex mcp remove <name>` stays a successful no-op with the same message.
+- Real `codex-package` MCP sidecar coverage can also be exercised without inventing an install flow: render `.mcp.json`, project it back into documented `-c mcp_servers...` overrides, and verify `codex mcp get --json`, `codex mcp list --json`, plus `codex exec` MCP-tool use against the live CLI.
+- The same rendered stdio `.mcp.json` sidecar can also be replayed through documented mutable CLI config management: `codex mcp add|get|list|remove` now passes for that sidecar in both blank isolated homes and auth-seeded temporary homes.
+- A synthetic rendered HTTP `.mcp.json` sidecar now also passes that same mutable CLI config-management replay: the live CLI accepts it through `codex mcp add|get|list|remove` in both blank isolated homes and auth-seeded temporary homes.
+- The checked-in production example `examples/plugins/codex-package-prod` now also has live evidence through the same documented override path: real `codex mcp get --json` and `codex mcp list --json` both surface its rendered remote MCP server metadata from `.mcp.json`.
+- Real probes for **project-local** `.codex/config.toml` in the current Codex CLI build (`v0.117.0`) did **not** show the same behavior:
+  - `codex exec` continued to report model `gpt-5.4` instead of the rendered project-local `model = "gpt-5.4-mini"`, and did not invoke the rendered `notify` hook path.
+  - `codex -C <dir> mcp get release-checks --json` did not expose a server rendered into project-local `.codex/config.toml`.
+  - `codex -C <dir> mcp list --json` did not expose that same rendered project-local MCP server either.
+- Practical conclusion for `hookplex`:
+  - treat rendered project-local `.codex/config.toml` as a **repo-owned authored/render/validate contract**
+  - treat current real-CLI project-config probes as **evidence-only**, not as a shipped vendor guarantee
+  - keep positive live Codex smoke on the explicit override path until OpenAI documents and ships stronger project-config behavior for `exec` / `mcp`
+
 ### Skills вне плагина
 
 Обнаружение в **`.agents/skills`**, **`~/.agents/skills`**, родительских каталогах, **`/etc/codex/skills`**, системных скилах — [Agent Skills](https://developers.openai.com/codex/skills).

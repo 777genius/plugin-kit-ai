@@ -196,6 +196,12 @@ func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "codex-runtime")
 	target := requireInspectTarget(t, report, "codex-runtime")
 	mustHaveManagedArtifacts(t, target.ManagedArtifacts, ".codex/config.toml")
+	if got := target.NativeDocPaths["package_metadata"]; got != filepath.Join("targets", "codex-runtime", "package.yaml") {
+		t.Fatalf("native_doc_paths[package_metadata] = %q", got)
+	}
+	if got := target.NativeSurfaceTiers["config_extra"]; got != "stable" {
+		t.Fatalf("native_surface_tiers[config_extra] = %q", got)
+	}
 	mustExist(t, filepath.Join(plugRoot, ".codex", "config.toml"))
 }
 
@@ -270,13 +276,46 @@ func TestGeneratedConfigCanaries_ClaudeAuthoredHookEntrypointDriftIsCaughtByVali
 	}
 }
 
+func TestGeneratedConfigCanaries_CodexValidateJSONContract(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "codex-runtime")
+
+	report := validateGeneratedProjectJSON(t, pluginKitAIBin, plugRoot, "codex-runtime", true)
+	if report.Format != "plugin-kit-ai/validate-report" || report.SchemaVersion != 1 {
+		t.Fatalf("contract = %#v", report)
+	}
+	if report.RequestedPlatform != "codex-runtime" || report.Outcome != "passed" {
+		t.Fatalf("platform/outcome = %#v", report)
+	}
+	if !report.OK || !report.StrictMode || report.StrictFailed {
+		t.Fatalf("summary = %#v", report)
+	}
+	if report.WarningCount != 0 || report.FailureCount != 0 {
+		t.Fatalf("counts = %#v", report)
+	}
+}
+
 type inspectReport struct {
 	Targets []inspectTarget `json:"targets"`
 }
 
+type validateJSONCanaryReport struct {
+	Format            string `json:"format"`
+	SchemaVersion     int    `json:"schema_version"`
+	RequestedPlatform string `json:"requested_platform"`
+	Outcome           string `json:"outcome"`
+	OK                bool   `json:"ok"`
+	StrictMode        bool   `json:"strict_mode"`
+	StrictFailed      bool   `json:"strict_failed"`
+	WarningCount      int    `json:"warning_count"`
+	FailureCount      int    `json:"failure_count"`
+}
+
 type inspectTarget struct {
-	Target           string   `json:"target"`
-	ManagedArtifacts []string `json:"managed_artifacts"`
+	Target             string            `json:"target"`
+	ManagedArtifacts   []string          `json:"managed_artifacts"`
+	NativeDocPaths     map[string]string `json:"native_doc_paths"`
+	NativeSurfaceTiers map[string]string `json:"native_surface_tiers"`
 }
 
 func initGeneratedCanaryProject(t *testing.T, pluginKitAIBin, platform string) string {
@@ -287,6 +326,9 @@ func initGeneratedCanaryProject(t *testing.T, pluginKitAIBin, platform string) s
 		args = append(args, "--runtime", "go")
 	}
 	runPluginKitAICommand(t, pluginKitAIBin, args...)
+	if platform != "codex-package" {
+		bootstrapGeneratedGoPlugin(t, plugRoot)
+	}
 	return plugRoot
 }
 
@@ -312,6 +354,24 @@ func inspectGeneratedProjectText(t *testing.T, pluginKitAIBin, root, target stri
 		t.Fatalf("plugin-kit-ai inspect text: %v\n%s", err, out)
 	}
 	return string(out)
+}
+
+func validateGeneratedProjectJSON(t *testing.T, pluginKitAIBin, root, target string, strict bool) validateJSONCanaryReport {
+	t.Helper()
+	args := []string{"validate", root, "--platform", target, "--format", "json"}
+	if strict {
+		args = append(args, "--strict")
+	}
+	cmd := exec.Command(pluginKitAIBin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plugin-kit-ai validate json: %v\n%s", err, out)
+	}
+	var report validateJSONCanaryReport
+	if err := json.Unmarshal(out, &report); err != nil {
+		t.Fatalf("parse validate json: %v\n%s", err, out)
+	}
+	return report
 }
 
 func runRenderCheckUnlessWindowsDrift(t *testing.T, pluginKitAIBin, root string) {

@@ -382,11 +382,9 @@ func TestInitRunner_geminiGoRuntimeStarter(t *testing.T) {
 	for _, want := range []string{
 		"return gemini.SessionStartContinue()",
 		"return gemini.SessionEndContinue()",
-		"app.Gemini().OnBeforeModel",
-		"return gemini.BeforeModelContinue()",
-		"app.Gemini().OnAfterModel",
-		"return gemini.AfterModelContinue()",
+		"app.Gemini().OnBeforeTool",
 		"return gemini.BeforeToolContinue()",
+		"app.Gemini().OnAfterTool",
 		"return gemini.AfterToolContinue()",
 	} {
 		if !strings.Contains(mainGo, want) {
@@ -908,6 +906,8 @@ func TestInitRunner_codexPackage(t *testing.T) {
 		"plugin.yaml",
 		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "codex-package", "package.yaml"),
+		filepath.Join("targets", "codex-package", "interface.json"),
+		filepath.Join("targets", "codex-package", "app.json"),
 		filepath.Join(".codex-plugin", "plugin.json"),
 		".mcp.json",
 		filepath.Join("skills", "genplug", "SKILL.md"),
@@ -935,5 +935,18 @@ func TestInitRunner_codexPackage(t *testing.T) {
 		if !strings.Contains(string(manifestBody), want) {
 			t.Fatalf("codex plugin manifest missing %q:\n%s", want, manifestBody)
 		}
+	}
+	if strings.Contains(string(manifestBody), `"apps": "./.app.json"`) {
+		t.Fatalf("codex plugin manifest unexpectedly enables empty app placeholder:\n%s", manifestBody)
+	}
+	if _, err := os.Stat(filepath.Join(out, ".app.json")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected .app.json rendered for empty app placeholder")
+	}
+	interfaceBody, err := os.ReadFile(filepath.Join(out, "targets", "codex-package", "interface.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(interfaceBody), `"defaultPrompt": [`) {
+		t.Fatalf("codex interface starter missing defaultPrompt array:\n%s", interfaceBody)
 	}
 }
