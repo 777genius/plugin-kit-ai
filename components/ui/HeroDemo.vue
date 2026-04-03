@@ -31,6 +31,14 @@ const steps = computed(() => [
 ]);
 
 const outputs = ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"];
+const repoFiles = [
+  "plugin.yaml",
+  "targets/codex-runtime/",
+  "targets/claude/",
+  "targets/gemini/",
+  "targets/opencode/",
+  "targets/cursor/"
+];
 const logs = computed(() => [
   t("hero.demo.logs.author"),
   t("hero.demo.logs.render"),
@@ -128,10 +136,13 @@ onUnmounted(() => {
             <span>{{ t("hero.demo.sourceOfTruth") }}</span>
           </div>
           <div class="hero-demo__file-list">
-            <div class="hero-demo__file">plugin.yaml</div>
-            <div class="hero-demo__file">targets/claude/</div>
-            <div class="hero-demo__file">targets/codex/</div>
-            <div class="hero-demo__file">README.md</div>
+            <div
+              v-for="file in repoFiles"
+              :key="file"
+              class="hero-demo__file"
+            >
+              {{ file }}
+            </div>
           </div>
         </div>
 
