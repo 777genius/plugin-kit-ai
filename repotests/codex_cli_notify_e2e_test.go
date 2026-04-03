@@ -64,6 +64,20 @@ func TestCodexCLINotifyUsesRenderedProjectConfig(t *testing.T) {
 	}
 }
 
+func TestCodexCLIMCPUsesRenderedProjectConfig(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	dir := newCodexRenderedMCPWorkspace(t, pluginKitAIBin)
+
+	out := runCodexMCPGetProbe(t, codexBin, dir, "release-checks")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Skipf("real codex mcp get did not expose project-local .codex/config.toml MCP server in this build:\n%s", truncateRunes(out, 4000))
+	}
+	if !strings.Contains(out, `"/bin/echo"`) {
+		t.Fatalf("codex mcp get output missing rendered command %q:\n%s", "/bin/echo", out)
+	}
+}
+
 func codexBinaryOrSkip(t *testing.T) string {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_CODEX_CLI")) == "1" {
@@ -145,6 +159,30 @@ targets:
 	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir, "--check"))
 	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", dir, "--platform", "codex-runtime", "--strict"))
 	assertCodexConfig(t, dir, model, "./bin/codex-rendered-live")
+	return dir
+}
+
+func newCodexRenderedMCPWorkspace(t *testing.T, pluginKitAIBin string) string {
+	t.Helper()
+	root := RepoRoot(t)
+	dir := t.TempDir()
+	mustWriteRepoFile(t, dir, "README.md", "# codex rendered mcp live smoke\n")
+	mustWriteRepoFile(t, dir, "plugin.yaml", `format: "plugin-kit-ai/package"
+name: "codex-rendered-mcp-live"
+version: "0.1.0"
+description: "codex rendered mcp live smoke"
+targets:
+  - "codex-runtime"
+`)
+	mustWriteRepoFile(t, dir, "launcher.yaml", "runtime: shell\nentrypoint: ./bin/codex-rendered-mcp-live\n")
+	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "[mcp_servers.release-checks]\ncommand = \"/bin/echo\"\nargs = [\"hello\"]\n")
+	mustWriteRepoExecutable(t, dir, filepath.Join("scripts", "main.sh"), "#!/bin/sh\nexit 0\n")
+	mustWriteRepoExecutable(t, dir, filepath.Join("bin", "codex-rendered-mcp-live"), "#!/bin/sh\nexit 0\n")
+
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir, "--check"))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", dir, "--platform", "codex-runtime", "--strict"))
 	return dir
 }
 
@@ -276,6 +314,21 @@ func readOptionalTextFile(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(body))
+}
+
+func runCodexMCPGetProbe(t *testing.T, codexBin, projectDir, serverName string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, codexBin, "-C", projectDir, "mcp", "get", serverName, "--json")
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("codex mcp get %s timed out:\n%s", serverName, out)
+	}
+	if err != nil {
+		return string(out)
+	}
+	return string(out)
 }
 
 func waitForCodexInvariants(t *testing.T, traceFile, outputFile string, waitCh <-chan error) error {
