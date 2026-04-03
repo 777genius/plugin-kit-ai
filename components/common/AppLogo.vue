@@ -8,7 +8,7 @@ const homePath = computed(() => localePath("/"));
     <span class="app-logo__mark">P</span>
     <span class="app-logo__copy">
       <span class="app-logo__text">plugin-kit-ai</span>
-      <span class="app-logo__subtext">multi-agent plugin toolkit</span>
+      <span class="app-logo__subtext">multi-agent</span>
     </span>
   </NuxtLink>
 </template>
