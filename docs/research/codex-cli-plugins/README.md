@@ -72,6 +72,18 @@
 
 После изменений — перезапуск Codex ([Plugins](https://developers.openai.com/codex/plugins/), [Build plugins](https://developers.openai.com/codex/plugins/build)).
 
+### Live CLI observations in this repo (`2026-04-03`)
+
+- Real `codex exec` smoke against the repository-owned notify harness **passes** when the hook path is supplied via explicit CLI config override (`-c notify=...`).
+- Real `codex mcp get --json` preflight **passes** when the MCP server is supplied via explicit CLI config overrides (`-c mcp_servers.release-checks...`).
+- Real probes for **project-local** `.codex/config.toml` in the current Codex CLI build (`v0.117.0`) did **not** show the same behavior:
+  - `codex exec` continued to report model `gpt-5.4` instead of the rendered project-local `model = "gpt-5.4-mini"`, and did not invoke the rendered `notify` hook path.
+  - `codex -C <dir> mcp get release-checks --json` did not expose a server rendered into project-local `.codex/config.toml`.
+- Practical conclusion for `hookplex`:
+  - treat rendered project-local `.codex/config.toml` as a **repo-owned authored/render/validate contract**
+  - treat current real-CLI project-config probes as **evidence-only**, not as a shipped vendor guarantee
+  - keep positive live Codex smoke on the explicit override path until OpenAI documents and ships stronger project-config behavior for `exec` / `mcp`
+
 ### Skills вне плагина
 
 Обнаружение в **`.agents/skills`**, **`~/.agents/skills`**, родительских каталогах, **`/etc/codex/skills`**, системных скилах — [Agent Skills](https://developers.openai.com/codex/skills).

@@ -78,6 +78,20 @@ func TestCodexCLIMCPUsesRenderedProjectConfig(t *testing.T) {
 	}
 }
 
+func TestCodexCLIMCPGetWithOverride(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	out := runCodexMCPGetWithOverride(t, codexBin, "release-checks")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Fatalf("codex mcp get output missing server name:\n%s", out)
+	}
+	if !strings.Contains(out, `"/bin/echo"`) {
+		t.Fatalf("codex mcp get output missing override command %q:\n%s", "/bin/echo", out)
+	}
+	if !strings.Contains(out, `"hello"`) {
+		t.Fatalf("codex mcp get output missing override args:\n%s", out)
+	}
+}
+
 func codexBinaryOrSkip(t *testing.T) string {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_CODEX_CLI")) == "1" {
@@ -327,6 +341,26 @@ func runCodexMCPGetProbe(t *testing.T, codexBin, projectDir, serverName string) 
 	}
 	if err != nil {
 		return string(out)
+	}
+	return string(out)
+}
+
+func runCodexMCPGetWithOverride(t *testing.T, codexBin, serverName string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	args := []string{
+		"mcp", "get", serverName, "--json",
+		"-c", fmt.Sprintf(`mcp_servers.%s.command=%q`, serverName, "/bin/echo"),
+		"-c", fmt.Sprintf(`mcp_servers.%s.args=["hello"]`, serverName),
+	}
+	cmd := exec.CommandContext(ctx, codexBin, args...)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("codex mcp get %s with override timed out:\n%s", serverName, out)
+	}
+	if err != nil {
+		t.Fatalf("codex mcp get %s with override: %v\n%s", serverName, err, out)
 	}
 	return string(out)
 }
