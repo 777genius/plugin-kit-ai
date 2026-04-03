@@ -442,6 +442,78 @@ func TestCodexCLIMCPAddGetListRemoveStdioInAuthSeededCodexHome(t *testing.T) {
 	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.release-checks]")
 }
 
+func TestCodexCLIMCPAddGetListRemoveStdioWithEnvInAuthSeededCodexHome(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	tempHome := newAuthSeededCodexTempHome(t)
+	mcpBin := buildPortableMCPSmokeServer(t)
+
+	loginOut := runCodexHomeCommand(t, codexBin, tempHome, "login", "status")
+	if !strings.Contains(loginOut, "Logged in") {
+		t.Fatalf("auth-seeded CODEX_HOME did not preserve login status:\n%s", loginOut)
+	}
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "add", "release-checks", "--env", "PLUGIN_KIT_AI_MCP_SMOKE_STATIC=auth-seeded-home", "--", filepath.ToSlash(mcpBin))
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.release-checks]",
+		`command = "`+filepath.ToSlash(mcpBin)+`"`,
+		`[mcp_servers.release-checks.env]`,
+		`PLUGIN_KIT_AI_MCP_SMOKE_STATIC = "auth-seeded-home"`,
+	)
+	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "release-checks", "--json")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing stdio env server name:\n%s", out)
+	}
+	if !strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC":"auth-seeded-home"`) &&
+		!strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC": "auth-seeded-home"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing stdio env projection:\n%s", out)
+	}
+	listOut := runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListEntry(t, listOut, "release-checks", "stdio", filepath.ToSlash(mcpBin), "", "PLUGIN_KIT_AI_MCP_SMOKE_STATIC", "auth-seeded-home")
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "release-checks")
+	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListMissing(t, listOut, "release-checks")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.release-checks]")
+}
+
+func TestCodexCLIMCPAddGetListRemoveHTTPInAuthSeededCodexHome(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	tempHome := newAuthSeededCodexTempHome(t)
+
+	loginOut := runCodexHomeCommand(t, codexBin, tempHome, "login", "status")
+	if !strings.Contains(loginOut, "Logged in") {
+		t.Fatalf("auth-seeded CODEX_HOME did not preserve login status:\n%s", loginOut)
+	}
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "add", "docs", "--url", "https://example.com/mcp", "--bearer-token-env-var", "CODEX_DOCS_TOKEN")
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.docs]",
+		`url = "https://example.com/mcp"`,
+		`bearer_token_env_var = "CODEX_DOCS_TOKEN"`,
+	)
+	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "docs", "--json")
+	if !strings.Contains(out, `"name":"docs"`) && !strings.Contains(out, `"name": "docs"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing HTTP server name:\n%s", out)
+	}
+	if !strings.Contains(out, `"type":"streamable_http"`) && !strings.Contains(out, `"type": "streamable_http"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing streamable_http transport:\n%s", out)
+	}
+	if !strings.Contains(out, `"url":"https://example.com/mcp"`) && !strings.Contains(out, `"url": "https://example.com/mcp"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing HTTP MCP url:\n%s", out)
+	}
+	if !strings.Contains(out, `"bearer_token_env_var":"CODEX_DOCS_TOKEN"`) &&
+		!strings.Contains(out, `"bearer_token_env_var": "CODEX_DOCS_TOKEN"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing bearer_token_env_var:\n%s", out)
+	}
+	listOut := runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPHTTPListEntry(t, listOut, "docs", "https://example.com/mcp", "CODEX_DOCS_TOKEN")
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "docs")
+	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListMissing(t, listOut, "docs")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.docs]")
+}
+
 func TestCodexPackageMCPGetUsesRenderedSidecar(t *testing.T) {
 	codexBin := codexBinaryOrSkip(t)
 	pluginKitAIBin := buildPluginKitAI(t)
