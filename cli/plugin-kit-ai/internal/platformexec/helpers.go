@@ -1053,37 +1053,6 @@ func resolveOpenCodeConfigPath(root string) (string, []pluginmodel.Warning, bool
 	return filepath.ToSlash(rel), warnings, true, nil
 }
 
-func readImportedOpenCodeConfigFromFile(path string, displayPath string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return importedOpenCodeConfig{}, "", nil, false, err
-	}
-	data, err := decodeImportedOpenCodeConfig(body)
-	if err != nil {
-		return importedOpenCodeConfig{}, displayPath, nil, false, err
-	}
-	if strings.TrimSpace(displayPath) == "" {
-		displayPath = filepath.ToSlash(path)
-	}
-	return data, displayPath, nil, true, nil
-}
-
-func readImportedOpenCodeConfig(root string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {
-	rel, warnings, ok, err := resolveOpenCodeConfigPath(root)
-	if err != nil || !ok {
-		return importedOpenCodeConfig{}, "", warnings, ok, err
-	}
-	body, err := os.ReadFile(filepath.Join(root, rel))
-	if err != nil {
-		return importedOpenCodeConfig{}, "", warnings, false, err
-	}
-	data, err := decodeImportedOpenCodeConfig(body)
-	if err != nil {
-		return importedOpenCodeConfig{}, rel, warnings, false, err
-	}
-	return data, rel, warnings, true, nil
-}
-
 func importedGeminiSettingsArtifacts(values []any) []pluginmodel.Artifact {
 	used := map[string]int{}
 	var artifacts []pluginmodel.Artifact

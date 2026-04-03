@@ -27,11 +27,8 @@ type opencodeImportedState struct {
 }
 
 type opencodeImportSource struct {
-	dir       string
-	display   string
-	warnOnUse bool
-	warnPath  string
-	warnMsg   string
+	dir     string
+	display string
 }
 
 func (opencodeAdapter) ID() string { return "opencode" }
@@ -399,7 +396,7 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		state.hasInput = true
 	}
 
-	skillArtifacts, skillWarnings, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{{
+	skillArtifacts, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{{
 		dir:     filepath.Join(cfg.workspaceRoot, "skills"),
 		display: filepath.ToSlash(filepath.Join(cfg.workspaceDisplay, "skills")),
 	}}, "skills", func(rel string) bool {
@@ -409,7 +406,6 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		return err
 	}
 	state.addArtifacts(skillArtifacts...)
-	state.warnings = append(state.warnings, skillWarnings...)
 	if len(skillArtifacts) > 0 {
 		state.hasInput = true
 	}
@@ -485,19 +481,17 @@ func readImportedOpenCodeConfigFromDir(root string, displayBase string) (importe
 }
 
 func importDirectoryArtifacts(source opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, error) {
-	artifacts, _, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{source}, dstRoot, keep)
+	artifacts, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{source}, dstRoot, keep)
 	return artifacts, err
 }
 
-func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
+func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, error) {
 	artifacts := map[string]pluginmodel.Artifact{}
-	var warnings []pluginmodel.Warning
 	for _, source := range sources {
 		full := source.dir
 		if _, err := os.Stat(full); err != nil {
 			continue
 		}
-		var used bool
 		err := filepath.WalkDir(full, func(path string, d os.DirEntry, err error) error {
 			if err != nil || d == nil || d.IsDir() {
 				return err
@@ -518,25 +512,17 @@ func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoo
 				RelPath: filepath.ToSlash(filepath.Join(dstRoot, rel)),
 				Content: body,
 			}
-			used = true
 			return nil
 		})
 		if err != nil {
-			return nil, nil, err
-		}
-		if source.warnOnUse && used {
-			warnings = append(warnings, pluginmodel.Warning{
-				Kind:    pluginmodel.WarningFidelity,
-				Path:    source.warnPath,
-				Message: source.warnMsg,
-			})
+			return nil, err
 		}
 	}
 	out := make([]pluginmodel.Artifact, 0, len(artifacts))
 	for _, rel := range sortedArtifactKeys(artifacts) {
 		out = append(out, artifacts[rel])
 	}
-	return out, warnings, nil
+	return out, nil
 }
 
 func importOpenCodeToolArtifacts(workspaceRoot, workspaceDisplay string) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
@@ -546,18 +532,16 @@ func importOpenCodeToolArtifacts(workspaceRoot, workspaceDisplay string) ([]plug
 			display: filepath.ToSlash(filepath.Join(workspaceDisplay, "tools")),
 		},
 	}
-	return importDirectoryArtifactsWithWarningsRejectingSymlinks(sources, filepath.Join("targets", "opencode", "tools"), nil)
+	return importDirectoryArtifactsRejectingSymlinks(sources, filepath.Join("targets", "opencode", "tools"), nil)
 }
 
-func importDirectoryArtifactsWithWarningsRejectingSymlinks(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
+func importDirectoryArtifactsRejectingSymlinks(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
 	artifacts := map[string]pluginmodel.Artifact{}
-	var warnings []pluginmodel.Warning
 	for _, source := range sources {
 		full := source.dir
 		if _, err := os.Stat(full); err != nil {
 			continue
 		}
-		var used bool
 		err := filepath.WalkDir(full, func(path string, d os.DirEntry, err error) error {
 			if err != nil || d == nil {
 				return err
@@ -582,25 +566,17 @@ func importDirectoryArtifactsWithWarningsRejectingSymlinks(sources []opencodeImp
 			}
 			dst := filepath.ToSlash(filepath.Join(dstRoot, rel))
 			artifacts[dst] = pluginmodel.Artifact{RelPath: dst, Content: body}
-			used = true
 			return nil
 		})
 		if err != nil {
 			return nil, nil, err
-		}
-		if source.warnOnUse && used {
-			warnings = append(warnings, pluginmodel.Warning{
-				Kind:    pluginmodel.WarningFidelity,
-				Path:    source.warnPath,
-				Message: source.warnMsg,
-			})
 		}
 	}
 	out := make([]pluginmodel.Artifact, 0, len(artifacts))
 	for _, rel := range sortedArtifactKeys(artifacts) {
 		out = append(out, artifacts[rel])
 	}
-	return out, warnings, nil
+	return out, nil, nil
 }
 
 func mergeOpenCodeObject(dst, src map[string]any) {

@@ -23,7 +23,7 @@ This beta surface is intentionally separate from:
 
 - deterministic repo-local authored/render/import/validate contract for `targets/opencode/tools/**`
 - deterministic render into `.opencode/tools/**`
-- explicit import compatibility for project-local, user-scope, and env-config OpenCode tool directories
+- explicit import support for project-local and `--include-user-scope` OpenCode tool directories
 - deterministic validation for path ownership, traversal rejection, symlink rejection, duplicate normalized paths, case-folded collisions, JS/TS tool-file presence, and `@opencode-ai/plugin` dependency checks
 - dedicated opt-in live smoke evidence through `TestOpenCodeStandaloneToolsSmoke`
 
