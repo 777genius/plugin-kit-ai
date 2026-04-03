@@ -100,6 +100,13 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 			Content: body,
 		})
 	}
+	if ref := strings.TrimSpace(pluginManifest.SkillsPath); ref != "" {
+		copied, err := copyArtifactsFromRefs(root, []string{ref}, "skills")
+		if err != nil {
+			return ImportResult{}, err
+		}
+		result.Artifacts = append(result.Artifacts, copied...)
+	}
 	if ref := strings.TrimSpace(pluginManifest.AppsRef); ref != "" {
 		appBody, err := os.ReadFile(filepath.Join(root, cleanRelativeRef(ref)))
 		if err != nil {
@@ -119,6 +126,21 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 				Message: "normalized Codex plugin apps path to the managed ./.app.json location",
 			})
 		}
+	}
+	if ref := strings.TrimSpace(pluginManifest.MCPServersRef); ref != "" {
+		body, err := os.ReadFile(filepath.Join(root, cleanRelativeRef(ref)))
+		if err != nil {
+			return ImportResult{}, err
+		}
+		servers, err := decodeJSONObject(body, fmt.Sprintf("Codex MCP manifest %s", filepath.ToSlash(cleanRelativeRef(ref))))
+		if err != nil {
+			return ImportResult{}, err
+		}
+		artifact, err := importedPortableMCPArtifact("codex-package", servers)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		result.Artifacts = append(result.Artifacts, artifact)
 	}
 	if len(extra) > 0 {
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{

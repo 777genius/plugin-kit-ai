@@ -1394,6 +1394,41 @@ func TestImport_CurrentNativeCodexRejectsMalformedConfigShapes(t *testing.T) {
 	}
 }
 
+func TestImport_CurrentNativeCodexImportsCustomSkillsAndMCPRefs(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","skills":"./custom-skills/","mcpServers":"./config/custom.mcp.json"}`)
+	mustWritePluginFile(t, root, filepath.Join("custom-skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo\n---\nRun the demo.\n")
+	mustWritePluginFile(t, root, filepath.Join("config", "custom.mcp.json"), `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	imported, warnings, err := Import(root, "codex-package", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsWarning(warnings, "normalized Codex plugin skills path to the managed ./skills/ location") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if !containsWarning(warnings, "normalized Codex plugin mcpServers path to the managed ./.mcp.json location") {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	skillBody, err := os.ReadFile(filepath.Join(root, "skills", "demo", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(skillBody), "Run the demo.") {
+		t.Fatalf("imported skill = %q", string(skillBody))
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mcpBody), "https://example.com/mcp") {
+		t.Fatalf("imported mcp = %q", string(mcpBody))
+	}
+	if imported.Name != "demo" {
+		t.Fatalf("manifest name = %q", imported.Name)
+	}
+}
+
 func TestImport_ClaudeHooksJSONParsingHandlesNonFirstCommand(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
