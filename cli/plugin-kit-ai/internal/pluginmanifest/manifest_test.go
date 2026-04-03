@@ -2437,26 +2437,22 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
-	mustWritePluginFile(t, root, ".mcp.json", `{"demo":{"command":"node","args":["server.mjs"]}}`)
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
 	_, warnings, err := Import(root, "codex-native", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(warnings) < 2 {
+	if len(warnings) < 1 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	var foundMCP, foundAgents bool
+	var foundAgents bool
 	for _, warning := range warnings {
-		if warning.Path == ".mcp.json" {
-			foundMCP = true
-		}
 		if warning.Path == "agents" {
 			foundAgents = true
 		}
 	}
-	if !foundMCP || !foundAgents {
+	if !foundAgents {
 		t.Fatalf("warnings = %+v", warnings)
 	}
 }

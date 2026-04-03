@@ -47,6 +47,13 @@ Managed outputs:
 - optional `.app.json`
 - optional `.mcp.json`
 
+Bundle layout rules:
+
+- `.codex-plugin/` must contain only `plugin.json`
+- `.app.json` must exist only when `.codex-plugin/plugin.json` references `./.app.json`
+- `.mcp.json` must exist only when `.codex-plugin/plugin.json` references `./.mcp.json`
+- do not move sidecars under `.codex-plugin/`; Codex expects them at the plugin root
+
 ## Use Both When
 
 - the repo needs both a repo-local runtime plugin and an official Codex package
