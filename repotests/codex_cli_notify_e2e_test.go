@@ -111,6 +111,10 @@ func TestCodexPackageMCPGetUsesRenderedSidecar(t *testing.T) {
 	if !strings.Contains(out, wantCommand) {
 		t.Fatalf("codex mcp get output missing rendered package MCP command %q:\n%s", wantCommand, out)
 	}
+	if !strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC":"codex-package-live"`) &&
+		!strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC": "codex-package-live"`) {
+		t.Fatalf("codex mcp get output missing rendered package MCP env:\n%s", out)
+	}
 }
 
 func TestCodexPackageExecUsesRenderedSidecarMCP(t *testing.T) {
@@ -254,6 +258,8 @@ servers:
     type: stdio
     stdio:
       command: %q
+      env:
+        PLUGIN_KIT_AI_MCP_SMOKE_STATIC: codex-package-live
     targets:
       - codex-package
 `, filepath.ToSlash(mcpBin)))
