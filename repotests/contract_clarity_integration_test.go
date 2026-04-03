@@ -297,7 +297,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "real `codex exec` with explicit `-c notify=...` override still reaches the repository-owned notify hook harness, the checked-in `examples/plugins/codex-basic-prod` runtime also passes that real `codex exec` path after rebuild, real `codex mcp get --json` and `codex mcp list --json` with explicit `-c mcp_servers...` overrides still expose the projected MCP server contract")
 	mustContain(t, string(supportDoc), "a rendered `codex-package` `.mcp.json` sidecar can be projected into those documented overrides for real `mcp get`, `mcp list`, plus `exec` MCP smoke")
 	mustContain(t, string(supportDoc), "real `codex mcp get --json` and `codex mcp list --json` with explicit `-c mcp_servers...` overrides still expose the projected MCP server contract")
-	mustContain(t, string(supportDoc), "current live Codex CLI build (`v0.117.0` in repo evidence), `codex exec` and `codex mcp get` do not reliably honor project-local `.codex/config.toml`")
+	mustContain(t, string(supportDoc), "current live Codex CLI build (`v0.117.0` in repo evidence), `codex exec`, `codex mcp get`, and `codex mcp list` do not reliably honor project-local `.codex/config.toml`")
 	mustContain(t, string(supportDoc), "helper delivery modes are documented in [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)")
 	mustContain(t, string(supportDoc), "while `init ... --runtime-package` switches to the shared dependency path")
 	mustContain(t, string(supportDoc), "development builds accept `--runtime-package-version`")

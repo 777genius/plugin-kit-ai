@@ -96,6 +96,32 @@ func TestCodexCLIMCPUsesRenderedProjectConfig(t *testing.T) {
 	}
 }
 
+func TestCodexCLIMCPListUsesRenderedProjectConfig(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	dir := newCodexRenderedMCPWorkspace(t, pluginKitAIBin)
+
+	out := runCodexMCPListWithProjectConfigProbe(t, codexBin, dir)
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(out), &entries); err != nil {
+		t.Skipf("real codex mcp list did not return JSON for project-local .codex/config.toml in this build:\n%s", truncateRunes(out, 4000))
+	}
+	for _, entry := range entries {
+		if strings.TrimSpace(fmt.Sprint(entry["name"])) != "release-checks" {
+			continue
+		}
+		transport, ok := entry["transport"].(map[string]any)
+		if !ok {
+			t.Fatalf("codex mcp list release-checks entry missing transport:\n%s", out)
+		}
+		if strings.TrimSpace(fmt.Sprint(transport["command"])) != "/bin/echo" {
+			t.Fatalf("codex mcp list release-checks command = %q want %q\n%s", transport["command"], "/bin/echo", out)
+		}
+		return
+	}
+	t.Skipf("real codex mcp list did not expose project-local .codex/config.toml MCP server in this build:\n%s", truncateRunes(out, 4000))
+}
+
 func TestCodexCLIMCPGetWithOverride(t *testing.T) {
 	codexBin := codexBinaryOrSkip(t)
 	out := runCodexMCPGetWithArgs(t, codexBin, "release-checks",
@@ -111,6 +137,36 @@ func TestCodexCLIMCPGetWithOverride(t *testing.T) {
 	if !strings.Contains(out, `"hello"`) {
 		t.Fatalf("codex mcp get output missing override args:\n%s", out)
 	}
+}
+
+func TestCodexCLIMCPListWithOverride(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	out := runCodexMCPListWithArgs(t, codexBin,
+		"-c", `mcp_servers.release-checks.command="/bin/echo"`,
+		"-c", `mcp_servers.release-checks.args=["hello"]`,
+	)
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(out), &entries); err != nil {
+		t.Fatalf("parse codex mcp list output: %v\n%s", err, out)
+	}
+	for _, entry := range entries {
+		if strings.TrimSpace(fmt.Sprint(entry["name"])) != "release-checks" {
+			continue
+		}
+		transport, ok := entry["transport"].(map[string]any)
+		if !ok {
+			t.Fatalf("codex mcp list release-checks entry missing transport:\n%s", out)
+		}
+		if strings.TrimSpace(fmt.Sprint(transport["command"])) != "/bin/echo" {
+			t.Fatalf("codex mcp list release-checks command = %q want %q\n%s", transport["command"], "/bin/echo", out)
+		}
+		args, ok := transport["args"].([]any)
+		if !ok || len(args) != 1 || strings.TrimSpace(fmt.Sprint(args[0])) != "hello" {
+			t.Fatalf("codex mcp list release-checks args = %#v want [hello]\n%s", transport["args"], out)
+		}
+		return
+	}
+	t.Fatalf("codex mcp list output missing release-checks server:\n%s", out)
 }
 
 func TestCodexPackageMCPGetUsesRenderedSidecar(t *testing.T) {
@@ -649,6 +705,21 @@ func runCodexMCPGetProbe(t *testing.T, codexBin, projectDir, serverName string) 
 	out, err := cmd.CombinedOutput()
 	if ctx.Err() == context.DeadlineExceeded {
 		t.Fatalf("codex mcp get %s timed out:\n%s", serverName, out)
+	}
+	if err != nil {
+		return string(out)
+	}
+	return string(out)
+}
+
+func runCodexMCPListWithProjectConfigProbe(t *testing.T, codexBin, projectDir string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, codexBin, "-C", projectDir, "mcp", "list", "--json")
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("codex mcp list timed out:\n%s", out)
 	}
 	if err != nil {
 		return string(out)
