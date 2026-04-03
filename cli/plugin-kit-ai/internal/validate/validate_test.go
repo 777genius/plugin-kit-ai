@@ -1034,11 +1034,3 @@ func mustChmodExecutable(t *testing.T, full string) {
 		t.Fatal(err)
 	}
 }
-
-func saveTestManifest(t *testing.T, root, platform, runtimeName string) {
-	t.Helper()
-	manifest := pluginmanifest.Default("x", platform, runtimeName, "x", false)
-	if err := pluginmanifest.Save(root, manifest, false); err != nil {
-		t.Fatal(err)
-	}
-}

@@ -494,16 +494,6 @@ func runtimeProfiles(m model) []defs.PlatformProfile {
 	return out
 }
 
-func scaffoldProfiles(m model) []defs.PlatformProfile {
-	var out []defs.PlatformProfile
-	for _, p := range sortedProfiles(m) {
-		if p.Status == runtime.StatusRuntimeSupported || p.Status == runtime.StatusScaffoldOnly {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
 func scaffoldTargetProfiles(m model) []platformmeta.PlatformProfile {
 	var out []platformmeta.PlatformProfile
 	for _, p := range m.cliProfiles {

@@ -642,11 +642,6 @@ func validateNodeRuntimeTarget(root, entrypoint string, report *Report) {
 	})
 }
 
-func dirExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
-}
-
 var versionPattern = regexp.MustCompile(`(\d+)\.(\d+)`)
 
 func requireMinVersion(runtimeName, output string, wantMajor, wantMinor int) error {
