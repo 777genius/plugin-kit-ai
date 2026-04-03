@@ -13,6 +13,8 @@ import (
 const (
 	PluginDir      = ".codex-plugin"
 	PluginFileName = "plugin.json"
+	AppFileName    = ".app.json"
+	MCPFileName    = ".mcp.json"
 	SkillsRef      = "./skills/"
 	MCPServersRef  = "./.mcp.json"
 	AppsRef        = "./.app.json"
@@ -20,6 +22,14 @@ const (
 
 func PluginManifestPath() string {
 	return filepath.ToSlash(filepath.Join(PluginDir, PluginFileName))
+}
+
+func AppManifestPath() string {
+	return filepath.ToSlash(AppFileName)
+}
+
+func MCPManifestPath() string {
+	return filepath.ToSlash(MCPFileName)
 }
 
 type Author struct {
@@ -173,6 +183,22 @@ func ReadImportedPluginManifest(root string) (ImportedPluginManifest, []byte, er
 		return ImportedPluginManifest{}, nil, err
 	}
 	return out, body, nil
+}
+
+func UnexpectedBundleSidecars(root string, manifest ImportedPluginManifest) []string {
+	var paths []string
+	if strings.TrimSpace(manifest.AppsRef) == "" && fileExists(filepath.Join(root, AppFileName)) {
+		paths = append(paths, AppManifestPath())
+	}
+	if strings.TrimSpace(manifest.MCPServersRef) == "" && fileExists(filepath.Join(root, MCPFileName)) {
+		paths = append(paths, MCPManifestPath())
+	}
+	return paths
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 func AppManifestEnabled(doc map[string]any) bool {

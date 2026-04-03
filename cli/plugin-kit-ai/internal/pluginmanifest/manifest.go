@@ -125,11 +125,6 @@ type importedClaudeHookCommand struct {
 	Command string `json:"command"`
 }
 
-type importedCodexConfig struct {
-	Model  string   `toml:"model"`
-	Notify []string `toml:"notify"`
-}
-
 type importedCodexPluginManifest = codexmanifest.ImportedPluginManifest
 
 type importedCodexNativeConfig = codexconfig.ImportedConfig
@@ -1176,18 +1171,6 @@ func importCodexModel(root string) string {
 		return ""
 	}
 	return strings.TrimSpace(config.Model)
-}
-
-func loadImportedCodexConfig(root string) (importedCodexConfig, error) {
-	body, err := os.ReadFile(filepath.Join(root, ".codex", "config.toml"))
-	if err != nil {
-		return importedCodexConfig{}, err
-	}
-	var config importedCodexConfig
-	if err := toml.Unmarshal(body, &config); err != nil {
-		return importedCodexConfig{}, err
-	}
-	return config, nil
 }
 
 func readImportedCodexConfig(root string) (importedCodexNativeConfig, []byte, error) {

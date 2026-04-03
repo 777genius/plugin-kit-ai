@@ -1390,6 +1390,17 @@ func TestImport_CurrentNativeCodexRejectsUnexpectedPluginDirEntries(t *testing.T
 	}
 }
 
+func TestImport_CurrentNativeCodexRejectsUnreferencedBundleSidecars(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
+	mustWritePluginFile(t, root, ".app.json", `{"name":"demo-app"}`)
+	mustWritePluginFile(t, root, ".mcp.json", `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	if _, _, err := Import(root, "codex-package", false, false); err == nil || !strings.Contains(err.Error(), ".app.json") || !strings.Contains(err.Error(), ".mcp.json") {
+		t.Fatalf("Import error = %v", err)
+	}
+}
+
 func TestImport_CurrentNativeCodexRejectsMalformedConfigShapes(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = true\nnotify = [\"./bin/demo\", \"notify\"]\n")

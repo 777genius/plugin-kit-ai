@@ -911,6 +911,38 @@ targets: ["codex-package"]
 	}
 }
 
+func TestValidate_CodexRejectsUnreferencedBundleSidecars(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "README.md", "# x\n")
+	mustWriteValidateFile(t, dir, "plugin.yaml", `format: plugin-kit-ai/package
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x"}`)
+	mustWriteValidateFile(t, dir, ".app.json", `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, ".mcp.json", `{"docs":{"url":"https://example.com/mcp"}}`)
+
+	report, err := Validate(dir, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var foundApp, foundMCP bool
+	for _, failure := range report.Failures {
+		switch {
+		case failure.Path == ".app.json" && strings.Contains(failure.Message, "without a matching .codex-plugin/plugin.json ref"):
+			foundApp = true
+		case failure.Path == ".mcp.json" && strings.Contains(failure.Message, "without a matching .codex-plugin/plugin.json ref"):
+			foundMCP = true
+		}
+	}
+	if !foundApp || !foundMCP {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsNonCanonicalGeneratedManifestRefs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

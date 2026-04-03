@@ -92,3 +92,22 @@ func TestReadImportedPluginManifestRejectsUnexpectedPluginDirEntries(t *testing.
 		t.Fatalf("ReadImportedPluginManifest error = %v", err)
 	}
 }
+
+func TestUnexpectedBundleSidecars(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, AppFileName), []byte(`{"name":"demo-app"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, MCPFileName), []byte(`{"docs":{"url":"https://example.com/mcp"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	paths := UnexpectedBundleSidecars(root, ImportedPluginManifest{})
+	if len(paths) != 2 || paths[0] != AppManifestPath() || paths[1] != MCPManifestPath() {
+		t.Fatalf("UnexpectedBundleSidecars = %#v", paths)
+	}
+	if got := UnexpectedBundleSidecars(root, ImportedPluginManifest{AppsRef: AppsRef, MCPServersRef: MCPServersRef}); len(got) != 0 {
+		t.Fatalf("UnexpectedBundleSidecars with refs = %#v", got)
+	}
+}

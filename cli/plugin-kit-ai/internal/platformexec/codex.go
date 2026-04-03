@@ -76,6 +76,9 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 	if err != nil {
 		return ImportResult{}, err
 	}
+	if unexpected := codexmanifest.UnexpectedBundleSidecars(root, pluginManifest); len(unexpected) > 0 {
+		return ImportResult{}, fmt.Errorf("Codex package bundle contains unexpected sidecar artifacts without matching plugin.json refs: %s", strings.Join(unexpected, ", "))
+	}
 	result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
 		RelPath: filepath.Join("targets", "codex-package", "package.yaml"),
 		Content: mustYAML(pluginManifest.PackageMeta),
@@ -417,6 +420,15 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 		}}, nil
 	}
 	var diagnostics []Diagnostic
+	for _, path := range codexmanifest.UnexpectedBundleSidecars(root, pluginManifest) {
+		diagnostics = append(diagnostics, Diagnostic{
+			Severity: SeverityFailure,
+			Code:     CodeGeneratedContractInvalid,
+			Path:     path,
+			Target:   "codex-package",
+			Message:  fmt.Sprintf("Codex package bundle may not include %s without a matching .codex-plugin/plugin.json ref", path),
+		})
+	}
 	if strings.TrimSpace(pluginManifest.Name) != strings.TrimSpace(graph.Manifest.Name) {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
