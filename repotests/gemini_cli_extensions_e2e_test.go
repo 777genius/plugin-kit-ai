@@ -15,6 +15,7 @@ import (
 
 const geminiRuntimeLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE"
 const geminiExtensionLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_CLI"
+const geminiRuntimeLiveToolPrompt = "Use the read_file tool to read README.md from the current workspace, then reply with exactly OK."
 
 func TestGeminiCLIExtensionLink(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(geminiExtensionLiveEnvVar)) != "1" {
@@ -146,7 +147,7 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, geminiBin, "-p", "@README.md Reply with exactly OK.", "--output-format", "json")
+	cmd := exec.CommandContext(ctx, geminiBin, "-p", geminiRuntimeLiveToolPrompt, "--output-format", "json")
 	cmd.Dir = extensionDir
 	cmd.Env = append(geminiCLIEnv(homeDir), "PLUGIN_KIT_AI_E2E_TRACE="+tracePath)
 	out, err := cmd.CombinedOutput()
@@ -178,7 +179,7 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 	}
 	beforeToolSelectionIndex, beforeToolSelection, ok := traceIndex(t, lines, "BeforeToolSelection")
 	if !ok {
-		t.Fatalf("expected BeforeToolSelection trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers Gemini tool routing and rerun gemini -p with @README.md.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeToolSelection trace; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers Gemini tool routing and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if strings.TrimSpace(beforeModel.Outcome) != "continue" || !beforeModel.HasRequest || beforeModel.RequestSize == 0 {
 		t.Fatalf("expected BeforeModel continue with request payload; got outcome=%q has_request=%v request_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeModel.Outcome, beforeModel.HasRequest, beforeModel.RequestSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
@@ -208,14 +209,14 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 	}
 	beforeTool, ok := traceFind(t, lines, "BeforeTool")
 	if !ok || strings.TrimSpace(beforeTool.Tool) == "" {
-		t.Fatalf("expected BeforeTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with @README.md.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected BeforeTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if !beforeTool.HasInput || beforeTool.InputSize == 0 {
 		t.Fatalf("expected BeforeTool trace with tool_input payload; has_input=%v input_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.HasInput, beforeTool.InputSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	afterTool, ok := traceFind(t, lines, "AfterTool")
 	if !ok || strings.TrimSpace(afterTool.Tool) == "" {
-		t.Fatalf("expected AfterTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with @README.md.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+		t.Fatalf("expected AfterTool trace with tool_name; hint=confirm make test-gemini-runtime passes, then confirm the prompt still triggers a Gemini tool path and rerun gemini -p with an explicit tool-use prompt.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	if !afterTool.HasInput || afterTool.InputSize == 0 || !afterTool.HasResponse || afterTool.ResponseSize == 0 {
 		t.Fatalf("expected AfterTool trace with tool_input+tool_response payloads; has_input=%v input_size=%d has_response=%v response_size=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", afterTool.HasInput, afterTool.InputSize, afterTool.HasResponse, afterTool.ResponseSize, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))

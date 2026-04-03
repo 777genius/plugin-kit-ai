@@ -34,6 +34,8 @@ The deterministic Gemini smoke now covers:
 - runtime transform semantics such as request/response rewrite, tool selection config, turn-local context injection, tool-input rewrite, tool-result context, and tail tool calls
 - tool payload observability including `tool_input`, `tool_response`, `mcp_context`, and `original_request_name`
 
+The live Gemini runtime smoke uses an explicit tool-use prompt for the tool path. On current Gemini CLI builds this is materially more reliable than injecting `@README.md` content and hoping the model still chooses a tool call.
+
 ## Promotion Rule
 
 Any future Gemini runtime surface stays `public-beta` until it has:
