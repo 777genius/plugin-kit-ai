@@ -5,6 +5,7 @@ const { content } = useLandingContent();
 const { t, locale } = useI18n();
 const config = useRuntimeConfig();
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
+const { docsUrl } = useDocsLinks();
 const { data: releaseData, fallbackUrl } = useReleaseDownloads();
 
 const releaseVersion = computed(() => releaseData.value?.version || null);
@@ -51,6 +52,14 @@ const releaseDate = computed(() => {
               class="hero-section__btn-secondary"
             >
               {{ t("hero.secondaryCta") }}
+            </v-btn>
+            <v-btn
+              variant="tonal"
+              size="large"
+              :href="docsUrl"
+              class="hero-section__btn-tertiary"
+            >
+              {{ t("hero.docsCta") }}
             </v-btn>
           </div>
 
@@ -233,6 +242,20 @@ const releaseDate = computed(() => {
 .hero-section__btn-secondary:hover {
   border-color: rgba(0, 240, 255, 0.5) !important;
   background: rgba(0, 240, 255, 0.06) !important;
+}
+
+.hero-section__btn-tertiary {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #d9e2ff !important;
+  font-weight: 600 !important;
+  border: 1px solid rgba(217, 226, 255, 0.12) !important;
+  transition: all 0.3s ease !important;
+}
+
+.hero-section__btn-tertiary:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(217, 226, 255, 0.24) !important;
+  transform: translateY(-1px) !important;
 }
 
 .hero-section__trust {

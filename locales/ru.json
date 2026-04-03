@@ -10,6 +10,7 @@
   "hero": {
     "primaryCta": "Открыть GitHub",
     "secondaryCta": "Посмотреть плагины",
+    "docsCta": "Смотреть документацию",
     "preview": "Превью процесса plugin-kit-ai",
     "latestRelease": "Последний релиз",
     "status": "Первая линейка плагинов скоро появится",

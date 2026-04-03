@@ -10,6 +10,7 @@
   "hero": {
     "primaryCta": "Open GitHub",
     "secondaryCta": "See plugins",
+    "docsCta": "View docs",
     "preview": "plugin-kit-ai flow preview",
     "latestRelease": "Latest release",
     "status": "First-party plugins coming soon",
