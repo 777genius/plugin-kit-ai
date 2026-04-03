@@ -427,6 +427,180 @@ servers:
 	}
 }
 
+func TestPluginKitAIGeminiLifecycleRoundTripCoversFullSurface(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	authoredRoot := filepath.Join(t.TempDir(), "genplug")
+
+	initCmd := exec.Command(pluginKitAIBin, "init", "genplug", "--platform", "gemini", "--runtime", "go", "--extras", "-o", authoredRoot)
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai init gemini: %v\n%s", err, out)
+	}
+
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
+exclude_tools:
+  - run_shell_command(rm -rf)
+migrated_to: https://github.com/example/genplug-gemini-v2
+plan_directory: .gemini/plans
+`)
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), `name: release-profile
+description: Release profile
+env_var: RELEASE_PROFILE
+sensitive: false
+`)
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), `name: release-dawn
+background:
+  primary: "#fff9f2"
+text:
+  primary: "#2e1f14"
+`)
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{
+  "hooks": {
+    "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiSessionStart"}]}],
+    "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiSessionEnd"}]}],
+    "BeforeTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiBeforeTool"}]}],
+    "AfterTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiAfterTool"}]}]
+  }
+}`)
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "contexts", "RELEASE.md"), "# Release\n")
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "policies", "release-review.toml"), "review = \"required\"\n")
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "commands", "release", "deploy.toml"), "description = \"Deploy release\"\nprompt = \"Ship the release\"\n")
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+    targets:
+      - "gemini"
+`)
+
+	renderCmd := exec.Command(pluginKitAIBin, "render", authoredRoot)
+	renderCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render gemini lifecycle: %v\n%s", err, out)
+	}
+
+	renderCheckCmd := exec.Command(pluginKitAIBin, "render", authoredRoot, "--check")
+	renderCheckCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCheckCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render --check gemini lifecycle: %v\n%s", err, out)
+	}
+
+	validateCmd := exec.Command(pluginKitAIBin, "validate", authoredRoot, "--platform", "gemini", "--strict")
+	validateCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate gemini lifecycle: %v\n%s", err, out)
+	}
+
+	manifestBody, err := os.ReadFile(filepath.Join(authoredRoot, "gemini-extension.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"contextFileName": "GEMINI.md"`,
+		`"migratedTo": "https://github.com/example/genplug-gemini-v2"`,
+		`"x_galleryTopic": "gemini-cli-extension"`,
+		`"retentionDays": 7`,
+		`"release-profile"`,
+		`"release-dawn"`,
+		`"mcpServers"`,
+	} {
+		if !strings.Contains(string(manifestBody), want) {
+			t.Fatalf("rendered gemini manifest missing %q:\n%s", want, manifestBody)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(authoredRoot, "hooks", "hooks.json")); err != nil {
+		t.Fatalf("stat rendered gemini hooks: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(authoredRoot, "GEMINI.md")); err != nil {
+		t.Fatalf("stat rendered gemini primary context: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(authoredRoot, "contexts", "RELEASE.md")); err != nil {
+		t.Fatalf("stat rendered gemini extra context: %v", err)
+	}
+
+	importRoot := filepath.Join(t.TempDir(), "genplug")
+	mustCopyPluginLifecycleFile(t, filepath.Join(authoredRoot, "gemini-extension.json"), filepath.Join(importRoot, "gemini-extension.json"))
+	copyTree(t, filepath.Join(authoredRoot, "hooks"), filepath.Join(importRoot, "hooks"))
+	copyTree(t, filepath.Join(authoredRoot, "commands"), filepath.Join(importRoot, "commands"))
+	copyTree(t, filepath.Join(authoredRoot, "policies"), filepath.Join(importRoot, "policies"))
+	copyTree(t, filepath.Join(authoredRoot, "contexts"), filepath.Join(importRoot, "contexts"))
+	copyTree(t, filepath.Join(authoredRoot, "cmd"), filepath.Join(importRoot, "cmd"))
+	mustCopyPluginLifecycleFile(t, filepath.Join(authoredRoot, "GEMINI.md"), filepath.Join(importRoot, "GEMINI.md"))
+	mustCopyPluginLifecycleFile(t, filepath.Join(authoredRoot, "go.mod"), filepath.Join(importRoot, "go.mod"))
+	if _, err := os.Stat(filepath.Join(authoredRoot, "go.sum")); err == nil {
+		mustCopyPluginLifecycleFile(t, filepath.Join(authoredRoot, "go.sum"), filepath.Join(importRoot, "go.sum"))
+	}
+
+	importCmd := exec.Command(pluginKitAIBin, "import", importRoot, "--from", "gemini")
+	if out, err := importCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai import gemini lifecycle: %v\n%s", err, out)
+	}
+
+	for _, rel := range []string{
+		filepath.Join("targets", "gemini", "package.yaml"),
+		filepath.Join("targets", "gemini", "settings", "release-profile.yaml"),
+		filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"),
+		filepath.Join("targets", "gemini", "hooks", "hooks.json"),
+		filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
+		filepath.Join("targets", "gemini", "contexts", "RELEASE.md"),
+		filepath.Join("targets", "gemini", "commands", "release", "deploy.toml"),
+		filepath.Join("targets", "gemini", "policies", "release-review.toml"),
+		filepath.Join("targets", "gemini", "manifest.extra.json"),
+		filepath.Join("mcp", "servers.yaml"),
+		"launcher.yaml",
+	} {
+		if _, err := os.Stat(filepath.Join(importRoot, rel)); err != nil {
+			t.Fatalf("missing imported gemini artifact %s: %v", rel, err)
+		}
+	}
+
+	importedPackageBody, err := os.ReadFile(filepath.Join(importRoot, "targets", "gemini", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"context_file_name: GEMINI.md",
+		"migrated_to: https://github.com/example/genplug-gemini-v2",
+		"plan_directory: .gemini/plans",
+		"- run_shell_command(rm -rf)",
+	} {
+		if !strings.Contains(string(importedPackageBody), want) {
+			t.Fatalf("imported gemini package metadata missing %q:\n%s", want, importedPackageBody)
+		}
+	}
+	importedExtraBody, err := os.ReadFile(filepath.Join(importRoot, "targets", "gemini", "manifest.extra.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(importedExtraBody), `"x_galleryTopic"`) || !strings.Contains(string(importedExtraBody), `"retentionDays": 7`) {
+		t.Fatalf("imported gemini manifest extra = %q", string(importedExtraBody))
+	}
+
+	renderCmd = exec.Command(pluginKitAIBin, "render", importRoot)
+	renderCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render imported gemini lifecycle: %v\n%s", err, out)
+	}
+
+	renderCheckCmd = exec.Command(pluginKitAIBin, "render", importRoot, "--check")
+	renderCheckCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := renderCheckCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai render --check imported gemini lifecycle: %v\n%s", err, out)
+	}
+
+	validateCmd = exec.Command(pluginKitAIBin, "validate", importRoot, "--platform", "gemini", "--strict")
+	validateCmd.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plugin-kit-ai validate imported gemini lifecycle: %v\n%s", err, out)
+	}
+}
+
 func mustWritePluginLifecycleFile(t *testing.T, root, rel, body string) {
 	t.Helper()
 	full := filepath.Join(root, rel)

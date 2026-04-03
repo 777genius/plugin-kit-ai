@@ -1888,6 +1888,26 @@ func TestRender_GeminiRuntimeGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	}
 }
 
+func TestRender_GeminiRejectsHookEntrypointMismatch(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
+	mustSavePackage(t, root, manifest, "go")
+	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{
+  "hooks": {
+    "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}other GeminiSessionStart"}]}],
+    "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiSessionEnd"}]}],
+    "BeforeTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiBeforeTool"}]}],
+    "AfterTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiAfterTool"}]}]
+  }
+}`)
+
+	if _, err := Render(root, "gemini"); err == nil || !strings.Contains(err.Error(), `entrypoint mismatch: Gemini hook "SessionStart"`) {
+		t.Fatalf("Render error = %v", err)
+	}
+}
+
 func TestRender_GeminiRejectsMalformedStructuredSettingsAndThemes(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
