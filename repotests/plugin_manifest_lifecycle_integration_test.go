@@ -416,6 +416,11 @@ text:
   "hooks": {
     "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiSessionStart"}]}],
     "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiSessionEnd"}]}],
+    "BeforeModel": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiBeforeModel"}]}],
+    "AfterModel": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiAfterModel"}]}],
+    "BeforeToolSelection": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiBeforeToolSelection"}]}],
+    "BeforeAgent": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiBeforeAgent"}]}],
+    "AfterAgent": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiAfterAgent"}]}],
     "BeforeTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiBeforeTool"}]}],
     "AfterTool": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}genplug GeminiAfterTool"}]}]
   }

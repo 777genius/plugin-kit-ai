@@ -186,6 +186,11 @@ func TestGeminiRenderGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	for _, want := range []string{
 		`${extensionPath}${/}bin${/}demo GeminiSessionStart`,
 		`${extensionPath}${/}bin${/}demo GeminiSessionEnd`,
+		`${extensionPath}${/}bin${/}demo GeminiBeforeModel`,
+		`${extensionPath}${/}bin${/}demo GeminiAfterModel`,
+		`${extensionPath}${/}bin${/}demo GeminiBeforeToolSelection`,
+		`${extensionPath}${/}bin${/}demo GeminiBeforeAgent`,
+		`${extensionPath}${/}bin${/}demo GeminiAfterAgent`,
 		`${extensionPath}${/}bin${/}demo GeminiBeforeTool`,
 		`${extensionPath}${/}bin${/}demo GeminiAfterTool`,
 	} {
