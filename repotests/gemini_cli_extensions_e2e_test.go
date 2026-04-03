@@ -17,6 +17,20 @@ const geminiRuntimeLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE"
 const geminiExtensionLiveEnvVar = "PLUGIN_KIT_AI_RUN_GEMINI_CLI"
 const geminiRuntimeLiveToolPrompt = "Use the read_file tool to read README.md from the current workspace, then reply with exactly OK."
 
+type geminiCLIEnvelope struct {
+	SessionID string `json:"session_id"`
+	Response  string `json:"response"`
+	Stats     struct {
+		Tools struct {
+			TotalCalls int `json:"totalCalls"`
+			ByName     map[string]struct {
+				Count      int `json:"count"`
+				TotalCalls int `json:"totalCalls"`
+			} `json:"byName"`
+		} `json:"tools"`
+	} `json:"stats"`
+}
+
 func TestGeminiCLIExtensionLink(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(geminiExtensionLiveEnvVar)) != "1" {
 		t.Skipf("set %s=1 to run real Gemini extension lifecycle smoke", geminiExtensionLiveEnvVar)
@@ -159,6 +173,19 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 			t.Skipf("gemini environment is not ready for isolated runtime live e2e; %s\n%s", geminiAuthRecoveryHint(string(out)), truncateRunes(string(out), 4000))
 		}
 		t.Fatalf("gemini runtime smoke: %v\ntrace=%s\nhint=confirm make test-gemini-runtime passes, then confirm gemini extensions link . succeeded, inspect hooks/hooks.json command wiring, and rerun the live smoke.\noutput:\n%s", err, tracePath, truncateRunes(string(out), 4000))
+	}
+	envelope := parseGeminiJSONEnvelope(t, out)
+	if strings.TrimSpace(envelope.SessionID) == "" {
+		t.Fatalf("expected Gemini live output to include session_id\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if strings.TrimSpace(envelope.Response) != "OK" {
+		t.Fatalf("expected Gemini live output response=OK, got %q\noutput:\n%s", envelope.Response, truncateRunes(string(out), 4000))
+	}
+	if envelope.Stats.Tools.TotalCalls <= 0 {
+		t.Fatalf("expected Gemini live output to report at least one tool call\noutput:\n%s", truncateRunes(string(out), 4000))
+	}
+	if stats, ok := envelope.Stats.Tools.ByName["read_file"]; !ok || maxInt(stats.Count, stats.TotalCalls) <= 0 {
+		t.Fatalf("expected Gemini live output to report read_file tool usage\noutput:\n%s", truncateRunes(string(out), 4000))
 	}
 
 	lines := waitForTraceHooks(t, tracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "SessionEnd")
@@ -714,6 +741,59 @@ func TestGeminiE2ETraceCapturesRuntimeTransformSemantics(t *testing.T) {
 			t.Fatalf("%s outcome = %q, want %q\ntrace_lines:\n%s", tc.name, rec.Outcome, tc.wantOutcome, strings.Join(lines, "\n"))
 		}
 	}
+}
+
+func parseGeminiJSONEnvelope(t *testing.T, out []byte) geminiCLIEnvelope {
+	t.Helper()
+	start := bytes.Index(out, []byte("{"))
+	if start < 0 {
+		t.Fatalf("gemini live output missing JSON envelope:\n%s", truncateRunes(string(out), 4000))
+	}
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(out); i++ {
+		b := out[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if b == '\\' {
+				escaped = true
+				continue
+			}
+			if b == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch b {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				var envelope geminiCLIEnvelope
+				body := out[start : i+1]
+				if err := json.Unmarshal(body, &envelope); err != nil {
+					t.Fatalf("parse gemini live JSON envelope: %v\n%s", err, truncateRunes(string(out), 4000))
+				}
+				return envelope
+			}
+		}
+	}
+	t.Fatalf("gemini live output ended before JSON envelope closed:\n%s", truncateRunes(string(out), 4000))
+	return geminiCLIEnvelope{}
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func geminiBinaryOrSkip(t *testing.T) string {
