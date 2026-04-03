@@ -76,8 +76,7 @@
   "plugins": {
     "sectionTitle": "Our first plugins start here",
     "sectionSubtitle": "A first-party lineup designed for real repo work, with clear badges for the agent ecosystems each idea is meant to support.",
-    "supports": "Supports",
-    "preview": "Preview"
+    "supports": "Supports"
   },
   "faq": {
     "sectionTitle": "Got questions? We've got answers",

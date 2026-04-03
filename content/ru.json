@@ -42,8 +42,7 @@
       "title": "Review Guard",
       "description": "Подсвечивает рискованные вызовы инструментов, пропущенные проверки и уход от правил до того, как плагин уйдёт дальше по цепочке.",
       "status": "Скоро",
-      "badges": ["Claude", "Codex", "Gemini"],
-      "previewLines": ["policy.yaml", "guard-rules/", "review-report.md"]
+      "badges": ["Claude", "Codex", "Gemini"]
     },
     {
       "id": "releaseNotesBuilder",
@@ -51,8 +50,7 @@
       "title": "Release Notes Builder",
       "description": "Превращает коммиты, изменения и контекст передачи задачи в понятные заметки к релизу и черновики changelog для быстрой публикации.",
       "status": "Скоро",
-      "badges": ["Codex", "Claude", "OpenCode"],
-      "previewLines": ["CHANGELOG.md", "release-draft.md", "git-summary.json"]
+      "badges": ["Codex", "Claude", "OpenCode"]
     },
     {
       "id": "docsSync",
@@ -60,8 +58,7 @@
       "title": "Docs Sync",
       "description": "Держит README, страницы документации и заметки по поддержке в актуальном состоянии относительно реальных изменений в репозитории.",
       "status": "Скоро",
-      "badges": ["Claude", "Codex", "Cursor"],
-      "previewLines": ["README.md", "docs/", "support-boundary.md"]
+      "badges": ["Claude", "Codex", "Cursor"]
     },
     {
       "id": "repoOnboarding",
@@ -69,8 +66,7 @@
       "title": "Repo Onboarding",
       "description": "Готовит инструкции для участников, правила репозитория и контекст для агентов, чтобы новые люди быстрее входили в проект.",
       "status": "Скоро",
-      "badges": ["Claude", "Cursor", "OpenCode"],
-      "previewLines": ["AGENTS.md", "starter-notes.md", "workspace-map.json"]
+      "badges": ["Claude", "Cursor", "OpenCode"]
     },
     {
       "id": "commandSafety",
@@ -78,8 +74,7 @@
       "title": "Command Safety",
       "description": "Блокирует опасные шаблоны shell-команд, предлагает более безопасные альтернативы и упрощает проверку чувствительных операций.",
       "status": "Скоро",
-      "badges": ["Codex", "Claude", "Gemini"],
-      "previewLines": ["command-policy.yaml", "safe-alternatives.md", "audit-log.json"]
+      "badges": ["Codex", "Claude", "Gemini"]
     },
     {
       "id": "workspaceSetup",
@@ -87,8 +82,7 @@
       "title": "Workspace Setup",
       "description": "Готовит конфигурацию под конкретных агентов, настройку рабочего пространства и общие значения по умолчанию из одного управляемого исходного репозитория.",
       "status": "Скоро",
-      "badges": ["OpenCode", "Cursor", "Gemini"],
-      "previewLines": ["targets/", "workspace-config/", "render-check.txt"]
+      "badges": ["OpenCode", "Cursor", "Gemini"]
     }
   ],
   "comparisonRows": [

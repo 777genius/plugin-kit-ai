@@ -13,7 +13,6 @@ export interface PluginCard {
   description: string;
   status: string;
   badges: string[];
-  previewLines: string[];
 }
 
 export interface FaqItem {

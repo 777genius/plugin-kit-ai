@@ -23,11 +23,11 @@ const accents = ["#00f0ff", "#ff00ff", "#39ff14", "#ffd700", "#00f0ff", "#ff00ff
 onMounted(() => {
   if (!swiperRef.value) return;
   Object.assign(swiperRef.value, {
-    slidesPerView: 1.1,
+    slidesPerView: 1.08,
     spaceBetween: 16,
     loop: true,
     grabCursor: true,
-    centeredSlides: true,
+    centeredSlides: false,
     pagination: {
       clickable: true
     },
@@ -50,16 +50,28 @@ onMounted(() => {
       }
     `],
     breakpoints: {
+      640: {
+        slidesPerView: 1.35,
+        spaceBetween: 18
+      },
       700: {
-        slidesPerView: 1.6,
+        slidesPerView: 1.7,
         spaceBetween: 20
       },
       960: {
-        slidesPerView: 2.2,
+        slidesPerView: 2.35,
         spaceBetween: 24
       },
       1264: {
-        slidesPerView: 2.6,
+        slidesPerView: 3.15,
+        spaceBetween: 24
+      },
+      1500: {
+        slidesPerView: 3.6,
+        spaceBetween: 24
+      },
+      1760: {
+        slidesPerView: 4,
         spaceBetween: 28
       }
     }
@@ -111,22 +123,6 @@ function slideNext() {
             </div>
 
             <p class="screenshots-section__desc">{{ plugin.description }}</p>
-
-            <div class="screenshots-section__mock">
-              <div class="screenshots-section__mock-header">
-                <span>{{ t("plugins.preview") }}</span>
-                <span>{{ plugin.badges[0] }}</span>
-              </div>
-              <div class="screenshots-section__mock-lines">
-                <div
-                  v-for="line in plugin.previewLines"
-                  :key="line"
-                  class="screenshots-section__mock-line"
-                >
-                  {{ line }}
-                </div>
-              </div>
-            </div>
 
             <div class="screenshots-section__badges-label">{{ t("plugins.supports") }}</div>
             <div class="screenshots-section__badges">
@@ -194,10 +190,12 @@ function slideNext() {
 
 .screenshots-section__carousel-wrap {
   position: relative;
+  overflow: hidden;
 }
 
 .screenshots-section__swiper {
-  padding: 0 16px 8px;
+  display: block;
+  padding: 0 40px 8px;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -213,7 +211,7 @@ function slideNext() {
 .screenshots-section__card {
   position: relative;
   height: 100%;
-  min-height: 410px;
+  min-height: 300px;
   border-radius: 18px;
   overflow: hidden;
   background: rgba(10, 10, 15, 0.8);
@@ -300,45 +298,10 @@ function slideNext() {
 }
 
 .screenshots-section__desc {
-  margin: 0 0 18px;
+  margin: 0 0 28px;
   color: #8892b0;
   line-height: 1.65;
   font-size: 0.94rem;
-}
-
-.screenshots-section__mock {
-  border-radius: 16px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 18px;
-}
-
-.screenshots-section__mock-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  color: #8892b0;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-family: "JetBrains Mono", monospace;
-}
-
-.screenshots-section__mock-lines {
-  display: grid;
-  gap: 8px;
-}
-
-.screenshots-section__mock-line {
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, 0.02));
-  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
-  font-family: "JetBrains Mono", monospace;
-  color: #dbeafe;
-  font-size: 0.76rem;
 }
 
 .screenshots-section__badges-label {
@@ -387,13 +350,8 @@ function slideNext() {
 }
 
 .v-theme--light .screenshots-section__desc,
-.v-theme--light .screenshots-section__badges-label,
-.v-theme--light .screenshots-section__mock-header {
+.v-theme--light .screenshots-section__badges-label {
   color: #64748b;
-}
-
-.v-theme--light .screenshots-section__mock-line {
-  color: #164e63;
 }
 
 @media (max-width: 959px) {
@@ -403,6 +361,10 @@ function slideNext() {
 }
 
 @media (max-width: 600px) {
+  .screenshots-section__swiper {
+    padding-inline: 20px;
+  }
+
   .screenshots-section__header {
     margin-bottom: 36px;
   }
@@ -412,7 +374,7 @@ function slideNext() {
   }
 
   .screenshots-section__card {
-    min-height: 390px;
+    min-height: 320px;
     padding: 20px;
   }
 }
