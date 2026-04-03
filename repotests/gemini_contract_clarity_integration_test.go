@@ -120,7 +120,7 @@ func TestContractClarity_GeminiRuntimeDocsStayAligned(t *testing.T) {
 	mustContain(t, string(repoTestsReadme), "make test-gemini-runtime-smoke")
 	mustContain(t, string(repoTestsReadme), "make test-gemini-runtime-prod-live")
 	mustContain(t, string(repoTestsReadme), "production-ready stable subset")
-	mustContain(t, string(repoTestsReadme), "Advisory `Notification` и `PreCompress` остаются `public-beta`")
+	mustContain(t, string(repoTestsReadme), "advisory `Notification` and `PreCompress`, which remain `public-beta`")
 
 	mustContain(t, string(geminiStarterReadme), "This lane is production-ready for the stable Gemini subset")
 	mustContain(t, string(geminiStarterReadme), "`Notification` and `PreCompress` remain `public-beta` advisory hooks.")

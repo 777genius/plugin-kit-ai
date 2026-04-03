@@ -85,9 +85,10 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",
 		"plugin-kit-ai capabilities --mode runtime --platform gemini",
+		"make test-gemini-runtime-prod",
 		"make test-gemini-runtime-smoke",
 		"gemini extensions link .",
-		"make test-gemini-runtime-live",
+		"make test-gemini-runtime-prod-live",
 		"See README.md for Gemini runtime steps",
 	} {
 		if !strings.Contains(initText, want) {

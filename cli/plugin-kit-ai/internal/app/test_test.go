@@ -110,14 +110,15 @@ func TestResolveRuntimeTestPlatformGeminiRequestedReturnsBetaGuidance(t *testing
 		t.Fatal("expected error")
 	}
 	for _, want := range []string{
-		"Gemini's Go hook lane is public-beta",
+		"Gemini has a production-ready stable subset plus advisory public-beta hooks",
 		"go test ./...",
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",
 		"plugin-kit-ai capabilities --mode runtime --platform gemini",
+		"make test-gemini-runtime-prod",
 		"make test-gemini-runtime-smoke",
 		"gemini extensions link .",
-		"make test-gemini-runtime-live",
+		"make test-gemini-runtime-prod-live",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error missing %q:\n%s", want, err)
@@ -131,11 +132,12 @@ func TestResolveRuntimeTestPlatformGeminiAutoDetectReturnsBetaGuidance(t *testin
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "Gemini's Go hook lane is public-beta") {
+	if !strings.Contains(err.Error(), "Gemini has a production-ready stable subset plus advisory public-beta hooks") {
 		t.Fatalf("error = %q", err)
 	}
 	for _, want := range []string{
 		"plugin-kit-ai inspect . --target gemini",
+		"make test-gemini-runtime-prod",
 		"make test-gemini-runtime-smoke",
 	} {
 		if !strings.Contains(err.Error(), want) {

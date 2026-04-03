@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime-smoke test-gemini-runtime-live test-opencode-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-e2e-live generated-check version-sync-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime-prod test-gemini-runtime-smoke test-gemini-runtime-prod-live test-gemini-runtime-live test-opencode-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-e2e-live generated-check version-sync-check legacy-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -47,14 +47,21 @@ test-install-live:
 test-gemini-live:
 	PLUGIN_KIT_AI_RUN_GEMINI_CLI=1 go test -count=1 -run '^TestGeminiCLIExtensionLink$$' ./repotests $(EXTENDED_TEST_ARGS)
 
-test-gemini-runtime-smoke:
+test-gemini-runtime-prod:
 	go test -count=1 ./sdk/... $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run 'TestInitRunner_geminiGoRuntimeStarter' ./cli/plugin-kit-ai/internal/app $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run 'TestInspectTextShowsLauncherAndGeminiGuidance' ./cli/plugin-kit-ai/cmd/plugin-kit-ai $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run 'TestPluginKitAIInitGeminiGoRuntimeLauncherFlow|TestGeneratedConfigCanaries_GeminiStableRuntimeContract|TestGeminiE2ETracePreservesOriginalRequestName|TestGeminiE2ETraceCapturesModelAndToolSelectionPayloads|TestGeminiE2ETraceCapturesStableSubsetLifecycleHooks|TestGeminiE2ETraceCapturesStableRuntimeControlSemantics|TestGeminiE2ETraceCapturesRuntimeTransformSemantics|TestContractClarity_GeminiRuntimeDocsStayAligned' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-gemini-runtime-smoke:
+	$(MAKE) test-gemini-runtime-prod
 	go test -count=1 -run 'TestPluginKitAIInitGeminiGoRuntimeLauncherFlow|TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape|TestGeminiE2ETracePreservesOriginalRequestName|TestGeminiE2ETraceCapturesModelAndToolSelectionPayloads|TestGeminiE2ETraceCapturesLifecycleAndAdvisoryHooks|TestGeminiE2ETraceCapturesRuntimeControlSemantics|TestGeminiE2ETraceCapturesRuntimeTransformSemantics|TestContractClarity_GeminiRuntimeDocsStayAligned' ./repotests $(EXTENDED_TEST_ARGS)
 
-test-gemini-runtime-live:
+test-gemini-runtime-prod-live:
 	PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1 go test -count=1 -run '^TestGeminiCLIRuntimeHooks$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-gemini-runtime-live:
+	$(MAKE) test-gemini-runtime-prod-live
 
 test-opencode-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeLoaderSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)

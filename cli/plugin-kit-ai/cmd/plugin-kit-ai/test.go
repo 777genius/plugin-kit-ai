@@ -43,9 +43,10 @@ The command loads a fixture, invokes the configured launcher entrypoint with the
 (stdin JSON for Claude stable hooks, argv JSON for Codex notify), and optionally compares or updates
 golden stdout/stderr/exitcode files for CI-grade regression checks.
 
-Gemini's Go hook lane stays public-beta and is intentionally outside this stable fixture surface.
+Gemini has a production-ready stable subset plus advisory public-beta hooks and stays outside this stable fixture surface.
 For Gemini use go test, render --check, validate --strict, inspect, capabilities --mode runtime,
-make test-gemini-runtime-smoke, then gemini extensions link . and optionally make test-gemini-runtime-live.`,
+make test-gemini-runtime-prod, then gemini extensions link . and optionally make test-gemini-runtime-prod-live.
+Use make test-gemini-runtime-smoke when you also want the advisory beta remainder in scope.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := "."

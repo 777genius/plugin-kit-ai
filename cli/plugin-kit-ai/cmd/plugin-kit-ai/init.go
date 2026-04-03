@@ -146,9 +146,11 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			"  plugin-kit-ai inspect . --target gemini",
 			"  plugin-kit-ai capabilities --mode runtime --platform gemini",
-			"  make test-gemini-runtime-smoke",
+			"  make test-gemini-runtime-prod",
 			"  gemini extensions link .",
-			"  make test-gemini-runtime-live",
+			"  make test-gemini-runtime-prod-live",
+			"  make test-gemini-runtime-live   # alias for the stable-subset live gate",
+			"  make test-gemini-runtime-smoke   # optional: include advisory beta hooks too",
 			"  See README.md for Gemini runtime steps",
 		)
 		return strings.Join(lines, "\n") + "\n"

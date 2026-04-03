@@ -45,10 +45,10 @@ func newDevCmd(runner devRunner) *cobra.Command {
 Each cycle re-renders the selected target, performs runtime-aware rebuilds when needed,
 runs strict validation, and reruns the configured stable Claude or Codex fixture smoke tests.
 
-Gemini's Go hook lane stays public-beta and is intentionally outside this stable watch loop.
+Gemini has a production-ready stable subset plus advisory public-beta hooks and stays outside this stable watch loop.
 For Gemini use render, render --check, validate --strict, inspect, capabilities --mode runtime,
-make test-gemini-runtime-smoke, then gemini extensions link . and optionally rerun
-make test-gemini-runtime-live after changes.`,
+make test-gemini-runtime-prod, then gemini extensions link . and optionally rerun
+make test-gemini-runtime-prod-live after changes. Use make test-gemini-runtime-smoke when you also want the advisory beta remainder in scope.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := "."
