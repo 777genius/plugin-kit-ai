@@ -2,7 +2,7 @@
   "nav": {
     "features": "Features",
     "plugins": "Plugins",
-    "comparison": "Why plugin-kit-ai",
+    "comparison": "Why it works",
     "download": "Get started",
     "faq": "FAQ",
     "viewOnGithub": "Open GitHub"
@@ -84,7 +84,7 @@
     "subtitle": "The short version of what plugin-kit-ai is, what it is not, and how to start without guessing."
   },
   "comparison": {
-    "sectionTitle": "Why this is cleaner than doing it by hand",
+    "sectionTitle": "Why it works",
     "sectionSubtitle": "Not a fight against competitors. Just a practical comparison against the three ways plugin teams usually create unnecessary drift.",
     "feature": "Workflow",
     "columns": {
