@@ -160,9 +160,13 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 		t.Fatalf("gemini runtime smoke: %v\ntrace=%s\nhint=confirm make test-gemini-runtime-smoke passes, then confirm gemini extensions link . succeeded, inspect hooks/hooks.json command wiring, and rerun the live smoke.\noutput:\n%s", err, tracePath, truncateRunes(string(out), 4000))
 	}
 
-	lines := waitForTraceHooks(t, tracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool")
-	if !traceHas(t, lines, "SessionStart", "continue") {
-		t.Fatalf("expected SessionStart continue trace; hint=confirm make test-gemini-runtime-smoke passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	lines := waitForTraceHooks(t, tracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "SessionEnd")
+	sessionStartIndex, sessionStart, ok := traceIndex(t, lines, "SessionStart")
+	if !ok {
+		t.Fatalf("expected SessionStart trace; hint=confirm make test-gemini-runtime-smoke passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if strings.TrimSpace(sessionStart.Outcome) != "continue" || strings.TrimSpace(sessionStart.Source) != "startup" {
+		t.Fatalf("expected SessionStart continue trace with startup source; got outcome=%q source=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStart.Outcome, sessionStart.Source, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeModelIndex, beforeModel, ok := traceIndex(t, lines, "BeforeModel")
 	if !ok {
@@ -225,6 +229,16 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 	}
 	if beforeTool.Tool != afterTool.Tool {
 		t.Fatalf("expected BeforeTool and AfterTool to reference the same Gemini tool; before=%q after=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", beforeTool.Tool, afterTool.Tool, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	sessionEndIndex, sessionEnd, ok := traceIndex(t, lines, "SessionEnd")
+	if !ok {
+		t.Fatalf("expected SessionEnd trace; hint=confirm make test-gemini-runtime-smoke passes, then confirm the Gemini CLI session exits cleanly and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if strings.TrimSpace(sessionEnd.Outcome) != "continue" || !isGeminiSessionEndReason(sessionEnd.Reason) {
+		t.Fatalf("expected SessionEnd continue trace with documented reason; got outcome=%q reason=%q\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionEnd.Outcome, sessionEnd.Reason, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	}
+	if sessionStartIndex >= sessionEndIndex {
+		t.Fatalf("expected SessionStart to occur before SessionEnd; start=%d end=%d\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", sessionStartIndex, sessionEndIndex, tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 }
 
@@ -419,6 +433,95 @@ func TestGeminiE2ETraceCapturesLifecycleAndAdvisoryHooks(t *testing.T) {
 	}
 }
 
+func TestGeminiE2ETraceCapturesRuntimeControlSemantics(t *testing.T) {
+	e2eBin := buildPluginKitAIE2E(t)
+
+	cases := []struct {
+		name        string
+		hook        string
+		payload     string
+		envKey      string
+		envValue    string
+		wantOutcome string
+		wantSubstrs []string
+	}{
+		{
+			name:        "GeminiSessionStart",
+			hook:        "SessionStart",
+			payload:     `{"session_id":"s","cwd":".","hook_event_name":"SessionStart","source":"startup"}`,
+			envKey:      "PLUGIN_KIT_AI_E2E_GEMINI_SESSION_START",
+			envValue:    "message:hello from e2e",
+			wantOutcome: "message",
+			wantSubstrs: []string{`"systemMessage":"hello from e2e"`},
+		},
+		{
+			name:        "GeminiBeforeTool",
+			hook:        "BeforeTool",
+			payload:     `{"session_id":"s","cwd":".","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"path":"README.md"}}`,
+			envKey:      "PLUGIN_KIT_AI_E2E_GEMINI_BEFORE_TOOL",
+			envValue:    "deny:blocked by e2e",
+			wantOutcome: "deny",
+			wantSubstrs: []string{`"decision":"deny"`, `"reason":"blocked by e2e"`},
+		},
+		{
+			name:        "GeminiAfterAgent",
+			hook:        "AfterAgent",
+			payload:     `{"session_id":"s","cwd":".","hook_event_name":"AfterAgent","prompt":"hello","prompt_response":"ok","stop_hook_active":false}`,
+			envKey:      "PLUGIN_KIT_AI_E2E_GEMINI_AFTER_AGENT",
+			envValue:    "deny:retry please",
+			wantOutcome: "deny",
+			wantSubstrs: []string{`"decision":"deny"`, `"reason":"retry please"`},
+		},
+		{
+			name:        "GeminiAfterModel",
+			hook:        "AfterModel",
+			payload:     `{"session_id":"s","cwd":".","hook_event_name":"AfterModel","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"hi"}]},"llm_response":{"candidates":[{"content":{"role":"model","parts":[{"text":"ok"}]}}]}}`,
+			envKey:      "PLUGIN_KIT_AI_E2E_GEMINI_AFTER_MODEL",
+			envValue:    "stop:halt now",
+			wantOutcome: "stop",
+			wantSubstrs: []string{`"continue":false`, `"stopReason":"halt now"`},
+		},
+		{
+			name:        "GeminiBeforeToolSelection",
+			hook:        "BeforeToolSelection",
+			payload:     `{"session_id":"s","cwd":".","hook_event_name":"BeforeToolSelection","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"read the repo"}]}}`,
+			envKey:      "PLUGIN_KIT_AI_E2E_GEMINI_BEFORE_TOOL_SELECTION",
+			envValue:    "quiet",
+			wantOutcome: "quiet",
+			wantSubstrs: []string{`"suppressOutput":true`},
+		},
+	}
+
+	for _, tc := range cases {
+		tracePath := filepath.Join(t.TempDir(), tc.hook+"-control.jsonl")
+		cmd := launcherCommand(e2eBin, tc.name)
+		cmd.Env = append(os.Environ(),
+			"PLUGIN_KIT_AI_E2E_TRACE="+tracePath,
+			tc.envKey+"="+tc.envValue,
+		)
+		cmd.Stdin = strings.NewReader(tc.payload)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: %v\n%s", tc.name, err, out)
+		}
+		got := strings.TrimSpace(string(out))
+		for _, want := range tc.wantSubstrs {
+			if !strings.Contains(got, want) {
+				t.Fatalf("%s stdout = %q, want substring %q", tc.name, got, want)
+			}
+		}
+
+		lines := waitForTraceHooks(t, tracePath, 2*time.Second, tc.hook)
+		rec, ok := traceFind(t, lines, tc.hook)
+		if !ok {
+			t.Fatalf("%s trace missing; lines=\n%s", tc.name, strings.Join(lines, "\n"))
+		}
+		if strings.TrimSpace(rec.Outcome) != tc.wantOutcome {
+			t.Fatalf("%s outcome = %q, want %q\ntrace_lines:\n%s", tc.name, rec.Outcome, tc.wantOutcome, strings.Join(lines, "\n"))
+		}
+	}
+}
+
 func geminiBinaryOrSkip(t *testing.T) string {
 	t.Helper()
 	if strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_SKIP_GEMINI_CLI")) == "1" {
@@ -429,7 +532,7 @@ func geminiBinaryOrSkip(t *testing.T) string {
 		var err error
 		geminiBin, err = exec.LookPath("gemini")
 		if err != nil {
-			t.Skip("set PLUGIN_KIT_AI_E2E_GEMINI, PLUGIN_KIT_AI_GEMINI_BIN, or GEMINI_BIN, or install gemini in PATH, to run local Gemini CLI extension e2e")
+			t.Skip("set PLUGIN_KIT_AI_E2E_GEMINI or install gemini in PATH to run local Gemini CLI extension e2e")
 		}
 	}
 	if out, err := exec.Command(geminiVersionCommand(geminiBin)[0], geminiVersionCommand(geminiBin)[1:]...).CombinedOutput(); err != nil {
@@ -443,12 +546,21 @@ func geminiVersionCommand(geminiBin string) []string {
 }
 
 func resolveGeminiBinaryEnv() string {
-	for _, key := range []string{"PLUGIN_KIT_AI_E2E_GEMINI", "PLUGIN_KIT_AI_GEMINI_BIN", "GEMINI_BIN"} {
+	for _, key := range []string{"PLUGIN_KIT_AI_E2E_GEMINI"} {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			return value
 		}
 	}
 	return ""
+}
+
+func isGeminiSessionEndReason(reason string) bool {
+	switch strings.TrimSpace(reason) {
+	case "exit", "clear", "logout", "prompt_input_exit", "other":
+		return true
+	default:
+		return false
+	}
 }
 
 func runGeminiLink(t *testing.T, geminiBin, homeDir, extensionDir string) string {
@@ -627,19 +739,11 @@ func TestGeminiCommandRecoveryHint(t *testing.T) {
 }
 
 func TestResolveGeminiBinaryEnv(t *testing.T) {
-	for _, key := range []string{"PLUGIN_KIT_AI_E2E_GEMINI", "PLUGIN_KIT_AI_GEMINI_BIN", "GEMINI_BIN"} {
+	for _, key := range []string{"PLUGIN_KIT_AI_E2E_GEMINI"} {
 		t.Setenv(key, "")
 	}
 	if got := resolveGeminiBinaryEnv(); got != "" {
 		t.Fatalf("resolveGeminiBinaryEnv() = %q, want empty", got)
-	}
-	t.Setenv("GEMINI_BIN", "/fallback/gemini")
-	if got := resolveGeminiBinaryEnv(); got != "/fallback/gemini" {
-		t.Fatalf("resolveGeminiBinaryEnv() with GEMINI_BIN = %q, want %q", got, "/fallback/gemini")
-	}
-	t.Setenv("PLUGIN_KIT_AI_GEMINI_BIN", "/legacy/gemini")
-	if got := resolveGeminiBinaryEnv(); got != "/legacy/gemini" {
-		t.Fatalf("resolveGeminiBinaryEnv() with legacy env = %q, want %q", got, "/legacy/gemini")
 	}
 	t.Setenv("PLUGIN_KIT_AI_E2E_GEMINI", "/primary/gemini")
 	if got := resolveGeminiBinaryEnv(); got != "/primary/gemini" {

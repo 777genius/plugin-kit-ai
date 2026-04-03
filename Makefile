@@ -51,7 +51,7 @@ test-gemini-runtime-smoke:
 	go test -count=1 ./sdk/... $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run 'TestInitRunner_geminiGoRuntimeStarter' ./cli/plugin-kit-ai/internal/app $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run 'TestInspectTextShowsLauncherAndGeminiGuidance' ./cli/plugin-kit-ai/cmd/plugin-kit-ai $(EXTENDED_TEST_ARGS)
-	go test -count=1 -run 'TestPluginKitAIInitGeminiGoRuntimeLauncherFlow|TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape|TestGeminiE2ETracePreservesOriginalRequestName|TestGeminiE2ETraceCapturesModelAndToolSelectionPayloads|TestGeminiE2ETraceCapturesLifecycleAndAdvisoryHooks|TestContractClarity_GeminiRuntimeDocsStayAligned' ./repotests $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run 'TestPluginKitAIInitGeminiGoRuntimeLauncherFlow|TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape|TestGeminiE2ETracePreservesOriginalRequestName|TestGeminiE2ETraceCapturesModelAndToolSelectionPayloads|TestGeminiE2ETraceCapturesLifecycleAndAdvisoryHooks|TestGeminiE2ETraceCapturesRuntimeControlSemantics|TestContractClarity_GeminiRuntimeDocsStayAligned' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-gemini-runtime-live:
 	PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1 go test -count=1 -run '^TestGeminiCLIRuntimeHooks$$' ./repotests $(EXTENDED_TEST_ARGS)

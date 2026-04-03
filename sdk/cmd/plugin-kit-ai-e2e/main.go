@@ -32,6 +32,34 @@ func trace(rec map[string]any) {
 	_ = f.Close()
 }
 
+func geminiOverride(key string) string {
+	return strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_E2E_GEMINI_" + key))
+}
+
+func geminiOverrideMessage(key string) (string, bool) {
+	override := geminiOverride(key)
+	if !strings.HasPrefix(override, "message:") {
+		return "", false
+	}
+	return strings.TrimPrefix(override, "message:"), true
+}
+
+func geminiOverrideDeny(key string) (string, bool) {
+	override := geminiOverride(key)
+	if !strings.HasPrefix(override, "deny:") {
+		return "", false
+	}
+	return strings.TrimPrefix(override, "deny:"), true
+}
+
+func geminiOverrideStop(key string) (string, bool) {
+	override := geminiOverride(key)
+	if !strings.HasPrefix(override, "stop:") {
+		return "", false
+	}
+	return strings.TrimPrefix(override, "stop:"), true
+}
+
 func main() {
 	app := pluginkitai.New(pluginkitai.Config{Name: "plugin-kit-ai-e2e"})
 	app.Claude().OnStop(func(*claude.StopEvent) *claude.Response {
@@ -73,6 +101,15 @@ func main() {
 		return codex.Continue()
 	})
 	app.Gemini().OnSessionStart(func(e *gemini.SessionStartEvent) *gemini.SessionStartResponse {
+		if message, ok := geminiOverrideMessage("SESSION_START"); ok {
+			trace(map[string]any{
+				"hook":    "SessionStart",
+				"outcome": "message",
+				"source":  e.Source,
+				"cwd":     e.CWD,
+			})
+			return gemini.SessionStartMessage(message)
+		}
 		trace(map[string]any{
 			"hook":    "SessionStart",
 			"outcome": "continue",
@@ -119,6 +156,17 @@ func main() {
 		return gemini.BeforeModelContinue()
 	})
 	app.Gemini().OnAfterModel(func(e *gemini.AfterModelEvent) *gemini.AfterModelResponse {
+		if reason, ok := geminiOverrideStop("AFTER_MODEL"); ok {
+			trace(map[string]any{
+				"hook":          "AfterModel",
+				"outcome":       "stop",
+				"has_request":   strings.TrimSpace(string(e.LLMRequest)) != "",
+				"request_size":  len(e.LLMRequest),
+				"has_response":  strings.TrimSpace(string(e.LLMResponse)) != "",
+				"response_size": len(e.LLMResponse),
+			})
+			return gemini.AfterModelStop(reason)
+		}
 		trace(map[string]any{
 			"hook":          "AfterModel",
 			"outcome":       "continue",
@@ -130,6 +178,15 @@ func main() {
 		return gemini.AfterModelContinue()
 	})
 	app.Gemini().OnBeforeToolSelection(func(e *gemini.BeforeToolSelectionEvent) *gemini.BeforeToolSelectionResponse {
+		if geminiOverride("BEFORE_TOOL_SELECTION") == "quiet" {
+			trace(map[string]any{
+				"hook":         "BeforeToolSelection",
+				"outcome":      "quiet",
+				"has_request":  strings.TrimSpace(string(e.LLMRequest)) != "",
+				"request_size": len(e.LLMRequest),
+			})
+			return gemini.BeforeToolSelectionQuiet()
+		}
 		trace(map[string]any{
 			"hook":         "BeforeToolSelection",
 			"outcome":      "continue",
@@ -147,6 +204,15 @@ func main() {
 		return gemini.BeforeAgentContinue()
 	})
 	app.Gemini().OnAfterAgent(func(e *gemini.AfterAgentEvent) *gemini.AfterAgentResponse {
+		if reason, ok := geminiOverrideDeny("AFTER_AGENT"); ok {
+			trace(map[string]any{
+				"hook":         "AfterAgent",
+				"outcome":      "deny",
+				"prompt":       e.Prompt,
+				"has_response": strings.TrimSpace(e.PromptResponse) != "",
+			})
+			return gemini.AfterAgentDeny(reason)
+		}
 		trace(map[string]any{
 			"hook":         "AfterAgent",
 			"outcome":      "continue",
@@ -158,7 +224,6 @@ func main() {
 	app.Gemini().OnBeforeTool(func(e *gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
 		rec := map[string]any{
 			"hook":             "BeforeTool",
-			"outcome":          "continue",
 			"tool_name":        e.ToolName,
 			"has_input":        strings.TrimSpace(string(e.ToolInput)) != "",
 			"input_size":       len(e.ToolInput),
@@ -168,6 +233,12 @@ func main() {
 		if strings.TrimSpace(e.OriginalRequestName) != "" {
 			rec["original_request_name"] = e.OriginalRequestName
 		}
+		if reason, ok := geminiOverrideDeny("BEFORE_TOOL"); ok {
+			rec["outcome"] = "deny"
+			trace(rec)
+			return gemini.BeforeToolDeny(reason)
+		}
+		rec["outcome"] = "continue"
 		trace(rec)
 		return gemini.BeforeToolContinue()
 	})
