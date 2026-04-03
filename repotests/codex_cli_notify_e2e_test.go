@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -787,6 +788,81 @@ func TestCodexPackageProductionExampleMCPAddGetListRemoveInAuthSeededCodexHome(t
 	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
 	assertCodexMCPListMissing(t, listOut, "docs")
 	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.docs]")
+}
+
+func TestCodexPackageRenderedSidecarMCPAddGetListRemoveInIsolatedHome(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	mcpBin := buildPortableMCPSmokeServer(t)
+	workDir := newCodexPackageRenderedMCPWorkspace(t, pluginKitAIBin, mcpBin)
+	server := readRenderedSharedMCPServer(t, workDir, "release-checks")
+	tempHome := newCodexTempHome(t)
+
+	runCodexMCPAddRenderedServerInHome(t, codexBin, tempHome, "release-checks", server)
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.release-checks]",
+		`command = "`+filepath.ToSlash(mcpBin)+`"`,
+		`PLUGIN_KIT_AI_MCP_SMOKE_STATIC = "codex-package-live"`,
+	)
+
+	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "release-checks", "--json")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Fatalf("isolated-home codex mcp get output missing rendered package stdio server name:\n%s", out)
+	}
+	if !strings.Contains(out, filepath.ToSlash(mcpBin)) {
+		t.Fatalf("isolated-home codex mcp get output missing rendered package stdio command:\n%s", out)
+	}
+	if !strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC":"codex-package-live"`) &&
+		!strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC": "codex-package-live"`) {
+		t.Fatalf("isolated-home codex mcp get output missing rendered package stdio env:\n%s", out)
+	}
+	listOut := runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListEntry(t, listOut, "release-checks", "stdio", filepath.ToSlash(mcpBin), "", "PLUGIN_KIT_AI_MCP_SMOKE_STATIC", "codex-package-live")
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "release-checks")
+	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListMissing(t, listOut, "release-checks")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.release-checks]")
+}
+
+func TestCodexPackageRenderedSidecarMCPAddGetListRemoveInAuthSeededCodexHome(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	mcpBin := buildPortableMCPSmokeServer(t)
+	workDir := newCodexPackageRenderedMCPWorkspace(t, pluginKitAIBin, mcpBin)
+	server := readRenderedSharedMCPServer(t, workDir, "release-checks")
+	tempHome := newAuthSeededCodexTempHome(t)
+
+	loginOut := runCodexHomeCommand(t, codexBin, tempHome, "login", "status")
+	if !strings.Contains(loginOut, "Logged in") {
+		t.Fatalf("auth-seeded CODEX_HOME did not preserve login status:\n%s", loginOut)
+	}
+
+	runCodexMCPAddRenderedServerInHome(t, codexBin, tempHome, "release-checks", server)
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.release-checks]",
+		`command = "`+filepath.ToSlash(mcpBin)+`"`,
+		`PLUGIN_KIT_AI_MCP_SMOKE_STATIC = "codex-package-live"`,
+	)
+
+	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "release-checks", "--json")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing rendered package stdio server name:\n%s", out)
+	}
+	if !strings.Contains(out, filepath.ToSlash(mcpBin)) {
+		t.Fatalf("auth-seeded codex mcp get output missing rendered package stdio command:\n%s", out)
+	}
+	if !strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC":"codex-package-live"`) &&
+		!strings.Contains(out, `"PLUGIN_KIT_AI_MCP_SMOKE_STATIC": "codex-package-live"`) {
+		t.Fatalf("auth-seeded codex mcp get output missing rendered package stdio env:\n%s", out)
+	}
+	listOut := runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListEntry(t, listOut, "release-checks", "stdio", filepath.ToSlash(mcpBin), "", "PLUGIN_KIT_AI_MCP_SMOKE_STATIC", "codex-package-live")
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "release-checks")
+	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
+	assertCodexMCPListMissing(t, listOut, "release-checks")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.release-checks]")
 }
 
 func codexBinaryOrSkip(t *testing.T) string {
@@ -1583,9 +1659,9 @@ func assertCodexMCPListMissing(t *testing.T, out, name string) {
 
 func codexMCPConfigArgsFromRenderedServer(t *testing.T, name string, server map[string]any) []string {
 	t.Helper()
-	switch strings.TrimSpace(fmt.Sprint(server["type"])) {
+	switch renderedServerString(server["type"]) {
 	case "http":
-		url := strings.TrimSpace(fmt.Sprint(server["url"]))
+		url := renderedServerString(server["url"])
 		if url == "" {
 			t.Fatalf("rendered MCP server %q missing url: %#v", name, server)
 		}
@@ -1596,6 +1672,67 @@ func codexMCPConfigArgsFromRenderedServer(t *testing.T, name string, server map[
 		t.Fatalf("unsupported rendered MCP server type %q for %s: %#v", server["type"], name, server)
 		return nil
 	}
+}
+
+func runCodexMCPAddRenderedServerInHome(t *testing.T, codexBin, home, name string, server map[string]any) {
+	t.Helper()
+	serverType := renderedServerString(server["type"])
+	if serverType == "" {
+		switch {
+		case renderedServerString(server["url"]) != "":
+			serverType = "http"
+		case renderedServerString(server["command"]) != "":
+			serverType = "stdio"
+		}
+	}
+	switch serverType {
+	case "http":
+		url := renderedServerString(server["url"])
+		if url == "" {
+			t.Fatalf("rendered MCP server %q missing url: %#v", name, server)
+		}
+		args := []string{"add", name, "--url", url}
+		if bearer := renderedServerString(server["bearer_token_env_var"]); bearer != "" {
+			args = append(args, "--bearer-token-env-var", bearer)
+		}
+		runCodexMCPHomeCommand(t, codexBin, home, args...)
+	case "stdio":
+		command := renderedServerString(server["command"])
+		if command == "" {
+			t.Fatalf("rendered MCP server %q missing stdio command: %#v", name, server)
+		}
+		args := []string{"add", name}
+		if envMap, ok := server["env"].(map[string]any); ok {
+			keys := make([]string, 0, len(envMap))
+			for k := range envMap {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				args = append(args, "--env", k+"="+strings.TrimSpace(fmt.Sprint(envMap[k])))
+			}
+		}
+		args = append(args, "--", command)
+		if rawArgs, ok := server["args"].([]any); ok {
+			for _, raw := range rawArgs {
+				args = append(args, strings.TrimSpace(fmt.Sprint(raw)))
+			}
+		}
+		runCodexMCPHomeCommand(t, codexBin, home, args...)
+	default:
+		t.Fatalf("unsupported rendered MCP server type %q for %s: %#v", serverType, name, server)
+	}
+}
+
+func renderedServerString(v any) string {
+	if v == nil {
+		return ""
+	}
+	s := strings.TrimSpace(fmt.Sprint(v))
+	if s == "<nil>" {
+		return ""
+	}
+	return s
 }
 
 func waitForCodexInvariants(t *testing.T, traceFile, outputFile string, waitCh <-chan error) error {
