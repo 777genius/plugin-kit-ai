@@ -75,11 +75,11 @@ func main() {
 	app.Gemini().OnSessionStart(func(e *gemini.SessionStartEvent) *gemini.SessionStartResponse {
 		trace(map[string]any{
 			"hook":    "SessionStart",
-			"outcome": "allow",
+			"outcome": "continue",
 			"source":  e.Source,
 			"cwd":     e.CWD,
 		})
-		return nil
+		return gemini.SessionStartContinue()
 	})
 	app.Gemini().OnSessionEnd(func(e *gemini.SessionEndEvent) *gemini.SessionEndResponse {
 		trace(map[string]any{

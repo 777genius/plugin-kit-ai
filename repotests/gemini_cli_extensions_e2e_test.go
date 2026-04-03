@@ -161,8 +161,8 @@ func TestGeminiCLIRuntimeHooks(t *testing.T) {
 	}
 
 	lines := waitForTraceHooks(t, tracePath, 5*time.Second, "SessionStart", "BeforeModel", "AfterModel", "BeforeToolSelection", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool")
-	if !traceHas(t, lines, "SessionStart", "allow") {
-		t.Fatalf("expected SessionStart allow in trace; hint=confirm make test-gemini-runtime-smoke passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
+	if !traceHas(t, lines, "SessionStart", "continue") {
+		t.Fatalf("expected SessionStart continue trace; hint=confirm make test-gemini-runtime-smoke passes, then confirm the linked extension still points at the generated runtime repo, inspect hooks/hooks.json, and rerun gemini -p.\ntrace=%s\noutput:\n%s\ntrace_lines:\n%s", tracePath, truncateRunes(string(out), 4000), strings.Join(lines, "\n"))
 	}
 	beforeModelIndex, beforeModel, ok := traceIndex(t, lines, "BeforeModel")
 	if !ok {
@@ -357,7 +357,7 @@ func TestGeminiE2ETraceCapturesLifecycleAndAdvisoryHooks(t *testing.T) {
 			payload: `{"session_id":"s","cwd":".","hook_event_name":"SessionStart","source":"startup"}`,
 			check: func(t *testing.T, rec traceRec, lines []string) {
 				t.Helper()
-				if strings.TrimSpace(rec.Outcome) != "allow" || rec.Source != "startup" {
+				if strings.TrimSpace(rec.Outcome) != "continue" || rec.Source != "startup" {
 					t.Fatalf("SessionStart trace = %+v\ntrace_lines:\n%s", rec, strings.Join(lines, "\n"))
 				}
 			},
