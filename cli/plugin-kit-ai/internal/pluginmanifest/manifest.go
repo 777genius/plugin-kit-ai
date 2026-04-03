@@ -206,8 +206,8 @@ func Analyze(body []byte) (Manifest, []Warning, error) {
 		return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: flat components inventory is not supported; use package-standard plugin.yaml plus conventions")
 	}
 	if rawTargets, ok := raw["targets"]; ok {
-		if _, legacy := rawTargets.(map[string]any); legacy {
-			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: legacy targets object is not supported; use targets as a YAML sequence")
+		if _, oldShape := rawTargets.(map[string]any); oldShape {
+			return Manifest{}, nil, fmt.Errorf("unsupported plugin.yaml format: targets must be a YAML sequence")
 		}
 	}
 	if _, ok := raw["runtime"]; ok {

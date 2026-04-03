@@ -13,7 +13,7 @@ Recommended `v1` scope:
 - render/import/validate support for `.cursor/mcp.json`
 - render/import/validate support for `.cursor/rules/**`
 - explicit support for root `AGENTS.md` as a Cursor-compatible instruction surface
-- explicit rejection of legacy `.cursorrules`
+- explicit rejection of old `.cursorrules`
 - preserve Cursor `mcp.json` interpolation strings without semantic narrowing
 - no attempt to implement a full VS Code extension packaging lane
 - no attempt to model undocumented Cursor-native AI "plugin bundles" analogous to OpenCode npm plugin refs
@@ -368,7 +368,7 @@ Import sources for `v1`:
 - `.cursor/rules/**`
 - root `AGENTS.md`
 
-Rejected legacy/native paths:
+Rejected old/native paths:
 
 - `.cursorrules` -> fail import with a clear error that points users to `.cursor/rules/*.mdc`; do not normalize into authored state
 - root `CLAUDE.md` -> defer in `v1`; if added later, treat as compatibility import, not canonical authored state
@@ -383,7 +383,7 @@ Import rules:
 
 Detect/import policy:
 
-- `DetectNative(root)` should return true for `.cursor/mcp.json` or `.cursor/rules/**`, not for legacy `.cursorrules`
+- `DetectNative(root)` should return true for `.cursor/mcp.json` or `.cursor/rules/**`, not for old `.cursorrules`
 - standalone root `AGENTS.md` must not auto-detect Cursor, because that would create false positives in repos using shared agent instructions outside Cursor
 - explicit `plugin-kit-ai import . --from cursor` may import root `AGENTS.md` in addition to `.cursor` state
 - `--include-user-scope` for Cursor should fail with a clear "not yet supported" error in `v1`
@@ -509,7 +509,7 @@ Recommended wording:
 These decisions are intentionally fixed for implementation:
 
 - `AGENTS.md` is optional
-- legacy `.cursorrules` is not supported in `v1`; import must fail clearly instead of normalizing it
+- old `.cursorrules` is not supported in `v1`; import must fail clearly instead of normalizing it
 - `.cursor/mcp.json` is strict JSON-only in `v1`; do not claim JSONC support without official documentation
 - root `CLAUDE.md` compatibility is deferred and must not be imported or rendered in `v1`
 - nested non-root `.cursor/rules` authored support is deferred and must not be silently implied

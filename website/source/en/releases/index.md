@@ -1,6 +1,6 @@
 ---
 title: "Releases"
-description: "User-facing release notes and migration notes."
+description: "User-facing release notes and change notes."
 canonicalId: "page:releases:index"
 section: "releases"
 locale: "en"
@@ -14,7 +14,7 @@ outline: false
   <p class="docs-kicker">RELEASES</p>
   <h1>User-Facing Changes</h1>
   <p class="docs-lead">
-    This area is reserved for release notes and migration guidance that matter to plugin authors and integrators.
+    This area is reserved for release notes and upgrade guidance that matter to plugin authors and integrators.
   </p>
 </div>
 

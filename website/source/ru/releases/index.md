@@ -1,6 +1,6 @@
 ---
 title: "Релизы"
-description: "Пользовательские release notes и migration notes."
+description: "Пользовательские release notes и заметки об изменениях."
 canonicalId: "page:releases:index"
 section: "releases"
 locale: "ru"
@@ -14,7 +14,7 @@ outline: false
   <p class="docs-kicker">РЕЛИЗЫ</p>
   <h1>Изменения для пользователей</h1>
   <p class="docs-lead">
-    Эта зона предназначена для release notes и migration guidance, которые важны авторам плагинов и интеграторам.
+    Эта зона предназначена для release notes и guidance по обновлению, которые важны авторам плагинов и интеграторам.
   </p>
 </div>
 

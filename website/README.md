@@ -21,5 +21,5 @@ Key commands:
 Rules:
 
 - Do not edit `generated/` files by hand unless you are fixing the generator itself and immediately regenerating output.
-- Do not add public docs content under the legacy repo `docs/` tree.
+- Do not add public docs content under the repo `docs/` tree.
 - Do not route API generation directly into VitePress internals. Generators must emit source-level markdown and registries first.

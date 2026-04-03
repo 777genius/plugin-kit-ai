@@ -101,7 +101,7 @@ If you are new, stop after those four pages. Everything else on this site is dee
 
 - The current public baseline in this docs set is [`v1.0.6`](/en/releases/v1-0-6).
 - That release made shared runtime-package delivery for Python and Node a real supported path instead of a partial story.
-- Start there if you need the latest user-facing migration notes.
+- Start there if you need the latest user-facing change notes.
 
 ## What You Can Do With It
 
@@ -116,7 +116,7 @@ If you are new, stop after those four pages. Everything else on this site is dee
 - Public guides for users and plugin authors.
 - Generated API reference from the actual code and command tree.
 - Public support and platform metadata.
-- User-facing releases and migration notes.
+- User-facing releases and change notes.
 - Public policy pages for versioning, compatibility, and support expectations.
 
 ## What Stays Out

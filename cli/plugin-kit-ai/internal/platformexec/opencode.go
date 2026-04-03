@@ -70,56 +70,44 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		if err != nil {
 			return ImportResult{}, fmt.Errorf("resolve user home for OpenCode import: %w", err)
 		}
+		for _, reject := range []struct {
+			full    string
+			display string
+		}{
+			{full: filepath.Join(home, ".agents", "skills"), display: filepath.ToSlash(filepath.Join("~", ".agents", "skills"))},
+			{full: filepath.Join(home, ".claude", "skills"), display: filepath.ToSlash(filepath.Join("~", ".claude", "skills"))},
+		} {
+			if err := rejectOpenCodeCompatSkillRoot(reject.full, reject.display); err != nil {
+				return ImportResult{}, err
+			}
+		}
 		globalRoot := filepath.Join(home, ".config", "opencode")
 		if err := importOpenCodeScope(&state, opencodeScopeConfig{
 			root:              globalRoot,
 			displayConfigRoot: filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
 			workspaceRoot:     globalRoot,
 			workspaceDisplay:  filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
-			compatSkillRoots: []opencodeImportSource{
-				{
-					dir:       filepath.Join(home, ".agents", "skills"),
-					display:   filepath.ToSlash(filepath.Join("~", ".agents", "skills")),
-					warnOnUse: true,
-					warnPath:  filepath.ToSlash(filepath.Join("~", ".agents", "skills")),
-					warnMsg:   "normalized OpenCode-compatible skills from ~/.agents/skills into canonical portable skills/** during import",
-				},
-				{
-					dir:       filepath.Join(home, ".claude", "skills"),
-					display:   filepath.ToSlash(filepath.Join("~", ".claude", "skills")),
-					warnOnUse: true,
-					warnPath:  filepath.ToSlash(filepath.Join("~", ".claude", "skills")),
-					warnMsg:   "normalized OpenCode-compatible skills from ~/.claude/skills into canonical portable skills/** during import",
-				},
-			},
-			allowCompatSkills: true,
 		}); err != nil {
 			return ImportResult{}, err
 		}
 	}
 
+	for _, reject := range []struct {
+		full    string
+		display string
+	}{
+		{full: filepath.Join(root, ".agents", "skills"), display: filepath.ToSlash(filepath.Join(".agents", "skills"))},
+		{full: filepath.Join(root, ".claude", "skills"), display: filepath.ToSlash(filepath.Join(".claude", "skills"))},
+	} {
+		if err := rejectOpenCodeCompatSkillRoot(reject.full, reject.display); err != nil {
+			return ImportResult{}, err
+		}
+	}
 	if err := importOpenCodeScope(&state, opencodeScopeConfig{
 		root:              root,
 		displayConfigRoot: "",
 		workspaceRoot:     filepath.Join(root, ".opencode"),
 		workspaceDisplay:  ".opencode",
-		compatSkillRoots: []opencodeImportSource{
-			{
-				dir:       filepath.Join(root, ".agents", "skills"),
-				display:   filepath.ToSlash(filepath.Join(".agents", "skills")),
-				warnOnUse: true,
-				warnPath:  filepath.ToSlash(filepath.Join(".agents", "skills")),
-				warnMsg:   "normalized OpenCode-compatible skills from .agents/skills into canonical portable skills/** during import",
-			},
-			{
-				dir:       filepath.Join(root, ".claude", "skills"),
-				display:   filepath.ToSlash(filepath.Join(".claude", "skills")),
-				warnOnUse: true,
-				warnPath:  filepath.ToSlash(filepath.Join(".claude", "skills")),
-				warnMsg:   "normalized OpenCode-compatible skills from .claude/skills into canonical portable skills/** during import",
-			},
-		},
-		allowCompatSkills: true,
 	}); err != nil {
 		return ImportResult{}, err
 	}
@@ -133,8 +121,6 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 				displayConfigRoot: filepath.ToSlash(filepath.Join("$OPENCODE_CONFIG_DIR")),
 				workspaceRoot:     envDir,
 				workspaceDisplay:  filepath.ToSlash(filepath.Join("$OPENCODE_CONFIG_DIR")),
-				compatSkillRoots:  nil,
-				allowCompatSkills: false,
 			}); err != nil {
 				return ImportResult{}, err
 			}
@@ -450,8 +436,6 @@ type opencodeScopeConfig struct {
 	displayConfigRoot string
 	workspaceRoot     string
 	workspaceDisplay  string
-	compatSkillRoots  []opencodeImportSource
-	allowCompatSkills bool
 }
 
 func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) error {
@@ -547,22 +531,16 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		state.hasInput = true
 	}
 
-	var skillSources []opencodeImportSource
-	if cfg.allowCompatSkills {
-		skillSources = append(skillSources, cfg.compatSkillRoots...)
-	}
-	skillSources = append(skillSources, opencodeImportSource{
+	skillArtifacts, _, err := importDirectoryArtifactsWithWarnings([]opencodeImportSource{{
 		dir:     filepath.Join(cfg.workspaceRoot, "skills"),
 		display: filepath.ToSlash(filepath.Join(cfg.workspaceDisplay, "skills")),
-	})
-	skillArtifacts, skillWarnings, err := importDirectoryArtifactsWithWarnings(skillSources, "skills", func(rel string) bool {
+	}}, "skills", func(rel string) bool {
 		return strings.HasSuffix(rel, "SKILL.md")
 	})
 	if err != nil {
 		return err
 	}
 	state.addArtifacts(skillArtifacts...)
-	state.warnings = append(state.warnings, skillWarnings...)
 	if len(skillArtifacts) > 0 {
 		state.hasInput = true
 	}
@@ -595,6 +573,15 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		return err
 	}
 
+	return nil
+}
+
+func rejectOpenCodeCompatSkillRoot(full, display string) error {
+	if _, err := os.Stat(full); err == nil {
+		return fmt.Errorf("unsupported OpenCode native skill path %s: use skills/**", display)
+	} else if err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }
 

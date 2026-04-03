@@ -630,30 +630,13 @@ func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	}
 }
 
-func TestImport_OpenCodeExplicitCompatibilitySkillRoots(t *testing.T) {
+func TestImport_OpenCodeRejectsCompatibilitySkillRoots(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".claude", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: claude\n---\n")
 	mustWritePluginFile(t, root, filepath.Join(".agents", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: agents\n---\n")
 
-	_, warnings, err := Import(root, "opencode", false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join(root, "skills", "demo", "SKILL.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(body), "description: claude") {
-		t.Fatalf("skills/demo/SKILL.md = %s", body)
-	}
-	var sawClaude bool
-	for _, warning := range warnings {
-		if strings.Contains(warning.Path, ".claude/skills") {
-			sawClaude = true
-		}
-	}
-	if !sawClaude {
-		t.Fatalf("warnings = %v, want normalization warning for .claude/skills", warnings)
+	if _, _, err := Import(root, "opencode", false, false); err == nil || !strings.Contains(err.Error(), "unsupported OpenCode native skill path .agents/skills: use skills/**") {
+		t.Fatalf("Import error = %v", err)
 	}
 }
 

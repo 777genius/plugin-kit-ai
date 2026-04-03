@@ -2108,7 +2108,7 @@
     "surface": "releases",
     "localeStrategy": "mirrored",
     "title": "Releases",
-    "summary": "User-facing release notes and migration notes.",
+    "summary": "User-facing release notes and change notes.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",

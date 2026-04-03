@@ -48,7 +48,7 @@ Every candidate surface must answer these questions before promotion:
 - Does deterministic coverage exist in unit/integration/contract tests?
 - Does required external smoke exist where applicable?
 - Are user-facing diagnostics reviewed?
-- Is a migration note required?
+- Is a change note required?
 
 ## Final Statuses
 
