@@ -66,7 +66,7 @@ func (TarGzExtractor) ExtractRootExecutable(ctx context.Context, r io.Reader) (n
 		if hdr.Typeflag == tar.TypeSymlink || hdr.Typeflag == tar.TypeLink {
 			return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: symlinks/hardlinks are not allowed")
 		}
-		if hdr.Typeflag != tar.TypeReg && hdr.Typeflag != tar.TypeRegA {
+		if hdr.Typeflag != tar.TypeReg {
 			if _, skipErr := io.CopyN(io.Discard, tr, hdr.Size); skipErr != nil {
 				return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: skip entry: "+skipErr.Error())
 			}
