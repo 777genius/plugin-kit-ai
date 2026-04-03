@@ -167,7 +167,3 @@ After `v0.9`, only these change classes are expected:
 - release process tightening
 
 New public-beta surface should not be added after the freeze unless it is required to complete the declared `v1` stable set.
-
-## Post-`v1.0` Hardening Mode
-
-Immediately after `v1.0`, the repository should enter a short `v1.0.x` hardening loop. See [V1_0_X_HARDENING.md](./V1_0_X_HARDENING.md) for the allowed scope and first post-release backlog.

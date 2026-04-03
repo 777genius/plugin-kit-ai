@@ -5,7 +5,6 @@ This ledger tracks the current delivery state of the shipped architecture after 
 ## Current Release Phase
 
 - `v1.0.0 released`
-- `post-v1.0.x hardening active`
 - `community-first interpreted stable subset promoted on main`
 - `release evidence refreshed after tag`
 - latest deterministic patch candidate rehearsal recorded at `8b3bdbbf400805c410ea05bec8b0c5215dacd131`
@@ -34,7 +33,7 @@ This ledger tracks the current delivery state of the shipped architecture after 
 ## Post-Release Notes
 
 - `v1.0.0` tag: `6e9379868a666e79d7530a02e171a160c2cb1689`
-- current `main` is ahead with `v1.0.x` hardening and evidence refresh work
+- current `main` is ahead with evidence refresh work
 - the current source tree also carries the post-`v1` interpreted stable-subset promotion ledger in [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md)
 - the current source tree also carries the post-`v1` OpenCode stable-subset promotion ledger in [OPENCODE_STABLE_PROMOTION_AUDIT.md](./OPENCODE_STABLE_PROMOTION_AUDIT.md)
 - latest deterministic `v1.0.x` candidate rehearsal:

@@ -131,10 +131,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hardeningDoc, err := os.ReadFile(filepath.Join(root, "docs", "V1_0_X_HARDENING.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	releaseDoc, err := os.ReadFile(filepath.Join(root, "docs", "RELEASE.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -462,12 +458,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(productionDoc), "plugin-kit-ai capabilities --mode runtime --platform gemini")
 	mustContain(t, string(productionDoc), "make test-gemini-runtime")
 	mustContain(t, string(productionDoc), "make test-gemini-runtime-live")
-	mustContain(t, string(hardeningDoc), "beta contract cleanup, change-note hygiene, and documentation follow-through for beta leftovers")
-	mustContain(t, string(hardeningDoc), "Gemini now has a production-ready Go runtime for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`")
-	mustContain(t, string(hardeningDoc), "`python` and `node` are now the stable repo-local subset on `codex-runtime` and `claude`, while `shell` remains `public-beta`")
-	mustContain(t, string(hardeningDoc), "local exported bundle install for Python/Node is now part of the promoted stable subset")
-	mustContain(t, string(hardeningDoc), "remote bundle fetch for Python/Node is now part of the promoted stable subset")
-	mustContain(t, string(hardeningDoc), "GitHub Releases bundle publish for Python/Node is now part of the promoted stable subset")
 	mustContain(t, string(releaseDoc), "stable Node/Python doctor/bootstrap/export/bundle-install/bundle-fetch/bundle-publish claims")
 	mustContain(t, string(releaseDoc), "the `public-beta` npm wrapper contract")
 	mustContain(t, string(releaseDoc), "the `public-beta` PyPI/pipx wrapper contract")
