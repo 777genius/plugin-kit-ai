@@ -66,13 +66,9 @@ onMounted(() => {
         slidesPerView: 3.15,
         spaceBetween: 24
       },
-      1500: {
-        slidesPerView: 3.6,
-        spaceBetween: 24
-      },
-      1760: {
+      1440: {
         slidesPerView: 4,
-        spaceBetween: 28
+        spaceBetween: 24
       }
     }
   });
