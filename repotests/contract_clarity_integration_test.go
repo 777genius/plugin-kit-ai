@@ -299,6 +299,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "real `codex mcp get --json` and `codex mcp list --json` with explicit `-c mcp_servers...` overrides still expose the projected MCP server contract")
 	mustContain(t, string(supportDoc), "current live Codex CLI build (`v0.117.0` in repo evidence), `codex exec`, `codex mcp get`, and `codex mcp list` do not reliably honor project-local `.codex/config.toml`")
 	mustContain(t, string(supportDoc), "this now holds both for a synthetic rendered runtime workspace and for the checked-in `examples/plugins/codex-basic-prod` runtime example, across `exec`, `mcp get`, and `mcp list`")
+	mustContain(t, string(supportDoc), "an isolated `CODEX_HOME` can successfully drive `codex mcp add|get|list|remove`, but a follow-up `codex exec` on that same isolated config currently loses live auth and therefore remains evidence-only")
 	mustContain(t, string(supportDoc), "helper delivery modes are documented in [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)")
 	mustContain(t, string(supportDoc), "while `init ... --runtime-package` switches to the shared dependency path")
 	mustContain(t, string(supportDoc), "development builds accept `--runtime-package-version`")

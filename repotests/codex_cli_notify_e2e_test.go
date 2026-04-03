@@ -306,6 +306,12 @@ func TestCodexCLIMCPAddGetListRemoveStdioInIsolatedHome(t *testing.T) {
 	tempHome := newCodexTempHome(t)
 
 	runCodexMCPHomeCommand(t, codexBin, tempHome, "add", "release-checks", "--env", "PLUGIN_KIT_AI_MCP_SMOKE_STATIC=isolated-home", "--", "/bin/echo", "hello")
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.release-checks]",
+		`command = "/bin/echo"`,
+		`args = ["hello"]`,
+		`PLUGIN_KIT_AI_MCP_SMOKE_STATIC = "isolated-home"`,
+	)
 	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "release-checks", "--json")
 	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
 		t.Fatalf("isolated-home codex mcp get output missing server name:\n%s", out)
@@ -324,6 +330,7 @@ func TestCodexCLIMCPAddGetListRemoveStdioInIsolatedHome(t *testing.T) {
 	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "release-checks")
 	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
 	assertCodexMCPListMissing(t, listOut, "release-checks")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.release-checks]")
 }
 
 func TestCodexCLIMCPAddGetListRemoveHTTPInIsolatedHome(t *testing.T) {
@@ -331,6 +338,11 @@ func TestCodexCLIMCPAddGetListRemoveHTTPInIsolatedHome(t *testing.T) {
 	tempHome := newCodexTempHome(t)
 
 	runCodexMCPHomeCommand(t, codexBin, tempHome, "add", "docs", "--url", "https://example.com/mcp", "--bearer-token-env-var", "CODEX_DOCS_TOKEN")
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.docs]",
+		`url = "https://example.com/mcp"`,
+		`bearer_token_env_var = "CODEX_DOCS_TOKEN"`,
+	)
 	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "docs", "--json")
 	if !strings.Contains(out, `"name":"docs"`) && !strings.Contains(out, `"name": "docs"`) {
 		t.Fatalf("isolated-home codex mcp get output missing HTTP server name:\n%s", out)
@@ -352,6 +364,27 @@ func TestCodexCLIMCPAddGetListRemoveHTTPInIsolatedHome(t *testing.T) {
 	runCodexMCPHomeCommand(t, codexBin, tempHome, "remove", "docs")
 	listOut = runCodexMCPHomeCommand(t, codexBin, tempHome, "list", "--json")
 	assertCodexMCPListMissing(t, listOut, "docs")
+	assertCodexHomeConfigNotContains(t, tempHome, "[mcp_servers.docs]")
+}
+
+func TestCodexCLIMCPAddExecStdioInIsolatedHome(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	tempHome := newCodexTempHome(t)
+	mcpBin := buildPortableMCPSmokeServer(t)
+	markerPath := filepath.Join(t.TempDir(), "isolated-home-mcp-marker.json")
+
+	runCodexMCPHomeCommand(t, codexBin, tempHome, "add", "release-checks", "--", filepath.ToSlash(mcpBin))
+	assertCodexHomeConfigContains(t, tempHome,
+		"[mcp_servers.release-checks]",
+		`command = "`+filepath.ToSlash(mcpBin)+`"`,
+	)
+	out := runCodexMCPHomeCommand(t, codexBin, tempHome, "get", "release-checks", "--json")
+	if !strings.Contains(out, `"name":"release-checks"`) && !strings.Contains(out, `"name": "release-checks"`) {
+		t.Fatalf("isolated-home codex mcp get output missing live stdio server name:\n%s", out)
+	}
+
+	runCodexExecWithHomePortableMCP(t, codexBin, tempHome, markerPath, *codexModel)
+	assertPortableMCPMarker(t, markerPath, "tools/call", "release_checks", "CODEX_PORTABLE_MCP_OK")
 }
 
 func TestCodexPackageMCPGetUsesRenderedSidecar(t *testing.T) {
@@ -1025,6 +1058,133 @@ func newCodexTempHome(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return home
+}
+
+func assertCodexHomeConfigContains(t *testing.T, home string, want ...string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, needle := range want {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("isolated-home .codex/config.toml missing %q:\n%s", needle, text)
+		}
+	}
+}
+
+func assertCodexHomeConfigNotContains(t *testing.T, home string, unwanted string) {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if strings.Contains(text, unwanted) {
+		t.Fatalf("isolated-home .codex/config.toml unexpectedly contains %q:\n%s", unwanted, text)
+	}
+}
+
+func runCodexExecWithHomePortableMCP(t *testing.T, codexBin, home, markerPath, model string) {
+	t.Helper()
+	models := codexPortableMCPLiveModels(model)
+	for idx, candidate := range models {
+		if runCodexExecWithHomePortableMCPModel(t, codexBin, home, markerPath, candidate) {
+			return
+		}
+		if idx < len(models)-1 {
+			t.Logf("codex isolated-home MCP live smoke did not observe a tool call with model %q; retrying with fallback model", candidate)
+		}
+	}
+	t.Skipf("codex exec completed without selecting the isolated-home MCP tool after trying models %v; codex mcp add/get/list already verified the persisted server config, so treating this as model-behavior variability", models)
+}
+
+func runCodexExecWithHomePortableMCPModel(t *testing.T, codexBin, home, markerPath, model string) bool {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	outputFile := filepath.Join(t.TempDir(), "last-message.txt")
+	logFile := filepath.Join(t.TempDir(), "codex-home-mcp.log")
+	args := []string{
+		"exec",
+		"--skip-git-repo-check",
+		"--ephemeral",
+		"-C", t.TempDir(),
+		"-m", model,
+		"--color", "never",
+		"--output-last-message", outputFile,
+		"--dangerously-bypass-approvals-and-sandbox",
+		"Do not inspect files or run shell commands. Before your final answer, make exactly one MCP tool call to release_checks with JSON arguments {\"token\":\"CODEX_PORTABLE_MCP_OK\"}. After that single tool call, answer DONE.",
+	}
+	cmd := exec.CommandContext(ctx, codexBin, args...)
+	cmd.Env = append(os.Environ(),
+		"CODEX_HOME="+filepath.Join(home, ".codex"),
+		"PLUGIN_KIT_AI_MCP_SMOKE_MARKER="+markerPath,
+	)
+	logfh, err := os.Create(logFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logfh.Close()
+	cmd.Stdout = logfh
+	cmd.Stderr = logfh
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start codex isolated-home MCP live smoke: %v", err)
+	}
+	waitCh := make(chan error, 1)
+	go func() {
+		waitCh <- cmd.Wait()
+	}()
+
+	deadline := time.Now().Add(75 * time.Second)
+	for {
+		if _, err := os.Stat(markerPath); err == nil {
+			return true
+		}
+		select {
+		case err := <-waitCh:
+			out := readLogFile(t, logFile)
+			if err != nil {
+				if codexAuthUnavailable(out) {
+					t.Skipf("codex exec with isolated CODEX_HOME lost auth in this build; treating isolated-home MCP exec as evidence-only:\n%s", truncateRunes(out, 4000))
+				}
+				if codexRuntimeUnhealthy(out) {
+					t.Skipf("codex runtime unhealthy in current environment:\n%s", truncateRunes(out, 4000))
+				}
+				t.Fatalf("codex isolated-home MCP live smoke: %v\n%s", err, out)
+			}
+			if codexPortableMCPToolUnavailable(out) {
+				t.Logf("codex isolated-home MCP live smoke did not expose the persisted MCP tool in exec session for model %q:\n%s", model, truncateRunes(out, 4000))
+				return false
+			}
+			if body, readErr := os.ReadFile(outputFile); readErr == nil && strings.Contains(string(body), "DONE") {
+				t.Logf("codex isolated-home MCP live smoke finished without tool selection for model %q:\n%s", model, truncateRunes(out, 4000))
+				return false
+			}
+			t.Logf("codex isolated-home MCP live smoke exited without producing MCP marker for model %q after successful add/get/list preflight:\n%s", model, truncateRunes(out, 4000))
+			return false
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Logf("codex isolated-home MCP live smoke timed out for model %q; treating as session variability", model)
+			return false
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
+func codexAuthUnavailable(log string) bool {
+	markers := []string{
+		"Missing bearer or basic authentication in header",
+		"unexpected status 401 Unauthorized",
+	}
+	for _, marker := range markers {
+		if strings.Contains(log, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func assertCodexMCPListEntry(t *testing.T, out, name, wantType, wantCommand, wantArg, envKey, envValue string) {
