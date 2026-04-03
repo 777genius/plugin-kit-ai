@@ -109,6 +109,10 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	auditDoc, err := os.ReadFile(filepath.Join(root, "docs", "V0_9_AUDIT.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	productionDoc, err := os.ReadFile(filepath.Join(root, "docs", "PRODUCTION.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -360,6 +364,8 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(statusDoc), "OpenCode stable subset")
 	mustContain(t, string(statusDoc), "Community polyglot subset")
 	mustContain(t, string(statusDoc), "Codex CLI `v0.117.0` does not reliably honor project-local `.codex/config.toml` for `exec` or `mcp get`")
+	mustContain(t, string(statusDoc), "rendered `codex-package` `.mcp.json` sidecar preflight exist")
+	mustContain(t, string(auditDoc), "rendered `codex-package` `.mcp.json` sidecar projection into the same live CLI path")
 	mustContain(t, string(interpretedPromotionDoc), "# Interpreted Stable Subset Audit")
 	mustContain(t, string(interpretedPromotionDoc), "- `python`: `stable-approved`")
 	mustContain(t, string(interpretedPromotionDoc), "- `node`: `stable-approved`")
