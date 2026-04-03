@@ -73,10 +73,9 @@ func runtimeCapabilitiesNotes(platform string) []string {
 	}
 	return []string{
 		"",
-		"Note: Gemini runtime entries include a production-ready stable subset plus advisory public-beta hooks.",
-		"Prod smoke: make test-gemini-runtime-prod",
-		"Full smoke: make test-gemini-runtime-smoke",
-		"Live smoke: make test-gemini-runtime-prod-live",
+		"Note: Gemini runtime entries show the supported production-ready Go runtime surface.",
+		"Runtime gate: make test-gemini-runtime",
+		"Live runtime gate: make test-gemini-runtime-live",
 	}
 }
 

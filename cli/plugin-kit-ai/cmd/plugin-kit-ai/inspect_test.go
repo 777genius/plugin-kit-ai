@@ -35,8 +35,8 @@ func TestInspectTextShowsLauncherAndGeminiGuidance(t *testing.T) {
 			Targets: []pluginmanifest.InspectTarget{{
 				Target:            "gemini",
 				TargetClass:       "mcp_extension",
-				ProductionClass:   "production-ready stable-subset extension target",
-				RuntimeContract:   "Gemini production-ready stable-subset Go runtime for SessionStart, SessionEnd, BeforeModel, AfterModel, BeforeToolSelection, BeforeAgent, AfterAgent, BeforeTool, and AfterTool; Notification and PreCompress remain public-beta",
+				ProductionClass:   "production-ready extension target",
+				RuntimeContract:   "Gemini production-ready Go runtime for SessionStart, SessionEnd, BeforeModel, AfterModel, BeforeToolSelection, BeforeAgent, AfterAgent, BeforeTool, and AfterTool",
 				TargetNativeKinds: []string{"hooks", "contexts"},
 				ManagedArtifacts:  []string{"gemini-extension.json", "hooks/hooks.json"},
 			}},
@@ -53,9 +53,8 @@ func TestInspectTextShowsLauncherAndGeminiGuidance(t *testing.T) {
 	for _, want := range []string{
 		"launcher: runtime=go entrypoint=./bin/demo",
 		"next=go test ./...; plugin-kit-ai render --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
-		"local_smoke=make test-gemini-runtime-prod",
-		"full_smoke=make test-gemini-runtime-smoke",
-		"live_smoke=make test-gemini-runtime-prod-live",
+		"runtime_gate=make test-gemini-runtime",
+		"live_runtime_gate=make test-gemini-runtime-live",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)
@@ -75,8 +74,8 @@ func TestInspectTextShowsGeminiPackagingGuidanceWithoutLauncher(t *testing.T) {
 			Targets: []pluginmanifest.InspectTarget{{
 				Target:            "gemini",
 				TargetClass:       "mcp_extension",
-				ProductionClass:   "production-ready stable-subset extension target",
-				RuntimeContract:   "Gemini production-ready stable-subset Go runtime for SessionStart, SessionEnd, BeforeModel, AfterModel, BeforeToolSelection, BeforeAgent, AfterAgent, BeforeTool, and AfterTool; Notification and PreCompress remain public-beta",
+				ProductionClass:   "production-ready extension target",
+				RuntimeContract:   "Gemini production-ready Go runtime for SessionStart, SessionEnd, BeforeModel, AfterModel, BeforeToolSelection, BeforeAgent, AfterAgent, BeforeTool, and AfterTool",
 				TargetNativeKinds: []string{"commands", "contexts"},
 				ManagedArtifacts:  []string{"gemini-extension.json"},
 			}},
@@ -92,7 +91,7 @@ func TestInspectTextShowsGeminiPackagingGuidanceWithoutLauncher(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"managed=gemini-extension.json",
-		"next=render --check + validate --strict keep the packaging lane honest; add --runtime go when you want the Gemini stable subset plus advisory beta hooks",
+		"next=render --check + validate --strict keep the packaging lane honest; add --runtime go when you want the Gemini production runtime",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)

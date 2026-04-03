@@ -7,14 +7,14 @@ import (
 
 func runtimeTestUnsupportedPlatformError(enabledTargets []string, requested string) error {
 	if isGeminiBetaRuntimeTarget(requested, enabledTargets) {
-		return fmt.Errorf("plugin-kit-ai test currently covers only stable runtime targets: claude or codex-runtime. Gemini has a production-ready stable subset plus advisory public-beta hooks; use go test ./..., plugin-kit-ai render --check ., plugin-kit-ai validate . --platform gemini --strict, plugin-kit-ai inspect . --target gemini, plugin-kit-ai capabilities --mode runtime --platform gemini, make test-gemini-runtime-prod, optionally make test-gemini-runtime-smoke for the advisory beta remainder, then gemini extensions link . and optionally make test-gemini-runtime-prod-live")
+		return fmt.Errorf("plugin-kit-ai test currently covers only stable runtime targets: claude or codex-runtime. Gemini has a production-ready Go runtime; use go test ./..., plugin-kit-ai render --check ., plugin-kit-ai validate . --platform gemini --strict, plugin-kit-ai inspect . --target gemini, plugin-kit-ai capabilities --mode runtime --platform gemini, make test-gemini-runtime, then gemini extensions link . and optionally make test-gemini-runtime-live")
 	}
 	return fmt.Errorf("test supports only launcher-based runtime targets: claude or codex-runtime")
 }
 
 func runtimeDevUnsupportedPlatformError(enabledTargets []string, requested string) error {
 	if isGeminiBetaRuntimeTarget(requested, enabledTargets) {
-		return fmt.Errorf("plugin-kit-ai dev currently covers only stable runtime targets: claude or codex-runtime. Gemini has a production-ready stable subset plus advisory public-beta hooks; use plugin-kit-ai render ., plugin-kit-ai render --check ., plugin-kit-ai validate . --platform gemini --strict, plugin-kit-ai inspect . --target gemini, plugin-kit-ai capabilities --mode runtime --platform gemini, make test-gemini-runtime-prod, optionally make test-gemini-runtime-smoke for the advisory beta remainder, then gemini extensions link . and optionally make test-gemini-runtime-prod-live after changes")
+		return fmt.Errorf("plugin-kit-ai dev currently covers only stable runtime targets: claude or codex-runtime. Gemini has a production-ready Go runtime; use plugin-kit-ai render ., plugin-kit-ai render --check ., plugin-kit-ai validate . --platform gemini --strict, plugin-kit-ai inspect . --target gemini, plugin-kit-ai capabilities --mode runtime --platform gemini, make test-gemini-runtime, then gemini extensions link . and optionally make test-gemini-runtime-live after changes")
 	}
 	return fmt.Errorf("dev supports only launcher-based runtime targets: claude or codex-runtime")
 }

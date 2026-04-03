@@ -680,60 +680,6 @@ func Events() []EventDescriptor {
 		},
 		{
 			Platform: "gemini",
-			Event:    "Notification",
-			Invocation: InvocationBinding{
-				Kind: runtime.InvocationArgvCommandCaseFold,
-				Name: "GeminiNotification",
-			},
-			Carrier: runtime.CarrierStdinJSON,
-			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
-				V1Target: false,
-			},
-			DecodeFunc: "DecodeNotification",
-			EncodeFunc: "EncodeNotification",
-			Registrar: RegistrarMeta{
-				MethodName:   "OnNotification",
-				EventType:    "*NotificationEvent",
-				ResponseType: "*NotificationResponse",
-				WrapFunc:     "wrapNotification",
-			},
-			Docs: DocsMeta{
-				SnippetKey: "gemini-notification",
-				TableGroup: "gemini",
-				Summary:    "Gemini Notification beta hook",
-			},
-			Capabilities: []runtime.CapabilityID{"gemini_notification"},
-		},
-		{
-			Platform: "gemini",
-			Event:    "PreCompress",
-			Invocation: InvocationBinding{
-				Kind: runtime.InvocationArgvCommandCaseFold,
-				Name: "GeminiPreCompress",
-			},
-			Carrier: runtime.CarrierStdinJSON,
-			Contract: ContractMeta{
-				Maturity: runtime.MaturityBeta,
-				V1Target: false,
-			},
-			DecodeFunc: "DecodePreCompress",
-			EncodeFunc: "EncodePreCompress",
-			Registrar: RegistrarMeta{
-				MethodName:   "OnPreCompress",
-				EventType:    "*PreCompressEvent",
-				ResponseType: "*PreCompressResponse",
-				WrapFunc:     "wrapPreCompress",
-			},
-			Docs: DocsMeta{
-				SnippetKey: "gemini-precompress",
-				TableGroup: "gemini",
-				Summary:    "Gemini PreCompress beta hook",
-			},
-			Capabilities: []runtime.CapabilityID{"gemini_pre_compress"},
-		},
-		{
-			Platform: "gemini",
 			Event:    "BeforeModel",
 			Invocation: InvocationBinding{
 				Kind: runtime.InvocationArgvCommandCaseFold,

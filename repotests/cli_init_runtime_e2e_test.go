@@ -85,10 +85,9 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",
 		"plugin-kit-ai capabilities --mode runtime --platform gemini",
-		"make test-gemini-runtime-prod",
-		"make test-gemini-runtime-smoke",
+		"make test-gemini-runtime",
 		"gemini extensions link .",
-		"make test-gemini-runtime-prod-live",
+		"make test-gemini-runtime-live",
 		"See README.md for Gemini runtime steps",
 	} {
 		if !strings.Contains(initText, want) {
@@ -135,7 +134,7 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 	mustHaveManagedArtifacts(t, target.ManagedArtifacts, "gemini-extension.json", "hooks/hooks.json")
 
 	entry := filepath.Join(plugRoot, "bin", binName)
-	assertGeminiBetaSubsetEntry(t, entry)
+	assertGeminiRuntimeEntry(t, entry)
 
 	hooksBody, err := os.ReadFile(filepath.Join(plugRoot, "hooks", "hooks.json"))
 	if err != nil {
@@ -144,8 +143,6 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 	for _, want := range []string{
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiSessionStart"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiSessionEnd"`,
-		`"command": "${extensionPath}${/}bin${/}genplug GeminiNotification"`,
-		`"command": "${extensionPath}${/}bin${/}genplug GeminiPreCompress"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiBeforeModel"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiAfterModel"`,
 		`"command": "${extensionPath}${/}bin${/}genplug GeminiBeforeToolSelection"`,
@@ -728,7 +725,7 @@ func assertClaudeStableSubsetEntry(t *testing.T, entry string) {
 	}
 }
 
-func assertGeminiBetaSubsetEntry(t *testing.T, entry string) {
+func assertGeminiRuntimeEntry(t *testing.T, entry string) {
 	t.Helper()
 	cases := []struct {
 		name    string
@@ -741,14 +738,6 @@ func assertGeminiBetaSubsetEntry(t *testing.T, entry string) {
 		{
 			name:    "GeminiSessionEnd",
 			payload: `{"session_id":"s","cwd":".","hook_event_name":"SessionEnd","reason":"clear"}`,
-		},
-		{
-			name:    "GeminiNotification",
-			payload: `{"session_id":"s","cwd":".","hook_event_name":"Notification","notification_type":"ToolPermission","message":"approve?","details":{"tool_name":"read_file"}}`,
-		},
-		{
-			name:    "GeminiPreCompress",
-			payload: `{"session_id":"s","cwd":".","hook_event_name":"PreCompress","trigger":"auto"}`,
 		},
 		{
 			name:    "GeminiBeforeModel",

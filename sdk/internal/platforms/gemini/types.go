@@ -20,18 +20,6 @@ type SessionEndInput struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-type NotificationInput struct {
-	BaseInput
-	NotificationType string          `json:"notification_type,omitempty"`
-	Message          string          `json:"message,omitempty"`
-	Details          json.RawMessage `json:"details,omitempty"`
-}
-
-type PreCompressInput struct {
-	BaseInput
-	Trigger string `json:"trigger,omitempty"`
-}
-
 type BeforeModelInput struct {
 	BaseInput
 	LLMRequest json.RawMessage `json:"llm_request,omitempty"`
@@ -92,14 +80,6 @@ type SessionStartOutcome struct {
 }
 
 type SessionEndOutcome struct {
-	CommonOutcome
-}
-
-type NotificationOutcome struct {
-	CommonOutcome
-}
-
-type PreCompressOutcome struct {
 	CommonOutcome
 }
 

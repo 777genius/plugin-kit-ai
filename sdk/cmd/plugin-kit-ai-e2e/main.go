@@ -144,44 +144,6 @@ func main() {
 		})
 		return gemini.SessionEndContinue()
 	})
-	app.Gemini().OnNotification(func(e *gemini.NotificationEvent) *gemini.NotificationResponse {
-		if message, ok := geminiOverrideMessage("NOTIFICATION"); ok {
-			trace(map[string]any{
-				"hook":              "Notification",
-				"outcome":           "message",
-				"notification_type": e.NotificationType,
-				"message":           e.Message,
-				"has_details":       strings.TrimSpace(string(e.Details)) != "",
-				"details_size":      len(e.Details),
-			})
-			return gemini.NotificationMessage(message)
-		}
-		trace(map[string]any{
-			"hook":              "Notification",
-			"outcome":           "continue",
-			"notification_type": e.NotificationType,
-			"message":           e.Message,
-			"has_details":       strings.TrimSpace(string(e.Details)) != "",
-			"details_size":      len(e.Details),
-		})
-		return gemini.NotificationContinue()
-	})
-	app.Gemini().OnPreCompress(func(e *gemini.PreCompressEvent) *gemini.PreCompressResponse {
-		if message, ok := geminiOverrideMessage("PRE_COMPRESS"); ok {
-			trace(map[string]any{
-				"hook":    "PreCompress",
-				"outcome": "message",
-				"trigger": e.Trigger,
-			})
-			return gemini.PreCompressMessage(message)
-		}
-		trace(map[string]any{
-			"hook":    "PreCompress",
-			"outcome": "continue",
-			"trigger": e.Trigger,
-		})
-		return gemini.PreCompressContinue()
-	})
 	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
 		if reason, ok := geminiOverrideDeny("BEFORE_MODEL"); ok {
 			trace(map[string]any{

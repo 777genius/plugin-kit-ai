@@ -72,10 +72,7 @@ Platform packages:
   - `claude/ConfigChange` (`public-beta`)
   - `claude/WorktreeCreate` (`public-beta`)
   - `claude/WorktreeRemove` (`public-beta`)
-  - `gemini/Notification` (`public-beta`)
-  - `gemini/PreCompress` (`public-beta`)
-
-Gemini's current production-ready stable subset is audited in [../../docs/GEMINI_STABLE_SUBSET_AUDIT.md](../../docs/GEMINI_STABLE_SUBSET_AUDIT.md). `Notification` and `PreCompress` remain `public-beta`.
+Gemini's current production-ready runtime is audited in [../../docs/GEMINI_RUNTIME_AUDIT.md](../../docs/GEMINI_RUNTIME_AUDIT.md).
 
 Generated support matrix: [../../docs/generated/support_matrix.md](../../docs/generated/support_matrix.md)
 
@@ -182,10 +179,9 @@ func main() {
 
 Gemini helper rule of thumb:
 
-- use `gemini.SessionStartContinue()`, `gemini.SessionEndContinue()`, `gemini.NotificationContinue()`, `gemini.PreCompressContinue()`, `gemini.BeforeModelContinue()`, `gemini.AfterModelContinue()`, `gemini.BeforeToolContinue()`, and `gemini.AfterToolContinue()` for a true no-op response that renders as minimal `{}` output
+- use `gemini.SessionStartContinue()`, `gemini.SessionEndContinue()`, `gemini.BeforeModelContinue()`, `gemini.AfterModelContinue()`, `gemini.BeforeToolContinue()`, and `gemini.AfterToolContinue()` for a true no-op response that renders as minimal `{}` output
 - Gemini treats `SessionStart` and `SessionEnd` as advisory hooks: `continue`, `decision`, `reason`, and `stopReason` are ignored there, so only `systemMessage` and the documented hook-specific fields are emitted
-- Gemini treats `Notification` and `PreCompress` as advisory/system hooks: they cannot block the CLI path, so only `systemMessage` and `suppressOutput` are meaningful on output
-- use `gemini.SessionStartMessage(...)`, `gemini.SessionEndMessage(...)`, `gemini.NotificationMessage(...)`, and `gemini.PreCompressMessage(...)` when you want a typed helper for the advisory `systemMessage` path instead of setting the field manually
+- use `gemini.SessionStartMessage(...)` and `gemini.SessionEndMessage(...)` when you want a typed helper for the advisory `systemMessage` path instead of setting the field manually
 - use `gemini.BeforeModelOverrideRequestValue(...)` when you want to rewrite `llm_request` from a normal Go map/struct, `gemini.BeforeModelSyntheticResponseValue(...)` when you want to short-circuit the model call with a synthetic response, and `gemini.AfterModelReplaceResponseValue(...)` when you want to rewrite the returned `llm_response`
 - use `gemini.BeforeToolSelectionConfig(...)` when you want to steer Gemini tool choice with official `toolConfig.mode` and `allowedFunctionNames`; use `gemini.BeforeToolSelectionDisableAll()` when you intentionally want `mode:"NONE"`
 - use `gemini.BeforeToolSelectionAllowOnly(...)` when you only want to whitelist tools, `gemini.BeforeToolSelectionForceAny(...)` when you want Gemini to call at least one tool, `gemini.BeforeToolSelectionForceAuto(...)` when you want explicit `AUTO` mode with an optional allowlist, and `gemini.BeforeToolSelectionQuiet()` when you only want to suppress hook metadata for the tool-selection step

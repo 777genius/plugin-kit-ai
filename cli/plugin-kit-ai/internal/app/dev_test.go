@@ -104,15 +104,14 @@ func TestResolveDevPlatformGeminiRequestedReturnsBetaGuidance(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	for _, want := range []string{
-		"Gemini has a production-ready stable subset plus advisory public-beta hooks",
+		"Gemini has a production-ready Go runtime",
 		"plugin-kit-ai render .",
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",
 		"plugin-kit-ai capabilities --mode runtime --platform gemini",
-		"make test-gemini-runtime-prod",
-		"make test-gemini-runtime-smoke",
+		"make test-gemini-runtime",
 		"gemini extensions link .",
-		"make test-gemini-runtime-prod-live",
+		"make test-gemini-runtime-live",
 	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error missing %q:\n%s", want, err)

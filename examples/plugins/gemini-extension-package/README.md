@@ -28,4 +28,4 @@ gemini extensions disable gemini-extension-package --scope user
 gemini extensions enable gemini-extension-package --scope user
 ```
 
-If you intentionally want the Gemini Go hook lane instead of this packaging-only example, start from `plugin-kit-ai init --platform gemini --runtime go`, inspect the current stable-versus-beta split with `plugin-kit-ai capabilities --mode runtime --platform gemini`, use `make test-gemini-runtime-prod` for the deterministic production gate of the stable subset, use `make test-gemini-runtime-smoke` when you also want the advisory beta remainder in scope, and use `make test-gemini-runtime-prod-live` for the dedicated opt-in real CLI runtime smoke.
+If you intentionally want the Gemini Go hook lane instead of this packaging-only example, start from `plugin-kit-ai init --platform gemini --runtime go`, inspect the supported runtime surface with `plugin-kit-ai capabilities --mode runtime --platform gemini`, use `make test-gemini-runtime` for the deterministic runtime gate, and use `make test-gemini-runtime-live` for the dedicated opt-in real CLI runtime smoke.

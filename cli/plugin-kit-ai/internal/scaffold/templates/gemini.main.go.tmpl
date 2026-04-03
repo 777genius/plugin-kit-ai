@@ -17,14 +17,6 @@ func main() {
 		_ = e
 		return gemini.SessionEndContinue()
 	})
-	app.Gemini().OnNotification(func(e *gemini.NotificationEvent) *gemini.NotificationResponse {
-		_ = e
-		return gemini.NotificationContinue()
-	})
-	app.Gemini().OnPreCompress(func(e *gemini.PreCompressEvent) *gemini.PreCompressResponse {
-		_ = e
-		return gemini.PreCompressContinue()
-	})
 	app.Gemini().OnBeforeModel(func(e *gemini.BeforeModelEvent) *gemini.BeforeModelResponse {
 		_ = e
 		return gemini.BeforeModelContinue()

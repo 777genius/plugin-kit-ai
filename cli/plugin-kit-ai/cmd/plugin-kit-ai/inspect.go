@@ -94,13 +94,12 @@ func inspectTargetAdvice(report pluginmanifest.Inspection, target pluginmanifest
 	}
 	if report.Launcher == nil {
 		return []string{
-			"next=render --check + validate --strict keep the packaging lane honest; add --runtime go when you want the Gemini stable subset plus advisory beta hooks",
+			"next=render --check + validate --strict keep the packaging lane honest; add --runtime go when you want the Gemini production runtime",
 		}
 	}
 	return []string{
 		"next=go test ./...; plugin-kit-ai render --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
-		"local_smoke=make test-gemini-runtime-prod",
-		"full_smoke=make test-gemini-runtime-smoke",
-		"live_smoke=make test-gemini-runtime-prod-live",
+		"runtime_gate=make test-gemini-runtime",
+		"live_runtime_gate=make test-gemini-runtime-live",
 	}
 }

@@ -43,7 +43,7 @@ Current runtime carriers:
 
 - Claude events use `stdin_json`
 - Codex `Notify` uses `argv_json`
-- Gemini stable and beta hooks use `stdin_json`
+- Gemini runtime hooks use `stdin_json`
 
 ## CLI Application Layer
 

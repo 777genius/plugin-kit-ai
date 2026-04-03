@@ -99,7 +99,7 @@ func geminiValidateFailureHints(report validate.Report) []string {
 		}
 	}
 	if len(hints) > 0 {
-		appendHint(&hints, seen, "after validate is green, run make test-gemini-runtime-prod, relink the extension with gemini extensions link ., then use make test-gemini-runtime-prod-live when you need real CLI evidence for the stable subset.")
+		appendHint(&hints, seen, "after validate is green, run make test-gemini-runtime, relink the extension with gemini extensions link ., then use make test-gemini-runtime-live when you need real CLI evidence.")
 	}
 	return hints
 }
@@ -113,10 +113,9 @@ func geminiValidateSuccessHints(root string, report validate.Report) []string {
 		return nil
 	}
 	return []string{
-		"Gemini Go stable subset is validate-clean; run make test-gemini-runtime-prod before relinking the extension.",
-		"use make test-gemini-runtime-smoke when you also want the advisory beta remainder in the repo-local gate.",
+		"Gemini Go runtime is validate-clean; run make test-gemini-runtime before relinking the extension.",
 		"relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
-		"use make test-gemini-runtime-prod-live when you need real CLI evidence after the repo-local production gate is green.",
+		"use make test-gemini-runtime-live when you need real CLI evidence after the repo-local runtime gate is green.",
 	}
 }
 

@@ -13,7 +13,7 @@ This document defines the approved public contract for `plugin-kit-ai` after the
 
 The current source tree is split between `public-stable`, `public-beta`, and `public-experimental`.
 
-The declared `v1` candidate set was reviewed through [V0_9_AUDIT.md](./V0_9_AUDIT.md). Post-`v1.0.0` community-first interpreted promotion is reviewed through [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md). Gemini stable-subset promotion is reviewed through [GEMINI_STABLE_SUBSET_AUDIT.md](./GEMINI_STABLE_SUBSET_AUDIT.md). Anything not listed remains `public-beta` or `internal`.
+The declared `v1` candidate set was reviewed through [V0_9_AUDIT.md](./V0_9_AUDIT.md). Post-`v1.0.0` community-first interpreted promotion is reviewed through [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md). Gemini runtime promotion is reviewed through [GEMINI_RUNTIME_AUDIT.md](./GEMINI_RUNTIME_AUDIT.md). Anything not listed remains `public-beta` or `internal`.
 
 Canonical event-level support claims live in [generated/support_matrix.md](./generated/support_matrix.md). That table is the source of truth for:
 
@@ -27,7 +27,7 @@ Canonical event-level support claims live in [generated/support_matrix.md](./gen
 - capability tags
 - live-test profile labels
 
-The generated support matrix is runtime-event-only. Gemini stable and beta hooks, plus the Claude/Codex runtime lanes, appear there; packaging-only or workspace-config-only targets such as OpenCode and Cursor are documented in this policy and in CLI docs.
+The generated support matrix is runtime-event-only. Gemini runtime hooks, plus the Claude/Codex runtime lanes, appear there; packaging-only or workspace-config-only targets such as OpenCode and Cursor are documented in this policy and in CLI docs.
 The target/package contract matrix lives in [generated/target_support_matrix.md](./generated/target_support_matrix.md). That table is the source of truth for target class, production class, import/render/validate support, portable component kinds, target-native component kinds, and managed artifact sets.
 
 ## Contract Vocabulary
@@ -83,8 +83,8 @@ Current production-ready target boundary:
 - Claude package authoring also supports first-class `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, and `targets/claude/manifest.extra.json`
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
-- Gemini: production-ready within the stable Go subset for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`; full Gemini CLI extension packaging remains first-class, while `Notification` and `PreCompress` remain `public-beta`
-- Gemini stable-subset evidence is guarded by deterministic repo-local production gating via `make test-gemini-runtime-prod`, broader full-lane smoke via `make test-gemini-runtime-smoke`, and dedicated opt-in real CLI runtime smoke via `make test-gemini-runtime-prod-live`
+- Gemini: production-ready Go runtime for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`; full Gemini CLI extension packaging remains first-class
+- Gemini runtime evidence is guarded by deterministic repo-local gating via `make test-gemini-runtime` and dedicated opt-in real CLI runtime smoke via `make test-gemini-runtime-live`
 - OpenCode: workspace-config lane through `plugin-kit-ai render|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope import; not a production-ready runtime target
 
 Stable CLI commands:
@@ -153,11 +153,6 @@ Runtime recommendation contract:
 ## Current Public-Beta Surfaces
 
 Current beta surfaces that remain intentionally outside the stable set:
-
-- Gemini beta advisory remainder:
-  - `Notification`
-  - `PreCompress`
-  - their advisory-only helper constructors and deterministic local smoke/canary path
 - OpenCode workspace-config lane through `plugin-kit-ai render|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, `config.extra.json`, passthrough config surfaces like `agent`, `permission`, and `instructions`, and deprecated compatibility passthrough for config-level `tools`; `custom_tools` remain beta across standalone tools and plugin code
 - Cursor workspace-config lane through `plugin-kit-ai render|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
@@ -184,14 +179,6 @@ Current beta surfaces that remain intentionally outside the stable set:
 - any newly added surfaces after the first stable set, until separately reviewed and promoted
 - experimental local typed Claude hook registration helpers in `sdk/claude`
 - experimental local typed Codex hook registration helper in `sdk/codex`
-- approved-export-shaped Gemini event and response types for:
-  - `Notification`
-  - `PreCompress`
-- approved exported Gemini helper constructors that remain beta:
-  - `NotificationContinue`
-  - `NotificationMessage`
-  - `PreCompressContinue`
-  - `PreCompressMessage`
 
 Config contract:
 
@@ -202,7 +189,7 @@ Config contract:
 - Codex runtime project-local config generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform codex-runtime`
 - Codex package manifest generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform codex-package`
 - Claude plugin metadata and hook routing files generated by `plugin-kit-ai render` or `plugin-kit-ai init --platform claude`
-- Gemini CLI extension manifest generated by `plugin-kit-ai render --target gemini`, with optional Go launcher-based runtime support in the current stable-subset contract
+- Gemini CLI extension manifest generated by `plugin-kit-ai render --target gemini`, with optional Go launcher-based runtime support in the current production-ready runtime contract
 - OpenCode workspace config generated by `plugin-kit-ai render --target opencode`, with workspace-config-only status in the current contract
 - Cursor workspace config generated by `plugin-kit-ai render --target cursor`, with workspace-config-only status in the current contract
 - OpenCode local plugin loading stable subset is guarded by `render --check`, strict validation, the production example canary, and the documented `test-opencode-live` smoke path

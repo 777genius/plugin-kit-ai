@@ -23,10 +23,6 @@ func CanonicalInvocationName(platform PlatformID, raw string) string {
 			return "SessionStart"
 		case strings.EqualFold(raw, "GeminiSessionEnd"):
 			return "SessionEnd"
-		case strings.EqualFold(raw, "GeminiNotification"):
-			return "Notification"
-		case strings.EqualFold(raw, "GeminiPreCompress"):
-			return "PreCompress"
 		case strings.EqualFold(raw, "GeminiBeforeModel"):
 			return "BeforeModel"
 		case strings.EqualFold(raw, "GeminiAfterModel"):

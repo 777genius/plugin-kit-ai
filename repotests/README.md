@@ -15,7 +15,7 @@
 - **Codex / plugin-kit-ai-e2e:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CODEX_CLI=1`**, флаг **`-args -codex-model=...`**. Для hermetic smoke `notify` подаётся через CLI config override; project-scoped `.codex/config.toml` остаётся частью scaffold/validate contract, а не runtime env prerequisite теста.
 - **Cursor / workspace-config live smoke:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_CURSOR_CLI=1`**, флаг **`-args -cursor-model=...`**. Тесты проверяют documented repo-local subset: `.cursor/mcp.json`, `.cursor/rules/**`, optional root `AGENTS.md`, structured `--output-format`, и deterministic local MCP tool invocation.
 - **Gemini / extension lifecycle:** opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_GEMINI_CLI=1`** плюс **`PLUGIN_KIT_AI_E2E_GEMINI=/path/to/gemini`**. При необходимости можно явно выключить через **`PLUGIN_KIT_AI_SKIP_GEMINI_CLI=1`**. Тест работает в `Temp HOME` и проверяет `gemini extensions link|config|disable|enable` против rendered reference extension, не трогая реальный user state.
-- **Gemini / runtime hooks:** extra opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1`** плюс `PLUGIN_KIT_AI_E2E_GEMINI`. Тест собирает generated Gemini Go runtime repo, линкует extension в isolated home и проверяет production-ready stable subset: `SessionStart`, `SessionEnd`, model-path (`BeforeModel`/`AfterModel`), tool-selection path (`BeforeToolSelection`), agent-path (`BeforeAgent`/`AfterAgent`) и tool-path (`BeforeTool`/`AfterTool`) через trace helper, включая documented `tool_input`/`tool_response` payload presence. Use `make test-gemini-runtime-prod` as the deterministic release gate for that stable subset and `make test-gemini-runtime-prod-live` as the matching opt-in live gate. The broader `make test-gemini-runtime-smoke` path additionally covers advisory `Notification` and `PreCompress`, which remain `public-beta` and stay deterministic-only for now rather than part of the live production contract.
+- **Gemini / runtime hooks:** extra opt-in real CLI smoke — **`PLUGIN_KIT_AI_RUN_GEMINI_RUNTIME_LIVE=1`** плюс `PLUGIN_KIT_AI_E2E_GEMINI`. Тест собирает generated Gemini Go runtime repo, линкует extension в isolated home и проверяет production-ready runtime: `SessionStart`, `SessionEnd`, model-path (`BeforeModel`/`AfterModel`), tool-selection path (`BeforeToolSelection`), agent-path (`BeforeAgent`/`AfterAgent`) и tool-path (`BeforeTool`/`AfterTool`) через trace helper, включая documented `tool_input`/`tool_response` payload presence. Use `make test-gemini-runtime` as the deterministic release gate for that runtime and `make test-gemini-runtime-live` as the matching opt-in live gate.
 - **Portable MCP multi-agent live smoke:** opt-in shared authored-config suite — **`PLUGIN_KIT_AI_RUN_PORTABLE_MCP_LIVE=1`** плюс target-specific live env vars. Один `mcp/servers.yaml` рендерится в Claude, Codex package, Gemini, OpenCode и Cursor; дальше suite проверяет реальный vendor CLI path в честной для каждой платформы глубине: Claude `mcp get` preflight plus `--mcp-config` against a config synthesized from the rendered `.mcp.json`, Codex `mcp get` preflight plus `exec`, Gemini `extensions link` plus `extensions list`, Cursor live MCP tool call, OpenCode `serve` init smoke. Если Claude/Codex CLI видит projected MCP config, но конкретная print/exec session не экспонирует tool или модель завершает задачу без tool call, тест делает explicit skip как vendor-session variability, а не ложный red на portable MCP projection.
 - Codex smoke intentionally distinguishes repo failures from Codex runtime-environment failures. If `codex exec` hits known runtime panics before the hook fires, the test skips instead of reporting a false plugin-kit-ai regression.
 
@@ -70,9 +70,8 @@ make test-required
 make test-plugin-manifest-workflow
 make test-install-compat
 make test-extended
-make test-gemini-runtime-smoke
-make test-gemini-runtime-prod
-make test-gemini-runtime-prod-live
+make test-gemini-runtime
+make test-gemini-runtime-live
 make test-cursor-live
 make test-portable-mcp-live
 make test-live-cli

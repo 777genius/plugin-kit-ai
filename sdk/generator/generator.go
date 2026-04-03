@@ -396,7 +396,7 @@ func renderValidateRules(m model) string {
 func renderSupportMatrix(m model) string {
 	var b strings.Builder
 	b.WriteString("# Generated Support Matrix\n\n")
-	b.WriteString("This generated table is the canonical per-event runtime support contract for shipped runtime claims. Gemini stable and beta hooks appear here alongside Claude and Codex; packaging-only or workspace-config-only targets remain documented in SUPPORT.md.\n\n")
+	b.WriteString("This generated table is the canonical per-event runtime support contract for shipped runtime claims. Gemini runtime hooks appear here alongside Claude and Codex; packaging-only or workspace-config-only targets remain documented in SUPPORT.md.\n\n")
 	b.WriteString("| Platform | Event | Status | Maturity | Contract Class | V1 Target | Invocation | Carrier | Transport Modes | Scaffold | Validate | Capabilities | Live Test | Summary |\n")
 	b.WriteString("|----------|-------|--------|----------|----------------|-----------|------------|---------|-----------------|----------|----------|--------------|-----------|---------|\n")
 	for _, e := range m.events {

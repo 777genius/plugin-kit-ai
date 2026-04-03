@@ -24,30 +24,6 @@
         ]
       }
     ],
-    "Notification": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "name": "{{.ProjectName}}-notification",
-            "type": "command",
-            "command": "${extensionPath}${/}bin${/}{{.ProjectName}} GeminiNotification"
-          }
-        ]
-      }
-    ],
-    "PreCompress": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "name": "{{.ProjectName}}-pre-compress",
-            "type": "command",
-            "command": "${extensionPath}${/}bin${/}{{.ProjectName}} GeminiPreCompress"
-          }
-        ]
-      }
-    ],
     "BeforeModel": [
       {
         "matcher": "*",

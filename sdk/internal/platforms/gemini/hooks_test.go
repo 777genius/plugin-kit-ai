@@ -46,44 +46,6 @@ func TestDecodeSessionEnd(t *testing.T) {
 	}
 }
 
-func TestDecodeNotification(t *testing.T) {
-	v, name, err := DecodeNotification(runtime.Envelope{
-		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"Notification","notification_type":"ToolPermission","message":"approve?","details":{"tool_name":"read_file"}}`),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if name != "Notification" {
-		t.Fatalf("name = %q", name)
-	}
-	ev, ok := v.(*NotificationInput)
-	if !ok {
-		t.Fatalf("type = %T", v)
-	}
-	if ev.NotificationType != "ToolPermission" || ev.Message != "approve?" || string(ev.Details) == "" {
-		t.Fatalf("event = %#v", ev)
-	}
-}
-
-func TestDecodePreCompress(t *testing.T) {
-	v, name, err := DecodePreCompress(runtime.Envelope{
-		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"PreCompress","trigger":"auto"}`),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if name != "PreCompress" {
-		t.Fatalf("name = %q", name)
-	}
-	ev, ok := v.(*PreCompressInput)
-	if !ok {
-		t.Fatalf("type = %T", v)
-	}
-	if ev.Trigger != "auto" {
-		t.Fatalf("trigger = %q", ev.Trigger)
-	}
-}
-
 func TestDecodeBeforeModel(t *testing.T) {
 	v, name, err := DecodeBeforeModel(runtime.Envelope{
 		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"BeforeModel","llm_request":{"model":"gemini-2.5-pro","messages":[{"role":"user","content":"hi"}]}}`),
@@ -340,56 +302,6 @@ func TestEncodeSessionStartOutcomeIgnoresFlowControlFields(t *testing.T) {
 	}
 	got := string(res.Stdout)
 	if !strings.Contains(got, `"systemMessage":"hello"`) || !strings.Contains(got, `"additionalContext":"repo memory"`) {
-		t.Fatalf("stdout = %q", got)
-	}
-	for _, unwanted := range []string{`"continue":`, `"decision":`, `"reason":`, `"stopReason":`} {
-		if strings.Contains(got, unwanted) {
-			t.Fatalf("stdout unexpectedly contains %q: %s", unwanted, got)
-		}
-	}
-}
-
-func TestEncodeNotificationIgnoresFlowControlFields(t *testing.T) {
-	continueFalse := false
-	res := EncodeNotification(NotificationOutcome{
-		CommonOutcome: CommonOutcome{
-			SystemMessage: "heads up",
-			Continue:      &continueFalse,
-			Decision:      "deny",
-			Reason:        "ignored",
-			StopReason:    "ignored",
-		},
-	})
-	if res.ExitCode != 0 {
-		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
-	}
-	got := string(res.Stdout)
-	if !strings.Contains(got, `"systemMessage":"heads up"`) {
-		t.Fatalf("stdout = %q", got)
-	}
-	for _, unwanted := range []string{`"continue":`, `"decision":`, `"reason":`, `"stopReason":`} {
-		if strings.Contains(got, unwanted) {
-			t.Fatalf("stdout unexpectedly contains %q: %s", unwanted, got)
-		}
-	}
-}
-
-func TestEncodePreCompressIgnoresFlowControlFields(t *testing.T) {
-	continueFalse := false
-	res := EncodePreCompress(PreCompressOutcome{
-		CommonOutcome: CommonOutcome{
-			SystemMessage: "compressing",
-			Continue:      &continueFalse,
-			Decision:      "deny",
-			Reason:        "ignored",
-			StopReason:    "ignored",
-		},
-	})
-	if res.ExitCode != 0 {
-		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
-	}
-	got := string(res.Stdout)
-	if !strings.Contains(got, `"systemMessage":"compressing"`) {
 		t.Fatalf("stdout = %q", got)
 	}
 	for _, unwanted := range []string{`"continue":`, `"decision":`, `"reason":`, `"stopReason":`} {

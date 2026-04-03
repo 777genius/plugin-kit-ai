@@ -63,7 +63,7 @@ func TestGeneratedConfigCanaries_ClaudeStableHookSubsetAndCommandShape(t *testin
 	mustExist(t, filepath.Join(plugRoot, "hooks", "hooks.json"))
 }
 
-func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.T) {
+func TestGeneratedConfigCanaries_GeminiRuntimeContract(t *testing.T) {
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "gemini")
 
@@ -87,15 +87,13 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 	}
 
 	gotNames := sortedKeys(hooksFile.Hooks)
-	wantNames := []string{"AfterAgent", "AfterModel", "AfterTool", "BeforeAgent", "BeforeModel", "BeforeTool", "BeforeToolSelection", "Notification", "PreCompress", "SessionEnd", "SessionStart"}
+	wantNames := []string{"AfterAgent", "AfterModel", "AfterTool", "BeforeAgent", "BeforeModel", "BeforeTool", "BeforeToolSelection", "SessionEnd", "SessionStart"}
 	if !slices.Equal(gotNames, wantNames) {
 		t.Fatalf("hook names = %v, want %v", gotNames, wantNames)
 	}
 	wantCommands := map[string]string{
 		"SessionStart":        "${extensionPath}${/}bin${/}genplug GeminiSessionStart",
 		"SessionEnd":          "${extensionPath}${/}bin${/}genplug GeminiSessionEnd",
-		"Notification":        "${extensionPath}${/}bin${/}genplug GeminiNotification",
-		"PreCompress":         "${extensionPath}${/}bin${/}genplug GeminiPreCompress",
 		"BeforeModel":         "${extensionPath}${/}bin${/}genplug GeminiBeforeModel",
 		"AfterModel":          "${extensionPath}${/}bin${/}genplug GeminiAfterModel",
 		"BeforeToolSelection": "${extensionPath}${/}bin${/}genplug GeminiBeforeToolSelection",
@@ -134,9 +132,8 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 	for _, want := range []string{
 		"launcher: runtime=go entrypoint=./bin/genplug",
 		"next=go test ./...; plugin-kit-ai render --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
-		"local_smoke=make test-gemini-runtime-prod",
-		"full_smoke=make test-gemini-runtime-smoke",
-		"live_smoke=make test-gemini-runtime-prod-live",
+		"runtime_gate=make test-gemini-runtime",
+		"live_runtime_gate=make test-gemini-runtime-live",
 	} {
 		if !strings.Contains(textReport, want) {
 			t.Fatalf("inspect text missing %q:\n%s", want, textReport)
@@ -158,10 +155,9 @@ func TestGeneratedConfigCanaries_GeminiBetaHookSubsetAndCommandShape(t *testing.
 		`Warning: Gemini extension directory basename "project with spaces" does not match extension name "genplug"`,
 		"Hint: rename the extension directory to match plugin.yaml name before running gemini extensions link .",
 		"Validated " + plugRoot,
-		"Hint: Gemini Go stable subset is validate-clean; run make test-gemini-runtime-prod before relinking the extension.",
-		"Hint: use make test-gemini-runtime-smoke when you also want the advisory beta remainder in the repo-local gate.",
+		"Hint: Gemini Go runtime is validate-clean; run make test-gemini-runtime before relinking the extension.",
 		"Hint: relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
-		"Hint: use make test-gemini-runtime-prod-live when you need real CLI evidence after the repo-local production gate is green.",
+		"Hint: use make test-gemini-runtime-live when you need real CLI evidence after the repo-local runtime gate is green.",
 	} {
 		if !strings.Contains(validateText, want) {
 			t.Fatalf("validate output missing %q:\n%s", want, validateText)

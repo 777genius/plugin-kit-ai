@@ -44,38 +44,6 @@ func TestSessionEndContinue(t *testing.T) {
 	}
 }
 
-func TestNotificationContinue(t *testing.T) {
-	t.Parallel()
-
-	if got := NotificationContinue(); got == nil {
-		t.Fatal("NotificationContinue() = nil")
-	} else if got.Decision != "" || got.Reason != "" || got.SystemMessage != "" {
-		t.Fatalf("NotificationContinue() = %#v", got)
-	}
-
-	if got := NotificationMessage("heads up"); got == nil {
-		t.Fatal("NotificationMessage() = nil")
-	} else if got.SystemMessage != "heads up" || got.Decision != "" || got.Reason != "" {
-		t.Fatalf("NotificationMessage() = %#v", got)
-	}
-}
-
-func TestPreCompressContinue(t *testing.T) {
-	t.Parallel()
-
-	if got := PreCompressContinue(); got == nil {
-		t.Fatal("PreCompressContinue() = nil")
-	} else if got.Decision != "" || got.Reason != "" || got.SystemMessage != "" {
-		t.Fatalf("PreCompressContinue() = %#v", got)
-	}
-
-	if got := PreCompressMessage("compressing"); got == nil {
-		t.Fatal("PreCompressMessage() = nil")
-	} else if got.SystemMessage != "compressing" || got.Decision != "" || got.Reason != "" {
-		t.Fatalf("PreCompressMessage() = %#v", got)
-	}
-}
-
 func TestBeforeModelHelpers(t *testing.T) {
 	t.Parallel()
 

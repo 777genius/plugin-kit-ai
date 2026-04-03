@@ -46,8 +46,8 @@ func TestValidateWritesGeminiRuntimeRecoveryHints(t *testing.T) {
 	for _, want := range []string{
 		`Failure: Gemini hook "SessionStart" command`,
 		"Hint: rerun plugin-kit-ai render . to regenerate Gemini hooks/hooks.json from launcher.yaml",
-		"Hint: after validate is green, run make test-gemini-runtime-prod, relink the extension with gemini extensions link .",
-		"make test-gemini-runtime-prod-live",
+		"Hint: after validate is green, run make test-gemini-runtime, relink the extension with gemini extensions link .",
+		"make test-gemini-runtime-live",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stderr missing %q:\n%s", want, output)
@@ -132,10 +132,9 @@ func TestValidateWritesGeminiSuccessHintsForRuntimeLane(t *testing.T) {
 	output := stdout.String()
 	for _, want := range []string{
 		"Validated " + root,
-		"Hint: Gemini Go stable subset is validate-clean; run make test-gemini-runtime-prod before relinking the extension.",
-		"Hint: use make test-gemini-runtime-smoke when you also want the advisory beta remainder in the repo-local gate.",
+		"Hint: Gemini Go runtime is validate-clean; run make test-gemini-runtime before relinking the extension.",
 		"Hint: relink the extension with gemini extensions link . before checking the runtime path in a real Gemini CLI session.",
-		"Hint: use make test-gemini-runtime-prod-live when you need real CLI evidence after the repo-local production gate is green.",
+		"Hint: use make test-gemini-runtime-live when you need real CLI evidence after the repo-local runtime gate is green.",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("stdout missing %q:\n%s", want, output)

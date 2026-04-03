@@ -174,10 +174,9 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform gemini --strict",
 				"plugin-kit-ai inspect . --target gemini",
 				"plugin-kit-ai capabilities --mode runtime --platform gemini",
-				"make test-gemini-runtime-prod",
-				"make test-gemini-runtime-smoke",
+				"make test-gemini-runtime",
 				"gemini extensions link .",
-				"make test-gemini-runtime-prod-live",
+				"make test-gemini-runtime-live",
 				"See README.md for Gemini runtime steps",
 			},
 			notWant: []string{

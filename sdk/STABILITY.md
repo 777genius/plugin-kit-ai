@@ -17,7 +17,6 @@ Current SDK beta surface added after the first promotion:
 - approved-export-shaped Claude event and response types for:
   - `SessionStart`
   - `SessionEnd`
-  - `Notification`
   - `PostToolUse`
   - `PostToolUseFailure`
   - `PermissionRequest`
@@ -30,14 +29,6 @@ Current SDK beta surface added after the first promotion:
   - `ConfigChange`
   - `WorktreeCreate`
   - `WorktreeRemove`
-- approved-export-shaped Gemini event and response types for:
-  - `Notification`
-  - `PreCompress`
-- approved exported Gemini helper constructors that remain beta:
-  - `NotificationContinue`
-  - `NotificationMessage`
-  - `PreCompressContinue`
-  - `PreCompressMessage`
 
 These hooks are runtime-supported and scaffolded, but remain outside the stable compatibility promise until they are promoted through the audit ledger.
 
@@ -80,7 +71,7 @@ The stable SDK promise covers only:
 - the approved root API
 - approved exported Claude event/response types
 - approved exported Codex event/response types
-- approved exported Gemini stable-subset event/response types and helper constructors
+- approved exported Gemini runtime event/response types and helper constructors
 
 It does not cover:
 
