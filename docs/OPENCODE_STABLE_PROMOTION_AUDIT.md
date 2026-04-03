@@ -14,7 +14,6 @@ Promoted to `public-stable` in the current source tree:
   - `targets/opencode/package.json`
 - supporting authored/rendered contract already in scope with this subset:
   - `targets/opencode/package.yaml`
-  - `targets/opencode/config.extra.json`
   - `targets/opencode/commands/*.md`
   - `targets/opencode/agents/*.md`
   - `targets/opencode/themes/*.json`
@@ -25,7 +24,7 @@ Explicitly **not** promoted in this audit:
 
 - helper-based `custom_tools` beyond the documented beta contract
 - first-class standalone `.opencode/tools/**` beyond its documented beta contract
-- broader OpenCode product config beyond `targets/opencode/config.extra.json`
+- broader OpenCode product config beyond the supported package-standard OpenCode surfaces
 - JS/TS semantic compilation or universal npm dependency-graph validation
 
 ## Stable Boundary

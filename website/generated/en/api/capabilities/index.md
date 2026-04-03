@@ -27,8 +27,6 @@ Capabilities give you a cross-platform view of runtime behavior, not just a pack
 - [`gemini_before_model`](/en/api/capabilities/gemini_before_model)
 - [`gemini_before_tool`](/en/api/capabilities/gemini_before_tool)
 - [`gemini_before_tool_selection`](/en/api/capabilities/gemini_before_tool_selection)
-- [`gemini_notification`](/en/api/capabilities/gemini_notification)
-- [`gemini_pre_compress`](/en/api/capabilities/gemini_pre_compress)
 - [`gemini_session_end`](/en/api/capabilities/gemini_session_end)
 - [`gemini_session_start`](/en/api/capabilities/gemini_session_start)
 - [`notify`](/en/api/capabilities/notify)

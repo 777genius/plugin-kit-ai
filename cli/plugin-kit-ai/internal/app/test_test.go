@@ -103,14 +103,14 @@ func TestPluginServiceTestCodexNotifyReportsGoldenMismatch(t *testing.T) {
 	}
 }
 
-func TestResolveRuntimeTestPlatformGeminiRequestedReturnsBetaGuidance(t *testing.T) {
+func TestResolveRuntimeTestPlatformGeminiRequestedReturnsRuntimeGuidance(t *testing.T) {
 	t.Parallel()
 	_, err := resolveRuntimeTestPlatform([]string{"gemini"}, "gemini")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	for _, want := range []string{
-		"Gemini has a production-ready Go runtime",
+		"Gemini uses its dedicated runtime gate instead",
 		"go test ./...",
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",
@@ -125,13 +125,13 @@ func TestResolveRuntimeTestPlatformGeminiRequestedReturnsBetaGuidance(t *testing
 	}
 }
 
-func TestResolveRuntimeTestPlatformGeminiAutoDetectReturnsBetaGuidance(t *testing.T) {
+func TestResolveRuntimeTestPlatformGeminiAutoDetectReturnsRuntimeGuidance(t *testing.T) {
 	t.Parallel()
 	_, err := resolveRuntimeTestPlatform([]string{"gemini"}, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "Gemini has a production-ready Go runtime") {
+	if !strings.Contains(err.Error(), "Gemini uses its dedicated runtime gate instead") {
 		t.Fatalf("error = %q", err)
 	}
 	for _, want := range []string{

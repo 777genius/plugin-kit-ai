@@ -32,7 +32,6 @@ Local repository sources:
 - `docs/research/claude-code-plugins/README.md`
 - `docs/research/codex-cli-plugins/README.md`
 - `docs/research/gemini-cli-extensions/README.md`
-- `docs/CURSOR_WORKSPACE_LANE_PLAN.md`
 - `examples/plugins/opencode-basic/README.md`
 - `docs/generated/target_support_matrix.md`
 - `cli/plugin-kit-ai/internal/pluginmanifest/manifest.go`

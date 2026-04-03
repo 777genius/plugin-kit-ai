@@ -13,7 +13,6 @@ This example demonstrates the current finished OpenCode workspace/config lane:
 - `targets/opencode/package.json` for shared `.opencode/package.json` dependency metadata used by both standalone tools and plugin code
 - portable `mcp/servers.yaml` for `opencode.json.mcp`
 - portable `skills/` validated against the shared `SKILL.md` contract and mirrored into `.opencode/skills/`
-- `targets/opencode/config.extra.json` for non-managed config passthrough
 - native import compatibility for `opencode.json`, `opencode.jsonc`, project workspace directories, local plugin code/package metadata, and explicit `--include-user-scope`
 
 Plugin specifics in this example:

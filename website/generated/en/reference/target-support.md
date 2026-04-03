@@ -21,7 +21,7 @@ Use this page when you need to quickly see which target is production-ready and 
 | claude | production-ready | stable runtime subset | marketplace or local |
 | codex-package | package lane | official package only | marketplace or local |
 | codex-runtime | runtime lane | stable notify runtime | repo-local |
-| gemini | production-ready stable-subset extension target | packaging, not runtime | copy install |
+| gemini | production-ready extension target | packaging, not runtime | copy install |
 | cursor | packaging-only | workspace-config lane | workspace config |
 | opencode | packaging-only | workspace-config lane | workspace config |
 

@@ -97,14 +97,14 @@ func TestPluginServiceDevWatchRerunsOnFixtureChange(t *testing.T) {
 	}
 }
 
-func TestResolveDevPlatformGeminiRequestedReturnsBetaGuidance(t *testing.T) {
+func TestResolveDevPlatformGeminiRequestedReturnsRuntimeGuidance(t *testing.T) {
 	t.Parallel()
 	_, err := resolveDevPlatform("/unused", "gemini")
 	if err == nil {
 		t.Fatal("expected error")
 	}
 	for _, want := range []string{
-		"Gemini has a production-ready Go runtime",
+		"Gemini uses its dedicated runtime gate instead",
 		"plugin-kit-ai render .",
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",

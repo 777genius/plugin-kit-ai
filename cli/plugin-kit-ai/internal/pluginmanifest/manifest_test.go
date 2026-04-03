@@ -77,7 +77,6 @@ func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
 	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
 version: 1
 
@@ -115,7 +114,6 @@ servers:
 		`"plugin": [`,
 		`"@acme/demo-opencode"`,
 		`"mcp": {`,
-		`"theme": "midnight"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("opencode.json missing %q:\n%s", want, text)
@@ -167,16 +165,6 @@ func TestDrift_IgnoresCRLFDifferencesForTextArtifacts(t *testing.T) {
 	}
 	if len(drift) != 0 {
 		t.Fatalf("drift = %v, want none for newline-only changes", drift)
-	}
-}
-
-func TestRender_OpenCodeRejectsManagedOverridesInConfigExtra(t *testing.T) {
-	root := t.TempDir()
-	manifest := Default("demo", "opencode", "", "demo plugin", false)
-	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "config.extra.json"), `{"plugin":["override"]}`)
-	if _, err := Render(root, "opencode"); err == nil || !strings.Contains(err.Error(), `opencode config.extra.json may not override canonical field "plugin"`) {
-		t.Fatalf("Render error = %v", err)
 	}
 }
 
@@ -291,8 +279,7 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
       "type": "local",
       "command": ["npx", "-y", "@upstash/context7-mcp"]
     }
-  },
-  "theme": "midnight"
+  }
 }`)
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "skills", "demo", "SKILL.md"), "# Demo\n")
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
@@ -311,7 +298,6 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	}
 	for _, rel := range []string{
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("targets", "opencode", "package.json"),
 		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("skills", "demo", "SKILL.md"),
@@ -371,18 +357,8 @@ func TestImport_OpenCodeNormalizesInlineCommandsAndAgents(t *testing.T) {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(body)
-	for _, want := range []string{`"kept"`, `"command"`, `"agent"`} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("config.extra.json missing %q:\n%s", want, text)
-		}
-	}
 	if len(warnings) < 2 {
-		t.Fatalf("warnings = %v, want fidelity warnings for preserved inline command and agent", warnings)
+		t.Fatalf("warnings = %v, want fidelity warnings for skipped inline command and agent", warnings)
 	}
 }
 
@@ -393,8 +369,7 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 
 	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "opencode.jsonc"), `{
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@acme/global-opencode"],
-  "theme": "midnight"
+  "plugin": ["@acme/global-opencode"]
 }`)
 	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
 	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
@@ -413,7 +388,6 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 	}
 	for _, rel := range []string{
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("targets", "opencode", "package.json"),
 		filepath.Join("targets", "opencode", "commands", "ship.md"),
 		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
@@ -443,7 +417,6 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
       "command": ["npx", "-y", "@upstash/context7-mcp",],
     },
   },
-  "theme": "midnight",
 }`)
 
 	imported, warnings, err := Import(root, "opencode", false, false)
@@ -455,7 +428,6 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	}
 	for _, rel := range []string{
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("mcp", "servers.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
@@ -1895,18 +1867,10 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
-	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig, foundToolsConfig, foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
+	var foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
 	var foundLocalPluginCode, foundCustomTools, foundLocalPluginDependencies bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
-		case surface.Kind == "agent_config" && surface.Tier == "passthrough_only":
-			foundAgentConfig = true
-		case surface.Kind == "permission_config" && surface.Tier == "passthrough_only":
-			foundPermissionConfig = true
-		case surface.Kind == "instructions_config" && surface.Tier == "passthrough_only":
-			foundInstructionsConfig = true
-		case surface.Kind == "tools_config" && surface.Tier == "passthrough_only":
-			foundToolsConfig = true
 		case surface.Kind == "commands" && surface.Tier == "stable":
 			foundCommands = true
 		case surface.Kind == "agents" && surface.Tier == "stable":
@@ -1925,7 +1889,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundLocalPluginDependencies = true
 		}
 	}
-	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundToolsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
+	if !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }

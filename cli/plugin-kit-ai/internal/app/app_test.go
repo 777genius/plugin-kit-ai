@@ -427,7 +427,6 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 		"plugin.yaml",
 		filepath.Join("mcp", "servers.yaml"),
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("targets", "opencode", "package.json"),
 		filepath.Join("targets", "opencode", "commands", "genplug.md"),
 		filepath.Join("targets", "opencode", "agents", "genplug.md"),

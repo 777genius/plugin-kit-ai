@@ -7,12 +7,12 @@ section: "api"
 locale: "ru"
 generated: true
 editLink: false
-stability: "public-beta"
-maturity: "beta"
+stability: "public-stable"
+maturity: "stable"
 sourceRef: "docs/generated/support_matrix.md"
 translationRequired: false
 ---
-<DocMetaCard surface="platform-events" stability="public-beta" maturity="beta" source-ref="docs/generated/support_matrix.md" source-href="https://github.com/777genius/plugin-kit-ai/blob/main/docs/generated/support_matrix.md" />
+<DocMetaCard surface="platform-events" stability="public-stable" maturity="stable" source-ref="docs/generated/support_matrix.md" source-href="https://github.com/777genius/plugin-kit-ai/blob/main/docs/generated/support_matrix.md" />
 
 # gemini
 
@@ -20,8 +20,6 @@ translationRequired: false
 | --- | --- | --- | --- |
 | SessionStart | stable | готово для production | Gemini SessionStart stable hook |
 | SessionEnd | stable | готово для production | Gemini SessionEnd stable hook |
-| Notification | beta | runtime поддерживается, но ещё не stable | Gemini Notification beta hook |
-| PreCompress | beta | runtime поддерживается, но ещё не stable | Gemini PreCompress beta hook |
 | BeforeModel | stable | готово для production | Gemini BeforeModel stable hook |
 | AfterModel | stable | готово для production | Gemini AfterModel stable hook |
 | BeforeToolSelection | stable | готово для production | Gemini BeforeToolSelection stable hook |

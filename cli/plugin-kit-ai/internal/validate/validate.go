@@ -173,6 +173,19 @@ func validatePluginProject(root, platform string) (Report, error) {
 		}
 	}
 	for _, targetName := range manifest.EnabledTargets() {
+		if rule, ok := LookupRule(targetName); ok {
+			for _, rel := range rule.ForbiddenFiles {
+				if !fileExists(filepath.Join(root, rel)) {
+					continue
+				}
+				report.Failures = append(report.Failures, Failure{
+					Kind:    FailureForbiddenFilePresent,
+					Path:    rel,
+					Target:  targetName,
+					Message: fmt.Sprintf("target %s forbids %s", targetName, rel),
+				})
+			}
+		}
 		entry, ok := targetcontracts.Lookup(targetName)
 		if !ok {
 			continue

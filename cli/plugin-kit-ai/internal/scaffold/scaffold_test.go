@@ -59,7 +59,6 @@ func TestPaths_OpenCode(t *testing.T) {
 	for _, want := range []string{
 		"plugin.yaml",
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
@@ -263,7 +262,6 @@ func TestPathsForRuntime_OpenCodeIgnoresExecutableScaffolding(t *testing.T) {
 	for _, want := range []string{
 		"plugin.yaml",
 		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
@@ -438,7 +436,6 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"launcher.yaml",
-		filepath.Join("targets", "opencode", "config.extra.json"),
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
@@ -1287,7 +1284,6 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai validate . --platform opencode --strict",
 				"`mcp/servers.yaml`",
 				"`targets/opencode/package.yaml`",
-				"`targets/opencode/config.extra.json`",
 				"`targets/opencode/commands/`",
 				"`targets/opencode/agents/`",
 				"`targets/opencode/themes/`",

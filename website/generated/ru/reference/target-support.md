@@ -21,7 +21,7 @@ translationRequired: false
 | claude | готово для production | стабильный поднабор runtime | marketplace или локально |
 | codex-package | package-вариант для production | только официальный пакет | marketplace или локально |
 | codex-runtime | runtime-вариант для production | стабильный notify-runtime | локально в репозитории |
-| gemini | production-ready stable-subset extension target | упаковка, не runtime | установка копированием |
+| gemini | production-ready extension target | упаковка, не runtime | установка копированием |
 | cursor | только упаковка | workspace-config вариант | конфигурация workspace |
 | opencode | только упаковка | workspace-config вариант | конфигурация workspace |
 

@@ -39,6 +39,7 @@ func RenderArtifacts() ([]Artifact, error) {
 		Artifact{Path: "cli/plugin-kit-ai/internal/scaffold/platforms_gen.go", Content: mustGo(renderScaffoldPlatforms(m))},
 		Artifact{Path: "cli/plugin-kit-ai/internal/validate/rules_gen.go", Content: mustGo(renderValidateRules(m))},
 		Artifact{Path: "docs/generated/support_matrix.md", Content: []byte(renderSupportMatrix(m))},
+		Artifact{Path: "docs/generated/target_support_matrix.md", Content: []byte(renderTargetSupportMatrix(m))},
 	)
 	for _, p := range runtimeProfiles(m) {
 		artifacts = append(artifacts, Artifact{
@@ -421,6 +422,35 @@ func renderSupportMatrix(m model) string {
 	return b.String()
 }
 
+func renderTargetSupportMatrix(m model) string {
+	var b strings.Builder
+	b.WriteString("# Target Support Matrix\n\n")
+	b.WriteString("| Target | Platform Family | Target Class | Launcher | Target Noun | Install Model | Dev Model | Activation Model | Native Root | Production Class | Runtime Contract | Import | Render | Validate | Portable Components | Target-native Components | Surface Tiers | Managed Artifacts | Summary |\n")
+	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
+	for _, profile := range scaffoldTargetProfiles(m) {
+		b.WriteString("| " + profile.ID + " | " +
+			string(profile.Contract.PlatformFamily) + " | " +
+			profile.Contract.TargetClass + " | " +
+			string(profile.Launcher.Requirement) + " | " +
+			profile.Contract.TargetNoun + " | " +
+			profile.Contract.InstallModel + " | " +
+			profile.Contract.DevModel + " | " +
+			profile.Contract.ActivationModel + " | " +
+			profile.Contract.NativeRoot + " | " +
+			profile.Contract.ProductionClass + " | " +
+			profile.Contract.RuntimeContract + " | " +
+			boolString(profile.Contract.ImportSupport) + " | " +
+			boolString(profile.Contract.RenderSupport) + " | " +
+			boolString(profile.Contract.ValidateSupport) + " | " +
+			joinStrings(profile.Contract.PortableComponentKinds) + " | " +
+			joinStrings(profile.Contract.TargetComponentKinds) + " | " +
+			joinSurfaceSupport(profile.SurfaceTiers) + " | " +
+			joinManagedArtifacts(profile) + " | " +
+			profile.Contract.Summary + " |\n")
+	}
+	return b.String()
+}
+
 func contractClass(p defs.PlatformProfile, e defs.EventDescriptor) string {
 	if p.Status == runtime.StatusRuntimeSupported {
 		switch e.Contract.Maturity {
@@ -518,6 +548,64 @@ func joinCapabilities(in []runtime.CapabilityID) string {
 		out = append(out, string(cap))
 	}
 	return strings.Join(out, ", ")
+}
+
+func boolString(v bool) string {
+	if v {
+		return "yes"
+	}
+	return "no"
+}
+
+func joinStrings(items []string) string {
+	if len(items) == 0 {
+		return "-"
+	}
+	return strings.Join(items, ", ")
+}
+
+func joinSurfaceSupport(items []platformmeta.SurfaceSupport) string {
+	if len(items) == 0 {
+		return "-"
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Kind+"="+string(item.Tier))
+	}
+	return strings.Join(out, ", ")
+}
+
+func joinManagedArtifacts(profile platformmeta.PlatformProfile) string {
+	if len(profile.ManagedArtifacts) == 0 {
+		return "-"
+	}
+	out := make([]string, 0, len(profile.ManagedArtifacts))
+	for _, item := range profile.ManagedArtifacts {
+		switch item.Kind {
+		case platformmeta.ManagedArtifactStatic, platformmeta.ManagedArtifactPortableMCP:
+			out = append(out, item.Path)
+		case platformmeta.ManagedArtifactPortableSkills:
+			out = append(out, item.OutputRoot+"/**")
+		case platformmeta.ManagedArtifactMirror:
+			if item.OutputRoot != "" {
+				out = append(out, item.OutputRoot+"/**")
+				continue
+			}
+			docPath := ""
+			for _, doc := range profile.NativeDocs {
+				if doc.Kind == item.ComponentKind {
+					docPath = doc.Path
+					break
+				}
+			}
+			if strings.TrimSpace(docPath) != "" {
+				out = append(out, filepath.Base(docPath))
+			}
+		case platformmeta.ManagedArtifactSelectedContext:
+			out = append(out, "GEMINI.md or selected root context")
+		}
+	}
+	return joinStrings(out)
 }
 
 func joinTransportModes(in []runtime.TransportMode) string {

@@ -154,44 +154,6 @@
   {
     "relatedIds": [],
     "searchTerms": [
-      "gemini_notification"
-    ],
-    "publicVisibility": "public",
-    "canonicalId": "capability:gemini_notification",
-    "kind": "capability",
-    "surface": "capabilities",
-    "localeStrategy": "mirrored",
-    "title": "gemini_notification",
-    "summary": "Capability gemini_notification",
-    "stability": "public-beta",
-    "maturity": "beta",
-    "sourceKind": "support-export",
-    "sourceRef": "docs/generated/support_matrix.md",
-    "pathEn": "/en/api/capabilities/gemini_notification",
-    "pathRu": "/ru/api/capabilities/gemini_notification"
-  },
-  {
-    "relatedIds": [],
-    "searchTerms": [
-      "gemini_pre_compress"
-    ],
-    "publicVisibility": "public",
-    "canonicalId": "capability:gemini_pre_compress",
-    "kind": "capability",
-    "surface": "capabilities",
-    "localeStrategy": "mirrored",
-    "title": "gemini_pre_compress",
-    "summary": "Capability gemini_pre_compress",
-    "stability": "public-beta",
-    "maturity": "beta",
-    "sourceKind": "support-export",
-    "sourceRef": "docs/generated/support_matrix.md",
-    "pathEn": "/en/api/capabilities/gemini_pre_compress",
-    "pathRu": "/ru/api/capabilities/gemini_pre_compress"
-  },
-  {
-    "relatedIds": [],
-    "searchTerms": [
       "gemini_session_end"
     ],
     "publicVisibility": "public",
@@ -1221,8 +1183,6 @@
       "gemini",
       "SessionStart",
       "SessionEnd",
-      "Notification",
-      "PreCompress",
       "BeforeModel",
       "AfterModel",
       "BeforeToolSelection",
@@ -1238,8 +1198,8 @@
     "localeStrategy": "mirrored",
     "title": "gemini",
     "summary": "gemini event surface",
-    "stability": "public-beta",
-    "maturity": "beta",
+    "stability": "public-stable",
+    "maturity": "stable",
     "sourceKind": "support-export",
     "sourceRef": "docs/generated/support_matrix.md",
     "pathEn": "/en/api/platform-events/gemini",

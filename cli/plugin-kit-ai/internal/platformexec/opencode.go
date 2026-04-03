@@ -3,6 +3,7 @@ package platformexec
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,7 +21,6 @@ type opencodeImportedState struct {
 	plugins         []string
 	pluginsProvided bool
 	mcp             map[string]any
-	extra           map[string]any
 	artifacts       map[string]pluginmodel.Artifact
 	warnings        []pluginmodel.Warning
 	hasInput        bool
@@ -61,7 +61,6 @@ func (opencodeAdapter) RefineDiscovery(root string, state *pluginmodel.TargetSta
 
 func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) {
 	state := opencodeImportedState{
-		extra:     map[string]any{},
 		artifacts: map[string]pluginmodel.Artifact{},
 	}
 
@@ -105,12 +104,6 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 		}
 		artifacts = append(artifacts, artifact)
 	}
-	if len(state.extra) > 0 {
-		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "opencode", "config.extra.json"),
-			Content: mustJSON(state.extra),
-		})
-	}
 	for _, rel := range sortedArtifactKeys(state.artifacts) {
 		artifacts = append(artifacts, state.artifacts[rel])
 	}
@@ -133,14 +126,6 @@ func (opencodeAdapter) Render(root string, graph pluginmodel.PackageGraph, state
 		}
 		meta.Plugins[i] = strings.TrimSpace(plugin)
 	}
-	extra, err := loadNativeExtraDoc(root, state, "config_extra", pluginmodel.NativeDocFormatJSON)
-	if err != nil {
-		return nil, err
-	}
-	managedPaths := []string{"$schema", "plugin", "mcp"}
-	if err := pluginmodel.ValidateNativeExtraDocConflicts(extra, "opencode config.extra.json", managedPaths); err != nil {
-		return nil, err
-	}
 	doc := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 	}
@@ -153,9 +138,6 @@ func (opencodeAdapter) Render(root string, graph pluginmodel.PackageGraph, state
 			return nil, err
 		}
 		doc["mcp"] = projected
-	}
-	if err := pluginmodel.MergeNativeExtraObject(doc, extra, "opencode config.extra.json", managedPaths); err != nil {
-		return nil, err
 	}
 	body, err := marshalJSON(doc)
 	if err != nil {
@@ -359,16 +341,27 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 		state.addArtifacts(commandArtifacts...)
 		state.addArtifacts(agentArtifacts...)
 		if len(remainingCommands) > 0 {
-			if importedConfig.Extra == nil {
-				importedConfig.Extra = map[string]any{}
-			}
-			importedConfig.Extra["command"] = remainingCommands
+			state.warnings = append(state.warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    configDisplayPath,
+				Message: fmt.Sprintf("skipped %d unsupported inline OpenCode command entries because config passthrough was removed", len(remainingCommands)),
+			})
 		}
 		if len(remainingAgents) > 0 {
-			if importedConfig.Extra == nil {
-				importedConfig.Extra = map[string]any{}
+			state.warnings = append(state.warnings, pluginmodel.Warning{
+				Kind:    pluginmodel.WarningFidelity,
+				Path:    configDisplayPath,
+				Message: fmt.Sprintf("skipped %d unsupported inline OpenCode agent entries because config passthrough was removed", len(remainingAgents)),
+			})
+		}
+		if len(importedConfig.Extra) > 0 {
+			for _, key := range slices.Sorted(maps.Keys(importedConfig.Extra)) {
+				state.warnings = append(state.warnings, pluginmodel.Warning{
+					Kind:    pluginmodel.WarningFidelity,
+					Path:    configDisplayPath,
+					Message: fmt.Sprintf("skipped unsupported OpenCode config field %q because config passthrough was removed", key),
+				})
 			}
-			importedConfig.Extra["agent"] = remainingAgents
 		}
 		state.mergeConfig(importedConfig)
 		state.hasInput = true
@@ -495,9 +488,6 @@ func (s *opencodeImportedState) mergeConfig(config importedOpenCodeConfig) {
 		}
 		mergeOpenCodeObject(s.mcp, config.MCP)
 	}
-	if len(config.Extra) > 0 {
-		mergeOpenCodeObject(s.extra, config.Extra)
-	}
 }
 
 func readImportedOpenCodeConfigFromDir(root string, displayBase string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {
@@ -546,7 +536,7 @@ func importedOpenCodeInlineMarkdownArtifacts(field string, raw map[string]any, c
 			warnings = append(warnings, pluginmodel.Warning{
 				Kind:    pluginmodel.WarningFidelity,
 				Path:    configPath,
-				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because it is not representable as targets/opencode/%s/*.md", field, name, dstKind),
+				Message: fmt.Sprintf("skipped OpenCode inline %s %q because it is not representable as targets/opencode/%s/*.md and config passthrough was removed", field, name, dstKind),
 			})
 			continue
 		}
@@ -556,7 +546,7 @@ func importedOpenCodeInlineMarkdownArtifacts(field string, raw map[string]any, c
 			warnings = append(warnings, pluginmodel.Warning{
 				Kind:    pluginmodel.WarningFidelity,
 				Path:    configPath,
-				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because it is not representable as targets/opencode/%s/*.md", field, name, dstKind),
+				Message: fmt.Sprintf("skipped OpenCode inline %s %q because it is not representable as targets/opencode/%s/*.md and config passthrough was removed", field, name, dstKind),
 			})
 			continue
 		}
@@ -566,7 +556,7 @@ func importedOpenCodeInlineMarkdownArtifacts(field string, raw map[string]any, c
 			warnings = append(warnings, pluginmodel.Warning{
 				Kind:    pluginmodel.WarningFidelity,
 				Path:    configPath,
-				Message: fmt.Sprintf("preserved OpenCode inline %s %q in targets/opencode/config.extra.json because its name cannot be normalized into a canonical markdown file path", field, name),
+				Message: fmt.Sprintf("skipped OpenCode inline %s %q because its name cannot be normalized into a canonical markdown file path and config passthrough was removed", field, name),
 			})
 			continue
 		}

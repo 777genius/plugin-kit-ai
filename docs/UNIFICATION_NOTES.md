@@ -9,7 +9,6 @@ This document records the current conclusions about what is worth unifying acros
 - `docs/research/claude-code-plugins/README.md`
 - `docs/research/codex-cli-plugins/README.md`
 - `docs/research/gemini-cli-extensions/README.md`
-- `docs/CURSOR_WORKSPACE_LANE_PLAN.md`
 - `examples/plugins/opencode-basic/README.md`
 - `docs/SUPPORT.md`
 - `docs/generated/target_support_matrix.md`

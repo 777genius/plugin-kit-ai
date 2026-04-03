@@ -135,9 +135,6 @@ func resolveDevPlatform(root, requested string) (string, error) {
 	enabledTargets := graph.Manifest.EnabledTargets()
 	platform, err := resolveRuntimeTestPlatform(enabledTargets, "")
 	if err != nil {
-		if strings.Contains(err.Error(), "Gemini's Go hook lane is public-beta") {
-			return "", runtimeDevUnsupportedPlatformError(enabledTargets, "")
-		}
 		return "", err
 	}
 	return platform, nil

@@ -551,14 +551,6 @@
           "link": "/ru/api/capabilities/gemini_before_tool_selection"
         },
         {
-          "text": "gemini_notification",
-          "link": "/ru/api/capabilities/gemini_notification"
-        },
-        {
-          "text": "gemini_pre_compress",
-          "link": "/ru/api/capabilities/gemini_pre_compress"
-        },
-        {
           "text": "gemini_session_end",
           "link": "/ru/api/capabilities/gemini_session_end"
         },

@@ -27,8 +27,6 @@ Capabilities показывают поведение runtime поперёк пл
 - [`gemini_before_model`](/ru/api/capabilities/gemini_before_model)
 - [`gemini_before_tool`](/ru/api/capabilities/gemini_before_tool)
 - [`gemini_before_tool_selection`](/ru/api/capabilities/gemini_before_tool_selection)
-- [`gemini_notification`](/ru/api/capabilities/gemini_notification)
-- [`gemini_pre_compress`](/ru/api/capabilities/gemini_pre_compress)
 - [`gemini_session_end`](/ru/api/capabilities/gemini_session_end)
 - [`gemini_session_start`](/ru/api/capabilities/gemini_session_start)
 - [`notify`](/ru/api/capabilities/notify)
