@@ -24,7 +24,7 @@ Generated from the public Go package via gomarkdoc.
 import "github.com/777genius/plugin-kit-ai/sdk"
 ```
 
-Package pluginkitai exposes the public root SDK for building plugin\-kit\-ai runtime binaries with typed Claude and Codex registrars.
+Package pluginkitai exposes the public root SDK for building plugin\-kit\-ai runtime binaries with typed Claude, Codex, and Gemini registrars.
 
 ## Index
 
@@ -32,6 +32,7 @@ Package pluginkitai exposes the public root SDK for building plugin\-kit\-ai run
   - func New\(cfg Config\) \*App
   - func \(a \*App\) Claude\(\) \*claude.Registrar
   - func \(a \*App\) Codex\(\) \*codex.Registrar
+  - func \(a \*App\) Gemini\(\) \*gemini.Registrar
   - func \(a \*App\) Run\(\) int
   - func \(a \*App\) RunContext\(ctx context.Context\) int
   - func \(a \*App\) Use\(mw Middleware\)
@@ -123,6 +124,35 @@ func main() {
 	app := pluginkitai.New(pluginkitai.Config{Name: "demo"})
 	app.Codex().OnNotify(func(*codex.NotifyEvent) *codex.Response {
 		return codex.Continue()
+	})
+	_ = app
+}
+```
+
+
+### func \(\*App\) Gemini
+
+```go
+func (a *App) Gemini() *gemini.Registrar
+```
+
+Gemini returns a registrar for Gemini\-specific hook handlers.
+
+
+**Example**
+
+```go
+package main
+
+import (
+	pluginkitai "github.com/777genius/plugin-kit-ai/sdk"
+	"github.com/777genius/plugin-kit-ai/sdk/gemini"
+)
+
+func main() {
+	app := pluginkitai.New(pluginkitai.Config{Name: "demo"})
+	app.Gemini().OnBeforeTool(func(*gemini.BeforeToolEvent) *gemini.BeforeToolResponse {
+		return nil
 	})
 	_ = app
 }

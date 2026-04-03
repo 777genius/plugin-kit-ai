@@ -1,4 +1,4 @@
-name: Docs Pages
+name: Pages
 
 on:
   push:
@@ -17,9 +17,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,28 +29,37 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22.21.1"
-          cache: pnpm
-          cache-dependency-path: website/pnpm-lock.yaml
 
       - uses: actions/setup-go@v6
         with:
           go-version: "1.23.x"
           cache: false
 
-      - name: Install docs toolchain
+      - name: Install landing toolchain
         run: pnpm install --frozen-lockfile
 
-      - name: Build public docs
+      - name: Install docs toolchain
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Build landing
+        run: pnpm generate
+
+      - name: Build public docs under /docs
         env:
-          DOCS_BASE_PATH: /plugin-kit-ai/
+          DOCS_BASE_PATH: /plugin-kit-ai/docs/
           DOCS_HOSTNAME: https://777genius.github.io
+        working-directory: website
         run: pnpm run docs:build
+
+      - name: Assemble GitHub Pages artifact
+        run: pnpm run build:pages
 
       - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: website/dist
+          path: .pages-dist
 
   deploy:
     environment:

@@ -25,7 +25,7 @@ export const useDocsLinks = () => {
 
   const docsUrl = computed(() =>
     replaceDocsLocale(
-      config.public.docsUrl || "https://777genius.github.io/plugin-kit-ai/en/",
+      config.public.docsUrl || "https://777genius.github.io/plugin-kit-ai/docs/en/",
       currentLocale.value
     )
   );
@@ -33,14 +33,14 @@ export const useDocsLinks = () => {
   const quickstartUrl = computed(() =>
     replaceDocsLocale(
       config.public.quickstartUrl ||
-        "https://777genius.github.io/plugin-kit-ai/en/guide/quickstart.html",
+        "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html",
       currentLocale.value
     )
   );
 
   const supportBoundaryUrl = computed(() =>
     replaceDocsLocale(
-      "https://777genius.github.io/plugin-kit-ai/en/reference/support-boundary.html",
+      "https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html",
       currentLocale.value
     )
   );

@@ -223,7 +223,7 @@
       "id": "docs",
       "title": "Docs quickstart",
       "description": "Jump straight into the quickstart and the broader docs site.",
-      "href": "https://777genius.github.io/plugin-kit-ai/en/guide/quickstart.html",
+      "href": "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html",
       "note": "Best next step once the CLI is installed.",
       "command": "plugin-kit-ai init my-plugin"
     }

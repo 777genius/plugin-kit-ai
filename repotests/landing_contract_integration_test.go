@@ -29,6 +29,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, docsLinks, `const docsLocalePattern = /\/(en|ru)(?=\/|$)/;`)
 	mustContain(t, docsLinks, `locale.value === "ru" ? "ru" : "en"`)
 	mustContain(t, docsLinks, `supportBoundaryUrl`)
+	mustContain(t, docsLinks, `https://777genius.github.io/plugin-kit-ai/docs/en/`)
 
 	releaseComposableBody, err := os.ReadFile(filepath.Join(root, "composables", "useReleaseDownloads.ts"))
 	if err != nil {
@@ -64,12 +65,20 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, seo, `https://777genius.github.io/plugin-kit-ai`)
 	mustNotContain(t, seo, `hookplex.dev`)
 
+	nuxtConfigBody, err := os.ReadFile(filepath.Join(root, "nuxt.config.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	nuxtConfig := string(nuxtConfigBody)
+	mustContain(t, nuxtConfig, `https://777genius.github.io/plugin-kit-ai/docs/en/`)
+	mustContain(t, nuxtConfig, `https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml`)
+
 	ruContentBody, err := os.ReadFile(filepath.Join(root, "content", "ru.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ruContent := string(ruContentBody)
-	mustContain(t, ruContent, `https://777genius.github.io/plugin-kit-ai/ru/guide/quickstart.html`)
+	mustContain(t, ruContent, `https://777genius.github.io/plugin-kit-ai/docs/ru/guide/quickstart.html`)
 	mustNotContain(t, ruContent, `"testimonials"`)
 	mustContain(t, ruContent, `"title": "Проверяемый установочный скрипт"`)
 	mustContain(t, ruContent, `"status": "Публичная бета"`)
@@ -126,6 +135,13 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, download, `navigator.clipboard?.writeText`)
 	mustContain(t, download, `download.copy`)
 	mustContain(t, download, `download.copied`)
+
+	robotsBody, err := os.ReadFile(filepath.Join(root, "server", "routes", "robots.txt.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	robots := string(robotsBody)
+	mustContain(t, robots, `https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml`)
 
 	logoBody, err := os.ReadFile(filepath.Join(root, "components", "common", "AppLogo.vue"))
 	if err != nil {

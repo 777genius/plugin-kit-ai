@@ -14,7 +14,7 @@ Decision:
   - pydoc-markdown for `plugin-kit-ai-runtime`
   - repo-native descriptor exports for events, capabilities, and support summaries
 - Normalize generator output into a unified registry and deterministic markdown tree before the VitePress build.
-- Publish bilingual public docs under `/en/` and `/ru/`, with `/` reserved for a noindex language gateway.
+- Publish bilingual public docs under `/docs/en/` and `/docs/ru/`, with `/docs/` reserved for a noindex language gateway.
 
 Consequences:
 

@@ -7,8 +7,11 @@ declare const process: any;
 const siteUrl = process.env.NUXT_PUBLIC_SITE_URL || "https://777genius.github.io/plugin-kit-ai";
 const githubRepo = process.env.NUXT_PUBLIC_GITHUB_REPO || "777genius/plugin-kit-ai";
 const githubReleasesUrl = `https://github.com/${githubRepo}/releases`;
-const docsUrl = process.env.NUXT_PUBLIC_DOCS_URL || "https://777genius.github.io/plugin-kit-ai/en/";
-const quickstartUrl = process.env.NUXT_PUBLIC_QUICKSTART_URL || "https://777genius.github.io/plugin-kit-ai/en/guide/quickstart.html";
+const docsUrl = process.env.NUXT_PUBLIC_DOCS_URL || "https://777genius.github.io/plugin-kit-ai/docs/en/";
+const quickstartUrl =
+  process.env.NUXT_PUBLIC_QUICKSTART_URL || "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html";
+const docsSitemapUrl =
+  process.env.NUXT_PUBLIC_DOCS_SITEMAP_URL || "https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml";
 const baseURL = process.env.NUXT_APP_BASE_URL || "/";
 
 export default defineNuxtConfig({
@@ -99,7 +102,8 @@ export default defineNuxtConfig({
       githubRepo,
       githubReleasesUrl,
       docsUrl,
-      quickstartUrl
+      quickstartUrl,
+      docsSitemapUrl
     }
   }
 });

@@ -7,6 +7,7 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "generate": "nuxt generate",
+    "build:pages": "node ./scripts/build-pages-artifact.mjs",
     "preview": "nuxt preview",
     "lint": "eslint \"app.vue\" \"error.vue\" \"components/**/*.{vue,ts}\" \"composables/**/*.{ts,js}\" \"data/**/*.{ts,js}\" \"layouts/**/*.vue\" \"pages/**/*.vue\" \"plugins/**/*.{ts,js}\" \"server/**/*.{ts,js}\" \"stores/**/*.{ts,js}\" \"types/**/*.ts\" \"utils/**/*.{ts,js}\" \"nuxt.config.ts\" --no-error-on-unmatched-pattern",
     "lint:fix": "pnpm run lint -- --fix",

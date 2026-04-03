@@ -223,7 +223,7 @@
       "id": "docs",
       "title": "Быстрый старт в документации",
       "description": "Перейдите сразу к быстрому старту и в полную документацию.",
-      "href": "https://777genius.github.io/plugin-kit-ai/ru/guide/quickstart.html",
+      "href": "https://777genius.github.io/plugin-kit-ai/docs/ru/guide/quickstart.html",
       "note": "Лучший следующий шаг после установки CLI.",
       "command": "plugin-kit-ai init my-plugin"
     }
