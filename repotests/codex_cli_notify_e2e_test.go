@@ -3,6 +3,7 @@ package pluginkitairepo_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -126,6 +127,56 @@ func TestCodexPackageExecUsesRenderedSidecarMCP(t *testing.T) {
 
 	runCodexExecWithPortableMCP(t, codexBin, workDir, marker, *codexModel, mcpBin)
 	assertPortableMCPMarker(t, marker, "tools/call", "release_checks", "CODEX_PORTABLE_MCP_OK")
+}
+
+func TestCodexPackageProductionExampleMCPGetUsesRenderedSidecar(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	workDir := newRenderedCodexPackageExampleWorkspace(t, pluginKitAIBin)
+	server := readRenderedSharedMCPServer(t, workDir, "docs")
+	configArgs := codexMCPConfigArgsFromRenderedServer(t, "docs", server)
+
+	out := runCodexMCPGetWithArgs(t, codexBin, "docs", configArgs...)
+	if !strings.Contains(out, `"name":"docs"`) && !strings.Contains(out, `"name": "docs"`) {
+		t.Fatalf("codex mcp get output missing docs server name:\n%s", out)
+	}
+	if !strings.Contains(out, `"type":"streamable_http"`) && !strings.Contains(out, `"type": "streamable_http"`) {
+		t.Fatalf("codex mcp get output missing streamable_http transport:\n%s", out)
+	}
+	if !strings.Contains(out, `"url":"https://example.com/mcp"`) && !strings.Contains(out, `"url": "https://example.com/mcp"`) {
+		t.Fatalf("codex mcp get output missing production example MCP URL:\n%s", out)
+	}
+}
+
+func TestCodexPackageProductionExampleMCPListUsesRenderedSidecar(t *testing.T) {
+	codexBin := codexBinaryOrSkip(t)
+	pluginKitAIBin := buildPluginKitAI(t)
+	workDir := newRenderedCodexPackageExampleWorkspace(t, pluginKitAIBin)
+	server := readRenderedSharedMCPServer(t, workDir, "docs")
+	configArgs := codexMCPConfigArgsFromRenderedServer(t, "docs", server)
+
+	out := runCodexMCPListWithArgs(t, codexBin, configArgs...)
+	var entries []map[string]any
+	if err := json.Unmarshal([]byte(out), &entries); err != nil {
+		t.Fatalf("parse codex mcp list output: %v\n%s", err, out)
+	}
+	for _, entry := range entries {
+		if strings.TrimSpace(fmt.Sprint(entry["name"])) != "docs" {
+			continue
+		}
+		transport, ok := entry["transport"].(map[string]any)
+		if !ok {
+			t.Fatalf("codex mcp list docs entry missing transport:\n%s", out)
+		}
+		if strings.TrimSpace(fmt.Sprint(transport["type"])) != "streamable_http" {
+			t.Fatalf("codex mcp list docs transport type = %q want %q\n%s", transport["type"], "streamable_http", out)
+		}
+		if strings.TrimSpace(fmt.Sprint(transport["url"])) != "https://example.com/mcp" {
+			t.Fatalf("codex mcp list docs transport url = %q want %q\n%s", transport["url"], "https://example.com/mcp", out)
+		}
+		return
+	}
+	t.Fatalf("codex mcp list output missing docs server:\n%s", out)
 }
 
 func codexBinaryOrSkip(t *testing.T) string {
@@ -265,6 +316,17 @@ servers:
 `, filepath.ToSlash(mcpBin)))
 
 	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir, "--check"))
+	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", dir, "--platform", "codex-package", "--strict"))
+	return dir
+}
+
+func newRenderedCodexPackageExampleWorkspace(t *testing.T, pluginKitAIBin string) string {
+	t.Helper()
+	root := RepoRoot(t)
+	src := filepath.Join(root, "examples", "plugins", "codex-package-prod")
+	dir := filepath.Join(t.TempDir(), "codex-package-prod")
+	copyTree(t, src, dir)
 	runCmd(t, root, exec.Command(pluginKitAIBin, "render", dir, "--check"))
 	runCmd(t, root, exec.Command(pluginKitAIBin, "validate", dir, "--platform", "codex-package", "--strict"))
 	return dir
@@ -430,6 +492,40 @@ func runCodexMCPGetWithArgs(t *testing.T, codexBin, serverName string, configArg
 		t.Fatalf("codex mcp get %s: %v\n%s", serverName, err, out)
 	}
 	return string(out)
+}
+
+func runCodexMCPListWithArgs(t *testing.T, codexBin string, configArgs ...string) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	args := []string{"mcp", "list", "--json"}
+	args = append(args, configArgs...)
+	cmd := exec.CommandContext(ctx, codexBin, args...)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("codex mcp list timed out:\n%s", out)
+	}
+	if err != nil {
+		t.Fatalf("codex mcp list: %v\n%s", err, out)
+	}
+	return string(out)
+}
+
+func codexMCPConfigArgsFromRenderedServer(t *testing.T, name string, server map[string]any) []string {
+	t.Helper()
+	switch strings.TrimSpace(fmt.Sprint(server["type"])) {
+	case "http":
+		url := strings.TrimSpace(fmt.Sprint(server["url"]))
+		if url == "" {
+			t.Fatalf("rendered MCP server %q missing url: %#v", name, server)
+		}
+		return []string{"-c", fmt.Sprintf(`mcp_servers.%s.url=%q`, name, url)}
+	case "stdio":
+		return codexMCPConfigArgs(name, server)
+	default:
+		t.Fatalf("unsupported rendered MCP server type %q for %s: %#v", server["type"], name, server)
+		return nil
+	}
 }
 
 func waitForCodexInvariants(t *testing.T, traceFile, outputFile string, waitCh <-chan error) error {
