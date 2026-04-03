@@ -15,7 +15,7 @@ type cursorAdapter struct{}
 func (cursorAdapter) ID() string { return "cursor" }
 
 func (cursorAdapter) DetectNative(root string) bool {
-	if fileExists(filepath.Join(root, ".cursor", "mcp.json")) || fileExists(filepath.Join(root, ".cursorrules")) {
+	if fileExists(filepath.Join(root, ".cursor", "mcp.json")) {
 		return true
 	}
 	return len(discoverFiles(root, filepath.Join(".cursor", "rules"), nil)) > 0
@@ -61,21 +61,6 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		hasCursorState = true
 	}
 
-	if body, err := os.ReadFile(filepath.Join(root, ".cursorrules")); err == nil {
-		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "cursor", "rules", "legacy.mdc"),
-			Content: renderLegacyCursorRule(body),
-		})
-		result.Warnings = append(result.Warnings, pluginmodel.Warning{
-			Kind:    pluginmodel.WarningFidelity,
-			Path:    ".cursorrules",
-			Message: "normalized legacy .cursorrules into targets/cursor/rules/legacy.mdc during import",
-		})
-		hasCursorState = true
-	} else if !os.IsNotExist(err) {
-		return ImportResult{}, err
-	}
-
 	if body, err := os.ReadFile(filepath.Join(root, "AGENTS.md")); err == nil {
 		if seed.Explicit || hasCursorState {
 			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
@@ -89,7 +74,7 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 
 	if !hasCursorState {
-		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json, .cursor/rules/**, .cursorrules, or explicit --from cursor with root AGENTS.md")
+		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json, .cursor/rules/**, or explicit --from cursor with root AGENTS.md")
 	}
 	result.Artifacts = compactArtifacts(result.Artifacts)
 	return result, nil
@@ -189,19 +174,6 @@ func importCursorRuleArtifacts(root string) ([]pluginmodel.Artifact, error) {
 	}
 	slices.SortFunc(artifacts, func(a, b pluginmodel.Artifact) int { return strings.Compare(a.RelPath, b.RelPath) })
 	return artifacts, nil
-}
-
-func renderLegacyCursorRule(body []byte) []byte {
-	text := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(string(body), "\r\n", "\n"), "\r", "\n"))
-	rendered := "---\n" +
-		"description: Imported from legacy .cursorrules\n" +
-		"globs:\n" +
-		"alwaysApply: true\n" +
-		"---\n\n"
-	if text != "" {
-		rendered += text + "\n"
-	}
-	return []byte(rendered)
 }
 
 func validateCursorRuleFiles(root string, rels []string) []Diagnostic {

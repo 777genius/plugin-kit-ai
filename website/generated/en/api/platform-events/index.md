@@ -20,4 +20,5 @@ This area shows event surfaces by platform and helps you separate the stable lan
 - Use `Capabilities` when you want a cross-platform view instead of a platform-first view.
 
 - [`claude`](/en/api/platform-events/claude)
+- [`gemini`](/en/api/platform-events/gemini)
 - [`codex`](/en/api/platform-events/codex)

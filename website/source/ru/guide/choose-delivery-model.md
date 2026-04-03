@@ -10,7 +10,7 @@ translationRequired: true
 
 # Выбор модели поставки
 
-У Python и Node плагинов есть два поддерживаемых способа доставки helper-логики. Ни один из них не является legacy. Они решают разные практические задачи.
+У Python и Node плагинов есть два поддерживаемых способа доставки helper-логики. Они решают разные практические задачи.
 
 <MermaidDiagram
   :chart="`
@@ -57,9 +57,5 @@ flowchart TD
 - выбирайте Go, когда нужен самый сильный долгосрочно поддерживаемый путь
 - выбирайте vendored helpers, когда нужен самый гладкий Python или Node старт
 - выбирайте shared runtime package, когда вы уже знаете, что нужна reusable dependency strategy across repos
-
-## Правило миграции
-
-Переход с vendored helpers на `plugin-kit-ai-runtime` — это поддерживаемая миграция. Это не запасной вариант и не путь устаревания.
 
 Свяжите эту страницу с [Выбором starter repo](/ru/guide/choose-a-starter), [Bundle handoff](/ru/guide/bundle-handoff), [Стартовыми шаблонами](/ru/guide/starter-templates) и [Готовностью к продакшену](/ru/guide/production-readiness).

@@ -80,7 +80,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
+	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-package")
 	out, err := importCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("plugin-kit-ai import: %v\n%s", err, out)
@@ -216,7 +216,7 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 		t.Fatal(err)
 	}
 
-	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
+	importCmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-runtime")
 	out, err := importCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("plugin-kit-ai import codex: %v\n%s", err, out)
@@ -228,13 +228,6 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 	}
 	if !strings.Contains(string(packageBody), "model_hint: gpt-5.4-mini") {
 		t.Fatalf("imported codex package metadata = %q, want gpt-5.4-mini model_hint", string(packageBody))
-	}
-	manifestExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-package", "manifest.extra.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(manifestExtraBody), `"homepage": "https://example.com/demo"`) {
-		t.Fatalf("manifest extra = %q", string(manifestExtraBody))
 	}
 	configExtraBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-runtime", "config.extra.toml"))
 	if err != nil {
@@ -265,13 +258,7 @@ func TestPluginKitAIImportCodexNativeLayoutRoundTripPreservesCheapModelHint(t *t
 		t.Fatalf("plugin-kit-ai render --check after Codex import: %v\n%s", err, out)
 	}
 
-	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-package", "--strict")
-	validateCmd.Env = append(os.Environ(), "GOWORK=off")
-	if out, err := validateCmd.CombinedOutput(); err != nil {
-		t.Fatalf("plugin-kit-ai validate codex-package after Codex import: %v\n%s", err, out)
-	}
-
-	validateCmd = exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
+	validateCmd := exec.Command(pluginKitAIBin, "validate", plugRoot, "--platform", "codex-runtime", "--strict")
 	validateCmd.Env = append(os.Environ(), "GOWORK=off")
 	if out, err := validateCmd.CombinedOutput(); err != nil {
 		t.Fatalf("plugin-kit-ai validate codex-runtime after Codex import: %v\n%s", err, out)
@@ -301,6 +288,20 @@ func TestPluginKitAIImportRejectsLegacyCodexAlias(t *testing.T) {
 		t.Fatalf("expected legacy codex alias to fail:\n%s", out)
 	}
 	if !strings.Contains(string(out), `unsupported import source "codex"`) {
+		t.Fatalf("unexpected import failure:\n%s", out)
+	}
+}
+
+func TestPluginKitAIImportRejectsLegacyCodexNativeAlias(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	plugRoot := t.TempDir()
+
+	cmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("expected legacy codex-native alias to fail:\n%s", out)
+	}
+	if !strings.Contains(string(out), `unsupported import source "codex-native"`) {
 		t.Fatalf("unexpected import failure:\n%s", out)
 	}
 }

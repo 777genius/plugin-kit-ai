@@ -588,7 +588,6 @@ type codexPackageMeta struct{}
 type geminiPackageMeta struct {
 	ContextFileName string   `yaml:"context_file_name,omitempty"`
 	ExcludeTools    []string `yaml:"exclude_tools,omitempty"`
-	MigratedTo      string   `yaml:"migrated_to,omitempty"`
 	PlanDirectory   string   `yaml:"plan_directory,omitempty"`
 }
 
@@ -932,9 +931,6 @@ func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error)
 	if values, ok := raw["excludeTools"].([]any); ok {
 		out.Meta.ExcludeTools = jsonStringArray(values)
 	}
-	if value, ok := raw["migratedTo"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Meta.MigratedTo = value
-	}
 	if plan, ok := raw["plan"].(map[string]any); ok {
 		if directory, ok := plan["directory"].(string); ok && strings.TrimSpace(directory) != "" {
 			out.Meta.PlanDirectory = directory
@@ -958,7 +954,6 @@ func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error)
 	delete(raw, "mcpServers")
 	delete(raw, "contextFileName")
 	delete(raw, "excludeTools")
-	delete(raw, "migratedTo")
 	delete(raw, "settings")
 	delete(raw, "themes")
 	if plan, ok := raw["plan"].(map[string]any); ok && len(plan) == 0 {
@@ -1082,44 +1077,6 @@ func resolveOpenCodeConfigPath(root string) (string, []pluginmodel.Warning, bool
 		return "", nil, false, rerr
 	}
 	return filepath.ToSlash(rel), warnings, true, nil
-}
-
-func resolveOpenCodeEnvConfigFile() (string, bool, error) {
-	path, ok := os.LookupEnv("OPENCODE_CONFIG")
-	if !ok {
-		return "", false, nil
-	}
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", false, fmt.Errorf("OPENCODE_CONFIG must point to a non-empty config file path")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", false, fmt.Errorf("stat OPENCODE_CONFIG %q: %w", path, err)
-	}
-	if info.IsDir() {
-		return "", false, fmt.Errorf("OPENCODE_CONFIG %q must point to a file, not a directory", path)
-	}
-	return path, true, nil
-}
-
-func resolveOpenCodeEnvConfigDir() (string, bool, error) {
-	path, ok := os.LookupEnv("OPENCODE_CONFIG_DIR")
-	if !ok {
-		return "", false, nil
-	}
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", false, fmt.Errorf("OPENCODE_CONFIG_DIR must point to a non-empty directory path")
-	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", false, fmt.Errorf("stat OPENCODE_CONFIG_DIR %q: %w", path, err)
-	}
-	if !info.IsDir() {
-		return "", false, fmt.Errorf("OPENCODE_CONFIG_DIR %q must point to a directory", path)
-	}
-	return path, true, nil
 }
 
 func readImportedOpenCodeConfigFromFile(path string, displayPath string) (importedOpenCodeConfig, string, []pluginmodel.Warning, bool, error) {

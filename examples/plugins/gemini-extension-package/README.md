@@ -8,7 +8,7 @@ Packaging contract:
 - inline `mcpServers` rendered from `mcp/servers.yaml`
 - one primary target-native context source plus extra extension contexts rendered to the Gemini root layout
 - native Gemini commands, hooks, and policies
-- manifest-driven `migratedTo`, settings, themes, and `plan.directory`
+- manifest-driven settings, themes, and `plan.directory`
 - `targets/gemini/manifest.extra.json` as the forward-compatible escape hatch
 
 This example is intentionally `packaging-only`, but it is the canonical full Gemini extension packaging lane in this repo. It does not claim Gemini runtime parity with Claude or Codex.

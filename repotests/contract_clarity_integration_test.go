@@ -33,26 +33,15 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetMatrix := string(targetMatrixBody)
-	maintainerMatrixBody, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "generated", "support_matrix.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	maintainerMatrix := string(maintainerMatrixBody)
-	maintainerTargetMatrixBody, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "generated", "target_support_matrix.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	maintainerTargetMatrix := string(maintainerTargetMatrixBody)
 	mustContain(t, targetMatrix, "| claude | packaged_runtime | hook_runtime | required | plugin | marketplace or local plugin install |")
 	mustContain(t, targetMatrix, "| codex-package | packaged_runtime | plugin_package | ignored | plugin | plugin directory or marketplace cache |")
 	mustContain(t, targetMatrix, "| codex-runtime | packaged_runtime | local_runtime_integration | required | plugin | repo-local config wiring |")
 	mustContain(t, targetMatrix, "| gemini | extension_package | mcp_extension | optional | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | runtime-supported beta extension target |")
-	mustContain(t, maintainerMatrix, "Runtime-supported Gemini beta hooks appear here alongside Claude and Codex")
-	mustContain(t, maintainerMatrix, "| gemini | SessionStart | runtime_supported | beta | runtime-supported but not stable | false |")
-	mustContain(t, maintainerMatrix, "| gemini | BeforeToolSelection | runtime_supported | beta | runtime-supported but not stable | false |")
-	mustContain(t, maintainerTargetMatrix, "| gemini | extension_package | mcp_extension | optional | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | runtime-supported beta extension target |")
+	mustContain(t, matrix, "Runtime-supported Gemini beta hooks appear here alongside Claude and Codex")
+	mustContain(t, matrix, "| gemini | SessionStart | runtime_supported | beta | runtime-supported but not stable | false |")
+	mustContain(t, matrix, "| gemini | BeforeToolSelection | runtime_supported | beta | runtime-supported but not stable | false |")
 	mustContain(t, targetMatrix, "| cursor | code_plugin | workspace_config_lane | ignored | workspace | workspace config files | config authoring workspace | config reload or restart | .cursor/mcp.json | packaging-only target | workspace-config lane with first-class MCP config, project rules, and optional root AGENTS.md support |")
-	mustContain(t, targetMatrix, "| opencode | code_plugin | workspace_config_lane | ignored | workspace | workspace config file | config authoring workspace | config reload or restart | opencode.json | packaging-only target | workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope and env-config import compatibility, permission-first passthrough config semantics, deprecated tools-config compatibility passthrough, and beta custom tools across standalone tools and plugin code |")
+	mustContain(t, targetMatrix, "| opencode | code_plugin | workspace_config_lane | ignored | workspace | workspace config file | config authoring workspace | config reload or restart | opencode.json | packaging-only target | workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope import, permission-first passthrough config semantics, deprecated tools-config compatibility passthrough, and beta custom tools across standalone tools and plugin code |")
 	mustContain(t, targetMatrix, "mcp=stable, rules=stable, agents_md=stable, claude_md=unsupported")
 	mustContain(t, targetMatrix, ".cursor/mcp.json, .cursor/rules/**, AGENTS.md")
 	mustContain(t, targetMatrix, "agent_config=passthrough_only")
@@ -124,10 +113,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	maintainerArchitectureDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "ARCHITECTURE.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	supportDoc, err := os.ReadFile(filepath.Join(root, "docs", "SUPPORT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -137,10 +122,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	productionDoc, err := os.ReadFile(filepath.Join(root, "docs", "PRODUCTION.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	maintainerProductionDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "PRODUCTION.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,10 +141,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	maintainerHardeningDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "V1_0_X_HARDENING.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	releaseDoc, err := os.ReadFile(filepath.Join(root, "docs", "RELEASE.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -180,11 +157,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	maintainerSupportDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "SUPPORT.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	maintainerPatchRehearsalDoc, err := os.ReadFile(filepath.Join(root, "maintainer-docs", "releases", "2026-03-27-v1.0.x-patch-rehearsal.md"))
+	patchRehearsalDoc, err := os.ReadFile(filepath.Join(root, "docs", "releases", "2026-03-27-v1.0.x-patch-rehearsal.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +193,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(sdkReadme), "use `gemini.BeforeToolAllow()` or `gemini.AfterToolAllow()` only when you intentionally want an explicit")
 	mustContain(t, string(sdkReadme), "use `gemini.BeforeToolRewriteInputValue(...)` when you want to rewrite `tool_input` from a normal Go map/struct")
 	mustContain(t, string(sdkReadme), "use `gemini.AfterToolAddContext(...)` to append extra text to the tool result")
-	mustContain(t, string(sdkReadme), "avoid legacy `gemini.AllowTool()` / `gemini.DenyTool()` in new code")
 	mustContain(t, string(sdkReadme), "`gemini/Notification` (`public-beta`)")
 	mustContain(t, string(sdkReadme), "`gemini/PreCompress` (`public-beta`)")
 	mustContain(t, string(sdkReadme), "`gemini/BeforeToolSelection` (`public-beta`)")
@@ -257,9 +229,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(architectureDoc), "`sdk/gemini`")
 	mustContain(t, string(architectureDoc), "`sdk/internal/platforms/gemini`")
 	mustContain(t, string(architectureDoc), "Gemini beta hooks use `stdin_json`")
-	mustContain(t, string(maintainerArchitectureDoc), "`sdk/gemini`")
-	mustContain(t, string(maintainerArchitectureDoc), "`sdk/internal/platforms/gemini`")
-	mustContain(t, string(maintainerArchitectureDoc), "Gemini beta hooks use `stdin_json`")
 	mustContain(t, string(rootReadme), "supported outputs for Codex, Claude, Gemini, and other targets")
 	mustContain(t, string(rootReadme), "one repo and one workflow can cover many supported outputs")
 	mustContain(t, string(rootReadme), "the honest promise is `one repo / many supported outputs`, not fake parity everywhere")
@@ -346,7 +315,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(cliReadme), "creates a published release by default")
 	mustContain(t, string(cliReadme), "`--draft` as an opt-in safety mode")
 	mustContain(t, string(cliReadme), "URL mode verifies `--sha256` or `<url>.sha256`, GitHub Releases mode prefers `checksums.txt` and falls back to `<asset>.sha256`")
-	mustContain(t, string(cliReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex-native")
+	mustContain(t, string(cliReadme), "./bin/plugin-kit-ai import ./native-plugin --from codex-runtime")
 	mustContain(t, string(cliReadme), "| `node` | stable local-runtime subset | repo-local on `codex-runtime` and `claude` | lockfile-first manager detection (`bun`, `pnpm`, `yarn`, `npm`); JavaScript by default, TypeScript via `--runtime node --typescript` |")
 	mustContain(t, string(cliReadme), "| `shell` | public-beta | repo-local only | POSIX shell on Unix, `bash` in `PATH` on Windows |")
 	mustContain(t, string(cliReadme), "Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface")
@@ -396,28 +365,15 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "`(*plugin-kit-ai.App).Gemini`")
 	mustContain(t, string(supportDoc), "approved-export-shaped Gemini event and response types for:")
 	mustContain(t, string(supportDoc), "approved exported Gemini helper constructors for the current beta lane")
-	mustContain(t, string(maintainerSupportDoc), "Gemini: full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane")
-	mustContain(t, string(maintainerSupportDoc), "`github.com/777genius/plugin-kit-ai/sdk/gemini`")
-	mustContain(t, string(maintainerSupportDoc), "`(*plugin-kit-ai.App).Gemini`")
-	mustContain(t, string(maintainerSupportDoc), "approved-export-shaped Gemini event and response types for:")
-	mustContain(t, string(maintainerSupportDoc), "approved exported Gemini helper constructors for the current beta lane")
-	mustContain(t, string(maintainerSupportDoc), "Gemini CLI extension manifest generated by `plugin-kit-ai render --target gemini`, with optional Go launcher-based runtime support in the current beta contract")
 	mustContain(t, string(supportDoc), "dedicated opt-in real CLI runtime smoke")
-	mustContain(t, string(maintainerSupportDoc), "Runtime-supported Gemini beta hooks and the Claude/Codex runtime lanes appear there")
+	mustContain(t, string(supportDoc), "Runtime-supported Gemini beta hooks and the Claude/Codex runtime lanes appear there")
 	mustContain(t, string(supportDoc), "Codex runtime: production-ready within the stable `Notify` path")
 	mustContain(t, string(supportDoc), "helper delivery modes are documented in [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)")
 	mustContain(t, string(supportDoc), "while `init ... --runtime-package` switches to the shared dependency path")
 	mustContain(t, string(supportDoc), "development builds accept `--runtime-package-version`")
 	mustContain(t, string(productionDoc), "helper delivery tradeoff: see [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)")
 	mustContain(t, string(productionDoc), "dedicated opt-in real CLI runtime smoke")
-	mustContain(t, string(maintainerProductionDoc), "dedicated opt-in real CLI runtime smoke")
-	mustContain(t, string(maintainerProductionDoc), "Treat Gemini packaging as the primary path")
-	mustContain(t, string(maintainerProductionDoc), "plugin-kit-ai inspect . --target gemini")
-	mustContain(t, string(maintainerProductionDoc), "plugin-kit-ai capabilities --mode runtime --platform gemini")
-	mustContain(t, string(maintainerProductionDoc), "make test-gemini-runtime-smoke")
-	mustContain(t, string(maintainerProductionDoc), "make test-gemini-runtime-live")
-	mustNotContain(t, string(maintainerProductionDoc), "Treat Gemini as official extension packaging only")
-	mustContain(t, string(productionDoc), "Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and compatibility import for legacy `.cursorrules`; not a production-ready runtime target")
+	mustContain(t, string(productionDoc), "Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, and optional shared root `AGENTS.md`; not a production-ready runtime target")
 	mustContain(t, string(productionDoc), "plugin-kit-ai validate . --platform <claude|codex-runtime|codex-package|cursor|opencode> --strict")
 	mustContain(t, string(productionDoc), "Cursor: treat `render --check` plus `validate --strict` as the repo-local readiness gate for the documented workspace-config subset")
 	mustContain(t, string(productionDoc), "## Cursor Workspace Path")
@@ -473,7 +429,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(supportDoc), "generated Claude/Codex config wiring is a repo-owned contract surface guarded by `render --check`")
 	mustContain(t, string(supportDoc), "OpenCode local plugin loading stable subset is guarded by `render --check`, strict validation, the production example canary, and the documented `test-opencode-live` smoke path")
 	mustContain(t, string(supportDoc), "OpenCode standalone tools beta subset is guarded by `render --check`, strict validation, the production example canary, and the documented `test-opencode-tools-live` smoke path")
-	mustContain(t, string(supportDoc), "env-config import compatibility from `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR`")
 	mustContain(t, string(supportDoc), "deprecated compatibility passthrough for config-level `tools`")
 	mustContain(t, string(statusDoc), "community-first interpreted stable subset promoted on main")
 	mustContain(t, string(statusDoc), "OpenCode stable subset")
@@ -503,7 +458,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(productionDoc), "Codex runtime: production-ready within the stable `Notify` path")
 	mustContain(t, string(productionDoc), "Codex package: production-ready official plugin package lane")
 	mustContain(t, string(productionDoc), "first-class beta standalone tools")
-	mustContain(t, string(productionDoc), "explicit env-config import compatibility")
+	mustNotContain(t, string(productionDoc), "explicit env-config import compatibility")
 	mustContain(t, string(productionDoc), "make test-opencode-tools-live")
 	mustContain(t, string(productionDoc), "Node/TypeScript and Python are the stable interpreted subset")
 	mustContain(t, string(productionDoc), "After bootstrap, treat `validate --strict` as the CI-grade readiness gate for interpreted runtimes.")
@@ -526,7 +481,6 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(productionDoc), "make test-gemini-runtime-smoke")
 	mustContain(t, string(productionDoc), "make test-gemini-runtime-live")
 	mustContain(t, string(hardeningDoc), "beta contract cleanup, change-note hygiene, and documentation follow-through for beta leftovers")
-	mustContain(t, string(maintainerHardeningDoc), "Gemini now has a scoped `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`")
 	mustContain(t, string(hardeningDoc), "Gemini now has a scoped `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`")
 	mustContain(t, string(hardeningDoc), "`python` and `node` are now the stable repo-local subset on `codex-runtime` and `claude`, while `shell` remains `public-beta`")
 	mustContain(t, string(hardeningDoc), "local exported bundle install for Python/Node is now part of the promoted stable subset")
@@ -541,8 +495,8 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(releaseDoc), ".github/workflows/homebrew-tap.yml")
 	mustContain(t, string(releaseDoc), "./scripts/update-homebrew-tap.sh")
 	mustContain(t, string(releaseDoc), "beta change notes")
-	mustContain(t, string(maintainerPatchRehearsalDoc), "Gemini `public-beta` Go runtime lane")
-	mustContain(t, string(maintainerPatchRehearsalDoc), "Gemini remains outside the stable runtime promise even with the new `public-beta` Go lane")
+	mustContain(t, string(patchRehearsalDoc), "Gemini `public-beta` Go runtime lane")
+	mustContain(t, string(patchRehearsalDoc), "Gemini remains outside the stable runtime promise even with the new `public-beta` Go lane")
 	mustContain(t, string(repoTestsReadme), "`PLUGIN_KIT_AI_RUN_GEMINI_CLI=1`")
 	mustContain(t, string(repoTestsReadme), "`PLUGIN_KIT_AI_E2E_GEMINI`")
 	mustContain(t, string(repoTestsReadme), "`PLUGIN_KIT_AI_SKIP_GEMINI_CLI=1`")

@@ -8,8 +8,8 @@ This document is the canonical production authoring path for plugin authors usin
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
-- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and compatibility import for legacy `.cursorrules`; not a production-ready runtime target
-- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools, explicit env-config import compatibility, and permission-first passthrough config semantics; `custom_tools` remain beta
+- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, and optional shared root `AGENTS.md`; not a production-ready runtime target
+- OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
 
@@ -52,7 +52,6 @@ For interpreted runtimes, add the bootstrap step before `validate --strict`:
 - `python`: run `plugin-kit-ai bootstrap .`; `venv`, `requirements.txt`, and `uv` end in repo-local `.venv`, while `poetry` and `pipenv` can end in manager-owned envs
 - `node`: run `plugin-kit-ai bootstrap .`; it chooses the detected install manager, and TypeScript-shaped Node projects also run `build`
 - `test`: run `plugin-kit-ai test . --platform <claude|codex-runtime> --event <event>` for a single stable event, or `--all` for the full stable event set on the selected platform; fixtures default to `fixtures/<platform>/<event>.json`, goldens default to `goldens/<platform>/<event>.*`, generated launcher-based Claude and Codex runtime projects now pre-seed that layout during `init`, and `--update-golden` rewrites the current stdout/stderr/exitcode contract
-- `test` output: the command now emits a per-run summary plus short mismatch previews, and `--format json` carries the same counters for CI consumers
 - `shared helper packages`: `plugin-kit-ai-runtime` on PyPI and npm mirrors the supported Python/Node helper API when teams want a shared dependency instead of per-repo helper files; the default scaffold remains self-contained for hermetic first run, and `plugin-kit-ai init ... --runtime-package` is the official opt-in path when you want new projects to start on the shared dependency mode; released CLIs auto-pin the helper version, while development builds should pass `--runtime-package-version`
 - helper delivery tradeoff: see [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md)
 - `shell`: ensure the launcher target remains executable on Unix and `bash` is available on Windows; this path remains `public-beta`
@@ -93,7 +92,7 @@ Reference implementation:
 ## Codex Package Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform codex-package` or `plugin-kit-ai import --from codex-package`
-- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/codex-package/...` as the authored source of truth
+- Keep `plugin.yaml` plus `targets/codex-package/...` as the authored source of truth
 - Commit generated `.codex-plugin/plugin.json` plus optional `.mcp.json` and `.app.json`
 - Treat this lane as the official Codex plugin bundle, separate from local notify/runtime wiring
 
@@ -104,7 +103,7 @@ Reference implementation:
 ## OpenCode Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform opencode` or `plugin-kit-ai import --from opencode`
-- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/opencode/...` as the authored source of truth
+- Keep `plugin.yaml` plus `targets/opencode/...` as the authored source of truth
 - Commit generated `opencode.json`, `.opencode/tools/**`, `.opencode/plugins/**`, and `.opencode/package.json`
 - Treat the stable promise as applying to repo-local authored/render/import/validate for local plugin subtree ownership and shared dependency metadata in `.opencode/package.json`
 - Treat standalone `.opencode/tools/**` authoring as first-class `public-beta`

@@ -10,7 +10,7 @@ translationRequired: true
 
 # Choose Delivery Model
 
-Python and Node plugins have two supported ways to ship helper logic. Neither is legacy. They solve different practical problems.
+Python and Node plugins have two supported ways to ship helper logic. They solve different practical problems.
 
 <MermaidDiagram
   :chart="`
@@ -57,9 +57,5 @@ This is the default because it is the easiest starting point for Python and Node
 - choose Go when you want the strongest long-term supported path
 - choose vendored helpers when you want the smoothest Python or Node start
 - choose the shared runtime package when you already know you want a reusable dependency strategy across repos
-
-## Migration Rule
-
-Moving from vendored helpers to `plugin-kit-ai-runtime` is a supported migration. It is not a fallback and it is not a deprecation path.
 
 Pair this page with [Choose A Starter Repo](/en/guide/choose-a-starter), [Starter Templates](/en/guide/starter-templates), and [Production Readiness](/en/guide/production-readiness).

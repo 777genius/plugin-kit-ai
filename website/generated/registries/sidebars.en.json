@@ -86,10 +86,6 @@
         {
           "text": "Package And Workspace Targets",
           "link": "/en/guide/package-and-workspace-targets"
-        },
-        {
-          "text": "Migrate Existing Config",
-          "link": "/en/guide/migrate-existing-config"
         }
       ]
     },
@@ -506,6 +502,10 @@
         {
           "text": "codex",
           "link": "/en/api/platform-events/codex"
+        },
+        {
+          "text": "gemini",
+          "link": "/en/api/platform-events/gemini"
         }
       ]
     }
@@ -521,6 +521,50 @@
         {
           "text": "config_change",
           "link": "/en/api/capabilities/config_change"
+        },
+        {
+          "text": "gemini_after_agent",
+          "link": "/en/api/capabilities/gemini_after_agent"
+        },
+        {
+          "text": "gemini_after_model",
+          "link": "/en/api/capabilities/gemini_after_model"
+        },
+        {
+          "text": "gemini_after_tool",
+          "link": "/en/api/capabilities/gemini_after_tool"
+        },
+        {
+          "text": "gemini_before_agent",
+          "link": "/en/api/capabilities/gemini_before_agent"
+        },
+        {
+          "text": "gemini_before_model",
+          "link": "/en/api/capabilities/gemini_before_model"
+        },
+        {
+          "text": "gemini_before_tool",
+          "link": "/en/api/capabilities/gemini_before_tool"
+        },
+        {
+          "text": "gemini_before_tool_selection",
+          "link": "/en/api/capabilities/gemini_before_tool_selection"
+        },
+        {
+          "text": "gemini_notification",
+          "link": "/en/api/capabilities/gemini_notification"
+        },
+        {
+          "text": "gemini_pre_compress",
+          "link": "/en/api/capabilities/gemini_pre_compress"
+        },
+        {
+          "text": "gemini_session_end",
+          "link": "/en/api/capabilities/gemini_session_end"
+        },
+        {
+          "text": "gemini_session_start",
+          "link": "/en/api/capabilities/gemini_session_start"
         },
         {
           "text": "notify",

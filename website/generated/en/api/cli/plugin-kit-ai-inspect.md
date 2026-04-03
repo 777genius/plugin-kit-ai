@@ -33,7 +33,7 @@ plugin-kit-ai inspect [path] [flags]
 ```
       --format string   output format: text or json (default "text")
   -h, --help            help for inspect
-      --target string   inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode") (default "all")
+      --target string   inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor") (default "all")
 ```
 
 ### SEE ALSO

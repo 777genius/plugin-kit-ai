@@ -97,11 +97,11 @@ outline: false
 
 If you are new, stop after those four pages. Everything else on this site is deeper reference.
 
-## Latest Stable Release
+## Current Repo Baseline
 
 - The current public baseline in this docs set is [`v1.0.6`](/en/releases/v1-0-6).
 - That release made shared runtime-package delivery for Python and Node a real supported path instead of a partial story.
-- Start there if you need the latest user-facing migration notes.
+- Start there if you need the baseline for the current recommended path.
 
 ## What You Can Do With It
 
@@ -116,7 +116,7 @@ If you are new, stop after those four pages. Everything else on this site is dee
 - Public guides for users and plugin authors.
 - Generated API reference from the actual code and command tree.
 - Public support and platform metadata.
-- User-facing releases and migration notes.
+- Public release history and support framing.
 - Public policy pages for versioning, compatibility, and support expectations.
 
 ## What Stays Out

@@ -431,87 +431,6 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 	}
 }
 
-func TestImport_OpenCodeEnvSourcesLayerDeterministically(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	root := t.TempDir()
-	envDir := t.TempDir()
-	envFile := filepath.Join(t.TempDir(), "custom-opencode.jsonc")
-	t.Setenv("OPENCODE_CONFIG_DIR", envDir)
-	t.Setenv("OPENCODE_CONFIG", envFile)
-
-	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "opencode.json"), `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/global"],"theme":"global"}`)
-	mustWritePluginFile(t, home, filepath.Join(".config", "opencode", "commands", "ship.md"), "---\ndescription: global\n---\n\nglobal\n")
-	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/project"],"theme":"project","mcp":{"project":{"type":"local","command":["echo","project"]}}}`)
-	mustWritePluginFile(t, root, filepath.Join(".opencode", "commands", "ship.md"), "---\ndescription: project\n---\n\nproject\n")
-	mustWritePluginFile(t, envDir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","theme":"env-dir","mcp":{"envdir":{"type":"local","command":["echo","envdir"]}}}`)
-	mustWritePluginFile(t, envDir, filepath.Join("commands", "ship.md"), "---\ndescription: envdir\n---\n\nenvdir\n")
-	mustWritePluginFile(t, envDir, filepath.Join("plugins", "shared.js"), "export const EnvDirPlugin = async () => ({})\n")
-	mustWritePluginFile(t, envDir, "package.json", `{"name":"env-dir-opencode-local"}`)
-	mustWritePluginFile(t, filepath.Dir(envFile), filepath.Base(envFile), `{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["@acme/env-file"],
-  "theme": "env-file",
-  "permission": {"edit":"ask"}
-}`)
-
-	imported, warnings, err := Import(root, "opencode", false, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(imported.Targets) != 1 || imported.Targets[0] != "opencode" {
-		t.Fatalf("targets = %v", imported.Targets)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(body), "@acme/env-file") || strings.Contains(string(body), "@acme/project") {
-		t.Fatalf("package.yaml = %s", body)
-	}
-	configBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	configText := string(configBody)
-	for _, want := range []string{`"theme": "env-file"`, `"permission"`, `"edit": "ask"`} {
-		if !strings.Contains(configText, want) {
-			t.Fatalf("config.extra.json missing %q:\n%s", want, configText)
-		}
-	}
-	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(mcpBody), "envdir:") || !strings.Contains(string(mcpBody), "project:") {
-		t.Fatalf("servers.yaml = %s", mcpBody)
-	}
-	commandBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "commands", "ship.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(commandBody), "envdir") {
-		t.Fatalf("ship.md = %s", commandBody)
-	}
-	pluginBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "plugins", "shared.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(pluginBody), "EnvDirPlugin") {
-		t.Fatalf("shared.js = %s", pluginBody)
-	}
-	packageJSONBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(packageJSONBody), "env-dir-opencode-local") {
-		t.Fatalf("package.json = %s", packageJSONBody)
-	}
-}
-
 func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.jsonc", `{
@@ -548,64 +467,6 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 	}
 }
 
-func TestValidate_OpenCodeAcceptsOPENCODECONFIGFallback(t *testing.T) {
-	root := t.TempDir()
-	envFile := filepath.Join(t.TempDir(), "custom-opencode.jsonc")
-	t.Setenv("OPENCODE_CONFIG", envFile)
-	mustWritePluginFile(t, filepath.Dir(envFile), filepath.Base(envFile), `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/env-file"]}`)
-
-	manifest := Default("demo", "opencode", "", "demo plugin", false)
-	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-
-	graph, _, err := Discover(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	adapter, ok := platformexec.Lookup("opencode")
-	if !ok {
-		t.Fatal("missing opencode adapter")
-	}
-	diagnostics, err := adapter.Validate(root, graph, graph.Targets["opencode"])
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, failure := range diagnostics {
-		if strings.Contains(failure.Message, "OpenCode config opencode.json") {
-			t.Fatalf("diagnostics = %+v", diagnostics)
-		}
-	}
-}
-
-func TestValidate_OpenCodeAcceptsOPENCODECONFIGDIRFallback(t *testing.T) {
-	root := t.TempDir()
-	envDir := t.TempDir()
-	t.Setenv("OPENCODE_CONFIG_DIR", envDir)
-	mustWritePluginFile(t, envDir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/env-dir"]}`)
-
-	manifest := Default("demo", "opencode", "", "demo plugin", false)
-	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-
-	graph, _, err := Discover(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	adapter, ok := platformexec.Lookup("opencode")
-	if !ok {
-		t.Fatal("missing opencode adapter")
-	}
-	diagnostics, err := adapter.Validate(root, graph, graph.Targets["opencode"])
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, failure := range diagnostics {
-		if strings.Contains(failure.Message, "OpenCode config opencode.json") {
-			t.Fatalf("diagnostics = %+v", diagnostics)
-		}
-	}
-}
-
 func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/json"]}`)
@@ -627,33 +488,6 @@ func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "@acme/json") || strings.Contains(string(body), "@acme/jsonc") {
 		t.Fatalf("package.yaml = %s", body)
-	}
-}
-
-func TestImport_OpenCodeExplicitCompatibilitySkillRoots(t *testing.T) {
-	root := t.TempDir()
-	mustWritePluginFile(t, root, filepath.Join(".claude", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: claude\n---\n")
-	mustWritePluginFile(t, root, filepath.Join(".agents", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: agents\n---\n")
-
-	_, warnings, err := Import(root, "opencode", false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, err := os.ReadFile(filepath.Join(root, "skills", "demo", "SKILL.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(body), "description: claude") {
-		t.Fatalf("skills/demo/SKILL.md = %s", body)
-	}
-	var sawClaude bool
-	for _, warning := range warnings {
-		if strings.Contains(warning.Path, ".claude/skills") {
-			sawClaude = true
-		}
-	}
-	if !sawClaude {
-		t.Fatalf("warnings = %v, want normalization warning for .claude/skills", warnings)
 	}
 }
 
@@ -879,30 +713,6 @@ func TestValidate_OpenCodeRejectsToolHelperImportWithoutDependency(t *testing.T)
 	}
 	if !found {
 		t.Fatalf("diagnostics = %+v", diagnostics)
-	}
-}
-
-func TestImport_OpenCodeNormalizesLegacyToolDirectory(t *testing.T) {
-	root := t.TempDir()
-	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
-	mustWritePluginFile(t, root, filepath.Join(".opencode", "tool", "echo.ts"), "export default { description: \"echo\", args: {}, async execute() { return \"ok\" } }\n")
-
-	_, warnings, err := Import(root, "opencode", false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "opencode", "tools", "echo.ts")); err != nil {
-		t.Fatalf("stat normalized tool file: %v", err)
-	}
-	var found bool
-	for _, warning := range warnings {
-		if strings.Contains(warning.Message, "legacy OpenCode tool files") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("warnings = %+v", warnings)
 	}
 }
 
@@ -1142,13 +952,13 @@ func TestRender_ClaudeRejectsManagedOverridesInManifestExtra(t *testing.T) {
 	}
 }
 
-func TestImport_CurrentNativeCodexShellProject(t *testing.T) {
+func TestImport_CurrentNativeCodexRuntimeShellProject(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/demo\", \"notify\"]\nmodel = \"gpt-5.4-mini\"\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex-native", false, false)
+	_, _, err := Import(root, "codex-runtime", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1245,22 +1055,15 @@ func TestRender_CodexRejectsManagedOverridesInExtraDocs(t *testing.T) {
 	}
 }
 
-func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
+func TestImport_CurrentNativeCodexPackagePreservesExtraDocs(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\", \"extra\"]\napproval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo","homepage":"https://example.com/demo","interface":{"defaultPrompt":"Run the demo"}}`)
 
-	_, warnings, err := Import(root, "codex-native", false, false)
+	_, warnings, err := Import(root, "codex-package", false, false)
 	if err != nil {
 		t.Fatal(err)
-	}
-	launcher, err := LoadLauncher(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if launcher.Entrypoint != "./bin/demo" {
-		t.Fatalf("entrypoint = %q", launcher.Entrypoint)
 	}
 	if len(warnings) == 0 {
 		t.Fatal("expected fidelity warnings")
@@ -1273,12 +1076,8 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 	if !strings.Contains(string(manifestExtra), `"homepage": "https://example.com/demo"`) {
 		t.Fatalf("manifest.extra.json = %s", manifestExtra)
 	}
-	configExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex-runtime", "config.extra.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(configExtra), `approval_policy =`) || !strings.Contains(string(configExtra), `never`) || !strings.Contains(string(configExtra), `[ui]`) {
-		t.Fatalf("config.extra.toml = %s", configExtra)
+	if _, err := os.Stat(filepath.Join(root, "targets", "codex-runtime", "config.extra.toml")); !os.IsNotExist(err) {
+		t.Fatalf("codex-runtime config.extra.toml should not exist for codex-package import: %v", err)
 	}
 }
 
@@ -1545,7 +1344,7 @@ targets: ["codex"]
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
-	_, _, err := Import(root, "codex-native", false, false)
+	_, _, err := Import(root, "codex-runtime", false, false)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1553,7 +1352,6 @@ targets: ["codex"]
 		t.Fatalf("error = %v", err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "codex-package", "package.yaml"),
 		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("mcp", "servers.yaml"),
 	} {
@@ -1571,7 +1369,6 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	  "description":"gemini demo",
 	  "contextFileName":"TEAM.md",
 	  "excludeTools":["run_shell_command(rm -rf)"],
-	  "migratedTo":"https://github.com/example/gemini-demo-v2",
 	  "plan":{"directory":".gemini/plans","retentionDays":7},
 	  "settings":[{"name":"release-profile","description":"profile","envVar":"RELEASE_PROFILE","sensitive":false}],
 	  "themes":[{"name":"release-dawn","background":{"primary":"#fff9f2"},"text":{"primary":"#2e1f14"}}],
@@ -1616,7 +1413,7 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"context_file_name: TEAM.md", "exclude_tools:", "migrated_to: https://github.com/example/gemini-demo-v2", "plan_directory: .gemini/plans"} {
+	for _, want := range []string{"context_file_name: TEAM.md", "exclude_tools:", "plan_directory: .gemini/plans"} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("package metadata missing %q:\n%s", want, body)
 		}
@@ -1711,7 +1508,7 @@ servers:
       args:
         - "${package.root}/server.mjs"
 `)
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nmigrated_to: https://github.com/example/demo-gemini-v2\nplan_directory: .gemini/plans\n")
+	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nplan_directory: .gemini/plans\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\ntext:\n  primary: \"#2e1f14\"\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
@@ -1733,7 +1530,7 @@ servers:
 	if err := json.Unmarshal(body, &rendered); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"mcpServers", "excludeTools", "migratedTo", "plan", "settings", "themes", "contextFileName", "x_galleryTopic"} {
+	for _, key := range []string{"mcpServers", "excludeTools", "plan", "settings", "themes", "contextFileName", "x_galleryTopic"} {
 		if _, ok := rendered[key]; !ok {
 			t.Fatalf("rendered manifest missing %q: %s", key, body)
 		}
@@ -1741,9 +1538,6 @@ servers:
 	plan := rendered["plan"].(map[string]any)
 	if plan["directory"] != ".gemini/plans" || plan["retentionDays"] != float64(7) {
 		t.Fatalf("plan = %#v", plan)
-	}
-	if rendered["migratedTo"] != "https://github.com/example/demo-gemini-v2" {
-		t.Fatalf("migratedTo = %#v", rendered["migratedTo"])
 	}
 	if _, err := os.Stat(filepath.Join(root, "commands", "deploy.toml")); err != nil {
 		t.Fatalf("stat generated command: %v", err)
@@ -2173,7 +1967,7 @@ func TestImport_WarnsOnIgnoredAssets(t *testing.T) {
 	mustWritePluginFile(t, root, ".mcp.json", `{"demo":{"command":"node","args":["server.mjs"]}}`)
 	mustWritePluginFile(t, root, filepath.Join("agents", "reviewer.md"), "reviewer\n")
 
-	_, warnings, err := Import(root, "codex-native", false, false)
+	_, warnings, err := Import(root, "codex-package", false, false)
 	if err != nil {
 		t.Fatal(err)
 	}

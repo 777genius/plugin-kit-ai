@@ -29,7 +29,7 @@ translationRequired: false
 Собирает нативные артефакты целевых платформ из package graph. discovered via plugin.yaml and standard directories.
 
 Claude and Codex runtime/package lanes render their managed native artifacts from the package graph.
-Gemini rendering is packaging-only: it produces a native extension manifest, but does not imply runtime parity or a production-ready Gemini runtime path.
+Gemini rendering always produces the native extension package artifacts and may also carry the optional Go beta hook lane when the authored project includes it; this still does not imply runtime parity or a production-ready Gemini runtime path.
 OpenCode rendering is workspace-config-only: it produces opencode.json plus mirrored skills, commands, agents, themes, local plugin code, and plugin-local package metadata without introducing a launcher/runtime contract.
 Cursor rendering is workspace-config-only: it produces .cursor/mcp.json, mirrored .cursor/rules/**, and optional root AGENTS.md without introducing a launcher/runtime contract.
 

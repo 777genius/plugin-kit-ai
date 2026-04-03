@@ -19,7 +19,7 @@ init -> render -> validate --strict -> test -> handoff
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Init[init or migrate] --> Render[render]
+  Init[init] --> Render[render]
   Render --> Validate[validate --strict]
   Validate --> Test[test or smoke checks]
   Test --> Handoff[handoff]
@@ -53,7 +53,7 @@ The only difference is that in a multi-target project, the `render` and `validat
 The workflow can widen for special cases:
 
 - `doctor` and `bootstrap` matter for Python and Node runtime paths
-- `import` and `normalize` matter when migrating native config into the managed project model
+- `import` and `normalize` matter when consolidating hand-managed target files into the managed project model
 - bundle commands matter for portable Python and Node handoff flows
 
-Start with [Quickstart](/en/guide/quickstart) when you need the shortest path, or [Migrate Existing Native Config](/en/guide/migrate-existing-config) when you are entering from legacy target files.
+Start with [Quickstart](/en/guide/quickstart) when you need the shortest path.

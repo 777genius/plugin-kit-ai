@@ -148,7 +148,6 @@ type importedCodexTargetMeta struct {
 type importedGeminiTargetMeta struct {
 	ContextFileName string   `yaml:"context_file_name,omitempty"`
 	ExcludeTools    []string `yaml:"exclude_tools,omitempty"`
-	MigratedTo      string   `yaml:"migrated_to,omitempty"`
 	PlanDirectory   string   `yaml:"plan_directory,omitempty"`
 }
 
@@ -624,8 +623,6 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 	if from == "" {
 		matches := platformexec.DetectImport(root)
 		switch {
-		case len(matches) == 2 && detectCombinedCodexImport(matches):
-			return importCombinedCodex(root, force)
 		case len(matches) == 0:
 			from = ""
 		case len(matches) == 1:
@@ -643,9 +640,6 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 	}
 	if !isSupportedImportSource(from) {
 		return Manifest{}, nil, fmt.Errorf("unsupported import source %q", from)
-	}
-	if from == "codex-native" {
-		return importCombinedCodex(root, force)
 	}
 	adapter, ok := platformexec.Lookup(from)
 	if !ok {
@@ -691,83 +685,13 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 	return imported.Manifest, imported.Warnings, nil
 }
 
-func detectCombinedCodexImport(matches []platformexec.Adapter) bool {
-	seen := map[string]bool{}
-	for _, match := range matches {
-		seen[match.ID()] = true
-	}
-	return len(matches) == 2 && seen["codex-package"] && seen["codex-runtime"]
-}
-
 func isSupportedImportSource(from string) bool {
-	if from == "codex-native" {
-		return true
-	}
 	return slices.Contains(platformmeta.IDs(), from)
 }
 
 func requiresLauncherForTarget(target string) bool {
 	profile, ok := platformmeta.Lookup(target)
 	return ok && profile.Launcher.Requirement == platformmeta.LauncherRequired
-}
-
-func importCombinedCodex(root string, force bool) (Manifest, []Warning, error) {
-	name := defaultName(root)
-	runtime := inferRuntime(root)
-	manifest := Default(name, "codex-package", runtime, "plugin-kit-ai plugin", false)
-	manifest.Targets = []string{"codex-package", "codex-runtime"}
-	launcher := DefaultLauncher(name, runtime)
-
-	packageAdapter, _ := platformexec.Lookup("codex-package")
-	packageImported, err := packageAdapter.Import(root, platformexec.ImportSeed{Manifest: manifest})
-	if err != nil {
-		return Manifest{}, nil, err
-	}
-	runtimeAdapter, _ := platformexec.Lookup("codex-runtime")
-	runtimeImported, err := runtimeAdapter.Import(root, platformexec.ImportSeed{
-		Manifest: manifest,
-		Launcher: &launcher,
-	})
-	if err != nil {
-		return Manifest{}, nil, err
-	}
-
-	importedManifest := packageImported.Manifest
-	importedManifest.Targets = []string{"codex-package", "codex-runtime"}
-	var importedLauncher *Launcher
-	if runtimeImported.Launcher != nil {
-		copied := *runtimeImported.Launcher
-		importedLauncher = &copied
-	}
-	warnings := append([]Warning{}, packageImported.Warnings...)
-	warnings = append(warnings, runtimeImported.Warnings...)
-	artifacts := append([]Artifact{}, packageImported.Artifacts...)
-	artifacts = append(artifacts, runtimeImported.Artifacts...)
-	if mcpArtifacts, err := importedPortableMCPArtifacts(root); err != nil {
-		return Manifest{}, warnings, err
-	} else {
-		artifacts = append(artifacts, mcpArtifacts...)
-	}
-	if fileExists(filepath.Join(root, ".mcp.json")) {
-		warnings = append(warnings, Warning{
-			Kind:    WarningFidelity,
-			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.yaml",
-		})
-	}
-	artifacts = compactArtifacts(artifacts)
-	if err := Save(root, importedManifest, force); err != nil {
-		return importedManifest, warnings, err
-	}
-	if importedLauncher != nil {
-		if err := SaveLauncher(root, *importedLauncher, force); err != nil {
-			return importedManifest, warnings, err
-		}
-	}
-	if err := WriteArtifacts(root, artifacts); err != nil {
-		return Manifest{}, warnings, err
-	}
-	return importedManifest, warnings, nil
 }
 
 func renderTargetArtifacts(root string, graph PackageGraph, target string) ([]Artifact, error) {
@@ -1246,9 +1170,6 @@ func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error)
 	if values, ok := raw["excludeTools"].([]any); ok {
 		out.Meta.ExcludeTools = jsonStringArray(values)
 	}
-	if value, ok := raw["migratedTo"].(string); ok && strings.TrimSpace(value) != "" {
-		out.Meta.MigratedTo = value
-	}
 	if plan, ok := raw["plan"].(map[string]any); ok {
 		if directory, ok := plan["directory"].(string); ok && strings.TrimSpace(directory) != "" {
 			out.Meta.PlanDirectory = directory
@@ -1272,7 +1193,6 @@ func decodeImportedGeminiExtension(body []byte) (importedGeminiExtension, error)
 	delete(raw, "mcpServers")
 	delete(raw, "contextFileName")
 	delete(raw, "excludeTools")
-	delete(raw, "migratedTo")
 	delete(raw, "settings")
 	delete(raw, "themes")
 	if plan, ok := raw["plan"].(map[string]any); ok && len(plan) == 0 {
@@ -1800,7 +1720,6 @@ func importedGeminiArtifacts(root string) ([]Artifact, []Warning, error) {
 func importedGeminiPackageYAML(meta importedGeminiTargetMeta) ([]byte, bool) {
 	if len(meta.ExcludeTools) == 0 &&
 		strings.TrimSpace(meta.ContextFileName) == "" &&
-		strings.TrimSpace(meta.MigratedTo) == "" &&
 		strings.TrimSpace(meta.PlanDirectory) == "" {
 		return nil, false
 	}

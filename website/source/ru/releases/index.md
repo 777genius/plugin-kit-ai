@@ -1,6 +1,6 @@
 ---
 title: "Релизы"
-description: "Пользовательские release notes и migration notes."
+description: "Публичная история релизов plugin-kit-ai."
 canonicalId: "page:releases:index"
 section: "releases"
 locale: "ru"
@@ -14,7 +14,7 @@ outline: false
   <p class="docs-kicker">РЕЛИЗЫ</p>
   <h1>Изменения для пользователей</h1>
   <p class="docs-lead">
-    Эта зона предназначена для release notes и migration guidance, которые важны авторам плагинов и интеграторам.
+    Эта зона предназначена для публичной истории релизов, важной авторам плагинов и интеграторам.
   </p>
 </div>
 
@@ -47,7 +47,6 @@ outline: false
 ## Что будет здесь
 
 - Публичные release notes.
-- Migration notes.
 - Явные breaking-change callouts.
 - Только user-facing changes.
 

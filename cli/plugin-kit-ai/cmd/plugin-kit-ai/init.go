@@ -49,7 +49,7 @@ Production-ready plugin repo:
   Use --platform cursor for the Cursor workspace-config lane without launcher/runtime scaffolding.
 
 Already have native config:
-  Use plugin-kit-ai import to migrate current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
+  Use plugin-kit-ai import to bring current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
   init is for creating a new package-standard project, not for preserving native files as the authored source of truth.
 
 Public flags:

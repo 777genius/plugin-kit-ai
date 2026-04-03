@@ -39,7 +39,7 @@ Use these terms consistently in public docs, generated artifacts, and CLI output
 - `public-beta`: supported but not yet covered by the stable promise
 - `public-experimental`: opt-in surface with no compatibility promise
 - `runtime-supported but not stable`: implemented runtime path that still remains `public-beta`
-- `packaging-only target`: target with manifest/render/import support but without any runtime contract
+- `packaging-only target`: target with manifest/render/import support but without a production-ready runtime contract
 
 ## Current Public-Stable
 
@@ -74,7 +74,7 @@ Current production-ready target boundary:
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini: full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate` and local `extensions link|config|disable|enable`, plus a `public-beta` Go runtime lane for `SessionStart`, `SessionEnd`, `Notification`, `PreCompress`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool` with dedicated opt-in real CLI runtime smoke; still not production-ready
-- OpenCode: workspace-config lane through `plugin-kit-ai render|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope and env-config import compatibility; not a production-ready runtime target
+- OpenCode: workspace-config lane through `plugin-kit-ai render|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope import; not a production-ready runtime target
 
 Stable CLI commands:
 
@@ -144,8 +144,8 @@ Runtime recommendation contract:
 Current beta surfaces that remain intentionally outside the stable set:
 
 - Gemini full Gemini CLI extension packaging lane through `plugin-kit-ai render|import|validate`, covering official-style `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, and deterministic local extension lifecycle checks
-- OpenCode workspace-config lane through `plugin-kit-ai render|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, compatibility import from `.claude/skills` and `.agents/skills`, explicit `--include-user-scope` import from `~/.config/opencode`, env-config import compatibility from `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR`, `config.extra.json`, passthrough config surfaces like `agent`, `permission`, and `instructions`, and deprecated compatibility passthrough for config-level `tools`; `custom_tools` remain beta across standalone tools and plugin code
-- Cursor workspace-config lane through `plugin-kit-ai render|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, compatibility import for legacy `.cursorrules`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
+- OpenCode workspace-config lane through `plugin-kit-ai render|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, `config.extra.json`, passthrough config surfaces like `agent`, `permission`, and `instructions`, and deprecated compatibility passthrough for config-level `tools`; `custom_tools` remain beta across standalone tools and plugin code
+- Cursor workspace-config lane through `plugin-kit-ai render|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
 - `plugin-kit-ai render`, `plugin-kit-ai import`, and `plugin-kit-ai normalize`
@@ -304,7 +304,7 @@ SDK and CLI stable promotion means:
 
 - no breaking changes outside a future major release
 - removal only through deprecation first
-- migration path required for future replacements
+- future replacements must be documented before they ship
 - support docs and generated support metadata must match shipped behavior
 
 Codex stable promotion means:
@@ -378,5 +378,5 @@ Release evidence note:
 ## Deprecation Rules
 
 - Deprecated public surfaces must be marked in docs and changelogs before removal.
-- Removal requires a documented migration path.
+- Removal requires documented scope and breakage.
 - Deprecated `public-beta` surface may still change before `v1`, but removal should not be silent.

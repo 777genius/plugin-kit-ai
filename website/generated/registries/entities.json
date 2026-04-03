@@ -21,6 +21,215 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "gemini_after_agent"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_after_agent",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_after_agent",
+    "summary": "Capability gemini_after_agent",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_after_agent",
+    "pathRu": "/ru/api/capabilities/gemini_after_agent"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_after_model"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_after_model",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_after_model",
+    "summary": "Capability gemini_after_model",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_after_model",
+    "pathRu": "/ru/api/capabilities/gemini_after_model"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_after_tool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_after_tool",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_after_tool",
+    "summary": "Capability gemini_after_tool",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_after_tool",
+    "pathRu": "/ru/api/capabilities/gemini_after_tool"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_before_agent"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_before_agent",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_before_agent",
+    "summary": "Capability gemini_before_agent",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_before_agent",
+    "pathRu": "/ru/api/capabilities/gemini_before_agent"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_before_model"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_before_model",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_before_model",
+    "summary": "Capability gemini_before_model",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_before_model",
+    "pathRu": "/ru/api/capabilities/gemini_before_model"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_before_tool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_before_tool",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_before_tool",
+    "summary": "Capability gemini_before_tool",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_before_tool",
+    "pathRu": "/ru/api/capabilities/gemini_before_tool"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_before_tool_selection"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_before_tool_selection",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_before_tool_selection",
+    "summary": "Capability gemini_before_tool_selection",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_before_tool_selection",
+    "pathRu": "/ru/api/capabilities/gemini_before_tool_selection"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_notification"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_notification",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_notification",
+    "summary": "Capability gemini_notification",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_notification",
+    "pathRu": "/ru/api/capabilities/gemini_notification"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_pre_compress"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_pre_compress",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_pre_compress",
+    "summary": "Capability gemini_pre_compress",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_pre_compress",
+    "pathRu": "/ru/api/capabilities/gemini_pre_compress"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_session_end"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_session_end",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_session_end",
+    "summary": "Capability gemini_session_end",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_session_end",
+    "pathRu": "/ru/api/capabilities/gemini_session_end"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "gemini_session_start"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "capability:gemini_session_start",
+    "kind": "capability",
+    "surface": "capabilities",
+    "localeStrategy": "mirrored",
+    "title": "gemini_session_start",
+    "summary": "Capability gemini_session_start",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/capabilities/gemini_session_start",
+    "pathRu": "/ru/api/capabilities/gemini_session_start"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "notify"
     ],
     "publicVisibility": "public",
@@ -1009,6 +1218,36 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "gemini",
+      "SessionStart",
+      "SessionEnd",
+      "Notification",
+      "PreCompress",
+      "BeforeModel",
+      "AfterModel",
+      "BeforeToolSelection",
+      "BeforeAgent",
+      "AfterAgent",
+      "BeforeTool",
+      "AfterTool"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "event-platform:gemini",
+    "kind": "event",
+    "surface": "platform-events",
+    "localeStrategy": "mirrored",
+    "title": "gemini",
+    "summary": "gemini event surface",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "support-export",
+    "sourceRef": "docs/generated/support_matrix.md",
+    "pathEn": "/en/api/platform-events/gemini",
+    "pathRu": "/ru/api/platform-events/gemini"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "github.com/777genius/plugin-kit-ai/sdk",
       "sdk"
     ],
@@ -1643,25 +1882,6 @@
     ]
   },
   {
-    "canonicalId": "page:guide:migrate-existing-config",
-    "kind": "page",
-    "surface": "guide",
-    "localeStrategy": "mirrored",
-    "title": "Migrate Existing Native Config",
-    "summary": "Move from hand-managed native config to one repo-owned workflow.",
-    "stability": "public-stable",
-    "maturity": "stable",
-    "publicVisibility": "public",
-    "sourceKind": "hand-authored",
-    "sourceRef": "guide/migrate-existing-config.md",
-    "pathEn": "/en/guide/migrate-existing-config",
-    "pathRu": "/ru/guide/migrate-existing-config",
-    "relatedIds": [],
-    "searchTerms": [
-      "Migrate Existing Native Config"
-    ]
-  },
-  {
     "canonicalId": "page:guide:node-typescript-runtime",
     "kind": "page",
     "surface": "guide",
@@ -2009,7 +2229,7 @@
     "surface": "releases",
     "localeStrategy": "mirrored",
     "title": "Releases",
-    "summary": "User-facing release notes and migration notes.",
+    "summary": "Public release history for plugin-kit-ai.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",

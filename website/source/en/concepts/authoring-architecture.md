@@ -43,7 +43,7 @@ That means:
 
 - the project source is the long-term source of truth
 - target files are outputs
-- migration exists to bring native config into this model, not to preserve native files as the primary contract
+- import exists to bring native config into this model, not to preserve native files as the primary contract
 
 ## Render
 

@@ -2,7 +2,6 @@
 
 This document explains the two supported helper-delivery modes for launcher-based `python` and `node` plugins on `codex-runtime` and `claude`.
 
-Neither mode is legacy.
 They expose the same supported handler-oriented helper API through different operational tradeoffs.
 
 ## The Two Modes
@@ -52,4 +51,4 @@ Development builds should pass `--runtime-package-version` explicitly.
 - choose `vendored helper` when you want the smoothest repo-local Python/Node start
 - choose `shared runtime package` when you already know you want a reusable dependency across multiple Python/Node plugin repos
 
-If you start with the default vendored helper and later move to `plugin-kit-ai-runtime`, that is a supported migration, not a fallback or deprecation path.
+If you start with the default vendored helper and later move to `plugin-kit-ai-runtime`, treat that as a normal delivery-model switch, not as a special fallback path.

@@ -157,9 +157,6 @@ func (geminiAdapter) Render(root string, graph pluginmodel.PackageGraph, state p
 	if len(meta.ExcludeTools) > 0 {
 		manifest["excludeTools"] = append([]string(nil), normalizeGeminiExcludeTools(meta.ExcludeTools)...)
 	}
-	if strings.TrimSpace(meta.MigratedTo) != "" {
-		manifest["migratedTo"] = meta.MigratedTo
-	}
 	if strings.TrimSpace(meta.PlanDirectory) != "" {
 		manifest["plan"] = map[string]any{"directory": meta.PlanDirectory}
 	}
@@ -305,7 +302,6 @@ func geminiManifestManagedPaths() []string {
 		"mcpServers",
 		"contextFileName",
 		"excludeTools",
-		"migratedTo",
 		"settings",
 		"themes",
 		"plan.directory",
@@ -344,7 +340,6 @@ func collectDiagnosticMessages(diagnostics []Diagnostic, severity DiagnosticSeve
 func importedGeminiPackageYAML(meta geminiPackageMeta) []byte {
 	if len(meta.ExcludeTools) == 0 &&
 		strings.TrimSpace(meta.ContextFileName) == "" &&
-		strings.TrimSpace(meta.MigratedTo) == "" &&
 		strings.TrimSpace(meta.PlanDirectory) == "" {
 		return nil
 	}

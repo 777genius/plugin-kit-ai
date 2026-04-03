@@ -19,7 +19,7 @@ init -> render -> validate --strict -> test -> handoff
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Init[init or migrate] --> Render[render]
+  Init[init] --> Render[render]
   Render --> Validate[validate --strict]
   Validate --> Test[test or smoke checks]
   Test --> Handoff[handoff]
@@ -53,7 +53,7 @@ flowchart LR
 Workflow может расширяться в специальных случаях:
 
 - `doctor` и `bootstrap` важны для Python и Node runtime-путей
-- `import` и `normalize` важны при миграции native config в управляемую модель проекта
+- `import` и `normalize` важны, когда нужно собрать вручную поддерживаемые target files обратно в управляемую модель проекта
 - bundle commands важны для portable Python и Node handoff flows
 
-Начинайте с [Быстрого старта](/ru/guide/quickstart), если нужен самый короткий путь, или с [Миграции существующего native config](/ru/guide/migrate-existing-config), если вы входите с legacy target files.
+Начинайте с [Быстрого старта](/ru/guide/quickstart), если нужен самый короткий путь.

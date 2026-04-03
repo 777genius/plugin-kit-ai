@@ -65,5 +65,4 @@ outline: false
 - [Выбор target](/ru/guide/choose-a-target)
 - [Готовность к продакшену](/ru/guide/production-readiness)
 - [Интеграция с CI](/ru/guide/ci-integration)
-- [Миграция существующей конфигурации](/ru/guide/migrate-existing-config)
 - [Примеры и рецепты](/ru/guide/examples-and-recipes)

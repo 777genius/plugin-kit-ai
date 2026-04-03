@@ -41,15 +41,4 @@ translationRequired: true
 
 Начинайте с пути Go по умолчанию, если нужен самый сильный контракт. Переходите на Node/TypeScript или Python только тогда, когда компромисс локального runtime действительно осознан и нужен.
 
-## У меня уже есть native config files
-
-Используйте migration flow:
-
-```bash
-plugin-kit-ai import ./native-plugin --from codex-runtime
-plugin-kit-ai normalize ./native-plugin
-plugin-kit-ai render ./native-plugin
-plugin-kit-ai validate ./native-plugin --platform codex-runtime --strict
-```
-
-См. [Процесс авторинга](/ru/reference/authoring-workflow), [Частые вопросы](/ru/reference/faq) и [Миграцию существующего native config](/ru/guide/migrate-existing-config).
+См. [Процесс авторинга](/ru/reference/authoring-workflow) и [Частые вопросы](/ru/reference/faq).

@@ -565,7 +565,7 @@ func All() []PlatformProfile {
 			Launcher: LauncherMeta{Requirement: LauncherOptional},
 			NativeDocs: []NativeDocSpec{
 				{Kind: "package_metadata", Path: "targets/gemini/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "migratedTo", "settings", "themes", "plan.directory"}},
+				{Kind: "manifest_extra", Path: "targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "settings", "themes", "plan.directory"}},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "commands", Tier: SurfaceTierStable},
@@ -691,7 +691,7 @@ func All() []PlatformProfile {
 				TargetClass:            "workspace_config_lane",
 				TargetNoun:             "workspace",
 				ProductionClass:        "packaging-only target",
-				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope and env-config import compatibility, permission-first passthrough config semantics, deprecated tools-config compatibility passthrough, and beta custom tools across standalone tools and plugin code",
+				RuntimeContract:        "workspace-config lane with first-class npm plugin refs, MCP, skills, commands, agents, themes, beta standalone tools with dedicated live evidence, stable official-style local JS/TS plugins plus shared dependency metadata, JSON/JSONC native import, explicit user-scope import, permission-first passthrough config semantics, deprecated tools-config compatibility passthrough, and beta custom tools across standalone tools and plugin code",
 				InstallModel:           "workspace config file",
 				DevModel:               "config authoring workspace",
 				ActivationModel:        "config reload or restart",
@@ -701,7 +701,7 @@ func All() []PlatformProfile {
 				ValidateSupport:        true,
 				PortableComponentKinds: []string{"skills", "mcp_servers"},
 				TargetComponentKinds:   []string{"package_metadata", "config_extra", "commands", "agents", "themes", "tools", "local_plugin_code", "local_plugin_dependencies"},
-				Summary:                "OpenCode compiles as a workspace-config lane with canonical repo-local authored outputs for npm plugin refs, shared MCP, skills, commands, agents, themes, beta standalone tools with their own live-evidence path, stable official-style local JS/TS plugins plus shared package metadata for tools and plugins, layered JSON/JSONC import compatibility across project, explicit user scope, and env-config sources, beta custom tools across standalone tools and plugin code, and passthrough support for broader permission-first config-only surfaces.",
+				Summary:                "OpenCode compiles as a workspace-config lane with canonical repo-local authored outputs for npm plugin refs, shared MCP, skills, commands, agents, themes, beta standalone tools with their own live-evidence path, stable official-style local JS/TS plugins plus shared package metadata for tools and plugins, layered JSON/JSONC import compatibility across project and explicit user scope, beta custom tools across standalone tools and plugin code, and passthrough support for broader permission-first config-only surfaces.",
 			},
 			SDK: SDKMeta{
 				PublicPackage:   "opencode",

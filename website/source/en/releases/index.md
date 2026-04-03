@@ -1,6 +1,6 @@
 ---
 title: "Releases"
-description: "User-facing release notes and migration notes."
+description: "Public release history for plugin-kit-ai."
 canonicalId: "page:releases:index"
 section: "releases"
 locale: "en"
@@ -14,7 +14,7 @@ outline: false
   <p class="docs-kicker">RELEASES</p>
   <h1>User-Facing Changes</h1>
   <p class="docs-lead">
-    This area is reserved for release notes and migration guidance that matter to plugin authors and integrators.
+    This area is reserved for public release history that matters to plugin authors and integrators.
   </p>
 </div>
 
@@ -47,7 +47,6 @@ outline: false
 ## Scope
 
 - Public release notes.
-- Migration notes.
 - Breaking change callouts.
 - User-facing changes only.
 

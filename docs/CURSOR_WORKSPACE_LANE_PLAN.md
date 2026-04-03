@@ -13,7 +13,6 @@ Recommended `v1` scope:
 - render/import/validate support for `.cursor/mcp.json`
 - render/import/validate support for `.cursor/rules/**`
 - explicit support for root `AGENTS.md` as a Cursor-compatible instruction surface
-- optional compatibility import for legacy `.cursorrules`
 - preserve Cursor `mcp.json` interpolation strings without semantic narrowing
 - no attempt to implement a full VS Code extension packaging lane
 - no attempt to model undocumented Cursor-native AI "plugin bundles" analogous to OpenCode npm plugin refs
@@ -368,9 +367,8 @@ Import sources for `v1`:
 - `.cursor/rules/**`
 - root `AGENTS.md`
 
-Optional compatibility import:
+Deferred compatibility import:
 
-- `.cursorrules` -> prefer normalizing into `targets/cursor/rules/legacy.mdc` with a warning; avoid mapping to `targets/cursor/AGENTS.md` unless we later have a documented reason
 - root `CLAUDE.md` -> defer in `v1`; if added later, treat as compatibility import, not canonical authored state
 - `~/.cursor/mcp.json` -> defer to a later `--include-user-scope` style import path if demand exists
 
@@ -383,7 +381,7 @@ Import rules:
 
 Detect/import policy:
 
-- `DetectNative(root)` should return true for `.cursor/mcp.json`, `.cursor/rules/**`, or legacy `.cursorrules`
+- `DetectNative(root)` should return true for `.cursor/mcp.json` or `.cursor/rules/**`
 - standalone root `AGENTS.md` must not auto-detect Cursor, because that would create false positives in repos using shared agent instructions outside Cursor
 - explicit `plugin-kit-ai import . --from cursor` may import root `AGENTS.md` in addition to `.cursor` state
 - `--include-user-scope` for Cursor should fail with a clear "not yet supported" error in `v1`
@@ -412,7 +410,7 @@ Validation checks:
 
 Optional warning:
 
-- if both `targets/cursor/AGENTS.md` and legacy `.cursorrules` exist in native import scenarios
+- if both `targets/cursor/AGENTS.md` and imported workspace rules could conflict during native import scenarios
 
 Acceptance criteria:
 
@@ -509,7 +507,6 @@ Recommended wording:
 These decisions are intentionally fixed for implementation:
 
 - `AGENTS.md` is optional
-- legacy `.cursorrules` import is included in `v1` as compatibility import and should normalize into `targets/cursor/rules/legacy.mdc` with a warning
 - `.cursor/mcp.json` is strict JSON-only in `v1`; do not claim JSONC support without official documentation
 - root `CLAUDE.md` compatibility is deferred and must not be imported or rendered in `v1`
 - nested non-root `.cursor/rules` authored support is deferred and must not be silently implied

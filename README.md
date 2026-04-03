@@ -109,7 +109,7 @@ Practical default:
 
 ## Deep Product Details
 
-Everything below this point is for people comparing delivery models, migration paths, and detailed support boundaries. If you only needed the main promise and first path, you can stop above.
+Everything below this point is for people comparing delivery models and detailed support boundaries. If you only needed the main promise and first path, you can stop above.
 
 ## Go Deeper By Goal
 

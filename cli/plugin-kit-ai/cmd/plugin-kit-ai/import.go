@@ -19,10 +19,10 @@ var importCmd = &cobra.Command{
 	Long: `Import an existing native plugin into the package standard layout.
 
 Claude import maps native plugin artifacts into the package-standard layout.
-Codex import can materialize the official package lane, the local runtime lane, or both from current native artifacts. Use codex-native when you want the combined current Codex native layout; use codex-package or codex-runtime when you already know the target lane.
+Codex import materializes either the official package lane or the local runtime lane from current native artifacts. Use codex-package or codex-runtime explicitly for the lane you want to preserve.
 Gemini import backfills the extension package layout and may preserve an optional launcher-based Go beta lane when that authored project already uses one. It does not promote Gemini to a production-ready runtime target.
 OpenCode import is workspace-config-only in the current contract: it normalizes project-native JSON/JSONC config, commands, agents, themes, local plugin code, plugin-local package metadata, compatible skill roots, and optional user-scope OpenCode sources into the canonical package-standard layout.
-Cursor import is workspace-config-only in the current contract: it normalizes .cursor/mcp.json, .cursor/rules/**, optional root AGENTS.md, and legacy .cursorrules into the canonical package-standard layout.`,
+Cursor import is workspace-config-only in the current contract: it normalizes .cursor/mcp.json, .cursor/rules/**, and optional root AGENTS.md into the canonical package-standard layout.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		root := "."
@@ -47,7 +47,7 @@ Cursor import is workspace-config-only in the current contract: it normalizes .c
 }
 
 func init() {
-	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex-native", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor"; omit to auto-detect current native layouts)`)
+	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor"; omit to auto-detect current native layouts)`)
 	importCmd.Flags().BoolVarP(&importForce, "force", "f", false, "overwrite plugin.yaml if it already exists")
 	importCmd.Flags().BoolVar(&importIncludeUserScope, "include-user-scope", false, "include explicit user-scope native sources when supported by the import target")
 }

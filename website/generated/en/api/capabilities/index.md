@@ -20,6 +20,17 @@ Capabilities give you a cross-platform view of runtime behavior, not just a pack
 - This is the better entry point when you compare similar behavior across Claude and Codex.
 
 - [`config_change`](/en/api/capabilities/config_change)
+- [`gemini_after_agent`](/en/api/capabilities/gemini_after_agent)
+- [`gemini_after_model`](/en/api/capabilities/gemini_after_model)
+- [`gemini_after_tool`](/en/api/capabilities/gemini_after_tool)
+- [`gemini_before_agent`](/en/api/capabilities/gemini_before_agent)
+- [`gemini_before_model`](/en/api/capabilities/gemini_before_model)
+- [`gemini_before_tool`](/en/api/capabilities/gemini_before_tool)
+- [`gemini_before_tool_selection`](/en/api/capabilities/gemini_before_tool_selection)
+- [`gemini_notification`](/en/api/capabilities/gemini_notification)
+- [`gemini_pre_compress`](/en/api/capabilities/gemini_pre_compress)
+- [`gemini_session_end`](/en/api/capabilities/gemini_session_end)
+- [`gemini_session_start`](/en/api/capabilities/gemini_session_start)
 - [`notify`](/en/api/capabilities/notify)
 - [`permission_request`](/en/api/capabilities/permission_request)
 - [`post_tool`](/en/api/capabilities/post_tool)

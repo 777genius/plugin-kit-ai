@@ -1,5 +1,4 @@
 context_file_name: "GEMINI.md"
 exclude_tools:
   - "run_shell_command(rm -rf)"
-migrated_to: "https://github.com/plugin-kit-ai/example-gemini-extension-v2"
 plan_directory: ".gemini/plans"
