@@ -882,27 +882,22 @@ func TestValidate_OpenCodeRejectsToolHelperImportWithoutDependency(t *testing.T)
 	}
 }
 
-func TestImport_OpenCodeNormalizesLegacyToolDirectory(t *testing.T) {
+func TestImport_OpenCodeRejectsLegacyToolDirectory(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 	mustWritePluginFile(t, root, filepath.Join(".opencode", "tool", "echo.ts"), "export default { description: \"echo\", args: {}, async execute() { return \"ok\" } }\n")
 
-	_, warnings, err := Import(root, "opencode", false, false)
-	if err != nil {
-		t.Fatal(err)
+	if _, _, err := Import(root, "opencode", false, false); err == nil || !strings.Contains(err.Error(), "unsupported OpenCode native path .opencode/tool: use .opencode/tools") {
+		t.Fatalf("Import error = %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "opencode", "tools", "echo.ts")); err != nil {
-		t.Fatalf("stat normalized tool file: %v", err)
-	}
-	var found bool
-	for _, warning := range warnings {
-		if strings.Contains(warning.Message, "legacy OpenCode tool files") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("warnings = %+v", warnings)
+}
+
+func TestImport_CursorRejectsLegacyCursorRules(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, ".cursorrules", "Always review generated code.\n")
+
+	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "unsupported Cursor native path .cursorrules: use .cursor/rules/*.mdc and optional root AGENTS.md") {
+		t.Fatalf("Import error = %v", err)
 	}
 }
 
@@ -2254,7 +2249,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 	if got := target.NativeSurfaceTiers["tools"]; got != "beta" {
 		t.Fatalf("native_surface_tiers[tools] = %q", got)
 	}
-	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig, foundToolsConfig, foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
+	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig, foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
 	var foundLocalPluginCode, foundCustomTools, foundLocalPluginDependencies bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
@@ -2264,8 +2259,6 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundPermissionConfig = true
 		case surface.Kind == "instructions_config" && surface.Tier == "passthrough_only":
 			foundInstructionsConfig = true
-		case surface.Kind == "tools_config" && surface.Tier == "passthrough_only":
-			foundToolsConfig = true
 		case surface.Kind == "commands" && surface.Tier == "stable":
 			foundCommands = true
 		case surface.Kind == "agents" && surface.Tier == "stable":
@@ -2284,7 +2277,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundLocalPluginDependencies = true
 		}
 	}
-	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundToolsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
+	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }

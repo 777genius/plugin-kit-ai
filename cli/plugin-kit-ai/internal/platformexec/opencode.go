@@ -870,14 +870,13 @@ func importDirectoryArtifactsWithWarnings(sources []opencodeImportSource, dstRoo
 }
 
 func importOpenCodeToolArtifacts(workspaceRoot, workspaceDisplay string) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
+	legacyDir := filepath.Join(workspaceRoot, "tool")
+	if _, err := os.Stat(legacyDir); err == nil {
+		return nil, nil, fmt.Errorf("unsupported OpenCode native path %s: use %s", filepath.ToSlash(filepath.Join(workspaceDisplay, "tool")), filepath.ToSlash(filepath.Join(workspaceDisplay, "tools")))
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, nil, err
+	}
 	sources := []opencodeImportSource{
-		{
-			dir:       filepath.Join(workspaceRoot, "tool"),
-			display:   filepath.ToSlash(filepath.Join(workspaceDisplay, "tool")),
-			warnOnUse: true,
-			warnPath:  filepath.ToSlash(filepath.Join(workspaceDisplay, "tool")),
-			warnMsg:   fmt.Sprintf("normalized legacy OpenCode tool files from %s into canonical targets/opencode/tools/** during import", filepath.ToSlash(filepath.Join(workspaceDisplay, "tool"))),
-		},
 		{
 			dir:     filepath.Join(workspaceRoot, "tools"),
 			display: filepath.ToSlash(filepath.Join(workspaceDisplay, "tools")),

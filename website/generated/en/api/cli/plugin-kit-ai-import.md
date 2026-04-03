@@ -32,7 +32,7 @@ Claude import maps native plugin artifacts into the package-standard layout.
 Codex import can materialize the official package lane, the local runtime lane, or both from current native artifacts. Use codex-native when you want the combined current Codex native layout; use codex-package or codex-runtime when you already know the target lane.
 Gemini import is packaging-only in the current contract: it backfills manifest metadata, but does not promote Gemini to a production-ready runtime target.
 OpenCode import is workspace-config-only in the current contract: it normalizes project-native JSON/JSONC config, commands, agents, themes, local plugin code, plugin-local package metadata, compatible skill roots, and optional user-scope OpenCode sources into the canonical package-standard layout.
-Cursor import is workspace-config-only in the current contract: it normalizes .cursor/mcp.json, .cursor/rules/**, optional root AGENTS.md, and legacy .cursorrules into the canonical package-standard layout.
+Cursor import is workspace-config-only in the current contract: it normalizes .cursor/mcp.json, .cursor/rules/**, and optional root AGENTS.md into the canonical package-standard layout.
 
 ```
 plugin-kit-ai import [path] [flags]
