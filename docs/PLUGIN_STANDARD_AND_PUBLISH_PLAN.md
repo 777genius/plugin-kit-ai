@@ -544,7 +544,7 @@ Example future command shape:
 ```bash
 plugin-kit-ai publish --channel codex-marketplace
 plugin-kit-ai publish --channel claude-marketplace
-plugin-kit-ai publish --channel gemini-gallery
+plugin-kit-ai publish --channel gemini-gallery --dry-run
 ```
 
 Or a multi-channel wrapper:
@@ -559,6 +559,7 @@ Status:
 - current implementation exposes a first-class bounded `plugin-kit-ai publish --channel codex-marketplace|claude-marketplace --dest <marketplace-root>` workflow for local catalog-safe publication channels
 - current implementation supports `--dry-run` for those local materialization workflows
 - current implementation also exposes `plugin-kit-ai publish --channel gemini-gallery --dry-run` as a repository or release publication plan without inventing a fake local marketplace-root flow
+- current implementation intentionally does not expose `publish --all`, because local materialization channels and repository or release planning channels still have different execution semantics
 
 ## Top Design Choices That Are Now Fixed
 

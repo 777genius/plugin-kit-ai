@@ -376,8 +376,6 @@ func publishTargetForChannel(channel string) (string, error) {
 		return "codex-package", nil
 	case "claude-marketplace":
 		return "claude", nil
-	case "gemini-gallery":
-		return "", fmt.Errorf("publish currently supports only local catalog channels %q and %q; use publication doctor for Gemini gallery readiness", "codex-marketplace", "claude-marketplace")
 	default:
 		return "", fmt.Errorf("unsupported publish channel %q", channel)
 	}

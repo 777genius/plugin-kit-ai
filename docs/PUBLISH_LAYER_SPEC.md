@@ -266,6 +266,7 @@ Status:
 - current implementation also provides `--dry-run` on local materialize/remove workflows so local marketplace mutations can be previewed before writing
 - current implementation does not render a separate Gemini gallery artifact because official Gemini docs do not define one
 - current implementation instead validates Gemini gallery publication metadata, surfaces it through `plugin-kit-ai inspect`, and exposes `plugin-kit-ai publish --channel gemini-gallery --dry-run` as a bounded repository or release publication plan
+- current implementation intentionally does not expose `publish --all`, because local marketplace materialization and Gemini repository/release planning are still different workflow classes
 
 ### Step 4
 

@@ -21,7 +21,7 @@ func newPublishCmd(runner publishRunner) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "publish [path]",
 		Short: "Publish a package target through a bounded channel workflow",
-		Long: `Publish a package target into a safe local marketplace root through a channel-family workflow.
+		Long: `Publish a package target through a bounded channel-family workflow.
 
 This first-class publish entrypoint is intentionally bounded to documented channel flows:
 - codex-marketplace
