@@ -105,6 +105,9 @@ func TestPublicationJSONEmitsPublicationModelOnly(t *testing.T) {
 				},
 			},
 		},
+		warnings: []pluginmanifest.Warning{
+			{Message: "publish/gemini/gallery.yaml is discoverable"},
+		},
 	})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -117,11 +120,25 @@ func TestPublicationJSONEmitsPublicationModelOnly(t *testing.T) {
 	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
 		t.Fatalf("json parse: %v\n%s", err, buf.Bytes())
 	}
-	if payload["core"] == nil || payload["packages"] == nil || payload["channels"] == nil {
+	if payload["format"] != "plugin-kit-ai/publication-report" {
+		t.Fatalf("format = %+v", payload["format"])
+	}
+	if payload["schema_version"] != float64(1) {
+		t.Fatalf("schema_version = %+v", payload["schema_version"])
+	}
+	if payload["warning_count"] != float64(1) {
+		t.Fatalf("warning_count = %+v", payload["warning_count"])
+	}
+	warnings, ok := payload["warnings"].([]any)
+	if !ok || len(warnings) != 1 || warnings[0] != "publish/gemini/gallery.yaml is discoverable" {
+		t.Fatalf("warnings = %+v", payload["warnings"])
+	}
+	publication, ok := payload["publication"].(map[string]any)
+	if !ok || publication["core"] == nil || publication["packages"] == nil || publication["channels"] == nil {
 		t.Fatalf("publication payload = %+v", payload)
 	}
-	if _, found := payload["manifest"]; found {
-		t.Fatalf("publication json unexpectedly includes full inspect payload: %+v", payload)
+	if _, found := payload["core"]; found {
+		t.Fatalf("publication json should use envelope shape, not raw model: %+v", payload)
 	}
 }
 

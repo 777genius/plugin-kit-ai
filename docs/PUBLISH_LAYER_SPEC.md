@@ -220,6 +220,7 @@ This internal model should become the bridge between:
 - generated publication artifacts
 
 The publication readiness contract is documented in [Publication Doctor JSON Contract](/Users/belief/dev/projects/claude/hookplex/docs/PUBLICATION_DOCTOR_JSON_CONTRACT.md).
+The publication summary contract is documented in [Publication JSON Contract](/Users/belief/dev/projects/claude/hookplex/docs/PUBLICATION_JSON_CONTRACT.md).
 
 ## Planned rollout
 

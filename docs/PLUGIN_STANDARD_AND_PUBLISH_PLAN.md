@@ -466,7 +466,7 @@ Status:
 
 - in progress and partially implemented
 - current implementation exposes a normalized `publication` summary through `plugin-kit-ai inspect --format json`
-- current implementation also exposes that normalized publication model through `plugin-kit-ai publication --format json`
+- current implementation also exposes that normalized publication model through the versioned `plugin-kit-ai/publication-report` contract at `plugin-kit-ai publication --format json`
 - current implementation keeps publication modeling internal and does not freeze `publish/...` filesystem layout yet
 
 ### Phase 5. Define `publish/...`
@@ -491,6 +491,7 @@ Status:
 - current implementation exposes publication channels through `plugin-kit-ai inspect`
 - current implementation exposes discoverable publication channels through `plugin-kit-ai validate` text and JSON output when the repo is inspectable
 - current implementation exposes a focused `plugin-kit-ai publication` view for package and channel publication state
+- current implementation exposes `plugin-kit-ai publication --format json` as the versioned `plugin-kit-ai/publication-report` contract
 - current implementation exposes `plugin-kit-ai publication doctor` for read-only publication readiness and next-step guidance
 - current implementation exposes `plugin-kit-ai publication doctor --format json` as the versioned `plugin-kit-ai/publication-doctor-report` contract
 - current implementation renders the repo-level Codex marketplace artifact `.agents/plugins/marketplace.json`

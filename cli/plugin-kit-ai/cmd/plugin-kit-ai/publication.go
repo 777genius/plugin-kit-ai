@@ -36,11 +36,11 @@ func newPublicationCmd(runner inspectRunner) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, warning := range warnings {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: %s\n", warning.Message)
-			}
 			switch strings.ToLower(strings.TrimSpace(publicationFormat)) {
 			case "", "text":
+				for _, warning := range warnings {
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: %s\n", warning.Message)
+				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "publication %s %s api_version=%s\n",
 					report.Publication.Core.Name,
 					report.Publication.Core.Version,
@@ -72,7 +72,7 @@ func newPublicationCmd(runner inspectRunner) *cobra.Command {
 				}
 				return nil
 			case "json":
-				out, err := json.MarshalIndent(report.Publication, "", "  ")
+				out, err := json.MarshalIndent(buildPublicationJSONReport(report, warnings, publicationTarget), "", "  ")
 				if err != nil {
 					return err
 				}
@@ -306,6 +306,15 @@ type publicationDoctorJSONReport struct {
 	Publication           publicationmodel.Model `json:"publication"`
 }
 
+type publicationJSONReport struct {
+	Format          string                 `json:"format"`
+	SchemaVersion   int                    `json:"schema_version"`
+	RequestedTarget string                 `json:"requested_target,omitempty"`
+	WarningCount    int                    `json:"warning_count"`
+	Warnings        []string               `json:"warnings"`
+	Publication     publicationmodel.Model `json:"publication"`
+}
+
 func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis) publicationDoctorJSONReport {
 	warningMessages := make([]string, 0, len(warnings))
 	for _, warning := range warnings {
@@ -325,6 +334,21 @@ func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings
 		NextSteps:             append([]string(nil), diagnosis.NextSteps...),
 		MissingPackageTargets: append([]string(nil), diagnosis.MissingPackageTargets...),
 		Publication:           publication,
+	}
+}
+
+func buildPublicationJSONReport(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string) publicationJSONReport {
+	warningMessages := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		warningMessages = append(warningMessages, warning.Message)
+	}
+	return publicationJSONReport{
+		Format:          "plugin-kit-ai/publication-report",
+		SchemaVersion:   1,
+		RequestedTarget: strings.TrimSpace(requestedTarget),
+		WarningCount:    len(warningMessages),
+		Warnings:        warningMessages,
+		Publication:     normalizePublicationModel(report.Publication),
 	}
 }
 
