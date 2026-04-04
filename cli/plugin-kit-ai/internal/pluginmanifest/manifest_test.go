@@ -1132,6 +1132,40 @@ func TestRender_CodexMarketplaceGeneratesManagedArtifact(t *testing.T) {
 	}
 }
 
+func TestRender_ClaudeMarketplaceGeneratesManagedArtifact(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-claude", "claude", "go", "claude package demo", true)
+	mustSavePackage(t, root, manifest, "go")
+	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-claude\n")
+	mustWritePluginFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+
+	result, err := Render(root, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(root, ".claude-plugin", "marketplace.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		`"name": "acme-tools"`,
+		`"owner"`,
+		`"ACME Team"`,
+		`"name": "demo-claude"`,
+		`"source": "./"`,
+		`"description": "claude package demo"`,
+		`"version": "0.1.0"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("marketplace.json missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestRender_CodexSkipsEmptyAppPlaceholder(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "codex-package", "", "demo plugin", false)

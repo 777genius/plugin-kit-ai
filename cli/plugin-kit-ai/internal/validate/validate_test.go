@@ -1169,6 +1169,42 @@ targets: ["codex-package"]
 	}
 }
 
+func TestValidate_ClaudeRejectsGeneratedMarketplaceMismatch(t *testing.T) {
+	root := t.TempDir()
+	mustWriteValidateFile(t, root, "plugin.yaml", `api_version: v1
+name: "demo-claude"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	mustWriteValidateFile(t, root, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-claude\n")
+	mustWriteValidateFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+
+	result, err := pluginmanifest.Render(root, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pluginmanifest.WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteValidateFile(t, root, filepath.Join(".claude-plugin", "marketplace.json"), `{"name":"drifted","owner":{"name":"other"},"plugins":[]}`)
+
+	report, err := Validate(root, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureGeneratedContractInvalid &&
+			failure.Path == filepath.ToSlash(filepath.Join(".claude-plugin", "marketplace.json")) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

@@ -77,3 +77,62 @@ func TestManagedPaths_CodexMarketplaceFollowsSelectedTargets(t *testing.T) {
 		t.Fatalf("managed paths for non-codex target = %+v", other)
 	}
 }
+
+func TestRender_ClaudeMarketplaceArtifact(t *testing.T) {
+	graph := pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{
+			APIVersion:  "v1",
+			Name:        "demo-plugin",
+			Version:     "0.1.0",
+			Description: "demo plugin",
+			Targets:     []string{"claude"},
+		},
+	}
+	publication := publishschema.State{
+		Claude: &publishschema.ClaudeMarketplace{
+			MarketplaceName: "acme-tools",
+			OwnerName:       "ACME Team",
+			SourceRoot:      "./",
+		},
+	}
+
+	artifacts, err := Render(graph, publication, []string{"claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(artifacts) != 1 || artifacts[0].RelPath != ClaudeMarketplaceArtifactPath {
+		t.Fatalf("artifacts = %+v", artifacts)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(artifacts[0].Content, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["name"] != "acme-tools" {
+		t.Fatalf("payload.name = %+v", payload["name"])
+	}
+	owner, ok := payload["owner"].(map[string]any)
+	if !ok || owner["name"] != "ACME Team" {
+		t.Fatalf("payload.owner = %+v", payload["owner"])
+	}
+	plugins, ok := payload["plugins"].([]any)
+	if !ok || len(plugins) != 1 {
+		t.Fatalf("payload.plugins = %+v", payload["plugins"])
+	}
+	plugin, ok := plugins[0].(map[string]any)
+	if !ok {
+		t.Fatalf("payload.plugins[0] = %+v", plugins[0])
+	}
+	if plugin["name"] != "demo-plugin" || plugin["source"] != "./" || plugin["description"] != "demo plugin" || plugin["version"] != "0.1.0" {
+		t.Fatalf("plugin entry = %+v", plugin)
+	}
+}
+
+func TestManagedPaths_ClaudeMarketplaceFollowsSelectedTargets(t *testing.T) {
+	paths := ManagedPaths(publishschema.State{}, []string{"claude"})
+	if len(paths) != 1 || paths[0] != ClaudeMarketplaceArtifactPath {
+		t.Fatalf("paths = %+v", paths)
+	}
+	if other := ManagedPaths(publishschema.State{}, []string{"cursor"}); len(other) != 0 {
+		t.Fatalf("managed paths for non-claude target = %+v", other)
+	}
+}

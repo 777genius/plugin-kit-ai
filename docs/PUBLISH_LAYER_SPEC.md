@@ -244,7 +244,7 @@ Status:
 
 - started and partially implemented
 - current implementation renders and validates the Codex repo-level marketplace artifact `.agents/plugins/marketplace.json`
-- current implementation does not yet render Claude marketplace artifacts
+- current implementation renders and validates the Claude marketplace artifact `.claude-plugin/marketplace.json`
 - current implementation does not yet render Gemini gallery or release artifacts
 
 ### Step 4

@@ -10,6 +10,7 @@ import (
 )
 
 const CodexMarketplaceArtifactPath = ".agents/plugins/marketplace.json"
+const ClaudeMarketplaceArtifactPath = ".claude-plugin/marketplace.json"
 
 func Render(graph pluginmodel.PackageGraph, publication publishschema.State, selected []string) ([]pluginmodel.Artifact, error) {
 	var artifacts []pluginmodel.Artifact
@@ -23,6 +24,16 @@ func Render(graph pluginmodel.PackageGraph, publication publishschema.State, sel
 			Content: body,
 		})
 	}
+	if shouldRenderClaudeMarketplace(publication, selected) {
+		body, err := renderClaudeMarketplace(graph, publication.Claude)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, pluginmodel.Artifact{
+			RelPath: ClaudeMarketplaceArtifactPath,
+			Content: body,
+		})
+	}
 	return artifacts, nil
 }
 
@@ -30,6 +41,9 @@ func ManagedPaths(publication publishschema.State, selected []string) []string {
 	var out []string
 	if shouldManageCodexMarketplace(selected) {
 		out = append(out, CodexMarketplaceArtifactPath)
+	}
+	if shouldManageClaudeMarketplace(selected) {
+		out = append(out, ClaudeMarketplaceArtifactPath)
 	}
 	slices.Sort(out)
 	return out
@@ -41,6 +55,14 @@ func shouldRenderCodexMarketplace(publication publishschema.State, selected []st
 
 func shouldManageCodexMarketplace(selected []string) bool {
 	return slices.Contains(selected, "codex-package")
+}
+
+func shouldRenderClaudeMarketplace(publication publishschema.State, selected []string) bool {
+	return publication.Claude != nil && shouldManageClaudeMarketplace(selected)
+}
+
+func shouldManageClaudeMarketplace(selected []string) bool {
+	return slices.Contains(selected, "claude")
 }
 
 func renderCodexMarketplace(graph pluginmodel.PackageGraph, doc *publishschema.CodexMarketplace) ([]byte, error) {
@@ -65,6 +87,24 @@ func renderCodexMarketplace(graph pluginmodel.PackageGraph, doc *publishschema.C
 		payload["interface"] = map[string]any{
 			"displayName": doc.DisplayName,
 		}
+	}
+	return json.MarshalIndent(payload, "", "  ")
+}
+
+func renderClaudeMarketplace(graph pluginmodel.PackageGraph, doc *publishschema.ClaudeMarketplace) ([]byte, error) {
+	payload := map[string]any{
+		"name": doc.MarketplaceName,
+		"owner": map[string]any{
+			"name": doc.OwnerName,
+		},
+		"plugins": []map[string]any{
+			{
+				"name":        graph.Manifest.Name,
+				"source":      doc.SourceRoot,
+				"description": graph.Manifest.Description,
+				"version":     graph.Manifest.Version,
+			},
+		},
 	}
 	return json.MarshalIndent(payload, "", "  ")
 }
