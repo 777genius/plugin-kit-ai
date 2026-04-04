@@ -20,14 +20,16 @@ func newPublishCmd(runner publishRunner) *cobra.Command {
 	var dryRun bool
 	cmd := &cobra.Command{
 		Use:   "publish [path]",
-		Short: "Publish a package target into a safe local marketplace root",
+		Short: "Publish a package target through a bounded channel workflow",
 		Long: `Publish a package target into a safe local marketplace root through a channel-family workflow.
 
-This first-class publish entrypoint is intentionally bounded to documented local/catalog-safe flows:
+This first-class publish entrypoint is intentionally bounded to documented channel flows:
 - codex-marketplace
 - claude-marketplace
+- gemini-gallery (dry-run plan only)
 
-For Gemini gallery publication, use publication doctor and the documented repository/release workflow instead of a local marketplace materialization path.`,
+Codex and Claude materialize a safe local marketplace root.
+Gemini stays repository/release rooted, so publish only supports --dry-run planning there instead of a local marketplace materialization path.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root := "."
@@ -50,11 +52,10 @@ For Gemini gallery publication, use publication doctor and the documented reposi
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&channel, "channel", "", `publish channel ("codex-marketplace" or "claude-marketplace")`)
-	cmd.Flags().StringVar(&dest, "dest", "", "destination marketplace root directory")
+	cmd.Flags().StringVar(&channel, "channel", "", `publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")`)
+	cmd.Flags().StringVar(&dest, "dest", "", "destination marketplace root directory for local Codex/Claude marketplace flows")
 	cmd.Flags().StringVar(&packageRoot, "package-root", "", "relative package root inside the destination marketplace root (default: plugins/<name>)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview the materialized publish result without writing changes")
 	_ = cmd.MarkFlagRequired("channel")
-	_ = cmd.MarkFlagRequired("dest")
 	return cmd
 }

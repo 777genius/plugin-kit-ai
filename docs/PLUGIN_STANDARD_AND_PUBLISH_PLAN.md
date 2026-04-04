@@ -557,8 +557,8 @@ Status:
 
 - started and partially implemented
 - current implementation exposes a first-class bounded `plugin-kit-ai publish --channel codex-marketplace|claude-marketplace --dest <marketplace-root>` workflow for local catalog-safe publication channels
-- current implementation supports `--dry-run` for that workflow
-- current implementation keeps Gemini on the publication-doctor path because official Gemini publication is repository/release rooted rather than local-catalog rooted
+- current implementation supports `--dry-run` for those local materialization workflows
+- current implementation also exposes `plugin-kit-ai publish --channel gemini-gallery --dry-run` as a repository or release publication plan without inventing a fake local marketplace-root flow
 
 ## Top Design Choices That Are Now Fixed
 

@@ -76,6 +76,9 @@ type PluginPublishResult struct {
 
 func (service PluginService) Publish(opts PluginPublishOptions) (PluginPublishResult, error) {
 	channel := strings.TrimSpace(opts.Channel)
+	if channel == "gemini-gallery" {
+		return service.publishGeminiGallery(opts)
+	}
 	target, err := publishTargetForChannel(channel)
 	if err != nil {
 		return PluginPublishResult{}, err
@@ -94,6 +97,47 @@ func (service PluginService) Publish(opts PluginPublishOptions) (PluginPublishRe
 		fmt.Sprintf("Publish channel: %s", channel),
 	}
 	lines = append(lines, result.Lines...)
+	return PluginPublishResult{Lines: lines}, nil
+}
+
+func (service PluginService) publishGeminiGallery(opts PluginPublishOptions) (PluginPublishResult, error) {
+	if !opts.DryRun {
+		return PluginPublishResult{}, fmt.Errorf("publish channel %q currently supports only --dry-run planning; Gemini publication is repository/release rooted, not local-catalog rooted", "gemini-gallery")
+	}
+	root := strings.TrimSpace(opts.Root)
+	if root == "" {
+		root = "."
+	}
+	inspection, _, err := pluginmanifest.Inspect(root, "gemini")
+	if err != nil {
+		return PluginPublishResult{}, err
+	}
+	publication := inspection.Publication
+	if _, ok := publicationPackageForTarget(publication, "gemini"); !ok {
+		return PluginPublishResult{}, fmt.Errorf("target %s is not publication-capable", "gemini")
+	}
+	channel, ok := publicationChannelForFamily(publication, "gemini-gallery")
+	if !ok {
+		return PluginPublishResult{}, fmt.Errorf("target %s requires authored publication channel metadata under %s", "gemini", publishschema.GeminiGalleryRel)
+	}
+	lines := []string{
+		"Publish channel: gemini-gallery",
+		"Publish target: gemini",
+		fmt.Sprintf("Mode: %s", publicationModeLabel(true)),
+		fmt.Sprintf("Channel manifest: %s", channel.Path),
+		fmt.Sprintf("Distribution: %s", channel.Details["distribution"]),
+		fmt.Sprintf("Manifest root: %s", channel.Details["manifest_root"]),
+		fmt.Sprintf("Repository visibility: %s", channel.Details["repository_visibility"]),
+		fmt.Sprintf("GitHub topic: %s", channel.Details["github_topic"]),
+		"Publication model: repository/release rooted (no local marketplace root is materialized)",
+	}
+	if dest := strings.TrimSpace(opts.Dest); dest != "" {
+		lines = append(lines, fmt.Sprintf("Destination root ignored: %s", filepath.Clean(dest)))
+	}
+	lines = append(lines, "Next:")
+	for _, step := range geminiPublishPlanSteps(root, channel) {
+		lines = append(lines, "  "+step)
+	}
 	return PluginPublishResult{Lines: lines}, nil
 }
 
@@ -497,6 +541,30 @@ func publicationChannelForTarget(model publicationmodel.Model, target string) (p
 		}
 	}
 	return publicationmodel.Channel{}, false
+}
+
+func publicationChannelForFamily(model publicationmodel.Model, family string) (publicationmodel.Channel, bool) {
+	for _, channel := range model.Channels {
+		if channel.Family == family {
+			return channel, true
+		}
+	}
+	return publicationmodel.Channel{}, false
+}
+
+func geminiPublishPlanSteps(root string, channel publicationmodel.Channel) []string {
+	steps := []string{
+		fmt.Sprintf("run plugin-kit-ai publication doctor %s --target gemini", root),
+		"confirm the GitHub repository stays public and tagged with the gemini-cli-extension topic",
+	}
+	switch channel.Details["distribution"] {
+	case "github_release":
+		steps = append(steps, "build a release archive that keeps gemini-extension.json at the archive root")
+	default:
+		steps = append(steps, "keep gemini-extension.json at the repository root for git-based installs and gallery indexing")
+	}
+	steps = append(steps, "use gemini extensions link <path> for live Gemini CLI verification before publishing")
+	return steps
 }
 
 func normalizePackageRoot(value, pluginName string) (string, error) {

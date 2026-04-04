@@ -299,6 +299,52 @@ func TestPluginServicePublishDelegatesToLocalCodexMaterialize(t *testing.T) {
 	}
 }
 
+func TestPluginServicePublishGeminiGalleryDryRunPlan(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n")
+
+	result, err := PluginService{}.Publish(PluginPublishOptions{
+		Root:    root,
+		Channel: "gemini-gallery",
+		DryRun:  true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.Join(result.Lines, "\n")
+	for _, want := range []string{
+		"Publish channel: gemini-gallery",
+		"Mode: dry-run",
+		"Publication model: repository/release rooted",
+		"Distribution: github_release",
+		"Manifest root: release_archive_root",
+		"gemini extensions link <path>",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("publish plan missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestPluginServicePublishGeminiGalleryRejectsApply(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+
+	_, err := PluginService{}.Publish(PluginPublishOptions{
+		Root:    root,
+		Channel: "gemini-gallery",
+	})
+	if err == nil || !strings.Contains(err.Error(), "supports only --dry-run planning") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func mustWritePublicationSourceFile(t *testing.T, root, rel, body string) {
 	t.Helper()
 	full := filepath.Join(root, rel)

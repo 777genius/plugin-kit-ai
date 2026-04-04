@@ -40,6 +40,27 @@ func TestPublishDelegatesToRunner(t *testing.T) {
 	}
 }
 
+func TestPublishAllowsGeminiDryRunWithoutDest(t *testing.T) {
+	t.Parallel()
+	runner := &fakePublishRunner{
+		result: app.PluginPublishResult{Lines: []string{"planned"}},
+	}
+	cmd := newPublishCmd(runner)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{".", "--channel", "gemini-gallery", "--dry-run"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if runner.opts.Channel != "gemini-gallery" || runner.opts.Dest != "" || !runner.opts.DryRun {
+		t.Fatalf("opts = %+v", runner.opts)
+	}
+	if !strings.Contains(buf.String(), "planned") {
+		t.Fatalf("output = %s", buf.String())
+	}
+}
+
 func TestPublishHelpMentionsBoundedChannels(t *testing.T) {
 	t.Parallel()
 	cmd := newPublishCmd(&fakePublishRunner{})
@@ -52,11 +73,12 @@ func TestPublishHelpMentionsBoundedChannels(t *testing.T) {
 	}
 	output := buf.String()
 	for _, want := range []string{
-		`publish channel ("codex-marketplace" or "claude-marketplace")`,
-		"destination marketplace root directory",
+		`publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")`,
+		"destination marketplace root directory for local Codex/Claude marketplace flows",
 		"preview the materialized publish result without writing changes",
 		"codex-marketplace",
 		"claude-marketplace",
+		"gemini-gallery (dry-run plan only)",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help output missing %q:\n%s", want, output)
