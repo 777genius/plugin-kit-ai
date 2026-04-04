@@ -1953,6 +1953,18 @@ func TestDiscover_RejectsLegacyPortableMCPAuthoredPaths(t *testing.T) {
 	}
 }
 
+func TestDiscover_RejectsPublicationSchemaForDisabledTarget(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "cursor", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+
+	_, _, err := Discover(root)
+	if err == nil || !strings.Contains(err.Error(), `requires target "codex-package"`) {
+		t.Fatalf("Discover error = %v", err)
+	}
+}
+
 func TestImport_RejectsLegacyInternalProjectManifest(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".plugin-kit-ai", "project.toml"), "schema_version = 1\n")

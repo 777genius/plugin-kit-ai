@@ -12,7 +12,7 @@ It is the publication-channel companion to:
 
 ## Purpose
 
-`publish/...` is the future authored layer for marketplace, gallery, and catalog metadata.
+`publish/...` is the authored layer for marketplace, gallery, and catalog metadata.
 
 It is intentionally separate from:
 
@@ -215,7 +215,7 @@ Keep publication modeling internal only.
 
 Status:
 
-- already started
+- completed as the first bridge layer
 
 ### Step 2
 
@@ -223,7 +223,13 @@ Define authored `publish/...` schemas for each channel family.
 
 Status:
 
-- next phase
+- started and partially implemented
+- current authored schema entrypoints are:
+  - `publish/codex/marketplace.yaml`
+  - `publish/claude/marketplace.yaml`
+  - `publish/gemini/gallery.yaml`
+- current implementation validates those schemas during package discovery
+- current implementation surfaces them through `plugin-kit-ai inspect`
 
 ### Step 3
 

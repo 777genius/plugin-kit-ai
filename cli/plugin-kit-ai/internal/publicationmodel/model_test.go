@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 )
 
 func TestBuild_IncludesPublicationCapableTargetsOnly(t *testing.T) {
@@ -48,7 +49,10 @@ func TestBuild_IncludesPublicationCapableTargetsOnly(t *testing.T) {
 		},
 	}
 
-	model := Build(graph, []string{"codex-package", "codex-runtime", "gemini"})
+	model := Build(graph, publishschema.State{
+		Codex:  &publishschema.CodexMarketplace{Path: publishschema.CodexMarketplaceRel},
+		Gemini: &publishschema.GeminiGallery{Path: publishschema.GeminiGalleryRel},
+	}, []string{"codex-package", "codex-runtime", "gemini"})
 	if model.Core.APIVersion != "v1" || model.Core.Name != "demo" {
 		t.Fatalf("core = %+v", model.Core)
 	}
@@ -84,6 +88,15 @@ func TestBuild_IncludesPublicationCapableTargetsOnly(t *testing.T) {
 	}
 	if !contains(gemini.AuthoredInputs, filepath.ToSlash(filepath.Join("targets", "gemini", "contexts", "GEMINI.md"))) {
 		t.Fatalf("gemini authored_inputs = %+v", gemini.AuthoredInputs)
+	}
+	if len(model.Channels) != 2 {
+		t.Fatalf("channels = %+v", model.Channels)
+	}
+	if model.Channels[0].Family != "codex-marketplace" || !contains(model.Channels[0].PackageTargets, "codex-package") {
+		t.Fatalf("codex channel = %+v", model.Channels[0])
+	}
+	if model.Channels[1].Family != "gemini-gallery" || !contains(model.Channels[1].PackageTargets, "gemini") {
+		t.Fatalf("gemini channel = %+v", model.Channels[1])
 	}
 }
 

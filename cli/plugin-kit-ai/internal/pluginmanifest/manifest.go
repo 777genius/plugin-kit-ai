@@ -18,6 +18,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/777genius/plugin-kit-ai/cli/internal/targetcontracts"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
@@ -325,6 +326,14 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 	if launcher != nil {
 		sourceSet[LauncherFileName] = struct{}{}
 	}
+	publication, err := publishschema.Discover(root)
+	if err != nil {
+		return PackageGraph{}, warnings, err
+	}
+	if err := publication.ValidateTargets(manifest.EnabledTargets()); err != nil {
+		return PackageGraph{}, warnings, err
+	}
+	addSourceFiles(sourceSet, publication.Paths())
 
 	skillPaths := discoverFiles(root, filepath.Join("skills"), func(rel string) bool {
 		return strings.HasSuffix(rel, "SKILL.md")
@@ -447,7 +456,7 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 		Launcher:    graph.Launcher,
 		Portable:    graph.Portable,
 		SourceFiles: cloneStringSlice(graph.SourceFiles),
-		Publication: publicationmodel.Build(graph, selected),
+		Publication: publicationmodel.Build(graph, mustDiscoverPublication(root), selected),
 	}
 	for _, name := range selected {
 		entry, ok := targetcontracts.Lookup(name)
@@ -1393,6 +1402,14 @@ func defaultName(root string) string {
 		return name
 	}
 	return "plugin"
+}
+
+func mustDiscoverPublication(root string) publishschema.State {
+	state, err := publishschema.Discover(root)
+	if err != nil {
+		return publishschema.State{}
+	}
+	return state
 }
 
 func appendWarning(seen map[string]struct{}, warnings *[]Warning, warning Warning) {

@@ -208,7 +208,16 @@ Examples:
 - `publish/gemini/...`
 
 This publication layer is intentionally separate from `plugin.yaml` core identity.
-The current implementation direction in `plugin-kit-ai` is to model publication internally first, then add authored `publish/...` schemas in a later phase.
+The current implementation in `plugin-kit-ai` now includes both:
+
+- an internal normalized publication summary
+- authored publication-schema entrypoints under `publish/...`
+
+Examples:
+
+- `publish/codex/marketplace.yaml`
+- `publish/claude/marketplace.yaml`
+- `publish/gemini/gallery.yaml`
 
 ### Generated vendor manifests
 

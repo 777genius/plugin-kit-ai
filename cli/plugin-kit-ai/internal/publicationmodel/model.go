@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 	"github.com/777genius/plugin-kit-ai/cli/internal/targetcontracts"
 )
 
@@ -30,9 +31,16 @@ type Package struct {
 type Model struct {
 	Core     Core      `json:"core"`
 	Packages []Package `json:"packages"`
+	Channels []Channel `json:"channels"`
 }
 
-func Build(graph pluginmodel.PackageGraph, selected []string) Model {
+type Channel struct {
+	Family         string   `json:"family"`
+	Path           string   `json:"path"`
+	PackageTargets []string `json:"package_targets"`
+}
+
+func Build(graph pluginmodel.PackageGraph, publication publishschema.State, selected []string) Model {
 	out := Model{
 		Core: Core{
 			APIVersion:  strings.TrimSpace(graph.Manifest.APIVersion),
@@ -41,9 +49,10 @@ func Build(graph pluginmodel.PackageGraph, selected []string) Model {
 			Description: strings.TrimSpace(graph.Manifest.Description),
 		},
 		Packages: []Package{},
+		Channels: []Channel{},
 	}
 	for _, target := range selected {
-		pkg, ok := buildPackage(graph, target)
+		pkg, ok := buildPackage(graph, publication, target)
 		if !ok {
 			continue
 		}
@@ -52,10 +61,11 @@ func Build(graph pluginmodel.PackageGraph, selected []string) Model {
 	slices.SortFunc(out.Packages, func(a, b Package) int {
 		return strings.Compare(a.Target, b.Target)
 	})
+	out.Channels = buildChannels(publication, out.Packages)
 	return out
 }
 
-func buildPackage(graph pluginmodel.PackageGraph, target string) (Package, bool) {
+func buildPackage(graph pluginmodel.PackageGraph, publication publishschema.State, target string) (Package, bool) {
 	family, channels := packageFamilies(target)
 	if family == "" {
 		return Package{}, false
@@ -102,6 +112,9 @@ func buildPackage(graph pluginmodel.PackageGraph, target string) (Package, bool)
 	if graph.Portable.MCP != nil && strings.TrimSpace(graph.Portable.MCP.Path) != "" {
 		authoredSet[filepath.ToSlash(graph.Portable.MCP.Path)] = struct{}{}
 	}
+	for _, path := range publicationPathsForTarget(publication, target) {
+		authoredSet[path] = struct{}{}
+	}
 	return Package{
 		Target:           target,
 		PackageFamily:    family,
@@ -125,6 +138,64 @@ func packageFamilies(target string) (string, []string) {
 	default:
 		return "", nil
 	}
+}
+
+func buildChannels(publication publishschema.State, packages []Package) []Channel {
+	out := []Channel{}
+	if publication.Codex != nil {
+		out = append(out, Channel{
+			Family:         "codex-marketplace",
+			Path:           publication.Codex.Path,
+			PackageTargets: packageTargetsForFamily(packages, "codex-marketplace"),
+		})
+	}
+	if publication.Claude != nil {
+		out = append(out, Channel{
+			Family:         "claude-marketplace",
+			Path:           publication.Claude.Path,
+			PackageTargets: packageTargetsForFamily(packages, "claude-marketplace"),
+		})
+	}
+	if publication.Gemini != nil {
+		out = append(out, Channel{
+			Family:         "gemini-gallery",
+			Path:           publication.Gemini.Path,
+			PackageTargets: packageTargetsForFamily(packages, "gemini-gallery"),
+		})
+	}
+	slices.SortFunc(out, func(a, b Channel) int {
+		return strings.Compare(a.Family, b.Family)
+	})
+	return out
+}
+
+func publicationPathsForTarget(publication publishschema.State, target string) []string {
+	switch strings.TrimSpace(target) {
+	case "codex-package":
+		if publication.Codex != nil {
+			return []string{publication.Codex.Path}
+		}
+	case "claude":
+		if publication.Claude != nil {
+			return []string{publication.Claude.Path}
+		}
+	case "gemini":
+		if publication.Gemini != nil {
+			return []string{publication.Gemini.Path}
+		}
+	}
+	return nil
+}
+
+func packageTargetsForFamily(packages []Package, family string) []string {
+	var out []string
+	for _, pkg := range packages {
+		if slices.Contains(pkg.ChannelFamilies, family) {
+			out = append(out, pkg.Target)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func cloneStrings(items []string) []string {

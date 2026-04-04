@@ -500,6 +500,16 @@ Deliverables:
 
 This phase must keep channel metadata clearly separate from package identity.
 
+Status:
+
+- started and partially implemented
+- current implementation reads and validates authored publication schemas at:
+  - `publish/codex/marketplace.yaml`
+  - `publish/claude/marketplace.yaml`
+  - `publish/gemini/gallery.yaml`
+- current implementation exposes publication channels through `plugin-kit-ai inspect`
+- current implementation does not yet render vendor publication artifacts
+
 ### Phase 6. Implement publication channel adapters
 
 Deliverables:
