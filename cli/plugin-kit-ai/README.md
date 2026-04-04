@@ -156,7 +156,7 @@ Current behavior and contract details:
 - `import`: create the package-standard authored layout from current native Claude/Codex/Gemini/OpenCode/Cursor artifacts; Gemini import preserves the extension package lane and optional Go runtime metadata when present, OpenCode import remains workspace-config-only with explicit `--include-user-scope` support for home-dir OpenCode sources, and Cursor import remains workspace-config-only for the documented `.cursor` subset
 - `inspect`: explain the discovered package graph, target class, managed artifacts, and the publication summary; `--format json` now includes a `publication` block with publication-capable package targets and any authored `publish/...` channels discovered in the repo, including channel metadata such as Codex policies and Gemini gallery distribution hints
 - `normalize`: rewrite `plugin.yaml` into the package-standard shape and drop unknown fields
-- `validate`: package-standard project validation, generated-artifact drift checks, authored `publish/...` schema validation, and non-failing manifest warnings; `--strict` promotes warnings to errors for CI
+- `validate`: package-standard project validation, generated-artifact drift checks, authored `publish/...` schema validation, and non-failing manifest warnings; when publication channels are discoverable, text and JSON output now also surface a publication summary; `--strict` promotes warnings to errors for CI
 - `capabilities`: generated target/package support by default, or runtime support with `--mode runtime`
 - `install`: plugin binary from GitHub Releases with checksum verification
 - `version`: build/version info

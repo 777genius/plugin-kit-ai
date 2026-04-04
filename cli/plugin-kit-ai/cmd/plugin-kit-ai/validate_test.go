@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,6 +160,58 @@ func TestValidateWritesJSONOutput(t *testing.T) {
 	}
 }
 
+func TestValidateJSONIncludesPublicationSummaryWhenDiscoverable(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "targets", "codex-package"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "publish", "codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "plugin.yaml"), []byte("api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "codex-package", "package.yaml"), []byte("homepage: https://example.com/demo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "codex-package", "interface.json"), []byte(`{"defaultPrompt":["Inspect"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "publish", "codex", "marketplace.yaml"), []byte("api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newValidateCmd(func(gotRoot, platform string) (validate.Report, error) {
+		if gotRoot != root {
+			t.Fatalf("root = %q, want %q", gotRoot, root)
+		}
+		return validate.Report{
+			Platform: "codex-package",
+			Checks:   []string{"plugin_manifest", "publication"},
+		}, nil
+	})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--format", "json", root})
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &payload); err != nil {
+		t.Fatalf("json parse: %v\n%s", err, buf.Bytes())
+	}
+	publication, ok := payload["publication"].(map[string]any)
+	if !ok {
+		t.Fatalf("publication payload missing: %+v", payload)
+	}
+	channels, ok := publication["channels"].([]any)
+	if !ok || len(channels) != 1 {
+		t.Fatalf("publication.channels = %+v", publication["channels"])
+	}
+}
+
 func TestValidateJSONPrintsReportOnFailure(t *testing.T) {
 	t.Parallel()
 	report := validate.Report{
@@ -263,6 +316,54 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("text output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestValidateTextPrintsPublicationSummaryWhenDiscoverable(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "targets", "gemini", "contexts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "publish", "gemini"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "plugin.yaml"), []byte("api_version: v1\nname: \"gemini-publish\"\nversion: \"0.1.0\"\ndescription: \"gemini publish\"\ntargets: [\"gemini\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "gemini", "package.yaml"), []byte("homepage: https://example.com/gemini\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "targets", "gemini", "contexts", "GEMINI.md"), []byte("# Gemini\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "publish", "gemini", "gallery.yaml"), []byte("api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newValidateCmd(func(gotRoot, platform string) (validate.Report, error) {
+		if gotRoot != root {
+			t.Fatalf("root = %q, want %q", gotRoot, root)
+		}
+		return validate.Report{Platform: "gemini"}, nil
+	})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{root})
+	if err := cmd.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	output := stdout.String()
+	for _, want := range []string{
+		"Validated " + root,
+		"Publication: api_version=v1 packages=1 channels=1",
+		"Publication channel: gemini-gallery path=publish/gemini/gallery.yaml targets=gemini",
+		"details=distribution=github_release,github_topic=gemini-cli-extension,manifest_root=release_archive_root,repository_visibility=public",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("stdout missing %q:\n%s", want, output)
 		}
 	}
 }

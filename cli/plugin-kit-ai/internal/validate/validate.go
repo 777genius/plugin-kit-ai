@@ -146,7 +146,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 
 	report := Report{
 		Platform: strings.Join(manifest.EnabledTargets(), ","),
-		Checks:   []string{"plugin_manifest", "package_graph", "generated_artifacts", "runtime"},
+		Checks:   []string{"plugin_manifest", "package_graph", "publication", "generated_artifacts", "runtime"},
 	}
 	if strings.TrimSpace(platform) != "" && !slices.Contains(manifest.EnabledTargets(), strings.TrimSpace(platform)) {
 		report.Failures = append(report.Failures, Failure{

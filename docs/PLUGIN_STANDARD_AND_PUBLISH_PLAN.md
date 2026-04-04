@@ -508,6 +508,7 @@ Status:
   - `publish/claude/marketplace.yaml`
   - `publish/gemini/gallery.yaml`
 - current implementation exposes publication channels through `plugin-kit-ai inspect`
+- current implementation exposes discoverable publication channels through `plugin-kit-ai validate` text and JSON output when the repo is inspectable
 - current implementation renders the repo-level Codex marketplace artifact `.agents/plugins/marketplace.json`
 - current implementation renders the Claude marketplace artifact `.claude-plugin/marketplace.json`
 - current implementation does not render a separate Gemini gallery artifact because Gemini publication is repository or release rooted rather than catalog-manifest rooted

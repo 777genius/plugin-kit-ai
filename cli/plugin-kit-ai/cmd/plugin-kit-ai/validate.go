@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/validate"
 	"github.com/spf13/cobra"
 )
@@ -18,15 +21,16 @@ var validateCmd = newValidateCmd(validate.Validate)
 
 type validateJSONReport struct {
 	validate.Report
-	Format            string `json:"format"`
-	SchemaVersion     int    `json:"schema_version"`
-	RequestedPlatform string `json:"requested_platform,omitempty"`
-	Outcome           string `json:"outcome"`
-	OK                bool   `json:"ok"`
-	StrictMode        bool   `json:"strict_mode"`
-	StrictFailed      bool   `json:"strict_failed"`
-	WarningCount      int    `json:"warning_count"`
-	FailureCount      int    `json:"failure_count"`
+	Format            string                  `json:"format"`
+	SchemaVersion     int                     `json:"schema_version"`
+	RequestedPlatform string                  `json:"requested_platform,omitempty"`
+	Outcome           string                  `json:"outcome"`
+	OK                bool                    `json:"ok"`
+	StrictMode        bool                    `json:"strict_mode"`
+	StrictFailed      bool                    `json:"strict_failed"`
+	WarningCount      int                     `json:"warning_count"`
+	FailureCount      int                     `json:"failure_count"`
+	Publication       *publicationmodel.Model `json:"publication,omitempty"`
 }
 
 func newValidateCmd(run validateRunner) *cobra.Command {
@@ -52,12 +56,13 @@ explicit outcome of "passed", "failed", or "failed_strict_warnings".`,
 				report = reportErr.Report
 			}
 			report = normalizeValidateReport(report)
+			publication := discoverValidatePublication(args[0], platform)
 
 			switch format {
 			case "json":
 				cmd.SilenceUsage = true
 				cmd.SilenceErrors = true
-				body, marshalErr := json.MarshalIndent(buildValidateJSONReport(report, platform, strict, err), "", "  ")
+				body, marshalErr := json.MarshalIndent(buildValidateJSONReport(report, platform, strict, err, publication), "", "  ")
 				if marshalErr != nil {
 					return marshalErr
 				}
@@ -82,6 +87,9 @@ explicit outcome of "passed", "failed", or "failed_strict_warnings".`,
 				if len(report.Failures) > 0 {
 					cmd.SilenceUsage = true
 					cmd.SilenceErrors = true
+					for _, line := range validatePublicationText(publication) {
+						_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
+					}
 					for _, failure := range report.Failures {
 						_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Failure: %s\n", failure.Message)
 					}
@@ -100,6 +108,9 @@ explicit outcome of "passed", "failed", or "failed_strict_warnings".`,
 					return fmt.Errorf("validation warnings treated as errors (%d warning(s))", len(report.Warnings))
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Validated %s\n", args[0])
+				for _, line := range validatePublicationText(publication) {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
+				}
 				for _, hint := range geminiValidateSuccessHints(args[0], report) {
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Hint: %s\n", hint)
 				}
@@ -127,7 +138,7 @@ func normalizeValidateReport(report validate.Report) validate.Report {
 	return report
 }
 
-func buildValidateJSONReport(report validate.Report, requestedPlatform string, strict bool, runErr error) validateJSONReport {
+func buildValidateJSONReport(report validate.Report, requestedPlatform string, strict bool, runErr error, publication *publicationmodel.Model) validateJSONReport {
 	failureCount := len(report.Failures)
 	warningCount := len(report.Warnings)
 	strictFailed := strict && failureCount == 0 && warningCount > 0
@@ -150,7 +161,71 @@ func buildValidateJSONReport(report validate.Report, requestedPlatform string, s
 		StrictFailed:      strictFailed,
 		WarningCount:      warningCount,
 		FailureCount:      failureCount,
+		Publication:       publication,
 	}
+}
+
+func discoverValidatePublication(root, platform string) *publicationmodel.Model {
+	inspection, _, err := pluginmanifest.Inspect(root, validatePublicationTarget(platform))
+	if err != nil {
+		return nil
+	}
+	if len(inspection.Publication.Packages) == 0 && len(inspection.Publication.Channels) == 0 {
+		return nil
+	}
+	publication := inspection.Publication
+	return &publication
+}
+
+func validatePublicationTarget(platform string) string {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return "all"
+	}
+	return platform
+}
+
+func validatePublicationText(publication *publicationmodel.Model) []string {
+	if publication == nil {
+		return nil
+	}
+	lines := []string{
+		fmt.Sprintf("Publication: api_version=%s packages=%d channels=%d", publication.Core.APIVersion, len(publication.Packages), len(publication.Channels)),
+	}
+	for _, channel := range publication.Channels {
+		line := fmt.Sprintf("Publication channel: %s path=%s targets=%s",
+			channel.Family,
+			channel.Path,
+			strings.Join(channel.PackageTargets, ","),
+		)
+		if details := formatValidatePublicationDetails(channel.Details); details != "" {
+			line += " details=" + details
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func formatValidatePublicationDetails(details map[string]string) string {
+	if len(details) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(details))
+	for key, value := range details {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	if len(keys) == 0 {
+		return ""
+	}
+	items := make([]string, 0, len(keys))
+	for _, key := range keys {
+		items = append(items, key+"="+details[key])
+	}
+	return strings.Join(items, ",")
 }
 
 func geminiValidateWarningHints(report validate.Report) []string {
