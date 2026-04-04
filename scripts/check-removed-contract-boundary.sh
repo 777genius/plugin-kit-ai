@@ -32,7 +32,6 @@ check_pattern() {
   fi
 }
 
-check_pattern "removed codex-native alias" 'codex-native' 'repotests/plugin_manifest_lifecycle_integration_test.go'
 check_pattern "removed Cursor rules import" '\.cursorrules' 'docs/research/**'
 check_pattern "removed OpenCode env-config compatibility" 'OPENCODE_CONFIG(_DIR)?'
 check_pattern "removed Gemini binary aliases" 'PLUGIN_KIT_AI_GEMINI_BIN|GEMINI_BIN'

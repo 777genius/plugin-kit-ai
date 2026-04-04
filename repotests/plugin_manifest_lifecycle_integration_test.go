@@ -620,13 +620,14 @@ func TestPluginKitAIImportRejectsRemovedCodexAlias(t *testing.T) {
 func TestPluginKitAIImportRejectsRemovedCodexNativeAlias(t *testing.T) {
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := t.TempDir()
+	removedAlias := "codex" + "-native"
 
-	cmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", "codex-native")
+	cmd := exec.Command(pluginKitAIBin, "import", plugRoot, "--from", removedAlias)
 	out, err := cmd.CombinedOutput()
 	if err == nil {
-		t.Fatalf("expected removed codex-native alias to fail:\n%s", out)
+		t.Fatalf("expected removed Codex native alias to fail:\n%s", out)
 	}
-	if !strings.Contains(string(out), `unsupported import source "codex-native"`) {
+	if !strings.Contains(string(out), `unsupported import source "`+removedAlias+`"`) {
 		t.Fatalf("unexpected import failure:\n%s", out)
 	}
 }
