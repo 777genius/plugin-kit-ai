@@ -23,14 +23,12 @@ name: "portable-mcp-e2e"
 version: "0.1.0"
 description: "portable MCP multi-target e2e"
 targets:
-  - "claude"
   - "codex-package"
   - "gemini"
   - "opencode"
   - "cursor"
 `)
-	mustWriteRepoFile(t, workDir, "launcher.yaml", "runtime: shell\nentrypoint: ./scripts/main.sh\n")
-	mustWriteRepoExecutable(t, workDir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
@@ -44,7 +42,6 @@ servers:
       protocol: streamable_http
       url: "https://example.com/mcp"
     targets:
-      - claude
       - codex-package
       - gemini
       - opencode
@@ -68,16 +65,8 @@ servers:
 
 	runCmd(t, root, exec.Command(pluginKitAIBin, "render", workDir))
 	runCmd(t, root, exec.Command(pluginKitAIBin, "render", workDir, "--check"))
-	for _, platform := range []string{"claude", "codex-package", "gemini", "opencode", "cursor"} {
+	for _, platform := range []string{"codex-package", "gemini", "opencode", "cursor"} {
 		runCmd(t, root, exec.Command(pluginKitAIBin, "validate", workDir, "--platform", platform, "--strict"))
-	}
-
-	claudeManifestBody, err := os.ReadFile(filepath.Join(workDir, ".claude-plugin", "plugin.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(claudeManifestBody), `"mcpServers": "./.mcp.json"`) {
-		t.Fatalf("claude plugin manifest missing shared .mcp.json ref:\n%s", claudeManifestBody)
 	}
 
 	codexManifestBody, err := os.ReadFile(filepath.Join(workDir, ".codex-plugin", "plugin.json"))

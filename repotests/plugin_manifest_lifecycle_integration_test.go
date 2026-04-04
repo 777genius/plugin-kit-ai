@@ -67,7 +67,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(plugRoot, ".codex", "config.toml"), []byte("notify = [\"./bin/demo\", \"notify\"]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(plugRoot, ".codex-plugin", "plugin.json"), []byte(`{"name":"demo","version":"0.1.0","description":"demo"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(plugRoot, ".codex-plugin", "plugin.json"), []byte(`{"name":"demo","version":"0.1.0","description":"demo","mcpServers":"./.mcp.json"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(plugRoot, "scripts"), 0o755); err != nil {

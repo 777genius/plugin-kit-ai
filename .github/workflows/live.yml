@@ -117,7 +117,7 @@ jobs:
     env:
       TAG: ${{ inputs.notifications_tag }}
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -196,7 +196,7 @@ jobs:
     env:
       TAG: ${{ inputs.notifications_tag }}
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 

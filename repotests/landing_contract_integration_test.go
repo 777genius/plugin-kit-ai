@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -172,12 +173,69 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	indexPage := string(indexBody)
 	mustNotContain(t, indexPage, `LazyPricingSection`)
 
-	cmd := exec.Command("rg", "-n", "claude_agent_teams_ui|claude-agent-teams", filepath.Join(root, "components"), filepath.Join(root, "content"), filepath.Join(root, "composables"), filepath.Join(root, "locales"), filepath.Join(root, "types"))
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("legacy brand string still present:\n%s", out)
+	matches, err := scanLegacyBranding(root)
+	if err != nil {
+		t.Fatalf("legacy brand scan failed: %v", err)
 	}
-	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
-		t.Fatalf("rg legacy brand scan failed: %v\n%s", err, out)
+	if len(matches) > 0 {
+		t.Fatalf("legacy brand string still present:\n%s", strings.Join(matches, "\n"))
 	}
+}
+
+func scanLegacyBranding(root string) ([]string, error) {
+	searchRoots := []string{
+		filepath.Join(root, "components"),
+		filepath.Join(root, "content"),
+		filepath.Join(root, "composables"),
+		filepath.Join(root, "locales"),
+		filepath.Join(root, "types"),
+	}
+	if _, err := exec.LookPath("rg"); err == nil {
+		args := append([]string{"-n", "claude_agent_teams_ui|claude-agent-teams"}, searchRoots...)
+		out, scanErr := exec.Command("rg", args...).CombinedOutput()
+		if scanErr == nil {
+			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+			if len(lines) == 1 && lines[0] == "" {
+				return nil, nil
+			}
+			return lines, nil
+		}
+		if exitErr, ok := scanErr.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, scanErr
+	}
+
+	patterns := []string{"claude_agent_teams_ui", "claude-agent-teams"}
+	var matches []string
+	for _, base := range searchRoots {
+		walkErr := filepath.Walk(base, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			body, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			text := string(body)
+			for _, pattern := range patterns {
+				if strings.Contains(text, pattern) {
+					rel, relErr := filepath.Rel(root, path)
+					if relErr != nil {
+						rel = path
+					}
+					matches = append(matches, filepath.ToSlash(rel)+": "+pattern)
+					break
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			return nil, walkErr
+		}
+	}
+	return matches, nil
 }

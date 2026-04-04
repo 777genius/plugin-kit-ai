@@ -34,3 +34,13 @@ func windowsBatchCmdLine(entry string, args ...string) string {
 	}
 	return `/d /s /c "` + strings.Join(parts, " ") + `"`
 }
+
+func quoteWindowsCmdArg(arg string) string {
+	if arg == "" {
+		return `""`
+	}
+	if !strings.ContainsAny(arg, " \t\"&()[]{}^=;!'+,`~|<>") {
+		return arg
+	}
+	return `"` + strings.ReplaceAll(arg, `"`, `""`) + `"`
+}
