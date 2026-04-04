@@ -233,7 +233,8 @@ func BeforeToolSelectionQuiet() *BeforeToolSelectionResponse {
 	return &BeforeToolSelectionResponse{SuppressOutput: true}
 }
 
-// BeforeToolSelectionConfig applies a tool selection mode and optional allowlist.
+// BeforeToolSelectionConfig applies a tool selection mode. Gemini currently
+// accepts allowedFunctionNames only together with ANY mode.
 func BeforeToolSelectionConfig(mode ToolMode, allowedFunctionNames ...string) *BeforeToolSelectionResponse {
 	return &BeforeToolSelectionResponse{
 		Mode:                 mode,
@@ -242,11 +243,10 @@ func BeforeToolSelectionConfig(mode ToolMode, allowedFunctionNames ...string) *B
 }
 
 // BeforeToolSelectionAllowOnly restricts Gemini tool selection to the provided
-// allowlist while leaving the tool mode unchanged.
+// allowlist by using ANY mode, which is the vendor-accepted shape for
+// allowedFunctionNames.
 func BeforeToolSelectionAllowOnly(allowedFunctionNames ...string) *BeforeToolSelectionResponse {
-	return &BeforeToolSelectionResponse{
-		AllowedFunctionNames: append([]string(nil), allowedFunctionNames...),
-	}
+	return BeforeToolSelectionConfig(ToolModeAny, allowedFunctionNames...)
 }
 
 // BeforeToolSelectionForceAny requires Gemini to pick at least one tool and
@@ -255,11 +255,11 @@ func BeforeToolSelectionForceAny(allowedFunctionNames ...string) *BeforeToolSele
 	return BeforeToolSelectionConfig(ToolModeAny, allowedFunctionNames...)
 }
 
-// BeforeToolSelectionForceAuto explicitly restores AUTO tool mode and can be
-// combined with an allowlist when the hook wants to narrow available tools
-// without forcing a tool call.
+// BeforeToolSelectionForceAuto explicitly restores AUTO tool mode. Gemini does
+// not currently accept allowedFunctionNames outside ANY mode, so any optional
+// allowlist arguments are ignored.
 func BeforeToolSelectionForceAuto(allowedFunctionNames ...string) *BeforeToolSelectionResponse {
-	return BeforeToolSelectionConfig(ToolModeAuto, allowedFunctionNames...)
+	return BeforeToolSelectionConfig(ToolModeAuto)
 }
 
 // BeforeToolSelectionDisableAll disables all tools for the current decision step.

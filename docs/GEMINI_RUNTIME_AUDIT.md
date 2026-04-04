@@ -41,8 +41,16 @@ The live Gemini runtime smoke uses an explicit tool-use prompt for the tool path
 - blocked-model control semantics where `BeforeModel` denies the turn, Gemini returns an empty `response`, records zero tool activity, and the trace proves neither `AfterModel` nor tool-selection/tool execution hooks fired
 - model transform semantics where `AfterModel` replaces the model output, Gemini returns rewritten response text, records zero tool activity, and the trace proves tool-selection planning may already have fired but no tool execution occurs
 - agent retry semantics where `AfterAgent` denies once, Gemini retries the turn, returns corrected response text, and the trace shows the second `AfterAgent` pass with `stop_hook_active=true`
+- tool-selection allow-list semantics where `BeforeToolSelection` restricts execution to `read_file`/`list_directory`, Gemini records successful `read_file` stats with zero failures, and the trace proves the runtime took the `allow_only` branch before `BeforeTool`/`AfterTool`
 - tool-selection `mode:"NONE"` semantics where `BeforeToolSelection` disables all tools, Gemini records zero tool activity, still emits `AfterModel`, and never reaches `BeforeTool`/`AfterTool` even if the model text still mentions a tool-style plan
 - transform semantics where `BeforeTool` rewrites a missing `read_file` path to `README.md`, Gemini records successful `read_file` stats with zero tool failures, and the trace proves the runtime took the `rewrite_input` branch before `AfterTool`
+
+Additional live probes against the current `gemini 0.36.0` vendor build did not justify widening the release gate further:
+
+- `BeforeModel synthetic_response` was ignored in the live CLI path and the session still returned the original `OK` response
+- allowlist / `mode:"ANY"` tool-selection probes did not stay boring-stable in the live CLI path: one run ended in vendor `AbortError`, while the corrected allowlist shape then fell into loop/capacity exhaustion
+
+Those paths remain covered by deterministic runtime evidence, but they are not currently counted as release-gating live proof.
 
 ## Stable Promise Boundary
 

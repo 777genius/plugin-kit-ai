@@ -174,7 +174,7 @@ func TestBeforeToolSelectionHelpers(t *testing.T) {
 
 	if got := BeforeToolSelectionAllowOnly("read_file", "list_directory"); got == nil {
 		t.Fatal("BeforeToolSelectionAllowOnly() = nil")
-	} else if got.Mode != "" || len(got.AllowedFunctionNames) != 2 {
+	} else if got.Mode != ToolModeAny || len(got.AllowedFunctionNames) != 2 {
 		t.Fatalf("BeforeToolSelectionAllowOnly() = %#v", got)
 	}
 
@@ -186,7 +186,7 @@ func TestBeforeToolSelectionHelpers(t *testing.T) {
 
 	if got := BeforeToolSelectionForceAuto("read_file"); got == nil {
 		t.Fatal("BeforeToolSelectionForceAuto() = nil")
-	} else if got.Mode != ToolModeAuto || len(got.AllowedFunctionNames) != 1 || got.AllowedFunctionNames[0] != "read_file" {
+	} else if got.Mode != ToolModeAuto || len(got.AllowedFunctionNames) != 0 {
 		t.Fatalf("BeforeToolSelectionForceAuto() = %#v", got)
 	}
 

@@ -203,7 +203,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 	mustContain(t, string(sdkReadme), "Gemini treats `SessionStart` and `SessionEnd` as advisory hooks")
 	mustContain(t, string(sdkReadme), "use `gemini.SessionStartMessage(...)` and `gemini.SessionEndMessage(...)`")
 	mustContain(t, string(sdkReadme), "use `gemini.BeforeToolSelectionConfig(...)` when you want to steer Gemini tool choice")
-	mustContain(t, string(sdkReadme), "use `gemini.BeforeToolSelectionAllowOnly(...)` when you only want to whitelist tools")
+	mustContain(t, string(sdkReadme), "use `gemini.BeforeToolSelectionAllowOnly(...)` when you want an allowlist in the vendor-accepted `ANY` shape")
 	mustContain(t, string(sdkReadme), "`gemini.BeforeToolSelectionQuiet()` when you only want to suppress hook metadata")
 	mustContain(t, string(sdkReadme), "use `gemini.BeforeAgentAddContext(...)` when you want turn-local prompt context")
 	mustContain(t, string(sdkReadme), "use `gemini.BeforeAgentStop(...)` when you want to stop the turn but keep the prompt in history")

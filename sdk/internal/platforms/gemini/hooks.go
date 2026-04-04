@@ -362,6 +362,9 @@ func validateToolConfig(cfg *ToolConfig) error {
 			return fmt.Errorf("hookSpecificOutput.toolConfig.allowedFunctionNames must not contain empty names")
 		}
 	}
+	if len(cfg.AllowedFunctionNames) > 0 && mode != "ANY" {
+		return fmt.Errorf("hookSpecificOutput.toolConfig.allowedFunctionNames currently requires ANY mode")
+	}
 	return nil
 }
 

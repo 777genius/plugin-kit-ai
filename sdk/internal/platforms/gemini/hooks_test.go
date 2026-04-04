@@ -441,6 +441,21 @@ func TestEncodeBeforeToolSelectionOutcomeRejectsEmptyNames(t *testing.T) {
 	}
 }
 
+func TestEncodeBeforeToolSelectionOutcomeRejectsAllowedNamesOutsideAnyMode(t *testing.T) {
+	res := EncodeBeforeToolSelection(BeforeToolSelectionOutcome{
+		ToolConfig: &ToolConfig{
+			Mode:                 "AUTO",
+			AllowedFunctionNames: []string{"read_file"},
+		},
+	})
+	if res.ExitCode != 1 {
+		t.Fatalf("exit = %d stderr=%q", res.ExitCode, res.Stderr)
+	}
+	if !strings.Contains(res.Stderr, "hookSpecificOutput.toolConfig.allowedFunctionNames currently requires ANY mode") {
+		t.Fatalf("stderr = %q", res.Stderr)
+	}
+}
+
 func TestEncodeSessionEndOutcomeIgnoresFlowControlFields(t *testing.T) {
 	continueFalse := false
 	res := EncodeSessionEnd(SessionEndOutcome{
