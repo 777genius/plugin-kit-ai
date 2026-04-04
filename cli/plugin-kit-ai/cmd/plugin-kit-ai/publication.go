@@ -149,6 +149,15 @@ type publicationDiagnosis struct {
 	Lines                 []string
 	NextSteps             []string
 	MissingPackageTargets []string
+	Issues                []publicationIssue
+}
+
+type publicationIssue struct {
+	Code          string `json:"code"`
+	Target        string `json:"target,omitempty"`
+	ChannelFamily string `json:"channel_family,omitempty"`
+	Path          string `json:"path,omitempty"`
+	Message       string `json:"message"`
 }
 
 func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis {
@@ -161,12 +170,17 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 		next := []string{
 			"enable at least one package-capable target: claude, codex-package, or gemini",
 		}
+		issues := []publicationIssue{{
+			Code:    "no_publication_targets",
+			Message: "no publication-capable package targets are enabled for the requested scope",
+		}}
 		lines = append(lines,
+			"Issue[no_publication_targets]: no publication-capable package targets are enabled for the requested scope",
 			"Status: inactive (no publication-capable package targets enabled)",
 			"Next:",
 			"  "+next[0],
 		)
-		return publicationDiagnosis{Ready: false, Status: "inactive", Lines: lines, NextSteps: next}
+		return publicationDiagnosis{Ready: false, Status: "inactive", Lines: lines, NextSteps: next, Issues: issues}
 	}
 
 	channelTargets := map[string]struct{}{}
@@ -211,8 +225,19 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 	lines = append(lines, "Status: needs_channels (one or more publication-capable package targets have no authored publish/... channel)")
 	lines = append(lines, "Next:")
 	missingTargets := make([]string, 0, len(missing))
+	issues := make([]publicationIssue, 0, len(missing))
 	for _, pkg := range missing {
 		missingTargets = append(missingTargets, pkg.Target)
+		channelFamily, channelPath := expectedPublicationChannel(pkg.Target)
+		message := fmt.Sprintf("target %s requires authored %s at %s", pkg.Target, channelFamily, channelPath)
+		issues = append(issues, publicationIssue{
+			Code:          "missing_channel",
+			Target:        pkg.Target,
+			ChannelFamily: channelFamily,
+			Path:          channelPath,
+			Message:       message,
+		})
+		lines = append(lines, fmt.Sprintf("Issue[missing_channel]: %s", message))
 	}
 	slices.Sort(missingTargets)
 	for _, step := range next {
@@ -224,6 +249,7 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 		Lines:                 lines,
 		NextSteps:             next,
 		MissingPackageTargets: missingTargets,
+		Issues:                issues,
 	}
 }
 
@@ -252,6 +278,19 @@ func publicationNextStepsForMissing(missing []publicationmodel.Package) []string
 	return steps
 }
 
+func expectedPublicationChannel(target string) (family string, path string) {
+	switch target {
+	case "codex-package":
+		return "codex-marketplace", "publish/codex/marketplace.yaml"
+	case "claude":
+		return "claude-marketplace", "publish/claude/marketplace.yaml"
+	case "gemini":
+		return "gemini-gallery", "publish/gemini/gallery.yaml"
+	default:
+		return "", ""
+	}
+}
+
 type publicationDoctorJSONReport struct {
 	Format                string                 `json:"format"`
 	SchemaVersion         int                    `json:"schema_version"`
@@ -260,6 +299,8 @@ type publicationDoctorJSONReport struct {
 	Status                string                 `json:"status"`
 	WarningCount          int                    `json:"warning_count"`
 	Warnings              []string               `json:"warnings"`
+	IssueCount            int                    `json:"issue_count"`
+	Issues                []publicationIssue     `json:"issues"`
 	NextSteps             []string               `json:"next_steps"`
 	MissingPackageTargets []string               `json:"missing_package_targets,omitempty"`
 	Publication           publicationmodel.Model `json:"publication"`
@@ -279,6 +320,8 @@ func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings
 		Status:                diagnosis.Status,
 		WarningCount:          len(warningMessages),
 		Warnings:              warningMessages,
+		IssueCount:            len(diagnosis.Issues),
+		Issues:                append([]publicationIssue{}, diagnosis.Issues...),
 		NextSteps:             append([]string(nil), diagnosis.NextSteps...),
 		MissingPackageTargets: append([]string(nil), diagnosis.MissingPackageTargets...),
 		Publication:           publication,

@@ -19,6 +19,8 @@ Every JSON report includes:
 - `status`: one of `ready`, `needs_channels`, or `inactive`
 - `warning_count`
 - `warnings`
+- `issue_count`
+- `issues`
 - `next_steps`
 - `publication`
 
@@ -32,11 +34,29 @@ When publication-capable package targets are missing authored channels, the repo
 - `needs_channels`: at least one publication-capable package target exists, but one or more required `publish/...` channels are missing
 - `inactive`: no publication-capable package targets are enabled for the requested scope
 
+## Issue Records
+
+`issues` is the structured explanation surface for publication gaps.
+
+Each issue record includes:
+
+- `code`
+- `message`
+- `target` when the issue belongs to a specific package target
+- `channel_family` when the issue belongs to a specific publication family
+- `path` when a concrete authored path is relevant
+
+Current issue codes:
+
+- `no_publication_targets`
+- `missing_channel`
+
 ## Array Guarantees
 
 The following fields are always arrays in schema version `1`, never `null`:
 
 - `warnings`
+- `issues`
 - `next_steps`
 - `publication.packages`
 - `publication.channels`

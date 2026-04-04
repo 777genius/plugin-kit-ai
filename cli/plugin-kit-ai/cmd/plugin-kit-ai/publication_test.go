@@ -181,6 +181,7 @@ func TestPublicationDoctorReturnsExitCodeOneWhenChannelsAreMissing(t *testing.T)
 	}
 	output := buf.String()
 	for _, want := range []string{
+		"Issue[missing_channel]: target gemini requires authored gemini-gallery at publish/gemini/gallery.yaml",
 		"Status: needs_channels",
 		"Next:",
 		"add publish/gemini/gallery.yaml",
@@ -321,9 +322,23 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 	if payload["warning_count"] != float64(1) {
 		t.Fatalf("warning_count = %+v", payload["warning_count"])
 	}
+	if payload["issue_count"] != float64(1) {
+		t.Fatalf("issue_count = %+v", payload["issue_count"])
+	}
 	warnings, ok := payload["warnings"].([]any)
 	if !ok || len(warnings) != 1 || warnings[0] != "publish/gemini/gallery.yaml is not authored yet" {
 		t.Fatalf("warnings = %+v", payload["warnings"])
+	}
+	issues, ok := payload["issues"].([]any)
+	if !ok || len(issues) != 1 {
+		t.Fatalf("issues = %+v", payload["issues"])
+	}
+	issue, ok := issues[0].(map[string]any)
+	if !ok {
+		t.Fatalf("issue = %+v", issues[0])
+	}
+	if issue["code"] != "missing_channel" || issue["target"] != "gemini" || issue["channel_family"] != "gemini-gallery" || issue["path"] != "publish/gemini/gallery.yaml" {
+		t.Fatalf("issue = %+v", issue)
 	}
 	nextSteps, ok := payload["next_steps"].([]any)
 	if !ok || len(nextSteps) == 0 {
@@ -387,6 +402,13 @@ func TestPublicationDoctorJSONReportsReadyState(t *testing.T) {
 	}
 	if payload["ready"] != true {
 		t.Fatalf("ready = %+v", payload["ready"])
+	}
+	if payload["issue_count"] != float64(0) {
+		t.Fatalf("issue_count = %+v", payload["issue_count"])
+	}
+	issues, ok := payload["issues"].([]any)
+	if !ok || len(issues) != 0 {
+		t.Fatalf("issues = %+v", payload["issues"])
 	}
 	if _, found := payload["missing_package_targets"]; found {
 		t.Fatalf("missing_package_targets should be omitted for ready payload: %+v", payload)
