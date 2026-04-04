@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -110,7 +112,7 @@ func newPublicationDoctorCmd(runner inspectRunner) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			diagnosis := diagnosePublication(report)
+			diagnosis := diagnosePublication(root, report)
 			switch strings.ToLower(strings.TrimSpace(format)) {
 			case "", "text":
 				for _, warning := range warnings {
@@ -160,7 +162,7 @@ type publicationIssue struct {
 	Message       string `json:"message"`
 }
 
-func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis {
+func diagnosePublication(root string, report pluginmanifest.Inspection) publicationDiagnosis {
 	lines := []string{
 		fmt.Sprintf("Publication: %s %s api_version=%s", report.Publication.Core.Name, report.Publication.Core.Version, report.Publication.Core.APIVersion),
 		fmt.Sprintf("Packages: %d", len(report.Publication.Packages)),
@@ -207,7 +209,8 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 			missing = append(missing, pkg)
 		}
 	}
-	if len(missing) == 0 {
+	artifactIssues := diagnosePublicationArtifacts(root, report.Publication)
+	if len(missing) == 0 && len(artifactIssues) == 0 {
 		next := []string{
 			"run plugin-kit-ai validate . --strict",
 			"run plugin-kit-ai publication . --format json for CI or automation handoff",
@@ -222,8 +225,6 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 	}
 
 	next := publicationNextStepsForMissing(missing)
-	lines = append(lines, "Status: needs_channels (one or more publication-capable package targets have no authored publish/... channel)")
-	lines = append(lines, "Next:")
 	missingTargets := make([]string, 0, len(missing))
 	issues := make([]publicationIssue, 0, len(missing))
 	for _, pkg := range missing {
@@ -240,16 +241,37 @@ func diagnosePublication(report pluginmanifest.Inspection) publicationDiagnosis 
 		lines = append(lines, fmt.Sprintf("Issue[missing_channel]: %s", message))
 	}
 	slices.Sort(missingTargets)
+	if len(missing) > 0 {
+		lines = append(lines, "Status: needs_channels (one or more publication-capable package targets have no authored publish/... channel)")
+		lines = append(lines, "Next:")
+		for _, step := range next {
+			lines = append(lines, "  "+step)
+		}
+		return publicationDiagnosis{
+			Ready:                 false,
+			Status:                "needs_channels",
+			Lines:                 lines,
+			NextSteps:             next,
+			MissingPackageTargets: missingTargets,
+			Issues:                issues,
+		}
+	}
+
+	next = publicationNextStepsForArtifactIssues(artifactIssues)
+	for _, issue := range artifactIssues {
+		lines = append(lines, fmt.Sprintf("Issue[%s]: %s", issue.Code, issue.Message))
+	}
+	lines = append(lines, "Status: needs_render (authored publication inputs exist, but generated publication artifacts are missing)")
+	lines = append(lines, "Next:")
 	for _, step := range next {
 		lines = append(lines, "  "+step)
 	}
 	return publicationDiagnosis{
-		Ready:                 false,
-		Status:                "needs_channels",
-		Lines:                 lines,
-		NextSteps:             next,
-		MissingPackageTargets: missingTargets,
-		Issues:                issues,
+		Ready:     false,
+		Status:    "needs_render",
+		Lines:     lines,
+		NextSteps: next,
+		Issues:    artifactIssues,
 	}
 }
 
@@ -278,6 +300,16 @@ func publicationNextStepsForMissing(missing []publicationmodel.Package) []string
 	return steps
 }
 
+func publicationNextStepsForArtifactIssues(issues []publicationIssue) []string {
+	if len(issues) == 0 {
+		return []string{}
+	}
+	return []string{
+		"run plugin-kit-ai render . to regenerate package and publication artifacts",
+		"run plugin-kit-ai validate . --strict to confirm generated publication outputs are in sync",
+	}
+}
+
 func expectedPublicationChannel(target string) (family string, path string) {
 	switch target {
 	case "codex-package":
@@ -289,6 +321,72 @@ func expectedPublicationChannel(target string) (family string, path string) {
 	default:
 		return "", ""
 	}
+}
+
+func diagnosePublicationArtifacts(root string, model publicationmodel.Model) []publicationIssue {
+	var issues []publicationIssue
+	for _, pkg := range model.Packages {
+		if path := expectedPackageArtifactPath(pkg.Target); path != "" && !fileExists(filepath.Join(root, path)) {
+			issues = append(issues, publicationIssue{
+				Code:    "missing_package_artifact",
+				Target:  pkg.Target,
+				Path:    path,
+				Message: fmt.Sprintf("target %s is missing generated package artifact %s", pkg.Target, path),
+			})
+		}
+	}
+	for _, channel := range model.Channels {
+		if path := expectedChannelArtifactPath(channel.Family); path != "" && !fileExists(filepath.Join(root, path)) {
+			issues = append(issues, publicationIssue{
+				Code:          "missing_channel_artifact",
+				ChannelFamily: channel.Family,
+				Path:          path,
+				Message:       fmt.Sprintf("channel %s is missing generated publication artifact %s", channel.Family, path),
+			})
+		}
+	}
+	slices.SortFunc(issues, func(a, b publicationIssue) int {
+		if cmp := strings.Compare(a.Code, b.Code); cmp != 0 {
+			return cmp
+		}
+		if cmp := strings.Compare(a.Target, b.Target); cmp != 0 {
+			return cmp
+		}
+		if cmp := strings.Compare(a.ChannelFamily, b.ChannelFamily); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(a.Path, b.Path)
+	})
+	return issues
+}
+
+func expectedPackageArtifactPath(target string) string {
+	switch target {
+	case "codex-package":
+		return filepath.ToSlash(filepath.Join(".codex-plugin", "plugin.json"))
+	case "claude":
+		return filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json"))
+	case "gemini":
+		return "gemini-extension.json"
+	default:
+		return ""
+	}
+}
+
+func expectedChannelArtifactPath(family string) string {
+	switch family {
+	case "codex-marketplace":
+		return filepath.ToSlash(filepath.Join(".agents", "plugins", "marketplace.json"))
+	case "claude-marketplace":
+		return filepath.ToSlash(filepath.Join(".claude-plugin", "marketplace.json"))
+	default:
+		return ""
+	}
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 type publicationDoctorJSONReport struct {

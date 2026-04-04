@@ -16,7 +16,7 @@ Every JSON report includes:
 - `schema_version`: currently `1`
 - `requested_target`: the explicit `--target` value when present
 - `ready`: convenience boolean for publication readiness
-- `status`: one of `ready`, `needs_channels`, or `inactive`
+- `status`: one of `ready`, `needs_channels`, `needs_render`, or `inactive`
 - `warning_count`
 - `warnings`
 - `issue_count`
@@ -32,6 +32,7 @@ When publication-capable package targets are missing authored channels, the repo
 
 - `ready`: every publication-capable package target has an authored `publish/...` channel
 - `needs_channels`: at least one publication-capable package target exists, but one or more required `publish/...` channels are missing
+- `needs_render`: authored publication inputs exist, but one or more required generated package or publication artifacts are missing
 - `inactive`: no publication-capable package targets are enabled for the requested scope
 
 ## Issue Records
@@ -50,6 +51,8 @@ Current issue codes:
 
 - `no_publication_targets`
 - `missing_channel`
+- `missing_package_artifact`
+- `missing_channel_artifact`
 
 ## Array Guarantees
 

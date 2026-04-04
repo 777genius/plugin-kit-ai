@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -165,6 +167,10 @@ func TestPublicationHelpMentionsSupportedTargets(t *testing.T) {
 
 func TestPublicationDoctorReturnsExitCodeOneWhenChannelsAreMissing(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "gemini-extension.json"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cmd := newPublicationDoctorCmd(fakeInspectRunner{
 		report: pluginmanifest.Inspection{
 			Publication: publicationmodel.Model{
@@ -189,6 +195,7 @@ func TestPublicationDoctorReturnsExitCodeOneWhenChannelsAreMissing(t *testing.T)
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{root})
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected error")
@@ -211,6 +218,9 @@ func TestPublicationDoctorReturnsExitCodeOneWhenChannelsAreMissing(t *testing.T)
 
 func TestPublicationDoctorReportsReadyWhenChannelsExist(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationTestFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+	mustWritePublicationTestFile(t, root, filepath.Join(".agents", "plugins", "marketplace.json"), "{}\n")
 	cmd := newPublicationDoctorCmd(fakeInspectRunner{
 		report: pluginmanifest.Inspection{
 			Publication: publicationmodel.Model{
@@ -243,6 +253,7 @@ func TestPublicationDoctorReportsReadyWhenChannelsExist(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{root})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -283,6 +294,10 @@ func TestPublicationDoctorHelpIncludesReadOnlyReadinessCheck(t *testing.T) {
 
 func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "gemini-extension.json"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	cmd := newPublicationDoctorCmd(fakeInspectRunner{
 		report: pluginmanifest.Inspection{
 			Publication: publicationmodel.Model{
@@ -309,7 +324,7 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"--format", "json", "--target", "gemini", "."})
+	cmd.SetArgs([]string{"--format", "json", "--target", "gemini", root})
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected error")
@@ -373,6 +388,9 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 
 func TestPublicationDoctorJSONReportsReadyState(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationTestFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+	mustWritePublicationTestFile(t, root, filepath.Join(".agents", "plugins", "marketplace.json"), "{}\n")
 	cmd := newPublicationDoctorCmd(fakeInspectRunner{
 		report: pluginmanifest.Inspection{
 			Publication: publicationmodel.Model{
@@ -406,7 +424,7 @@ func TestPublicationDoctorJSONReportsReadyState(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"--format", "json", "."})
+	cmd.SetArgs([]string{"--format", "json", root})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -429,5 +447,122 @@ func TestPublicationDoctorJSONReportsReadyState(t *testing.T) {
 	}
 	if _, found := payload["missing_package_targets"]; found {
 		t.Fatalf("missing_package_targets should be omitted for ready payload: %+v", payload)
+	}
+}
+
+func TestPublicationDoctorReportsNeedsRenderWhenGeneratedArtifactsAreMissing(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	cmd := newPublicationDoctorCmd(fakeInspectRunner{
+		report: pluginmanifest.Inspection{
+			Publication: publicationmodel.Model{
+				Core: publicationmodel.Core{
+					APIVersion:  "v1",
+					Name:        "demo",
+					Version:     "0.1.0",
+					Description: "demo plugin",
+				},
+				Packages: []publicationmodel.Package{
+					{
+						Target:           "codex-package",
+						PackageFamily:    "codex-plugin",
+						ChannelFamilies:  []string{"codex-marketplace"},
+						ManagedArtifacts: []string{".codex-plugin/plugin.json", ".agents/plugins/marketplace.json"},
+					},
+				},
+				Channels: []publicationmodel.Channel{
+					{
+						Family:         "codex-marketplace",
+						Path:           "publish/codex/marketplace.yaml",
+						PackageTargets: []string{"codex-package"},
+					},
+				},
+			},
+		},
+	})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{root})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if code := exitx.Code(err); code != 1 {
+		t.Fatalf("exit code = %d", code)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		"Issue[missing_channel_artifact]",
+		"Issue[missing_package_artifact]",
+		"Status: needs_render",
+		"run plugin-kit-ai render . to regenerate package and publication artifacts",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("publication doctor output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestPublicationDoctorJSONReportsNeedsRenderIssues(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	cmd := newPublicationDoctorCmd(fakeInspectRunner{
+		report: pluginmanifest.Inspection{
+			Publication: publicationmodel.Model{
+				Core: publicationmodel.Core{
+					APIVersion: "v1",
+					Name:       "demo",
+					Version:    "0.1.0",
+				},
+				Packages: []publicationmodel.Package{
+					{
+						Target:          "claude",
+						PackageFamily:   "claude-plugin",
+						ChannelFamilies: []string{"claude-marketplace"},
+					},
+				},
+				Channels: []publicationmodel.Channel{
+					{
+						Family:         "claude-marketplace",
+						Path:           "publish/claude/marketplace.yaml",
+						PackageTargets: []string{"claude"},
+					},
+				},
+			},
+		},
+	})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--format", "json", root})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	var payload map[string]any
+	if parseErr := json.Unmarshal(buf.Bytes(), &payload); parseErr != nil {
+		t.Fatalf("json parse: %v\n%s", parseErr, buf.Bytes())
+	}
+	if payload["status"] != "needs_render" {
+		t.Fatalf("status = %+v", payload["status"])
+	}
+	if payload["issue_count"] != float64(2) {
+		t.Fatalf("issue_count = %+v", payload["issue_count"])
+	}
+	issues, ok := payload["issues"].([]any)
+	if !ok || len(issues) != 2 {
+		t.Fatalf("issues = %+v", payload["issues"])
+	}
+}
+
+func mustWritePublicationTestFile(t *testing.T, root, rel, body string) {
+	t.Helper()
+	full := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
