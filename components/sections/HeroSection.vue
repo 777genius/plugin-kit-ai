@@ -6,7 +6,7 @@ const { t, locale } = useI18n();
 const config = useRuntimeConfig();
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const { docsUrl } = useDocsLinks();
-const { data: releaseData, fallbackUrl } = useReleaseDownloads();
+const { data: releaseData } = useReleaseDownloads();
 
 const releaseVersion = computed(() => releaseData.value?.version || null);
 const releaseDate = computed(() => {
@@ -23,7 +23,7 @@ const releaseDate = computed(() => {
 <template>
   <section id="hero" class="hero-section section anchor-offset">
     <v-container class="hero-section__container">
-      <v-row align="center" justify="space-between">
+      <v-row align="start" justify="space-between">
         <v-col cols="12" md="6" class="hero-section__content">
           <h1 class="hero-section__title">
             <span class="hero-section__logo">P</span>
@@ -67,9 +67,6 @@ const releaseDate = computed(() => {
             <div v-if="releaseVersion" class="hero-section__release-badge">
               {{ t("hero.latestRelease") }} · v{{ releaseVersion }}<template v-if="releaseDate"> · {{ releaseDate }}</template>
             </div>
-            <a class="hero-section__release-link" :href="fallbackUrl" target="_blank" rel="noopener noreferrer">
-              {{ t("hero.status") }}
-            </a>
           </div>
 
           <div class="hero-section__trust">
@@ -126,6 +123,7 @@ const releaseDate = computed(() => {
 
 .hero-section__content {
   animation: heroFadeIn 0.8s ease both;
+  align-self: center;
 }
 
 .hero-section__title {
@@ -198,24 +196,6 @@ const releaseDate = computed(() => {
   font-family: "JetBrains Mono", monospace;
   animation: heroFadeIn 0.8s ease both;
   animation-delay: 0.45s;
-}
-
-.hero-section__release-link {
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #39ff14;
-  text-decoration: none;
-  border: 1px solid rgba(57, 255, 20, 0.2);
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(57, 255, 20, 0.05);
-}
-
-.hero-section__release-link:hover {
-  border-color: rgba(57, 255, 20, 0.4);
-  background: rgba(57, 255, 20, 0.08);
 }
 
 .hero-section__btn-primary {
@@ -291,6 +271,7 @@ const releaseDate = computed(() => {
   width: 100%;
   animation: heroSlideUp 0.9s ease both;
   animation-delay: 0.3s;
+  align-self: flex-start;
 }
 
 .hero-section__preview-glow {
@@ -347,6 +328,10 @@ const releaseDate = computed(() => {
   .hero-section {
     min-height: auto;
     padding-top: 28px;
+  }
+
+  .hero-section__content {
+    align-self: flex-start;
   }
 
   .hero-section__title {

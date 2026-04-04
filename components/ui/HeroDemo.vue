@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { mdiCheckCircleOutline, mdiClockOutline } from "@mdi/js";
 
 const { t } = useI18n();
 
@@ -39,16 +40,9 @@ const repoFiles = [
   "targets/opencode/",
   "targets/cursor/"
 ];
-const logs = computed(() => [
-  t("hero.demo.logs.author"),
-  t("hero.demo.logs.render"),
-  t("hero.demo.logs.validate"),
-  t("hero.demo.logs.ship")
-]);
 
 const containerRef = ref<HTMLElement | null>(null);
 const activeStep = ref(0);
-const activeLog = ref(logs.value[0]);
 
 let observer: IntersectionObserver | null = null;
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -57,7 +51,6 @@ const start = () => {
   if (intervalId) return;
   intervalId = setInterval(() => {
     activeStep.value = (activeStep.value + 1) % steps.value.length;
-    activeLog.value = logs.value[activeStep.value];
   }, 1800);
 };
 
@@ -72,10 +65,6 @@ const visible = ref(false);
 watch(visible, (value) => {
   if (value) start();
   else stop();
-});
-
-watch(logs, (nextLogs) => {
-  activeLog.value = nextLogs[activeStep.value] || nextLogs[0] || "";
 });
 
 onMounted(() => {
@@ -97,17 +86,6 @@ onUnmounted(() => {
 <template>
   <div ref="containerRef" class="hero-demo" role="img" :aria-label="t('hero.preview')">
     <div class="hero-demo__content">
-      <div class="hero-demo__header">
-        <div class="hero-demo__title-row">
-          <span class="hero-demo__title">{{ t("hero.demo.title") }}</span>
-          <span class="hero-demo__badge-live">
-            <span class="hero-demo__live-dot" />
-            {{ t("hero.demo.live") }}
-          </span>
-        </div>
-        <p class="hero-demo__subtitle">{{ t("hero.demo.subtitle") }}</p>
-      </div>
-
       <div class="hero-demo__steps">
         <div
           v-for="(step, index) in steps"
@@ -124,7 +102,15 @@ onUnmounted(() => {
               <span class="hero-demo__step-label">{{ step.label }}</span>
               <span class="hero-demo__step-caption">{{ step.caption }}</span>
             </div>
-            <span class="hero-demo__step-state">{{ index <= activeStep ? t("hero.demo.ready") : t("hero.demo.waiting") }}</span>
+            <span
+              class="hero-demo__step-state"
+              :aria-label="index <= activeStep ? t('hero.demo.ready') : t('hero.demo.waiting')"
+            >
+              <v-icon
+                :icon="index <= activeStep ? mdiCheckCircleOutline : mdiClockOutline"
+                size="18"
+              />
+            </span>
           </div>
         </div>
       </div>
@@ -136,13 +122,7 @@ onUnmounted(() => {
             <span>{{ t("hero.demo.sourceOfTruth") }}</span>
           </div>
           <div class="hero-demo__file-list">
-            <div
-              v-for="file in repoFiles"
-              :key="file"
-              class="hero-demo__file"
-            >
-              {{ file }}
-            </div>
+            {{ repoFiles.join("\n") }}
           </div>
         </div>
 
@@ -163,9 +143,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="hero-demo__log">
-        {{ activeLog }}
-      </div>
     </div>
   </div>
 </template>
@@ -183,85 +160,36 @@ onUnmounted(() => {
 }
 
 .hero-demo__content {
-  padding: 22px;
-}
-
-.hero-demo__header {
-  margin-bottom: 18px;
-}
-
-.hero-demo__title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.hero-demo__title {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.95rem;
-  color: #e0e6ff;
-}
-
-.hero-demo__subtitle {
-  margin: 10px 0 0;
-  color: #8892b0;
-  font-size: 0.88rem;
-}
-
-.hero-demo__badge-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #39ff14;
-  border: 1px solid rgba(57, 255, 20, 0.18);
-  background: rgba(57, 255, 20, 0.05);
-}
-
-.hero-demo__live-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #39ff14;
-  box-shadow: 0 0 12px #39ff14;
+  padding: 18px;
 }
 
 .hero-demo__steps {
   display: grid;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 0;
+  margin-bottom: 14px;
 }
 
 .hero-demo__step {
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .hero-demo__step--active {
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, 0.02));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 0.06));
 }
 
 .hero-demo__step-index {
-  min-width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.74rem;
+  font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: color-mix(in srgb, var(--accent) 82%, #ffffff 18%);
@@ -274,48 +202,63 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
 }
 
 .hero-demo__step-text {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .hero-demo__step-label {
   color: #e0e6ff;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.83rem;
+  font-size: 0.76rem;
+  line-height: 1.2;
 }
 
 .hero-demo__step-caption {
   color: #7b86a8;
-  font-size: 0.7rem;
-  line-height: 1.45;
+  font-size: 0.62rem;
+  line-height: 1.3;
 }
 
 .hero-demo__step-state {
   color: #8892b0;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.64rem;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+}
+
+.hero-demo__step--active .hero-demo__step-state {
+  color: color-mix(in srgb, var(--accent) 82%, #ffffff 18%);
+}
+
+.hero-demo__steps .hero-demo__step:first-child {
+  padding-top: 0;
+}
+
+.hero-demo__steps .hero-demo__step:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .hero-demo__files {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 14px;
-  margin-bottom: 18px;
 }
 
 .hero-demo__file-card,
 .hero-demo__output-card {
   border-radius: 16px;
-  padding: 14px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -324,27 +267,20 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   color: #8892b0;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-family: "JetBrains Mono", monospace;
 }
 
 .hero-demo__file-list {
-  display: grid;
-  gap: 8px;
-}
-
-.hero-demo__file {
-  padding: 9px 10px;
-  border-radius: 12px;
-  background: rgba(0, 240, 255, 0.06);
-  border: 1px solid rgba(0, 240, 255, 0.08);
+  white-space: pre-line;
   color: #dbeafe;
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  line-height: 1.7;
 }
 
 .hero-demo__output-list {
@@ -354,9 +290,9 @@ onUnmounted(() => {
 }
 
 .hero-demo__output {
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 999px;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   color: #8892b0;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -366,16 +302,6 @@ onUnmounted(() => {
   color: #0a0a0f;
   background: linear-gradient(135deg, #00f0ff, #39ff14);
   border-color: transparent;
-}
-
-.hero-demo__log {
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: rgba(5, 8, 18, 0.65);
-  border: 1px solid rgba(57, 255, 20, 0.12);
-  color: #b8c3e0;
-  font-size: 0.82rem;
-  line-height: 1.5;
 }
 
 .v-theme--light .hero-demo {
@@ -388,14 +314,8 @@ onUnmounted(() => {
   color: #0f172a;
 }
 
-.v-theme--light .hero-demo__file {
+.v-theme--light .hero-demo__file-list {
   color: #164e63;
-}
-
-.v-theme--light .hero-demo__log {
-  background: rgba(241, 245, 249, 0.9);
-  color: #334155;
-  border-color: rgba(34, 197, 94, 0.18);
 }
 
 @media (max-width: 700px) {

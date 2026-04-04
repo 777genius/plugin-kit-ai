@@ -12,7 +12,7 @@
     {
       "id": "growOutputs",
       "title": "Start with one strong path, add more later",
-      "description": "Begin with the output that matters now, then expand to more supported agents when your product actually needs it."
+      "description": "Start by building the plugin for the one agent you need right now, then expand to more supported agents when your product actually needs it."
     },
     {
       "id": "validate",
@@ -253,13 +253,13 @@
       "id": "claude",
       "name": "Claude plugin package",
       "status": "Production-ready stable subset",
-      "note": "Production-ready within the stable default hook subset, plus package metadata and settings surfaces."
+      "note": "Production-ready for the stable default hook subset. Settings and manifest support are solid; some wider Claude package surfaces still stay beta."
     },
     {
       "id": "codex",
       "name": "Codex runtime and package lanes",
       "status": "Production-ready",
-      "note": "Codex runtime notify lane and the official Codex package lane are both production-ready."
+      "note": "The Codex notify runtime lane and the official Codex package lane are both production-ready today."
     },
     {
       "id": "gemini",
@@ -269,15 +269,15 @@
     },
     {
       "id": "opencode",
-      "name": "OpenCode workspace lane",
+      "name": "OpenCode workspace-config lane",
       "status": "Packaging-only target",
-      "note": "Workspace config, plugins, and MCP are supported, but this is not a production-ready runtime target."
+      "note": "Repo-local config, MCP, skills, commands, agents, themes, and plugin refs are supported, but this is still a workspace-config target, not a production-ready runtime lane."
     },
     {
       "id": "cursor",
-      "name": "Cursor workspace lane",
+      "name": "Cursor workspace-config lane",
       "status": "Packaging-only target",
-      "note": "Project rules and MCP config are supported as a strict workspace-config lane."
+      "note": "Project rules, MCP config, and optional root AGENTS.md support are covered, but Cursor remains a strict workspace-config lane."
     }
   ]
 }

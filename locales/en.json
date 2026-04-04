@@ -58,6 +58,7 @@
     "copied": "Copied",
     "quickstartTitle": "Recommended quickstart",
     "quickstartSubtitle": "This is the fastest supported path from install to a validated repo.",
+    "installTabsLabel": "Choose install path",
     "supportTitle": "Support snapshot",
     "supportSubtitle": "Real support depth today, based on the current support policy and target matrix.",
     "supportLink": "Read the support boundary"

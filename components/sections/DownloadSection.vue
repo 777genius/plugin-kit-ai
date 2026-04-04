@@ -4,6 +4,7 @@ const { t, locale } = useI18n()
 const { data: releaseData, fallbackUrl } = useReleaseDownloads()
 const { quickstartUrl, supportBoundaryUrl } = useDocsLinks()
 const copiedCommandId = ref<string | null>(null)
+const selectedInstallId = ref<string | null>(null)
 
 let copiedTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -34,6 +35,42 @@ const installChannels = computed(() =>
       ? { ...channel, href: quickstartUrl.value }
       : channel
   )
+)
+
+const quickstartInstallChannels = computed(() =>
+  installChannels.value.filter((channel) => channel.command && !["docs", "releases"].includes(channel.id))
+)
+
+watchEffect(() => {
+  if (selectedInstallId.value && quickstartInstallChannels.value.some((channel) => channel.id === selectedInstallId.value)) {
+    return
+  }
+
+  selectedInstallId.value =
+    quickstartInstallChannels.value.find((channel) => channel.recommended)?.id ||
+    quickstartInstallChannels.value[0]?.id ||
+    null
+})
+
+const selectedInstallChannel = computed(
+  () =>
+    quickstartInstallChannels.value.find((channel) => channel.id === selectedInstallId.value) ||
+    quickstartInstallChannels.value[0] ||
+    null
+)
+
+const quickstartSteps = computed(() =>
+  content.value.quickstartSteps.map((step) => {
+    if (step.id !== "install" || !selectedInstallChannel.value?.command) {
+      return step
+    }
+
+    return {
+      ...step,
+      command: `${selectedInstallChannel.value.command}\nplugin-kit-ai version`,
+      note: selectedInstallChannel.value.note
+    }
+  })
 )
 
 const setCopiedState = (commandId: string) => {
@@ -84,6 +121,79 @@ const copyCommand = async (commandId: string, command: string) => {
 
 const copyLabel = (commandId: string) =>
   copiedCommandId.value === commandId ? t("download.copied") : t("download.copy")
+
+const commandActions = new Set([
+  "install",
+  "version",
+  "init",
+  "render",
+  "validate",
+  "run",
+  "open",
+  "link",
+  "config",
+  "disable",
+  "enable",
+  "publish",
+  "fetch"
+])
+
+const classifyToken = (token: string, tokenIndex: number) => {
+  if (["|", "&&", "||"].includes(token)) {
+    return "operator"
+  }
+
+  if (token.startsWith("https://") || token.startsWith("http://")) {
+    return "url"
+  }
+
+  if (token.startsWith("--") || (token.startsWith("-") && token.length > 1)) {
+    return "flag"
+  }
+
+  if (tokenIndex === 0) {
+    return "command"
+  }
+
+  if (tokenIndex === 1 && commandActions.has(token)) {
+    return "action"
+  }
+
+  if (
+    token === "." ||
+    token.startsWith("./") ||
+    token.startsWith("/") ||
+    token.startsWith("~/") ||
+    token.includes("/") ||
+    token.endsWith(".sh") ||
+    token.endsWith(".yaml") ||
+    token.endsWith(".json") ||
+    token.endsWith(".txt")
+  ) {
+    return "path"
+  }
+
+  return "plain"
+}
+
+const renderHighlightedCommand = (command: string) =>
+  command
+    .split("\n")
+    .map((line) => {
+      const tokens = line.match(/\S+|\s+/g) || []
+      let tokenIndex = 0
+
+      return tokens
+        .map((part) => {
+          if (/^\s+$/.test(part)) {
+            return { text: part, className: "plain" }
+          }
+
+          const tokenClass = classifyToken(part, tokenIndex)
+          tokenIndex += 1
+          return { text: part, className: tokenClass }
+        })
+    })
 </script>
 
 <template>
@@ -110,9 +220,34 @@ const copyLabel = (commandId: string) =>
             </p>
           </div>
 
+          <div class="download-section__install-tabs">
+            <div class="download-section__install-tabs-label">
+              {{ t("download.installTabsLabel") }}
+            </div>
+            <div class="download-section__install-tabs-row">
+              <button
+                v-for="channel in quickstartInstallChannels"
+                :key="channel.id"
+                type="button"
+                class="download-section__install-tab"
+                :class="{ 'download-section__install-tab--active': channel.id === selectedInstallId }"
+                :aria-pressed="channel.id === selectedInstallId"
+                @click="selectedInstallId = channel.id"
+              >
+                <span>{{ channel.title }}</span>
+                <span v-if="channel.recommended" class="download-section__install-tab-badge">
+                  {{ t("download.recommended") }}
+                </span>
+              </button>
+            </div>
+            <p v-if="selectedInstallChannel" class="download-section__install-tabs-note">
+              {{ selectedInstallChannel.description }}
+            </p>
+          </div>
+
           <div class="download-section__steps">
             <div
-              v-for="(step, index) in content.quickstartSteps"
+              v-for="(step, index) in quickstartSteps"
               :key="step.id"
               class="download-section__step"
             >
@@ -131,93 +266,57 @@ const copyLabel = (commandId: string) =>
                       {{ copyLabel(`step-${step.id}`) }}
                     </button>
                   </div>
-                  <code class="download-section__step-command">{{ step.command }}</code>
+                  <pre class="download-section__step-command"><code><template
+                    v-for="(line, lineIndex) in renderHighlightedCommand(step.command)"
+                    :key="`${step.id}-line-${lineIndex}`"
+                  ><span class="download-section__command-line"><span
+                    v-for="(token, tokenIndex) in line"
+                    :key="`${step.id}-line-${lineIndex}-token-${tokenIndex}`"
+                    class="download-section__token"
+                    :class="`download-section__token--${token.className}`"
+                  >{{ token.text }}</span></span></template></code></pre>
                 </div>
                 <p class="download-section__step-note">{{ step.note }}</p>
               </div>
             </div>
           </div>
         </article>
-
-        <article class="download-section__overview-card">
-          <div class="download-section__overview-top">
-            <h3 class="download-section__overview-title">
-              {{ t("download.supportTitle") }}
-            </h3>
-            <p class="download-section__overview-subtitle">
-              {{ t("download.supportSubtitle") }}
-            </p>
-          </div>
-
-          <div class="download-section__support-list">
-            <div
-              v-for="(lane, index) in content.supportLanes"
-              :key="lane.id"
-              class="download-section__support-item"
-              :style="{ '--accent': supportAccent[index % supportAccent.length] }"
-            >
-              <div class="download-section__support-main">
-                <h4 class="download-section__support-name">{{ lane.name }}</h4>
-                <span class="download-section__support-status">{{ lane.status }}</span>
-              </div>
-              <p class="download-section__support-note">{{ lane.note }}</p>
-            </div>
-          </div>
-
-          <a
-            class="download-section__support-link"
-            :href="supportBoundaryUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {{ t("download.supportLink") }}
-          </a>
-        </article>
       </div>
 
-      <div class="download-section__cards">
-        <div
-          v-for="(channel, index) in installChannels"
-          :key="channel.id"
-          class="download-section__card"
-          :class="{ 'download-section__card--active': channel.recommended }"
-          :style="{
-            '--delay': `${index * 0.1}s`,
-            '--accent': index % 3 === 0 ? '#00f0ff' : index % 3 === 1 ? '#ff00ff' : '#39ff14'
-          }"
-        >
-          <div class="download-section__card-glow" />
-          <div class="download-section__card-top">
-            <h3 class="download-section__card-label">{{ channel.title }}</h3>
-            <span v-if="channel.recommended" class="download-section__recommended">
-              {{ t("download.recommended") }}
-            </span>
-          </div>
-
-          <p class="download-section__card-description">{{ channel.description }}</p>
-
-          <div v-if="channel.command" class="download-section__command-wrap">
-            <div class="download-section__command-head">
-              <span class="download-section__command-label">{{ t("download.command") }}</span>
-              <button
-                type="button"
-                class="download-section__copy-btn"
-                :aria-label="copyLabel(`channel-${channel.id}`)"
-                @click="copyCommand(`channel-${channel.id}`, channel.command)"
-              >
-                {{ copyLabel(`channel-${channel.id}`) }}
-              </button>
-            </div>
-            <code class="download-section__command">{{ channel.command }}</code>
-          </div>
-
-          <p class="download-section__card-note">{{ channel.note }}</p>
-
-          <a class="download-section__btn" :href="channel.href" target="_blank" rel="noopener noreferrer">
-            <span>{{ t("download.open") }}</span>
-          </a>
+      <article class="download-section__overview-card download-section__overview-card--support">
+        <div class="download-section__overview-top">
+          <h3 class="download-section__overview-title">
+            {{ t("download.supportTitle") }}
+          </h3>
+          <p class="download-section__overview-subtitle">
+            {{ t("download.supportSubtitle") }}
+          </p>
         </div>
-      </div>
+
+        <div class="download-section__support-list">
+          <div
+            v-for="(lane, index) in content.supportLanes"
+            :key="lane.id"
+            class="download-section__support-item"
+            :style="{ '--accent': supportAccent[index % supportAccent.length] }"
+          >
+            <div class="download-section__support-main">
+              <h4 class="download-section__support-name">{{ lane.name }}</h4>
+              <span class="download-section__support-status">{{ lane.status }}</span>
+            </div>
+            <p class="download-section__support-note">{{ lane.note }}</p>
+          </div>
+        </div>
+
+        <a
+          class="download-section__support-link"
+          :href="supportBoundaryUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ t("download.supportLink") }}
+        </a>
+      </article>
     </v-container>
   </section>
 </template>
@@ -272,9 +371,7 @@ const copyLabel = (commandId: string) =>
 }
 
 .download-section__overview {
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  gap: 20px;
+  display: block;
   max-width: 1040px;
   margin: 0 auto 24px;
   position: relative;
@@ -294,6 +391,11 @@ const copyLabel = (commandId: string) =>
   background: linear-gradient(180deg, rgba(0, 240, 255, 0.07), rgba(10, 10, 15, 0.82));
 }
 
+.download-section__overview-card--support {
+  max-width: 1040px;
+  margin: 24px auto 0;
+}
+
 .download-section__overview-top {
   margin-bottom: 18px;
 }
@@ -310,6 +412,82 @@ const copyLabel = (commandId: string) =>
   font-size: 0.92rem;
   line-height: 1.6;
   color: #95a3c4;
+}
+
+.download-section__install-tabs {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.download-section__install-tabs-label {
+  color: #8892b0;
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.download-section__install-tabs-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.download-section__install-tab {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #dbeafe;
+  border-radius: 999px;
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.download-section__install-tab:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 240, 255, 0.18);
+}
+
+.download-section__install-tab--active {
+  color: #0a0a0f;
+  border-color: rgba(0, 240, 255, 0.28);
+  background: linear-gradient(135deg, #00f0ff, #62f1ff);
+  box-shadow: 0 8px 24px rgba(0, 240, 255, 0.18);
+}
+
+.download-section__install-tab-badge {
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #39ff14;
+  background: rgba(57, 255, 20, 0.08);
+  border: 1px solid rgba(57, 255, 20, 0.22);
+}
+
+.download-section__install-tab--active .download-section__install-tab-badge {
+  color: #0a0a0f;
+  background: rgba(10, 10, 15, 0.1);
+  border-color: rgba(10, 10, 15, 0.1);
+}
+
+.download-section__install-tabs-note {
+  margin: 0;
+  color: #a8b3d1;
+  font-size: 0.88rem;
+  line-height: 1.55;
 }
 
 .download-section__steps {
@@ -352,15 +530,19 @@ const copyLabel = (commandId: string) =>
 
 .download-section__step-command {
   display: block;
-  padding: 12px;
+  margin: 0;
+  padding: 14px 16px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.24);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #dbeafe;
+  background:
+    linear-gradient(180deg, rgba(0, 240, 255, 0.02), rgba(0, 0, 0, 0.2)),
+    rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   font-size: 0.8rem;
   line-height: 1.6;
   white-space: pre-wrap;
+  overflow-x: auto;
   font-family: "JetBrains Mono", monospace;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .download-section__step-note {
@@ -432,117 +614,6 @@ const copyLabel = (commandId: string) =>
   line-height: 1.55;
 }
 
-.download-section__cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  position: relative;
-  z-index: 1;
-  max-width: 1040px;
-  margin: 0 auto;
-  overflow: visible;
-  padding: 12px 0;
-  align-items: stretch;
-}
-
-.download-section__card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  text-align: left;
-  padding: 24px 22px 22px;
-  border-radius: 16px;
-  background: rgba(10, 10, 15, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.08);
-  backdrop-filter: blur(16px);
-  cursor: default;
-  transition:
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.35s ease;
-  overflow: hidden;
-  animation: downloadFadeUp 0.5s ease both;
-  animation-delay: var(--delay, 0s);
-}
-
-.download-section__card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(0, 240, 255, 0.2);
-  box-shadow:
-    0 20px 60px rgba(0, 240, 255, 0.08),
-    0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
-.download-section__card--active {
-  border-color: rgba(57, 255, 20, 0.28);
-  background: rgba(57, 255, 20, 0.05);
-  box-shadow:
-    0 8px 32px rgba(57, 255, 20, 0.1),
-    0 0 0 2px rgba(57, 255, 20, 0.15);
-  transform: scale(1.02);
-  z-index: 2;
-}
-
-.download-section__card--active:hover {
-  transform: scale(1.04);
-  border-color: rgba(57, 255, 20, 0.5);
-  box-shadow:
-    0 20px 60px rgba(57, 255, 20, 0.15),
-    0 0 0 2px rgba(57, 255, 20, 0.2);
-}
-
-.download-section__card-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 0%,
-    color-mix(in srgb, var(--accent) 8%, transparent),
-    transparent 70%
-  );
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-}
-
-.download-section__card:hover .download-section__card-glow {
-  opacity: 1;
-}
-
-.download-section__card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.download-section__card-label {
-  font-size: 1.08rem;
-  font-weight: 700;
-  margin: 0;
-  color: #e0e6ff;
-}
-
-.download-section__recommended {
-  border-radius: 999px;
-  padding: 7px 10px;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: #39ff14;
-  background: rgba(57, 255, 20, 0.06);
-  border: 1px solid rgba(57, 255, 20, 0.18);
-}
-
-.download-section__card-description {
-  margin: 0 0 14px;
-  color: #8892b0;
-  line-height: 1.6;
-  font-size: 0.92rem;
-}
-
 .download-section__command-wrap {
   margin-bottom: 14px;
 }
@@ -550,9 +621,10 @@ const copyLabel = (commandId: string) =>
 .download-section__command-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 10px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
 .download-section__command-label {
@@ -593,45 +665,36 @@ const copyLabel = (commandId: string) =>
   outline-offset: 2px;
 }
 
-.download-section__command {
+.download-section__command-line {
   display: block;
-  padding: 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.download-section__token {
   color: #dbeafe;
-  font-size: 0.8rem;
-  line-height: 1.55;
-  word-break: break-word;
-  font-family: "JetBrains Mono", monospace;
 }
 
-.download-section__card-note {
-  margin: 0 0 16px;
-  color: #a8b3d1;
-  font-size: 0.85rem;
-  line-height: 1.55;
+.download-section__token--command {
+  color: #67e8f9;
 }
 
-.download-section__btn {
-  margin-top: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  font-weight: 700;
-  color: #0a0a0f;
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #ffffff));
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 25%, transparent);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+.download-section__token--action {
+  color: #f0abfc;
 }
 
-.download-section__btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--accent) 35%, transparent);
+.download-section__token--flag {
+  color: #facc15;
+}
+
+.download-section__token--path {
+  color: #86efac;
+}
+
+.download-section__token--url {
+  color: #38bdf8;
+}
+
+.download-section__token--operator {
+  color: #c084fc;
 }
 
 @keyframes downloadFadeUp {
@@ -669,25 +732,50 @@ const copyLabel = (commandId: string) =>
 
 .v-theme--light .download-section__overview-title,
 .v-theme--light .download-section__step-title,
-.v-theme--light .download-section__support-name,
-.v-theme--light .download-section__card-label {
+.v-theme--light .download-section__support-name {
   color: #0f172a;
 }
 
 .v-theme--light .download-section__overview-subtitle,
+.v-theme--light .download-section__install-tabs-label,
+.v-theme--light .download-section__install-tabs-note,
 .v-theme--light .download-section__step-note,
 .v-theme--light .download-section__support-note,
-.v-theme--light .download-section__card-description,
-.v-theme--light .download-section__command-label,
-.v-theme--light .download-section__card-note {
+.v-theme--light .download-section__command-label {
   color: #475569;
 }
 
-.v-theme--light .download-section__step-command,
-.v-theme--light .download-section__command {
-  color: #164e63;
+.v-theme--light .download-section__step-command {
   background: rgba(241, 245, 249, 0.9);
   border-color: rgba(15, 23, 42, 0.06);
+}
+
+.v-theme--light .download-section__token {
+  color: #1e293b;
+}
+
+.v-theme--light .download-section__token--command {
+  color: #0891b2;
+}
+
+.v-theme--light .download-section__token--action {
+  color: #c026d3;
+}
+
+.v-theme--light .download-section__token--flag {
+  color: #ca8a04;
+}
+
+.v-theme--light .download-section__token--path {
+  color: #15803d;
+}
+
+.v-theme--light .download-section__token--url {
+  color: #2563eb;
+}
+
+.v-theme--light .download-section__token--operator {
+  color: #7c3aed;
 }
 
 .v-theme--light .download-section__copy-btn {
@@ -696,31 +784,19 @@ const copyLabel = (commandId: string) =>
   background: rgba(8, 145, 178, 0.08);
 }
 
-.v-theme--light .download-section__card {
-  background: rgba(255, 255, 255, 0.8);
-  border-color: rgba(0, 180, 200, 0.16);
+.v-theme--light .download-section__install-tab {
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(241, 245, 249, 0.8);
 }
 
-@media (max-width: 960px) {
-  .download-section__overview {
-    grid-template-columns: 1fr;
-  }
-
-  .download-section__cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.v-theme--light .download-section__install-tab--active {
+  color: #082f49;
+  border-color: rgba(8, 145, 178, 0.2);
+  background: linear-gradient(135deg, #67e8f9, #22d3ee);
 }
 
 @media (max-width: 700px) {
-  .download-section__cards {
-    grid-template-columns: 1fr;
-  }
-
-  .download-section__command-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .download-section__step {
     grid-template-columns: 1fr;
   }
