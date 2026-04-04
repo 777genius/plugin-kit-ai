@@ -24,7 +24,7 @@ export const publicGoPackages = [
 ];
 
 export const docsHostname = process.env.DOCS_HOSTNAME || "https://777genius.github.io";
-export const docsBasePath = process.env.DOCS_BASE_PATH || "/plugin-kit-ai/docs/";
+export const docsBasePath = process.env.DOCS_BASE_PATH || "/plugin-kit-ai/";
 export const docsBaseUrl = new URL(docsBasePath, docsHostname).toString();
 
 export const generatedRegistryPaths = {
