@@ -155,11 +155,9 @@ async function runSmoke(browser, base) {
   if (notFoundResponse.status !== 404) {
     errors.push(`Unknown route should return 404 but got ${notFoundResponse.status}`);
   }
-
-  await page.goto(`${base}/404.html`, { waitUntil: "networkidle" });
-  const notFoundBody = await page.textContent("body");
-  if (!notFoundBody?.includes("Page not found")) {
-    errors.push("404 page did not render the expected copy.");
+  const notFoundBody = await notFoundResponse.text();
+  if (!notFoundBody.includes("Page Not Found")) {
+    errors.push("404 response did not include the expected fallback markup.");
   }
 
   const ruContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "ru-RU" });
