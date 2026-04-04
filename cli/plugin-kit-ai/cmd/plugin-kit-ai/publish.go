@@ -63,13 +63,17 @@ Gemini stays repository/release rooted, so publish only supports --dry-run plann
 			if err != nil {
 				return err
 			}
-			if format == "json" {
+			switch format {
+			case "json":
 				body, err := json.MarshalIndent(buildPublishJSONReport(result), "", "  ")
 				if err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", body)
 				return nil
+			case "text":
+			default:
+				return fmt.Errorf("unsupported publish output format %q", format)
 			}
 			for _, line := range result.Lines {
 				_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)

@@ -105,6 +105,21 @@ func TestPublishJSONEmitsVersionedContract(t *testing.T) {
 	}
 }
 
+func TestPublishRejectsUnknownFormat(t *testing.T) {
+	t.Parallel()
+	runner := &fakePublishRunner{
+		result: app.PluginPublishResult{Channel: "codex-marketplace", Target: "codex-package", Mode: "dry-run"},
+	}
+	cmd := newPublishCmd(runner)
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{".", "--channel", "codex-marketplace", "--dest", "/tmp/market", "--format", "yaml"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), `unsupported publish output format "yaml"`) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestPublishHelpMentionsBoundedChannels(t *testing.T) {
 	t.Parallel()
 	cmd := newPublishCmd(&fakePublishRunner{})
