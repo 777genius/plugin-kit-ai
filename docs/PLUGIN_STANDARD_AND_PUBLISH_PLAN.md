@@ -494,6 +494,7 @@ Status:
 - current implementation exposes `plugin-kit-ai publication --format json` as the versioned `plugin-kit-ai/publication-report` contract
 - current implementation exposes `plugin-kit-ai publication doctor` for read-only publication readiness and next-step guidance
 - current implementation exposes `plugin-kit-ai publication doctor --format json` as the versioned `plugin-kit-ai/publication-doctor-report` contract
+- current implementation exposes `plugin-kit-ai publication doctor --dest <marketplace-root>` to verify an already materialized local Codex or Claude marketplace root against current authored publication inputs
 - current implementation exposes `plugin-kit-ai publication materialize --target codex-package|claude --dest <marketplace-root>` for safe local marketplace-root materialization
 - current implementation exposes `plugin-kit-ai publication remove --target codex-package|claude --dest <marketplace-root>` for safe local marketplace-root pruning
 - current implementation renders the repo-level Codex marketplace artifact `.agents/plugins/marketplace.json`

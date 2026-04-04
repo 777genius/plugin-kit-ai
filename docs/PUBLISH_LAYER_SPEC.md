@@ -262,6 +262,7 @@ Status:
 - current implementation renders and validates the Claude marketplace artifact `.claude-plugin/marketplace.json`
 - current implementation also provides `plugin-kit-ai publication materialize --target codex-package|claude --dest <marketplace-root>` as the safe local marketplace-root workflow
 - current implementation also provides `plugin-kit-ai publication remove --target codex-package|claude --dest <marketplace-root>` as the safe local marketplace-root pruning workflow
+- current implementation also provides `plugin-kit-ai publication doctor --dest <marketplace-root>` as the local-root verification workflow for already materialized Codex or Claude marketplace roots
 - current implementation does not render a separate Gemini gallery artifact because official Gemini docs do not define one
 - current implementation instead validates Gemini gallery publication metadata and surfaces it through `plugin-kit-ai inspect`
 

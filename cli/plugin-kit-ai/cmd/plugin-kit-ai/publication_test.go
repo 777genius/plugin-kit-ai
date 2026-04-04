@@ -18,9 +18,11 @@ type fakePublicationRunner struct {
 	fakeInspectRunner
 	result       app.PluginPublicationMaterializeResult
 	removeResult app.PluginPublicationRemoveResult
+	verifyResult app.PluginPublicationVerifyRootResult
 	err          error
 	opts         app.PluginPublicationMaterializeOptions
 	removeOpts   app.PluginPublicationRemoveOptions
+	verifyOpts   app.PluginPublicationVerifyRootOptions
 }
 
 func (f *fakePublicationRunner) PublicationMaterialize(opts app.PluginPublicationMaterializeOptions) (app.PluginPublicationMaterializeResult, error) {
@@ -31,6 +33,11 @@ func (f *fakePublicationRunner) PublicationMaterialize(opts app.PluginPublicatio
 func (f *fakePublicationRunner) PublicationRemove(opts app.PluginPublicationRemoveOptions) (app.PluginPublicationRemoveResult, error) {
 	f.removeOpts = opts
 	return f.removeResult, f.err
+}
+
+func (f *fakePublicationRunner) PublicationVerifyRoot(opts app.PluginPublicationVerifyRootOptions) (app.PluginPublicationVerifyRootResult, error) {
+	f.verifyOpts = opts
+	return f.verifyResult, f.err
 }
 
 func TestPublicationTextShowsPackagesAndChannels(t *testing.T) {
@@ -325,10 +332,99 @@ func TestPublicationDoctorHelpIncludesReadOnlyReadinessCheck(t *testing.T) {
 		"Read-only publication readiness check",
 		`publication target ("all", "claude", "codex-package", or "gemini")`,
 		"output format: text or json",
+		"optional materialized marketplace root to verify for local codex-package or claude publication flows",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("help output missing %q:\n%s", want, output)
 		}
+	}
+}
+
+func TestPublicationDoctorJSONIncludesLocalRootVerification(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationTestFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
+	mustWritePublicationTestFile(t, root, filepath.Join(".agents", "plugins", "marketplace.json"), "{}\n")
+	runner := &fakePublicationRunner{
+		fakeInspectRunner: fakeInspectRunner{
+			report: pluginmanifest.Inspection{
+				Publication: publicationmodel.Model{
+					Core: publicationmodel.Core{
+						APIVersion:  "v1",
+						Name:        "demo",
+						Version:     "0.1.0",
+						Description: "demo plugin",
+					},
+					Packages: []publicationmodel.Package{
+						{
+							Target:           "codex-package",
+							PackageFamily:    "codex-plugin",
+							ChannelFamilies:  []string{"codex-marketplace"},
+							ManagedArtifacts: []string{".codex-plugin/plugin.json", ".agents/plugins/marketplace.json"},
+						},
+					},
+					Channels: []publicationmodel.Channel{
+						{
+							Family:         "codex-marketplace",
+							Path:           "publish/codex/marketplace.yaml",
+							PackageTargets: []string{"codex-package"},
+						},
+					},
+				},
+			},
+		},
+		verifyResult: app.PluginPublicationVerifyRootResult{
+			Ready:       false,
+			Status:      "needs_sync",
+			Dest:        "/tmp/market",
+			PackageRoot: "plugins/demo",
+			CatalogPath: ".agents/plugins/marketplace.json",
+			IssueCount:  1,
+			Issues: []app.PluginPublicationRootIssue{{
+				Code:    "missing_materialized_catalog_entry",
+				Path:    "plugins",
+				Message: "catalog entry for plugin demo is missing",
+			}},
+			NextSteps: []string{
+				"run plugin-kit-ai publication materialize . --target codex-package --dest /tmp/market",
+			},
+		},
+	}
+	cmd := newPublicationDoctorCmd(runner)
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--format", "json", "--target", "codex-package", "--dest", "/tmp/market", root})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if code := exitx.Code(err); code != 1 {
+		t.Fatalf("exit code = %d", code)
+	}
+	if runner.verifyOpts.Target != "codex-package" || runner.verifyOpts.Dest != "/tmp/market" || runner.verifyOpts.Root != root {
+		t.Fatalf("verify opts = %+v", runner.verifyOpts)
+	}
+	var payload map[string]any
+	if parseErr := json.Unmarshal(buf.Bytes(), &payload); parseErr != nil {
+		t.Fatalf("json parse: %v\n%s", parseErr, buf.Bytes())
+	}
+	if payload["status"] != "needs_sync" || payload["ready"] != false {
+		t.Fatalf("payload status = %+v ready = %+v", payload["status"], payload["ready"])
+	}
+	if payload["issue_count"] != float64(1) {
+		t.Fatalf("issue_count = %+v", payload["issue_count"])
+	}
+	localRoot, ok := payload["local_root"].(map[string]any)
+	if !ok {
+		t.Fatalf("local_root = %+v", payload["local_root"])
+	}
+	if localRoot["status"] != "needs_sync" || localRoot["dest"] != "/tmp/market" || localRoot["package_root"] != "plugins/demo" {
+		t.Fatalf("local_root = %+v", localRoot)
+	}
+	issues, ok := localRoot["issues"].([]any)
+	if !ok || len(issues) != 1 {
+		t.Fatalf("local_root issues = %+v", localRoot["issues"])
 	}
 }
 

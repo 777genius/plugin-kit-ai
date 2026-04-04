@@ -35,6 +35,31 @@ type PluginPublicationRemoveResult struct {
 	Lines []string
 }
 
+type PluginPublicationVerifyRootOptions struct {
+	Root        string
+	Target      string
+	Dest        string
+	PackageRoot string
+}
+
+type PluginPublicationRootIssue struct {
+	Code    string `json:"code"`
+	Path    string `json:"path,omitempty"`
+	Message string `json:"message"`
+}
+
+type PluginPublicationVerifyRootResult struct {
+	Ready       bool                         `json:"ready"`
+	Status      string                       `json:"status"`
+	Dest        string                       `json:"dest"`
+	PackageRoot string                       `json:"package_root"`
+	CatalogPath string                       `json:"catalog_path"`
+	IssueCount  int                          `json:"issue_count"`
+	Issues      []PluginPublicationRootIssue `json:"issues"`
+	NextSteps   []string                     `json:"next_steps"`
+	Lines       []string                     `json:"-"`
+}
+
 func (PluginService) PublicationMaterialize(opts PluginPublicationMaterializeOptions) (PluginPublicationMaterializeResult, error) {
 	root := strings.TrimSpace(opts.Root)
 	if root == "" {
@@ -231,6 +256,148 @@ func (PluginService) PublicationRemove(opts PluginPublicationRemoveOptions) (Plu
 		fmt.Sprintf("  review %s from the marketplace root if you keep additional plugins there", catalogRel),
 	)
 	return PluginPublicationRemoveResult{Lines: lines}, nil
+}
+
+func (PluginService) PublicationVerifyRoot(opts PluginPublicationVerifyRootOptions) (PluginPublicationVerifyRootResult, error) {
+	root := strings.TrimSpace(opts.Root)
+	if root == "" {
+		root = "."
+	}
+	target := strings.TrimSpace(opts.Target)
+	switch target {
+	case "codex-package", "claude":
+	default:
+		return PluginPublicationVerifyRootResult{}, fmt.Errorf("publication doctor local-root verification supports only %q or %q", "codex-package", "claude")
+	}
+	dest := strings.TrimSpace(opts.Dest)
+	if dest == "" {
+		return PluginPublicationVerifyRootResult{}, fmt.Errorf("publication doctor local-root verification requires --dest")
+	}
+
+	graph, _, err := pluginmanifest.Discover(root)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	if _, err := graph.Manifest.SelectedTargets(target); err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	publicationState, err := publishschema.Discover(root)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	inspection, _, err := pluginmanifest.Inspect(root, target)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	packageRoot, err := normalizePackageRoot(opts.PackageRoot, graph.Manifest.Name)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	rendered, err := pluginmanifest.Render(root, target)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	managedPaths, err := inspectionManagedPathsForTarget(inspection, target)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	managedPaths = append(managedPaths, graph.Portable.Paths("skills")...)
+	managedPaths = slices.Compact(sortedSlashPaths(managedPaths))
+	expectedPackageFiles, err := materializedPackageArtifacts(root, packageRoot, managedPaths, rendered)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	generatedCatalog, err := publicationexec.RenderLocalCatalogArtifact(graph, publicationState, target, "./"+packageRoot)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+
+	catalogRel, err := publicationexec.CatalogArtifactPath(target)
+	if err != nil {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+	var issues []PluginPublicationRootIssue
+	destPackageRoot := filepath.Join(dest, filepath.FromSlash(packageRoot))
+	if info, err := os.Stat(destPackageRoot); err != nil || !info.IsDir() {
+		issues = append(issues, PluginPublicationRootIssue{
+			Code:    "missing_materialized_package_root",
+			Path:    packageRoot,
+			Message: fmt.Sprintf("materialized package root %s is missing", packageRoot),
+		})
+	}
+	for _, artifact := range expectedPackageFiles {
+		if _, err := os.Stat(filepath.Join(dest, filepath.FromSlash(artifact.RelPath))); err != nil {
+			if os.IsNotExist(err) {
+				issues = append(issues, PluginPublicationRootIssue{
+					Code:    "missing_materialized_package_artifact",
+					Path:    artifact.RelPath,
+					Message: fmt.Sprintf("materialized package artifact %s is missing", artifact.RelPath),
+				})
+				continue
+			}
+			return PluginPublicationVerifyRootResult{}, err
+		}
+	}
+	catalogFull := filepath.Join(dest, filepath.FromSlash(catalogRel))
+	if existing, err := os.ReadFile(catalogFull); err == nil {
+		catalogIssues, err := publicationexec.DiagnoseCatalogArtifact(target, existing, generatedCatalog.Content, graph.Manifest.Name)
+		if err != nil {
+			return PluginPublicationVerifyRootResult{}, err
+		}
+		for _, issue := range catalogIssues {
+			issues = append(issues, PluginPublicationRootIssue{
+				Code:    issue.Code,
+				Path:    issue.Path,
+				Message: issue.Message,
+			})
+		}
+	} else if os.IsNotExist(err) {
+		issues = append(issues, PluginPublicationRootIssue{
+			Code:    "missing_materialized_catalog_artifact",
+			Path:    catalogRel,
+			Message: fmt.Sprintf("materialized catalog artifact %s is missing", catalogRel),
+		})
+	} else {
+		return PluginPublicationVerifyRootResult{}, err
+	}
+
+	lines := []string{
+		fmt.Sprintf("Local marketplace root: %s", filepath.Clean(dest)),
+		fmt.Sprintf("Package root: %s", packageRoot),
+		fmt.Sprintf("Catalog artifact: %s", catalogRel),
+	}
+	nextSteps := []string{}
+	status := "ready"
+	ready := true
+	if len(issues) > 0 {
+		status = "needs_sync"
+		ready = false
+		for _, issue := range issues {
+			lines = append(lines, fmt.Sprintf("Issue[%s]: %s", issue.Code, issue.Message))
+		}
+		nextSteps = []string{
+			fmt.Sprintf("run plugin-kit-ai publication materialize %s --target %s --dest %s", root, target, dest),
+		}
+		lines = append(lines, "Status: needs_sync (materialized marketplace root is missing files or has drift)", "Next:")
+		for _, step := range nextSteps {
+			lines = append(lines, "  "+step)
+		}
+	} else {
+		lines = append(lines,
+			"Status: ready (materialized marketplace root is in sync)",
+		)
+	}
+	return PluginPublicationVerifyRootResult{
+		Ready:       ready,
+		Status:      status,
+		Dest:        filepath.Clean(dest),
+		PackageRoot: packageRoot,
+		CatalogPath: catalogRel,
+		IssueCount:  len(issues),
+		Issues:      issues,
+		NextSteps:   nextSteps,
+		Lines:       lines,
+	}, nil
 }
 
 func publicationPackageForTarget(model publicationmodel.Model, target string) (publicationmodel.Package, bool) {

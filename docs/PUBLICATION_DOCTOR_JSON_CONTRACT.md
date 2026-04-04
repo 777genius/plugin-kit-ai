@@ -16,7 +16,7 @@ Every JSON report includes:
 - `schema_version`: currently `1`
 - `requested_target`: the explicit `--target` value when present
 - `ready`: convenience boolean for publication readiness
-- `status`: one of `ready`, `needs_channels`, `needs_render`, or `inactive`
+- `status`: one of `ready`, `needs_channels`, `needs_render`, `needs_sync`, or `inactive`
 - `warning_count`
 - `warnings`
 - `issue_count`
@@ -28,11 +28,16 @@ When publication-capable package targets are missing authored channels, the repo
 
 - `missing_package_targets`
 
+When `plugin-kit-ai publication doctor --dest <marketplace-root>` is used for supported local Codex or Claude flows, the report also includes:
+
+- `local_root`
+
 ## Status Semantics
 
 - `ready`: every publication-capable package target has an authored `publish/...` channel
 - `needs_channels`: at least one publication-capable package target exists, but one or more required `publish/...` channels are missing
 - `needs_render`: authored publication inputs exist, but one or more required generated package or publication artifacts are missing
+- `needs_sync`: source publication inputs are ready, but the materialized local marketplace root is missing files or has drift
 - `inactive`: no publication-capable package targets are enabled for the requested scope
 
 ## Issue Records
@@ -57,6 +62,12 @@ Current issue codes:
 - `drifted_channel_artifact`
 - `stale_generated_artifact`
 - `render_probe_failed`
+- `missing_materialized_package_root`
+- `missing_materialized_package_artifact`
+- `missing_materialized_catalog_artifact`
+- `drifted_materialized_catalog_identity`
+- `drifted_materialized_catalog_entry`
+- `missing_materialized_catalog_entry`
 
 ## Array Guarantees
 
@@ -67,6 +78,26 @@ The following fields are always arrays in schema version `1`, never `null`:
 - `next_steps`
 - `publication.packages`
 - `publication.channels`
+
+When `local_root` is present, the following are also arrays in schema version `1`, never `null`:
+
+- `local_root.issues`
+- `local_root.next_steps`
+
+## Local Root Payload
+
+`local_root` appears only when `publication doctor` is asked to verify an already materialized local marketplace root via `--dest`.
+
+It includes:
+
+- `ready`
+- `status`
+- `dest`
+- `package_root`
+- `catalog_path`
+- `issue_count`
+- `issues`
+- `next_steps`
 
 ## Publication Payload
 

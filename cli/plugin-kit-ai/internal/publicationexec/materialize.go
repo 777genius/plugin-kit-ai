@@ -96,6 +96,78 @@ func RemoveCatalogArtifact(target string, existing []byte, pluginName string) ([
 	return body, true, nil
 }
 
+type CatalogIssue struct {
+	Code    string
+	Path    string
+	Message string
+}
+
+func DiagnoseCatalogArtifact(target string, existing, generated []byte, pluginName string) ([]CatalogIssue, error) {
+	switch strings.TrimSpace(target) {
+	case "codex-package", "claude":
+	default:
+		return nil, fmt.Errorf("local publication materialization supports only %q or %q", "codex-package", "claude")
+	}
+	var current map[string]any
+	if err := json.Unmarshal(existing, &current); err != nil {
+		return nil, fmt.Errorf("parse existing marketplace artifact: %w", err)
+	}
+	var next map[string]any
+	if err := json.Unmarshal(generated, &next); err != nil {
+		return nil, fmt.Errorf("parse generated marketplace artifact: %w", err)
+	}
+	requiredTopLevelKeys := []string{"name"}
+	if strings.TrimSpace(target) == "codex-package" {
+		requiredTopLevelKeys = append(requiredTopLevelKeys, "interface")
+	}
+	if strings.TrimSpace(target) == "claude" {
+		requiredTopLevelKeys = append(requiredTopLevelKeys, "owner")
+	}
+	var issues []CatalogIssue
+	for _, key := range requiredTopLevelKeys {
+		if currentValue, ok := current[key]; ok {
+			if !jsonDocumentsEqual(currentValue, next[key]) {
+				issues = append(issues, CatalogIssue{
+					Code:    "drifted_materialized_catalog_identity",
+					Path:    key,
+					Message: fmt.Sprintf("catalog field %s does not match the authored publication identity", key),
+				})
+			}
+		}
+	}
+	currentPlugins, err := decodePluginEntries(current["plugins"])
+	if err != nil {
+		return nil, err
+	}
+	nextPlugins, err := decodePluginEntries(next["plugins"])
+	if err != nil {
+		return nil, err
+	}
+	if len(nextPlugins) != 1 {
+		return nil, fmt.Errorf("generated marketplace artifact must contain exactly one plugin entry")
+	}
+	generatedPlugin := nextPlugins[0]
+	for _, plugin := range currentPlugins {
+		if strings.TrimSpace(stringValue(plugin["name"])) != strings.TrimSpace(pluginName) {
+			continue
+		}
+		if !jsonDocumentsEqual(plugin, generatedPlugin) {
+			issues = append(issues, CatalogIssue{
+				Code:    "drifted_materialized_catalog_entry",
+				Path:    "plugins",
+				Message: fmt.Sprintf("catalog entry for plugin %s is out of sync with current authored publication data", pluginName),
+			})
+		}
+		return issues, nil
+	}
+	issues = append(issues, CatalogIssue{
+		Code:    "missing_materialized_catalog_entry",
+		Path:    "plugins",
+		Message: fmt.Sprintf("catalog entry for plugin %s is missing", pluginName),
+	})
+	return issues, nil
+}
+
 func renderCodexMarketplaceWithSourceRoot(graph pluginmodel.PackageGraph, doc *publishschema.CodexMarketplace, packageRoot string) ([]byte, error) {
 	clone := *doc
 	clone.SourceRoot = strings.TrimSpace(packageRoot)

@@ -101,3 +101,33 @@ func TestRemoveCatalogArtifact_RemovesNamedPluginAndPreservesOthers(t *testing.T
 		t.Fatalf("alpha entry missing:\n%s", text)
 	}
 }
+
+func TestDiagnoseCatalogArtifactDetectsMissingAndDriftedEntry(t *testing.T) {
+	existing := []byte(`{
+  "name": "local-repo",
+  "plugins": [
+    {"name": "demo", "source": {"source": "local", "path": "./plugins/other"}, "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+  ]
+}`)
+	generated := []byte(`{
+  "name": "local-repo",
+  "plugins": [
+    {"name": "demo", "source": {"source": "local", "path": "./plugins/demo"}, "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}
+  ]
+}`)
+	issues, err := DiagnoseCatalogArtifact("codex-package", existing, generated, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 1 || issues[0].Code != "drifted_materialized_catalog_entry" {
+		t.Fatalf("issues = %+v", issues)
+	}
+
+	missing, err := DiagnoseCatalogArtifact("codex-package", []byte(`{"name":"local-repo","plugins":[]}`), generated, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(missing) != 1 || missing[0].Code != "missing_materialized_catalog_entry" {
+		t.Fatalf("missing issues = %+v", missing)
+	}
+}

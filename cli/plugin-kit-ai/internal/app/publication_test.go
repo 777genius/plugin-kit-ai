@@ -145,6 +145,69 @@ func TestPluginServicePublicationRemoveIsIdempotentWhenEntryMissing(t *testing.T
 	}
 }
 
+func TestPluginServicePublicationVerifyRootReady(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dest := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "# Demo\n")
+	if _, err := (PluginService{}).PublicationMaterialize(PluginPublicationMaterializeOptions{
+		Root:   root,
+		Target: "codex-package",
+		Dest:   dest,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := PluginService{}.PublicationVerifyRoot(PluginPublicationVerifyRootOptions{
+		Root:   root,
+		Target: "codex-package",
+		Dest:   dest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Ready || result.Status != "ready" || result.IssueCount != 0 {
+		t.Fatalf("verify result = %+v", result)
+	}
+}
+
+func TestPluginServicePublicationVerifyRootReportsDriftedCatalogEntry(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dest := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	if _, err := (PluginService{}).PublicationMaterialize(PluginPublicationMaterializeOptions{
+		Root:   root,
+		Target: "claude",
+		Dest:   dest,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mustWritePublicationSourceFile(t, dest, filepath.Join(".claude-plugin", "marketplace.json"), `{"name":"team-tools","owner":{"name":"Team"},"plugins":[{"name":"demo","source":"./plugins/demo-drift","description":"demo","version":"0.1.0"}]}`)
+
+	result, err := PluginService{}.PublicationVerifyRoot(PluginPublicationVerifyRootOptions{
+		Root:   root,
+		Target: "claude",
+		Dest:   dest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Ready || result.Status != "needs_sync" {
+		t.Fatalf("verify result = %+v", result)
+	}
+	if result.IssueCount != 1 || result.Issues[0].Code != "drifted_materialized_catalog_entry" {
+		t.Fatalf("verify issues = %+v", result.Issues)
+	}
+}
+
 func mustWritePublicationSourceFile(t *testing.T, root, rel, body string) {
 	t.Helper()
 	full := filepath.Join(root, rel)
