@@ -1,4 +1,4 @@
-# Codex And Claude Marketplace Research
+# Codex, Claude, And Gemini Publication Research
 
 Research date: 2026-04-04
 
@@ -12,6 +12,10 @@ This note records only facts confirmed by official vendor docs plus a short proj
 - Anthropic Claude Code:
   - [Create and distribute a plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces)
   - [Discover and install prebuilt plugins through marketplaces](https://code.claude.com/docs/en/discover-plugins)
+- Gemini CLI:
+  - [Gemini CLI extensions](https://geminicli.com/docs/extensions/)
+  - [Release extensions](https://geminicli.com/docs/extensions/releasing/)
+  - [Gemini CLI extension gallery](https://geminicli.com/extensions/)
 
 ## Codex Marketplace
 
@@ -306,6 +310,26 @@ Claude marketplace support is broader and more explicitly tooled than Codex mark
 - docs provide installation scopes and admin restrictions
 - docs document richer marketplace schema and source types
 
+## Gemini Publication: Confirmed Differences
+
+### Gemini
+
+- Gemini documents an extension gallery rather than a marketplace catalog file
+- install sources are local paths or GitHub repositories
+- gallery indexing depends on repository or release metadata rather than a local marketplace manifest
+- `gemini-extension.json` must sit at the absolute repository root or release-archive root for gallery publication
+- the `gemini-cli-extension` GitHub topic is part of the documented gallery-discovery path
+
+Source: [Gemini CLI extensions](https://geminicli.com/docs/extensions/), [Release extensions](https://geminicli.com/docs/extensions/releasing/)
+
+## Codex vs Claude vs Gemini: Confirmed Differences
+
+- Codex uses a marketplace catalog around plugin bundles
+- Claude uses a marketplace catalog around plugin bundles
+- Gemini uses extension bundles plus gallery or release indexing rules
+- Codex and Claude have explicit marketplace catalog manifests
+- Gemini does not document the same local-catalog pattern
+
 ## Implication For This Repository
 
 Based on the current `hookplex` tree, the project already has strong support for:
@@ -316,12 +340,14 @@ But it does **not** currently expose marketplace authoring as a first-class cont
 
 - bundle/package support exists
 - marketplace catalog support is still research-level, not a shipped authored surface
+- Gemini gallery or release publication support is also still research-level, not a shipped authored surface
 
 Relevant project-local evidence:
 
 - Codex package lane: [docs/generated/target_support_matrix.md](/Users/belief/dev/projects/claude/hookplex/docs/generated/target_support_matrix.md)
 - current Codex research snapshot: [docs/research/codex-cli-plugins/README.md](/Users/belief/dev/projects/claude/hookplex/docs/research/codex-cli-plugins/README.md)
 - current Claude research snapshot: [docs/research/claude-code-plugins/README.md](/Users/belief/dev/projects/claude/hookplex/docs/research/claude-code-plugins/README.md)
+- current Gemini research snapshot: [docs/research/gemini-cli-extensions/README.md](/Users/belief/dev/projects/claude/hookplex/docs/research/gemini-cli-extensions/README.md)
 
 ## Recommended Next Steps
 

@@ -7,6 +7,7 @@ This document defines the intended `plugin.yaml` v1 contract for `plugin-kit-ai`
 It is the field-level companion to:
 
 - [Plugin Standard and Publish Plan](/Users/belief/dev/projects/claude/hookplex/docs/PLUGIN_STANDARD_AND_PUBLISH_PLAN.md)
+- [Publish Layer Spec](/Users/belief/dev/projects/claude/hookplex/docs/PUBLISH_LAYER_SPEC.md)
 
 ## Purpose
 

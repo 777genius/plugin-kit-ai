@@ -15,8 +15,9 @@ It combines:
 
 Related research:
 
-- [Codex and Claude marketplace research](/Users/belief/dev/projects/claude/hookplex/docs/research/plugin-marketplaces/README.md)
+- [Codex, Claude, and Gemini publication research](/Users/belief/dev/projects/claude/hookplex/docs/research/plugin-marketplaces/README.md)
 - [Codex target boundary](/Users/belief/dev/projects/claude/hookplex/docs/CODEX_TARGET_BOUNDARY.md)
+- [Publish Layer Spec](/Users/belief/dev/projects/claude/hookplex/docs/PUBLISH_LAYER_SPEC.md)
 
 ## Goal
 
