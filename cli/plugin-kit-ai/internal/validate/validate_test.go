@@ -1133,6 +1133,42 @@ servers:
 	}
 }
 
+func TestValidate_CodexRejectsGeneratedMarketplaceMismatch(t *testing.T) {
+	root := t.TempDir()
+	mustWriteValidateFile(t, root, "plugin.yaml", `api_version: v1
+name: "demo-codex-package"
+version: "0.1.0"
+description: "demo"
+targets: ["codex-package"]
+`)
+	mustWriteValidateFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteValidateFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+
+	result, err := pluginmanifest.Render(root, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pluginmanifest.WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	mustWriteValidateFile(t, root, filepath.Join(".agents", "plugins", "marketplace.json"), `{"name":"drifted","plugins":[]}`)
+
+	report, err := Validate(root, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Kind == FailureGeneratedContractInvalid &&
+			failure.Path == filepath.ToSlash(filepath.Join(".agents", "plugins", "marketplace.json")) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

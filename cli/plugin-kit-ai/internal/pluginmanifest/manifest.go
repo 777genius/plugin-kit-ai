@@ -17,6 +17,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/geminimanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publicationexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
@@ -513,6 +514,20 @@ func Render(root string, target string) (RenderResult, error) {
 			}
 			artifactMap[relPath] = artifact.Content
 		}
+	}
+	publicationArtifacts, err := publicationexec.Render(graph, mustDiscoverPublication(root), selected)
+	if err != nil {
+		return RenderResult{}, err
+	}
+	for _, artifact := range publicationArtifacts {
+		relPath := filepath.ToSlash(filepath.Clean(artifact.RelPath))
+		if existing, ok := artifactMap[relPath]; ok {
+			if !bytes.Equal(existing, artifact.Content) {
+				return RenderResult{}, fmt.Errorf("conflicting generated artifact %s across publication channels and targets", relPath)
+			}
+			continue
+		}
+		artifactMap[relPath] = artifact.Content
 	}
 	artifacts := make([]Artifact, 0, len(artifactMap))
 	for path, content := range artifactMap {
@@ -1294,6 +1309,9 @@ func expectedManagedPaths(root string, graph PackageGraph, selected []string) []
 				}
 			}
 		}
+	}
+	for _, path := range publicationexec.ManagedPaths(mustDiscoverPublication(root), selected) {
+		seen[path] = struct{}{}
 	}
 	return sortedKeys(seen)
 }

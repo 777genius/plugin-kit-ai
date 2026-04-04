@@ -1097,6 +1097,41 @@ func TestRender_CodexRejectsInvalidStructuredDocs(t *testing.T) {
 	}
 }
 
+func TestRender_CodexMarketplaceGeneratesManagedArtifact(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-codex-package", "codex-package", "", "codex package demo", true)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePluginFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ndisplay_name: Local Repo\ncategory: Productivity\n")
+
+	result, err := Render(root, "codex-package")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(root, ".agents", "plugins", "marketplace.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		`"name": "local-repo"`,
+		`"displayName": "Local Repo"`,
+		`"source": "local"`,
+		`"path": "./"`,
+		`"installation": "AVAILABLE"`,
+		`"authentication": "ON_INSTALL"`,
+		`"category": "Productivity"`,
+		`"name": "demo-codex-package"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("marketplace.json missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestRender_CodexSkipsEmptyAppPlaceholder(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "codex-package", "", "demo plugin", false)
