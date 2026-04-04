@@ -19,6 +19,7 @@ const (
 	FileName         = "plugin.yaml"
 	LauncherFileName = "launcher.yaml"
 	FormatMarker     = "plugin-kit-ai/package"
+	APIVersionV1     = "v1"
 )
 
 var geminiExtensionNameRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -38,7 +39,8 @@ type Warning struct {
 }
 
 type Manifest struct {
-	Format      string   `yaml:"format" json:"format"`
+	APIVersion  string   `yaml:"api_version,omitempty" json:"api_version,omitempty"`
+	Format      string   `yaml:"format,omitempty" json:"format,omitempty"`
 	Name        string   `yaml:"name" json:"name"`
 	Version     string   `yaml:"version" json:"version"`
 	Description string   `yaml:"description" json:"description"`
@@ -155,10 +157,15 @@ func (tc TargetState) ComponentPaths(kind string) []string {
 }
 
 func NormalizeManifest(m *Manifest) {
+	m.APIVersion = strings.TrimSpace(m.APIVersion)
 	m.Format = strings.TrimSpace(m.Format)
-	if m.Format == "" {
-		m.Format = FormatMarker
+	switch {
+	case m.APIVersion == "" && m.Format == FormatMarker:
+		m.APIVersion = APIVersionV1
+	case m.APIVersion == "":
+		m.APIVersion = APIVersionV1
 	}
+	m.Format = ""
 	m.Name = strings.TrimSpace(m.Name)
 	m.Version = strings.TrimSpace(m.Version)
 	m.Description = strings.TrimSpace(m.Description)
@@ -191,8 +198,8 @@ func ValidateGeminiExtensionName(name string) error {
 }
 
 func (m Manifest) Validate() error {
-	if strings.TrimSpace(m.Format) != FormatMarker {
-		return fmt.Errorf("invalid plugin.yaml: format must be %q", FormatMarker)
+	if strings.TrimSpace(m.APIVersion) != APIVersionV1 {
+		return fmt.Errorf("invalid plugin.yaml: api_version must be %q", APIVersionV1)
 	}
 	if err := scaffold.ValidateProjectName(m.Name); err != nil {
 		return fmt.Errorf("invalid plugin.yaml: %w", err)

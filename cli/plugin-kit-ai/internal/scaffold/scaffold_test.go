@@ -398,7 +398,7 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 	}
 	got := string(body)
 	for _, want := range []string{
-		`format: plugin-kit-ai/package`,
+		`api_version: v1`,
 		`name: "my-plugin"`,
 		`version: "0.1.0"`,
 		`targets:`,

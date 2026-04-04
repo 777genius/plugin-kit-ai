@@ -1547,7 +1547,7 @@ func TestImport_ClaudeManifestlessDetectsAgentsOnly(t *testing.T) {
 
 func TestImport_RefusesOverwriteBeforeWritingImportedLayout(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, FileName, `format: plugin-kit-ai/package
+	mustWritePluginFile(t, root, FileName, `api_version: v1
 name: "existing"
 version: "0.1.0"
 description: "existing"
@@ -1985,9 +1985,50 @@ targets:
 	}
 }
 
-func TestAnalyze_RejectsInvalidGeminiExtensionName(t *testing.T) {
+func TestAnalyze_AcceptsLegacyFormatAsMigrationPath(t *testing.T) {
 	body := []byte(`
 format: plugin-kit-ai/package
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	manifest, warnings, err := Analyze(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if manifest.APIVersion != APIVersionV1 {
+		t.Fatalf("api_version = %q", manifest.APIVersion)
+	}
+	if manifest.Format != "" {
+		t.Fatalf("legacy format should not survive normalization: %q", manifest.Format)
+	}
+}
+
+func TestAnalyze_RejectsAPIVersionAndLegacyFormatTogether(t *testing.T) {
+	body := []byte(`
+api_version: v1
+format: plugin-kit-ai/package
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	_, _, err := Analyze(body)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "use api_version instead of legacy format") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestAnalyze_RejectsInvalidGeminiExtensionName(t *testing.T) {
+	body := []byte(`
+api_version: v1
 name: "Demo_Extension"
 version: "0.1.0"
 description: "demo"
@@ -2004,7 +2045,7 @@ targets: ["gemini"]
 
 func TestAnalyze_WarnsOnUnknownFields(t *testing.T) {
 	body := []byte(`
-format: plugin-kit-ai/package
+api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -2031,7 +2072,7 @@ nonsense: true
 
 func TestAnalyze_RejectsLegacyComponentsInventory(t *testing.T) {
 	body := []byte(`
-format: plugin-kit-ai/package
+api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -2247,7 +2288,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 
 func TestNormalize_RewritesManifestIntoPackageStandardShape(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, FileName, `format: plugin-kit-ai/package
+	mustWritePluginFile(t, root, FileName, `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"

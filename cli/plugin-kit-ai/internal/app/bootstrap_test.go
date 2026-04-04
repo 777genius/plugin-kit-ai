@@ -298,7 +298,7 @@ func restoreBootstrapHelpers(t *testing.T) {
 }
 
 func minimalBootstrapManifest() string {
-	return `format: plugin-kit-ai/package
+	return `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"

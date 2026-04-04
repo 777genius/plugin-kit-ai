@@ -318,7 +318,7 @@ func TestInspectNodeOutDirMismatch(t *testing.T) {
 }
 
 func minimalManifest(name string) string {
-	return "format: plugin-kit-ai/package\nname: \"" + name + "\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-runtime\"]\n"
+	return "api_version: v1\nname: \"" + name + "\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-runtime\"]\n"
 }
 
 func writeRuntimeCheckFile(t *testing.T, root, rel, body string) {

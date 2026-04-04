@@ -72,7 +72,7 @@ func TestValidate_PluginProjectWarnsOnUnknownFields(t *testing.T) {
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, pluginmanifest.FileName, `format: plugin-kit-ai/package
+	mustWriteValidateFile(t, dir, pluginmanifest.FileName, `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "plugin"

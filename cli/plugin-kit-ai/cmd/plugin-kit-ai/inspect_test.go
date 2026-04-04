@@ -138,7 +138,7 @@ func TestInspectTextIncludesNativeDocPathsForCodexLanes(t *testing.T) {
 
 func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	root := t.TempDir()
-	mustWriteInspectFile(t, root, "plugin.yaml", "format: plugin-kit-ai/package\nname: \"codex-inspect\"\nversion: \"0.1.0\"\ndescription: \"codex inspect\"\ntargets: [\"codex-runtime\"]\n")
+	mustWriteInspectFile(t, root, "plugin.yaml", "api_version: v1\nname: \"codex-inspect\"\nversion: \"0.1.0\"\ndescription: \"codex inspect\"\ntargets: [\"codex-runtime\"]\n")
 	mustWriteInspectFile(t, root, "launcher.yaml", "runtime: go\nentrypoint: ./bin/codex-inspect\n")
 
 	var buf bytes.Buffer

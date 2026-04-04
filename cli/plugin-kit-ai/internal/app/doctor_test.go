@@ -186,7 +186,7 @@ func TestPluginServiceDoctorReportsGoToolchainWhenGoModIsPresent(t *testing.T) {
 	})
 
 	root := t.TempDir()
-	writeDoctorFile(t, root, "plugin.yaml", `format: plugin-kit-ai/package
+	writeDoctorFile(t, root, "plugin.yaml", `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"

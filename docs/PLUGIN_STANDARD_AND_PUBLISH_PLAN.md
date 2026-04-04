@@ -518,15 +518,15 @@ Deliverables:
 Example future command shape:
 
 ```bash
-hookplex publish --channel codex-marketplace
-hookplex publish --channel claude-marketplace
-hookplex publish --channel gemini-gallery
+plugin-kit-ai publish --channel codex-marketplace
+plugin-kit-ai publish --channel claude-marketplace
+plugin-kit-ai publish --channel gemini-gallery
 ```
 
 Or a multi-channel wrapper:
 
 ```bash
-hookplex publish --all
+plugin-kit-ai publish --all
 ```
 
 ## Top Design Choices That Are Now Fixed
