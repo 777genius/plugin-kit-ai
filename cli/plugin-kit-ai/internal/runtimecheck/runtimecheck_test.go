@@ -20,8 +20,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "uv",
 			files: map[string]string{
-				"plugin.yaml":       minimalManifest("demo"),
-				"launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":       minimalManifest("demo"),
+				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
 				"uv.lock":           "version = 1\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -32,8 +32,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "poetry",
 			files: map[string]string{
-				"plugin.yaml":       minimalManifest("demo"),
-				"launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":       minimalManifest("demo"),
+				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
 				"pyproject.toml":    "[tool.poetry]\nname='demo'\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -44,8 +44,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "pipenv",
 			files: map[string]string{
-				"plugin.yaml":       minimalManifest("demo"),
-				"launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":       minimalManifest("demo"),
+				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
 				"Pipfile.lock":      "{}\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -56,8 +56,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "requirements",
 			files: map[string]string{
-				"plugin.yaml":      minimalManifest("demo"),
-				"launcher.yaml":    "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":      minimalManifest("demo"),
+				"src/launcher.yaml":    "runtime: python\nentrypoint: ./bin/demo\n",
 				"requirements.txt": "requests==2.32.0\n",
 				"bin/demo":         "#!/usr/bin/env bash\nexit 0\n",
 			},
@@ -152,8 +152,8 @@ func TestInspectPythonManagerOwnedEnvDetection(t *testing.T) {
 		{
 			name: "poetry external env",
 			files: map[string]string{
-				"plugin.yaml":              minimalManifest("demo"),
-				"launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":              minimalManifest("demo"),
+				"src/launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
 				"pyproject.toml":           "[tool.poetry]\nname='demo'\n",
 				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
 				"external-env/bin/python3": "ok",
@@ -163,8 +163,8 @@ func TestInspectPythonManagerOwnedEnvDetection(t *testing.T) {
 		{
 			name: "pipenv external env",
 			files: map[string]string{
-				"plugin.yaml":              minimalManifest("demo"),
-				"launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":              minimalManifest("demo"),
+				"src/launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
 				"Pipfile.lock":             "{}\n",
 				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
 				"external-env/bin/python3": "ok",
@@ -223,8 +223,8 @@ func TestInspectPythonBrokenVenvBlocksManagerProbe(t *testing.T) {
 	})
 
 	root := t.TempDir()
-	writeRuntimeCheckFile(t, root, "plugin.yaml", minimalManifest("demo"))
-	writeRuntimeCheckFile(t, root, "launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "plugin.yaml"), minimalManifest("demo"))
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: python\nentrypoint: ./bin/demo\n")
 	writeRuntimeCheckFile(t, root, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
 	writeRuntimeCheckFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexit 0\n")
 	writeRuntimeCheckFile(t, root, filepath.Join(".venv", "bin", "python3"), "broken")
@@ -250,8 +250,8 @@ func TestInspectPythonBrokenVenvBlocksManagerProbe(t *testing.T) {
 
 func TestInspectNodeTypeScriptOutDirDetection(t *testing.T) {
 	root := t.TempDir()
-	writeRuntimeCheckFile(t, root, "plugin.yaml", minimalManifest("demo"))
-	writeRuntimeCheckFile(t, root, "launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "plugin.yaml"), minimalManifest("demo"))
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: node\nentrypoint: ./bin/demo\n")
 	writeRuntimeCheckFile(t, root, "package.json", `{"packageManager":"yarn@4.1.0","scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeRuntimeCheckFile(t, root, "yarn.lock", "# yarn lockfile\n")
 	writeRuntimeCheckFile(t, root, "tsconfig.json", `{"compilerOptions":{"outDir":"build"}}`)
@@ -291,8 +291,8 @@ func TestInspectNodeTypeScriptOutDirDetection(t *testing.T) {
 
 func TestInspectNodeOutDirMismatch(t *testing.T) {
 	root := t.TempDir()
-	writeRuntimeCheckFile(t, root, "plugin.yaml", minimalManifest("demo"))
-	writeRuntimeCheckFile(t, root, "launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "plugin.yaml"), minimalManifest("demo"))
+	writeRuntimeCheckFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: node\nentrypoint: ./bin/demo\n")
 	writeRuntimeCheckFile(t, root, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeRuntimeCheckFile(t, root, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
 	writeRuntimeCheckFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec node \"$ROOT/build/main.js\" \"$@\"\n")

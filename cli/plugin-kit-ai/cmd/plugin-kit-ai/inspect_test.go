@@ -138,8 +138,8 @@ func TestInspectTextIncludesNativeDocPathsForCodexLanes(t *testing.T) {
 
 func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	root := t.TempDir()
-	mustWriteInspectFile(t, root, "plugin.yaml", "api_version: v1\nname: \"codex-inspect\"\nversion: \"0.1.0\"\ndescription: \"codex inspect\"\ntargets: [\"codex-runtime\"]\n")
-	mustWriteInspectFile(t, root, "launcher.yaml", "runtime: go\nentrypoint: ./bin/codex-inspect\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "plugin.yaml"), "api_version: v1\nname: \"codex-inspect\"\nversion: \"0.1.0\"\ndescription: \"codex inspect\"\ntargets: [\"codex-runtime\"]\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/codex-inspect\n")
 
 	var buf bytes.Buffer
 	cmd := rootCmd
@@ -203,7 +203,7 @@ func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 
 func TestInspectJSONIncludesPublicationPackages(t *testing.T) {
 	root := t.TempDir()
-	mustWriteInspectFile(t, root, "plugin.yaml", "api_version: v1\nname: \"codex-package-publish\"\nversion: \"0.1.0\"\ndescription: \"codex package publish\"\ntargets: [\"codex-package\"]\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "plugin.yaml"), "api_version: v1\nname: \"codex-package-publish\"\nversion: \"0.1.0\"\ndescription: \"codex package publish\"\ntargets: [\"codex-package\"]\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWriteInspectFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "# Demo\n")
@@ -246,7 +246,7 @@ func TestInspectJSONIncludesPublicationPackages(t *testing.T) {
 		t.Fatalf("authored_inputs = %+v", pkg["authored_inputs"])
 	}
 	for _, want := range []string{
-		"plugin.yaml",
+		"src/plugin.yaml",
 		filepath.ToSlash(filepath.Join("targets", "codex-package", "package.yaml")),
 		filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json")),
 		filepath.ToSlash(filepath.Join("skills", "demo", "SKILL.md")),
@@ -269,7 +269,7 @@ func TestInspectJSONIncludesPublicationPackages(t *testing.T) {
 
 func TestInspectTextIncludesPublicationSummary(t *testing.T) {
 	root := t.TempDir()
-	mustWriteInspectFile(t, root, "plugin.yaml", "api_version: v1\nname: \"codex-package-publish\"\nversion: \"0.1.0\"\ndescription: \"codex package publish\"\ntargets: [\"codex-package\"]\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "plugin.yaml"), "api_version: v1\nname: \"codex-package-publish\"\nversion: \"0.1.0\"\ndescription: \"codex package publish\"\ntargets: [\"codex-package\"]\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWriteInspectFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "# Demo\n")
@@ -299,7 +299,7 @@ func TestInspectTextIncludesPublicationSummary(t *testing.T) {
 
 func TestInspectJSONIncludesGeminiPublicationChannelDetails(t *testing.T) {
 	root := t.TempDir()
-	mustWriteInspectFile(t, root, "plugin.yaml", "api_version: v1\nname: \"gemini-publish\"\nversion: \"0.1.0\"\ndescription: \"gemini publish\"\ntargets: [\"gemini\"]\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "plugin.yaml"), "api_version: v1\nname: \"gemini-publish\"\nversion: \"0.1.0\"\ndescription: \"gemini publish\"\ntargets: [\"gemini\"]\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/gemini\n")
 	mustWriteInspectFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteInspectFile(t, root, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n")

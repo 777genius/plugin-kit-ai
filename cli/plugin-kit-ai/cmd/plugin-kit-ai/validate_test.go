@@ -218,8 +218,8 @@ func TestValidateJSONPrintsReportOnFailure(t *testing.T) {
 		Checks: []string{},
 		Failures: []validate.Failure{{
 			Kind:    validate.FailureManifestMissing,
-			Path:    "plugin.yaml",
-			Message: "required manifest missing: plugin.yaml",
+			Path:    "src/plugin.yaml",
+			Message: "required manifest missing: src/plugin.yaml",
 		}},
 	}
 	cmd := newValidateCmd(fakeValidateRunner{
@@ -294,8 +294,8 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 		}},
 		Failures: []validate.Failure{{
 			Kind:    validate.FailureManifestMissing,
-			Path:    "plugin.yaml",
-			Message: "required manifest missing: plugin.yaml",
+			Path:    "src/plugin.yaml",
+			Message: "required manifest missing: src/plugin.yaml",
 		}},
 	}
 	cmd := newValidateCmd(fakeValidateRunner{
@@ -312,7 +312,7 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"Warning: unknown plugin.yaml field: extra_field",
-		"Failure: required manifest missing: plugin.yaml",
+		"Failure: required manifest missing: src/plugin.yaml",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("text output missing %q:\n%s", want, output)

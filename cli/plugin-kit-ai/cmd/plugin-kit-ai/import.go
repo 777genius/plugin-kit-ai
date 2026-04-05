@@ -48,6 +48,6 @@ Cursor import is workspace-config-only in the current contract: it normalizes .c
 
 func init() {
 	importCmd.Flags().StringVar(&importFrom, "from", "", `source platform ("claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor"; omit to auto-detect current native layouts)`)
-	importCmd.Flags().BoolVarP(&importForce, "force", "f", false, "overwrite src/plugin.yaml or root plugin.yaml if it already exists")
+	importCmd.Flags().BoolVarP(&importForce, "force", "f", false, "overwrite src/plugin.yaml if it already exists")
 	importCmd.Flags().BoolVar(&importIncludeUserScope, "include-user-scope", false, "include explicit user-scope native sources when supported by the import target")
 }

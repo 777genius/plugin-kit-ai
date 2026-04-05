@@ -173,7 +173,7 @@ func TestRender_PortableMCPStandardProjectsAcrossExistingTargets(t *testing.T) {
 	manifest := Default("demo", "claude", "go", "demo plugin", true)
 	manifest.Targets = []string{"claude", "codex-package", "gemini", "opencode", "cursor"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
 version: 1
 
 servers:
@@ -315,7 +315,7 @@ servers:
 
 func TestDiscover_RejectsMixedAuthoredLayout(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, "plugin.yaml", `api_version: v1
+	mustWritePluginFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -997,7 +997,7 @@ func TestRender_ClaudePackageOnlyMCPGeneratesPluginAndMCPWithoutHooks(t *testing
 	root := t.TempDir()
 	manifest := Default("context7", "claude", "go", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
 version: 1
 
 servers:
@@ -1102,7 +1102,7 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\nauthor:\n  name: Example Maintainer\nrepository: https://github.com/example/demo\nlicense: MIT\nkeywords:\n  - codex\n  - demo\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
 	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"x-example":{"enabled":true}}`)
@@ -1243,7 +1243,7 @@ func TestRender_ClaudeMarketplaceGeneratesManagedArtifact(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-claude", "claude", "go", "claude package demo", true)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-claude\n")
+	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-claude\n")
 	mustWritePluginFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
 
 	result, err := Generate(root, "claude")
@@ -1723,13 +1723,13 @@ func TestImport_ClaudeManifestlessDetectsAgentsOnly(t *testing.T) {
 
 func TestImport_RefusesOverwriteBeforeWritingImportedLayout(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, FileName, `api_version: v1
+	mustWritePluginFile(t, root, filepath.Join("src", FileName), `api_version: v1
 name: "existing"
 version: "0.1.0"
 description: "existing"
 targets: ["codex"]
 `)
-	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/existing\n")
+	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/existing\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"notify\"]\n")
 	mustWritePluginFile(t, root, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"demo","version":"0.1.0","description":"demo"}`)
 
@@ -1737,12 +1737,12 @@ targets: ["codex"]
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "refusing to overwrite existing file plugin.yaml") && !strings.Contains(err.Error(), "mixed authored layout") {
+	if !strings.Contains(err.Error(), "refusing to overwrite existing file src/plugin.yaml") && !strings.Contains(err.Error(), "mixed authored layout") {
 		t.Fatalf("error = %v", err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "codex-runtime", "package.yaml"),
-		filepath.Join("mcp", "servers.yaml"),
+		filepath.Join("src", "targets", "codex-runtime", "package.yaml"),
+		filepath.Join("src", "mcp", "servers.yaml"),
 	} {
 		if _, statErr := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(statErr) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, statErr)
@@ -1997,7 +1997,7 @@ func TestRender_GeminiRuntimeGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 
 	result, err := Generate(root, "gemini")
@@ -2027,7 +2027,7 @@ func TestRender_GeminiRejectsHookEntrypointMismatch(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{
   "hooks": {
@@ -2470,14 +2470,14 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 
 func TestNormalize_RewritesManifestIntoPackageStandardShape(t *testing.T) {
 	root := t.TempDir()
-	mustWritePluginFile(t, root, FileName, `api_version: v1
+	mustWritePluginFile(t, root, filepath.Join("src", FileName), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
 targets: ["codex-runtime"]
 extra_field: true
 `)
-	mustWritePluginFile(t, root, LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	warnings, err := Normalize(root, true)
 	if err != nil {
 		t.Fatal(err)
@@ -2485,7 +2485,7 @@ extra_field: true
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	body, err := os.ReadFile(filepath.Join(root, FileName))
+	body, err := os.ReadFile(filepath.Join(root, "src", FileName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2555,7 +2555,7 @@ func mustWritePluginFile(t *testing.T, root, rel, body string) {
 
 func mustWritePortableMCPFile(t *testing.T, root, body string) {
 	t.Helper()
-	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), body)
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), body)
 }
 
 func mustSavePackage(t *testing.T, root string, manifest Manifest, runtime string) {

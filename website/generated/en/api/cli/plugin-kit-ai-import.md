@@ -41,7 +41,7 @@ plugin-kit-ai import [path] [flags]
 ### Options
 
 ```
-  -f, --force                overwrite src/plugin.yaml or root plugin.yaml if it already exists
+  -f, --force                overwrite src/plugin.yaml if it already exists
       --from string          source platform ("claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor"; omit to auto-detect current native layouts)
   -h, --help                 help for import
       --include-user-scope   include explicit user-scope native sources when supported by the import target

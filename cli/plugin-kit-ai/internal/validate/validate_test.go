@@ -23,10 +23,10 @@ func TestValidate_ManifestMissing(t *testing.T) {
 	if got := re.Report.Failures[0].Kind; got != FailureManifestMissing {
 		t.Fatalf("failure kind = %q", got)
 	}
-	if got := re.Report.Failures[0].Path; got != pluginmanifest.FileName {
+	if got := re.Report.Failures[0].Path; got != filepath.Join("src", pluginmanifest.FileName) {
 		t.Fatalf("failure path = %q", got)
 	}
-	if re.Error() != "required manifest missing: plugin.yaml or src/plugin.yaml" {
+	if re.Error() != "required manifest missing: src/plugin.yaml" {
 		t.Fatalf("error = %q", re.Error())
 	}
 }
@@ -34,7 +34,7 @@ func TestValidate_ManifestMissing(t *testing.T) {
 func TestValidate_MissingRequiredLauncherSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -84,7 +84,7 @@ func TestValidate_LegacyProjectManifestRejected(t *testing.T) {
 func TestValidate_TargetNotEnabledSetsPluginPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -111,7 +111,7 @@ targets: ["codex-package"]
 func TestValidate_InvalidLauncherSetsLauncherPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -139,7 +139,7 @@ targets: ["codex-runtime"]
 func TestValidate_LegacyPortableMCPPathSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -167,7 +167,7 @@ targets: ["codex-package"]
 func TestValidate_UnsupportedPortableMCPUsesAuthoredPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -279,7 +279,7 @@ func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
 func TestValidate_GeminiRejectsInvalidExtensionName(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "Demo_Extension"
 version: "0.1.0"
 description: "demo"
@@ -301,7 +301,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsTrustAndAmbiguousContexts(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-demo"
 version: "0.1.0"
 description: "demo"
@@ -352,7 +352,7 @@ servers:
 func TestValidate_GeminiWarnsOnIgnoredPolicyKeys(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-policy"
 version: "0.1.0"
 description: "demo"
@@ -382,7 +382,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidCommandTOML(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-command"
 version: "0.1.0"
 description: "demo"
@@ -409,7 +409,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsUnsupportedHooksLayout(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-hooks"
 version: "0.1.0"
 description: "demo"
@@ -436,7 +436,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsHooksWithoutTopLevelHooksObject(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-hooks"
 version: "0.1.0"
 description: "demo"
@@ -463,7 +463,7 @@ targets: ["gemini"]
 func TestValidate_OpenCodeRejectsInvalidPortableSkillForMirroring(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
@@ -497,7 +497,7 @@ targets: ["opencode"]
 func TestValidate_OpenCodeWarnsWhenJSONCTakesLowerPrecedence(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
@@ -525,7 +525,7 @@ targets: ["opencode"]
 func TestValidate_OpenCodeRejectsRemovedConfigExtra(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
@@ -551,7 +551,7 @@ targets: ["opencode"]
 func TestValidate_GeminiRejectsNonYAMLSettingsAndThemes(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -738,7 +738,7 @@ func TestValidate_ManifestProject_ShellRequiresBashOnWindows(t *testing.T) {
 	}
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -773,7 +773,7 @@ func TestValidate_CodexRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -801,7 +801,7 @@ func TestValidate_CodexRejectsManifestExtraPackageAndInterfaceOverrides(t *testi
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -844,7 +844,7 @@ func TestValidate_CodexRejectsMalformedStructuredDocs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -889,7 +889,7 @@ func TestValidate_CodexRejectsMalformedGeneratedPluginManifest(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -917,7 +917,7 @@ func TestValidate_CodexRejectsUnexpectedPluginDirEntries(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -946,7 +946,7 @@ func TestValidate_CodexRejectsUnreferencedBundleSidecars(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -978,7 +978,7 @@ func TestValidate_CodexRejectsNonCanonicalGeneratedManifestRefs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1024,7 +1024,7 @@ func TestValidate_CodexRejectsRefsOutsidePluginRoot(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1053,7 +1053,7 @@ func TestValidate_CodexRejectsGeneratedMetadataMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1092,7 +1092,7 @@ func TestValidate_CodexRejectsGeneratedSidecarMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1135,7 +1135,7 @@ servers:
 
 func TestValidate_CodexRejectsGeneratedMarketplaceMismatch(t *testing.T) {
 	root := t.TempDir()
-	mustWriteValidateFile(t, root, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo-codex-package"
 version: "0.1.0"
 description: "demo"
@@ -1171,7 +1171,7 @@ targets: ["codex-package"]
 
 func TestValidate_ClaudeRejectsGeneratedMarketplaceMismatch(t *testing.T) {
 	root := t.TempDir()
-	mustWriteValidateFile(t, root, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo-claude"
 version: "0.1.0"
 description: "demo"
@@ -1209,7 +1209,7 @@ func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testi
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1247,7 +1247,7 @@ func TestValidate_CodexRejectsMalformedGeneratedConfigShapeAndExtraMismatch(t *t
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -1294,7 +1294,7 @@ targets: ["codex-runtime"]
 func TestValidate_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-demo"
 version: "0.1.0"
 description: "demo"
@@ -1321,7 +1321,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidMCPTransportShape(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-transport"
 version: "0.1.0"
 description: "demo"
@@ -1382,7 +1382,7 @@ servers:
 func TestValidate_GeminiRejectsMalformedSettingsThemesAndExcludeTools(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1416,7 +1416,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidThemeShapeAndDuplicateSettings(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1448,7 +1448,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsMalformedGeneratedExtensionManifest(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1476,7 +1476,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsGeneratedContextMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1504,7 +1504,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsGeneratedMetadataMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1560,7 +1560,7 @@ servers:
 func TestValidate_GeminiRejectsGeneratedHooksMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
@@ -1590,7 +1590,7 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsManagedGeneratedHooksDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "gemini-managed"
 version: "0.1.0"
 description: "demo"
@@ -1622,7 +1622,7 @@ targets: ["gemini"]
 func TestValidate_RejectsRemovedPortableAgents(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1651,7 +1651,7 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsUnsupportedContextsSurface(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1681,7 +1681,7 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsInvalidSettingsLSPAndUserConfig(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1716,7 +1716,7 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsHooksWithoutLauncher(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1743,7 +1743,7 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsLauncherlessEmptyTarget(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1773,7 +1773,7 @@ func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 	}
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"

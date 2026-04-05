@@ -57,7 +57,7 @@ func TestPublicationTextShowsPackagesAndChannels(t *testing.T) {
 						Target:          "codex-package",
 						PackageFamily:   "codex-plugin",
 						ChannelFamilies: []string{"codex-marketplace"},
-						AuthoredInputs:  []string{"plugin.yaml", "publish/codex/marketplace.yaml"},
+						AuthoredInputs:  []string{"src/plugin.yaml", "src/publish/codex/marketplace.yaml"},
 						ManagedArtifacts: []string{
 							".codex-plugin/plugin.json",
 							".agents/plugins/marketplace.json",
@@ -924,7 +924,7 @@ func TestPublicationDoctorJSONReportsNeedsRenderIssues(t *testing.T) {
 func TestPublicationDoctorReportsNeedsRenderWhenGeneratedArtifactsAreOutOfSync(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationRepoFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationRepoFile(t, root, filepath.Join("src", "plugin.yaml"), "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
 	mustWritePublicationRepoFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWritePublicationRepoFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWritePublicationRepoFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")

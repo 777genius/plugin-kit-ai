@@ -18,7 +18,7 @@ func TestPortableMCPOneConfigProjectsAcrossAgentTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustWriteRepoFile(t, workDir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "portable-mcp-e2e"
 version: "0.1.0"
 description: "portable MCP multi-target e2e"

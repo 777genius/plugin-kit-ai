@@ -1561,16 +1561,17 @@ func authoredInputExists(root, rel string) bool {
 
 func detectAuthoredLayout(root string) (authoredLayout, error) {
 	canonical := authoredLayout{RootRel: pluginmodel.SourceDirName}
-	legacy := authoredLayout{}
 	canonicalPresent := authoredLayoutPresent(root, canonical)
-	legacyPresent := legacyLayoutPresent(root)
+	rootPresent := rootAuthoredLayoutPresent(root)
 	switch {
-	case canonicalPresent && legacyPresent:
-		return authoredLayout{}, fmt.Errorf("mixed authored layout: move manual plugin sources fully into %s/ or keep them fully in the plugin root", pluginmodel.SourceDirName)
+	case canonicalPresent && rootPresent:
+		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ and remove root-authored plugin files", pluginmodel.SourceDirName)
 	case canonicalPresent:
 		return canonical, nil
+	case rootPresent:
+		return authoredLayout{}, fmt.Errorf("unsupported authored layout: move manual plugin sources into %s/", pluginmodel.SourceDirName)
 	default:
-		return legacy, nil
+		return canonical, nil
 	}
 }
 
@@ -1583,7 +1584,7 @@ func authoredLayoutPresent(root string, layout authoredLayout) bool {
 	return false
 }
 
-func legacyLayoutPresent(root string) bool {
+func rootAuthoredLayoutPresent(root string) bool {
 	for _, rel := range authoredSentinelPaths() {
 		if authoredInputExists(root, rel) {
 			return true
@@ -1609,14 +1610,8 @@ func saveManifestWithLayout(root string, layout authoredLayout, manifest Manifes
 		return err
 	}
 	full := filepath.Join(root, layout.Path(FileName))
-	legacyFull := filepath.Join(root, FileName)
 	if _, err := os.Stat(full); err == nil && !force {
 		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
-	}
-	if layout.IsCanonical() && !force {
-		if _, err := os.Stat(legacyFull); err == nil {
-			return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
-		}
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
@@ -1634,14 +1629,8 @@ func saveLauncherWithLayout(root string, layout authoredLayout, launcher Launche
 		return err
 	}
 	full := filepath.Join(root, layout.Path(LauncherFileName))
-	legacyFull := filepath.Join(root, LauncherFileName)
 	if _, err := os.Stat(full); err == nil && !force {
 		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
-	}
-	if layout.IsCanonical() && !force {
-		if _, err := os.Stat(legacyFull); err == nil {
-			return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
-		}
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err

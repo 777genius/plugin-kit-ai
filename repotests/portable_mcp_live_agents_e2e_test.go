@@ -127,7 +127,7 @@ func newPortableMCPLiveWorkspace(t *testing.T, pluginKitAIBin, mcpBin string) st
 		t.Fatal(err)
 	}
 
-	mustWriteRepoFile(t, workDir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "portable-mcp-live"
 version: "0.1.0"
 description: "portable MCP live smoke package"
@@ -138,7 +138,7 @@ targets:
   - "opencode"
   - "cursor"
 `)
-	mustWriteRepoFile(t, workDir, "launcher.yaml", "runtime: shell\nentrypoint: ./scripts/main.sh\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "launcher.yaml"), "runtime: shell\nentrypoint: ./scripts/main.sh\n")
 	mustWriteRepoExecutable(t, workDir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-live\"\n")

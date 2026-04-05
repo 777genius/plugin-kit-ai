@@ -1117,14 +1117,14 @@ func newCodexRenderedNotifyWorkspace(t *testing.T, pluginKitAIBin, hookBin, trac
 	root := RepoRoot(t)
 	dir := t.TempDir()
 	mustWriteRepoFile(t, dir, "README.md", "# codex generated notify live smoke\n")
-	mustWriteRepoFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "codex-generated-live"
 version: "0.1.0"
 description: "codex generated live smoke"
 targets:
   - "codex-runtime"
 `)
-	mustWriteRepoFile(t, dir, "launcher.yaml", "runtime: shell\nentrypoint: ./bin/codex-generated-live\n")
+	mustWriteRepoFile(t, dir, filepath.Join("src", "launcher.yaml"), "runtime: shell\nentrypoint: ./bin/codex-generated-live\n")
 	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: "+model+"\n")
 	mustWriteRepoExecutable(t, dir, filepath.Join("scripts", "main.sh"), "#!/bin/sh\nexit 0\n")
 	wrapper := "#!/bin/sh\n" +
@@ -1173,14 +1173,14 @@ func newCodexRenderedMCPWorkspace(t *testing.T, pluginKitAIBin string) string {
 	root := RepoRoot(t)
 	dir := t.TempDir()
 	mustWriteRepoFile(t, dir, "README.md", "# codex generated mcp live smoke\n")
-	mustWriteRepoFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "codex-generated-mcp-live"
 version: "0.1.0"
 description: "codex generated mcp live smoke"
 targets:
   - "codex-runtime"
 `)
-	mustWriteRepoFile(t, dir, "launcher.yaml", "runtime: shell\nentrypoint: ./bin/codex-generated-mcp-live\n")
+	mustWriteRepoFile(t, dir, filepath.Join("src", "launcher.yaml"), "runtime: shell\nentrypoint: ./bin/codex-generated-mcp-live\n")
 	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "[mcp_servers.release-checks]\ncommand = \"/bin/echo\"\nargs = [\"hello\"]\n")
 	mustWriteRepoExecutable(t, dir, filepath.Join("scripts", "main.sh"), "#!/bin/sh\nexit 0\n")
@@ -1197,7 +1197,7 @@ func newCodexPackageRenderedMCPWorkspace(t *testing.T, pluginKitAIBin, mcpBin st
 	root := RepoRoot(t)
 	dir := t.TempDir()
 	mustWriteRepoFile(t, dir, "README.md", "# codex package generated mcp live smoke\n")
-	mustWriteRepoFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "codex-package-generated-mcp-live"
 version: "0.1.0"
 description: "codex package generated mcp live smoke"
@@ -1231,7 +1231,7 @@ func newCodexPackageRenderedHTTPMCPWorkspace(t *testing.T, pluginKitAIBin string
 	root := RepoRoot(t)
 	dir := t.TempDir()
 	mustWriteRepoFile(t, dir, "README.md", "# codex package generated http mcp live smoke\n")
-	mustWriteRepoFile(t, dir, "plugin.yaml", `api_version: v1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
 name: "codex-package-generated-http-mcp-live"
 version: "0.1.0"
 description: "codex package generated http mcp live smoke"
