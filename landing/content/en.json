@@ -42,6 +42,7 @@
       "title": "Context7",
       "description": "A real multi-agent MCP plugin for fresh library docs and code examples, generated once and shipped to Claude, Codex, Gemini, OpenCode, and Cursor.",
       "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
@@ -50,6 +51,7 @@
       "title": "GitLab",
       "description": "A real GitLab MCP plugin for projects, issues, merge requests, and DevOps workflows through the official GitLab MCP endpoint.",
       "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/gitlab",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {

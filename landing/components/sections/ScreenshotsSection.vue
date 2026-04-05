@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { register } from "swiper/element/bundle";
-import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
+import { mdiChevronLeft, mdiChevronRight, mdiOpenInNew } from "@mdi/js";
 
 type SwiperContainerElement = HTMLElement & {
   initialize: () => void;
@@ -26,7 +26,7 @@ onMounted(() => {
     slidesPerView: 1.08,
     spaceBetween: 16,
     loop: true,
-    grabCursor: true,
+    grabCursor: false,
     centeredSlides: false,
     pagination: {
       clickable: true
@@ -59,15 +59,15 @@ onMounted(() => {
         spaceBetween: 20
       },
       960: {
-        slidesPerView: 2.35,
+        slidesPerView: 2,
         spaceBetween: 24
       },
       1264: {
-        slidesPerView: 3.15,
+        slidesPerView: 3,
         spaceBetween: 24
       },
       1440: {
-        slidesPerView: 4,
+        slidesPerView: 3,
         spaceBetween: 24
       }
     }
@@ -109,7 +109,15 @@ function slideNext() {
           :key="plugin.id"
           class="screenshots-section__slide"
         >
-          <article class="screenshots-section__card" :style="{ '--accent': accents[idx % accents.length] }">
+          <component
+            :is="plugin.href ? 'a' : 'article'"
+            class="screenshots-section__card"
+            :class="{ 'screenshots-section__card--link': !!plugin.href }"
+            :style="{ '--accent': accents[idx % accents.length] }"
+            :href="plugin.href"
+            :target="plugin.href ? '_blank' : undefined"
+            :rel="plugin.href ? 'noreferrer noopener' : undefined"
+          >
             <div class="screenshots-section__card-top">
               <div>
                 <p class="screenshots-section__eyebrow">{{ plugin.eyebrow }}</p>
@@ -130,7 +138,12 @@ function slideNext() {
                 {{ badge }}
               </span>
             </div>
-          </article>
+
+            <div v-if="plugin.href" class="screenshots-section__link">
+              <span>Open plugin</span>
+              <v-icon :icon="mdiOpenInNew" size="18" />
+            </div>
+          </component>
         </swiper-slide>
       </swiper-container>
 
@@ -217,12 +230,17 @@ function slideNext() {
   padding: 24px;
   display: flex;
   flex-direction: column;
+  text-decoration: none;
 }
 
 .screenshots-section__card:hover {
   transform: translateY(-6px);
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   box-shadow: 0 20px 60px rgba(0, 240, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.screenshots-section__card--link {
+  cursor: pointer;
 }
 
 .screenshots-section__nav {
@@ -323,6 +341,18 @@ function slideNext() {
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #e0e6ff;
   font-size: 0.76rem;
+}
+
+.screenshots-section__link {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .v-theme--light .screenshots-section__title {

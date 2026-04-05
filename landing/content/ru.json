@@ -42,6 +42,7 @@
       "title": "Context7",
       "description": "Реальный multi-agent MCP-плагин для свежей документации библиотек и примеров кода, который один раз собирается и выпускается в Claude, Codex, Gemini, OpenCode и Cursor.",
       "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
@@ -50,6 +51,7 @@
       "title": "GitLab",
       "description": "Реальный GitLab MCP-плагин для проектов, задач, merge request и DevOps-сценариев через официальный GitLab MCP endpoint.",
       "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/gitlab",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
