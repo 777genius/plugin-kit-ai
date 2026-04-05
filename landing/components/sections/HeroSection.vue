@@ -12,11 +12,7 @@ const releaseVersion = computed(() => releaseData.value?.version || null);
 const releaseDate = computed(() => {
   const raw = releaseData.value?.pubDate;
   if (!raw) return null;
-  return new Date(raw).toLocaleDateString(locale.value, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  });
+  return formatReleaseDate(raw, locale.value);
 });
 </script>
 
@@ -90,17 +86,7 @@ const releaseDate = computed(() => {
         <v-col cols="12" md="5" class="hero-section__demo-col">
           <div class="hero-section__preview">
             <div class="hero-section__preview-glow" />
-            <ClientOnly>
-              <Suspense>
-                <LazyHeroDemo />
-                <template #fallback>
-                  <div class="hero-demo-fallback" />
-                </template>
-              </Suspense>
-              <template #fallback>
-                <div class="hero-demo-fallback" />
-              </template>
-            </ClientOnly>
+            <LazyHeroDemo />
           </div>
         </v-col>
       </v-row>

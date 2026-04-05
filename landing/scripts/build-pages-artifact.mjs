@@ -1,8 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const repoRoot = process.cwd();
-const landingDist = path.join(repoRoot, ".output", "public");
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const landingRoot = path.resolve(scriptDir, "..");
+const repoRoot = path.resolve(landingRoot, "..");
+const landingDist = path.join(landingRoot, ".output", "public");
 const docsDist = path.join(repoRoot, "website", "dist");
 const pagesDist = path.join(repoRoot, ".pages-dist");
 const docsTarget = path.join(pagesDist, "docs");

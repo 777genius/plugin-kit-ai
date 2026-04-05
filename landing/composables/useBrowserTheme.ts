@@ -1,4 +1,4 @@
-import { computed, watch, onUnmounted } from "vue";
+import { computed, getCurrentScope, onScopeDispose, watch } from "vue";
 import { useThemeStore } from "~/stores/theme";
 
 export const useBrowserTheme = () => {
@@ -48,11 +48,13 @@ export const useBrowserTheme = () => {
     applyTheme(themeStore.current === "dark" ? "light" : "dark");
   };
 
-  onUnmounted(() => {
-    if (mediaQuery && mediaQueryHandler) {
-      mediaQuery.removeEventListener("change", mediaQueryHandler);
-    }
-  });
+  if (import.meta.client && getCurrentScope()) {
+    onScopeDispose(() => {
+      if (mediaQueryHandler) {
+        mediaQuery?.removeEventListener?.("change", mediaQueryHandler);
+      }
+    });
+  }
 
   watch(
     () => themeStore.current,

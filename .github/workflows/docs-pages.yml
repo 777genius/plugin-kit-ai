@@ -36,6 +36,7 @@ jobs:
           cache: false
 
       - name: Install landing toolchain
+        working-directory: landing
         run: pnpm install --frozen-lockfile
 
       - name: Install docs toolchain
@@ -45,6 +46,7 @@ jobs:
       - name: Build landing
         env:
           NUXT_APP_BASE_URL: /plugin-kit-ai/
+        working-directory: landing
         run: pnpm generate
 
       - name: Build public docs under /docs
@@ -55,6 +57,7 @@ jobs:
         run: pnpm run docs:build
 
       - name: Assemble GitHub Pages artifact
+        working-directory: landing
         run: pnpm run build:pages
 
       - uses: actions/configure-pages@v6

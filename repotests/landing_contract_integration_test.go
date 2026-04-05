@@ -10,8 +10,9 @@ import (
 
 func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	root := RepoRoot(t)
+	landingRoot := filepath.Join(root, "landing")
 
-	i18nBody, err := os.ReadFile(filepath.Join(root, "data", "i18n.ts"))
+	i18nBody, err := os.ReadFile(filepath.Join(landingRoot, "data", "i18n.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +23,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, i18n, `{ code: "de"`)
 	mustNotContain(t, i18n, `{ code: "fr"`)
 
-	docsLinksBody, err := os.ReadFile(filepath.Join(root, "composables", "useDocsLinks.ts"))
+	docsLinksBody, err := os.ReadFile(filepath.Join(landingRoot, "composables", "useDocsLinks.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +33,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, docsLinks, `supportBoundaryUrl`)
 	mustContain(t, docsLinks, `https://777genius.github.io/plugin-kit-ai/docs/en/`)
 
-	releaseComposableBody, err := os.ReadFile(filepath.Join(root, "composables", "useReleaseDownloads.ts"))
+	releaseComposableBody, err := os.ReadFile(filepath.Join(landingRoot, "composables", "useReleaseDownloads.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, releaseComposable, `lazy: false`)
 	mustContain(t, releaseComposable, `plugin-kit-ai_release_meta`)
 
-	releaseRouteBody, err := os.ReadFile(filepath.Join(root, "server", "api", "releases", "latest.get.ts"))
+	releaseRouteBody, err := os.ReadFile(filepath.Join(landingRoot, "server", "api", "releases", "latest.get.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,14 +52,14 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, releaseRoute, `cache-control`)
 	mustContain(t, releaseRoute, `RELEASE_CACHE_TTL`)
 
-	sectionsBody, err := os.ReadFile(filepath.Join(root, "data", "sections.ts"))
+	sectionsBody, err := os.ReadFile(filepath.Join(landingRoot, "data", "sections.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	sections := string(sectionsBody)
 	mustNotContain(t, sections, `"pricing"`)
 
-	seoBody, err := os.ReadFile(filepath.Join(root, "composables", "usePageSeo.ts"))
+	seoBody, err := os.ReadFile(filepath.Join(landingRoot, "composables", "usePageSeo.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, seo, `priceCurrency`)
 	mustNotContain(t, seo, `offers:`)
 
-	nuxtConfigBody, err := os.ReadFile(filepath.Join(root, "nuxt.config.ts"))
+	nuxtConfigBody, err := os.ReadFile(filepath.Join(landingRoot, "nuxt.config.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +77,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, nuxtConfig, `https://777genius.github.io/plugin-kit-ai/docs/en/`)
 	mustContain(t, nuxtConfig, `https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml`)
 
-	ruContentBody, err := os.ReadFile(filepath.Join(root, "content", "ru.json"))
+	ruContentBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "ru.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, ruContent, `"pricing"`)
 	mustNotContain(t, ruContent, `"hookplex":`)
 
-	enLocaleBody, err := os.ReadFile(filepath.Join(root, "locales", "en.json"))
+	enLocaleBody, err := os.ReadFile(filepath.Join(landingRoot, "locales", "en.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +106,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, enLocale, `"hookplex":`)
 	mustNotContain(t, enLocale, `"generate": "generate"`)
 
-	ruLocaleBody, err := os.ReadFile(filepath.Join(root, "locales", "ru.json"))
+	ruLocaleBody, err := os.ReadFile(filepath.Join(landingRoot, "locales", "ru.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +121,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, ruLocale, `"hookplex":`)
 	mustNotContain(t, ruLocale, `"generate": "generate"`)
 
-	headerBody, err := os.ReadFile(filepath.Join(root, "components", "layout", "AppHeader.vue"))
+	headerBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "layout", "AppHeader.vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, header, `rel="noopener noreferrer"`)
 	mustNotContain(t, header, `nav.pricing`)
 
-	downloadBody, err := os.ReadFile(filepath.Join(root, "components", "sections", "DownloadSection.vue"))
+	downloadBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "sections", "DownloadSection.vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,14 +142,14 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, download, `download.copy`)
 	mustContain(t, download, `download.copied`)
 
-	robotsBody, err := os.ReadFile(filepath.Join(root, "server", "routes", "robots.txt.ts"))
+	robotsBody, err := os.ReadFile(filepath.Join(landingRoot, "server", "routes", "robots.txt.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	robots := string(robotsBody)
 	mustContain(t, robots, `https://777genius.github.io/plugin-kit-ai/docs/sitemap.xml`)
 
-	logoBody, err := os.ReadFile(filepath.Join(root, "components", "common", "AppLogo.vue"))
+	logoBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "common", "AppLogo.vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +159,7 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, logo, `plugin-kit-ai`)
 	mustNotContain(t, logo, `Hookplex`)
 
-	heroBody, err := os.ReadFile(filepath.Join(root, "components", "sections", "HeroSection.vue"))
+	heroBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "sections", "HeroSection.vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,14 +167,14 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, hero, `<span class="hero-section__logo">P</span>`)
 	mustNotContain(t, hero, `<span class="hero-section__logo">H</span>`)
 
-	indexBody, err := os.ReadFile(filepath.Join(root, "pages", "index.vue"))
+	indexBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "index.vue"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	indexPage := string(indexBody)
 	mustNotContain(t, indexPage, `LazyPricingSection`)
 
-	matches, err := scanRemovedBranding(root)
+	matches, err := scanRemovedBranding(landingRoot)
 	if err != nil {
 		t.Fatalf("removed brand scan failed: %v", err)
 	}

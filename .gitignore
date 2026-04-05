@@ -20,6 +20,10 @@ website/.playwright-artifacts/
 node_modules/
 .nuxt/
 .output/
+.pages-dist/
+landing/node_modules/
+landing/.nuxt/
+landing/.output/
 .dist/
 dist/
 dist

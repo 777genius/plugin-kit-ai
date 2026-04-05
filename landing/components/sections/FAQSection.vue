@@ -173,8 +173,8 @@ const faqQuickLinks = computed(() => {
 
 .faq-section__content {
   display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 56px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
+  gap: 32px;
   align-items: start;
   position: relative;
   z-index: 1;
@@ -306,6 +306,7 @@ const faqQuickLinks = computed(() => {
   top: 104px;
   display: flex;
   flex-direction: column;
+  min-height: 100%;
   gap: 18px;
   padding: 24px;
   border-radius: 24px;

@@ -15,24 +15,27 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	}
 	workflow := string(workflowBody)
 	mustContain(t, workflow, "name: Pages")
+	mustContain(t, workflow, "working-directory: landing")
 	mustContain(t, workflow, "pnpm generate")
 	mustContain(t, workflow, "NUXT_APP_BASE_URL: /plugin-kit-ai/")
 	mustContain(t, workflow, "DOCS_BASE_PATH: /plugin-kit-ai/docs/")
 	mustContain(t, workflow, "pnpm run build:pages")
 	mustContain(t, workflow, "path: .pages-dist")
 
-	packageBody, err := os.ReadFile(filepath.Join(root, "package.json"))
+	packageBody, err := os.ReadFile(filepath.Join(root, "landing", "package.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	pkg := string(packageBody)
 	mustContain(t, pkg, `"build:pages": "node ./scripts/build-pages-artifact.mjs"`)
 
-	scriptBody, err := os.ReadFile(filepath.Join(root, "scripts", "build-pages-artifact.mjs"))
+	scriptBody, err := os.ReadFile(filepath.Join(root, "landing", "scripts", "build-pages-artifact.mjs"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	script := string(scriptBody)
+	mustContain(t, script, `const landingRoot = path.resolve(scriptDir, "..");`)
+	mustContain(t, script, `const repoRoot = path.resolve(landingRoot, "..");`)
 	mustContain(t, script, `const docsTarget = path.join(pagesDist, "docs");`)
 	mustContain(t, script, `await fs.cp(landingDist, pagesDist, { recursive: true });`)
 	mustContain(t, script, `await fs.cp(docsDist, docsTarget, { recursive: true });`)
@@ -60,7 +63,7 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	site := string(siteBody)
 	mustContain(t, site, `export const docsBasePath = process.env.DOCS_BASE_PATH || "/plugin-kit-ai/docs/";`)
 
-	robotsBody, err := os.ReadFile(filepath.Join(root, "server", "routes", "robots.txt.ts"))
+	robotsBody, err := os.ReadFile(filepath.Join(root, "landing", "server", "routes", "robots.txt.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}

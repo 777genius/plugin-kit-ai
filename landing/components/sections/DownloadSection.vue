@@ -20,11 +20,7 @@ const releaseDate = computed(() => {
     return ""
   }
 
-  return new Date(releaseData.value.pubDate).toLocaleDateString(locale.value, {
-    year: "numeric",
-    month: "short",
-    day: "numeric"
-  })
+  return formatReleaseDate(releaseData.value.pubDate, locale.value)
 })
 
 const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]

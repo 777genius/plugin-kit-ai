@@ -3,13 +3,19 @@ const { t } = useI18n();
 const config = useRuntimeConfig();
 const year = new Date().getFullYear();
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
+const githubOwner = (config.public.githubRepo || "777genius/plugin-kit-ai").split("/")[0] || "777genius";
+const githubOwnerUrl = `https://github.com/${githubOwner}`;
 const { docsUrl } = useDocsLinks();
 </script>
 
 <template>
   <footer class="app-footer">
     <v-container class="app-footer__inner">
-      <span class="app-footer__copy">{{ t("footer.copyright", { year }) }} · {{ t("footer.tagline") }}</span>
+      <span class="app-footer__copy">
+        {{ t("footer.copyright", { year }) }}
+        <a class="app-footer__author" :href="githubOwnerUrl" target="_blank" rel="noopener noreferrer">{{ githubOwner }}</a>
+        · {{ t("footer.tagline") }}
+      </span>
       <div class="app-footer__links">
         <a class="app-footer__link" :href="githubUrl" target="_blank" rel="noopener noreferrer">{{ t("footer.github") }}</a>
         <span class="app-footer__divider" />
@@ -35,6 +41,18 @@ const { docsUrl } = useDocsLinks();
   font-size: 13px;
   opacity: 0.5;
   font-family: "JetBrains Mono", monospace;
+}
+
+.app-footer__author {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.app-footer__author:hover {
+  opacity: 1;
+  border-bottom-color: currentColor;
 }
 
 .app-footer__links {

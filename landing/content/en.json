@@ -159,7 +159,7 @@
     {
       "id": "fastestStart",
       "question": "What is the fastest way to start?",
-      "answer": "Install <code>plugin-kit-ai</code>, create a repo with <code>init</code>, then run <code>generate</code> and <code>validate --strict</code>. Most teams should start with the <a href=\"https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html\">Quickstart</a>. If your team is intentionally Python-first, go straight to the <a href=\"https://777genius.github.io/plugin-kit-ai/docs/en/guide/python-runtime.html\">Python guide</a>."
+      "answer": "Install <code>plugin-kit-ai</code>, create a repo with <code>init</code>, then run <code>render</code> and <code>validate --strict</code>. Most teams should start with the <a href=\"https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html\">Quickstart</a>. If your team is intentionally Python-first, go straight to the <a href=\"https://777genius.github.io/plugin-kit-ai/docs/en/guide/python-runtime.html\">Python guide</a>."
     },
     {
       "id": "whichPathFirst",

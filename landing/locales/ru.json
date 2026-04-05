@@ -121,7 +121,7 @@
     }
   },
   "footer": {
-    "copyright": "© {year} plugin-kit-ai",
+    "copyright": "© {year}",
     "tagline": "Собрали один раз. Отправили в несколько ИИ-экосистем.",
     "github": "GitHub",
     "docs": "Документация"

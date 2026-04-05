@@ -159,7 +159,7 @@
     {
       "id": "fastestStart",
       "question": "Как начать быстрее всего?",
-      "answer": "Установите <code>plugin-kit-ai</code>, создайте репозиторий через <code>init</code>, затем выполните <code>generate</code> и <code>validate --strict</code>. Большинству команд лучше идти через <a href=\"https://777genius.github.io/plugin-kit-ai/docs/ru/guide/quickstart.html\">Быстрый старт</a>. Если команда уже Python-first, сразу переходите к <a href=\"https://777genius.github.io/plugin-kit-ai/docs/ru/guide/python-runtime.html\">гайду по Python</a>."
+      "answer": "Установите <code>plugin-kit-ai</code>, создайте репозиторий через <code>init</code>, затем выполните <code>render</code> и <code>validate --strict</code>. Большинству команд лучше идти через <a href=\"https://777genius.github.io/plugin-kit-ai/docs/ru/guide/quickstart.html\">Быстрый старт</a>. Если команда уже Python-first, сразу переходите к <a href=\"https://777genius.github.io/plugin-kit-ai/docs/ru/guide/python-runtime.html\">гайду по Python</a>."
     },
     {
       "id": "whichPathFirst",

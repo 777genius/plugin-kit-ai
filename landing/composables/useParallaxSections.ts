@@ -53,8 +53,8 @@ export const useParallaxSections = (speed = 0.1) => {
   });
 
   onUnmounted(() => {
-    if (import.meta.client) {
-      window.removeEventListener("scroll", onScroll);
+    if (typeof window !== "undefined") {
+      window.removeEventListener?.("scroll", onScroll);
     }
     targets = [];
   });

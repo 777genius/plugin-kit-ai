@@ -121,7 +121,7 @@
     }
   },
   "footer": {
-    "copyright": "© {year} plugin-kit-ai",
+    "copyright": "© {year}",
     "tagline": "Build once. Ship to many AI agents.",
     "github": "GitHub",
     "docs": "Docs"

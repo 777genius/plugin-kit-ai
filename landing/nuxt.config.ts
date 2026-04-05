@@ -17,6 +17,10 @@ const baseURL = process.env.NUXT_APP_BASE_URL || "/";
 export default defineNuxtConfig({
   compatibilityDate: "2026-01-19",
   ssr: true,
+  experimental: {
+    // Work around the current Nuxt dev-time #app-manifest regression.
+    appManifest: false
+  },
   app: {
     baseURL,
     head: {
