@@ -157,6 +157,15 @@ Current behavior and contract details:
 - `inspect`: explain the discovered package graph, target class, managed artifacts, and the publication summary; `--format json` now includes a `publication` block with publication-capable package targets and any authored `publish/...` channels discovered in the repo, including channel metadata such as Codex policies and Gemini gallery distribution hints
 - `publish`: first-class bounded publish workflow for documented publication channels; `publish --channel codex-marketplace|claude-marketplace --dest <marketplace-root>` materializes the corresponding local marketplace root, `--dry-run` previews the write, `publish --channel gemini-gallery --dry-run` emits a repository/release publication plan with bounded Git and GitHub readiness diagnostics instead of pretending Gemini has a local marketplace-root flow, `publish --all --dry-run` orchestrates all authored `publish/...` channels in one combined plan, and `publish --format json` emits the versioned `plugin-kit-ai/publish-report` contract; `publish --all` apply mode stays intentionally absent because local materialization channels and repository/release planning channels still have different execution semantics
 - `publication`: focused publication-layer view for package-capable targets and authored `publish/...` channels; use it when you want only package/channel publication data without the broader inspect surface; `publication --format json` emits the versioned `plugin-kit-ai/publication-report` contract, `publication doctor --format json` emits `plugin-kit-ai/publication-doctor-report` for readiness gating, `publication doctor --dest <marketplace-root>` also verifies an already materialized local Codex/Claude marketplace root, `publication materialize --target codex-package|claude --dest <marketplace-root>` builds a safe local marketplace root with a copied package bundle plus merged catalog artifact, `publication remove --target codex-package|claude --dest <marketplace-root>` prunes that materialized plugin back out of the local marketplace root, and `--dry-run` on materialize/remove previews those local marketplace mutations without writing
+
+Typical publication commands:
+
+```bash
+./bin/plugin-kit-ai publish ./my-plugin --channel codex-marketplace --dest ./local-codex-marketplace --dry-run
+./bin/plugin-kit-ai publish ./my-plugin --channel claude-marketplace --dest ./local-claude-marketplace
+./bin/plugin-kit-ai publish ./my-plugin --channel gemini-gallery --dry-run --format json
+./bin/plugin-kit-ai publish ./my-plugin --all --dry-run --dest ./local-marketplaces --format json
+```
 - `normalize`: rewrite `plugin.yaml` into the package-standard shape and drop unknown fields
 - `validate`: package-standard project validation, generated-artifact drift checks, authored `publish/...` schema validation, and non-failing manifest warnings; when publication channels are discoverable, text and JSON output now also surface a publication summary; `--strict` promotes warnings to errors for CI
 - `capabilities`: generated target/package support by default, or runtime support with `--mode runtime`

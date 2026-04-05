@@ -463,6 +463,17 @@ func TestPluginServicePublishAllDryRunOrdersChannels(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("channel order = %v want %v", got, want)
 	}
+	text := strings.Join(result.Lines, "\n")
+	for _, wantText := range []string{
+		"Authored channels: codex-marketplace, claude-marketplace, gemini-gallery",
+		"Channel 1/3: codex-marketplace",
+		"Channel 2/3: claude-marketplace",
+		"Channel 3/3: gemini-gallery",
+	} {
+		if !strings.Contains(text, wantText) {
+			t.Fatalf("publish text missing %q:\n%s", wantText, text)
+		}
+	}
 }
 
 func mustWritePublicationSourceFile(t *testing.T, root, rel, body string) {

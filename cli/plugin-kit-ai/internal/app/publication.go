@@ -238,14 +238,27 @@ func (service PluginService) publishAll(opts PluginPublishOptions) (PluginPublis
 		fmt.Sprintf("Mode: %s", publicationModeLabel(true)),
 		fmt.Sprintf("Channel count: %d", len(results)),
 	}
+	channelNames := make([]string, 0, len(results))
+	for _, result := range results {
+		channelNames = append(channelNames, result.Channel)
+	}
+	lines = append(lines, fmt.Sprintf("Authored channels: %s", strings.Join(channelNames, ", ")))
 	if dest := strings.TrimSpace(opts.Dest); dest != "" && channelsNeedLocalDest(channels) {
 		lines = append(lines, fmt.Sprintf("Destination root: %s", filepath.Clean(dest)))
 	}
 	for _, warning := range warnings {
 		lines = append(lines, "Warning: "+warning)
 	}
-	for _, result := range results {
-		lines = append(lines, fmt.Sprintf("Channel[%s]: status=%s workflow=%s", result.Channel, result.Status, result.WorkflowClass))
+	for i, result := range results {
+		lines = append(lines, fmt.Sprintf("Channel %d/%d: %s", i+1, len(results), result.Channel))
+		lines = append(lines, fmt.Sprintf("  Status: %s", result.Status))
+		lines = append(lines, fmt.Sprintf("  Workflow: %s", result.WorkflowClass))
+		if result.Target != "" {
+			lines = append(lines, fmt.Sprintf("  Target: %s", result.Target))
+		}
+		if result.PackageRoot != "" {
+			lines = append(lines, fmt.Sprintf("  Package root: %s", result.PackageRoot))
+		}
 		for _, issue := range result.Issues {
 			lines = append(lines, fmt.Sprintf("  Issue[%s]: %s", issue.Code, issue.Message))
 		}
