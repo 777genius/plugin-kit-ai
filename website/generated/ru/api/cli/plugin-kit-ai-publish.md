@@ -32,6 +32,7 @@ This first-class publish entrypoint is intentionally bounded to documented chann
 - codex-marketplace
 - claude-marketplace
 - gemini-gallery (dry-run plan only)
+- all authored channels (dry-run plan only)
 
 Codex and Claude materialize a safe local marketplace root.
 Gemini stays repository/release rooted, so publish only supports --dry-run planning there instead of a local marketplace materialization path.
@@ -43,6 +44,7 @@ plugin-kit-ai publish [path] [flags]
 ### Опции
 
 ```
+      --all                   plan across all authored publication channels (dry-run only)
       --channel string        publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")
       --dest string           destination marketplace root directory for local Codex/Claude marketplace flows
       --dry-run               preview the materialized publish result without writing changes
