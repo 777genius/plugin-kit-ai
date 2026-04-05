@@ -93,8 +93,13 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	} else {
 		result.Artifacts = append(result.Artifacts, hookArtifacts...)
 		result.Warnings = append(result.Warnings, warnings...)
-		if len(hookBody) > 0 && result.Launcher != nil {
-			if entrypoint, ok := inferClaudeEntrypoint(hookBody); ok {
+		if len(hookBody) > 0 {
+			if entrypoint, ok := inferClaudeEntrypoint(hookBody); ok && result.Launcher == nil {
+				result.Launcher = &pluginmodel.Launcher{
+					Runtime:    "go",
+					Entrypoint: entrypoint,
+				}
+			} else if ok {
 				result.Launcher.Entrypoint = entrypoint
 			}
 		}
@@ -159,8 +164,11 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 	if graph.Launcher != nil {
 		entrypoint = graph.Launcher.Entrypoint
 	}
-	if strings.TrimSpace(entrypoint) == "" {
+	if claudeHooksRequireLauncher(graph, state) && strings.TrimSpace(entrypoint) == "" {
 		return nil, fmt.Errorf("required launcher missing: %s", pluginmodel.LauncherFileName)
+	}
+	if graph.Launcher == nil && !claudePackageOnlyMode(graph, state) {
+		return nil, fmt.Errorf("invalid %s: target claude without launcher.yaml must author at least one package-only surface such as mcp/servers.yaml, skills/, targets/claude/settings.json, targets/claude/lsp.json, targets/claude/user-config.json, targets/claude/manifest.extra.json, targets/claude/commands/**, or targets/claude/agents/**", pluginmodel.FileName)
 	}
 	_, settingsBody, settingsPresent, err := loadClaudeJSONDoc(root, state.DocPath("settings"), "Claude settings")
 	if err != nil {
@@ -229,7 +237,7 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 			return nil, err
 		}
 		artifacts = append(artifacts, copied...)
-	} else {
+	} else if claudeUsesGeneratedHooks(graph, state) {
 		artifacts = append(artifacts, pluginmodel.Artifact{
 			RelPath: filepath.Join("hooks", "hooks.json"),
 			Content: defaultClaudeHooks(entrypoint),
@@ -247,11 +255,33 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 }
 
 func (claudeAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
+	if claudeUsesGeneratedHooks(graph, state) || fileExists(filepath.Join(root, "hooks", "hooks.json")) {
+		return []string{filepath.ToSlash(filepath.Join("hooks", "hooks.json"))}, nil
+	}
 	return nil, nil
 }
 
 func (claudeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
+	if graph.Launcher == nil {
+		if rel := claudePrimaryHookPath(state); rel != "" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "claude",
+				Message:  fmt.Sprintf("Claude hooks require %s when targets/claude/hooks/** is authored", pluginmodel.LauncherFileName),
+			})
+		} else if !claudeHasPackageOnlySurface(graph, state) {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     pluginmodel.FileName,
+				Target:   "claude",
+				Message:  "target claude without launcher.yaml must author at least one package-only surface such as mcp/servers.yaml, skills/, targets/claude/settings.json, targets/claude/lsp.json, targets/claude/user-config.json, targets/claude/manifest.extra.json, targets/claude/commands/**, or targets/claude/agents/**",
+			})
+		}
+	}
 	if graph.Launcher != nil {
 		for _, rel := range state.ComponentPaths("hooks") {
 			full := filepath.Join(root, rel)
@@ -292,6 +322,49 @@ func (claudeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 	diagnostics = append(diagnostics, validateClaudeLSP(root, state.DocPath("lsp"))...)
 	diagnostics = append(diagnostics, validateClaudeUserConfig(root, state.DocPath("user_config"))...)
 	return diagnostics, nil
+}
+
+func claudeUsesGeneratedHooks(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
+	if graph.Launcher == nil || strings.TrimSpace(graph.Launcher.Entrypoint) == "" {
+		return false
+	}
+	return len(state.ComponentPaths("hooks")) == 0
+}
+
+func claudeHooksRequireLauncher(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
+	if len(state.ComponentPaths("hooks")) > 0 {
+		return true
+	}
+	return graph.Launcher != nil
+}
+
+func claudePackageOnlyMode(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
+	return graph.Launcher == nil && len(state.ComponentPaths("hooks")) == 0 && claudeHasPackageOnlySurface(graph, state)
+}
+
+func claudeHasPackageOnlySurface(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
+	if len(graph.Portable.Paths("skills")) > 0 || graph.Portable.MCP != nil {
+		return true
+	}
+	for _, kind := range []string{"settings", "lsp", "user_config", "manifest_extra"} {
+		if strings.TrimSpace(state.DocPath(kind)) != "" {
+			return true
+		}
+	}
+	for _, kind := range []string{"commands", "agents"} {
+		if len(state.ComponentPaths(kind)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func claudePrimaryHookPath(state pluginmodel.TargetState) string {
+	hookPaths := state.ComponentPaths("hooks")
+	if len(hookPaths) == 0 {
+		return ""
+	}
+	return hookPaths[0]
 }
 
 func claudeManifestManagedPaths() []string {

@@ -4,7 +4,7 @@ This document is the canonical production authoring path for plugin authors usin
 
 ## Current Target Boundary
 
-- Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
+- Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set when launcher-backed hooks are used, and also supports a production-ready package/config lane for package-only plugins under the same `claude` target
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Gemini packaging: production-ready official Gemini CLI extension packaging lane through `generate|import|validate` and local `extensions link|config|disable|enable`
@@ -70,8 +70,13 @@ Use [VALIDATE_JSON_CONTRACT.md](./VALIDATE_JSON_CONTRACT.md) for the ABI details
 
 - Start from `plugin-kit-ai init --platform claude` or `plugin-kit-ai import --from claude`
 - Keep `plugin.yaml` plus `targets/claude/...` as the authored source of truth
+- Claude now supports two valid authoring modes under the same `claude` target:
+  - runtime/hooks mode: `launcher.yaml` plus optional `targets/claude/hooks/hooks.json`
+  - package-only mode: no `launcher.yaml`, with package/config surfaces such as `mcp/servers.yaml`, `skills/`, `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, `targets/claude/manifest.extra.json`, `targets/claude/commands/**`, or `targets/claude/agents/**`
 - First-class Claude package docs include `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, and `targets/claude/manifest.extra.json`
-- Commit generated `.claude-plugin/plugin.json` and `hooks/hooks.json`
+- Commit generated `.claude-plugin/plugin.json`
+- Commit generated `.mcp.json` when portable MCP is authored
+- Commit generated `hooks/hooks.json` only when hooks are authored or the launcher-backed stable default hook projection is active
 - `validate --strict` enforces that authored `targets/claude/hooks/hooks.json` command entries still match `launcher.yaml.entrypoint`
 - Treat the stable promise as applying only to `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - The default Claude scaffold already matches that stable subset; use `--claude-extended-hooks` only as an explicit expansion step
@@ -80,6 +85,7 @@ Use [VALIDATE_JSON_CONTRACT.md](./VALIDATE_JSON_CONTRACT.md) for the ABI details
 Reference implementation:
 
 - [examples/plugins/claude-basic-prod](../examples/plugins/claude-basic-prod)
+- [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/context7)
 
 ## Codex Runtime Release-Ready Path
 

@@ -135,6 +135,7 @@ Choose this when you want the strongest supported release and distribution story
 - Best default: `plugin-kit-ai init my-plugin`
 - Claude-first path: `plugin-kit-ai init my-plugin --platform claude`
 - Package/config expansion later: `codex-package`, `gemini`, `opencode`, `cursor`
+- Real multi-target MCP-first example: [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/context7)
 
 ### Already Have Native Config
 

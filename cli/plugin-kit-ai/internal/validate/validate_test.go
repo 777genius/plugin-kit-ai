@@ -1713,6 +1713,59 @@ targets: ["claude"]
 	}
 }
 
+func TestValidate_ClaudeRejectsHooksWithoutLauncher(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
+
+	report, err := Validate(dir, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == filepath.ToSlash(filepath.Join("targets", "claude", "hooks", "hooks.json")) &&
+			strings.Contains(failure.Message, "require launcher.yaml") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
+func TestValidate_ClaudeRejectsLauncherlessEmptyTarget(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, "plugin.yaml", `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+
+	report, err := Validate(dir, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, failure := range report.Failures {
+		if failure.Path == pluginmanifest.FileName &&
+			strings.Contains(failure.Message, "package-only surface") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "windows" {

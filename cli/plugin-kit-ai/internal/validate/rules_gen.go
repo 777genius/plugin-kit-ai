@@ -6,19 +6,14 @@ var generatedRules = map[string]Rule{
 	"claude": {
 		Platform: "claude",
 		RequiredFiles: []string{
-			"go.mod",
 			"README.md",
-			"launcher.yaml",
 			".claude-plugin/plugin.json",
-			"hooks/hooks.json",
 		},
 		ForbiddenFiles: []string{
 			"AGENTS.md",
 			".codex/config.toml",
 		},
-		BuildTargets: []string{
-			"./...",
-		},
+		BuildTargets: []string{},
 	},
 	"codex-package": {
 		Platform: "codex-package",

@@ -38,7 +38,10 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetMatrix := string(targetMatrixBody)
-	mustContain(t, targetMatrix, "| claude | packaged_runtime | hook_runtime | required | plugin | marketplace or local plugin install |")
+	mustContain(t, targetMatrix, "| claude | packaged_runtime | hook_runtime | optional | plugin | marketplace or local plugin install |")
+	mustContain(t, targetMatrix, "production-ready package+runtime lane")
+	mustContain(t, targetMatrix, "package-only config lane plus public-stable stable-subset runtime")
+	mustContain(t, targetMatrix, "without launcher.yaml, and optionally add launcher-backed hooks runtime surfaces")
 	mustContain(t, targetMatrix, "| codex-package | packaged_runtime | plugin_package | ignored | plugin | plugin directory or marketplace cache |")
 	mustContain(t, targetMatrix, "| codex-runtime | packaged_runtime | local_runtime_integration | required | plugin | repo-local config wiring |")
 	mustContain(t, targetMatrix, "| gemini | extension_package | mcp_extension | optional | extension | copy install | link | restart required | ~/.gemini/extensions/<name> | production-ready extension packaging lane |")

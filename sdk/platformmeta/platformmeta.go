@@ -272,8 +272,8 @@ func All() []PlatformProfile {
 				PlatformFamily:         FamilyPackagedRuntime,
 				TargetClass:            "hook_runtime",
 				TargetNoun:             "plugin",
-				ProductionClass:        "production-ready",
-				RuntimeContract:        "public-stable stable-subset runtime",
+				ProductionClass:        "production-ready package+runtime lane",
+				RuntimeContract:        "package-only config lane plus public-stable stable-subset runtime",
 				InstallModel:           "marketplace or local plugin install",
 				DevModel:               "reload plugins",
 				ActivationModel:        "reload or restart",
@@ -283,7 +283,7 @@ func All() []PlatformProfile {
 				ValidateSupport:        true,
 				PortableComponentKinds: []string{"skills", "mcp_servers"},
 				TargetComponentKinds:   []string{"package_metadata", "hooks", "commands", "agents", "settings", "lsp", "user_config", "manifest_extra"},
-				Summary:                "Claude plugin packages compile portable skills and MCP plus target-native hooks, commands, agents, settings, LSP, and user config.",
+				Summary:                "Claude plugin packages compile portable skills and MCP plus target-native commands, agents, settings, LSP, and user config without launcher.yaml, and optionally add launcher-backed hooks runtime surfaces.",
 			},
 			SDK: SDKMeta{
 				PublicPackage:   "claude",
@@ -293,7 +293,7 @@ func All() []PlatformProfile {
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "claude_cli",
 			},
-			Launcher: LauncherMeta{Requirement: LauncherRequired},
+			Launcher: LauncherMeta{Requirement: LauncherOptional},
 			NativeDocs: []NativeDocSpec{
 				{Kind: "package_metadata", Path: "targets/claude/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
 				{Kind: "hooks", Path: "targets/claude/hooks/hooks.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
@@ -359,17 +359,14 @@ func All() []PlatformProfile {
 			},
 			Validate: ValidateMeta{
 				RequiredFiles: []string{
-					"go.mod",
 					"README.md",
-					"launcher.yaml",
 					".claude-plugin/plugin.json",
-					"hooks/hooks.json",
 				},
 				ForbiddenFiles: []string{
 					"AGENTS.md",
 					".codex/config.toml",
 				},
-				BuildTargets: []string{"./..."},
+				BuildTargets: []string{},
 			},
 		},
 		{

@@ -139,6 +139,66 @@ servers:
 	}
 }
 
+func TestParsePortableMCPContext7StdioAcrossFiveTargets(t *testing.T) {
+	t.Parallel()
+	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@2.1.6"
+    targets:
+      - claude
+      - codex-package
+      - gemini
+      - opencode
+      - cursor
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mcp := &PortableMCP{Path: "mcp/servers.yaml", Servers: parsed.Servers, File: parsed.File}
+
+	for _, target := range []string{"claude", "codex-package", "gemini", "cursor"} {
+		projected, err := mcp.RenderForTarget(target)
+		if err != nil {
+			t.Fatalf("RenderForTarget(%q): %v", target, err)
+		}
+		server, ok := projected["context7"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s context7 = %#v", target, projected["context7"])
+		}
+		if got, _ := server["command"].(string); got != "npx" {
+			t.Fatalf("%s command = %q, want npx", target, got)
+		}
+		args, ok := server["args"].([]any)
+		if !ok || len(args) != 2 || args[0] != "-y" || args[1] != "@upstash/context7-mcp@2.1.6" {
+			t.Fatalf("%s args = %#v", target, server["args"])
+		}
+	}
+
+	opencode, err := mcp.RenderForTarget("opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, ok := opencode["context7"].(map[string]any)
+	if !ok {
+		t.Fatalf("opencode context7 = %#v", opencode["context7"])
+	}
+	if got, _ := server["type"].(string); got != "local" {
+		t.Fatalf("opencode type = %q, want local", got)
+	}
+	command, ok := server["command"].([]any)
+	if !ok || len(command) != 3 || command[0] != "npx" || command[1] != "-y" || command[2] != "@upstash/context7-mcp@2.1.6" {
+		t.Fatalf("opencode command = %#v", server["command"])
+	}
+}
+
 func TestParsePortableMCPStandardRejectsUnsupportedOverrideTarget(t *testing.T) {
 	t.Parallel()
 	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp

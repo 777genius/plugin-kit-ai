@@ -950,6 +950,70 @@ func TestRender_ClaudeRendersSettingsLSPAndUserConfig(t *testing.T) {
 	}
 }
 
+func TestRender_ClaudePackageOnlyMCPGeneratesPluginAndMCPWithoutHooks(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("context7", "claude", "go", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@2.1.6"
+    targets:
+      - claude
+`)
+
+	result, err := Generate(root, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, ".claude-plugin", "plugin.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mcp.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "hooks", "hooks.json")); !os.IsNotExist(err) {
+		t.Fatalf("hooks/hooks.json err = %v, want not exists", err)
+	}
+	for _, artifact := range result.Artifacts {
+		if artifact.RelPath == filepath.ToSlash(filepath.Join("hooks", "hooks.json")) {
+			t.Fatalf("unexpected generated hook artifact: %+v", artifact)
+		}
+	}
+}
+
+func TestRender_ClaudeRejectsHooksWithoutLauncher(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "claude", "go", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
+
+	if _, err := Generate(root, "claude"); err == nil || !strings.Contains(err.Error(), "required launcher missing") {
+		t.Fatalf("Generate error = %v", err)
+	}
+}
+
+func TestRender_ClaudeRejectsLauncherlessEmptyTarget(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "claude", "go", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+
+	if _, err := Generate(root, "claude"); err == nil || !strings.Contains(err.Error(), "package-only surface") {
+		t.Fatalf("Generate error = %v", err)
+	}
+}
+
 func TestRender_ClaudeRejectsManagedOverridesInManifestExtra(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", false)

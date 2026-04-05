@@ -207,6 +207,44 @@ func TestValidate_PluginProject_ClaudeExtendedHooksAlsoMatchEntrypoint(t *testin
 	}
 }
 
+func TestValidate_PluginProject_ClaudePackageOnlyMCP(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("context7", "claude", "go", "plugin", false), "")
+	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  context7:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@2.1.6"
+    targets:
+      - claude
+`)
+	generated, err := pluginmanifest.Generate(dir, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pluginmanifest.WriteArtifacts(dir, generated.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := Validate(dir, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Failures) != 0 {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "hooks", "hooks.json")); !os.IsNotExist(err) {
+		t.Fatalf("hooks/hooks.json err = %v, want not exists", err)
+	}
+}
+
 func mustSaveValidatedPackage(t *testing.T, root string, manifest pluginmanifest.Manifest, runtime string) {
 	t.Helper()
 	if err := pluginmanifest.Save(root, manifest, false); err != nil {
