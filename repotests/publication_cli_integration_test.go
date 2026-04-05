@@ -102,7 +102,7 @@ func TestPublicationCLIClaudeLocalLifecycleRoundTrip(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "marketplace-root")
 
 	mustWriteRepoFile(t, workDir, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWriteRepoFile(t, workDir, "go.mod", "module example.com/demo\n\ngo 1.24.0\n")
+	mustWriteRepoFile(t, workDir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteRepoFile(t, workDir, "launcher.yaml", "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
@@ -248,5 +248,93 @@ func TestPublicationCLIGeminiDryRunReadyWithGitHubOrigin(t *testing.T) {
 	}
 	if payload["status"] != "ready" || payload["ready"] != true || payload["issue_count"] != float64(0) {
 		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestPublicationCLIAllDryRunReportsNoAuthoredChannels(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	workDir := t.TempDir()
+
+	mustWriteRepoFile(t, workDir, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "interface.json"), `{"displayName":"Demo","defaultPrompt":["Inspect"]}`)
+
+	cmd := exec.Command(pluginKitAIBin, "publish", workDir, "--all", "--dry-run", "--format", "json")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("publish --all no channels: %v\n%s", err, out)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("parse publish --all no channels: %v\n%s", err, out)
+	}
+	if payload["workflow_class"] != "multi_channel_plan" || payload["status"] != "needs_channels" || payload["ready"] != false || payload["channel_count"] != float64(0) {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestPublicationCLIAllDryRunRequiresDestWhenLocalChannelsAreAuthored(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	workDir := t.TempDir()
+
+	mustWriteRepoFile(t, workDir, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"gemini\"]\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "interface.json"), `{"displayName":"Demo","defaultPrompt":["Inspect"]}`)
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWriteRepoFile(t, workDir, "gemini-extension.json", "{}\n")
+
+	cmd := exec.Command(pluginKitAIBin, "publish", workDir, "--all", "--dry-run", "--format", "json")
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "requires --dest") {
+		t.Fatalf("expected missing --dest error, got err=%v\n%s", err, out)
+	}
+}
+
+func TestPublicationCLIAllDryRunAggregatesAuthoredChannels(t *testing.T) {
+	pluginKitAIBin := buildPluginKitAI(t)
+	workDir := t.TempDir()
+	dest := filepath.Join(t.TempDir(), "marketplace-root")
+
+	mustWriteRepoFile(t, workDir, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"claude\", \"gemini\"]\n")
+	mustWriteRepoFile(t, workDir, "go.mod", "module example.com/demo\n\ngo 1.24.0\n")
+	mustWriteRepoFile(t, workDir, "launcher.yaml", "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "codex-package", "interface.json"), `{"displayName":"Demo","defaultPrompt":["Inspect"]}`)
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWriteRepoFile(t, workDir, "gemini-extension.json", "{}\n")
+
+	cmd := exec.Command(pluginKitAIBin, "publish", workDir, "--all", "--dry-run", "--dest", dest, "--format", "json")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("publish --all aggregate: %v\n%s", err, out)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("parse publish --all aggregate: %v\n%s", err, out)
+	}
+	if payload["workflow_class"] != "multi_channel_plan" || payload["status"] != "needs_attention" || payload["channel_count"] != float64(3) {
+		t.Fatalf("payload = %+v", payload)
+	}
+	channels, ok := payload["channels"].([]any)
+	if !ok || len(channels) != 3 {
+		t.Fatalf("channels = %+v", payload["channels"])
+	}
+	got := make([]string, 0, len(channels))
+	for _, raw := range channels {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			t.Fatalf("channel item = %+v", raw)
+		}
+		got = append(got, item["channel"].(string))
+	}
+	want := []string{"codex-marketplace", "claude-marketplace", "gemini-gallery"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("channel order = %v want %v", got, want)
 	}
 }

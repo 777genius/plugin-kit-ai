@@ -12,25 +12,6 @@ type publishRunner interface {
 	Publish(app.PluginPublishOptions) (app.PluginPublishResult, error)
 }
 
-type publishJSONReport struct {
-	Format        string                   `json:"format"`
-	SchemaVersion int                      `json:"schema_version"`
-	Channel       string                   `json:"channel"`
-	Target        string                   `json:"target"`
-	Ready         bool                     `json:"ready"`
-	Status        string                   `json:"status"`
-	Mode          string                   `json:"mode"`
-	WorkflowClass string                   `json:"workflow_class"`
-	Dest          string                   `json:"dest,omitempty"`
-	PackageRoot   string                   `json:"package_root,omitempty"`
-	DetailCount   int                      `json:"detail_count"`
-	Details       map[string]string        `json:"details"`
-	IssueCount    int                      `json:"issue_count"`
-	Issues        []app.PluginPublishIssue `json:"issues"`
-	NextStepCount int                      `json:"next_step_count"`
-	NextSteps     []string                 `json:"next_steps"`
-}
-
 var publishCmd = newPublishCmd(pluginService)
 
 func newPublishCmd(runner publishRunner) *cobra.Command {
@@ -38,6 +19,7 @@ func newPublishCmd(runner publishRunner) *cobra.Command {
 	var dest string
 	var packageRoot string
 	var dryRun bool
+	var all bool
 	var format string
 	cmd := &cobra.Command{
 		Use:   "publish [path]",
@@ -48,6 +30,7 @@ This first-class publish entrypoint is intentionally bounded to documented chann
 - codex-marketplace
 - claude-marketplace
 - gemini-gallery (dry-run plan only)
+- all authored channels (dry-run plan only)
 
 Codex and Claude materialize a safe local marketplace root.
 Gemini stays repository/release rooted, so publish only supports --dry-run planning there instead of a local marketplace materialization path.`,
@@ -57,19 +40,29 @@ Gemini stays repository/release rooted, so publish only supports --dry-run plann
 			if len(args) == 1 {
 				root = args[0]
 			}
+			if all && channel != "" {
+				return fmt.Errorf("publish --all cannot be combined with --channel")
+			}
+			if !all && channel == "" {
+				return fmt.Errorf("publish requires --channel unless --all is set")
+			}
+			if all && !dryRun {
+				return fmt.Errorf("publish --all currently supports only --dry-run planning")
+			}
 			result, err := runner.Publish(app.PluginPublishOptions{
 				Root:        root,
 				Channel:     channel,
 				Dest:        dest,
 				PackageRoot: packageRoot,
 				DryRun:      dryRun,
+				All:         all,
 			})
 			if err != nil {
 				return err
 			}
 			switch format {
 			case "json":
-				body, err := json.MarshalIndent(buildPublishJSONReport(result), "", "  ")
+				body, err := json.MarshalIndent(buildPublishJSONPayload(result), "", "  ")
 				if err != nil {
 					return err
 				}
@@ -86,15 +79,15 @@ Gemini stays repository/release rooted, so publish only supports --dry-run plann
 		},
 	}
 	cmd.Flags().StringVar(&channel, "channel", "", `publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")`)
+	cmd.Flags().BoolVar(&all, "all", false, "plan across all authored publication channels (dry-run only)")
 	cmd.Flags().StringVar(&dest, "dest", "", "destination marketplace root directory for local Codex/Claude marketplace flows")
 	cmd.Flags().StringVar(&packageRoot, "package-root", "", "relative package root inside the destination marketplace root (default: plugins/<name>)")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview the materialized publish result without writing changes")
 	cmd.Flags().StringVar(&format, "format", "text", `output format ("text" or "json")`)
-	_ = cmd.MarkFlagRequired("channel")
 	return cmd
 }
 
-func buildPublishJSONReport(result app.PluginPublishResult) publishJSONReport {
+func buildPublishJSONPayload(result app.PluginPublishResult) map[string]any {
 	details := result.Details
 	if details == nil {
 		details = map[string]string{}
@@ -103,26 +96,59 @@ func buildPublishJSONReport(result app.PluginPublishResult) publishJSONReport {
 	if issues == nil {
 		issues = []app.PluginPublishIssue{}
 	}
+	warnings := result.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
 	nextSteps := result.NextSteps
 	if nextSteps == nil {
 		nextSteps = []string{}
 	}
-	return publishJSONReport{
-		Format:        "plugin-kit-ai/publish-report",
-		SchemaVersion: 1,
-		Channel:       result.Channel,
-		Target:        result.Target,
-		Ready:         result.Ready,
-		Status:        result.Status,
-		Mode:          result.Mode,
-		WorkflowClass: result.WorkflowClass,
-		Dest:          result.Dest,
-		PackageRoot:   result.PackageRoot,
-		DetailCount:   len(details),
-		Details:       details,
-		IssueCount:    len(issues),
-		Issues:        append([]app.PluginPublishIssue{}, issues...),
-		NextStepCount: len(nextSteps),
-		NextSteps:     nextSteps,
+	channels := buildPublishJSONPayloads(result.Channels)
+	payload := map[string]any{
+		"format":          "plugin-kit-ai/publish-report",
+		"schema_version":  1,
+		"ready":           result.Ready,
+		"status":          result.Status,
+		"mode":            result.Mode,
+		"workflow_class":  result.WorkflowClass,
+		"detail_count":    len(details),
+		"details":         details,
+		"issue_count":     len(issues),
+		"issues":          append([]app.PluginPublishIssue{}, issues...),
+		"next_step_count": len(nextSteps),
+		"next_steps":      nextSteps,
 	}
+	if result.Channel != "" {
+		payload["channel"] = result.Channel
+	}
+	if result.Target != "" {
+		payload["target"] = result.Target
+	}
+	if result.Dest != "" {
+		payload["dest"] = result.Dest
+	}
+	if result.PackageRoot != "" {
+		payload["package_root"] = result.PackageRoot
+	}
+	if result.WorkflowClass == "multi_channel_plan" || len(warnings) > 0 {
+		payload["warning_count"] = len(warnings)
+		payload["warnings"] = append([]string(nil), warnings...)
+	}
+	if result.WorkflowClass == "multi_channel_plan" || len(channels) > 0 {
+		payload["channel_count"] = len(channels)
+		payload["channels"] = channels
+	}
+	return payload
+}
+
+func buildPublishJSONPayloads(results []app.PluginPublishResult) []map[string]any {
+	if len(results) == 0 {
+		return []map[string]any{}
+	}
+	out := make([]map[string]any, 0, len(results))
+	for _, result := range results {
+		out = append(out, buildPublishJSONPayload(result))
+	}
+	return out
 }

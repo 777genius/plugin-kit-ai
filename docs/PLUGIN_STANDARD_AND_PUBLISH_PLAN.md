@@ -547,10 +547,10 @@ plugin-kit-ai publish --channel claude-marketplace
 plugin-kit-ai publish --channel gemini-gallery --dry-run
 ```
 
-Or a multi-channel wrapper:
+Or a bounded multi-channel planner:
 
 ```bash
-plugin-kit-ai publish --all
+plugin-kit-ai publish --all --dry-run
 ```
 
 Status:
@@ -561,7 +561,8 @@ Status:
 - current implementation also exposes `plugin-kit-ai publish --channel gemini-gallery --dry-run` as a repository or release publication plan without inventing a fake local marketplace-root flow
 - current implementation also exposes `plugin-kit-ai publish --format json` as the versioned `plugin-kit-ai/publish-report` contract
 - current implementation now also checks bounded Gemini Git and GitHub repository prerequisites in both `publication doctor` and `publish --channel gemini-gallery --dry-run`
-- current implementation intentionally does not expose `publish --all`, because local materialization channels and repository or release planning channels still have different execution semantics
+- current implementation now exposes `plugin-kit-ai publish --all --dry-run` as an authored-channel orchestration plan across Codex, Claude, and Gemini publication families
+- current implementation intentionally does not expose `publish --all` apply mode, because local materialization channels and repository or release planning channels still have different execution semantics
 
 ## Top Design Choices That Are Now Fixed
 

@@ -14,8 +14,6 @@ Every JSON report includes:
 
 - `format`: always `plugin-kit-ai/publish-report`
 - `schema_version`: currently `1`
-- `channel`
-- `target`
 - `ready`
 - `status`
 - `mode`
@@ -29,17 +27,24 @@ Every JSON report includes:
 
 Optional fields:
 
+- `channel`: present for single-channel publish workflows
+- `target`: present for single-channel publish workflows
 - `dest`: present for local marketplace-root workflows
 - `package_root`: present for local marketplace-root workflows
+- `warning_count` and `warnings`: present for multi-channel planning and for channel-level warnings
+- `channel_count` and `channels`: present for `publish --all --dry-run`
 
 ## Workflow Classes
 
 - `local_marketplace_root`: local Codex or Claude marketplace-root materialization flow
 - `repository_release_plan`: Gemini repository or release publication planning flow
+- `multi_channel_plan`: authored-channel orchestration from `publish --all --dry-run`
 
 ## Status Semantics
 
 - `ready`: the bounded publish workflow is fully ready for the requested channel
+- `needs_channels`: `publish --all --dry-run` found no authored publication channels under `publish/...`
+- `needs_attention`: `publish --all --dry-run` found one or more authored channels that still need follow-up
 - `needs_repository`: Gemini repository or release publication planning found missing Git or GitHub prerequisites
 
 Local Codex and Claude marketplace-root flows currently report `ready` when the bounded publish workflow can proceed.
@@ -69,6 +74,8 @@ The following fields are always present in schema version `1`:
 - `next_steps`
 
 `details` is always an object, and `issues` plus `next_steps` are always arrays, never `null`.
+
+For `multi_channel_plan`, `warnings` and `channels` are also always arrays, never `null`.
 
 ## Compatibility Rules
 

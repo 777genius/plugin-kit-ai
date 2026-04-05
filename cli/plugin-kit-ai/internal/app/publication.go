@@ -76,6 +76,7 @@ type PluginPublishOptions struct {
 	Dest        string
 	PackageRoot string
 	DryRun      bool
+	All         bool
 }
 
 type PluginPublishIssue struct {
@@ -84,22 +85,29 @@ type PluginPublishIssue struct {
 }
 
 type PluginPublishResult struct {
-	Channel       string               `json:"channel"`
-	Target        string               `json:"target"`
-	Ready         bool                 `json:"ready"`
-	Status        string               `json:"status"`
-	Mode          string               `json:"mode"`
-	WorkflowClass string               `json:"workflow_class"`
-	Dest          string               `json:"dest,omitempty"`
-	PackageRoot   string               `json:"package_root,omitempty"`
-	Details       map[string]string    `json:"details"`
-	IssueCount    int                  `json:"issue_count"`
-	Issues        []PluginPublishIssue `json:"issues"`
-	NextSteps     []string             `json:"next_steps"`
-	Lines         []string             `json:"-"`
+	Channel       string                `json:"channel,omitempty"`
+	Target        string                `json:"target,omitempty"`
+	Ready         bool                  `json:"ready"`
+	Status        string                `json:"status"`
+	Mode          string                `json:"mode"`
+	WorkflowClass string                `json:"workflow_class"`
+	Dest          string                `json:"dest,omitempty"`
+	PackageRoot   string                `json:"package_root,omitempty"`
+	Details       map[string]string     `json:"details"`
+	IssueCount    int                   `json:"issue_count"`
+	Issues        []PluginPublishIssue  `json:"issues"`
+	WarningCount  int                   `json:"warning_count,omitempty"`
+	Warnings      []string              `json:"warnings,omitempty"`
+	NextSteps     []string              `json:"next_steps"`
+	ChannelCount  int                   `json:"channel_count,omitempty"`
+	Channels      []PluginPublishResult `json:"channels,omitempty"`
+	Lines         []string              `json:"-"`
 }
 
 func (service PluginService) Publish(opts PluginPublishOptions) (PluginPublishResult, error) {
+	if opts.All {
+		return service.publishAll(opts)
+	}
 	channel := strings.TrimSpace(opts.Channel)
 	if channel == "gemini-gallery" {
 		return service.publishGeminiGallery(opts)
@@ -134,7 +142,142 @@ func (service PluginService) Publish(opts PluginPublishOptions) (PluginPublishRe
 		Details:       cloneStringMap(result.Details),
 		IssueCount:    0,
 		Issues:        []PluginPublishIssue{},
+		WarningCount:  0,
+		Warnings:      []string{},
 		NextSteps:     cloneStrings(result.NextSteps),
+		Lines:         lines,
+	}, nil
+}
+
+func (service PluginService) publishAll(opts PluginPublishOptions) (PluginPublishResult, error) {
+	if !opts.DryRun {
+		return PluginPublishResult{}, fmt.Errorf("publish --all currently supports only --dry-run planning")
+	}
+	root := strings.TrimSpace(opts.Root)
+	if root == "" {
+		root = "."
+	}
+	inspection, _, err := pluginmanifest.Inspect(root, "all")
+	if err != nil {
+		return PluginPublishResult{}, err
+	}
+	channels := orderedPublicationChannels(inspection.Publication)
+	if len(channels) == 0 {
+		next := []string{
+			"author at least one publication channel under publish/...",
+			fmt.Sprintf("run plugin-kit-ai publication doctor %s", root),
+		}
+		lines := []string{
+			"Publish selection: all authored channels",
+			fmt.Sprintf("Mode: %s", publicationModeLabel(true)),
+			"Channel count: 0",
+			"Status: needs_channels (no authored publication channels exist under publish/...)",
+			"Next:",
+		}
+		for _, step := range next {
+			lines = append(lines, "  "+step)
+		}
+		return PluginPublishResult{
+			Ready:         false,
+			Status:        "needs_channels",
+			Mode:          publicationModeLabel(true),
+			WorkflowClass: "multi_channel_plan",
+			Details:       map[string]string{},
+			IssueCount:    0,
+			Issues:        []PluginPublishIssue{},
+			WarningCount:  0,
+			Warnings:      []string{},
+			NextSteps:     next,
+			ChannelCount:  0,
+			Channels:      []PluginPublishResult{},
+			Lines:         lines,
+		}, nil
+	}
+	if channelsNeedLocalDest(channels) && strings.TrimSpace(opts.Dest) == "" {
+		return PluginPublishResult{}, fmt.Errorf("publish --all --dry-run requires --dest because authored publication channels include local marketplace roots")
+	}
+
+	var (
+		results  []PluginPublishResult
+		warnings []string
+		next     []string
+		ready    = true
+	)
+	if !channelsNeedLocalDest(channels) {
+		if dest := strings.TrimSpace(opts.Dest); dest != "" {
+			warnings = append(warnings, fmt.Sprintf("destination root %s is ignored because the authored publication channels are repository/release rooted", filepath.Clean(dest)))
+		}
+		if pkg := strings.TrimSpace(opts.PackageRoot); pkg != "" {
+			warnings = append(warnings, fmt.Sprintf("package root %s is ignored because the authored publication channels are repository/release rooted", filepath.Clean(pkg)))
+		}
+	}
+	for _, channel := range channels {
+		result, err := service.Publish(PluginPublishOptions{
+			Root:        root,
+			Channel:     channel.Family,
+			Dest:        opts.Dest,
+			PackageRoot: opts.PackageRoot,
+			DryRun:      true,
+		})
+		if err != nil {
+			return PluginPublishResult{}, err
+		}
+		results = append(results, result)
+		if !result.Ready {
+			ready = false
+		}
+		next = appendUniquePublishSteps(append(next, result.NextSteps...))
+	}
+
+	status := "ready"
+	if !ready {
+		status = "needs_attention"
+	}
+	lines := []string{
+		"Publish selection: all authored channels",
+		fmt.Sprintf("Mode: %s", publicationModeLabel(true)),
+		fmt.Sprintf("Channel count: %d", len(results)),
+	}
+	if dest := strings.TrimSpace(opts.Dest); dest != "" && channelsNeedLocalDest(channels) {
+		lines = append(lines, fmt.Sprintf("Destination root: %s", filepath.Clean(dest)))
+	}
+	for _, warning := range warnings {
+		lines = append(lines, "Warning: "+warning)
+	}
+	for _, result := range results {
+		lines = append(lines, fmt.Sprintf("Channel[%s]: status=%s workflow=%s", result.Channel, result.Status, result.WorkflowClass))
+		for _, issue := range result.Issues {
+			lines = append(lines, fmt.Sprintf("  Issue[%s]: %s", issue.Code, issue.Message))
+		}
+		for _, warning := range result.Warnings {
+			lines = append(lines, "  Warning: "+warning)
+		}
+	}
+	if ready {
+		lines = append(lines, "Status: ready (every authored publication channel is ready for its bounded dry-run workflow)")
+	} else {
+		lines = append(lines, "Status: needs_attention (one or more authored publication channels still need follow-up)")
+	}
+	if len(next) > 0 {
+		lines = append(lines, "Next:")
+		for _, step := range next {
+			lines = append(lines, "  "+step)
+		}
+	}
+	return PluginPublishResult{
+		Ready:         ready,
+		Status:        status,
+		Mode:          publicationModeLabel(true),
+		WorkflowClass: "multi_channel_plan",
+		Dest:          cleanedDestForMulti(opts.Dest, channels),
+		Details:       map[string]string{},
+		IssueCount:    0,
+		Issues:        []PluginPublishIssue{},
+		WarningCount:  len(warnings),
+		Warnings:      cloneStrings(warnings),
+		NextSteps:     next,
+		ChannelCount:  len(results),
+		Channels:      clonePublishResults(results),
 		Lines:         lines,
 	}, nil
 }
@@ -451,6 +594,69 @@ func publicationModeLabel(dryRun bool) string {
 		return "dry-run"
 	}
 	return "apply"
+}
+
+func orderedPublicationChannels(model publicationmodel.Model) []publicationmodel.Channel {
+	order := map[string]int{
+		"codex-marketplace":  0,
+		"claude-marketplace": 1,
+		"gemini-gallery":     2,
+	}
+	out := append([]publicationmodel.Channel(nil), model.Channels...)
+	slices.SortFunc(out, func(a, b publicationmodel.Channel) int {
+		oa, oka := order[a.Family]
+		ob, okb := order[b.Family]
+		switch {
+		case oka && okb && oa != ob:
+			return oa - ob
+		case oka && !okb:
+			return -1
+		case !oka && okb:
+			return 1
+		default:
+			return strings.Compare(a.Family, b.Family)
+		}
+	})
+	return out
+}
+
+func channelsNeedLocalDest(channels []publicationmodel.Channel) bool {
+	for _, channel := range channels {
+		switch channel.Family {
+		case "codex-marketplace", "claude-marketplace":
+			return true
+		}
+	}
+	return false
+}
+
+func cleanedDestForMulti(dest string, channels []publicationmodel.Channel) string {
+	if !channelsNeedLocalDest(channels) {
+		return ""
+	}
+	dest = strings.TrimSpace(dest)
+	if dest == "" {
+		return ""
+	}
+	return filepath.Clean(dest)
+}
+
+func clonePublishResults(items []PluginPublishResult) []PluginPublishResult {
+	if len(items) == 0 {
+		return []PluginPublishResult{}
+	}
+	out := make([]PluginPublishResult, 0, len(items))
+	for _, item := range items {
+		cloned := item
+		cloned.Details = cloneStringMap(item.Details)
+		cloned.Issues = append([]PluginPublishIssue(nil), item.Issues...)
+		cloned.Warnings = cloneStrings(item.Warnings)
+		cloned.NextSteps = cloneStrings(item.NextSteps)
+		cloned.Channels = clonePublishResults(item.Channels)
+		cloned.Lines = nil
+		out = append(out, cloned)
+	}
+	return out
 }
 
 func publishTargetForChannel(channel string) (string, error) {

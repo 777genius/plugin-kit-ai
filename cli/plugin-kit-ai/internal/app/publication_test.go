@@ -390,6 +390,81 @@ func TestPluginServicePublishGeminiGalleryRejectsApply(t *testing.T) {
 	}
 }
 
+func TestPluginServicePublishAllDryRunNeedsChannelsWhenNoAuthoredPublication(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+
+	result, err := PluginService{}.Publish(PluginPublishOptions{
+		Root:   root,
+		All:    true,
+		DryRun: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Ready || result.Status != "needs_channels" || result.WorkflowClass != "multi_channel_plan" || result.ChannelCount != 0 {
+		t.Fatalf("publish result = %+v", result)
+	}
+}
+
+func TestPluginServicePublishAllDryRunRequiresDestForLocalChannels(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+
+	_, err := PluginService{}.Publish(PluginPublishOptions{
+		Root:   root,
+		All:    true,
+		DryRun: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires --dest") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestPluginServicePublishAllDryRunOrdersChannels(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dest := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"claude\", \"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, "go.mod", "module example.com/demo\n\ngo 1.24.0\n")
+	mustWritePublicationSourceFile(t, root, "launcher.yaml", "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, "gemini-extension.json", "{}\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+
+	result, err := PluginService{}.Publish(PluginPublishOptions{
+		Root:   root,
+		All:    true,
+		DryRun: true,
+		Dest:   dest,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Ready || result.Status != "needs_attention" || result.ChannelCount != 3 {
+		t.Fatalf("publish result = %+v", result)
+	}
+	got := []string{result.Channels[0].Channel, result.Channels[1].Channel, result.Channels[2].Channel}
+	want := []string{"codex-marketplace", "claude-marketplace", "gemini-gallery"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("channel order = %v want %v", got, want)
+	}
+}
+
 func mustWritePublicationSourceFile(t *testing.T, root, rel, body string) {
 	t.Helper()
 	full := filepath.Join(root, rel)
