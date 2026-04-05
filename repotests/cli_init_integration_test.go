@@ -37,7 +37,7 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 				if out, err := validate.CombinedOutput(); err != nil {
 					t.Fatalf("plugin-kit-ai validate: %v\n%s", err, out)
 				}
-				for _, rel := range []string{"launcher.yaml", "go.mod"} {
+				for _, rel := range []string{"src/launcher.yaml", "go.mod"} {
 					if _, err := os.Stat(filepath.Join(plugRoot, rel)); !os.IsNotExist(err) {
 						t.Fatalf("%s starter unexpectedly wrote %s", platform, rel)
 					}
@@ -82,9 +82,9 @@ func TestPluginKitAIInitGeneratesBuildableModule(t *testing.T) {
 
 func assertConfigTargetPortableMCPScaffold(t *testing.T, root string) {
 	t.Helper()
-	body, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "mcp", "servers.yaml"))
 	if err != nil {
-		t.Fatalf("read mcp/servers.yaml: %v", err)
+		t.Fatalf("read src/mcp/servers.yaml: %v", err)
 	}
 	for _, want := range []string{
 		"format: plugin-kit-ai/mcp",
@@ -118,9 +118,9 @@ func assertConfigTargetRenderedOutputs(t *testing.T, root, platform string) {
 		if _, err := os.Stat(filepath.Join(root, ".app.json")); !os.IsNotExist(err) {
 			t.Fatalf("unexpected .app.json generated for empty app placeholder")
 		}
-		interfaceBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "interface.json"))
+		interfaceBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-package", "interface.json"))
 		if err != nil {
-			t.Fatalf("read targets/codex-package/interface.json: %v", err)
+			t.Fatalf("read src/targets/codex-package/interface.json: %v", err)
 		}
 		if !strings.Contains(string(interfaceBody), `"defaultPrompt": [`) {
 			t.Fatalf("codex-package interface starter missing defaultPrompt array:\n%s", interfaceBody)
@@ -145,9 +145,9 @@ func assertConfigTargetRenderedOutputs(t *testing.T, root, platform string) {
 				t.Fatalf("opencode output missing %q:\n%s", want, body)
 			}
 		}
-		packageBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.json"))
+		packageBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "package.json"))
 		if err != nil {
-			t.Fatalf("read targets/opencode/package.json: %v", err)
+			t.Fatalf("read src/targets/opencode/package.json: %v", err)
 		}
 		if !strings.Contains(string(packageBody), `"@opencode-ai/plugin": "1.3.11"`) {
 			t.Fatalf("opencode package.json missing helper dependency:\n%s", packageBody)

@@ -277,7 +277,7 @@
       "id": "cursor",
       "name": "Workspace-config путь для Cursor",
       "status": "Только конфигурация",
-      "note": "Поддерживаются правила проекта, MCP-конфиг и optional root AGENTS.md, но Cursor остаётся строгим workspace-config путём."
+      "note": "Поддерживаются правила проекта и MCP-конфиг, а корневые CLAUDE.md и AGENTS.md зарезервированы для boundary docs плагина; Cursor остаётся строгим workspace-config путём."
     }
   ]
 }

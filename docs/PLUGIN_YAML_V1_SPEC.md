@@ -166,18 +166,18 @@ targets:
 
 ## Relationship To Other Layers
 
-### `targets/...`
+### `src/targets/...`
 
 Holds vendor-specific authored data.
 
 Examples:
 
-- `targets/codex-package/...`
-- `targets/codex-runtime/...`
-- `targets/claude/...`
-- `targets/gemini/...`
+- `src/targets/codex-package/...`
+- `src/targets/codex-runtime/...`
+- `src/targets/claude/...`
+- `src/targets/gemini/...`
 
-### `publish/...`
+### `src/publish/...`
 
 Will hold marketplace, gallery, and catalog publication metadata.
 

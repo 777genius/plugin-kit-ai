@@ -80,7 +80,7 @@ The documented subset includes:
 
 - `.cursor/mcp.json`
 - project-root `.cursor/rules/**`
-- optional shared root `AGENTS.md`
+- root `CLAUDE.md` and `AGENTS.md` as plugin boundary docs, not Cursor-native target surfaces
 
 This is a workspace-configuration target, not the main runtime path.
 

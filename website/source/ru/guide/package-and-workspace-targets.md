@@ -80,7 +80,7 @@ flowchart TD
 
 - `.cursor/mcp.json`
 - `.cursor/rules/**` в корне проекта
-- optional shared root `AGENTS.md`
+- root `CLAUDE.md` и `AGENTS.md` как boundary docs плагина, а не Cursor-native target surfaces
 
 Это target для workspace-config, а не основной runtime-путь.
 

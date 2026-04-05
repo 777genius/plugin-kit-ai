@@ -24,11 +24,11 @@ gemini extensions link .
 
 ## Files
 
-- `launcher.yaml`: Go entrypoint metadata for the Gemini runtime lane
+- `src/launcher.yaml`: Go entrypoint metadata for the Gemini runtime lane
 - `cmd/{{.ProjectName}}/main.go`: typed Go hook registrar starter
-- `targets/gemini/package.yaml`: Gemini extension metadata
-- `targets/gemini/contexts/GEMINI.md`: primary authored Gemini context
-- `targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
+- `src/targets/gemini/package.yaml`: Gemini extension metadata
+- `src/targets/gemini/contexts/GEMINI.md`: primary authored Gemini context
+- `src/targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
 - `gemini-extension.json`: generated native extension manifest
 
 ## Notes
@@ -47,5 +47,5 @@ gemini extensions link .
 - `plugin-kit-ai test` and `plugin-kit-ai dev` stay focused on the stable Claude/Codex runtime fixture lanes. For Gemini, use `go test ./...`, `plugin-kit-ai generate --check .`, `plugin-kit-ai validate . --platform gemini --strict`, `plugin-kit-ai inspect . --target gemini`, `plugin-kit-ai capabilities --mode runtime --platform gemini`, then exercise the extension through `gemini extensions link .` and a real Gemini CLI session.
 - Use `make test-gemini-runtime` for the deterministic repo-local Gemini runtime gate before you bother with a real CLI session.
 - Use `make test-gemini-runtime-live` when you need the dedicated opt-in real CLI runtime smoke.
-- Keep Gemini-specific authored assets inside `targets/gemini/...`.
+- Keep Gemini-specific authored assets inside `src/targets/gemini/...`.
 - Keep stdout reserved for Gemini hook JSON responses and write diagnostics to stderr only.

@@ -277,7 +277,7 @@
       "id": "cursor",
       "name": "Cursor workspace-config lane",
       "status": "Packaging-only target",
-      "note": "Project rules, MCP config, and optional root AGENTS.md support are covered, but Cursor remains a strict workspace-config lane."
+      "note": "Project rules and MCP config are covered, while root CLAUDE.md and AGENTS.md stay reserved for plugin boundary docs; Cursor remains a strict workspace-config lane."
     }
   ]
 }

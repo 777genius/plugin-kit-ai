@@ -123,7 +123,7 @@ Purpose:
 
 This layer must stay intentionally small.
 
-### 2. `targets/...`
+### 2. `src/targets/...`
 
 Vendor-specific authored adaptation layer.
 
@@ -134,12 +134,12 @@ Purpose:
 
 Examples:
 
-- `targets/codex-package/...`
-- `targets/codex-runtime/...`
-- `targets/claude/...`
-- `targets/gemini/...`
+- `src/targets/codex-package/...`
+- `src/targets/codex-runtime/...`
+- `src/targets/claude/...`
+- `src/targets/gemini/...`
 
-### 3. `publish/...`
+### 3. `src/publish/...`
 
 Marketplace, gallery, and catalog publication layer.
 

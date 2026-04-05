@@ -34,15 +34,16 @@ Use `plugin-kit-ai init <name> --platform claude --claude-extended-hooks` when y
 
 ## Target Files
 
-- `targets/claude/hooks/hooks.json`: authored Claude hook routing
+- `src/launcher.yaml`: runtime and entrypoint metadata for the Claude runtime lane
+- `src/targets/claude/hooks/hooks.json`: authored Claude hook routing
 - `hooks/hooks.json`: generated managed Claude hook file
 - `fixtures/claude/*.json`: pre-generated stable Claude smoke payloads owned by this project
 - `goldens/claude/*`: pre-generated stable stdout/stderr/exit contract owned by this project
 - Optional first-class Claude breadth via `--extras`:
-  - `targets/claude/settings.json` -> generated `settings.json`
-  - `targets/claude/lsp.json` -> generated `.lsp.json`
-  - `targets/claude/user-config.json` -> generated `plugin.json.userConfig`
-  - `targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
+  - `src/targets/claude/settings.json` -> generated `settings.json`
+  - `src/targets/claude/lsp.json` -> generated `.lsp.json`
+  - `src/targets/claude/user-config.json` -> generated `plugin.json.userConfig`
+  - `src/targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
 
 If you move the project, update the authored hook command paths so they still point at `{{.Entrypoint}}`.
 Keep stdout reserved for Claude responses and write diagnostics to stderr only.
