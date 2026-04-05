@@ -39,6 +39,8 @@ The repo shape stays the same:
 - `plugin.yaml` is the core plugin manifest
 - `targets/...` holds target-specific authored inputs
 - `publish/...` holds publication intent
+- `publication` is the inspect and doctor surface
+- `publish` is the publication workflow surface
 
 ## Publish To Codex
 
@@ -120,7 +122,7 @@ Gemini uses plan-and-readiness publication in v1, not local apply.
 Use this when one repo authors more than one publication channel:
 
 ```bash
-plugin-kit-ai publish ./my-plugin --all --dry-run --format json
+plugin-kit-ai publish ./my-plugin --all --dry-run --dest ./local-marketplaces --format json
 ```
 
 Important rules:
@@ -131,13 +133,19 @@ Important rules:
 - `--dest` is required only when authored channels include Codex or Claude local marketplace flows
 - Gemini-only orchestration does not require `--dest`
 
+If the repo authors only `gemini-gallery`, this also works:
+
+```bash
+plugin-kit-ai publish ./my-plugin --all --dry-run --format json
+```
+
 ## Which Command Should I Run?
 
 - I want a local Codex marketplace root: `plugin-kit-ai publish --channel codex-marketplace --dest <marketplace-root>`
 - I want a local Claude marketplace root: `plugin-kit-ai publish --channel claude-marketplace --dest <marketplace-root>`
 - I want Gemini publication readiness: `plugin-kit-ai publication doctor --target gemini`
 - I want a Gemini publication plan: `plugin-kit-ai publish --channel gemini-gallery --dry-run`
-- I want one combined publication plan: `plugin-kit-ai publish --all --dry-run`
+- I want one combined publication plan: `plugin-kit-ai publish --all --dry-run` and add `--dest <marketplace-root>` when Codex or Claude authored channels are included
 
 ## Further Reading
 

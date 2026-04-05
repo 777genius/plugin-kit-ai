@@ -39,6 +39,8 @@ translationRequired: true
 - `plugin.yaml` это core plugin manifest
 - `targets/...` содержит target-specific authored inputs
 - `publish/...` содержит publication intent
+- `publication` это inspect и doctor surface
+- `publish` это publication workflow surface
 
 ## Публикация в Codex
 
@@ -120,7 +122,7 @@ Gemini в v1 использует plan-and-readiness publication, а не local 
 Используйте это, когда один repo авторит больше одного publication channel:
 
 ```bash
-plugin-kit-ai publish ./my-plugin --all --dry-run --format json
+plugin-kit-ai publish ./my-plugin --all --dry-run --dest ./local-marketplaces --format json
 ```
 
 Важные правила:
@@ -131,13 +133,19 @@ plugin-kit-ai publish ./my-plugin --all --dry-run --format json
 - `--dest` нужен только если среди authored channels есть local marketplace flow для Codex или Claude
 - для Gemini-only orchestration `--dest` не нужен
 
+Если repo авторит только `gemini-gallery`, подойдёт и такой вариант:
+
+```bash
+plugin-kit-ai publish ./my-plugin --all --dry-run --format json
+```
+
 ## Какую команду запускать?
 
 - Хочу локальный Codex marketplace root: `plugin-kit-ai publish --channel codex-marketplace --dest <marketplace-root>`
 - Хочу локальный Claude marketplace root: `plugin-kit-ai publish --channel claude-marketplace --dest <marketplace-root>`
 - Хочу проверить Gemini publication readiness: `plugin-kit-ai publication doctor --target gemini`
 - Хочу увидеть Gemini publication plan: `plugin-kit-ai publish --channel gemini-gallery --dry-run`
-- Хочу увидеть один общий publication plan: `plugin-kit-ai publish --all --dry-run`
+- Хочу увидеть один общий publication plan: `plugin-kit-ai publish --all --dry-run`, а если среди authored channels есть Codex или Claude, добавьте `--dest <marketplace-root>`
 
 ## Что почитать дальше
 
