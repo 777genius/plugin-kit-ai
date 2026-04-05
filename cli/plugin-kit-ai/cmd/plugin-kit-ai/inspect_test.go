@@ -182,6 +182,14 @@ func TestInspectJSONUsesPortableContractShape(t *testing.T) {
 	if generatedOutputs, ok := layout["generated_outputs"].([]any); !ok || !containsInspectString(generatedOutputs, "GENERATED.md") {
 		t.Fatalf("layout.generated_outputs missing GENERATED.md: %+v", layout["generated_outputs"])
 	}
+	generatedByTarget, ok := layout["generated_by_target"].(map[string]any)
+	if !ok {
+		t.Fatalf("layout.generated_by_target missing: %+v", layout)
+	}
+	codexRuntimeOutputs, ok := generatedByTarget["codex-runtime"].([]any)
+	if !ok || !containsInspectString(codexRuntimeOutputs, "GENERATED.md") {
+		t.Fatalf("layout.generated_by_target[codex-runtime] missing GENERATED.md: %+v", generatedByTarget["codex-runtime"])
+	}
 	publication, ok := report["publication"].(map[string]any)
 	if !ok {
 		t.Fatalf("publication payload missing: %+v", report)
@@ -308,6 +316,11 @@ func TestInspectTextSeparatesAuthoredAndGeneratedOutputs(t *testing.T) {
 		"  - GENERATED.md",
 		"  - README.md",
 		"  - .cursor/mcp.json",
+		"generated_by_target:",
+		"  cursor:",
+		"    - GENERATED.md",
+		"    - README.md",
+		"    - .cursor/mcp.json",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)

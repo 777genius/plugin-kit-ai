@@ -103,6 +103,7 @@ type InspectLayout struct {
 	BoundaryDocs     []string `json:"boundary_docs,omitempty"`
 	GeneratedGuide   string   `json:"generated_guide,omitempty"`
 	GeneratedOutputs []string `json:"generated_outputs"`
+	GeneratedByTarget map[string][]string `json:"generated_by_target,omitempty"`
 }
 
 type Inspection struct {
@@ -536,10 +537,11 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 		Portable:    graph.Portable,
 		SourceFiles: cloneStringSlice(graph.SourceFiles),
 		Layout: InspectLayout{
-			AuthoredRoot:   layout.Path(""),
-			AuthoredInputs: cloneStringSlice(graph.SourceFiles),
-			BoundaryDocs:   boundaryDocsForLayout(layout),
-			GeneratedGuide: generatedGuideForLayout(layout),
+			AuthoredRoot:      layout.Path(""),
+			AuthoredInputs:    cloneStringSlice(graph.SourceFiles),
+			BoundaryDocs:      boundaryDocsForLayout(layout),
+			GeneratedGuide:    generatedGuideForLayout(layout),
+			GeneratedByTarget: map[string][]string{},
 		},
 		Publication: publicationmodel.Build(graph, mustDiscoverPublication(root), selected),
 	}
@@ -558,6 +560,7 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 		if err != nil {
 			return Inspection{}, warnings, err
 		}
+		inspection.Layout.GeneratedByTarget[name] = cloneStringSlice(managedArtifacts)
 		inspection.Targets = append(inspection.Targets, InspectTarget{
 			Target:              name,
 			PlatformFamily:      entry.PlatformFamily,

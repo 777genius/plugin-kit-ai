@@ -71,6 +71,20 @@ func newInspectCmd(runner inspectRunner) *cobra.Command {
 						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", path)
 					}
 				}
+				if len(report.Layout.GeneratedByTarget) > 0 {
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "generated_by_target:")
+					var targetNames []string
+					for name := range report.Layout.GeneratedByTarget {
+						targetNames = append(targetNames, name)
+					}
+					slices.Sort(targetNames)
+					for _, name := range targetNames {
+						_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s:\n", name)
+						for _, path := range report.Layout.GeneratedByTarget[name] {
+							_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    - %s\n", path)
+						}
+					}
+				}
 				for _, channel := range report.Publication.Channels {
 					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  channel[%s]: path=%s targets=%s",
 						channel.Family,
