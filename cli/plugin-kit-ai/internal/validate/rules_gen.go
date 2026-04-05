@@ -10,7 +10,6 @@ var generatedRules = map[string]Rule{
 			".claude-plugin/plugin.json",
 		},
 		ForbiddenFiles: []string{
-			"AGENTS.md",
 			".codex/config.toml",
 		},
 		BuildTargets: []string{},
@@ -24,7 +23,6 @@ var generatedRules = map[string]Rule{
 		ForbiddenFiles: []string{
 			"launcher.yaml",
 			".codex/config.toml",
-			"AGENTS.md",
 		},
 		BuildTargets: []string{},
 	},
@@ -47,7 +45,7 @@ var generatedRules = map[string]Rule{
 	"cursor": {
 		Platform: "cursor",
 		RequiredFiles: []string{
-			"plugin.yaml",
+			"README.md",
 		},
 		ForbiddenFiles: []string{
 			"launcher.yaml",
@@ -57,8 +55,8 @@ var generatedRules = map[string]Rule{
 	"gemini": {
 		Platform: "gemini",
 		RequiredFiles: []string{
-			"plugin.yaml",
-			"targets/gemini/package.yaml",
+			"README.md",
+			"gemini-extension.json",
 		},
 		ForbiddenFiles: []string{},
 		BuildTargets:   []string{},
@@ -66,8 +64,8 @@ var generatedRules = map[string]Rule{
 	"opencode": {
 		Platform: "opencode",
 		RequiredFiles: []string{
-			"plugin.yaml",
-			"targets/opencode/package.yaml",
+			"README.md",
+			"opencode.json",
 		},
 		ForbiddenFiles: []string{
 			"launcher.yaml",

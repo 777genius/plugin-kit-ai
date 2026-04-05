@@ -80,10 +80,10 @@ func buildPackage(graph pluginmodel.PackageGraph, publication publishschema.Stat
 		return Package{}, false
 	}
 	authoredSet := map[string]struct{}{
-		pluginmodel.FileName: {},
+		sourceFilePath(graph.SourceFiles, pluginmodel.FileName): {},
 	}
 	if graph.Launcher != nil && entry.LauncherRequirement == "required" {
-		authoredSet[pluginmodel.LauncherFileName] = struct{}{}
+		authoredSet[sourceFilePath(graph.SourceFiles, pluginmodel.LauncherFileName)] = struct{}{}
 	}
 	authoredDocs := map[string]string{}
 	for kind, path := range state.Docs {
@@ -126,6 +126,20 @@ func buildPackage(graph pluginmodel.PackageGraph, publication publishschema.Stat
 		AuthoredDocs:     cloneStringMap(authoredDocs),
 		ManagedArtifacts: cloneStrings(entry.ManagedArtifacts),
 	}, true
+}
+
+func sourceFilePath(paths []string, base string) string {
+	base = strings.TrimSpace(base)
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		if filepath.Base(path) == base {
+			return filepath.ToSlash(path)
+		}
+	}
+	return base
 }
 
 func packageFamilies(target string) (string, []string) {

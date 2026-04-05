@@ -249,10 +249,19 @@ func (codexPackageAdapter) Generate(root string, graph pluginmodel.PackageGraph,
 	if err != nil {
 		return nil, err
 	}
-	meta, _, err := readYAMLDoc[codexPackageMeta](root, state.DocPath("package_metadata"))
+	meta := codexPackageMeta{
+		Author:     manifestAuthorToCodex(graph.Manifest.Author),
+		Homepage:   strings.TrimSpace(graph.Manifest.Homepage),
+		Repository: strings.TrimSpace(graph.Manifest.Repository),
+		License:    strings.TrimSpace(graph.Manifest.License),
+		Keywords:   append([]string(nil), graph.Manifest.Keywords...),
+	}
+	override, _, err := readYAMLDoc[codexPackageMeta](root, state.DocPath("package_metadata"))
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
 	}
+	mergeCodexPackageMeta(&meta, override)
+	meta.Normalize()
 	managedPaths := managedKeysForNativeDoc("codex-package", "manifest_extra")
 	if err := pluginmodel.ValidateNativeExtraDocConflicts(extra, "codex-package manifest.extra.json", managedPaths); err != nil {
 		return nil, err
@@ -365,8 +374,8 @@ func (codexRuntimeAdapter) Generate(root string, graph pluginmodel.PackageGraph,
 		Content: config.Bytes(),
 	}}
 	copied, err := copyArtifactDirs(root,
-		artifactDir{src: filepath.Join("targets", "codex-runtime", "commands"), dst: "commands"},
-		artifactDir{src: filepath.Join("targets", "codex-runtime", "contexts"), dst: "contexts"},
+		artifactDir{src: authoredComponentDir(state, "commands", filepath.Join("targets", "codex-runtime", "commands")), dst: "commands"},
+		artifactDir{src: authoredComponentDir(state, "contexts", filepath.Join("targets", "codex-runtime", "contexts")), dst: "contexts"},
 	)
 	if err != nil {
 		return nil, err
@@ -466,15 +475,25 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 	}
 	if meta, ok, err := readYAMLDoc[codexPackageMeta](root, state.DocPath("package_metadata")); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
-	} else if ok {
-		meta.Normalize()
-		if !codexPackageMetaEqual(meta, pluginManifest.PackageMeta) {
+	} else {
+		expectedMeta := codexPackageMeta{
+			Author:     manifestAuthorToCodex(graph.Manifest.Author),
+			Homepage:   strings.TrimSpace(graph.Manifest.Homepage),
+			Repository: strings.TrimSpace(graph.Manifest.Repository),
+			License:    strings.TrimSpace(graph.Manifest.License),
+			Keywords:   append([]string(nil), graph.Manifest.Keywords...),
+		}
+		if ok {
+			mergeCodexPackageMeta(&expectedMeta, meta)
+		}
+		expectedMeta.Normalize()
+		if !codexPackageMetaEqual(expectedMeta, pluginManifest.PackageMeta) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeGeneratedContractInvalid,
 				Path:     codexmanifest.PluginManifestPath(),
 				Target:   "codex-package",
-				Message:  "Codex plugin manifest .codex-plugin/plugin.json package metadata does not match targets/codex-package/package.yaml",
+				Message:  "Codex plugin manifest .codex-plugin/plugin.json package metadata does not match plugin.yaml plus optional targets/codex-package/package.yaml overrides",
 			})
 		}
 	}
@@ -722,6 +741,44 @@ func codexPackageMetaEqual(left, right codexPackageMeta) bool {
 		left.Repository == right.Repository &&
 		left.License == right.License &&
 		slices.Equal(left.Keywords, right.Keywords)
+}
+
+func manifestAuthorToCodex(author *pluginmodel.Author) *codexmanifest.Author {
+	if author == nil {
+		return nil
+	}
+	out := &codexmanifest.Author{
+		Name:  strings.TrimSpace(author.Name),
+		Email: strings.TrimSpace(author.Email),
+		URL:   strings.TrimSpace(author.URL),
+	}
+	out.Normalize()
+	if out.Empty() {
+		return nil
+	}
+	return out
+}
+
+func mergeCodexPackageMeta(dst *codexPackageMeta, override codexPackageMeta) {
+	if dst == nil {
+		return
+	}
+	override.Normalize()
+	if override.Author != nil && !override.Author.Empty() {
+		dst.Author = override.Author
+	}
+	if strings.TrimSpace(override.Homepage) != "" {
+		dst.Homepage = override.Homepage
+	}
+	if strings.TrimSpace(override.Repository) != "" {
+		dst.Repository = override.Repository
+	}
+	if strings.TrimSpace(override.License) != "" {
+		dst.License = override.License
+	}
+	if len(override.Keywords) > 0 {
+		dst.Keywords = append([]string(nil), override.Keywords...)
+	}
 }
 
 func (codexRuntimeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {

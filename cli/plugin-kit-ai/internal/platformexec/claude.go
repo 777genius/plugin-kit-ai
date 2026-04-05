@@ -232,7 +232,7 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: ".lsp.json", Content: lspBody})
 	}
 	if hookPaths := state.ComponentPaths("hooks"); len(hookPaths) > 0 {
-		copied, err := copyArtifacts(root, filepath.Join("targets", "claude", "hooks"), "hooks")
+		copied, err := copyArtifacts(root, authoredComponentDir(state, "hooks", filepath.Join("targets", "claude", "hooks")), "hooks")
 		if err != nil {
 			return nil, err
 		}
@@ -244,8 +244,8 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		})
 	}
 	copiedKinds := []artifactDir{
-		{src: filepath.Join("targets", "claude", "agents"), dst: "agents"},
-		{src: filepath.Join("targets", "claude", "commands"), dst: "commands"},
+		{src: authoredComponentDir(state, "agents", filepath.Join("targets", "claude", "agents")), dst: "agents"},
+		{src: authoredComponentDir(state, "commands", filepath.Join("targets", "claude", "commands")), dst: "commands"},
 	}
 	copied, err := copyArtifactDirs(root, copiedKinds...)
 	if err != nil {

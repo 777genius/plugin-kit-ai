@@ -18,6 +18,7 @@ import (
 const (
 	FileName         = "plugin.yaml"
 	LauncherFileName = "launcher.yaml"
+	SourceDirName    = "src"
 	APIVersionV1     = "v1"
 )
 
@@ -37,11 +38,22 @@ type Warning struct {
 	Message string
 }
 
+type Author struct {
+	Name  string `yaml:"name,omitempty" json:"name,omitempty"`
+	Email string `yaml:"email,omitempty" json:"email,omitempty"`
+	URL   string `yaml:"url,omitempty" json:"url,omitempty"`
+}
+
 type Manifest struct {
 	APIVersion  string   `yaml:"api_version,omitempty" json:"api_version,omitempty"`
 	Name        string   `yaml:"name" json:"name"`
 	Version     string   `yaml:"version" json:"version"`
 	Description string   `yaml:"description" json:"description"`
+	Author      *Author  `yaml:"author,omitempty" json:"author,omitempty"`
+	Homepage    string   `yaml:"homepage,omitempty" json:"homepage,omitempty"`
+	Repository  string   `yaml:"repository,omitempty" json:"repository,omitempty"`
+	License     string   `yaml:"license,omitempty" json:"license,omitempty"`
+	Keywords    []string `yaml:"keywords,omitempty" json:"keywords,omitempty"`
 	Targets     []string `yaml:"targets" json:"targets"`
 }
 
@@ -162,6 +174,18 @@ func NormalizeManifest(m *Manifest) {
 	m.Name = strings.TrimSpace(m.Name)
 	m.Version = strings.TrimSpace(m.Version)
 	m.Description = strings.TrimSpace(m.Description)
+	if m.Author != nil {
+		m.Author.Name = strings.TrimSpace(m.Author.Name)
+		m.Author.Email = strings.TrimSpace(m.Author.Email)
+		m.Author.URL = strings.TrimSpace(m.Author.URL)
+		if m.Author.Name == "" && m.Author.Email == "" && m.Author.URL == "" {
+			m.Author = nil
+		}
+	}
+	m.Homepage = strings.TrimSpace(m.Homepage)
+	m.Repository = strings.TrimSpace(m.Repository)
+	m.License = strings.TrimSpace(m.License)
+	m.Keywords = normalizeStrings(m.Keywords)
 	for i, target := range m.Targets {
 		m.Targets[i] = NormalizeTarget(target)
 	}
@@ -227,6 +251,26 @@ func (m Manifest) Validate() error {
 		}
 	}
 	return nil
+}
+
+func normalizeStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		out = append(out, value)
+	}
+	slices.Sort(out)
+	out = slices.Compact(out)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (l Launcher) Validate() error {

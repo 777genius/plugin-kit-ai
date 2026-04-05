@@ -21,16 +21,18 @@ plugin-kit-ai validate . --platform opencode --strict
 
 ## Target Files
 
-- `targets/opencode/package.yaml`: authored OpenCode package metadata; `plugins` renders to `opencode.json.plugin`
-- `mcp/servers.yaml`: portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and generate projects it into `opencode.json.mcp`
-- `targets/opencode/commands/`: markdown commands mirrored into `.opencode/commands/`
-- `targets/opencode/agents/`: markdown agents mirrored into `.opencode/agents/`
-- `targets/opencode/themes/`: JSON theme definitions mirrored into `.opencode/themes/`
-- `targets/opencode/tools/`: standalone JS/TS tool definitions mirrored into `.opencode/tools/`
-- `targets/opencode/plugins/`: local JS/TS plugin subtree mirrored into `.opencode/plugins/`
-- `targets/opencode/package.json`: shared dependency metadata mirrored into `.opencode/package.json` for standalone tools and plugin code
-- portable `mcp/servers.yaml`: canonical human-authored portable MCP source
-- portable `skills/`: validated against the shared `SKILL.md` contract, then mirrored into `.opencode/skills/`
+- `src/plugin.yaml`: canonical shared plugin metadata and target list
+- `src/targets/opencode/package.yaml`: authored OpenCode package metadata; `plugins` renders to `opencode.json.plugin`
+- `src/mcp/servers.yaml`: portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and generate projects it into `opencode.json.mcp`
+- `src/targets/opencode/commands/`: markdown commands mirrored into `.opencode/commands/`
+- `src/targets/opencode/agents/`: markdown agents mirrored into `.opencode/agents/`
+- `src/targets/opencode/themes/`: JSON theme definitions mirrored into `.opencode/themes/`
+- `src/targets/opencode/tools/`: standalone JS/TS tool definitions mirrored into `.opencode/tools/`
+- `src/targets/opencode/plugins/`: local JS/TS plugin subtree mirrored into `.opencode/plugins/`
+- `src/targets/opencode/package.json`: shared dependency metadata mirrored into `.opencode/package.json` for standalone tools and plugin code
+- portable `src/mcp/servers.yaml`: canonical human-authored portable MCP source
+- portable `src/skills/`: validated against the shared `SKILL.md` contract, then mirrored into `.opencode/skills/`
+- root `CLAUDE.md` and `AGENTS.md`: boundary docs that tell humans and agents to edit only `src/`
 - `opencode.json`: generated managed OpenCode workspace config
 
 ## Current Boundary
@@ -38,5 +40,5 @@ plugin-kit-ai validate . --platform opencode --strict
 - Supported in v1: plugin package refs, shared MCP, portable skills, workspace commands, workspace agents, workspace themes, local JS/TS plugin subtree import/generate/validate, plugin-local dependency metadata, JSON/JSONC native config import, explicit `--include-user-scope` import
 - Beta-only in v1: standalone `.opencode/tools/**` authoring and the broader custom-tools capability across standalone tools and plugin code
 - Canonical local plugin starter shape: official-style named async plugin exports; canonical standalone tool starter shape: `export default tool({...})`; helper-based tools and plugins require `@opencode-ai/plugin` in `targets/opencode/package.json`
-- Native OpenCode config can be imported from `opencode.json` or `opencode.jsonc`; authored skills must live under `skills/**`
-- Broader product config still stays under `targets/opencode/config.extra.json`; config-level `tools` settings remain passthrough-only and are distinct from first-class standalone tool files under `targets/opencode/tools/`
+- Native OpenCode config can be imported from `opencode.json` or `opencode.jsonc`; authored skills must live under `src/skills/**`
+- Broader product config still stays under `src/targets/opencode/config.extra.json`; config-level `tools` settings remain passthrough-only and are distinct from first-class standalone tool files under `src/targets/opencode/tools/`

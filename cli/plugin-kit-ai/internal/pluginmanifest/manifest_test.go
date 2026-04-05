@@ -269,6 +269,71 @@ servers:
 	}
 }
 
+func TestRender_CanonicalSrcLayoutMirrorsRootReadme(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets:
+  - "cursor"
+`)
+	mustWritePluginFile(t, root, filepath.Join("src", "README.md"), "# Demo\n\nEdit only `src/`.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
+version: 1
+
+servers:
+  docs:
+    type: stdio
+    stdio:
+      command: npx
+      args:
+        - -y
+        - "@upstash/context7-mcp@2.1.6"
+    targets:
+      - cursor
+`)
+
+	result, err := Generate(root, "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	readmeBody, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(readmeBody) != "# Demo\n\nEdit only `src/`.\n" {
+		t.Fatalf("unexpected root README:\n%s", readmeBody)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".cursor", "mcp.json")); err != nil {
+		t.Fatalf("stat .cursor/mcp.json: %v", err)
+	}
+}
+
+func TestDiscover_RejectsMixedAuthoredLayout(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "plugin.yaml", `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets:
+  - "cursor"
+`)
+	mustWritePluginFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets:
+  - "cursor"
+`)
+	if _, _, err := Discover(root); err == nil || !strings.Contains(err.Error(), "mixed authored layout") {
+		t.Fatalf("expected mixed authored layout error, got %v", err)
+	}
+}
+
 func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "opencode.json", `{
@@ -297,15 +362,15 @@ func TestImport_OpenCodeNativeLayout(t *testing.T) {
 		t.Fatalf("targets = %v", imported.Targets)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "package.json"),
-		filepath.Join("mcp", "servers.yaml"),
-		filepath.Join("skills", "demo", "SKILL.md"),
-		filepath.Join("targets", "opencode", "commands", "ship.md"),
-		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
-		filepath.Join("targets", "opencode", "themes", "midnight.json"),
-		filepath.Join("targets", "opencode", "tools", "echo.ts"),
-		filepath.Join("targets", "opencode", "plugins", "demo.ts"),
+		filepath.Join("src", "targets", "opencode", "package.yaml"),
+		filepath.Join("src", "targets", "opencode", "package.json"),
+		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "skills", "demo", "SKILL.md"),
+		filepath.Join("src", "targets", "opencode", "commands", "ship.md"),
+		filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"),
+		filepath.Join("src", "targets", "opencode", "themes", "midnight.json"),
+		filepath.Join("src", "targets", "opencode", "tools", "echo.ts"),
+		filepath.Join("src", "targets", "opencode", "plugins", "demo.ts"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -350,14 +415,14 @@ func TestImport_OpenCodeNormalizesInlineCommandsAndAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "opencode", "commands", "ship.md"),
-		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
+		filepath.Join("src", "targets", "opencode", "commands", "ship.md"),
+		filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "config.extra.json"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "config.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,14 +462,14 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 		t.Fatalf("targets = %v", imported.Targets)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("targets", "opencode", "package.json"),
-		filepath.Join("targets", "opencode", "commands", "ship.md"),
-		filepath.Join("targets", "opencode", "agents", "reviewer.md"),
-		filepath.Join("targets", "opencode", "themes", "midnight.json"),
-		filepath.Join("targets", "opencode", "tools", "echo.ts"),
-		filepath.Join("targets", "opencode", "plugins", "global.js"),
-		filepath.Join("skills", "demo", "SKILL.md"),
+		filepath.Join("src", "targets", "opencode", "package.yaml"),
+		filepath.Join("src", "targets", "opencode", "package.json"),
+		filepath.Join("src", "targets", "opencode", "commands", "ship.md"),
+		filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"),
+		filepath.Join("src", "targets", "opencode", "themes", "midnight.json"),
+		filepath.Join("src", "targets", "opencode", "tools", "echo.ts"),
+		filepath.Join("src", "targets", "opencode", "plugins", "global.js"),
+		filepath.Join("src", "skills", "demo", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -437,8 +502,8 @@ func TestImport_OpenCodeNativeJSONCLayout(t *testing.T) {
 		t.Fatalf("targets = %v", imported.Targets)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "opencode", "package.yaml"),
-		filepath.Join("mcp", "servers.yaml"),
+		filepath.Join("src", "targets", "opencode", "package.yaml"),
+		filepath.Join("src", "mcp", "servers.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -464,7 +529,7 @@ func TestImport_OpenCodePrefersJSONOverJSONC(t *testing.T) {
 	if got := warnings[0].Message; !strings.Contains(got, "opencode.json takes precedence") {
 		t.Fatalf("warning = %q", got)
 	}
-	body, err := os.ReadFile(filepath.Join(root, filepath.Join("targets", "opencode", "package.yaml")))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,14 +565,14 @@ func TestImport_OpenCodeUserScopeProjectOverridesPluginFiles(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %v, want none", warnings)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "plugins", "shared.js"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "plugins", "shared.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(body), `name:"project"`) {
 		t.Fatalf("shared.js = %s", body)
 	}
-	pkgBody, err := os.ReadFile(filepath.Join(root, "targets", "opencode", "package.json"))
+	pkgBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "package.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -721,7 +786,7 @@ func TestImport_CursorRejectsLegacyCursorRules(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "."+"cursor"+"rules", "Always review generated code.\n")
 
-	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "unsupported Cursor repo-root rules file: use .cursor/rules/*.mdc and optional root AGENTS.md") {
+	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "unsupported Cursor repo-root rules file: use .cursor/rules/*.mdc") {
 		t.Fatalf("Import error = %v", err)
 	}
 }
@@ -742,7 +807,6 @@ servers:
         - "@upstash/context7-mcp"
 `)
 	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "AGENTS.md"), "# Cursor agents\n")
 
 	result, err := Generate(root, "cursor")
 	if err != nil {
@@ -754,7 +818,6 @@ servers:
 	for _, rel := range []string{
 		filepath.Join(".cursor", "mcp.json"),
 		filepath.Join(".cursor", "rules", "project.mdc"),
-		"AGENTS.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -772,12 +835,11 @@ servers:
 	}
 }
 
-func TestRender_CursorTracksRootAgentsAsManagedArtifact(t *testing.T) {
+func TestRender_CursorRuleRemovalDoesNotTrackBoundaryDocs(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
 	mustSavePackage(t, root, manifest, "")
 	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "AGENTS.md"), "# Cursor agents\n")
 
 	first, err := Generate(root, "cursor")
 	if err != nil {
@@ -786,7 +848,7 @@ func TestRender_CursorTracksRootAgentsAsManagedArtifact(t *testing.T) {
 	if err := WriteArtifacts(root, first.Artifacts); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(filepath.Join(root, "targets", "cursor", "AGENTS.md")); err != nil {
+	if err := os.Remove(filepath.Join(root, "targets", "cursor", "rules", "project.mdc")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -794,15 +856,10 @@ func TestRender_CursorTracksRootAgentsAsManagedArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var found bool
 	for _, rel := range second.StalePaths {
-		if rel == "AGENTS.md" {
-			found = true
-			break
+		if rel == "AGENTS.md" || strings.Contains(rel, "targets/cursor/AGENTS.md") {
+			t.Fatalf("unexpected boundary-doc stale path: %v", second.StalePaths)
 		}
-	}
-	if !found {
-		t.Fatalf("stale paths = %v, want AGENTS.md", second.StalePaths)
 	}
 }
 
@@ -810,7 +867,6 @@ func TestImport_CursorNativeLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join(".cursor", "mcp.json"), `{"context7":{"command":"npx","args":["-y","@upstash/context7-mcp"]}}`)
 	mustWritePluginFile(t, root, filepath.Join(".cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
-	mustWritePluginFile(t, root, "AGENTS.md", "# Cursor agents\n")
 
 	imported, warnings, err := Import(root, "", false, false)
 	if err != nil {
@@ -820,9 +876,8 @@ func TestImport_CursorNativeLayout(t *testing.T) {
 		t.Fatalf("targets = %v", imported.Targets)
 	}
 	for _, rel := range []string{
-		filepath.Join("mcp", "servers.yaml"),
-		filepath.Join("targets", "cursor", "rules", "project.mdc"),
-		filepath.Join("targets", "cursor", "AGENTS.md"),
+		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -833,22 +888,12 @@ func TestImport_CursorNativeLayout(t *testing.T) {
 	}
 }
 
-func TestImport_CursorExplicitAllowsRootAgentsOnly(t *testing.T) {
+func TestImport_CursorRejectsBoundaryDocsOnly(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "AGENTS.md", "# Shared agents\n")
 
-	imported, warnings, err := Import(root, "cursor", false, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(imported.Targets) != 1 || imported.Targets[0] != "cursor" {
-		t.Fatalf("targets = %v", imported.Targets)
-	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "cursor", "AGENTS.md")); err != nil {
-		t.Fatalf("stat targets/cursor/AGENTS.md: %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
+	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "Cursor import requires .cursor/mcp.json or .cursor/rules/**") {
+		t.Fatalf("Import error = %v", err)
 	}
 }
 
@@ -866,18 +911,16 @@ func TestInspect_CursorExposesWorkspaceSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
-	var foundMCP, foundRules, foundAgents bool
+	var foundMCP, foundRules bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
 		case surface.Kind == "mcp" && surface.Tier == "stable":
 			foundMCP = true
 		case surface.Kind == "rules" && surface.Tier == "stable":
 			foundRules = true
-		case surface.Kind == "agents_md" && surface.Tier == "stable":
-			foundAgents = true
 		}
 	}
-	if !foundMCP || !foundRules || !foundAgents {
+	if !foundMCP || !foundRules {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }
@@ -1045,7 +1088,7 @@ func TestImport_CurrentNativeCodexRuntimeShellProject(t *testing.T) {
 	if launcher.Entrypoint != "./bin/demo" {
 		t.Fatalf("entrypoint = %q", launcher.Entrypoint)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "codex-runtime", "package.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-runtime", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1272,7 +1315,7 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 		t.Fatal("expected fidelity warnings")
 	}
 
-	packageBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "package.yaml"))
+	packageBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-package", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1287,28 +1330,28 @@ func TestImport_CurrentNativeCodexPreservesExtraDocs(t *testing.T) {
 			t.Fatalf("package.yaml missing %q:\n%s", want, packageBody)
 		}
 	}
-	interfaceBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "interface.json"))
+	interfaceBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-package", "interface.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(interfaceBody), `"defaultPrompt": [`) || !strings.Contains(string(interfaceBody), `"Run the demo"`) {
 		t.Fatalf("interface.json = %s", interfaceBody)
 	}
-	appBody, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "app.json"))
+	appBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-package", "app.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(appBody), `"name":"demo-app"`) {
 		t.Fatalf("app.json = %s", appBody)
 	}
-	manifestExtra, err := os.ReadFile(filepath.Join(root, "targets", "codex-package", "manifest.extra.json"))
+	manifestExtra, err := os.ReadFile(filepath.Join(root, "src", "targets", "codex-package", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(manifestExtra), `"x-extra": {`) {
 		t.Fatalf("manifest.extra.json = %s", manifestExtra)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "codex-runtime", "config.extra.toml")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "codex-runtime", "config.extra.toml")); !os.IsNotExist(err) {
 		t.Fatalf("codex-runtime config.extra.toml should not exist for codex-package import: %v", err)
 	}
 }
@@ -1408,14 +1451,14 @@ func TestImport_CurrentNativeCodexImportsCustomSkillsAndMCPRefs(t *testing.T) {
 	if !containsWarning(warnings, "normalized Codex plugin mcpServers path to the managed ./.mcp.json location") {
 		t.Fatalf("warnings = %+v", warnings)
 	}
-	skillBody, err := os.ReadFile(filepath.Join(root, "skills", "demo", "SKILL.md"))
+	skillBody, err := os.ReadFile(filepath.Join(root, "src", "skills", "demo", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(skillBody), "Run the demo.") {
 		t.Fatalf("imported skill = %q", string(skillBody))
 	}
-	mcpBody, err := os.ReadFile(filepath.Join(root, "mcp", "servers.yaml"))
+	mcpBody, err := os.ReadFile(filepath.Join(root, "src", "mcp", "servers.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1470,10 +1513,10 @@ func TestImport_ClaudeManifestlessLayoutPreservesCanonicalDocs(t *testing.T) {
 		t.Fatalf("imported manifest name = %q, want %q", imported.Name, "plugin")
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "claude", "settings.json"),
-		filepath.Join("targets", "claude", "lsp.json"),
-		filepath.Join("targets", "claude", "agents", "reviewer.md"),
-		filepath.Join("targets", "claude", "commands", "ship.md"),
+		filepath.Join("src", "targets", "claude", "settings.json"),
+		filepath.Join("src", "targets", "claude", "lsp.json"),
+		filepath.Join("src", "targets", "claude", "agents", "reviewer.md"),
+		filepath.Join("src", "targets", "claude", "commands", "ship.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -1513,12 +1556,12 @@ func TestImport_ClaudeNormalizesCustomPathsAndUserConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "claude", "commands", "ship.md"),
-		filepath.Join("targets", "claude", "agents", "reviewer.md"),
-		filepath.Join("targets", "claude", "hooks", "hooks.json"),
-		filepath.Join("targets", "claude", "lsp.json"),
-		filepath.Join("targets", "claude", "settings.json"),
-		filepath.Join("targets", "claude", "user-config.json"),
+		filepath.Join("src", "targets", "claude", "commands", "ship.md"),
+		filepath.Join("src", "targets", "claude", "agents", "reviewer.md"),
+		filepath.Join("src", "targets", "claude", "hooks", "hooks.json"),
+		filepath.Join("src", "targets", "claude", "lsp.json"),
+		filepath.Join("src", "targets", "claude", "settings.json"),
+		filepath.Join("src", "targets", "claude", "user-config.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -1560,7 +1603,7 @@ func TestImport_ClaudeNormalizesMultiPathArrays(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hooksBody, err := os.ReadFile(filepath.Join(root, "targets", "claude", "hooks", "hooks.json"))
+	hooksBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "claude", "hooks", "hooks.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1576,10 +1619,10 @@ func TestImport_ClaudeNormalizesMultiPathArrays(t *testing.T) {
 	if !ok || len(stopEntries) != 2 {
 		t.Fatalf("Stop hooks = %#v", hooksMap["Stop"])
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "lsp.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "claude", "lsp.json")); err != nil {
 		t.Fatalf("stat lsp: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "mcp", "servers.yaml")); err != nil {
 		t.Fatalf("stat mcp: %v", err)
 	}
 
@@ -1651,7 +1694,7 @@ func TestImport_ClaudeManifestlessDetectsCommandsOnly(t *testing.T) {
 	if len(imported.Targets) != 1 || imported.Targets[0] != "claude" {
 		t.Fatalf("targets = %+v", imported.Targets)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "commands", "ship.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "claude", "commands", "ship.md")); err != nil {
 		t.Fatalf("stat command: %v", err)
 	}
 	if !containsWarning(warnings, "native Claude plugin imported without manifest") {
@@ -1670,7 +1713,7 @@ func TestImport_ClaudeManifestlessDetectsAgentsOnly(t *testing.T) {
 	if len(imported.Targets) != 1 || imported.Targets[0] != "claude" {
 		t.Fatalf("targets = %+v", imported.Targets)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "claude", "agents", "reviewer.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "claude", "agents", "reviewer.md")); err != nil {
 		t.Fatalf("stat agent: %v", err)
 	}
 	if !containsWarning(warnings, "native Claude plugin imported without manifest") {
@@ -1694,7 +1737,7 @@ targets: ["codex"]
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if !strings.Contains(err.Error(), "refusing to overwrite existing file plugin.yaml") {
+	if !strings.Contains(err.Error(), "refusing to overwrite existing file plugin.yaml") && !strings.Contains(err.Error(), "mixed authored layout") {
 		t.Fatalf("error = %v", err)
 	}
 	for _, rel := range []string{
@@ -1737,25 +1780,25 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 	if manifest.Version != "0.2.0" {
 		t.Fatalf("version = %q", manifest.Version)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "package.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "gemini", "package.yaml")); err != nil {
 		t.Fatalf("stat gemini package metadata: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "mcp", "servers.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "mcp", "servers.yaml")); err != nil {
 		t.Fatalf("stat mcp servers: %v", err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "gemini", "settings", "release-profile.yaml"),
-		filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"),
-		filepath.Join("targets", "gemini", "manifest.extra.json"),
-		filepath.Join("targets", "gemini", "commands", "release", "deploy.toml"),
-		filepath.Join("targets", "gemini", "policies", "review.toml"),
-		filepath.Join("targets", "gemini", "hooks", "hooks.json"),
+		filepath.Join("src", "targets", "gemini", "settings", "release-profile.yaml"),
+		filepath.Join("src", "targets", "gemini", "themes", "release-dawn.yaml"),
+		filepath.Join("src", "targets", "gemini", "manifest.extra.json"),
+		filepath.Join("src", "targets", "gemini", "commands", "release", "deploy.toml"),
+		filepath.Join("src", "targets", "gemini", "policies", "review.toml"),
+		filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "gemini", "package.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "gemini", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1764,13 +1807,13 @@ func TestImport_CurrentNativeGeminiLayout(t *testing.T) {
 			t.Fatalf("package metadata missing %q:\n%s", want, body)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "contexts", "TEAM.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "gemini", "contexts", "TEAM.md")); err != nil {
 		t.Fatalf("stat imported custom primary context: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "gemini", "contexts", "RELEASE.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "gemini", "contexts", "RELEASE.md")); err != nil {
 		t.Fatalf("stat imported extra Gemini context: %v", err)
 	}
-	extra, err := os.ReadFile(filepath.Join(root, "targets", "gemini", "manifest.extra.json"))
+	extra, err := os.ReadFile(filepath.Join(root, "src", "targets", "gemini", "manifest.extra.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1804,7 +1847,7 @@ func TestImport_CurrentNativeGeminiRuntimeLayoutCreatesLauncher(t *testing.T) {
 	if manifest.Name != "demo-runtime" {
 		t.Fatalf("name = %q", manifest.Name)
 	}
-	body, err := os.ReadFile(filepath.Join(root, LauncherFileName))
+	body, err := os.ReadFile(filepath.Join(root, "src", LauncherFileName))
 	if err != nil {
 		t.Fatalf("read launcher: %v", err)
 	}

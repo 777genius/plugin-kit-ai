@@ -26,7 +26,7 @@ func TestValidate_ManifestMissing(t *testing.T) {
 	if got := re.Report.Failures[0].Path; got != pluginmanifest.FileName {
 		t.Fatalf("failure path = %q", got)
 	}
-	if re.Error() != "required manifest missing: plugin.yaml" {
+	if re.Error() != "required manifest missing: plugin.yaml or src/plugin.yaml" {
 		t.Fatalf("error = %q", re.Error())
 	}
 }
@@ -1077,7 +1077,7 @@ keywords:
 		switch {
 		case strings.Contains(failure.Message, `sets name "other"; expected "x"`):
 			foundName = true
-		case strings.Contains(failure.Message, "package metadata does not match targets/codex-package/package.yaml"):
+		case strings.Contains(failure.Message, "package metadata does not match plugin.yaml plus optional targets/codex-package/package.yaml overrides"):
 			foundMeta = true
 		case strings.Contains(failure.Message, "interface does not match targets/codex-package/interface.json"):
 			foundInterface = true

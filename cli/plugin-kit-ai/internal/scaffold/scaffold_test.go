@@ -86,7 +86,8 @@ func TestPaths_Cursor(t *testing.T) {
 		"plugin.yaml",
 		"README.md",
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
-		filepath.Join("targets", "cursor", "AGENTS.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -301,7 +302,8 @@ func TestPathsForRuntime_CursorIgnoresExecutableScaffolding(t *testing.T) {
 		"plugin.yaml",
 		"README.md",
 		filepath.Join("targets", "cursor", "rules", "project.mdc"),
-		filepath.Join("targets", "cursor", "AGENTS.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if !contains(got, want) {
 			t.Fatalf("missing %q in %v", want, got)
@@ -368,8 +370,10 @@ func TestWrite_CodexRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		"launcher.yaml",
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "launcher.yaml"),
+		"CLAUDE.md",
+		"AGENTS.md",
 		filepath.Join("cmd", "my-plugin", "main.go"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
@@ -392,7 +396,7 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err := os.ReadFile(filepath.Join(root, "plugin.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "plugin.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,9 +437,11 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		filepath.Join("targets", "opencode", "package.yaml"),
-		"README.md",
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "targets", "opencode", "package.yaml"),
+		filepath.Join("src", "README.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -443,7 +449,7 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"launcher.yaml",
-		filepath.Join("skills", "my-plugin", "SKILL.md"),
+		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
@@ -464,9 +470,11 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		"README.md",
-		filepath.Join("targets", "cursor", "rules", "project.mdc"),
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "README.md"),
+		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -475,7 +483,6 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 	for _, rel := range []string{
 		"launcher.yaml",
 		"go.mod",
-		filepath.Join("targets", "cursor", "AGENTS.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
@@ -483,7 +490,7 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 }
 
-func TestWrite_CursorExtrasCreateOptionalAgentsDoc(t *testing.T) {
+func TestWrite_CursorExtrasKeepsBoundaryDocsOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	err := Write(root, Data{
@@ -496,8 +503,13 @@ func TestWrite_CursorExtrasCreateOptionalAgentsDoc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "targets", "cursor", "AGENTS.md")); err != nil {
-		t.Fatalf("stat targets/cursor/AGENTS.md: %v", err)
+	for _, rel := range []string{"CLAUDE.md", "AGENTS.md"} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "src", "targets", "cursor", "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected src/targets/cursor/AGENTS.md to stay absent, err=%v", err)
 	}
 }
 
@@ -514,7 +526,7 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "skills", "my-plugin", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "skills", "my-plugin", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -531,12 +543,12 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 		}
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "opencode", "commands", "my-plugin.md"),
-		filepath.Join("targets", "opencode", "agents", "my-plugin.md"),
-		filepath.Join("targets", "opencode", "themes", "my-plugin.json"),
-		filepath.Join("targets", "opencode", "tools", "my-plugin.ts"),
-		filepath.Join("targets", "opencode", "plugins", "example.js"),
-		filepath.Join("targets", "opencode", "package.json"),
+		filepath.Join("src", "targets", "opencode", "commands", "my-plugin.md"),
+		filepath.Join("src", "targets", "opencode", "agents", "my-plugin.md"),
+		filepath.Join("src", "targets", "opencode", "themes", "my-plugin.json"),
+		filepath.Join("src", "targets", "opencode", "tools", "my-plugin.ts"),
+		filepath.Join("src", "targets", "opencode", "plugins", "example.js"),
+		filepath.Join("src", "targets", "opencode", "package.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -573,10 +585,10 @@ func TestWrite_ClaudeExtrasCreateOptionalJSONDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("targets", "claude", "settings.json"),
-		filepath.Join("targets", "claude", "lsp.json"),
-		filepath.Join("targets", "claude", "user-config.json"),
-		filepath.Join("targets", "claude", "manifest.extra.json"),
+		filepath.Join("src", "targets", "claude", "settings.json"),
+		filepath.Join("src", "targets", "claude", "lsp.json"),
+		filepath.Join("src", "targets", "claude", "user-config.json"),
+		filepath.Join("src", "targets", "claude", "manifest.extra.json"),
 	} {
 		body, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -602,17 +614,19 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		filepath.Join("targets", "gemini", "package.yaml"),
-		filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
-		"README.md",
-		filepath.Join("skills", "my-plugin", "SKILL.md"),
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "targets", "gemini", "package.yaml"),
+		filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"),
+		filepath.Join("src", "README.md"),
+		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(root, "targets", "gemini", "package.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "gemini", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -647,13 +661,15 @@ func TestWrite_GeminiGoCreatesRuntimeStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"go.mod",
-		"plugin.yaml",
-		"launcher.yaml",
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "launcher.yaml"),
 		filepath.Join("cmd", "my-plugin", "main.go"),
-		filepath.Join("targets", "gemini", "package.yaml"),
-		filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
-		filepath.Join("targets", "gemini", "hooks", "hooks.json"),
-		"README.md",
+		filepath.Join("src", "targets", "gemini", "package.yaml"),
+		filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"),
+		filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"),
+		filepath.Join("src", "README.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -675,8 +691,8 @@ func TestWrite_CodexRuntimePythonIncludesLauncher(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		"launcher.yaml",
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "launcher.yaml"),
 		"requirements.txt",
 		filepath.Join("src", "plugin_runtime.py"),
 		filepath.Join("src", "main.py"),
@@ -722,8 +738,8 @@ func TestWrite_CodexRuntimeNodeTypeScriptIncludesBuiltOutputShape(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		"plugin.yaml",
-		"launcher.yaml",
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "launcher.yaml"),
 		"package.json",
 		"tsconfig.json",
 		filepath.Join("src", "plugin-runtime.ts"),
@@ -1242,10 +1258,10 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
-				"`mcp/servers.yaml`",
-				"`targets/codex-package/interface.json`: optional structured Codex `interface` doc generated into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape",
-				"`targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter stays ignored until you replace the empty placeholder with a real app manifest",
-				"`targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed",
+				"`src/mcp/servers.yaml`",
+				"`src/targets/codex-package/interface.json`: optional structured Codex `interface` doc generated into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape",
+				"`src/targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter stays ignored until you replace the empty placeholder with a real app manifest",
+				"`src/targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed",
 				"`.codex-plugin/plugin.json`: generated managed Codex plugin manifest; `.codex-plugin/` must not contain any other files",
 				"`.app.json` and `.mcp.json`: managed sidecars at the plugin root only when `.codex-plugin/plugin.json` references them",
 			},
@@ -1279,9 +1295,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
-				"`mcp/servers.yaml`",
-				"no `launcher.yaml`",
-				"`targets/gemini/package.yaml`",
+				"`src/mcp/servers.yaml`",
+				"no `src/launcher.yaml`",
+				"`src/targets/gemini/package.yaml`",
 			},
 		},
 		{
@@ -1293,14 +1309,14 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
-				"`mcp/servers.yaml`",
-				"`targets/opencode/package.yaml`",
-				"`targets/opencode/commands/`",
-				"`targets/opencode/agents/`",
-				"`targets/opencode/themes/`",
-				"`targets/opencode/tools/`",
-				"`targets/opencode/plugins/`",
-				"`targets/opencode/package.json`",
+				"`src/mcp/servers.yaml`",
+				"`src/targets/opencode/package.yaml`",
+				"`src/targets/opencode/commands/`",
+				"`src/targets/opencode/agents/`",
+				"`src/targets/opencode/themes/`",
+				"`src/targets/opencode/tools/`",
+				"`src/targets/opencode/plugins/`",
+				"`src/targets/opencode/package.json`",
 				"`opencode.json`",
 				"official-style named async plugin exports",
 				"`@opencode-ai/plugin`",
@@ -1315,11 +1331,10 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
-				"`mcp/servers.yaml`",
-				"`targets/cursor/rules/`",
-				"`targets/cursor/AGENTS.md`",
+				"`src/mcp/servers.yaml`",
+				"`src/targets/cursor/rules/`",
 				"`.cursor/mcp.json`",
-				"shared across tools",
+				"Root `AGENTS.md`",
 			},
 		},
 	}
@@ -1621,6 +1636,28 @@ func contains(haystack []string, needle string) bool {
 		if item == needle {
 			return true
 		}
+		if item == canonicalTestPath(needle) {
+			return true
+		}
 	}
 	return false
+}
+
+func canonicalTestPath(path string) string {
+	path = filepath.ToSlash(path)
+	if path == "" {
+		return ""
+	}
+	switch {
+	case path == "plugin.yaml",
+		path == "launcher.yaml",
+		path == "README.md",
+		strings.HasPrefix(path, "targets/"),
+		strings.HasPrefix(path, "mcp/"),
+		strings.HasPrefix(path, "skills/"),
+		strings.HasPrefix(path, "publish/"):
+		return filepath.ToSlash(filepath.Join("src", path))
+	default:
+		return path
+	}
 }

@@ -574,7 +574,7 @@ func joinNativeDocs(items []platformmeta.NativeDocSpec) string {
 		if strings.TrimSpace(item.Path) == "" {
 			continue
 		}
-		out = append(out, item.Kind+"="+item.Path)
+		out = append(out, item.Kind+"="+filepath.ToSlash(filepath.Join("src", item.Path)))
 	}
 	if len(out) == 0 {
 		return "-"

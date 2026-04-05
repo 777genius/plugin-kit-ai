@@ -132,16 +132,16 @@ The release-layout compatibility boundary for `plugin-kit-ai install` is documen
 
 Stable generated scaffold contract:
 
-- Codex runtime required authored files: `go.mod`, `README.md`, `plugin.yaml`, `launcher.yaml`, generated `cmd/<project>/main.go`
-- Codex package required authored files: `README.md`, `plugin.yaml`, `targets/codex-package/package.yaml`
-- Codex runtime optional authored docs: `targets/codex-runtime/config.extra.toml` for supported repo-local config passthrough beyond managed `model` and `notify`
-- Codex package optional authored docs: `targets/codex-package/interface.json`, `targets/codex-package/app.json`, and `targets/codex-package/manifest.extra.json`; first-class package metadata lives in `targets/codex-package/package.yaml`
-- Claude required authored files: `go.mod`, `README.md`, `plugin.yaml`, generated `cmd/<project>/main.go`
+- Codex runtime required authored files: `go.mod`, `src/README.md`, `src/plugin.yaml`, `src/launcher.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
+- Codex package required authored files: `src/README.md`, `src/plugin.yaml`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
+- Codex runtime optional authored docs: `src/targets/codex-runtime/config.extra.toml` for supported repo-local config passthrough beyond managed `model` and `notify`
+- Codex package optional authored docs: `src/targets/codex-package/package.yaml` for overrides, `src/targets/codex-package/interface.json`, `src/targets/codex-package/app.json`, and `src/targets/codex-package/manifest.extra.json`; shared package metadata now defaults from `src/plugin.yaml`
+- Claude required authored files: `go.mod`, `src/README.md`, `src/plugin.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
 - stable launcher-based local-runtime scaffold subset on `codex-runtime` and `claude`:
-  - `python`: `plugin.yaml`, `launcher.yaml`, `README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin_runtime.py`, while `init ... --runtime-package` imports `plugin_kit_ai_runtime`; official shared helper package: `plugin-kit-ai-runtime`
-  - `node`: `plugin.yaml`, `launcher.yaml`, `README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin-runtime.{mjs,ts}`, while `init ... --runtime-package` imports `plugin-kit-ai-runtime`; TypeScript is the stable authoring mode via `--runtime node --typescript`; official shared helper package: `plugin-kit-ai-runtime`
+  - `python`: `src/plugin.yaml`, `src/launcher.yaml`, `src/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin_runtime.py`, while `init ... --runtime-package` imports `plugin_kit_ai_runtime`; official shared helper package: `plugin-kit-ai-runtime`
+  - `node`: `src/plugin.yaml`, `src/launcher.yaml`, `src/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin-runtime.{mjs,ts}`, while `init ... --runtime-package` imports `plugin-kit-ai-runtime`; TypeScript is the stable authoring mode via `--runtime node --typescript`; official shared helper package: `plugin-kit-ai-runtime`
   - `init --extras` for the stable interpreted `python`/`node` subset also emits `.github/workflows/bundle-release.yml`, an opt-in GitHub Actions workflow that uses `setup-plugin-kit-ai@v1` and runs `doctor -> bootstrap -> validate --strict -> bundle publish`
-- native vendor files generated from `plugin.yaml` remain part of the scaffolded project contract
+- native vendor files generated from `src/plugin.yaml` remain part of the scaffolded project contract
 
 Runtime recommendation contract:
 
@@ -157,7 +157,7 @@ Runtime recommendation contract:
 
 Current beta surfaces that remain intentionally outside the stable set:
 - OpenCode workspace-config lane through `plugin-kit-ai generate|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, `config.extra.json`, and passthrough config surfaces like `agent`, `permission`, and `instructions`; `custom_tools` remain beta across standalone tools and plugin code
-- Cursor workspace-config lane through `plugin-kit-ai generate|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, optional shared root `AGENTS.md`, and strict documented-subset behavior that defers root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
+- Cursor workspace-config lane through `plugin-kit-ai generate|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, and strict documented-subset behavior that defers root boundary docs `CLAUDE.md` and `AGENTS.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
 - `plugin-kit-ai generate`, `plugin-kit-ai import`, and `plugin-kit-ai normalize`
@@ -185,7 +185,7 @@ Current beta surfaces that remain intentionally outside the stable set:
 
 Config contract:
 
-- repo-root `plugin.yaml` is the canonical authoring manifest for supported plugin projects
+- canonical new projects author under `src/`, with `src/plugin.yaml` as the canonical authoring manifest and root `CLAUDE.md` / `AGENTS.md` as boundary docs
 - the package-standard `plugin.yaml` schema is intentionally limited to package/build intent; unknown keys warn in `plugin-kit-ai validate`
 - `plugin-kit-ai normalize` is the canonical cleanup path for rewriting unknown manifest content into the package-standard shape
 - `plugin-kit-ai import` is the supported bridge from current native Claude/Codex/Gemini/OpenCode layouts back into the authored package-standard layout
@@ -201,7 +201,7 @@ Config contract:
 - Cursor workspace config generated by `plugin-kit-ai generate --target cursor`, with workspace-config-only status in the current contract
 - OpenCode local plugin loading stable subset is guarded by `generate --check`, strict validation, the production example canary, and the documented `test-opencode-live` smoke path
 - OpenCode standalone tools beta subset is guarded by `generate --check`, strict validation, the production example canary, and the documented `test-opencode-tools-live` smoke path
-- package-standard authored projects are defined by root `plugin.yaml` plus `targets/<platform>/...`
+- package-standard authored projects are defined by `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/launcher.yaml`, optional `src/skills/**`, optional `src/publish/**`, and `src/targets/<platform>/...`; legacy root-authored repos remain supported for compatibility
 - generated native target files remain managed artifacts, not authored source-of-truth files
 - generated Claude/Codex config wiring is a repo-owned contract surface guarded by `generate --check`, deterministic generated-project canaries, and the `polyglot-smoke` lane
 - Claude authored hook routing must stay aligned with `launcher.yaml.entrypoint`; `validate --strict` is the enforcing gate for that consistency

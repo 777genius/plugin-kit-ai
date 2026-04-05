@@ -1,0 +1,16 @@
+# Plugin Boundary
+
+This plugin uses the canonical `src/` authoring layout.
+
+- Edit only files under `src/`.
+- Treat plugin-root manifests and config files as generated outputs.
+- `plugin-kit-ai generate` may overwrite generated files in the plugin root.
+
+After changing `src/`, run:
+
+```bash
+plugin-kit-ai normalize .
+plugin-kit-ai generate .
+plugin-kit-ai generate --check .
+plugin-kit-ai validate . --platform {{.Platform}} --strict
+```

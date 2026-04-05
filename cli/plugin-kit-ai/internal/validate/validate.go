@@ -13,6 +13,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 	"github.com/777genius/plugin-kit-ai/cli/internal/targetcontracts"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
@@ -110,7 +111,7 @@ func Run(root, platform string) error {
 }
 
 func Validate(root, platform string) (Report, error) {
-	if fileExists(filepath.Join(root, pluginmanifest.FileName)) {
+	if fileExists(filepath.Join(root, pluginmanifest.FileName)) || fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) {
 		return validatePluginProject(root, platform)
 	}
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
@@ -126,7 +127,7 @@ func Validate(root, platform string) (Report, error) {
 		Failures: []Failure{{
 			Kind:    FailureManifestMissing,
 			Path:    pluginmanifest.FileName,
-			Message: "required manifest missing: plugin.yaml",
+			Message: "required manifest missing: plugin.yaml or src/plugin.yaml",
 		}},
 	})}
 }

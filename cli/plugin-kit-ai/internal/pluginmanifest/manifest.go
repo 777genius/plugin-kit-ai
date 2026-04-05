@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -134,6 +135,25 @@ type importedCodexTargetMeta struct {
 type importedGeminiTargetMeta = geminimanifest.PackageMeta
 type importedGeminiExtension = geminimanifest.ImportedExtension
 
+type authoredLayout struct {
+	RootRel string
+}
+
+func (l authoredLayout) IsCanonical() bool {
+	return filepath.ToSlash(strings.TrimSpace(l.RootRel)) == pluginmodel.SourceDirName
+}
+
+func (l authoredLayout) Path(rel string) string {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	if rel == "" {
+		return filepath.ToSlash(strings.TrimSpace(l.RootRel))
+	}
+	if strings.TrimSpace(l.RootRel) == "" {
+		return rel
+	}
+	return filepath.ToSlash(filepath.Join(l.RootRel, rel))
+}
+
 func Load(root string) (Manifest, error) {
 	manifest, _, err := LoadWithWarnings(root)
 	return manifest, err
@@ -145,7 +165,11 @@ func LoadLauncher(root string) (Launcher, error) {
 }
 
 func LoadWithWarnings(root string) (Manifest, []Warning, error) {
-	body, err := os.ReadFile(filepath.Join(root, FileName))
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	body, err := os.ReadFile(filepath.Join(root, layout.Path(FileName)))
 	if err != nil {
 		return Manifest{}, nil, err
 	}
@@ -153,7 +177,11 @@ func LoadWithWarnings(root string) (Manifest, []Warning, error) {
 }
 
 func LoadLauncherWithWarnings(root string) (Launcher, []Warning, error) {
-	body, err := os.ReadFile(filepath.Join(root, LauncherFileName))
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return Launcher{}, nil, err
+	}
+	body, err := os.ReadFile(filepath.Join(root, layout.Path(LauncherFileName)))
 	if err != nil {
 		return Launcher{}, nil, err
 	}
@@ -257,13 +285,20 @@ func DefaultLauncher(projectName, runtime string) Launcher {
 }
 
 func Save(root string, manifest Manifest, force bool) error {
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return err
+	}
 	normalizeManifest(&manifest)
 	if err := manifest.Validate(); err != nil {
 		return err
 	}
-	full := filepath.Join(root, FileName)
+	full := filepath.Join(root, layout.Path(FileName))
 	if _, err := os.Stat(full); err == nil && !force {
 		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
 	}
 	body, err := yaml.Marshal(manifest)
 	if err != nil {
@@ -273,13 +308,20 @@ func Save(root string, manifest Manifest, force bool) error {
 }
 
 func SaveLauncher(root string, launcher Launcher, force bool) error {
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return err
+	}
 	normalizeLauncher(&launcher)
 	if err := launcher.Validate(); err != nil {
 		return err
 	}
-	full := filepath.Join(root, LauncherFileName)
+	full := filepath.Join(root, layout.Path(LauncherFileName))
 	if _, err := os.Stat(full); err == nil && !force {
 		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
 	}
 	body, err := yaml.Marshal(launcher)
 	if err != nil {
@@ -305,6 +347,10 @@ func Normalize(root string, force bool) ([]Warning, error) {
 }
 
 func Discover(root string) (PackageGraph, []Warning, error) {
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return PackageGraph{}, nil, err
+	}
 	manifest, warnings, err := LoadWithWarnings(root)
 	if err != nil {
 		return PackageGraph{}, nil, err
@@ -319,14 +365,14 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 		Portable: newPortableComponents(),
 		Targets:  make(map[string]TargetState, len(manifest.Targets)),
 	}
-	if err := validateRemovedPortableInputs(root, manifest.EnabledTargets()); err != nil {
+	if err := validateRemovedPortableInputs(root, layout, manifest.EnabledTargets()); err != nil {
 		return PackageGraph{}, warnings, err
 	}
-	sourceSet := map[string]struct{}{FileName: {}}
+	sourceSet := map[string]struct{}{layout.Path(FileName): {}}
 	if launcher != nil {
-		sourceSet[LauncherFileName] = struct{}{}
+		sourceSet[layout.Path(LauncherFileName)] = struct{}{}
 	}
-	publication, err := publishschema.Discover(root)
+	publication, err := publishschema.DiscoverInLayout(root, layout.Path(""))
 	if err != nil {
 		return PackageGraph{}, warnings, err
 	}
@@ -335,13 +381,13 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 	}
 	addSourceFiles(sourceSet, publication.Paths())
 
-	skillPaths := discoverFiles(root, filepath.Join("skills"), func(rel string) bool {
+	skillPaths := discoverFiles(root, layout.Path(filepath.Join("skills")), func(rel string) bool {
 		return strings.HasSuffix(rel, "SKILL.md")
 	})
 	graph.Portable.Add("skills", skillPaths...)
 	addSourceFiles(sourceSet, skillPaths)
 
-	if mcpDoc, ok, err := discoverMCP(root); err != nil {
+	if mcpDoc, ok, err := discoverMCP(root, layout); err != nil {
 		return PackageGraph{}, warnings, err
 	} else if ok {
 		graph.Portable.MCP = mcpDoc
@@ -349,7 +395,7 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 	}
 
 	for _, target := range manifest.EnabledTargets() {
-		state, err := discoverTarget(root, target)
+		state, err := discoverTarget(root, layout, target)
 		if err != nil {
 			return PackageGraph{}, warnings, err
 		}
@@ -361,30 +407,30 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 	return graph, warnings, nil
 }
 
-func validateRemovedPortableInputs(root string, targets []string) error {
-	if fileExists(filepath.Join(root, "agents")) && !looksLikeManagedAgentsOutput(root, targets) {
+func validateRemovedPortableInputs(root string, layout authoredLayout, targets []string) error {
+	if fileExists(filepath.Join(root, layout.Path("agents"))) && !looksLikeManagedAgentsOutput(root, layout, targets) {
 		return errors.New(rootAgentsMigrationMessage(targets))
 	}
-	if fileExists(filepath.Join(root, "contexts")) && !looksLikeManagedContextsOutput(root, targets) {
+	if fileExists(filepath.Join(root, layout.Path("contexts"))) && !looksLikeManagedContextsOutput(root, layout, targets) {
 		return errors.New(rootContextsMigrationMessage(targets))
 	}
 	return nil
 }
 
-func looksLikeManagedAgentsOutput(root string, targets []string) bool {
+func looksLikeManagedAgentsOutput(root string, layout authoredLayout, targets []string) bool {
 	targetSet := setOf(targets)
 	if !targetSet["claude"] {
 		return false
 	}
-	return len(discoverFiles(root, filepath.Join("targets", "claude", "agents"), nil)) > 0
+	return len(discoverFiles(root, layout.Path(filepath.Join("targets", "claude", "agents")), nil)) > 0
 }
 
-func looksLikeManagedContextsOutput(root string, targets []string) bool {
+func looksLikeManagedContextsOutput(root string, layout authoredLayout, targets []string) bool {
 	targetSet := setOf(targets)
-	if targetSet["gemini"] && len(discoverFiles(root, filepath.Join("targets", "gemini", "contexts"), nil)) > 0 {
+	if targetSet["gemini"] && len(discoverFiles(root, layout.Path(filepath.Join("targets", "gemini", "contexts")), nil)) > 0 {
 		return true
 	}
-	if targetSet["codex-runtime"] && len(discoverFiles(root, filepath.Join("targets", "codex-runtime", "contexts"), nil)) > 0 {
+	if targetSet["codex-runtime"] && len(discoverFiles(root, layout.Path(filepath.Join("targets", "codex-runtime", "contexts")), nil)) > 0 {
 		return true
 	}
 	return false
@@ -437,7 +483,11 @@ func loadLauncherForTargets(root string, targets []string) (*Launcher, error) {
 		return nil, nil
 	}
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("required launcher missing: %s", LauncherFileName)
+		layout, lerr := detectAuthoredLayout(root)
+		if lerr != nil {
+			return nil, lerr
+		}
+		return nil, fmt.Errorf("required launcher missing: %s", layout.Path(LauncherFileName))
 	}
 	return nil, err
 }
@@ -489,6 +539,10 @@ func Inspect(root string, target string) (Inspection, []Warning, error) {
 }
 
 func Generate(root string, target string) (RenderResult, error) {
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return RenderResult{}, err
+	}
 	graph, _, err := Discover(root)
 	if err != nil {
 		return RenderResult{}, err
@@ -527,6 +581,13 @@ func Generate(root string, target string) (RenderResult, error) {
 			continue
 		}
 		artifactMap[relPath] = artifact.Content
+	}
+	if layout.IsCanonical() {
+		if readme, err := buildRootReadmeArtifact(root, layout); err != nil {
+			return RenderResult{}, err
+		} else if readme != nil {
+			artifactMap[readme.RelPath] = readme.Content
+		}
 	}
 	artifacts := make([]Artifact, 0, len(artifactMap))
 	for path, content := range artifactMap {
@@ -657,6 +718,12 @@ func normalizeTextNewlines(body []byte) []byte {
 }
 
 func Import(root string, from string, force bool, includeUserScope bool) (Manifest, []Warning, error) {
+	if _, err := detectAuthoredLayout(root); err != nil && !os.IsNotExist(err) {
+		var pathErr *os.PathError
+		if !errors.As(err, &pathErr) {
+			return Manifest{}, nil, err
+		}
+	}
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
 		return Manifest{}, nil, fmt.Errorf("unsupported project format for import: .plugin-kit-ai/project.toml is not supported; rewrite the project into the package standard layout")
 	}
@@ -713,14 +780,15 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 			Message: "portable MCP will be preserved under mcp/servers.yaml",
 		})
 	}
-	if err := Save(root, imported.Manifest, force); err != nil {
+	if err := saveManifestWithLayout(root, authoredLayout{RootRel: pluginmodel.SourceDirName}, imported.Manifest, force); err != nil {
 		return imported.Manifest, imported.Warnings, err
 	}
 	if imported.Launcher != nil {
-		if err := SaveLauncher(root, *imported.Launcher, force); err != nil {
+		if err := saveLauncherWithLayout(root, authoredLayout{RootRel: pluginmodel.SourceDirName}, *imported.Launcher, force); err != nil {
 			return imported.Manifest, imported.Warnings, err
 		}
 	}
+	artifacts = prefixAuthoredArtifacts(artifacts, authoredLayout{RootRel: pluginmodel.SourceDirName})
 	if err := WriteArtifacts(root, artifacts); err != nil {
 		return Manifest{}, imported.Warnings, err
 	}
@@ -745,7 +813,7 @@ func renderTargetArtifacts(root string, graph PackageGraph, target string) ([]Ar
 	return adapter.Generate(root, graph, tc)
 }
 
-func discoverTarget(root string, target string) (TargetComponents, error) {
+func discoverTarget(root string, layout authoredLayout, target string) (TargetComponents, error) {
 	profile, ok := platformmeta.Lookup(target)
 	if !ok {
 		return TargetComponents{}, fmt.Errorf("unsupported target %q", target)
@@ -760,7 +828,7 @@ func discoverTarget(root string, target string) (TargetComponents, error) {
 	}
 	for _, spec := range profile.NativeDocs {
 		docKinds[spec.Kind] = struct{}{}
-		path := filepath.ToSlash(spec.Path)
+		path := layout.Path(spec.Path)
 		if fileExists(filepath.Join(root, path)) {
 			state.SetDoc(spec.Kind, path)
 			if _, ok := mirrorKinds[spec.Kind]; ok {
@@ -772,7 +840,7 @@ func discoverTarget(root string, target string) (TargetComponents, error) {
 		if _, isDoc := docKinds[kind]; isDoc {
 			continue
 		}
-		dir := filepath.Join("targets", target, kind)
+		dir := layout.Path(filepath.Join("targets", target, kind))
 		state.AddComponent(kind, discoverFiles(root, dir, nil)...)
 	}
 	adapter, ok := platformexec.Lookup(target)
@@ -807,23 +875,24 @@ func discoverFiles(root, dir string, keep func(rel string) bool) []string {
 	return out
 }
 
-func discoverMCP(root string) (*PortableMCP, bool, error) {
+func discoverMCP(root string, layout authoredLayout) (*PortableMCP, bool, error) {
 	for _, legacyRel := range []string{"mcp/servers.json", "mcp/servers.yml"} {
-		if fileExists(filepath.Join(root, legacyRel)) {
+		if fileExists(filepath.Join(root, layout.Path(legacyRel))) {
 			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use mcp/servers.yaml", legacyRel)
 		}
 	}
 	for _, rel := range []string{"mcp/servers.yaml"} {
-		full := filepath.Join(root, rel)
+		authoredRel := layout.Path(rel)
+		full := filepath.Join(root, authoredRel)
 		body, err := os.ReadFile(full)
 		if err != nil {
 			continue
 		}
-		parsed, err := pluginmodel.ParsePortableMCP(rel, body)
+		parsed, err := pluginmodel.ParsePortableMCP(authoredRel, body)
 		if err != nil {
 			return nil, false, err
 		}
-		return &PortableMCP{Path: rel, Servers: parsed.Servers, File: parsed.File}, true, nil
+		return &PortableMCP{Path: authoredRel, Servers: parsed.Servers, File: parsed.File}, true, nil
 	}
 	return nil, false, nil
 }
@@ -855,6 +924,15 @@ func manifestSchema() schemaSpec {
 		"name":        {},
 		"version":     {},
 		"description": {},
+		"author": {Fields: map[string]schemaSpec{
+			"name":  {},
+			"email": {},
+			"url":   {},
+		}},
+		"homepage":   {},
+		"repository": {},
+		"license":    {},
+		"keywords":   {Seq: &schemaSpec{}},
 		"targets":     {Seq: &schemaSpec{}},
 	}}
 }
@@ -1265,6 +1343,10 @@ func compactArtifacts(artifacts []Artifact) []Artifact {
 	return out
 }
 func expectedManagedPaths(root string, graph PackageGraph, selected []string) []string {
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		layout = authoredLayout{}
+	}
 	seen := map[string]struct{}{}
 	for _, target := range selected {
 		profile, ok := platformmeta.Lookup(target)
@@ -1311,6 +1393,9 @@ func expectedManagedPaths(root string, graph PackageGraph, selected []string) []
 	}
 	for _, path := range publicationexec.ManagedPaths(mustDiscoverPublication(root), selected) {
 		seen[path] = struct{}{}
+	}
+	if layout.IsCanonical() && fileExists(filepath.Join(root, layout.Path("README.md"))) {
+		seen["README.md"] = struct{}{}
 	}
 	return sortedKeys(seen)
 }
@@ -1422,7 +1507,11 @@ func defaultName(root string) string {
 }
 
 func mustDiscoverPublication(root string) publishschema.State {
-	state, err := publishschema.Discover(root)
+	layout, err := detectAuthoredLayout(root)
+	if err != nil {
+		return publishschema.State{}
+	}
+	state, err := publishschema.DiscoverInLayout(root, layout.Path(""))
 	if err != nil {
 		return publishschema.State{}
 	}
@@ -1448,6 +1537,148 @@ func joinPath(parent, child string) string {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func authoredInputExists(root, rel string) bool {
+	full := filepath.Join(root, filepath.FromSlash(rel))
+	info, err := os.Stat(full)
+	if err != nil {
+		return false
+	}
+	if !info.IsDir() {
+		return true
+	}
+	var hasFile bool
+	_ = filepath.WalkDir(full, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d == nil || d.IsDir() {
+			return nil
+		}
+		hasFile = true
+		return io.EOF
+	})
+	return hasFile
+}
+
+func detectAuthoredLayout(root string) (authoredLayout, error) {
+	canonical := authoredLayout{RootRel: pluginmodel.SourceDirName}
+	legacy := authoredLayout{}
+	canonicalPresent := authoredLayoutPresent(root, canonical)
+	legacyPresent := legacyLayoutPresent(root)
+	switch {
+	case canonicalPresent && legacyPresent:
+		return authoredLayout{}, fmt.Errorf("mixed authored layout: move manual plugin sources fully into %s/ or keep them fully in the plugin root", pluginmodel.SourceDirName)
+	case canonicalPresent:
+		return canonical, nil
+	default:
+		return legacy, nil
+	}
+}
+
+func authoredLayoutPresent(root string, layout authoredLayout) bool {
+	for _, rel := range authoredSentinelPaths() {
+		if authoredInputExists(root, layout.Path(rel)) {
+			return true
+		}
+	}
+	return false
+}
+
+func legacyLayoutPresent(root string) bool {
+	for _, rel := range authoredSentinelPaths() {
+		if authoredInputExists(root, rel) {
+			return true
+		}
+	}
+	return false
+}
+
+func authoredSentinelPaths() []string {
+	return []string{
+		FileName,
+		LauncherFileName,
+		filepath.ToSlash(filepath.Join("mcp", "servers.yaml")),
+		"skills",
+		"targets",
+		"publish",
+	}
+}
+
+func saveManifestWithLayout(root string, layout authoredLayout, manifest Manifest, force bool) error {
+	normalizeManifest(&manifest)
+	if err := manifest.Validate(); err != nil {
+		return err
+	}
+	full := filepath.Join(root, layout.Path(FileName))
+	legacyFull := filepath.Join(root, FileName)
+	if _, err := os.Stat(full); err == nil && !force {
+		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
+	}
+	if layout.IsCanonical() && !force {
+		if _, err := os.Stat(legacyFull); err == nil {
+			return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
+	}
+	body, err := yaml.Marshal(manifest)
+	if err != nil {
+		return fmt.Errorf("marshal plugin.yaml: %w", err)
+	}
+	return os.WriteFile(full, body, 0o644)
+}
+
+func saveLauncherWithLayout(root string, layout authoredLayout, launcher Launcher, force bool) error {
+	normalizeLauncher(&launcher)
+	if err := launcher.Validate(); err != nil {
+		return err
+	}
+	full := filepath.Join(root, layout.Path(LauncherFileName))
+	legacyFull := filepath.Join(root, LauncherFileName)
+	if _, err := os.Stat(full); err == nil && !force {
+		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
+	}
+	if layout.IsCanonical() && !force {
+		if _, err := os.Stat(legacyFull); err == nil {
+			return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return err
+	}
+	body, err := yaml.Marshal(launcher)
+	if err != nil {
+		return fmt.Errorf("marshal %s: %w", LauncherFileName, err)
+	}
+	return os.WriteFile(full, body, 0o644)
+}
+
+func prefixAuthoredArtifacts(artifacts []Artifact, layout authoredLayout) []Artifact {
+	if strings.TrimSpace(layout.RootRel) == "" {
+		return artifacts
+	}
+	out := make([]Artifact, 0, len(artifacts))
+	for _, artifact := range artifacts {
+		artifact.RelPath = layout.Path(artifact.RelPath)
+		out = append(out, artifact)
+	}
+	return out
+}
+
+func buildRootReadmeArtifact(root string, layout authoredLayout) (*Artifact, error) {
+	if !layout.IsCanonical() {
+		return nil, nil
+	}
+	authoredReadme := layout.Path("README.md")
+	body, err := os.ReadFile(filepath.Join(root, authoredReadme))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	artifact := Artifact{RelPath: "README.md", Content: body}
+	return &artifact, nil
 }
 
 func cleanRelativeRef(path string) string {

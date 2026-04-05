@@ -169,7 +169,7 @@ func nativeDocs(items []platformmeta.NativeDocSpec) []string {
 		if strings.TrimSpace(item.Path) == "" {
 			continue
 		}
-		out = append(out, item.Kind+"="+item.Path)
+		out = append(out, item.Kind+"="+authoringDocPath(item.Path))
 	}
 	return out
 }
@@ -183,12 +183,20 @@ func nativeDocPaths(items []platformmeta.NativeDocSpec) map[string]string {
 		if strings.TrimSpace(item.Kind) == "" || strings.TrimSpace(item.Path) == "" {
 			continue
 		}
-		out[item.Kind] = item.Path
+		out[item.Kind] = authoringDocPath(item.Path)
 	}
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+func authoringDocPath(path string) string {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	if path == "" {
+		return ""
+	}
+	return filepath.ToSlash(filepath.Join("src", path))
 }
 
 func fromSurfaceSupport(items []platformmeta.SurfaceSupport) []Surface {

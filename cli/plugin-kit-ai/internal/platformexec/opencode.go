@@ -55,7 +55,7 @@ func (opencodeAdapter) RefineDiscovery(root string, state *pluginmodel.TargetSta
 			}
 		}
 	}
-	state.AddComponent("local_plugin_code", discoverFiles(root, filepath.Join("targets", "opencode", "plugins"), nil)...)
+	state.AddComponent("local_plugin_code", discoverFiles(root, authoredOpenCodePluginDir(root, *state), nil)...)
 	return nil
 }
 
@@ -191,17 +191,17 @@ func (opencodeAdapter) Generate(root string, graph pluginmodel.PackageGraph, sta
 	}
 	artifacts = append(artifacts, skillArtifacts...)
 	copied, err := copyArtifactDirs(root,
-		artifactDir{src: filepath.Join("targets", "opencode", "commands"), dst: filepath.Join(".opencode", "commands")},
-		artifactDir{src: filepath.Join("targets", "opencode", "agents"), dst: filepath.Join(".opencode", "agents")},
-		artifactDir{src: filepath.Join("targets", "opencode", "themes"), dst: filepath.Join(".opencode", "themes")},
-		artifactDir{src: filepath.Join("targets", "opencode", "tools"), dst: filepath.Join(".opencode", "tools")},
-		artifactDir{src: filepath.Join("targets", "opencode", "plugins"), dst: filepath.Join(".opencode", "plugins")},
+		artifactDir{src: authoredComponentDir(state, "commands", filepath.Join("targets", "opencode", "commands")), dst: filepath.Join(".opencode", "commands")},
+		artifactDir{src: authoredComponentDir(state, "agents", filepath.Join("targets", "opencode", "agents")), dst: filepath.Join(".opencode", "agents")},
+		artifactDir{src: authoredComponentDir(state, "themes", filepath.Join("targets", "opencode", "themes")), dst: filepath.Join(".opencode", "themes")},
+		artifactDir{src: authoredComponentDir(state, "tools", filepath.Join("targets", "opencode", "tools")), dst: filepath.Join(".opencode", "tools")},
+		artifactDir{src: authoredOpenCodePluginDir(root, state), dst: filepath.Join(".opencode", "plugins")},
 	)
 	if err != nil {
 		return nil, err
 	}
 	artifacts = append(artifacts, copied...)
-	packageArtifacts, err := copySingleArtifactIfExists(root, filepath.Join("targets", "opencode", "package.json"), filepath.Join(".opencode", "package.json"))
+	packageArtifacts, err := copySingleArtifactIfExists(root, state.DocPath("local_plugin_dependencies"), filepath.Join(".opencode", "package.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -1288,9 +1288,19 @@ func renderPortableSkills(root string, paths []string, outputRoot string) ([]plu
 		if err != nil {
 			return nil, err
 		}
-		child, err := filepath.Rel(filepath.FromSlash("skills"), filepath.FromSlash(rel))
+		normalizedRel := filepath.ToSlash(rel)
+		switch {
+		case strings.HasPrefix(normalizedRel, pluginmodel.SourceDirName+"/skills/"):
+			normalizedRel = strings.TrimPrefix(normalizedRel, pluginmodel.SourceDirName+"/")
+		case normalizedRel == pluginmodel.SourceDirName+"/skills":
+			normalizedRel = "skills"
+		}
+		child, err := filepath.Rel(filepath.FromSlash("skills"), filepath.FromSlash(normalizedRel))
 		if err != nil {
 			return nil, err
+		}
+		if child == "." || strings.HasPrefix(child, ".."+string(filepath.Separator)) || child == ".." {
+			return nil, fmt.Errorf("portable skill path %s must live under skills/", rel)
 		}
 		artifacts = append(artifacts, pluginmodel.Artifact{
 			RelPath: filepath.ToSlash(filepath.Join(outputRoot, child)),
@@ -1298,4 +1308,22 @@ func renderPortableSkills(root string, paths []string, outputRoot string) ([]plu
 		})
 	}
 	return compactArtifacts(artifacts), nil
+}
+
+func authoredOpenCodePluginDir(root string, state pluginmodel.TargetState) string {
+	if paths := state.ComponentPaths("local_plugin_code"); len(paths) > 0 {
+		dir := filepath.ToSlash(filepath.Dir(paths[0]))
+		if dir != "." {
+			return dir
+		}
+	}
+	for _, candidate := range []string{
+		filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"),
+		filepath.Join("targets", "opencode", "plugins"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
+			return filepath.ToSlash(candidate)
+		}
+	}
+	return filepath.ToSlash(filepath.Join("targets", "opencode", "plugins"))
 }

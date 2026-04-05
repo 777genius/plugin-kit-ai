@@ -56,18 +56,22 @@ type State struct {
 }
 
 func Discover(root string) (State, error) {
+	return DiscoverInLayout(root, "")
+}
+
+func DiscoverInLayout(root, authoredRoot string) (State, error) {
 	var out State
-	if doc, ok, err := loadCodexMarketplace(root); err != nil {
+	if doc, ok, err := loadCodexMarketplace(root, authoredRoot); err != nil {
 		return State{}, err
 	} else if ok {
 		out.Codex = doc
 	}
-	if doc, ok, err := loadClaudeMarketplace(root); err != nil {
+	if doc, ok, err := loadClaudeMarketplace(root, authoredRoot); err != nil {
 		return State{}, err
 	} else if ok {
 		out.Claude = doc
 	}
-	if doc, ok, err := loadGeminiGallery(root); err != nil {
+	if doc, ok, err := loadGeminiGallery(root, authoredRoot); err != nil {
 		return State{}, err
 	} else if ok {
 		out.Gemini = doc
@@ -104,8 +108,8 @@ func (s State) ValidateTargets(targets []string) error {
 	return nil
 }
 
-func loadCodexMarketplace(root string) (*CodexMarketplace, bool, error) {
-	body, ok, err := readOptional(root, CodexMarketplaceRel)
+func loadCodexMarketplace(root, authoredRoot string) (*CodexMarketplace, bool, error) {
+	body, ok, err := readOptional(root, authoredRoot, CodexMarketplaceRel)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
@@ -114,15 +118,15 @@ func loadCodexMarketplace(root string) (*CodexMarketplace, bool, error) {
 		return nil, true, fmt.Errorf("parse %s: %w", CodexMarketplaceRel, err)
 	}
 	normalizeCodexMarketplace(&out)
-	out.Path = CodexMarketplaceRel
+	out.Path = prefixedRel(authoredRoot, CodexMarketplaceRel)
 	if err := out.Validate(); err != nil {
 		return nil, true, fmt.Errorf("parse %s: %w", CodexMarketplaceRel, err)
 	}
 	return &out, true, nil
 }
 
-func loadClaudeMarketplace(root string) (*ClaudeMarketplace, bool, error) {
-	body, ok, err := readOptional(root, ClaudeMarketplaceRel)
+func loadClaudeMarketplace(root, authoredRoot string) (*ClaudeMarketplace, bool, error) {
+	body, ok, err := readOptional(root, authoredRoot, ClaudeMarketplaceRel)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
@@ -131,15 +135,15 @@ func loadClaudeMarketplace(root string) (*ClaudeMarketplace, bool, error) {
 		return nil, true, fmt.Errorf("parse %s: %w", ClaudeMarketplaceRel, err)
 	}
 	normalizeClaudeMarketplace(&out)
-	out.Path = ClaudeMarketplaceRel
+	out.Path = prefixedRel(authoredRoot, ClaudeMarketplaceRel)
 	if err := out.Validate(); err != nil {
 		return nil, true, fmt.Errorf("parse %s: %w", ClaudeMarketplaceRel, err)
 	}
 	return &out, true, nil
 }
 
-func loadGeminiGallery(root string) (*GeminiGallery, bool, error) {
-	body, ok, err := readOptional(root, GeminiGalleryRel)
+func loadGeminiGallery(root, authoredRoot string) (*GeminiGallery, bool, error) {
+	body, ok, err := readOptional(root, authoredRoot, GeminiGalleryRel)
 	if err != nil || !ok {
 		return nil, ok, err
 	}
@@ -148,7 +152,7 @@ func loadGeminiGallery(root string) (*GeminiGallery, bool, error) {
 		return nil, true, fmt.Errorf("parse %s: %w", GeminiGalleryRel, err)
 	}
 	normalizeGeminiGallery(&out)
-	out.Path = GeminiGalleryRel
+	out.Path = prefixedRel(authoredRoot, GeminiGalleryRel)
 	if err := out.Validate(); err != nil {
 		return nil, true, fmt.Errorf("parse %s: %w", GeminiGalleryRel, err)
 	}
@@ -296,8 +300,8 @@ func validateSourceRoot(value string) error {
 	return nil
 }
 
-func readOptional(root, rel string) ([]byte, bool, error) {
-	body, err := os.ReadFile(filepath.Join(root, rel))
+func readOptional(root, authoredRoot, rel string) ([]byte, bool, error) {
+	body, err := os.ReadFile(filepath.Join(root, prefixedRel(authoredRoot, rel)))
 	if err == nil {
 		return body, true, nil
 	}
@@ -305,6 +309,15 @@ func readOptional(root, rel string) ([]byte, bool, error) {
 		return nil, false, nil
 	}
 	return nil, false, err
+}
+
+func prefixedRel(rootRel, rel string) string {
+	rootRel = filepath.ToSlash(strings.TrimSpace(rootRel))
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	if rootRel == "" {
+		return rel
+	}
+	return filepath.ToSlash(filepath.Join(rootRel, rel))
 }
 
 func setOf(values []string) map[string]bool {

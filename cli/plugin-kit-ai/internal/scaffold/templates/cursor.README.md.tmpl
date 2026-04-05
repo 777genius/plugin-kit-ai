@@ -21,14 +21,14 @@ plugin-kit-ai validate . --platform cursor --strict
 
 ## Target Files
 
-- `targets/cursor/rules/`: Cursor `.mdc` rules mirrored into `.cursor/rules/`
-- `targets/cursor/AGENTS.md`: optional shared instruction surface mirrored into root `AGENTS.md`
-- `mcp/servers.yaml`: canonical portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and generate projects it into `.cursor/mcp.json`
+- `src/targets/cursor/rules/`: Cursor `.mdc` rules mirrored into `.cursor/rules/`
+- `src/mcp/servers.yaml`: canonical portable MCP authored source; `plugin-kit-ai init --extras` pre-seeds a starter and generate projects it into `.cursor/mcp.json`
+- root `CLAUDE.md` and `AGENTS.md`: boundary docs that tell humans and agents to edit only `src/`
 - `.cursor/mcp.json`: generated managed Cursor MCP config
 - `.cursor/rules/`: generated managed Cursor rules
 
 ## Current Boundary
 
-- Supported in v1: `.cursor/mcp.json`, project-root `.cursor/rules/**`, and optional root `AGENTS.md`
+- Supported in v1: `.cursor/mcp.json` and project-root `.cursor/rules/**`
 - Deferred in v1: root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and any VS Code extension packaging lane
-- Root `AGENTS.md` is optional and shared across tools; it is not Cursor-exclusive
+- Root `AGENTS.md` is reserved for plugin-root boundary instructions and is not a Cursor-native authored surface

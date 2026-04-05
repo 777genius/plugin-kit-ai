@@ -61,6 +61,7 @@ That gives you:
 - one plugin repo from day one
 - the strongest default path today: `codex-runtime` with `--runtime go`
 - the cleanest base for later expansion into more supported outputs
+- canonical new repos keep manually edited sources under `src/` and treat plugin-root manifests as generated outputs
 
 Need another install channel:
 
@@ -135,7 +136,7 @@ Choose this when you want the strongest supported release and distribution story
 - Best default: `plugin-kit-ai init my-plugin`
 - Claude-first path: `plugin-kit-ai init my-plugin --platform claude`
 - Package/config expansion later: `codex-package`, `gemini`, `opencode`, `cursor`
-- Real multi-target MCP-first example: [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/context7)
+- Real multi-target MCP-first example: [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7)
 
 ### Already Have Native Config
 

@@ -30,9 +30,9 @@ func (geminiAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState
 		}
 	}
 	for _, rel := range state.ComponentPaths("hooks") {
-		expected := filepath.ToSlash(filepath.Join("targets", "gemini", "hooks", "hooks.json"))
-		if rel != expected {
-			return fmt.Errorf("unsupported Gemini hooks layout: use only %s", expected)
+		expectedSuffix := filepath.ToSlash(filepath.Join("targets", "gemini", "hooks", "hooks.json"))
+		if !strings.HasSuffix(filepath.ToSlash(rel), expectedSuffix) {
+			return fmt.Errorf("unsupported Gemini hooks layout: use only %s", filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, expectedSuffix)))
 		}
 	}
 	for _, rel := range append(append([]string{}, state.ComponentPaths("settings")...), state.ComponentPaths("themes")...) {
@@ -198,7 +198,7 @@ func (geminiAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 	}
 	artifacts = append(artifacts, pluginmodel.Artifact{RelPath: "gemini-extension.json", Content: manifestJSON})
 	if hookPaths := state.ComponentPaths("hooks"); len(hookPaths) > 0 {
-		copied, err := copyArtifacts(root, filepath.Join("targets", "gemini", "hooks"), "hooks")
+		copied, err := copyArtifacts(root, authoredComponentDir(state, "hooks", filepath.Join("targets", "gemini", "hooks")), "hooks")
 		if err != nil {
 			return nil, err
 		}
@@ -210,8 +210,8 @@ func (geminiAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		})
 	}
 	copied, err := copyArtifactDirs(root,
-		artifactDir{src: filepath.Join("targets", "gemini", "commands"), dst: "commands"},
-		artifactDir{src: filepath.Join("targets", "gemini", "policies"), dst: "policies"},
+		artifactDir{src: authoredComponentDir(state, "commands", filepath.Join("targets", "gemini", "commands")), dst: "commands"},
+		artifactDir{src: authoredComponentDir(state, "policies", filepath.Join("targets", "gemini", "policies")), dst: "policies"},
 	)
 	if err != nil {
 		return nil, err

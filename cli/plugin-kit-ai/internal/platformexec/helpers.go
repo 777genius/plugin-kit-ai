@@ -164,6 +164,9 @@ func copyArtifacts(root, srcDir, dstRoot string) ([]pluginmodel.Artifact, error)
 }
 
 func copySingleArtifactIfExists(root, srcRel, dstRel string) ([]pluginmodel.Artifact, error) {
+	if strings.TrimSpace(srcRel) == "" {
+		return nil, nil
+	}
 	body, err := os.ReadFile(filepath.Join(root, srcRel))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -172,6 +175,18 @@ func copySingleArtifactIfExists(root, srcRel, dstRel string) ([]pluginmodel.Arti
 		return nil, err
 	}
 	return []pluginmodel.Artifact{{RelPath: filepath.ToSlash(dstRel), Content: body}}, nil
+}
+
+func authoredComponentDir(state pluginmodel.TargetState, kind, fallback string) string {
+	paths := state.ComponentPaths(kind)
+	if len(paths) == 0 {
+		return filepath.ToSlash(fallback)
+	}
+	dir := filepath.ToSlash(filepath.Dir(paths[0]))
+	if dir == "." {
+		return filepath.ToSlash(fallback)
+	}
+	return dir
 }
 
 func compactArtifacts(artifacts []pluginmodel.Artifact) []pluginmodel.Artifact {

@@ -5,6 +5,6 @@ globs:
 alwaysApply: false
 ---
 
-- Treat `plugin.yaml`, `mcp/servers.yaml`, and `targets/cursor/**` as the authored source of truth.
+- Treat `src/plugin.yaml`, `src/mcp/servers.yaml`, and `src/targets/cursor/**` as the authored source of truth.
 - Keep generated `.cursor/**` artifacts in sync through `plugin-kit-ai generate`.
-- Treat root `AGENTS.md` as a shared instruction surface that may be read by tools beyond Cursor.
+- Treat root `CLAUDE.md` and `AGENTS.md` as plugin boundary docs that explain the generated/plugin-root split.

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 )
 
@@ -136,10 +137,15 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		return "", err
 	}
 	if _, err := os.Stat(filepath.Join(out, pluginmanifest.FileName)); err != nil {
-		if os.IsNotExist(err) {
-			return out, nil
+		if _, srcErr := os.Stat(filepath.Join(out, pluginmodel.SourceDirName, pluginmanifest.FileName)); srcErr != nil {
+			if os.IsNotExist(err) && os.IsNotExist(srcErr) {
+				return out, nil
+			}
+			if !os.IsNotExist(err) {
+				return "", err
+			}
+			return "", srcErr
 		}
-		return "", err
 	}
 	generated, err := pluginmanifest.Generate(out, "all")
 	if err != nil {

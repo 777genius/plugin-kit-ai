@@ -9,7 +9,7 @@ This document is the canonical production authoring path for plugin authors usin
 - Codex package: production-ready official plugin package lane
 - Gemini packaging: production-ready official Gemini CLI extension packaging lane through `generate|import|validate` and local `extensions link|config|disable|enable`
 - Gemini runtime: optional production-ready 9-hook Go runtime lane for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`, with dedicated deterministic runtime smoke and dedicated opt-in real CLI runtime smoke
-- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, and optional shared root `AGENTS.md`; not a production-ready runtime target
+- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json` and project-root `.cursor/rules/**`; root `AGENTS.md` is reserved for plugin boundary docs, not a Cursor-native target surface
 - OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
@@ -26,8 +26,8 @@ Shell remains beta-hardening-only in this workflow.
 This workflow does not imply a universal package-management contract or packaged distribution through `plugin-kit-ai install`.
 Use Homebrew to install the `plugin-kit-ai` CLI locally when possible, use `npm i -g plugin-kit-ai` as the official `public-beta` JavaScript ecosystem path, use `pipx install plugin-kit-ai` as the `public-beta` Python ecosystem path only when that release was published to PyPI, use `scripts/install.sh` as the verified fallback, and use `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` to bootstrap the same verified CLI in CI.
 
-Supported authored inputs are root `plugin.yaml` plus `targets/<platform>/...`.
-Committed Claude/Codex/Gemini/Cursor/OpenCode native config files are generated managed artifacts and should be treated as generated outputs.
+Canonical authored inputs live under `src/`: `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/launcher.yaml`, optional `src/skills/**`, optional `src/publish/**`, and `src/targets/<platform>/...`.
+Plugin-root `README.md`, Claude/Codex/Gemini/Cursor/OpenCode native config files, and other root manifests are generated managed artifacts and should be treated as generated outputs. Root `CLAUDE.md` and `AGENTS.md` are committed boundary docs that tell humans and agents to edit only `src/`.
 
 ## Canonical Production Lane
 
@@ -69,15 +69,15 @@ Use [VALIDATE_JSON_CONTRACT.md](./VALIDATE_JSON_CONTRACT.md) for the ABI details
 ## Claude Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform claude` or `plugin-kit-ai import --from claude`
-- Keep `plugin.yaml` plus `targets/claude/...` as the authored source of truth
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, and `src/targets/claude/...` as the authored source of truth
 - Claude now supports two valid authoring modes under the same `claude` target:
-  - runtime/hooks mode: `launcher.yaml` plus optional `targets/claude/hooks/hooks.json`
-  - package-only mode: no `launcher.yaml`, with package/config surfaces such as `mcp/servers.yaml`, `skills/`, `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, `targets/claude/manifest.extra.json`, `targets/claude/commands/**`, or `targets/claude/agents/**`
-- First-class Claude package docs include `targets/claude/settings.json`, `targets/claude/lsp.json`, `targets/claude/user-config.json`, and `targets/claude/manifest.extra.json`
+  - runtime/hooks mode: `src/launcher.yaml` plus optional `src/targets/claude/hooks/hooks.json`
+  - package-only mode: no `src/launcher.yaml`, with package/config surfaces such as `src/mcp/servers.yaml`, `src/skills/`, `src/targets/claude/settings.json`, `src/targets/claude/lsp.json`, `src/targets/claude/user-config.json`, `src/targets/claude/manifest.extra.json`, `src/targets/claude/commands/**`, or `src/targets/claude/agents/**`
+- First-class Claude package docs include `src/targets/claude/settings.json`, `src/targets/claude/lsp.json`, `src/targets/claude/user-config.json`, and `src/targets/claude/manifest.extra.json`
 - Commit generated `.claude-plugin/plugin.json`
 - Commit generated `.mcp.json` when portable MCP is authored
 - Commit generated `hooks/hooks.json` only when hooks are authored or the launcher-backed stable default hook projection is active
-- `validate --strict` enforces that authored `targets/claude/hooks/hooks.json` command entries still match `launcher.yaml.entrypoint`
+- `validate --strict` enforces that authored `src/targets/claude/hooks/hooks.json` command entries still match `src/launcher.yaml.entrypoint`
 - Treat the stable promise as applying only to `Stop`, `PreToolUse`, and `UserPromptSubmit`
 - The default Claude scaffold already matches that stable subset; use `--claude-extended-hooks` only as an explicit expansion step
 - Treat additional runtime-supported Claude hooks as `public-beta` unless separately promoted
@@ -85,12 +85,12 @@ Use [VALIDATE_JSON_CONTRACT.md](./VALIDATE_JSON_CONTRACT.md) for the ABI details
 Reference implementation:
 
 - [examples/plugins/claude-basic-prod](../examples/plugins/claude-basic-prod)
-- [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/context7)
+- [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7)
 
 ## Codex Runtime Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform codex-runtime` or `plugin-kit-ai import --from codex-runtime`
-- Keep `plugin.yaml` plus `targets/codex-runtime/...` as the authored source of truth
+- Keep `src/plugin.yaml`, `src/launcher.yaml`, and `src/targets/codex-runtime/...` as the authored source of truth
 - Commit generated `.codex/config.toml`
 - Treat the stable promise as applying only to the `Notify` path
 
@@ -101,8 +101,8 @@ Reference implementation:
 ## Codex Package Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform codex-package` or `plugin-kit-ai import --from codex-package`
-- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/codex-package/...` as the authored source of truth
-- Use `targets/codex-package/package.yaml` for first-class package metadata and `targets/codex-package/interface.json` for prompt/interface UX; reserve `targets/codex-package/manifest.extra.json` for unsupported future manifest fields only
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, plus `src/targets/codex-package/...` only when you need Codex-specific overrides
+- Prefer shared package metadata in `src/plugin.yaml`; use `src/targets/codex-package/package.yaml` only for Codex-only overrides, `src/targets/codex-package/interface.json` for prompt/interface UX, and `src/targets/codex-package/manifest.extra.json` only for unsupported future manifest fields
 - Commit generated `.codex-plugin/plugin.json` plus optional `.mcp.json` and `.app.json`
 - Treat this lane as the official Codex plugin bundle, separate from local notify/runtime wiring
 
@@ -113,7 +113,7 @@ Reference implementation:
 ## OpenCode Release-Ready Path
 
 - Start from `plugin-kit-ai init --platform opencode` or `plugin-kit-ai import --from opencode`
-- Keep `plugin.yaml` plus `targets/opencode/...` as the authored source of truth
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/skills/**`, and `src/targets/opencode/...` as the authored source of truth
 - Commit generated `opencode.json`, `.opencode/tools/**`, `.opencode/plugins/**`, and `.opencode/package.json`
 - Treat the stable promise as applying to repo-local authored/generate/import/validate for local plugin subtree ownership and shared dependency metadata in `.opencode/package.json`
 - Treat standalone `.opencode/tools/**` authoring as first-class `public-beta`
@@ -128,9 +128,9 @@ Reference implementation:
 ## Cursor Workspace Path
 
 - Start from `plugin-kit-ai init --platform cursor` or `plugin-kit-ai import --from cursor`
-- Keep `plugin.yaml`, `mcp/servers.yaml`, and `targets/cursor/...` as the authored source of truth
-- Commit generated `.cursor/mcp.json`, `.cursor/rules/**`, and optional shared root `AGENTS.md`
-- Treat this lane as the documented Cursor workspace-config subset only; do not assume support for root `CLAUDE.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or VS Code extension packaging through this target
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, and `src/targets/cursor/...` as the authored source of truth
+- Commit generated `.cursor/mcp.json` and `.cursor/rules/**`
+- Treat this lane as the documented Cursor workspace-config subset only; root `CLAUDE.md` and `AGENTS.md` are plugin boundary docs, not Cursor-native authored surfaces. Do not assume support for global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or VS Code extension packaging through this target
 
 Reference implementation:
 
@@ -149,7 +149,7 @@ Reference implementation:
 ## Gemini Packaging Boundary
 
 - Start from `plugin-kit-ai init --platform gemini` or `plugin-kit-ai import --from gemini`
-- Keep `plugin.yaml`, optional `mcp/servers.yaml`, plus `targets/gemini/...` as the authored source of truth
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/skills/**`, plus `src/targets/gemini/...` as the authored source of truth
 - Commit generated `gemini-extension.json` plus generated `hooks/`, `commands/`, `policies/`, and selected context artifacts
 - Treat Gemini packaging as the primary path: inline `mcpServers`, `contextFileName`, `settings`, `themes`, `excludeTools`, `plan.directory`, and `manifest.extra.json`
 - Use `plugin-kit-ai inspect . --target gemini` to confirm the managed artifact set and whether the repo is still packaging-only or has the optional launcher-based Gemini runtime lane enabled

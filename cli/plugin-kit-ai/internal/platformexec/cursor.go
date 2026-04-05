@@ -64,24 +64,13 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 
 	if _, err := os.Stat(filepath.Join(root, removedCursorRulesFileName)); err == nil {
-		return ImportResult{}, fmt.Errorf("unsupported Cursor repo-root rules file: use .cursor/rules/*.mdc and optional root AGENTS.md")
-	} else if !os.IsNotExist(err) {
-		return ImportResult{}, err
-	}
-	if body, err := os.ReadFile(filepath.Join(root, "AGENTS.md")); err == nil {
-		if seed.Explicit || hasCursorState {
-			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-				RelPath: filepath.Join("targets", "cursor", "AGENTS.md"),
-				Content: body,
-			})
-			hasCursorState = true
-		}
+		return ImportResult{}, fmt.Errorf("unsupported Cursor repo-root rules file: use .cursor/rules/*.mdc")
 	} else if !os.IsNotExist(err) {
 		return ImportResult{}, err
 	}
 
 	if !hasCursorState {
-		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json, .cursor/rules/**, or explicit --from cursor with root AGENTS.md")
+		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json or .cursor/rules/**")
 	}
 	result.Artifacts = compactArtifacts(result.Artifacts)
 	return result, nil
@@ -103,39 +92,30 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 			Content: body,
 		})
 	}
-	rules, err := copyArtifacts(root, filepath.Join("targets", "cursor", "rules"), filepath.Join(".cursor", "rules"))
+	rules, err := copyArtifacts(root, authoredComponentDir(state, "rules", filepath.Join("targets", "cursor", "rules")), filepath.Join(".cursor", "rules"))
 	if err != nil {
 		return nil, err
 	}
 	artifacts = append(artifacts, rules...)
-	agents, err := copySingleArtifactIfExists(root, filepath.Join("targets", "cursor", "AGENTS.md"), "AGENTS.md")
-	if err != nil {
-		return nil, err
-	}
-	artifacts = append(artifacts, agents...)
 	return compactArtifacts(artifacts), nil
 }
 
 func (cursorAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
-	if strings.TrimSpace(state.DocPath("agents_md")) != "" || fileExists(filepath.Join(root, "AGENTS.md")) {
-		return []string{"AGENTS.md"}, nil
-	}
 	return nil, nil
 }
 
 func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
-	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 && strings.TrimSpace(state.DocPath("agents_md")) == "" {
+	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     filepath.ToSlash(filepath.Join("targets", "cursor")),
 			Target:   "cursor",
-			Message:  "Cursor target requires at least one of mcp/servers.yaml, targets/cursor/rules/**, or targets/cursor/AGENTS.md",
+			Message:  "Cursor target requires at least one of mcp/servers.yaml or targets/cursor/rules/**",
 		})
 	}
 	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)
-	diagnostics = append(diagnostics, validateCursorAgentsMarkdown(root, state.DocPath("agents_md"))...)
 	return diagnostics, nil
 }
 
