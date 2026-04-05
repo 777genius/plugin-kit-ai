@@ -217,8 +217,12 @@ func cursorEnvironmentIssue(output string) bool {
 		"unauthorized",
 		"model unavailable",
 		"model not found",
+		"cannot use this model",
+		"available models:",
 		"access denied",
 		"failed to fetch models",
+		"usage limit",
+		"switch to a different model",
 	}
 	for _, marker := range markers {
 		if strings.Contains(lower, marker) {

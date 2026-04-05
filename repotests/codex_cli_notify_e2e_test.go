@@ -2016,6 +2016,9 @@ func codexRuntimeUnhealthy(log string) bool {
 		"Attempted to create a NULL object.",
 		"event loop thread panicked",
 		"failed to refresh available models",
+		"failed to connect to websocket: HTTP error: 500 Internal Server Error",
+		"We're currently experiencing high demand",
+		"stream disconnected - retrying sampling request",
 	}
 	for _, marker := range markers {
 		if strings.Contains(log, marker) {
