@@ -12,14 +12,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const PortableMCPFormatMarker = "plugin-kit-ai/mcp"
+const PortableMCPLegacyFormatMarker = "plugin-kit-ai/mcp"
 
 var portableMCPAliasRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 type PortableMCPFile struct {
-	Format  string                       `yaml:"format" json:"format"`
-	Version int                          `yaml:"version" json:"version"`
-	Servers map[string]PortableMCPServer `yaml:"servers" json:"servers"`
+	APIVersion string                       `yaml:"api_version,omitempty" json:"api_version,omitempty"`
+	Format     string                       `yaml:"format,omitempty" json:"format,omitempty"`
+	Version    int                          `yaml:"version,omitempty" json:"version,omitempty"`
+	Servers    map[string]PortableMCPServer `yaml:"servers" json:"servers"`
 }
 
 type PortableMCPServer struct {
@@ -64,11 +65,23 @@ func ParsePortableMCP(rel string, body []byte) (ParsedPortableMCP, error) {
 	if raw == nil {
 		raw = map[string]any{}
 	}
-	if _, hasFormat := raw["format"]; !hasFormat {
-		return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s must declare %q", rel, PortableMCPFormatMarker)
-	}
-	if _, hasVersion := raw["version"]; !hasVersion {
-		return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s must declare version", rel)
+	_, hasAPIVersion := raw["api_version"]
+	_, hasFormat := raw["format"]
+	_, hasVersion := raw["version"]
+	switch {
+	case hasAPIVersion:
+		if hasFormat || hasVersion {
+			return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s must not mix api_version with legacy format/version markers", rel)
+		}
+	case hasFormat || hasVersion:
+		if !hasFormat {
+			return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s legacy schema must declare %q", rel, PortableMCPLegacyFormatMarker)
+		}
+		if !hasVersion {
+			return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s legacy schema must declare version", rel)
+		}
+	default:
+		return ParsedPortableMCP{}, fmt.Errorf("portable MCP file %s must declare api_version", rel)
 	}
 	return parsePortableMCPFile(rel, body)
 }
@@ -96,6 +109,7 @@ func parsePortableMCPFile(rel string, body []byte) (ParsedPortableMCP, error) {
 }
 
 func normalizePortableMCPFile(file *PortableMCPFile) {
+	file.APIVersion = strings.TrimSpace(file.APIVersion)
 	file.Format = strings.TrimSpace(file.Format)
 	if file.Servers == nil {
 		file.Servers = map[string]PortableMCPServer{}
@@ -193,11 +207,23 @@ func normalizeRemoteProtocol(value string) string {
 }
 
 func (file PortableMCPFile) Validate() error {
-	if file.Format != PortableMCPFormatMarker {
-		return fmt.Errorf("portable MCP format must be %q", PortableMCPFormatMarker)
-	}
-	if file.Version != 1 {
-		return fmt.Errorf("portable MCP version %d is unsupported", file.Version)
+	switch {
+	case file.APIVersion != "":
+		if file.APIVersion != APIVersionV1 {
+			return fmt.Errorf("portable MCP api_version must be %q", APIVersionV1)
+		}
+		if file.Format != "" || file.Version != 0 {
+			return fmt.Errorf("portable MCP api_version may not be mixed with legacy format/version markers")
+		}
+	case file.Format != "" || file.Version != 0:
+		if file.Format != PortableMCPLegacyFormatMarker {
+			return fmt.Errorf("portable MCP legacy format must be %q", PortableMCPLegacyFormatMarker)
+		}
+		if file.Version != 1 {
+			return fmt.Errorf("portable MCP legacy version %d is unsupported", file.Version)
+		}
+	default:
+		return fmt.Errorf("portable MCP api_version must be %q", APIVersionV1)
 	}
 	if len(file.Servers) == 0 {
 		return fmt.Errorf("portable MCP servers must not be empty")
@@ -542,6 +568,7 @@ func mustPortableMCPMap(value map[string]any) map[string]any {
 }
 
 func MarshalPortableMCPFile(file PortableMCPFile) ([]byte, error) {
+	canonicalizePortableMCPFile(&file)
 	normalizePortableMCPFile(&file)
 	if err := file.Validate(); err != nil {
 		return nil, err
@@ -564,9 +591,8 @@ func ImportedPortableMCPYAML(sourceTarget string, servers map[string]any) ([]byt
 func PortableMCPFileFromNative(sourceTarget string, servers map[string]any) (PortableMCPFile, error) {
 	target := NormalizeTarget(sourceTarget)
 	file := PortableMCPFile{
-		Format:  PortableMCPFormatMarker,
-		Version: 1,
-		Servers: map[string]PortableMCPServer{},
+		APIVersion: APIVersionV1,
+		Servers:    map[string]PortableMCPServer{},
 	}
 	for alias, raw := range servers {
 		serverMap, ok := raw.(map[string]any)
@@ -584,6 +610,12 @@ func PortableMCPFileFromNative(sourceTarget string, servers map[string]any) (Por
 		return PortableMCPFile{}, err
 	}
 	return file, nil
+}
+
+func canonicalizePortableMCPFile(file *PortableMCPFile) {
+	file.APIVersion = APIVersionV1
+	file.Format = ""
+	file.Version = 0
 }
 
 func portableMCPServerFromNative(alias, target string, raw map[string]any) (PortableMCPServer, error) {

@@ -152,7 +152,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 	if strings.TrimSpace(platform) != "" && !slices.Contains(manifest.EnabledTargets(), strings.TrimSpace(platform)) {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureManifestInvalid,
-			Path:    pluginmanifest.FileName,
+			Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName),
 			Message: fmt.Sprintf("plugin.yaml does not enable target %q", platform),
 		})
 	}
@@ -323,27 +323,27 @@ func extractFailurePath(message string) string {
 		if idx <= 0 {
 			return ""
 		}
-		return rest[:idx]
+		return canonicalAuthoredPath(rest[:idx])
 	case strings.HasPrefix(message, "required launcher missing: "):
-		return strings.TrimSpace(strings.TrimPrefix(message, "required launcher missing: "))
+		return canonicalAuthoredPath(strings.TrimSpace(strings.TrimPrefix(message, "required launcher missing: ")))
 	case strings.HasPrefix(message, "launcher invalid: missing "):
-		return strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: missing "))
+		return canonicalAuthoredPath(strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: missing ")))
 	case strings.HasPrefix(message, "launcher invalid: not executable "):
-		return strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: not executable "))
+		return canonicalAuthoredPath(strings.TrimSpace(strings.TrimPrefix(message, "launcher invalid: not executable ")))
 	case strings.HasPrefix(message, "invalid "):
 		rest := strings.TrimPrefix(message, "invalid ")
 		idx := strings.Index(rest, ":")
 		if idx <= 0 {
 			return ""
 		}
-		return rest[:idx]
+		return canonicalAuthoredPath(rest[:idx])
 	case strings.HasPrefix(message, "unsupported portable MCP authored path "):
 		rest := strings.TrimPrefix(message, "unsupported portable MCP authored path ")
 		idx := strings.Index(rest, ":")
 		if idx <= 0 {
 			return ""
 		}
-		return rest[:idx]
+		return canonicalAuthoredPath(rest[:idx])
 	case strings.HasPrefix(message, "runtime not found: "):
 		rest := strings.TrimPrefix(message, "runtime not found: ")
 		if idx := strings.Index(rest, "parse "); idx >= 0 {
@@ -371,9 +371,30 @@ func extractFailurePath(message string) string {
 		if colon <= 0 {
 			return ""
 		}
-		return rest[:colon]
+		return canonicalAuthoredPath(rest[:colon])
 	default:
 		return ""
+	}
+}
+
+func canonicalAuthoredPath(path string) string {
+	path = filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	if path == "." || path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, pluginmodel.SourceDirName+"/") {
+		return path
+	}
+	switch {
+	case path == pluginmanifest.FileName,
+		path == pluginmanifest.LauncherFileName,
+		strings.HasPrefix(path, "targets/"),
+		strings.HasPrefix(path, "skills/"),
+		strings.HasPrefix(path, "publish/"),
+		strings.HasPrefix(path, "mcp/"):
+		return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, path))
+	default:
+		return path
 	}
 }
 
@@ -381,14 +402,14 @@ func unsupportedPortablePath(portable pluginmanifest.PortableComponents, kind st
 	switch kind {
 	case "skills":
 		if len(portable.Paths("skills")) > 0 {
-			return "skills"
+			return canonicalAuthoredPath("skills")
 		}
-		return "skills"
+		return canonicalAuthoredPath("skills")
 	case "mcp_servers":
 		if portable.MCP != nil && strings.TrimSpace(portable.MCP.Path) != "" {
-			return portable.MCP.Path
+			return canonicalAuthoredPath(portable.MCP.Path)
 		}
-		return "mcp"
+		return canonicalAuthoredPath("mcp")
 	default:
 		return kind
 	}
@@ -396,12 +417,12 @@ func unsupportedPortablePath(portable pluginmanifest.PortableComponents, kind st
 
 func unsupportedTargetKindPath(target string, tc pluginmanifest.TargetComponents, kind string) string {
 	if path := strings.TrimSpace(tc.DocPath(kind)); path != "" {
-		return path
+		return canonicalAuthoredPath(path)
 	}
 	if len(tc.ComponentPaths(kind)) > 0 {
-		return filepath.ToSlash(filepath.Join("targets", target, kind))
+		return canonicalAuthoredPath(filepath.ToSlash(filepath.Join("targets", target, kind)))
 	}
-	return filepath.ToSlash(filepath.Join("targets", target, kind))
+	return canonicalAuthoredPath(filepath.ToSlash(filepath.Join("targets", target, kind)))
 }
 
 func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.PlatformProfile) []string {
@@ -414,7 +435,7 @@ func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.Pla
 			seen[doc.Path] = struct{}{}
 		}
 	}
-	dir := filepath.Join("targets", target, kind)
+	dir := canonicalAuthoredPath(filepath.Join("targets", target, kind))
 	if entries, err := os.ReadDir(filepath.Join(root, dir)); err == nil && len(entries) > 0 {
 		seen[dir] = struct{}{}
 	}
@@ -518,8 +539,8 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		if requireLauncher {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureLauncherInvalid,
-				Path:    pluginmanifest.LauncherFileName,
-				Message: "launcher invalid: missing " + pluginmanifest.LauncherFileName,
+				Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName),
+				Message: "launcher invalid: missing " + filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName)),
 			})
 		}
 		return
@@ -579,8 +600,8 @@ func validatePluginLauncher(root string, launcher *pluginmanifest.Launcher, repo
 	if launcher == nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
-			Path:    pluginmanifest.LauncherFileName,
-			Message: "launcher invalid: missing " + pluginmanifest.LauncherFileName,
+			Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName),
+			Message: "launcher invalid: missing " + filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName)),
 		})
 		return
 	}

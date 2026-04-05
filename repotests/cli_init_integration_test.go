@@ -87,7 +87,7 @@ func assertConfigTargetPortableMCPScaffold(t *testing.T, root string) {
 		t.Fatalf("read src/mcp/servers.yaml: %v", err)
 	}
 	for _, want := range []string{
-		"format: plugin-kit-ai/mcp",
+		"api_version: v1",
 		`url: "https://example.com/mcp"`,
 	} {
 		if !strings.Contains(string(body), want) {

@@ -72,14 +72,14 @@ func TestValidate_PluginProjectWarnsOnUnknownFields(t *testing.T) {
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, pluginmanifest.FileName, `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.FileName), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "plugin"
 targets: ["codex-runtime"]
 extra: true
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
 	generated, err := pluginmanifest.Generate(dir, "all")
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestValidate_PluginProject_ClaudeHooksMatchEntrypoint(t *testing.T) {
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/x Stop"}]}],
     "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/x PreToolUse"}]}],
@@ -140,7 +140,7 @@ func TestValidate_PluginProject_ClaudeHookEntrypointMismatch(t *testing.T) {
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/old-x Stop"}]}],
     "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/x PreToolUse"}]}],
@@ -177,7 +177,7 @@ func TestValidate_PluginProject_ClaudeExtendedHooksAlsoMatchEntrypoint(t *testin
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("x", "claude", "go", "plugin", false), "go")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/x Stop"}]}],
     "SessionStart": [{"hooks": [{"type": "command", "command": "./bin/old-x SessionStart"}]}]
@@ -211,8 +211,7 @@ func TestValidate_PluginProject_ClaudePackageOnlyMCP(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustSaveValidatedPackage(t, dir, pluginmanifest.Default("context7", "claude", "go", "plugin", false), "")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   context7:

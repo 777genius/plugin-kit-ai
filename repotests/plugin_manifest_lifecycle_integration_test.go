@@ -86,7 +86,7 @@ func TestPluginKitAIImportPrintsWarningsForIgnoredAssets(t *testing.T) {
 		t.Fatalf("plugin-kit-ai import: %v\n%s", err, out)
 	}
 	text := string(out)
-	if !strings.Contains(text, "Warning: portable MCP will be preserved under mcp/servers.yaml") {
+	if !strings.Contains(text, "Warning: portable MCP will be preserved under src/mcp/servers.yaml") {
 		t.Fatalf("missing .mcp.json warning:\n%s", text)
 	}
 	if !strings.Contains(text, "Warning: ignored unsupported import asset: agents") {
@@ -290,8 +290,7 @@ keywords:
 `)
 	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"displayName":"Genplug","defaultPrompt":["Help with Genplug.","Prefer package lane guidance."]}`)
 	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"genplug-app","entry":"web/index.html"}`)
-	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -430,8 +429,7 @@ text:
 	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "targets", "gemini", "policies", "release-review.toml"), "review = \"required\"\n")
 	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "targets", "gemini", "commands", "deploy.toml"), "description = \"Deploy release\"\nprompt = \"Ship the release\"\n")
 	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
-	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginLifecycleFile(t, authoredRoot, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:

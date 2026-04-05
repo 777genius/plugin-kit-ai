@@ -78,7 +78,7 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 	for _, want := range []string{
 		`Created plugin "genplug" at ` + plugRoot,
 		`cd ` + strconv.Quote(plugRoot),
-		"Portable MCP starter: mcp/servers.yaml",
+		"Portable MCP starter: src/mcp/servers.yaml",
 		"go test ./...",
 		"plugin-kit-ai generate .",
 		"plugin-kit-ai generate --check .",

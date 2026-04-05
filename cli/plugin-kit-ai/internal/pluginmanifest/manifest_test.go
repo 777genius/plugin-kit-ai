@@ -76,9 +76,8 @@ func TestRender_OpenCodeRendersWorkspaceConfigAndSkills(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePortableMCPFile(t, root, `api_version: v1
 
 servers:
   context7:
@@ -89,13 +88,13 @@ servers:
         - -y
         - "@upstash/context7-mcp"
 `)
-	mustWritePluginFile(t, root, filepath.Join("skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo skill\nexecution_mode: docs_only\nsupported_agents:\n  - opencode\n---\n\n# Demo\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "themes", "midnight.json"), `{"$schema":"https://opencode.ai/theme.json","theme":{"primary":"#111827","text":"#f9fafb","background":"#020617"}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "tools", "echo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({ description: \"echo\", args: { value: tool.schema.string() }, async execute(args) { return args.value } })\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "plugins", "example.js"), "export const ExamplePlugin = async () => ({})\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module","dependencies":{"@opencode-ai/plugin":"latest"}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "skills", "demo", "SKILL.md"), "---\nname: demo\ndescription: demo skill\nexecution_mode: docs_only\nsupported_agents:\n  - opencode\n---\n\n# Demo\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "commands", "ship.md"), "---\ndescription: ship command\n---\n\nShip it.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"), "---\ndescription: reviewer\nmode: subagent\n---\n\nReview carefully.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "themes", "midnight.json"), `{"$schema":"https://opencode.ai/theme.json","theme":{"primary":"#111827","text":"#f9fafb","background":"#020617"}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "tools", "echo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({ description: \"echo\", args: { value: tool.schema.string() }, async execute(args) { return args.value } })\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "plugins", "example.js"), "export const ExamplePlugin = async () => ({})\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module","dependencies":{"@opencode-ai/plugin":"latest"}}`)
 
 	result, err := Generate(root, "opencode")
 	if err != nil {
@@ -173,8 +172,7 @@ func TestRender_PortableMCPStandardProjectsAcrossExistingTargets(t *testing.T) {
 	manifest := Default("demo", "claude", "go", "demo plugin", true)
 	manifest.Targets = []string{"claude", "codex-package", "gemini", "opencode", "cursor"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -279,8 +277,7 @@ targets:
   - "cursor"
 `)
 	mustWritePluginFile(t, root, filepath.Join("src", "README.md"), "# Demo\n\nEdit only `src/`.\n")
-	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -322,7 +319,7 @@ description: "demo"
 targets:
   - "cursor"
 `)
-	mustWritePluginFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWritePluginFile(t, root, "plugin.yaml", `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -585,8 +582,8 @@ func TestValidate_OpenCodeRejectsInvalidPluginPackageJSON(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.json"), `[]`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.json"), `[]`)
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -603,7 +600,7 @@ func TestValidate_OpenCodeRejectsInvalidPluginPackageJSON(t *testing.T) {
 	}
 	var found bool
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")) &&
 			strings.Contains(failure.Message, "invalid JSON") {
 			found = true
 		}
@@ -617,8 +614,8 @@ func TestValidate_OpenCodeRejectsPluginTreeWithoutEntryFile(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "plugins", "README.md"), "# demo\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "plugins", "README.md"), "# demo\n")
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -635,7 +632,7 @@ func TestValidate_OpenCodeRejectsPluginTreeWithoutEntryFile(t *testing.T) {
 	}
 	var found bool
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "plugins")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "plugins")) &&
 			strings.Contains(failure.Message, "requires at least one JS/TS plugin entry file") {
 			found = true
 		}
@@ -649,8 +646,8 @@ func TestValidate_OpenCodeRejectsOldScaffoldPluginShape(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "plugins", "example.js"), "export default { setup() { return {} } }\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "plugins", "example.js"), "export default { setup() { return {} } }\n")
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -667,7 +664,7 @@ func TestValidate_OpenCodeRejectsOldScaffoldPluginShape(t *testing.T) {
 	}
 	var found bool
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "plugins", "example.js")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "plugins", "example.js")) &&
 			strings.Contains(failure.Message, "old scaffold shape") {
 			found = true
 		}
@@ -681,9 +678,9 @@ func TestValidate_OpenCodeRejectsHelperImportWithoutDependency(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "plugins", "custom-tool.js"), "import { tool } from \"@opencode-ai/plugin\"\nexport const CustomToolPlugin = async () => ({ tool: { demo: tool({ description: \"demo\", args: {}, async execute() { return \"ok\" } }) } })\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "plugins", "custom-tool.js"), "import { tool } from \"@opencode-ai/plugin\"\nexport const CustomToolPlugin = async () => ({ tool: { demo: tool({ description: \"demo\", args: {}, async execute() { return \"ok\" } }) } })\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module"}`)
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -700,7 +697,7 @@ func TestValidate_OpenCodeRejectsHelperImportWithoutDependency(t *testing.T) {
 	}
 	var found bool
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")) &&
 			strings.Contains(failure.Message, `@opencode-ai/plugin`) {
 			found = true
 		}
@@ -714,9 +711,9 @@ func TestValidate_OpenCodeAcceptsHelperImportWithDependency(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "plugins", "custom-tool.js"), "import { tool } from \"@opencode-ai/plugin\"\nexport const CustomToolPlugin = async () => ({ tool: { demo: tool({ description: \"demo\", args: {}, async execute() { return \"ok\" } }) } })\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module","dependencies":{"@opencode-ai/plugin":"latest"}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "plugins", "custom-tool.js"), "import { tool } from \"@opencode-ai/plugin\"\nexport const CustomToolPlugin = async () => ({ tool: { demo: tool({ description: \"demo\", args: {}, async execute() { return \"ok\" } }) } })\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module","dependencies":{"@opencode-ai/plugin":"latest"}}`)
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -732,7 +729,7 @@ func TestValidate_OpenCodeAcceptsHelperImportWithDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")) &&
 			strings.Contains(failure.Message, `@opencode-ai/plugin`) {
 			t.Fatalf("unexpected helper dependency failure: %+v", diagnostics)
 		}
@@ -743,9 +740,9 @@ func TestValidate_OpenCodeRejectsToolHelperImportWithoutDependency(t *testing.T)
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "tools", "echo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({ description: \"echo\", args: { value: tool.schema.string() }, async execute(args) { return args.value } })\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "tools", "echo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({ description: \"echo\", args: { value: tool.schema.string() }, async execute(args) { return args.value } })\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.json"), `{"name":"demo-opencode-local","private":true,"type":"module"}`)
 	mustWritePluginFile(t, root, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	graph, _, err := Discover(root)
@@ -762,7 +759,7 @@ func TestValidate_OpenCodeRejectsToolHelperImportWithoutDependency(t *testing.T)
 	}
 	var found bool
 	for _, failure := range diagnostics {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")) &&
 			strings.Contains(failure.Message, "standalone tool files") {
 			found = true
 		}
@@ -794,8 +791,7 @@ func TestRender_CursorRendersWorkspaceConfig(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePortableMCPFile(t, root, `api_version: v1
 
 servers:
   context7:
@@ -806,7 +802,7 @@ servers:
         - -y
         - "@upstash/context7-mcp"
 `)
-	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
 
 	result, err := Generate(root, "cursor")
 	if err != nil {
@@ -839,7 +835,7 @@ func TestRender_CursorRuleRemovalDoesNotTrackBoundaryDocs(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("cursor-demo", "cursor", "", "cursor demo", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
 
 	first, err := Generate(root, "cursor")
 	if err != nil {
@@ -848,7 +844,7 @@ func TestRender_CursorRuleRemovalDoesNotTrackBoundaryDocs(t *testing.T) {
 	if err := WriteArtifacts(root, first.Artifacts); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(filepath.Join(root, "targets", "cursor", "rules", "project.mdc")); err != nil {
+	if err := os.Remove(filepath.Join(root, "src", "targets", "cursor", "rules", "project.mdc")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -901,7 +897,7 @@ func TestInspect_CursorExposesWorkspaceSurfaceTiers(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "cursor", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "cursor", "rules", "project.mdc"), "---\ndescription: project rule\nglobs:\nalwaysApply: true\n---\n\n- Keep Cursor config generated.\n")
 
 	inspection, _, err := Inspect(root, "cursor")
 	if err != nil {
@@ -957,10 +953,10 @@ func TestRender_ClaudeRendersSettingsLSPAndUserConfig(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "settings.json"), `{"agent":"reviewer"}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "lsp.json"), `{"servers":{"demo":{"command":["demo-lsp"]}}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "user-config.json"), `{"api_token":{"description":"API token","secret":true}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "agents", "reviewer.md"), "---\nname: reviewer\ndescription: review\n---\nReview.\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "settings.json"), `{"agent":"reviewer"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "lsp.json"), `{"servers":{"demo":{"command":["demo-lsp"]}}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "user-config.json"), `{"api_token":{"description":"API token","secret":true}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "agents", "reviewer.md"), "---\nname: reviewer\ndescription: review\n---\nReview.\n")
 
 	result, err := Generate(root, "claude")
 	if err != nil {
@@ -997,8 +993,7 @@ func TestRender_ClaudePackageOnlyMCPGeneratesPluginAndMCPWithoutHooks(t *testing
 	root := t.TempDir()
 	manifest := Default("context7", "claude", "go", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   context7:
@@ -1040,7 +1035,7 @@ func TestRender_ClaudeRejectsHooksWithoutLauncher(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
 
 	if _, err := Generate(root, "claude"); err == nil || !strings.Contains(err.Error(), "required launcher missing") {
 		t.Fatalf("Generate error = %v", err)
@@ -1061,7 +1056,7 @@ func TestRender_ClaudeRejectsManagedOverridesInManifestExtra(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "manifest.extra.json"), `{"settings":{"agent":"override"}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "manifest.extra.json"), `{"settings":{"agent":"override"}}`)
 
 	if _, err := Generate(root, "claude"); err == nil || !strings.Contains(err.Error(), `claude manifest.extra.json may not override canonical field "settings"`) {
 		t.Fatalf("Generate error = %v", err)
@@ -1103,11 +1098,11 @@ func TestRender_CodexMergesManifestAndConfigExtra(t *testing.T) {
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\nauthor:\n  name: Example Maintainer\nrepository: https://github.com/example/demo\nlicense: MIT\nkeywords:\n  - codex\n  - demo\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"x-example":{"enabled":true}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\nauthor:\n  name: Example Maintainer\nrepository: https://github.com/example/demo\nlicense: MIT\nkeywords:\n  - codex\n  - demo\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"x-example":{"enabled":true}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 
 	result, err := Generate(root, "all")
 	if err != nil {
@@ -1170,18 +1165,18 @@ func TestRender_CodexRejectsManagedOverridesInExtraDocs(t *testing.T) {
 	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
 	if _, err := Generate(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "homepage"`) {
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
 	if _, err := Generate(root, "codex-package"); err == nil || !strings.Contains(err.Error(), `codex-package manifest.extra.json may not override canonical field "interface"`) {
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "model = \"gpt-4.1\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "model = \"gpt-4.1\"\n")
 	if _, err := Generate(root, "codex-runtime"); err == nil || !strings.Contains(err.Error(), `codex-runtime config.extra.toml may not override canonical field "model"`) {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -1192,13 +1187,13 @@ func TestRender_CodexRejectsInvalidStructuredDocs(t *testing.T) {
 	manifest := Default("demo", "codex-package", "", "demo plugin", false)
 	manifest.Targets = []string{"codex-package"}
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":"Run the demo"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":"Run the demo"}`)
 	if _, err := Generate(root, "codex-package"); err == nil || !strings.Contains(err.Error(), "interface.defaultPrompt must be an array of strings") {
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `["demo-app"]`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "app.json"), `["demo-app"]`)
 	if _, err := Generate(root, "codex-package"); err == nil || !strings.Contains(err.Error(), "Codex app manifest must be a JSON object") {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -1208,8 +1203,8 @@ func TestRender_CodexMarketplaceGeneratesManagedArtifact(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-codex-package", "codex-package", "", "codex package demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePluginFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ndisplay_name: Local Repo\ncategory: Productivity\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ndisplay_name: Local Repo\ncategory: Productivity\n")
 
 	result, err := Generate(root, "codex-package")
 	if err != nil {
@@ -1244,7 +1239,7 @@ func TestRender_ClaudeMarketplaceGeneratesManagedArtifact(t *testing.T) {
 	manifest := Default("demo-claude", "claude", "go", "claude package demo", true)
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-claude\n")
-	mustWritePluginFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
 
 	result, err := Generate(root, "claude")
 	if err != nil {
@@ -1278,8 +1273,8 @@ func TestRender_CodexSkipsEmptyAppPlaceholder(t *testing.T) {
 	manifest := Default("demo", "codex-package", "", "demo plugin", false)
 	manifest.Targets = []string{"codex-package"}
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "app.json"), `{}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Run the demo"]}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "app.json"), `{}`)
 
 	result, err := Generate(root, "codex-package")
 	if err != nil {
@@ -1922,8 +1917,8 @@ func TestRender_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), `gemini manifest.extra.json may not override canonical field "plan.directory"`) {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -1933,9 +1928,8 @@ func TestRender_GeminiManifestParity(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePortableMCPFile(t, root, `api_version: v1
 
 servers:
   demo:
@@ -1945,13 +1939,13 @@ servers:
       args:
         - "${package.root}/server.mjs"
 `)
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nplan_directory: .gemini/plans\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\ntext:\n  primary: \"#2e1f14\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "commands", "deploy.toml"), "description = \"deploy\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "RELEASE.md"), "# Release\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\nexclude_tools:\n  - run_shell_command(rm -rf)\nplan_directory: .gemini/plans\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\ntext:\n  primary: \"#2e1f14\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "manifest.extra.json"), `{"x_galleryTopic":"gemini-cli-extension","plan":{"retentionDays":7}}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "commands", "deploy.toml"), "description = \"deploy\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "RELEASE.md"), "# Release\n")
 	result, err := Generate(root, "gemini")
 	if err != nil {
 		t.Fatal(err)
@@ -1998,7 +1992,7 @@ func TestRender_GeminiRuntimeGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 
 	result, err := Generate(root, "gemini")
 	if err != nil {
@@ -2028,8 +2022,8 @@ func TestRender_GeminiRejectsHookEntrypointMismatch(t *testing.T) {
 	manifest := Default("demo-gemini", "gemini", "go", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "go")
 	mustWritePluginFile(t, root, filepath.Join("src", LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), `{
   "hooks": {
     "SessionStart": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}other GeminiSessionStart"}]}],
     "SessionEnd": [{"matcher":"*","hooks":[{"type":"command","command":"${extensionPath}${/}bin${/}demo-gemini GeminiSessionEnd"}]}],
@@ -2047,15 +2041,15 @@ func TestRender_GeminiRejectsMalformedStructuredSettingsAndThemes(t *testing.T) 
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "broken.yaml"), "name: broken\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "settings", "broken.yaml"), "name: broken\n")
 
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), "Gemini settings require") {
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "broken.yaml"), "name: fixed\ndescription: desc\nenv_var: FIXED\nsensitive: false\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: broken\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "settings", "broken.yaml"), "name: fixed\ndescription: desc\nenv_var: FIXED\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "themes", "broken.yaml"), "name: broken\n")
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), "Gemini themes require at least one theme token besides name") {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -2065,15 +2059,15 @@ func TestRender_GeminiRejectsInvalidThemeObjectShapeAndDuplicateSettings(t *test
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), `Gemini theme key "background" must be a YAML object`) {
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), `duplicates`) {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -2083,9 +2077,8 @@ func TestRender_GeminiRejectsInvalidMCPTransportAndExcludeTools(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePortableMCPFile(t, root, `api_version: v1
 
 servers:
   demo:
@@ -2100,8 +2093,7 @@ servers:
 		t.Fatalf("Generate error = %v", err)
 	}
 
-	mustWritePortableMCPFile(t, root, `format: plugin-kit-ai/mcp
-version: 1
+	mustWritePortableMCPFile(t, root, `api_version: v1
 
 servers:
   demo:
@@ -2111,7 +2103,7 @@ servers:
       args:
         - server.mjs
 `)
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
 	if _, err := Generate(root, "gemini"); err == nil || !strings.Contains(err.Error(), "exclude_tools entries must be non-empty strings") {
 		t.Fatalf("Generate error = %v", err)
 	}
@@ -2124,7 +2116,7 @@ func TestDiscover_RejectsLegacyPortableMCPAuthoredPaths(t *testing.T) {
 	mustWritePluginFile(t, root, filepath.Join("mcp", "servers.json"), `{"demo":{"command":"node","args":["server.mjs"]}}`)
 
 	_, _, err := Discover(root)
-	if err == nil || !strings.Contains(err.Error(), "unsupported portable MCP authored path mcp/servers.json") {
+	if err == nil || (!strings.Contains(err.Error(), "unsupported portable MCP authored path mcp/servers.json") && !strings.Contains(err.Error(), "unsupported authored layout")) {
 		t.Fatalf("Discover error = %v", err)
 	}
 }
@@ -2133,7 +2125,7 @@ func TestDiscover_RejectsPublicationSchemaForDisabledTarget(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "cursor", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 
 	_, _, err := Discover(root)
 	if err == nil || !strings.Contains(err.Error(), `requires target "codex-package"`) {
@@ -2279,7 +2271,7 @@ func TestInspect_ReturnsTargetCoverage(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "targets", "claude", "hooks"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "hooks", "hooks.json"), "{}\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{}\n")
 	inspection, _, err := Inspect(root, "all")
 	if err == nil {
 		if len(inspection.Targets) != 2 {
@@ -2294,7 +2286,7 @@ func TestInspect_IncludesTargetLifecycleMetadata(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("gemini-inspect", "gemini", "", "gemini inspect", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 
 	inspection, _, err := Inspect(root, "gemini")
 	if err != nil {
@@ -2317,9 +2309,9 @@ func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 	manifest := Default("codex-inspect", "codex-runtime", "go", "codex inspect", true)
 	manifest.Targets = []string{"codex-package", "codex-runtime"}
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com"}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePluginFile(t, root, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://example.com"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n")
 
 	inspection, _, err := Inspect(root, "all")
 	if err != nil {
@@ -2337,10 +2329,10 @@ func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 			if !slices.Contains(target.TargetNativeKinds, "interface") {
 				t.Fatalf("codex-package target_native_kinds = %v", target.TargetNativeKinds)
 			}
-			if got := target.NativeDocPaths["interface"]; got != filepath.Join("targets", "codex-package", "interface.json") {
+			if got := target.NativeDocPaths["interface"]; got != filepath.Join("src", "targets", "codex-package", "interface.json") {
 				t.Fatalf("codex-package native_doc_paths[interface] = %q", got)
 			}
-			if got := target.NativeDocPaths["manifest_extra"]; got != filepath.Join("targets", "codex-package", "manifest.extra.json") {
+			if got := target.NativeDocPaths["manifest_extra"]; got != filepath.Join("src", "targets", "codex-package", "manifest.extra.json") {
 				t.Fatalf("codex-package native_doc_paths[manifest_extra] = %q", got)
 			}
 			if got := target.NativeSurfaceTiers["interface"]; got != "stable" {
@@ -2353,7 +2345,7 @@ func TestInspect_CodexIncludesExtraDocKinds(t *testing.T) {
 			if !slices.Contains(target.TargetNativeKinds, "config_extra") {
 				t.Fatalf("codex-runtime target_native_kinds = %v", target.TargetNativeKinds)
 			}
-			if got := target.NativeDocPaths["config_extra"]; got != filepath.Join("targets", "codex-runtime", "config.extra.toml") {
+			if got := target.NativeDocPaths["config_extra"]; got != filepath.Join("src", "targets", "codex-runtime", "config.extra.toml") {
 				t.Fatalf("codex-runtime native_doc_paths[config_extra] = %q", got)
 			}
 			if got := target.NativeSurfaceTiers["config_extra"]; got != "stable" {
@@ -2372,7 +2364,7 @@ func TestDiscover_RejectsRemovedPortableContexts(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo-gemini", "gemini", "", "gemini demo", true)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("contexts", "GEMINI.md"), "# Gemini\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "contexts", "GEMINI.md"), "# Gemini\n")
 
 	_, _, err := Discover(root)
 	if err == nil || !strings.Contains(err.Error(), "portable contexts were removed") {
@@ -2384,7 +2376,7 @@ func TestInspect_ExposesSurfaceTiers(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", true)
 	mustSavePackage(t, root, manifest, "go")
-	mustWritePluginFile(t, root, filepath.Join("targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
 
 	inspection, _, err := Inspect(root, "claude")
 	if err != nil {
@@ -2418,7 +2410,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "opencode", "", "demo plugin", false)
 	mustSavePackage(t, root, manifest, "")
-	mustWritePluginFile(t, root, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
 
 	inspection, _, err := Inspect(root, "opencode")
 	if err != nil {

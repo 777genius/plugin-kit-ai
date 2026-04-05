@@ -128,7 +128,7 @@ func TestPaths_CodexPackage(t *testing.T) {
 		filepath.Join("targets", "codex-package", "interface.json"),
 		filepath.Join("targets", "codex-package", "manifest.extra.json"),
 		filepath.Join("targets", "codex-package", "app.json"),
-		"mcp/servers.yaml",
+		filepath.Join("src", "mcp", "servers.yaml"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
@@ -1571,7 +1571,7 @@ func TestRenderTemplate_RuntimeTestScaffoldTemplates(t *testing.T) {
 		{template: "goldens.claude.stdout.tmpl", want: `{}`},
 		{template: "goldens.empty.tmpl", want: ``},
 		{template: "goldens.exitcode.tmpl", want: "0\n"},
-		{template: "mcp.servers.yaml.tmpl", want: "format: plugin-kit-ai/mcp"},
+		{template: "mcp.servers.yaml.tmpl", want: "api_version: v1"},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -1581,7 +1581,7 @@ func TestRenderTemplate_RuntimeTestScaffoldTemplates(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.template == "mcp.servers.yaml.tmpl" {
-				for _, want := range []string{"format: plugin-kit-ai/mcp", `- "cursor"`} {
+				for _, want := range []string{"api_version: v1", `- "cursor"`} {
 					if !strings.Contains(string(body), want) {
 						t.Fatalf("%s missing %q:\n%s", tc.template, want, body)
 					}

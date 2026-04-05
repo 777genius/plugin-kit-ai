@@ -150,8 +150,7 @@ Reason:
 Recommended authored shape for `src/mcp/servers.yaml`:
 
 ```yaml
-format: plugin-kit-ai/mcp
-version: 1
+api_version: v1
 
 servers:
   context7:
@@ -186,8 +185,7 @@ servers:
 
 Top-level fields:
 
-- `format`
-- `version`
+- `api_version`
 - `servers`
 
 `servers.<alias>` fields:
@@ -509,8 +507,7 @@ Why these stay out for now:
 ## Example: Stdio Server
 
 ```yaml
-format: plugin-kit-ai/mcp
-version: 1
+api_version: v1
 
 servers:
   release-checks:
@@ -527,8 +524,7 @@ servers:
 ## Example: Remote Server
 
 ```yaml
-format: plugin-kit-ai/mcp
-version: 1
+api_version: v1
 
 servers:
   docs:

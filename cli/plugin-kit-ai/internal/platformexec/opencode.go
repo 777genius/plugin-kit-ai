@@ -115,7 +115,7 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 	}
 
 	artifacts := []pluginmodel.Artifact{{
-		RelPath: filepath.Join("targets", "opencode", "package.yaml"),
+		RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.yaml"),
 		Content: mustYAML(opencodePackageMeta{Plugins: append([]string(nil), state.plugins...)}),
 	}}
 	if len(state.mcp) > 0 {
@@ -127,7 +127,7 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 	}
 	if len(state.extra) > 0 {
 		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "opencode", "config.extra.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "config.extra.json"),
 			Content: mustJSON(state.extra),
 		})
 	}
@@ -328,7 +328,8 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 		}
 	}
 	if len(graph.Portable.Paths("skills")) > 0 {
-		report, err := (skillsapp.Service{Repo: skillfs.Repository{}}).Validate(skillsapp.ValidateOptions{Root: root})
+		authoredRoot := filepath.Join(root, pluginmodel.SourceDirName)
+		report, err := (skillsapp.Service{Repo: skillfs.Repository{}}).Validate(skillsapp.ValidateOptions{Root: authoredRoot})
 		if err != nil {
 			return nil, err
 		}
@@ -336,7 +337,7 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
-				Path:     filepath.ToSlash(failure.Path),
+				Path:     filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, failure.Path)),
 				Target:   "opencode",
 				Message:  "OpenCode mirrored skill is incompatible with the shared SKILL.md contract: " + failure.Message,
 			})
@@ -472,7 +473,7 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 			dir:     pluginsDir,
 			display: filepath.ToSlash(filepath.Join(cfg.workspaceDisplay, "plugins")),
 		},
-		filepath.Join("targets", "opencode", "plugins"),
+		filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"),
 		nil,
 	)
 	if err != nil {
@@ -486,7 +487,7 @@ func importOpenCodeScope(state *opencodeImportedState, cfg opencodeScopeConfig) 
 	packageJSON := filepath.Join(cfg.workspaceRoot, "package.json")
 	if body, err := os.ReadFile(packageJSON); err == nil {
 		state.addArtifacts(pluginmodel.Artifact{
-			RelPath: filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")),
+			RelPath: filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.json")),
 			Content: body,
 		})
 		state.hasInput = true
@@ -619,7 +620,7 @@ func importOpenCodeToolArtifacts(workspaceRoot, workspaceDisplay string) ([]plug
 			display: filepath.ToSlash(filepath.Join(workspaceDisplay, "tools")),
 		},
 	}
-	return importDirectoryArtifactsRejectingSymlinks(sources, filepath.Join("targets", "opencode", "tools"), nil)
+	return importDirectoryArtifactsRejectingSymlinks(sources, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "tools"), nil)
 }
 
 func importDirectoryArtifactsRejectingSymlinks(sources []opencodeImportSource, dstRoot string, keep func(string) bool) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
@@ -870,7 +871,7 @@ func canonicalOpenCodeNamedMarkdownPath(kind, name string) (string, bool) {
 	if name == "" || strings.Contains(name, "/") || strings.Contains(name, `\`) || strings.Contains(name, "..") {
 		return "", false
 	}
-	return filepath.ToSlash(filepath.Join("targets", "opencode", kind, name+".md")), true
+	return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", kind, name+".md")), true
 }
 
 func sortedArtifactKeys(artifacts map[string]pluginmodel.Artifact) []string {
@@ -1132,18 +1133,18 @@ func validateOpenCodeToolFiles(root string, rels []string, packageDoc map[string
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("targets", "opencode", "tools")),
+			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "tools")),
 			Target:   "opencode",
-			Message:  "OpenCode standalone tools require at least one JS/TS tool definition file under targets/opencode/tools",
+			Message:  "OpenCode standalone tools require at least one JS/TS tool definition file under src/targets/opencode/tools",
 		})
 	}
 	if usesPluginHelper && !openCodePackageDeclaresDependency(packageDoc, "@opencode-ai/plugin") {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")),
+			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")),
 			Target:   "opencode",
-			Message:  `OpenCode standalone tool files that import "@opencode-ai/plugin" must declare that dependency in targets/opencode/package.json`,
+			Message:  `OpenCode standalone tool files that import "@opencode-ai/plugin" must declare that dependency in src/targets/opencode/package.json`,
 		})
 	}
 	return diagnostics
@@ -1233,18 +1234,18 @@ func validateOpenCodePluginFiles(root string, rels []string, packageDoc map[stri
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("targets", "opencode", "plugins")),
+			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "plugins")),
 			Target:   "opencode",
-			Message:  "OpenCode local plugin code requires at least one JS/TS plugin entry file under targets/opencode/plugins (for example .js, .mjs, .cjs, .ts, .mts, or .cts)",
+			Message:  "OpenCode local plugin code requires at least one JS/TS plugin entry file under src/targets/opencode/plugins (for example .js, .mjs, .cjs, .ts, .mts, or .cts)",
 		})
 	}
 	if usesPluginHelper && !openCodePackageDeclaresDependency(packageDoc, "@opencode-ai/plugin") {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("targets", "opencode", "package.json")),
+			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")),
 			Target:   "opencode",
-			Message:  `OpenCode plugin files that import "@opencode-ai/plugin" must declare that dependency in targets/opencode/package.json`,
+			Message:  `OpenCode plugin files that import "@opencode-ai/plugin" must declare that dependency in src/targets/opencode/package.json`,
 		})
 	}
 	return diagnostics
@@ -1319,11 +1320,10 @@ func authoredOpenCodePluginDir(root string, state pluginmodel.TargetState) strin
 	}
 	for _, candidate := range []string{
 		filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"),
-		filepath.Join("targets", "opencode", "plugins"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
 			return filepath.ToSlash(candidate)
 		}
 	}
-	return filepath.ToSlash(filepath.Join("targets", "opencode", "plugins"))
+	return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"))
 }

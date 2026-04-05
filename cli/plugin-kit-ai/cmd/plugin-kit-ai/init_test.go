@@ -214,7 +214,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantRuntime:  "",
 			wantPlatform: "cursor",
 			want: []string{
-				"Portable MCP starter: mcp/servers.yaml",
+				"Portable MCP starter: src/mcp/servers.yaml",
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
@@ -386,7 +387,7 @@ func (PluginService) PublicationMaterialize(opts PluginPublicationMaterializeOpt
 	if _, err := graph.Manifest.SelectedTargets(target); err != nil {
 		return PluginPublicationMaterializeResult{}, err
 	}
-	publicationState, err := publishschema.Discover(root)
+	publicationState, err := publishschema.DiscoverInLayout(root, pluginmodel.SourceDirName)
 	if err != nil {
 		return PluginPublicationMaterializeResult{}, err
 	}
@@ -400,7 +401,7 @@ func (PluginService) PublicationMaterialize(opts PluginPublicationMaterializeOpt
 	}
 	channel, ok := publicationChannelForTarget(publication, target)
 	if !ok {
-		return PluginPublicationMaterializeResult{}, fmt.Errorf("target %s requires authored publication channel metadata under publish/...", target)
+		return PluginPublicationMaterializeResult{}, fmt.Errorf("target %s requires authored publication channel metadata under src/publish/...", target)
 	}
 
 	packageRoot, err := normalizePackageRoot(opts.PackageRoot, graph.Manifest.Name)
@@ -706,7 +707,7 @@ func (PluginService) PublicationVerifyRoot(opts PluginPublicationVerifyRootOptio
 	if _, err := graph.Manifest.SelectedTargets(target); err != nil {
 		return PluginPublicationVerifyRootResult{}, err
 	}
-	publicationState, err := publishschema.Discover(root)
+	publicationState, err := publishschema.DiscoverInLayout(root, pluginmodel.SourceDirName)
 	if err != nil {
 		return PluginPublicationVerifyRootResult{}, err
 	}

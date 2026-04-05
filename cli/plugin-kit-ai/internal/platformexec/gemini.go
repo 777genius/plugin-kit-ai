@@ -53,7 +53,7 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		Launcher: seed.Launcher,
 	}
 	hooksBody, hookBodyErr := os.ReadFile(filepath.Join(root, "hooks", "hooks.json"))
-	copied, err := copySingleArtifactIfExists(root, filepath.Join("hooks", "hooks.json"), filepath.Join("targets", "gemini", "hooks", "hooks.json"))
+	copied, err := copySingleArtifactIfExists(root, filepath.Join("hooks", "hooks.json"), filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "hooks", "hooks.json"))
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -74,9 +74,9 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		}
 	}
 	copied, err = copyArtifactDirs(root,
-		artifactDir{src: "commands", dst: filepath.Join("targets", "gemini", "commands")},
-		artifactDir{src: "policies", dst: filepath.Join("targets", "gemini", "policies")},
-		artifactDir{src: "contexts", dst: filepath.Join("targets", "gemini", "contexts")},
+		artifactDir{src: "commands", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "commands")},
+		artifactDir{src: "policies", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "policies")},
+		artifactDir{src: "contexts", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts")},
 	)
 	if err != nil {
 		return ImportResult{}, err
@@ -105,20 +105,20 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 			result.Artifacts = append(result.Artifacts, artifact)
 		}
 		if body := importedGeminiPackageYAML(data.Meta); len(body) > 0 {
-			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join("targets", "gemini", "package.yaml"), Content: body})
+			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml"), Content: body})
 		}
 		result.Artifacts = append(result.Artifacts, importedGeminiSettingsArtifacts(data.Settings)...)
 		result.Artifacts = append(result.Artifacts, importedGeminiThemeArtifacts(data.Themes)...)
 		if len(data.Extra) > 0 {
-			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join("targets", "gemini", "manifest.extra.json"), Content: mustJSON(data.Extra)})
+			result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "manifest.extra.json"), Content: mustJSON(data.Extra)})
 			result.Warnings = append(result.Warnings, pluginmodel.Warning{
 				Kind:    pluginmodel.WarningFidelity,
-				Path:    filepath.ToSlash(filepath.Join("targets", "gemini", "manifest.extra.json")),
+				Path:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "manifest.extra.json")),
 				Message: "preserved additional Gemini manifest fields under targets/gemini/manifest.extra.json",
 			})
 		}
 		if contextName := importedGeminiPrimaryContextName(root, data.Meta); contextName != "" {
-			contextArtifacts, err := copySingleArtifactIfExists(root, contextName, filepath.Join("targets", "gemini", "contexts", filepath.Base(contextName)))
+			contextArtifacts, err := copySingleArtifactIfExists(root, contextName, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", filepath.Base(contextName)))
 			if err != nil {
 				return ImportResult{}, err
 			}

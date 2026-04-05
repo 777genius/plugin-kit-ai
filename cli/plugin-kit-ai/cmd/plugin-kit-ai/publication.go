@@ -415,11 +415,11 @@ func publicationNextStepsForMissing(missing []publicationmodel.Package) []string
 		var step string
 		switch pkg.Target {
 		case "codex-package":
-			step = "add publish/codex/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
+			step = "add src/publish/codex/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
 		case "claude":
-			step = "add publish/claude/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
+			step = "add src/publish/claude/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
 		case "gemini":
-			step = "add publish/gemini/gallery.yaml, keep gemini-extension.json in the repository or release root, then rerun plugin-kit-ai validate . --strict"
+			step = "add src/publish/gemini/gallery.yaml, keep gemini-extension.json in the repository or release root, then rerun plugin-kit-ai validate . --strict"
 		default:
 			continue
 		}
@@ -541,11 +541,11 @@ func expectedGeminiPublicationChannel(model publicationmodel.Model) (publication
 func expectedPublicationChannel(target string) (family string, path string) {
 	switch target {
 	case "codex-package":
-		return "codex-marketplace", "publish/codex/marketplace.yaml"
+		return "codex-marketplace", "src/publish/codex/marketplace.yaml"
 	case "claude":
-		return "claude-marketplace", "publish/claude/marketplace.yaml"
+		return "claude-marketplace", "src/publish/claude/marketplace.yaml"
 	case "gemini":
-		return "gemini-gallery", "publish/gemini/gallery.yaml"
+		return "gemini-gallery", "src/publish/gemini/gallery.yaml"
 	default:
 		return "", ""
 	}

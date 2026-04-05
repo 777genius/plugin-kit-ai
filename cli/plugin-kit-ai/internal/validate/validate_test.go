@@ -52,7 +52,7 @@ targets: ["codex-runtime"]
 	if first.Kind != FailureManifestInvalid {
 		t.Fatalf("failure kind = %q", first.Kind)
 	}
-	if first.Path != pluginmanifest.LauncherFileName {
+	if first.Path != filepath.Join("src", pluginmanifest.LauncherFileName) {
 		t.Fatalf("failure path = %q", first.Path)
 	}
 	if !strings.Contains(first.Message, "required launcher missing") {
@@ -98,7 +98,7 @@ targets: ["codex-package"]
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == pluginmanifest.FileName &&
+			failure.Path == filepath.Join("src", pluginmanifest.FileName) &&
 			strings.Contains(failure.Message, `plugin.yaml does not enable target "codex-runtime"`) {
 			found = true
 		}
@@ -117,7 +117,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\n")
 
 	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
@@ -126,7 +126,7 @@ targets: ["codex-runtime"]
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == pluginmanifest.LauncherFileName &&
+			failure.Path == filepath.Join("src", pluginmanifest.LauncherFileName) &&
 			strings.Contains(failure.Message, "entrypoint required") {
 			found = true
 		}
@@ -149,12 +149,16 @@ targets: ["codex-package"]
 
 	report, err := Validate(dir, "codex-package")
 	if err != nil {
-		t.Fatal(err)
+		var re *ReportError
+		if !errors.As(err, &re) {
+			t.Fatal(err)
+		}
+		report = re.Report
 	}
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == filepath.Join("mcp", "servers.json") &&
+			failure.Path == filepath.Join("src", "mcp", "servers.json") &&
 			strings.Contains(failure.Message, "unsupported portable MCP authored path") {
 			found = true
 		}
@@ -173,9 +177,8 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -192,7 +195,7 @@ servers:
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureUnsupportedTargetKind &&
-			failure.Path == filepath.ToSlash(filepath.Join("mcp", "servers.yaml")) &&
+			failure.Path == filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")) &&
 			strings.Contains(failure.Message, "does not support portable component kind mcp_servers") {
 			found = true
 		}
@@ -207,10 +210,10 @@ func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
 	t.Run("doc path", func(t *testing.T) {
 		t.Parallel()
 		tc := pluginmanifest.TargetComponents{
-			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))},
+			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join("src", "targets", "codex-package", "interface.json"))},
 			Components: map[string][]string{},
 		}
-		want := filepath.ToSlash(filepath.Join("targets", "codex-package", "interface.json"))
+		want := filepath.ToSlash(filepath.Join("src", "targets", "codex-package", "interface.json"))
 		if got := unsupportedTargetKindPath("codex-package", tc, "interface"); got != want {
 			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
 		}
@@ -221,10 +224,10 @@ func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
 		tc := pluginmanifest.TargetComponents{
 			Docs: map[string]string{},
 			Components: map[string][]string{
-				"commands": {filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands", "review.md"))},
+				"commands": {filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "commands", "review.md"))},
 			},
 		}
-		want := filepath.ToSlash(filepath.Join("targets", "codex-runtime", "commands"))
+		want := filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "commands"))
 		if got := unsupportedTargetKindPath("codex-runtime", tc, "commands"); got != want {
 			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
 		}
@@ -261,7 +264,7 @@ func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
 		{
 			name:    "nested parse error",
 			message: "runtime not found: python runtime inspection failed: parse targets/codex-runtime/package.yaml: yaml: line 1: did not find expected key",
-			want:    filepath.ToSlash(filepath.Join("targets", "codex-runtime", "package.yaml")),
+			want:    filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "package.yaml")),
 		},
 	}
 
@@ -285,8 +288,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", "{}\n")
 
 	_, err := Validate(dir, "gemini")
@@ -307,8 +310,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   demo:
@@ -319,8 +321,8 @@ servers:
       gemini:
         trust: true
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "FIRST.md"), "# First\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "SECOND.md"), "# Second\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "FIRST.md"), "# First\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "SECOND.md"), "# Second\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -358,8 +360,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "policies", "review.toml"), "allow = true\nyolo = true\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "policies", "review.toml"), "allow = true\nyolo = true\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -388,8 +390,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "commands", "bad.toml"), "description = [\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "commands", "bad.toml"), "description = [\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -415,8 +417,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "hooks", "extra.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "extra.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -442,8 +444,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "hooks", "hooks.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -469,8 +471,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("skills", "demo", "SKILL.md"), "---\nname: wrong\ndescription: demo\n---\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "skills", "demo", "SKILL.md"), "---\nname: wrong\ndescription: demo\n---\n")
 	mustWriteValidateFile(t, dir, "opencode.json", `{
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
@@ -503,7 +505,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
 	mustWriteValidateFile(t, dir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 	mustWriteValidateFile(t, dir, "opencode.jsonc", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/ignored"],}`)
 
@@ -531,8 +533,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
 	mustWriteValidateFile(t, dir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	report, err := Validate(dir, "opencode")
@@ -540,7 +542,7 @@ targets: ["opencode"]
 		t.Fatal(err)
 	}
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "opencode", "config.extra.json")) &&
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "config.extra.json")) &&
 			(strings.Contains(failure.Message, "must not exist") || strings.Contains(failure.Message, "forbids")) {
 			return
 		}
@@ -557,8 +559,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "api-token.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "api-token.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -744,8 +746,8 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: shell\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: shell\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
 	mustWriteValidateFile(t, dir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
@@ -779,7 +781,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
 	report, err := Validate(dir, "codex-package")
@@ -807,7 +809,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
 	report, err := Validate(dir, "codex-package")
@@ -824,7 +826,7 @@ targets: ["codex-package"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
 	report, err = Validate(dir, "codex-package")
 	if err != nil {
 		t.Fatal(err)
@@ -850,7 +852,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":"override"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":"override"}`)
 
 	report, err := Validate(dir, "codex-package")
 	if err != nil {
@@ -858,7 +860,7 @@ targets: ["codex-package"]
 	}
 	var foundInterface bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.Join("targets", "codex-package", "interface.json") &&
+		if failure.Path == filepath.Join("src", "targets", "codex-package", "interface.json") &&
 			strings.Contains(failure.Message, "interface.defaultPrompt must be an array of strings") {
 			foundInterface = true
 		}
@@ -867,15 +869,15 @@ targets: ["codex-package"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["override"]}`)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `["demo-app"]`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["override"]}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `["demo-app"]`)
 	report, err = Validate(dir, "codex-package")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var foundApp bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.Join("targets", "codex-package", "app.json") &&
+		if failure.Path == filepath.Join("src", "targets", "codex-package", "app.json") &&
 			strings.Contains(failure.Message, "Codex app manifest must be a JSON object") {
 			foundApp = true
 		}
@@ -984,9 +986,8 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("skills", "x", "SKILL.md"), "---\nname: x\ndescription: x\n---\nDo x.\n")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "skills", "x", "SKILL.md"), "---\nname: x\ndescription: x\n---\nDo x.\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -997,7 +998,7 @@ servers:
     targets:
       - "codex-package"
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","skills":"./custom-skills/","mcpServers":"./custom.mcp.json","apps":"./custom.app.json"}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1030,7 +1031,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","apps":"../outside.app.json"}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1059,13 +1060,13 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "package.yaml"), `author:
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "package.yaml"), `author:
   name: Example Maintainer
 homepage: https://example.com/x
 keywords:
   - codex
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "interface.json"), `{"defaultPrompt":["Help with x."]}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Help with x."]}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"other","version":"9.9.9","description":"other","author":{"name":"Different Maintainer"},"homepage":"https://example.com/other","keywords":["wrong"],"interface":{"defaultPrompt":["Different"]}}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1098,8 +1099,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -1110,7 +1110,7 @@ servers:
     targets:
       - "codex-package"
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","mcpServers":"./.mcp.json","apps":"./.app.json"}`)
 	mustWriteValidateFile(t, dir, ".mcp.json", `{"other":{"url":"https://example.com/other"}}`)
 	mustWriteValidateFile(t, dir, ".app.json", `{"name":"other-app","url":"https://example.com/other"}`)
@@ -1141,8 +1141,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, root, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWriteValidateFile(t, root, filepath.Join("publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+	mustWriteValidateFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteValidateFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 
 	result, err := pluginmanifest.Generate(root, "codex-package")
 	if err != nil {
@@ -1177,8 +1177,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, root, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo-claude\n")
-	mustWriteValidateFile(t, root, filepath.Join("publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+	mustWriteValidateFile(t, root, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-claude\n")
+	mustWriteValidateFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
 
 	result, err := pluginmanifest.Generate(root, "claude")
 	if err != nil {
@@ -1215,11 +1215,11 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-4.1\"\nnotify = [\"./bin/other\", \"notify\"]\n")
 
 	report, err := Validate(dir, "codex-runtime")
@@ -1253,7 +1253,7 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = [\"bad\"]\nnotify = [\"./bin/x\", \"notify\"]\n")
@@ -1273,7 +1273,7 @@ targets: ["codex-runtime"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/x\", \"notify\"]\napproval_policy = \"on-request\"\n[ui]\nverbose = false\n")
 	report, err = Validate(dir, "codex-runtime")
 	if err != nil {
@@ -1300,8 +1300,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1327,9 +1327,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   stdio-and-sse:
@@ -1388,10 +1387,10 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: maybe\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "themes", "empty.yaml"), "name: release-dawn\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: maybe\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "empty.yaml"), "name: release-dawn\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1422,10 +1421,10 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1454,7 +1453,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","settings":{}}`)
 
 	report, err := Validate(dir, "gemini")
@@ -1482,7 +1481,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"OTHER.md"}`)
 
 	report, err := Validate(dir, "gemini")
@@ -1510,17 +1509,16 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
 exclude_tools:
   - run_shell_command(rm -rf)
 migrated_to: https://example.com/new-home
 plan_directory: .gemini/plans
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: Release profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: Release profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -1566,8 +1564,8 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"./bin/demo GeminiSessionStart"}]}]}}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"./bin/demo GeminiSessionStart"}]}]}}`)
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
 	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
 
@@ -1596,10 +1594,10 @@ version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/gemini-managed\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-managed","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
 	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
 
@@ -1628,7 +1626,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("agents", "reviewer.md"), "# reviewer\n")
@@ -1657,11 +1655,11 @@ version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "contexts", "context.md"), "# context\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "contexts", "context.md"), "# context\n")
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1687,13 +1685,13 @@ version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "settings.json"), `{"agent":42}`)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "lsp.json"), `{"servers":true}`)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "user-config.json"), `{"api_token":"not-an-object"}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "settings.json"), `{"agent":42}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "lsp.json"), `{"servers":true}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "user-config.json"), `{"api_token":"not-an-object"}`)
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1722,7 +1720,7 @@ version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1730,8 +1728,8 @@ targets: ["claude"]
 	}
 	var found bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.ToSlash(filepath.Join("targets", "claude", "hooks", "hooks.json")) &&
-			strings.Contains(failure.Message, "require launcher.yaml") {
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "claude", "hooks", "hooks.json")) &&
+			strings.Contains(failure.Message, "require src/launcher.yaml") {
 			found = true
 		}
 	}
@@ -1756,7 +1754,7 @@ targets: ["claude"]
 	}
 	var found bool
 	for _, failure := range report.Failures {
-		if failure.Path == pluginmanifest.FileName &&
+		if failure.Path == filepath.Join("src", pluginmanifest.FileName) &&
 			strings.Contains(failure.Message, "package-only surface") {
 			found = true
 		}
@@ -1779,8 +1777,8 @@ version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, pluginmanifest.LauncherFileName, "runtime: python\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: python\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
 	mustWriteValidateFile(t, dir, filepath.Join("src", "main.py"), "print('ok')\n")

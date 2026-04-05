@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
@@ -196,7 +197,10 @@ func authoringDocPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	return filepath.ToSlash(filepath.Join("src", path))
+	if path == pluginmodel.SourceDirName || strings.HasPrefix(path, pluginmodel.SourceDirName+"/") {
+		return path
+	}
+	return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, path))
 }
 
 func fromSurfaceSupport(items []platformmeta.SurfaceSupport) []Surface {

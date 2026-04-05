@@ -57,7 +57,7 @@ func TestPublicationTextShowsPackagesAndChannels(t *testing.T) {
 						Target:          "codex-package",
 						PackageFamily:   "codex-plugin",
 						ChannelFamilies: []string{"codex-marketplace"},
-						AuthoredInputs:  []string{"src/plugin.yaml", "src/publish/codex/marketplace.yaml"},
+						AuthoredInputs:  []string{"src/plugin.yaml", "src/src/publish/codex/marketplace.yaml"},
 						ManagedArtifacts: []string{
 							".codex-plugin/plugin.json",
 							".agents/plugins/marketplace.json",
@@ -67,7 +67,7 @@ func TestPublicationTextShowsPackagesAndChannels(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "codex-marketplace",
-						Path:           "publish/codex/marketplace.yaml",
+						Path:           "src/publish/codex/marketplace.yaml",
 						PackageTargets: []string{"codex-package"},
 						Details: map[string]string{
 							"marketplace_name":      "local-repo",
@@ -93,7 +93,7 @@ func TestPublicationTextShowsPackagesAndChannels(t *testing.T) {
 		"publication demo 0.1.0 api_version=v1",
 		"packages: 1 channels: 1",
 		"package[codex-package]: family=codex-plugin channels=codex-marketplace inputs=2 managed=2",
-		"channel[codex-marketplace]: path=publish/codex/marketplace.yaml targets=codex-package",
+		"channel[codex-marketplace]: path=src/publish/codex/marketplace.yaml targets=codex-package",
 		"details=authentication_policy=ON_INSTALL,category=Productivity,installation_policy=AVAILABLE,marketplace_name=local-repo,source_root=./",
 	} {
 		if !strings.Contains(output, want) {
@@ -123,7 +123,7 @@ func TestPublicationJSONEmitsPublicationModelOnly(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "gemini-gallery",
-						Path:           "publish/gemini/gallery.yaml",
+						Path:           "src/publish/gemini/gallery.yaml",
 						PackageTargets: []string{"gemini"},
 						Details: map[string]string{
 							"distribution":          "github_release",
@@ -136,7 +136,7 @@ func TestPublicationJSONEmitsPublicationModelOnly(t *testing.T) {
 			},
 		},
 		warnings: []pluginmanifest.Warning{
-			{Message: "publish/gemini/gallery.yaml is discoverable"},
+			{Message: "src/publish/gemini/gallery.yaml is discoverable"},
 		},
 	})
 	var buf bytes.Buffer
@@ -160,7 +160,7 @@ func TestPublicationJSONEmitsPublicationModelOnly(t *testing.T) {
 		t.Fatalf("warning_count = %+v", payload["warning_count"])
 	}
 	warnings, ok := payload["warnings"].([]any)
-	if !ok || len(warnings) != 1 || warnings[0] != "publish/gemini/gallery.yaml is discoverable" {
+	if !ok || len(warnings) != 1 || warnings[0] != "src/publish/gemini/gallery.yaml is discoverable" {
 		t.Fatalf("warnings = %+v", payload["warnings"])
 	}
 	publication, ok := payload["publication"].(map[string]any)
@@ -256,10 +256,10 @@ func TestPublicationDoctorReturnsExitCodeOneWhenChannelsAreMissing(t *testing.T)
 	}
 	output := buf.String()
 	for _, want := range []string{
-		"Issue[missing_channel]: target gemini requires authored gemini-gallery at publish/gemini/gallery.yaml",
+		"Issue[missing_channel]: target gemini requires authored gemini-gallery at src/publish/gemini/gallery.yaml",
 		"Status: needs_channels",
 		"Next:",
-		"add publish/gemini/gallery.yaml",
+		"add src/publish/gemini/gallery.yaml",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("publication doctor output missing %q:\n%s", want, output)
@@ -291,7 +291,7 @@ func TestPublicationDoctorReportsReadyWhenChannelsExist(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "codex-marketplace",
-						Path:           "publish/codex/marketplace.yaml",
+						Path:           "src/publish/codex/marketplace.yaml",
 						PackageTargets: []string{"codex-package"},
 						Details: map[string]string{
 							"marketplace_name": "local-repo",
@@ -311,7 +311,7 @@ func TestPublicationDoctorReportsReadyWhenChannelsExist(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"Status: ready",
-		"Channel[codex-marketplace]: path=publish/codex/marketplace.yaml targets=codex-package",
+		"Channel[codex-marketplace]: path=src/publish/codex/marketplace.yaml targets=codex-package",
 		"run plugin-kit-ai validate . --strict",
 		"run plugin-kit-ai publication . --format json",
 		"run plugin-kit-ai publication materialize . --target codex-package --dest <marketplace-root> --dry-run",
@@ -351,7 +351,7 @@ func TestPublicationDoctorReportsGeminiReadyHints(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "gemini-gallery",
-						Path:           "publish/gemini/gallery.yaml",
+						Path:           "src/publish/gemini/gallery.yaml",
 						PackageTargets: []string{"gemini"},
 						Details: map[string]string{
 							"distribution":          "github_release",
@@ -407,7 +407,7 @@ func TestPublicationDoctorReportsGeminiRepositoryIssues(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "gemini-gallery",
-						Path:           "publish/gemini/gallery.yaml",
+						Path:           "src/publish/gemini/gallery.yaml",
 						PackageTargets: []string{"gemini"},
 						Details: map[string]string{
 							"distribution":          "git_repository",
@@ -474,7 +474,7 @@ func TestPublicationDoctorGeminiReadyInGitHubRepo(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "gemini-gallery",
-						Path:           "publish/gemini/gallery.yaml",
+						Path:           "src/publish/gemini/gallery.yaml",
 						PackageTargets: []string{"gemini"},
 						Details: map[string]string{
 							"distribution":          "git_repository",
@@ -549,7 +549,7 @@ func TestPublicationDoctorJSONIncludesLocalRootVerification(t *testing.T) {
 					Channels: []publicationmodel.Channel{
 						{
 							Family:         "codex-marketplace",
-							Path:           "publish/codex/marketplace.yaml",
+							Path:           "src/publish/codex/marketplace.yaml",
 							PackageTargets: []string{"codex-package"},
 						},
 					},
@@ -683,7 +683,7 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 			},
 		},
 		warnings: []pluginmanifest.Warning{
-			{Message: "publish/gemini/gallery.yaml is not authored yet"},
+			{Message: "src/publish/gemini/gallery.yaml is not authored yet"},
 		},
 	})
 	var buf bytes.Buffer
@@ -723,7 +723,7 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 		t.Fatalf("issue_count = %+v", payload["issue_count"])
 	}
 	warnings, ok := payload["warnings"].([]any)
-	if !ok || len(warnings) != 1 || warnings[0] != "publish/gemini/gallery.yaml is not authored yet" {
+	if !ok || len(warnings) != 1 || warnings[0] != "src/publish/gemini/gallery.yaml is not authored yet" {
 		t.Fatalf("warnings = %+v", payload["warnings"])
 	}
 	issues, ok := payload["issues"].([]any)
@@ -734,7 +734,7 @@ func TestPublicationDoctorJSONEmitsStableReportForMissingChannels(t *testing.T) 
 	if !ok {
 		t.Fatalf("issue = %+v", issues[0])
 	}
-	if issue["code"] != "missing_channel" || issue["target"] != "gemini" || issue["channel_family"] != "gemini-gallery" || issue["path"] != "publish/gemini/gallery.yaml" {
+	if issue["code"] != "missing_channel" || issue["target"] != "gemini" || issue["channel_family"] != "gemini-gallery" || issue["path"] != "src/publish/gemini/gallery.yaml" {
 		t.Fatalf("issue = %+v", issue)
 	}
 	nextSteps, ok := payload["next_steps"].([]any)
@@ -776,7 +776,7 @@ func TestPublicationDoctorJSONReportsReadyState(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "codex-marketplace",
-						Path:           "publish/codex/marketplace.yaml",
+						Path:           "src/publish/codex/marketplace.yaml",
 						PackageTargets: []string{"codex-package"},
 						Details: map[string]string{
 							"marketplace_name": "local-repo",
@@ -838,7 +838,7 @@ func TestPublicationDoctorReportsNeedsRenderWhenGeneratedArtifactsAreMissing(t *
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "codex-marketplace",
-						Path:           "publish/codex/marketplace.yaml",
+						Path:           "src/publish/codex/marketplace.yaml",
 						PackageTargets: []string{"codex-package"},
 					},
 				},
@@ -890,7 +890,7 @@ func TestPublicationDoctorJSONReportsNeedsRenderIssues(t *testing.T) {
 				Channels: []publicationmodel.Channel{
 					{
 						Family:         "claude-marketplace",
-						Path:           "publish/claude/marketplace.yaml",
+						Path:           "src/publish/claude/marketplace.yaml",
 						PackageTargets: []string{"claude"},
 					},
 				},

@@ -31,8 +31,7 @@ targets:
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:

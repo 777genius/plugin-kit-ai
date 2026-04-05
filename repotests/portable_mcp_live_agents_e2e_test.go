@@ -148,8 +148,7 @@ alwaysApply: true
 ---
 
 - When explicitly asked to use the MCP tool release_checks, do so exactly once.`)
-	mustWriteRepoFile(t, workDir, filepath.Join("mcp", "servers.yaml"), fmt.Sprintf(`format: plugin-kit-ai/mcp
-version: 1
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "mcp", "servers.yaml"), fmt.Sprintf(`api_version: v1
 
 servers:
   release-checks:

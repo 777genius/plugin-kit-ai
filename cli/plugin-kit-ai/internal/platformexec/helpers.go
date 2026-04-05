@@ -252,7 +252,7 @@ func importedPortableMCPArtifact(sourceTarget string, servers map[string]any) (p
 		return pluginmodel.Artifact{}, err
 	}
 	return pluginmodel.Artifact{
-		RelPath: filepath.ToSlash(filepath.Join("mcp", "servers.yaml")),
+		RelPath: filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml")),
 		Content: body,
 	}, nil
 }
@@ -1030,7 +1030,7 @@ func importedGeminiSettingsArtifacts(values []any) []pluginmodel.Artifact {
 		}
 		filename := collisionSafeSlug(setting.Name, used) + ".yaml"
 		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "gemini", "settings", filename),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", filename),
 			Content: mustYAML(setting),
 		})
 	}
@@ -1048,7 +1048,7 @@ func importedGeminiThemeArtifacts(values []any) []pluginmodel.Artifact {
 		name, _ := item["name"].(string)
 		filename := collisionSafeSlug(name, used) + ".yaml"
 		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "gemini", "themes", filename),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", filename),
 			Content: mustYAML(item),
 		})
 	}

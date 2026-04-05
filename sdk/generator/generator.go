@@ -574,12 +574,23 @@ func joinNativeDocs(items []platformmeta.NativeDocSpec) string {
 		if strings.TrimSpace(item.Path) == "" {
 			continue
 		}
-		out = append(out, item.Kind+"="+filepath.ToSlash(filepath.Join("src", item.Path)))
+		out = append(out, item.Kind+"="+authoringDocPath(item.Path))
 	}
 	if len(out) == 0 {
 		return "-"
 	}
 	return strings.Join(out, ", ")
+}
+
+func authoringDocPath(path string) string {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	if path == "" {
+		return ""
+	}
+	if path == "src" || strings.HasPrefix(path, "src/") {
+		return path
+	}
+	return filepath.ToSlash(filepath.Join("src", path))
 }
 
 func joinManagedArtifacts(profile platformmeta.PlatformProfile) string {

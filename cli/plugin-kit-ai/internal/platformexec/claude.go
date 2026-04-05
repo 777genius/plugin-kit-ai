@@ -105,20 +105,20 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		}
 	}
 
-	if copied, warnings, err := importClaudeComponentRefs(root, "commands", filepath.Join("targets", "claude", "commands"), pluginManifest.CommandsOverride, pluginManifest.CommandsRefs); err != nil {
+	if copied, warnings, err := importClaudeComponentRefs(root, "commands", filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "commands"), pluginManifest.CommandsOverride, pluginManifest.CommandsRefs); err != nil {
 		return ImportResult{}, err
 	} else {
 		result.Artifacts = append(result.Artifacts, copied...)
 		result.Warnings = append(result.Warnings, warnings...)
 	}
-	if copied, warnings, err := importClaudeComponentRefs(root, "agents", filepath.Join("targets", "claude", "agents"), pluginManifest.AgentsOverride, pluginManifest.AgentsRefs); err != nil {
+	if copied, warnings, err := importClaudeComponentRefs(root, "agents", filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "agents"), pluginManifest.AgentsOverride, pluginManifest.AgentsRefs); err != nil {
 		return ImportResult{}, err
 	} else {
 		result.Artifacts = append(result.Artifacts, copied...)
 		result.Warnings = append(result.Warnings, warnings...)
 	}
 
-	if copied, warning, err := importClaudeStructuredDoc(root, "settings.json", filepath.Join("targets", "claude", "settings.json"), manifestPresent && pluginManifest.SettingsProvided, pluginManifest.Settings, "Claude manifest settings"); err != nil {
+	if copied, warning, err := importClaudeStructuredDoc(root, "settings.json", filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "settings.json"), manifestPresent && pluginManifest.SettingsProvided, pluginManifest.Settings, "Claude manifest settings"); err != nil {
 		return ImportResult{}, err
 	} else {
 		result.Artifacts = append(result.Artifacts, copied...)
@@ -134,7 +134,7 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 	if pluginManifest.UserConfigProvided {
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "claude", "user-config.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "user-config.json"),
 			Content: mustJSON(pluginManifest.UserConfig),
 		})
 	}
@@ -146,12 +146,12 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	}
 	if len(pluginManifest.Extra) > 0 {
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "claude", "manifest.extra.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "manifest.extra.json"),
 			Content: mustJSON(pluginManifest.Extra),
 		})
 		result.Warnings = append(result.Warnings, pluginmodel.Warning{
 			Kind:    pluginmodel.WarningFidelity,
-			Path:    filepath.ToSlash(filepath.Join("targets", "claude", "manifest.extra.json")),
+			Path:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "manifest.extra.json")),
 			Message: "preserved unsupported Claude manifest fields under targets/claude/manifest.extra.json",
 		})
 	}
@@ -168,7 +168,7 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		return nil, fmt.Errorf("required launcher missing: %s", pluginmodel.LauncherFileName)
 	}
 	if graph.Launcher == nil && !claudePackageOnlyMode(graph, state) {
-		return nil, fmt.Errorf("invalid %s: target claude without launcher.yaml must author at least one package-only surface such as mcp/servers.yaml, skills/, targets/claude/settings.json, targets/claude/lsp.json, targets/claude/user-config.json, targets/claude/manifest.extra.json, targets/claude/commands/**, or targets/claude/agents/**", pluginmodel.FileName)
+		return nil, fmt.Errorf("invalid %s: target claude without src/launcher.yaml must author at least one package-only surface such as src/mcp/servers.yaml, src/skills/, src/targets/claude/settings.json, src/targets/claude/lsp.json, src/targets/claude/user-config.json, src/targets/claude/manifest.extra.json, src/targets/claude/commands/**, or src/targets/claude/agents/**", pluginmodel.FileName)
 	}
 	_, settingsBody, settingsPresent, err := loadClaudeJSONDoc(root, state.DocPath("settings"), "Claude settings")
 	if err != nil {
@@ -225,6 +225,11 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		}
 		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: ".mcp.json", Content: mcpJSON})
 	}
+	skillArtifacts, err := renderPortableSkills(root, graph.Portable.Paths("skills"), "skills")
+	if err != nil {
+		return nil, err
+	}
+	artifacts = append(artifacts, skillArtifacts...)
 	if settingsPresent {
 		artifacts = append(artifacts, pluginmodel.Artifact{RelPath: "settings.json", Content: settingsBody})
 	}
@@ -270,15 +275,15 @@ func (claudeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "claude",
-				Message:  fmt.Sprintf("Claude hooks require %s when targets/claude/hooks/** is authored", pluginmodel.LauncherFileName),
+				Message:  fmt.Sprintf("Claude hooks require src/%s when src/targets/claude/hooks/** is authored", pluginmodel.LauncherFileName),
 			})
 		} else if !claudeHasPackageOnlySurface(graph, state) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
-				Path:     pluginmodel.FileName,
+				Path:     filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmodel.FileName)),
 				Target:   "claude",
-				Message:  "target claude without launcher.yaml must author at least one package-only surface such as mcp/servers.yaml, skills/, targets/claude/settings.json, targets/claude/lsp.json, targets/claude/user-config.json, targets/claude/manifest.extra.json, targets/claude/commands/**, or targets/claude/agents/**",
+				Message:  "target claude without src/launcher.yaml must author at least one package-only surface such as src/mcp/servers.yaml, src/skills/, src/targets/claude/settings.json, src/targets/claude/lsp.json, src/targets/claude/user-config.json, src/targets/claude/manifest.extra.json, or src/targets/claude/commands/** and src/targets/claude/agents/**",
 			})
 		}
 	}
@@ -541,7 +546,7 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "inline Claude mcpServers were normalized into mcp/servers.yaml",
+			Message: "inline Claude mcpServers were normalized into src/mcp/servers.yaml",
 		}}, nil
 	case len(manifest.MCPRefs) == 1:
 		ref := cleanRelativeRef(manifest.MCPRefs[0])
@@ -560,7 +565,7 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "custom Claude mcpServers path was normalized into mcp/servers.yaml",
+			Message: "custom Claude mcpServers path was normalized into src/mcp/servers.yaml",
 		}}, nil
 	case len(manifest.MCPRefs) > 1:
 		body, err := mergeClaudeObjectRefs(root, manifest.MCPRefs, "Claude mcpServers")

@@ -16,7 +16,7 @@ func RenderLocalCatalogArtifact(graph pluginmodel.PackageGraph, publication publ
 	switch strings.TrimSpace(target) {
 	case "codex-package":
 		if publication.Codex == nil {
-			return pluginmodel.Artifact{}, fmt.Errorf("publish/codex/marketplace.yaml is required for target %q", target)
+			return pluginmodel.Artifact{}, fmt.Errorf("src/publish/codex/marketplace.yaml is required for target %q", target)
 		}
 		body, err := renderCodexMarketplaceWithSourceRoot(graph, publication.Codex, packageRoot)
 		if err != nil {
@@ -25,7 +25,7 @@ func RenderLocalCatalogArtifact(graph pluginmodel.PackageGraph, publication publ
 		return pluginmodel.Artifact{RelPath: CodexMarketplaceArtifactPath, Content: body}, nil
 	case "claude":
 		if publication.Claude == nil {
-			return pluginmodel.Artifact{}, fmt.Errorf("publish/claude/marketplace.yaml is required for target %q", target)
+			return pluginmodel.Artifact{}, fmt.Errorf("src/publish/claude/marketplace.yaml is required for target %q", target)
 		}
 		body, err := renderClaudeMarketplaceWithSourceRoot(graph, publication.Claude, packageRoot)
 		if err != nil {

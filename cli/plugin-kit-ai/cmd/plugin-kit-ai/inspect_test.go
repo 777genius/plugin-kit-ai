@@ -207,7 +207,7 @@ func TestInspectJSONIncludesPublicationPackages(t *testing.T) {
 	mustWriteInspectFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWriteInspectFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWriteInspectFile(t, root, filepath.Join("src", "skills", "demo", "SKILL.md"), "# Demo\n")
-	mustWriteInspectFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), "format: plugin-kit-ai/mcp\nversion: 1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: /bin/echo\n      args:\n        - ok\n    targets:\n      - codex-package\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: /bin/echo\n      args:\n        - ok\n    targets:\n      - codex-package\n")
 	mustWriteInspectFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 
 	var buf bytes.Buffer
@@ -273,7 +273,7 @@ func TestInspectTextIncludesPublicationSummary(t *testing.T) {
 	mustWriteInspectFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWriteInspectFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 	mustWriteInspectFile(t, root, filepath.Join("src", "skills", "demo", "SKILL.md"), "# Demo\n")
-	mustWriteInspectFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), "format: plugin-kit-ai/mcp\nversion: 1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: /bin/echo\n      args:\n        - ok\n    targets:\n      - codex-package\n")
+	mustWriteInspectFile(t, root, filepath.Join("src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: /bin/echo\n      args:\n        - ok\n    targets:\n      - codex-package\n")
 	mustWriteInspectFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 
 	var buf bytes.Buffer

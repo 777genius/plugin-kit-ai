@@ -395,7 +395,7 @@ The intended author workflow becomes:
 
 1. Author the plugin core in `plugin.yaml`
 2. Author vendor-specific behavior under `targets/...`
-3. Author portable subsystems such as MCP in portable files like `mcp/servers.yaml`
+3. Author portable subsystems such as MCP in portable files like `src/mcp/servers.yaml`
 4. Optionally author publication metadata under `publish/...`
 5. Run generate to materialize vendor-visible manifests and artifacts
 6. Run validate to confirm authored and generated state match
@@ -464,7 +464,9 @@ This is an internal code model, not a new user-facing super-file.
 
 Status:
 
-- in progress and partially implemented
+- completed
+- portable MCP authored files now use `api_version: v1` as the canonical schema marker
+- loaders still accept legacy `format: plugin-kit-ai/mcp` plus `version: 1` for compatibility during migration
 - current implementation exposes a normalized `publication` summary through `plugin-kit-ai inspect --format json`
 - current implementation also exposes that normalized publication model through the versioned `plugin-kit-ai/publication-report` contract at `plugin-kit-ai publication --format json`
 - current implementation keeps publication modeling internal and does not freeze `publish/...` filesystem layout yet
@@ -580,7 +582,7 @@ Fixed decision:
 
 Fixed decision:
 
-- move toward `api_version: v1`
+- standardize on `api_version: v1`
 - do not keep `format` as the final standard marker
 
 ### 3. Do not add `id`

@@ -295,12 +295,12 @@ func All() []PlatformProfile {
 			},
 			Launcher: LauncherMeta{Requirement: LauncherOptional},
 			NativeDocs: []NativeDocSpec{
-				{Kind: "package_metadata", Path: "targets/claude/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "hooks", Path: "targets/claude/hooks/hooks.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
-				{Kind: "settings", Path: "targets/claude/settings.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
-				{Kind: "lsp", Path: "targets/claude/lsp.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
-				{Kind: "user_config", Path: "targets/claude/user-config.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/claude/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "skills", "agents", "commands", "hooks", "mcpServers", "lspServers", "settings", "userConfig"}},
+				{Kind: "package_metadata", Path: "src/targets/claude/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
+				{Kind: "hooks", Path: "src/targets/claude/hooks/hooks.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "settings", Path: "src/targets/claude/settings.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "lsp", Path: "src/targets/claude/lsp.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "user_config", Path: "src/targets/claude/user-config.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "manifest_extra", Path: "src/targets/claude/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "skills", "agents", "commands", "hooks", "mcpServers", "lspServers", "settings", "userConfig"}},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "hooks", Tier: SurfaceTierStable},
@@ -316,6 +316,7 @@ func All() []PlatformProfile {
 				{Kind: ManagedArtifactStatic, Path: ".claude-plugin/plugin.json"},
 				{Kind: ManagedArtifactStatic, Path: "settings.json"},
 				{Kind: ManagedArtifactStatic, Path: ".lsp.json"},
+				{Kind: ManagedArtifactPortableSkills, SourceRoot: "src/skills", OutputRoot: "skills"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "hooks", SourceRoot: "src/targets/claude/hooks", OutputRoot: "hooks"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "commands", SourceRoot: "src/targets/claude/commands", OutputRoot: "commands"},
 				{Kind: ManagedArtifactMirror, ComponentKind: "agents", SourceRoot: "src/targets/claude/agents", OutputRoot: "agents"},
@@ -399,10 +400,10 @@ func All() []PlatformProfile {
 			},
 			Launcher: LauncherMeta{Requirement: LauncherIgnored},
 			NativeDocs: []NativeDocSpec{
-				{Kind: "package_metadata", Path: "targets/codex-package/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "interface", Path: "targets/codex-package/interface.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/codex-package/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "author", "homepage", "repository", "license", "keywords", "skills", "mcpServers", "apps", "interface"}},
-				{Kind: "app_manifest", Path: "targets/codex-package/app.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "package_metadata", Path: "src/targets/codex-package/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
+				{Kind: "interface", Path: "src/targets/codex-package/interface.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "manifest_extra", Path: "src/targets/codex-package/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "author", "homepage", "repository", "license", "keywords", "skills", "mcpServers", "apps", "interface"}},
+				{Kind: "app_manifest", Path: "src/targets/codex-package/app.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "interface", Tier: SurfaceTierStable},
@@ -415,6 +416,7 @@ func All() []PlatformProfile {
 			ManagedArtifacts: []ManagedArtifactSpec{
 				{Kind: ManagedArtifactStatic, Path: ".codex-plugin/plugin.json"},
 				{Kind: ManagedArtifactStatic, Path: ".app.json"},
+				{Kind: ManagedArtifactPortableSkills, SourceRoot: "src/skills", OutputRoot: "skills"},
 				{Kind: ManagedArtifactPortableMCP, Path: ".mcp.json"},
 			},
 			Scaffold: ScaffoldMeta{
@@ -489,8 +491,8 @@ func All() []PlatformProfile {
 			},
 			Launcher: LauncherMeta{Requirement: LauncherRequired},
 			NativeDocs: []NativeDocSpec{
-				{Kind: "package_metadata", Path: "targets/codex-runtime/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "config_extra", Path: "targets/codex-runtime/config.extra.toml", Format: NativeDocTOML, Role: NativeDocRoleExtra, ManagedKeys: []string{"model", "notify"}},
+				{Kind: "package_metadata", Path: "src/targets/codex-runtime/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
+				{Kind: "config_extra", Path: "src/targets/codex-runtime/config.extra.toml", Format: NativeDocTOML, Role: NativeDocRoleExtra, ManagedKeys: []string{"model", "notify"}},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "config_extra", Tier: SurfaceTierStable},
@@ -578,8 +580,8 @@ func All() []PlatformProfile {
 			},
 			Launcher: LauncherMeta{Requirement: LauncherOptional},
 			NativeDocs: []NativeDocSpec{
-				{Kind: "package_metadata", Path: "targets/gemini/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "manifest_extra", Path: "targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "migratedTo", "settings", "themes", "plan.directory"}},
+				{Kind: "package_metadata", Path: "src/targets/gemini/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
+				{Kind: "manifest_extra", Path: "src/targets/gemini/manifest.extra.json", Format: NativeDocJSON, Role: NativeDocRoleExtra, ManagedKeys: []string{"name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "migratedTo", "settings", "themes", "plan.directory"}},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "commands", Tier: SurfaceTierStable},
@@ -659,7 +661,7 @@ func All() []PlatformProfile {
 				TransportModes:  []TransportMode{TransportProcess},
 				LiveTestProfile: "cursor_workspace",
 			},
-			Launcher: LauncherMeta{Requirement: LauncherIgnored},
+			Launcher:   LauncherMeta{Requirement: LauncherIgnored},
 			NativeDocs: []NativeDocSpec{},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "mcp", Tier: SurfaceTierStable},
@@ -727,8 +729,8 @@ func All() []PlatformProfile {
 			},
 			Launcher: LauncherMeta{Requirement: LauncherIgnored},
 			NativeDocs: []NativeDocSpec{
-				{Kind: "package_metadata", Path: "targets/opencode/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
-				{Kind: "local_plugin_dependencies", Path: "targets/opencode/package.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
+				{Kind: "package_metadata", Path: "src/targets/opencode/package.yaml", Format: NativeDocYAML, Role: NativeDocRoleStructured},
+				{Kind: "local_plugin_dependencies", Path: "src/targets/opencode/package.json", Format: NativeDocJSON, Role: NativeDocRoleStructured},
 			},
 			SurfaceTiers: []SurfaceSupport{
 				{Kind: "plugins", Tier: SurfaceTierStable},
@@ -776,7 +778,7 @@ func All() []PlatformProfile {
 				},
 				ForbiddenFiles: []string{
 					"launcher.yaml",
-					"targets/opencode/config.extra.json",
+					"src/targets/opencode/config.extra.json",
 				},
 				TemplateFiles: []TemplateFile{
 					{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl"},
@@ -800,7 +802,7 @@ func All() []PlatformProfile {
 				},
 				ForbiddenFiles: []string{
 					"launcher.yaml",
-					"targets/opencode/config.extra.json",
+					"src/targets/opencode/config.extra.json",
 				},
 			},
 		},

@@ -4,8 +4,7 @@ import "testing"
 
 func TestParsePortableMCPStandardProjectsAcrossTargets(t *testing.T) {
 	t.Parallel()
-	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   docs:
@@ -126,8 +125,7 @@ servers:
 
 func TestParsePortableMCPStandardRejectsInvalidAlias(t *testing.T) {
 	t.Parallel()
-	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 servers:
   bad_alias:
     type: stdio
@@ -141,8 +139,7 @@ servers:
 
 func TestParsePortableMCPContext7StdioAcrossFiveTargets(t *testing.T) {
 	t.Parallel()
-	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   context7:
@@ -201,8 +198,7 @@ servers:
 
 func TestParsePortableMCPStandardRejectsUnsupportedOverrideTarget(t *testing.T) {
 	t.Parallel()
-	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 servers:
   docs:
     type: remote
@@ -221,8 +217,7 @@ servers:
 
 func TestParsePortableMCPStandardRejectsManagedOverrideConflict(t *testing.T) {
 	t.Parallel()
-	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 servers:
   docs:
     type: remote
@@ -240,8 +235,7 @@ servers:
 
 func TestParsePortableMCPStandardRejectsManagedPassthroughConflict(t *testing.T) {
 	t.Parallel()
-	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 servers:
   local-tools:
     type: stdio
@@ -255,5 +249,44 @@ servers:
 `))
 	if err == nil {
 		t.Fatal("expected managed passthrough conflict error")
+	}
+}
+
+func TestParsePortableMCPLegacyFormatVersionStillLoads(t *testing.T) {
+	t.Parallel()
+	parsed, err := ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
+version: 1
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.File == nil {
+		t.Fatal("expected parsed portable MCP file")
+	}
+	if parsed.File.APIVersion != "" {
+		t.Fatalf("legacy parse should preserve empty api_version, got %q", parsed.File.APIVersion)
+	}
+}
+
+func TestParsePortableMCPRejectsMixedSchemaMarkers(t *testing.T) {
+	t.Parallel()
+	_, err := ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
+format: plugin-kit-ai/mcp
+version: 1
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`))
+	if err == nil {
+		t.Fatal("expected mixed schema marker error")
 	}
 }

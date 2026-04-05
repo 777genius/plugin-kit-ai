@@ -112,7 +112,7 @@ func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 			Code:     CodeManifestInvalid,
 			Path:     filepath.ToSlash(filepath.Join("targets", "cursor")),
 			Target:   "cursor",
-			Message:  "Cursor target requires at least one of mcp/servers.yaml or targets/cursor/rules/**",
+			Message:  "Cursor target requires at least one of src/mcp/servers.yaml or src/targets/cursor/rules/**",
 		})
 	}
 	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)
@@ -177,7 +177,7 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s must stay within targets/cursor/rules without path traversal", rel),
+				Message:  fmt.Sprintf("Cursor rule file %s must stay within src/targets/cursor/rules without path traversal", rel),
 			})
 			continue
 		}

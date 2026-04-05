@@ -112,8 +112,7 @@ func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
 func TestCursorMCPPreservesInterpolationStrings(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	parsed, err := pluginmodel.ParsePortableMCP("mcp/servers.yaml", []byte(`format: plugin-kit-ai/mcp
-version: 1
+	parsed, err := pluginmodel.ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   demo:

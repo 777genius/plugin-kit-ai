@@ -1205,8 +1205,7 @@ targets:
   - "codex-package"
 `)
 	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/codex-package-generated-mcp-live\n")
-	mustWriteRepoFile(t, dir, filepath.Join("mcp", "servers.yaml"), fmt.Sprintf(`format: plugin-kit-ai/mcp
-version: 1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), fmt.Sprintf(`api_version: v1
 
 servers:
   release-checks:
@@ -1239,8 +1238,7 @@ targets:
   - "codex-package"
 `)
 	mustWriteRepoFile(t, dir, filepath.Join("targets", "codex-package", "package.yaml"), "homepage: https://example.com/codex-package-generated-http-mcp-live\n")
-	mustWriteRepoFile(t, dir, filepath.Join("mcp", "servers.yaml"), `format: plugin-kit-ai/mcp
-version: 1
+	mustWriteRepoFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:

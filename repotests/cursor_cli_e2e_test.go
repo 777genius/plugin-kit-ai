@@ -69,7 +69,7 @@ alwaysApply: true
 ---
 
 - When explicitly asked to use the MCP tool release_checks, do so exactly once.`,
-		PortableMCPYAML: fmt.Sprintf("format: plugin-kit-ai/mcp\nversion: 1\n\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: %q\n", filepath.ToSlash(mcpBin)),
+		PortableMCPYAML: fmt.Sprintf("api_version: v1\n\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: %q\n", filepath.ToSlash(mcpBin)),
 	})
 
 	env := []string{"PLUGIN_KIT_AI_CURSOR_MCP_MARKER=" + marker}

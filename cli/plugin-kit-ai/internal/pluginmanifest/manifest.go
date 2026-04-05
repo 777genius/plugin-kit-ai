@@ -408,13 +408,26 @@ func Discover(root string) (PackageGraph, []Warning, error) {
 }
 
 func validateRemovedPortableInputs(root string, layout authoredLayout, targets []string) error {
-	if fileExists(filepath.Join(root, layout.Path("agents"))) && !looksLikeManagedAgentsOutput(root, layout, targets) {
+	if removedPortableInputExists(root, layout, "agents") && !looksLikeManagedAgentsOutput(root, layout, targets) {
 		return errors.New(rootAgentsMigrationMessage(targets))
 	}
-	if fileExists(filepath.Join(root, layout.Path("contexts"))) && !looksLikeManagedContextsOutput(root, layout, targets) {
+	if removedPortableInputExists(root, layout, "contexts") && !looksLikeManagedContextsOutput(root, layout, targets) {
 		return errors.New(rootContextsMigrationMessage(targets))
 	}
 	return nil
+}
+
+func removedPortableInputExists(root string, layout authoredLayout, rel string) bool {
+	candidates := []string{filepath.ToSlash(rel)}
+	if canonical := layout.Path(rel); canonical != rel {
+		candidates = append(candidates, filepath.ToSlash(canonical))
+	}
+	for _, candidate := range candidates {
+		if authoredInputExists(root, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 func looksLikeManagedAgentsOutput(root string, layout authoredLayout, targets []string) bool {
@@ -777,7 +790,7 @@ func Import(root string, from string, force bool, includeUserScope bool) (Manife
 		imported.Warnings = append(imported.Warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.yaml",
+			Message: "portable MCP will be preserved under src/mcp/servers.yaml",
 		})
 	}
 	if err := saveManifestWithLayout(root, authoredLayout{RootRel: pluginmodel.SourceDirName}, imported.Manifest, force); err != nil {
@@ -828,7 +841,7 @@ func discoverTarget(root string, layout authoredLayout, target string) (TargetCo
 	}
 	for _, spec := range profile.NativeDocs {
 		docKinds[spec.Kind] = struct{}{}
-		path := layout.Path(spec.Path)
+		path := filepath.ToSlash(spec.Path)
 		if fileExists(filepath.Join(root, path)) {
 			state.SetDoc(spec.Kind, path)
 			if _, ok := mirrorKinds[spec.Kind]; ok {
@@ -878,7 +891,7 @@ func discoverFiles(root, dir string, keep func(rel string) bool) []string {
 func discoverMCP(root string, layout authoredLayout) (*PortableMCP, bool, error) {
 	for _, legacyRel := range []string{"mcp/servers.json", "mcp/servers.yml"} {
 		if fileExists(filepath.Join(root, layout.Path(legacyRel))) {
-			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use mcp/servers.yaml", legacyRel)
+			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use src/mcp/servers.yaml", legacyRel)
 		}
 	}
 	for _, rel := range []string{"mcp/servers.yaml"} {
@@ -933,7 +946,7 @@ func manifestSchema() schemaSpec {
 		"repository": {},
 		"license":    {},
 		"keywords":   {Seq: &schemaSpec{}},
-		"targets":     {Seq: &schemaSpec{}},
+		"targets":    {Seq: &schemaSpec{}},
 	}}
 }
 
@@ -988,7 +1001,7 @@ func enrichFromNative(root string, manifest *Manifest, launcher *Launcher, from 
 		*warnings = append(*warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under mcp/servers.yaml",
+			Message: "portable MCP will be preserved under src/mcp/servers.yaml",
 		})
 	}
 	if from == "codex" && fileExists(filepath.Join(root, "agents")) {
@@ -1363,7 +1376,11 @@ func expectedManagedPaths(root string, graph PackageGraph, selected []string) []
 					seen[spec.Path] = struct{}{}
 				}
 			case platformmeta.ManagedArtifactPortableSkills:
-				addManagedCopies(seen, graph.Portable.Paths("skills"), "skills", spec.OutputRoot)
+				sourceRoot := filepath.ToSlash(strings.TrimSpace(spec.SourceRoot))
+				if sourceRoot == "" {
+					sourceRoot = "skills"
+				}
+				addManagedCopies(seen, graph.Portable.Paths("skills"), sourceRoot, spec.OutputRoot)
 			case platformmeta.ManagedArtifactMirror:
 				if spec.OutputRoot == "" {
 					rel := filepath.ToSlash(strings.TrimSpace(tc.DocPath(spec.ComponentKind)))
@@ -1561,6 +1578,9 @@ func authoredInputExists(root, rel string) bool {
 
 func detectAuthoredLayout(root string) (authoredLayout, error) {
 	canonical := authoredLayout{RootRel: pluginmodel.SourceDirName}
+	if legacyRel := rootLegacyPortableMCPPath(root); legacyRel != "" {
+		return authoredLayout{}, fmt.Errorf("unsupported portable MCP authored path %s: use src/mcp/servers.yaml", legacyRel)
+	}
 	canonicalPresent := authoredLayoutPresent(root, canonical)
 	rootPresent := rootAuthoredLayoutPresent(root)
 	switch {
@@ -1573,6 +1593,18 @@ func detectAuthoredLayout(root string) (authoredLayout, error) {
 	default:
 		return canonical, nil
 	}
+}
+
+func rootLegacyPortableMCPPath(root string) string {
+	for _, rel := range []string{
+		filepath.ToSlash(filepath.Join("mcp", "servers.json")),
+		filepath.ToSlash(filepath.Join("mcp", "servers.yml")),
+	} {
+		if authoredInputExists(root, rel) {
+			return rel
+		}
+	}
+	return ""
 }
 
 func authoredLayoutPresent(root string, layout authoredLayout) bool {
@@ -1609,6 +1641,8 @@ func rootAuthoredSentinelPaths() []string {
 		FileName,
 		LauncherFileName,
 		filepath.ToSlash(filepath.Join("mcp", "servers.yaml")),
+		filepath.ToSlash(filepath.Join("mcp", "servers.yml")),
+		filepath.ToSlash(filepath.Join("mcp", "servers.json")),
 		"targets",
 		"publish",
 	}
@@ -1621,14 +1655,14 @@ func saveManifestWithLayout(root string, layout authoredLayout, manifest Manifes
 	}
 	full := filepath.Join(root, layout.Path(FileName))
 	if _, err := os.Stat(full); err == nil && !force {
-		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", FileName)
+		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", layout.Path(FileName))
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
 	}
 	body, err := yaml.Marshal(manifest)
 	if err != nil {
-		return fmt.Errorf("marshal plugin.yaml: %w", err)
+		return fmt.Errorf("marshal %s: %w", layout.Path(FileName), err)
 	}
 	return os.WriteFile(full, body, 0o644)
 }
@@ -1640,14 +1674,14 @@ func saveLauncherWithLayout(root string, layout authoredLayout, launcher Launche
 	}
 	full := filepath.Join(root, layout.Path(LauncherFileName))
 	if _, err := os.Stat(full); err == nil && !force {
-		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", LauncherFileName)
+		return fmt.Errorf("refusing to overwrite existing file %s (use --force)", layout.Path(LauncherFileName))
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
 	}
 	body, err := yaml.Marshal(launcher)
 	if err != nil {
-		return fmt.Errorf("marshal %s: %w", LauncherFileName, err)
+		return fmt.Errorf("marshal %s: %w", layout.Path(LauncherFileName), err)
 	}
 	return os.WriteFile(full, body, 0o644)
 }
@@ -1658,7 +1692,13 @@ func prefixAuthoredArtifacts(artifacts []Artifact, layout authoredLayout) []Arti
 	}
 	out := make([]Artifact, 0, len(artifacts))
 	for _, artifact := range artifacts {
-		artifact.RelPath = layout.Path(artifact.RelPath)
+		rel := filepath.ToSlash(filepath.Clean(artifact.RelPath))
+		prefix := filepath.ToSlash(layout.RootRel)
+		if rel != prefix && !strings.HasPrefix(rel, prefix+"/") {
+			artifact.RelPath = layout.Path(rel)
+		} else {
+			artifact.RelPath = rel
+		}
 		out = append(out, artifact)
 	}
 	return out

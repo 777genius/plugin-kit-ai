@@ -80,7 +80,7 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 		return ImportResult{}, fmt.Errorf("Codex package bundle contains unexpected sidecar artifacts without matching plugin.json refs: %s", strings.Join(unexpected, ", "))
 	}
 	result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-		RelPath: filepath.Join("targets", "codex-package", "package.yaml"),
+		RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "package.yaml"),
 		Content: mustYAML(pluginManifest.PackageMeta),
 	})
 	if strings.TrimSpace(pluginManifest.Name) != "" {
@@ -100,7 +100,7 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 			return ImportResult{}, err
 		}
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "codex-package", "interface.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"),
 			Content: body,
 		})
 	}
@@ -124,7 +124,7 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 			return ImportResult{}, fmt.Errorf("parse %s: %w", filepath.ToSlash(refPath), err)
 		}
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "codex-package", "app.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json"),
 			Content: append([]byte(nil), appBody...),
 		})
 		if ref != codexmanifest.AppsRef {
@@ -156,12 +156,12 @@ func (codexPackageAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 	}
 	if len(extra) > 0 {
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "codex-package", "manifest.extra.json"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json"),
 			Content: mustJSON(extra),
 		})
 		result.Warnings = append(result.Warnings, pluginmodel.Warning{
 			Kind:    pluginmodel.WarningFidelity,
-			Path:    filepath.ToSlash(filepath.Join("targets", "codex-package", "manifest.extra.json")),
+			Path:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json")),
 			Message: "preserved unsupported Codex plugin manifest fields under targets/codex-package/manifest.extra.json",
 		})
 	}
@@ -204,7 +204,7 @@ func (codexRuntimeAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 		meta.ModelHint = config.Model
 	}
 	result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-		RelPath: filepath.Join("targets", "codex-runtime", "package.yaml"),
+		RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "package.yaml"),
 		Content: mustYAML(meta),
 	})
 	if len(config.Extra) > 0 {
@@ -213,12 +213,12 @@ func (codexRuntimeAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 			return ImportResult{}, err
 		}
 		result.Artifacts = append(result.Artifacts, pluginmodel.Artifact{
-			RelPath: filepath.Join("targets", "codex-runtime", "config.extra.toml"),
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "config.extra.toml"),
 			Content: body,
 		})
 		result.Warnings = append(result.Warnings, pluginmodel.Warning{
 			Kind:    pluginmodel.WarningFidelity,
-			Path:    filepath.ToSlash(filepath.Join("targets", "codex-runtime", "config.extra.toml")),
+			Path:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "config.extra.toml")),
 			Message: "preserved unsupported Codex config fields under targets/codex-runtime/config.extra.toml",
 		})
 	}
@@ -233,8 +233,8 @@ func (codexRuntimeAdapter) Import(root string, seed ImportSeed) (ImportResult, e
 		})
 	}
 	copied, err := copyArtifactDirs(root,
-		artifactDir{src: "commands", dst: filepath.Join("targets", "codex-runtime", "commands")},
-		artifactDir{src: "contexts", dst: filepath.Join("targets", "codex-runtime", "contexts")},
+		artifactDir{src: "commands", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "commands")},
+		artifactDir{src: "contexts", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "contexts")},
 	)
 	if err != nil {
 		return ImportResult{}, err
@@ -333,6 +333,11 @@ func (codexPackageAdapter) Generate(root string, graph pluginmodel.PackageGraph,
 			Content: mcpJSON,
 		})
 	}
+	skillArtifacts, err := renderPortableSkills(root, graph.Portable.Paths("skills"), "skills")
+	if err != nil {
+		return nil, err
+	}
+	artifacts = append(artifacts, skillArtifacts...)
 	return compactArtifacts(artifacts), nil
 }
 

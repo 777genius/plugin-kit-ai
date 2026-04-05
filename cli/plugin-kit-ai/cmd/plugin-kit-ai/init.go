@@ -137,7 +137,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 
 	if platform == "gemini" && strings.TrimSpace(opts.Runtime) == "go" {
 		if opts.Extras {
-			lines = append(lines, "  Portable MCP starter: mcp/servers.yaml")
+			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
 		}
 		lines = append(lines,
 			"  go test ./...",
@@ -156,7 +156,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 
 	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" {
 		if opts.Extras {
-			lines = append(lines, "  Portable MCP starter: mcp/servers.yaml")
+			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
 		}
 		lines = append(lines,
 			"  plugin-kit-ai generate .",

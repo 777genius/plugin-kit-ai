@@ -69,7 +69,7 @@ var generatedRules = map[string]Rule{
 		},
 		ForbiddenFiles: []string{
 			"launcher.yaml",
-			"targets/opencode/config.extra.json",
+			"src/targets/opencode/config.extra.json",
 		},
 		BuildTargets: []string{},
 	},

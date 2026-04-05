@@ -281,7 +281,7 @@ func TestInitRunner_geminiPackagingStarterWithPortableMCP(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"format: plugin-kit-ai/mcp",
+		"api_version: v1",
 		`url: "https://example.com/mcp"`,
 		"- \"gemini\"",
 	} {
