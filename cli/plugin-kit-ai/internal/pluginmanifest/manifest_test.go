@@ -3,6 +3,7 @@ package pluginmanifest
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -263,8 +264,14 @@ servers:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(cursorBody), `"type": "http"`) {
-		t.Fatalf(".cursor/mcp.json missing remote http projection:\n%s", cursorBody)
+	var cursorDoc struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(cursorBody, &cursorDoc); err != nil {
+		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, cursorBody)
+	}
+	if strings.TrimSpace(fmt.Sprint(cursorDoc.MCPServers["docs"]["type"])) != "http" {
+		t.Fatalf(".cursor/mcp.json missing wrapped remote http projection:\n%s", cursorBody)
 	}
 }
 

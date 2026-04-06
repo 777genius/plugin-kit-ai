@@ -28,9 +28,9 @@ targets:
   - "opencode"
   - "cursor"
 `)
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
 	mustWriteRepoFile(t, workDir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
 
 servers:
@@ -137,15 +137,17 @@ servers:
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cursorDoc map[string]map[string]any
+	var cursorDoc struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+	}
 	if err := json.Unmarshal(cursorBody, &cursorDoc); err != nil {
 		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, cursorBody)
 	}
-	cursorDocs := cursorDoc["docs"]
+	cursorDocs := cursorDoc.MCPServers["docs"]
 	if cursorDocs["type"] != "http" || cursorDocs["url"] != "https://example.com/mcp" {
 		t.Fatalf("cursor docs projection = %#v", cursorDocs)
 	}
-	cursorChecks := cursorDoc["release-checks"]
+	cursorChecks := cursorDoc.MCPServers["release-checks"]
 	cursorArgs, _ := cursorChecks["args"].([]any)
 	if len(cursorArgs) != 1 || cursorArgs[0] != "${workspaceFolder}/bin/release-checks.mjs" {
 		t.Fatalf("cursor release-checks args = %#v", cursorChecks["args"])

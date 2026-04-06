@@ -140,9 +140,9 @@ targets:
 `)
 	mustWriteRepoFile(t, workDir, filepath.Join("src", "launcher.yaml"), "runtime: shell\nentrypoint: ./scripts/main.sh\n")
 	mustWriteRepoExecutable(t, workDir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-live\"\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("targets", "cursor", "rules", "project.mdc"), `---
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-live\"\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "cursor", "rules", "project.mdc"), `---
 description: "Portable MCP live smoke"
 alwaysApply: true
 ---
@@ -271,11 +271,13 @@ func assertPortableMCPLiveRenderedArtifacts(t *testing.T, workDir, mcpBin string
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cursorDoc map[string]map[string]any
+	var cursorDoc struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+	}
 	if err := json.Unmarshal(cursorBody, &cursorDoc); err != nil {
 		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, cursorBody)
 	}
-	cursorServer, ok := cursorDoc["release-checks"]
+	cursorServer, ok := cursorDoc.MCPServers["release-checks"]
 	if !ok {
 		t.Fatalf(".cursor/mcp.json missing release-checks MCP projection:\n%s", cursorBody)
 	}

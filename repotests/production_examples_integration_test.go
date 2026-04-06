@@ -131,14 +131,16 @@ func assertCursorConfig(t *testing.T, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var doc map[string]struct {
-		Command string   `json:"command"`
-		Args    []string `json:"args"`
+	var doc struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
 		t.Fatalf("parse cursor mcp config: %v\n%s", err, body)
 	}
-	server, ok := doc["release-checks"]
+	server, ok := doc.MCPServers["release-checks"]
 	if !ok {
 		t.Fatalf(".cursor/mcp.json missing release-checks server: %s", body)
 	}

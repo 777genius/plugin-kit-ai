@@ -44,7 +44,11 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		if err != nil {
 			return ImportResult{}, err
 		}
-		artifact, err := importedPortableMCPArtifact("cursor", doc)
+		servers, err := cursorMCPServersFromDocument(doc)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		artifact, err := importedPortableMCPArtifact("cursor", servers)
 		if err != nil {
 			return ImportResult{}, err
 		}
@@ -83,7 +87,9 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		if err != nil {
 			return nil, err
 		}
-		body, err := marshalJSON(projected)
+		body, err := marshalJSON(map[string]any{
+			"mcpServers": projected,
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -293,4 +299,18 @@ func validateCursorAgentsMarkdown(root string, rel string) []Diagnostic {
 		}}
 	}
 	return nil
+}
+
+func cursorMCPServersFromDocument(doc map[string]any) (map[string]any, error) {
+	if value, ok := doc["mcpServers"]; ok {
+		servers, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("Cursor MCP config .cursor/mcp.json field %q must be a JSON object", "mcpServers")
+		}
+		if servers == nil {
+			return map[string]any{}, nil
+		}
+		return servers, nil
+	}
+	return doc, nil
 }

@@ -205,68 +205,52 @@ func TestChromeDevtoolsCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		assertChromeDevtoolsExampleDomainOutput(t, string(out))
 	})
 
-	t.Run("Cursor_workspace_list_tools_and_prompt", func(t *testing.T) {
+	t.Run("Cursor_isolated_config_list_enable_and_list_tools", func(t *testing.T) {
 		cursorBin := installedCursorBinaryOrSkip(t)
+		cursorHome := newCursorIsolatedMCPHome(t, pluginDir)
 
-		statusCmd := exec.Command(cursorBin, "agent", "status")
-		statusCmd.Dir = pluginDir
-		statusOut, err := statusCmd.CombinedOutput()
-		if err != nil {
-			if chromeDevtoolsEnvironmentIssue(string(statusOut)) || cursorEnvironmentIssue(string(statusOut)) {
-				t.Skipf("cursor environment is not ready for chrome-devtools live smoke:\n%s", truncateRunes(string(statusOut), 4000))
-			}
-			t.Fatalf("cursor agent status: %v\n%s", err, statusOut)
-		}
-
-		listArgs := []string{"agent", "mcp", "list"}
-		toolsArgs := []string{"agent", "mcp", "list-tools", "chrome-devtools"}
-		if filepath.Base(cursorBin) != "cursor" {
-			listArgs = []string{"mcp", "list"}
-			toolsArgs = []string{"mcp", "list-tools", "chrome-devtools"}
-		}
+		listArgs := cursorCLIArgs(cursorBin, "mcp", "list")
 		listCmd := exec.Command(cursorBin, listArgs...)
-		listCmd.Dir = pluginDir
+		listCmd.Env = append(os.Environ(), "HOME="+cursorHome)
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
-			if chromeDevtoolsEnvironmentIssue(string(listOut)) || cursorEnvironmentIssue(string(listOut)) {
-				t.Skipf("cursor environment is not ready for chrome-devtools MCP list:\n%s", truncateRunes(string(listOut), 4000))
-			}
-			t.Fatalf("cursor agent mcp list: %v\n%s", err, listOut)
+			t.Fatalf("cursor mcp list with isolated config: %v\n%s", err, listOut)
 		}
 		if !strings.Contains(string(listOut), "chrome-devtools") {
-			t.Skipf("cursor agent list did not expose workspace chrome-devtools server in this environment:\n%s", truncateRunes(string(listOut), 4000))
+			t.Fatalf("cursor mcp list missing chrome-devtools server from isolated config:\n%s", listOut)
 		}
-		if !strings.Contains(strings.ToLower(string(listOut)), "ready") {
-			t.Skipf("cursor agent list saw chrome-devtools but did not mark it ready in this environment:\n%s", truncateRunes(string(listOut), 4000))
+		if !strings.Contains(strings.ToLower(string(listOut)), "needs approval") {
+			t.Fatalf("cursor mcp list should report chrome-devtools as pending approval before enable:\n%s", listOut)
 		}
 
+		enableArgs := cursorCLIArgs(cursorBin, "mcp", "enable", "chrome-devtools")
+		enableCmd := exec.Command(cursorBin, enableArgs...)
+		enableCmd.Env = append(os.Environ(), "HOME="+cursorHome)
+		enableOut, err := enableCmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("cursor mcp enable chrome-devtools with isolated config: %v\n%s", err, enableOut)
+		}
+
+		listCmd = exec.Command(cursorBin, listArgs...)
+		listCmd.Env = append(os.Environ(), "HOME="+cursorHome)
+		listOut, err = listCmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("cursor mcp list after enabling chrome-devtools: %v\n%s", err, listOut)
+		}
+		if !strings.Contains(string(listOut), "chrome-devtools") || !strings.Contains(strings.ToLower(string(listOut)), "ready") {
+			t.Fatalf("cursor mcp list missing ready chrome-devtools server after isolated enable:\n%s", listOut)
+		}
+
+		toolsArgs := cursorCLIArgs(cursorBin, "mcp", "list-tools", "chrome-devtools")
 		toolsCmd := exec.Command(cursorBin, toolsArgs...)
-		toolsCmd.Dir = pluginDir
+		toolsCmd.Env = append(os.Environ(), "HOME="+cursorHome)
 		toolsOut, err := toolsCmd.CombinedOutput()
 		if err != nil {
-			if chromeDevtoolsEnvironmentIssue(string(toolsOut)) || cursorEnvironmentIssue(string(toolsOut)) {
-				t.Skipf("cursor environment is not ready for chrome-devtools MCP list-tools:\n%s", truncateRunes(string(toolsOut), 4000))
-			}
-			t.Fatalf("cursor agent mcp list-tools chrome-devtools: %v\n%s", err, toolsOut)
+			t.Fatalf("cursor mcp list-tools chrome-devtools with isolated config: %v\n%s", err, toolsOut)
 		}
 		if !strings.Contains(string(toolsOut), "new_page") && !strings.Contains(string(toolsOut), "navigate_page") && !strings.Contains(string(toolsOut), "take_snapshot") {
-			t.Fatalf("cursor agent mcp list-tools missing expected chrome-devtools tools:\n%s", toolsOut)
+			t.Fatalf("cursor mcp list-tools missing expected chrome-devtools tools:\n%s", toolsOut)
 		}
-
-		streamOut := runCursorCommand(
-			t,
-			cursorBin,
-			pluginDir,
-			nil,
-			"-p", chromeDevtoolsLivePrompt(),
-			"--model", chromeDevtoolsCursorModel(),
-			"--print",
-			"--output-format", "stream-json",
-			"--force",
-			"--approve-mcps",
-			"--trust",
-		)
-		assertCursorStreamResult(t, streamOut, "Example Domain", true)
 	})
 
 	t.Run("OpenCode_workspace_serve_startup", func(t *testing.T) {
@@ -347,13 +331,6 @@ func chromeDevtoolsCodexModels() []string {
 		models = append(models, "gpt-5.4")
 	}
 	return models
-}
-
-func chromeDevtoolsCursorModel() string {
-	if value := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_CHROME_DEVTOOLS_CURSOR_MODEL")); value != "" {
-		return value
-	}
-	return "composer-2-fast"
 }
 
 func assertChromeDevtoolsExampleDomainOutput(t *testing.T, output string) {

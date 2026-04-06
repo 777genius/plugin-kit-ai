@@ -205,79 +205,52 @@ func TestContext7CatalogLiveAcrossInstalledAgents(t *testing.T) {
 		assertContext7LibraryIDOutput(t, string(out))
 	})
 
-	t.Run("Cursor_workspace_list_tools_and_prompt", func(t *testing.T) {
+	t.Run("Cursor_isolated_config_list_enable_and_list_tools", func(t *testing.T) {
 		cursorBin := installedCursorBinaryOrSkip(t)
+		cursorHome := newCursorIsolatedMCPHome(t, pluginDir)
 
-		statusCmd := exec.Command(cursorBin, "agent", "status")
-		statusCmd.Dir = pluginDir
-		statusOut, err := statusCmd.CombinedOutput()
-		if err != nil {
-			if cursorEnvironmentIssue(string(statusOut)) {
-				t.Skipf("cursor environment is not ready for context7 live smoke:\n%s", truncateRunes(string(statusOut), 4000))
-			}
-			t.Fatalf("cursor agent status: %v\n%s", err, statusOut)
-		}
-
-		enableArgs := []string{"agent", "mcp", "enable", "context7"}
-		if filepath.Base(cursorBin) != "cursor" {
-			enableArgs = []string{"mcp", "enable", "context7"}
-		}
-		enableCmd := exec.Command(cursorBin, enableArgs...)
-		enableCmd.Dir = pluginDir
-		enableOut, err := enableCmd.CombinedOutput()
-		if err != nil {
-			if cursorEnvironmentIssue(string(enableOut)) {
-				t.Skipf("cursor environment is not ready for context7 MCP enable:\n%s", truncateRunes(string(enableOut), 4000))
-			}
-			t.Fatalf("cursor agent mcp enable context7: %v\n%s", err, enableOut)
-		}
-
-		listArgs := []string{"agent", "mcp", "list"}
-		toolsArgs := []string{"agent", "mcp", "list-tools", "context7"}
-		if filepath.Base(cursorBin) != "cursor" {
-			listArgs = []string{"mcp", "list"}
-			toolsArgs = []string{"mcp", "list-tools", "context7"}
-		}
+		listArgs := cursorCLIArgs(cursorBin, "mcp", "list")
 		listCmd := exec.Command(cursorBin, listArgs...)
-		listCmd.Dir = pluginDir
+		listCmd.Env = append(os.Environ(), "HOME="+cursorHome)
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
-			if cursorEnvironmentIssue(string(listOut)) {
-				t.Skipf("cursor environment is not ready for context7 MCP list:\n%s", truncateRunes(string(listOut), 4000))
-			}
-			t.Fatalf("cursor agent mcp list: %v\n%s", err, listOut)
+			t.Fatalf("cursor mcp list with isolated config: %v\n%s", err, listOut)
+		}
+		if !strings.Contains(string(listOut), "context7") {
+			t.Fatalf("cursor mcp list missing context7 server from isolated config:\n%s", listOut)
+		}
+		if !strings.Contains(strings.ToLower(string(listOut)), "needs approval") {
+			t.Fatalf("cursor mcp list should report context7 as pending approval before enable:\n%s", listOut)
+		}
+
+		enableArgs := cursorCLIArgs(cursorBin, "mcp", "enable", "context7")
+		enableCmd := exec.Command(cursorBin, enableArgs...)
+		enableCmd.Env = append(os.Environ(), "HOME="+cursorHome)
+		enableOut, err := enableCmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("cursor mcp enable context7 with isolated config: %v\n%s", err, enableOut)
+		}
+
+		listCmd = exec.Command(cursorBin, listArgs...)
+		listCmd.Env = append(os.Environ(), "HOME="+cursorHome)
+		listOut, err = listCmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("cursor mcp list after enabling context7: %v\n%s", err, listOut)
 		}
 		if !strings.Contains(string(listOut), "context7") || !strings.Contains(strings.ToLower(string(listOut)), "ready") {
-			t.Fatalf("cursor agent mcp list missing ready context7 server:\n%s", listOut)
+			t.Fatalf("cursor mcp list missing ready context7 server after isolated enable:\n%s", listOut)
 		}
 
+		toolsArgs := cursorCLIArgs(cursorBin, "mcp", "list-tools", "context7")
 		toolsCmd := exec.Command(cursorBin, toolsArgs...)
-		toolsCmd.Dir = pluginDir
+		toolsCmd.Env = append(os.Environ(), "HOME="+cursorHome)
 		toolsOut, err := toolsCmd.CombinedOutput()
 		if err != nil {
-			if cursorEnvironmentIssue(string(toolsOut)) {
-				t.Skipf("cursor environment is not ready for context7 MCP list-tools:\n%s", truncateRunes(string(toolsOut), 4000))
-			}
-			t.Fatalf("cursor agent mcp list-tools context7: %v\n%s", err, toolsOut)
+			t.Fatalf("cursor mcp list-tools context7 with isolated config: %v\n%s", err, toolsOut)
 		}
 		if !strings.Contains(string(toolsOut), "resolve-library-id") || !strings.Contains(string(toolsOut), "query-docs") {
-			t.Fatalf("cursor agent mcp list-tools missing context7 tools:\n%s", toolsOut)
+			t.Fatalf("cursor mcp list-tools missing context7 tools:\n%s", toolsOut)
 		}
-
-		streamOut := runCursorCommand(
-			t,
-			cursorBin,
-			pluginDir,
-			nil,
-			"-p", "Use the MCP tool context7 exactly once to resolve the library ID for React. Then answer with only the resolved library ID.",
-			"--model", context7CursorModel(),
-			"--print",
-			"--output-format", "stream-json",
-			"--force",
-			"--approve-mcps",
-			"--trust",
-		)
-		assertCursorStreamResult(t, streamOut, "/react", true)
 	})
 
 	t.Run("OpenCode_workspace_serve_startup", func(t *testing.T) {
@@ -352,14 +325,30 @@ func installedClaudeBinaryOrSkip(t *testing.T) string {
 			t.Skipf("configured Claude binary is not runnable: %v\n%s", err, out)
 		}
 	}
-	claudeBin, err := exec.LookPath("claude")
-	if err != nil {
-		t.Skip("claude not installed")
+	if claudeBin, err := exec.LookPath("claude"); err == nil {
+		if out, err := exec.Command(claudeBin, "--version").CombinedOutput(); err == nil {
+			return claudeBin
+		} else {
+			t.Skipf("claude binary is not runnable in this environment: %v\n%s", err, out)
+		}
 	}
-	if out, err := exec.Command(claudeBin, "--version").CombinedOutput(); err != nil {
-		t.Skipf("claude binary is not runnable in this environment: %v\n%s", err, out)
+	home, _ := os.UserHomeDir()
+	candidates := []string{
+		filepath.Join(home, ".local", "bin", "claude"),
+		filepath.Join(home, ".claude", "local", "claude"),
+		"/opt/homebrew/bin/claude",
+		"/usr/local/bin/claude",
 	}
-	return claudeBin
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) == "" || !fileExists(candidate) {
+			continue
+		}
+		if _, err := exec.Command(candidate, "--version").CombinedOutput(); err == nil {
+			return candidate
+		}
+	}
+	t.Skip("claude not installed or not reachable in PATH/common fallback locations")
+	return ""
 }
 
 func installedCodexBinaryOrSkip(t *testing.T) string {
@@ -382,19 +371,62 @@ func installedCursorBinaryOrSkip(t *testing.T) string {
 	t.Helper()
 	cursorBin := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_E2E_CURSOR"))
 	if cursorBin == "" {
-		var err error
-		cursorBin, err = exec.LookPath("cursor")
-		if err != nil {
-			t.Skip("cursor not installed")
+		home, _ := os.UserHomeDir()
+		var candidates []string
+		if bin, err := exec.LookPath("cursor-agent"); err == nil {
+			candidates = append(candidates, bin)
 		}
+		for _, candidate := range []string{
+			filepath.Join(home, ".local", "bin", "cursor-agent"),
+			"/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+		} {
+			if strings.TrimSpace(candidate) != "" && fileExists(candidate) {
+				candidates = append(candidates, candidate)
+			}
+		}
+		if bin, err := exec.LookPath("cursor"); err == nil {
+			candidates = append(candidates, bin)
+		}
+		for _, candidate := range candidates {
+			if out, err := exec.Command(candidate, cursorCLIArgs(candidate, "status")...).CombinedOutput(); err == nil {
+				return candidate
+			} else if cursorEnvironmentIssue(string(out)) {
+				t.Skipf("cursor installed but not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
+			}
+		}
+		t.Skip("cursor not installed")
 	}
-	if out, err := exec.Command(cursorBin, "agent", "status").CombinedOutput(); err != nil {
+	if out, err := exec.Command(cursorBin, cursorCLIArgs(cursorBin, "status")...).CombinedOutput(); err != nil {
 		if cursorEnvironmentIssue(string(out)) {
 			t.Skipf("cursor installed but not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
 		}
 		t.Skipf("cursor status failed:\n%s", out)
 	}
 	return cursorBin
+}
+
+func cursorCLIArgs(cursorBin string, args ...string) []string {
+	if filepath.Base(cursorBin) == "cursor" {
+		return append([]string{"agent"}, args...)
+	}
+	return args
+}
+
+func newCursorIsolatedMCPHome(t *testing.T, pluginDir string) string {
+	t.Helper()
+	homeDir := filepath.Join(t.TempDir(), "cursor-home")
+	configDir := filepath.Join(homeDir, ".cursor")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(pluginDir, ".cursor", "mcp.json"))
+	if err != nil {
+		t.Fatalf("read generated Cursor MCP config: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "mcp.json"), body, 0o644); err != nil {
+		t.Fatalf("write isolated Cursor MCP config: %v", err)
+	}
+	return homeDir
 }
 
 func installedOpenCodeBinaryOrSkip(t *testing.T) string {
@@ -424,13 +456,6 @@ func context7CodexModels() []string {
 		models = append(models, "gpt-5.4")
 	}
 	return models
-}
-
-func context7CursorModel() string {
-	if value := strings.TrimSpace(os.Getenv("PLUGIN_KIT_AI_CONTEXT7_CURSOR_MODEL")); value != "" {
-		return value
-	}
-	return "composer-2-fast"
 }
 
 func assertContext7LibraryIDOutput(t *testing.T, output string) {

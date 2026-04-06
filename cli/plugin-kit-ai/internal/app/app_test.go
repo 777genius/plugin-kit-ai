@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -575,10 +577,21 @@ func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"https://example.com/mcp"`, `"type": "http"`} {
-		if !strings.Contains(string(mcpBody), want) {
-			t.Fatalf(".cursor/mcp.json missing %q:\n%s", want, mcpBody)
-		}
+	var doc struct {
+		MCPServers map[string]map[string]any `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(mcpBody, &doc); err != nil {
+		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, mcpBody)
+	}
+	server, ok := doc.MCPServers["docs"]
+	if !ok {
+		t.Fatalf(".cursor/mcp.json missing wrapped docs server:\n%s", mcpBody)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(server["type"])); got != "http" {
+		t.Fatalf("cursor example-http type = %q want http\n%s", got, mcpBody)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(server["url"])); got != "https://example.com/mcp" {
+		t.Fatalf("cursor example-http url = %q want https://example.com/mcp\n%s", got, mcpBody)
 	}
 }
 
