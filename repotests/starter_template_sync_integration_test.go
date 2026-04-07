@@ -39,6 +39,7 @@ func TestStarterTemplateSyncContractFilesStayAligned(t *testing.T) {
 	} {
 		mustContain(t, runtimePackageMapping, starter+" "+repo)
 		mustContain(t, workflow, "- "+starter)
+		mustContain(t, startersReadme, "https://github.com/777genius/"+repo)
 	}
 	mustContain(t, script, "STARTER_TEMPLATE_SYNC_TOKEN")
 	mustContain(t, script, "template-repos.txt")
@@ -52,7 +53,7 @@ func TestStarterTemplateSyncContractFilesStayAligned(t *testing.T) {
 	mustContain(t, cliReadme, "Official starter templates:")
 	mustContain(t, startersReadme, "These starter repos are the fastest way to get one working plugin repo that can later expand to more supported outputs.")
 	mustContain(t, startersReadme, "Use this template")
-	mustContain(t, startersReadme, "manual `all-runtime-package` lane")
+	mustContain(t, startersReadme, "The shared-package variants now use the same official template flow as the default starters.")
 }
 
 func TestStarterTemplateSyncScriptSupportsLocalMirror(t *testing.T) {
@@ -182,7 +183,7 @@ func TestStarterTemplateRepoLinksResolveToCurrentOwnerNaming(t *testing.T) {
 			found++
 		}
 	}
-	if found != 6 {
-		t.Fatalf("expected 6 external starter template links, found %d\n%s", found, landing)
+	if found != 8 {
+		t.Fatalf("expected 8 external starter template links, found %d\n%s", found, landing)
 	}
 }
