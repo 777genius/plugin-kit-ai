@@ -185,7 +185,7 @@ func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	if lines[1] != `notify = ["./bin/genplug", "notify"]` {
 		t.Fatalf("notify line = %q, want exact argv shape", lines[1])
 	}
-	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "codex-runtime", "package.yaml"))
+	packageBody, err := os.ReadFile(filepath.Join(plugRoot, "src", "targets", "codex-runtime", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestGeneratedConfigCanaries_CodexNotifyInvocationShape(t *testing.T) {
 	report := inspectGeneratedProject(t, pluginKitAIBin, plugRoot, "codex-runtime")
 	target := requireInspectTarget(t, report, "codex-runtime")
 	mustHaveManagedArtifacts(t, target.ManagedArtifacts, ".codex/config.toml")
-	if got := target.NativeDocPaths["package_metadata"]; got != filepath.ToSlash(filepath.Join("targets", "codex-runtime", "package.yaml")) {
+	if got := target.NativeDocPaths["package_metadata"]; got != filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "package.yaml")) {
 		t.Fatalf("native_doc_paths[package_metadata] = %q", got)
 	}
 	if got := target.NativeSurfaceTiers["config_extra"]; got != "stable" {
@@ -251,7 +251,7 @@ func TestGeneratedConfigCanaries_ClaudeAuthoredHookEntrypointDriftIsCaughtByVali
 	pluginKitAIBin := buildPluginKitAI(t)
 	plugRoot := initGeneratedCanaryProject(t, pluginKitAIBin, "claude")
 
-	writeRuntimeFile(t, plugRoot, filepath.Join("targets", "claude", "hooks", "hooks.json"), `{
+	writeRuntimeFile(t, plugRoot, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{
   "hooks": {
     "Stop": [{"hooks": [{"type": "command", "command": "./bin/old-genplug Stop"}]}],
     "PreToolUse": [{"hooks": [{"type": "command", "command": "./bin/old-genplug PreToolUse"}]}],

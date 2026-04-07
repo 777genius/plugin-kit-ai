@@ -875,7 +875,7 @@ func TestPluginKitAIInitClaudeExtendedHooksRuntimeFlow(t *testing.T) {
 				t.Fatalf("plugin-kit-ai init extended Claude %s: %v\n%s", tc.runtime, err, out)
 			}
 
-			hooksBody, err := os.ReadFile(filepath.Join(plugRoot, "targets", "claude", "hooks", "hooks.json"))
+			hooksBody, err := os.ReadFile(filepath.Join(plugRoot, "src", "targets", "claude", "hooks", "hooks.json"))
 			if err != nil {
 				t.Fatal(err)
 			}
