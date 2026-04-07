@@ -55,6 +55,15 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "github",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "GitHub",
+      "description": "Реальный GitHub MCP-плагин для репозиториев, issue- и pull-request-воркфлоу через официальный GitHub MCP endpoint с токеном авторизации.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/github",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "reviewGuard",
       "eyebrow": "Концепт первой линейки",
       "title": "Review Guard",

@@ -55,6 +55,15 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "github",
+      "eyebrow": "Real catalog plugin",
+      "title": "GitHub",
+      "description": "A real GitHub MCP plugin for repository, issues, and pull-request workflows through the official GitHub MCP service with a configured authorization token.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/github",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "reviewGuard",
       "eyebrow": "First-party plugin concept",
       "title": "Review Guard",
