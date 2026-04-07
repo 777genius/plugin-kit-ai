@@ -64,6 +64,15 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "firebase",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Firebase",
+      "description": "Реальный Firebase MCP-плагин для операций с проектами по Firestore, Auth, Functions, Hosting и Storage через `firebase-tools mcp`.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "reviewGuard",
       "eyebrow": "Концепт первой линейки",
       "title": "Review Guard",

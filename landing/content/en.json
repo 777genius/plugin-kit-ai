@@ -64,6 +64,15 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "firebase",
+      "eyebrow": "Real catalog plugin",
+      "title": "Firebase",
+      "description": "A real Firebase MCP plugin for project operations across Firestore, Auth, Functions, Hosting, and Storage via `firebase-tools mcp`.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "reviewGuard",
       "eyebrow": "First-party plugin concept",
       "title": "Review Guard",
