@@ -13,6 +13,14 @@ Packaging contract:
 
 This example is intentionally `packaging-only`, but it is the canonical full Gemini extension packaging lane in this repo. It does not claim Gemini runtime parity with Claude or Codex.
 
+Included MCP servers:
+
+- `linear` (remote, `https://mcp.linear.app/mcp`)
+- `supabase` (remote, `https://mcp.supabase.com/mcp`)
+- `playwright` (stdio, `npx @playwright/mcp@0.0.70`)
+
+Linear and Supabase headers are configured via `LINEAR_API_KEY` and `SUPABASE_ACCESS_TOKEN`/`SUPABASE_PROJECT_REF` placeholders. Without credentials, MCP servers will skip tool availability during runtime auth flows.
+
 ## Workflow
 
 ```bash

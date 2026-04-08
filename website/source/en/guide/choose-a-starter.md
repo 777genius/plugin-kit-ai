@@ -70,8 +70,8 @@ Use the shared-package variants when:
 
 Current shared-package starters:
 
-- `codex-python-runtime-package-starter`: Python Codex starter with `plugin-kit-ai-runtime` pinned in `requirements.txt`
-- `claude-node-typescript-runtime-package-starter`: Node/TypeScript Claude starter with `plugin-kit-ai-runtime` pinned in `package.json`
+- [`plugin-kit-ai-starter-codex-python-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-codex-python-runtime-package): Python Codex starter with `plugin-kit-ai-runtime` pinned in `requirements.txt`
+- [`plugin-kit-ai-starter-claude-node-typescript-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package): Node/TypeScript Claude starter with `plugin-kit-ai-runtime` pinned in `package.json`
 
 If you are choosing between the normal Python starter and the runtime-package Python starter, read [Build A Python Runtime Plugin](/en/guide/python-runtime) first and then [Choose Delivery Model](/en/guide/choose-delivery-model).
 

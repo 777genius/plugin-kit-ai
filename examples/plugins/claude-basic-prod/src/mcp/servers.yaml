@@ -10,7 +10,7 @@ servers:
       headers:
         Authorization: "Bearer ${LINEAR_API_KEY}"
     targets:
-      - codex-package
+      - claude
 
   supabase:
     description: Supabase MCP with optional PAT auth
@@ -21,7 +21,7 @@ servers:
       headers:
         Authorization: "Bearer ${SUPABASE_ACCESS_TOKEN}"
     targets:
-      - codex-package
+      - claude
 
   playwright:
     description: Browser automation via Playwright MCP server
@@ -32,4 +32,4 @@ servers:
         - -y
         - "@playwright/mcp@0.0.70"
     targets:
-      - codex-package
+      - claude

@@ -15,6 +15,7 @@ These committed root docs are guidance files and are not generated outputs:
 ## Managed Generated Outputs
 
 - `.claude-plugin/plugin.json`
+- `.mcp.json`
 - `GENERATED.md`
 - `README.md`
 - `hooks/hooks.json`

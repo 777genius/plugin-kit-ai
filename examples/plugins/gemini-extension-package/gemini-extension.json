@@ -5,11 +5,24 @@
     "run_shell_command(rm -rf)"
   ],
   "mcpServers": {
-    "release-checks": {
+    "linear": {
+      "headers": {
+        "Authorization": "Bearer ${LINEAR_API_KEY}"
+      },
+      "url": "https://mcp.linear.app/mcp"
+    },
+    "playwright": {
       "args": [
-        "${extensionPath}/bin/release-checks.mjs"
+        "-y",
+        "@playwright/mcp@0.0.70"
       ],
-      "command": "node"
+      "command": "npx"
+    },
+    "supabase": {
+      "headers": {
+        "Authorization": "Bearer ${SUPABASE_ACCESS_TOKEN}"
+      },
+      "url": "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}"
     }
   },
   "name": "gemini-extension-package",

@@ -5,6 +5,14 @@ Reference Codex package repo for the official `codex-package` lane.
 This example covers the official Codex plugin bundle only. It does not include `src/launcher.yaml` or repo-local notify integration.
 It demonstrates first-class package metadata in `src/targets/codex-package/package.yaml`, structured prompt UX in `src/targets/codex-package/interface.json`, an optional app manifest in `src/targets/codex-package/app.json`, and shared MCP wiring from `src/mcp/servers.yaml`.
 
+Included MCP servers:
+
+- `linear` (remote, `https://mcp.linear.app/mcp`)
+- `supabase` (remote, `https://mcp.supabase.com/mcp`)
+- `playwright` (stdio, `npx @playwright/mcp@0.0.70`)
+
+Runtime auth is configured via `LINEAR_API_KEY` and `SUPABASE_ACCESS_TOKEN`/`SUPABASE_PROJECT_REF` placeholders. If unset, auth is deferred to user OAuth flow or the MCP server may report a disabled state.
+
 ## Workflow
 
 ```bash
