@@ -71,54 +71,6 @@
       "status": "Available now",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
-    },
-    {
-      "id": "reviewGuard",
-      "eyebrow": "First-party plugin concept",
-      "title": "Review Guard",
-      "description": "Flag risky tool usage, missing checks, and policy drift before a plugin reaches another teammate or customer.",
-      "status": "Coming soon",
-      "badges": ["Claude", "Codex", "Gemini"]
-    },
-    {
-      "id": "releaseNotesBuilder",
-      "eyebrow": "First-party plugin concept",
-      "title": "Release Notes Builder",
-      "description": "Turn commits, diffs, and handoff context into clear release notes and changelog drafts for fast publishing.",
-      "status": "Coming soon",
-      "badges": ["Codex", "Claude", "OpenCode"]
-    },
-    {
-      "id": "docsSync",
-      "eyebrow": "First-party plugin concept",
-      "title": "Docs Sync",
-      "description": "Keep README files, docs pages, and support notes aligned with what actually changed in the repo.",
-      "status": "Coming soon",
-      "badges": ["Claude", "Codex", "Cursor"]
-    },
-    {
-      "id": "repoOnboarding",
-      "eyebrow": "First-party plugin concept",
-      "title": "Repo Onboarding",
-      "description": "Set up contributor guidance, repo instructions, and agent-ready context so new people can start faster.",
-      "status": "Coming soon",
-      "badges": ["Claude", "Cursor", "OpenCode"]
-    },
-    {
-      "id": "commandSafety",
-      "eyebrow": "First-party plugin concept",
-      "title": "Command Safety",
-      "description": "Block unsafe command patterns, offer safer alternatives, and make approval-sensitive operations easier to review.",
-      "status": "Coming soon",
-      "badges": ["Codex", "Claude", "Gemini"]
-    },
-    {
-      "id": "workspaceSetup",
-      "eyebrow": "First-party plugin concept",
-      "title": "Workspace Setup",
-      "description": "Prepare agent-specific config, workspace wiring, and shared defaults from one managed source repo.",
-      "status": "Coming soon",
-      "badges": ["OpenCode", "Cursor", "Gemini"]
     }
   ],
   "comparisonRows": [

@@ -71,54 +71,6 @@
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
-    },
-    {
-      "id": "reviewGuard",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Review Guard",
-      "description": "Подсвечивает рискованные вызовы инструментов, пропущенные проверки и уход от правил до того, как плагин уйдёт дальше по цепочке.",
-      "status": "Скоро",
-      "badges": ["Claude", "Codex", "Gemini"]
-    },
-    {
-      "id": "releaseNotesBuilder",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Release Notes Builder",
-      "description": "Превращает коммиты, изменения и контекст передачи задачи в понятные заметки к релизу и черновики changelog для быстрой публикации.",
-      "status": "Скоро",
-      "badges": ["Codex", "Claude", "OpenCode"]
-    },
-    {
-      "id": "docsSync",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Docs Sync",
-      "description": "Держит README, страницы документации и заметки по поддержке в актуальном состоянии относительно реальных изменений в репозитории.",
-      "status": "Скоро",
-      "badges": ["Claude", "Codex", "Cursor"]
-    },
-    {
-      "id": "repoOnboarding",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Repo Onboarding",
-      "description": "Готовит инструкции для участников, правила репозитория и контекст для агентов, чтобы новые люди быстрее входили в проект.",
-      "status": "Скоро",
-      "badges": ["Claude", "Cursor", "OpenCode"]
-    },
-    {
-      "id": "commandSafety",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Command Safety",
-      "description": "Блокирует опасные шаблоны shell-команд, предлагает более безопасные альтернативы и упрощает проверку чувствительных операций.",
-      "status": "Скоро",
-      "badges": ["Codex", "Claude", "Gemini"]
-    },
-    {
-      "id": "workspaceSetup",
-      "eyebrow": "Концепт первой линейки",
-      "title": "Workspace Setup",
-      "description": "Готовит конфигурацию под конкретных агентов, настройку рабочего пространства и общие значения по умолчанию из одного управляемого исходного репозитория.",
-      "status": "Скоро",
-      "badges": ["OpenCode", "Cursor", "Gemini"]
     }
   ],
   "comparisonRows": [
