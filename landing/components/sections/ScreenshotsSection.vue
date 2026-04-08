@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { register } from "swiper/element/bundle";
-import { mdiChevronLeft, mdiChevronRight, mdiOpenInNew } from "@mdi/js";
+import { onMounted, ref } from 'vue';
+import { register } from 'swiper/element/bundle';
+import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 
 type SwiperContainerElement = HTMLElement & {
   initialize: () => void;
@@ -13,12 +13,15 @@ type SwiperContainerElement = HTMLElement & {
 
 const { content } = useLandingContent();
 const { t } = useI18n();
+const localePath = useLocalePath();
 
 register();
 
 const swiperRef = ref<SwiperContainerElement | null>(null);
 const swiperReady = ref(false);
-const accents = ["#00f0ff", "#ff00ff", "#39ff14", "#ffd700", "#00f0ff", "#ff00ff"];
+const accents = ['#00f0ff', '#ff00ff', '#39ff14', '#ffd700', '#00f0ff', '#ff00ff'];
+const catalogPath = computed(() => localePath('/plugins'));
+const pluginDetailPath = (slug: string) => localePath(`/plugins/${slug}`);
 
 onMounted(() => {
   if (!swiperRef.value) return;
@@ -29,9 +32,10 @@ onMounted(() => {
     grabCursor: false,
     centeredSlides: false,
     pagination: {
-      clickable: true
+      clickable: true,
     },
-    injectStyles: [`
+    injectStyles: [
+      `
       .swiper-pagination {
         position: relative !important;
         bottom: auto !important;
@@ -48,29 +52,30 @@ onMounted(() => {
         width: 28px;
         border-radius: 5px;
       }
-    `],
+    `,
+    ],
     breakpoints: {
       640: {
         slidesPerView: 1.35,
-        spaceBetween: 18
+        spaceBetween: 18,
       },
       700: {
         slidesPerView: 1.7,
-        spaceBetween: 20
+        spaceBetween: 20,
       },
       960: {
         slidesPerView: 2,
-        spaceBetween: 24
+        spaceBetween: 24,
       },
       1264: {
         slidesPerView: 3,
-        spaceBetween: 24
+        spaceBetween: 24,
       },
       1440: {
         slidesPerView: 3,
-        spaceBetween: 24
-      }
-    }
+        spaceBetween: 24,
+      },
+    },
   });
   swiperRef.value.initialize();
   swiperReady.value = true;
@@ -89,61 +94,39 @@ function slideNext() {
   <section id="plugins" class="screenshots-section section anchor-offset">
     <v-container>
       <div class="screenshots-section__header">
-        <h2 class="screenshots-section__title">
-          {{ t("plugins.sectionTitle") }}
-        </h2>
-        <p class="screenshots-section__subtitle">
-          {{ t("plugins.sectionSubtitle") }}
-        </p>
+        <div>
+          <h2 class="screenshots-section__title">
+            {{ t('plugins.sectionTitle') }}
+          </h2>
+          <p class="screenshots-section__subtitle">
+            {{ t('plugins.sectionSubtitle') }}
+          </p>
+        </div>
+        <v-btn
+          variant="outlined"
+          size="large"
+          :to="catalogPath"
+          class="screenshots-section__view-all"
+        >
+          {{ t('plugins.viewAll') }}
+        </v-btn>
       </div>
     </v-container>
 
     <div class="screenshots-section__carousel-wrap" :class="{ 'is-ready': swiperReady }">
-      <swiper-container
-        ref="swiperRef"
-        init="false"
-        class="screenshots-section__swiper"
-      >
+      <swiper-container ref="swiperRef" init="false" class="screenshots-section__swiper">
         <swiper-slide
           v-for="(plugin, idx) in content.plugins"
           :key="plugin.id"
           class="screenshots-section__slide"
         >
-          <component
-            :is="plugin.href ? 'a' : 'article'"
-            class="screenshots-section__card"
-            :class="{ 'screenshots-section__card--link': !!plugin.href }"
-            :style="{ '--accent': accents[idx % accents.length] }"
-            :href="plugin.href"
-            :target="plugin.href ? '_blank' : undefined"
-            :rel="plugin.href ? 'noreferrer noopener' : undefined"
-          >
-            <div class="screenshots-section__card-top">
-              <div>
-                <p class="screenshots-section__eyebrow">{{ plugin.eyebrow }}</p>
-                <h3 class="screenshots-section__card-title">{{ plugin.title }}</h3>
-              </div>
-              <span class="screenshots-section__status">{{ plugin.status }}</span>
-            </div>
-
-            <p class="screenshots-section__desc">{{ plugin.description }}</p>
-
-            <div class="screenshots-section__badges-label">{{ t("plugins.supports") }}</div>
-            <div class="screenshots-section__badges">
-              <span
-                v-for="badge in plugin.badges"
-                :key="badge"
-                class="screenshots-section__badge"
-              >
-                {{ badge }}
-              </span>
-            </div>
-
-            <div v-if="plugin.href" class="screenshots-section__link">
-              <span>Open plugin</span>
-              <v-icon :icon="mdiOpenInNew" size="18" />
-            </div>
-          </component>
+          <PluginCard
+            :plugin="plugin"
+            :accent="accents[idx % accents.length]"
+            :supports-label="t('plugins.supports')"
+            :open-label="t('plugins.viewDetails')"
+            :to="pluginDetailPath(plugin.slug)"
+          />
         </swiper-slide>
       </swiper-container>
 
@@ -171,11 +154,14 @@ function slideNext() {
 }
 
 .screenshots-section__header {
-  text-align: center;
-  max-width: 640px;
+  max-width: 1080px;
   margin: 0 auto 48px;
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
 }
 
 .screenshots-section__title {
@@ -195,6 +181,7 @@ function slideNext() {
   color: #8892b0;
   line-height: 1.6;
   margin: 0;
+  max-width: 640px;
 }
 
 .screenshots-section__carousel-wrap {
@@ -217,30 +204,17 @@ function slideNext() {
   height: auto;
 }
 
-.screenshots-section__card {
-  position: relative;
-  height: 100%;
-  min-height: 300px;
-  border-radius: 18px;
-  overflow: hidden;
-  background: rgba(10, 10, 15, 0.8);
-  border: 1px solid rgba(0, 240, 255, 0.12);
-  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
+.screenshots-section__view-all {
+  border-color: rgba(0, 240, 255, 0.22) !important;
+  color: #00f0ff !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em !important;
+  flex-shrink: 0;
 }
 
-.screenshots-section__card:hover {
-  transform: translateY(-6px);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  box-shadow: 0 20px 60px rgba(0, 240, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.35);
-}
-
-.screenshots-section__card--link {
-  cursor: pointer;
+.screenshots-section__view-all:hover {
+  border-color: rgba(0, 240, 255, 0.42) !important;
+  background: rgba(0, 240, 255, 0.06) !important;
 }
 
 .screenshots-section__nav {
@@ -258,7 +232,10 @@ function slideNext() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .screenshots-section__nav:hover {
@@ -274,87 +251,6 @@ function slideNext() {
   right: 16px;
 }
 
-.screenshots-section__card-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: start;
-  margin-bottom: 14px;
-}
-
-.screenshots-section__eyebrow {
-  margin: 0 0 8px;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-family: "JetBrains Mono", monospace;
-  color: var(--accent);
-}
-
-.screenshots-section__card-title {
-  margin: 0;
-  font-size: 1.2rem;
-  line-height: 1.2;
-  color: #e0e6ff;
-}
-
-.screenshots-section__status {
-  flex-shrink: 0;
-  border-radius: 999px;
-  padding: 7px 10px;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-  background: rgba(57, 255, 20, 0.08);
-  color: #39ff14;
-  border: 1px solid rgba(57, 255, 20, 0.15);
-}
-
-.screenshots-section__desc {
-  margin: 0 0 28px;
-  color: #8892b0;
-  line-height: 1.65;
-  font-size: 0.94rem;
-}
-
-.screenshots-section__badges-label {
-  margin-top: auto;
-  margin-bottom: 10px;
-  color: #8892b0;
-  font-size: 0.72rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-family: "JetBrains Mono", monospace;
-}
-
-.screenshots-section__badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.screenshots-section__badge {
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #e0e6ff;
-  font-size: 0.76rem;
-}
-
-.screenshots-section__link {
-  margin-top: 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
 .v-theme--light .screenshots-section__title {
   background: linear-gradient(135deg, #1e293b 0%, #0891b2 100%);
   -webkit-background-clip: text;
@@ -366,23 +262,14 @@ function slideNext() {
   color: #475569;
 }
 
-.v-theme--light .screenshots-section__card {
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.v-theme--light .screenshots-section__card-title,
-.v-theme--light .screenshots-section__badge {
-  color: #0f172a;
-}
-
-.v-theme--light .screenshots-section__desc,
-.v-theme--light .screenshots-section__badges-label {
-  color: #64748b;
-}
-
 @media (max-width: 959px) {
   .screenshots-section__nav {
     display: none;
+  }
+
+  .screenshots-section__header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

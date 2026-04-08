@@ -2,16 +2,57 @@
 
 This document defines the approved public contract for `plugin-kit-ai` after the `v1.0.0` release.
 
-## Contract Levels
+## Recommended Production Lanes
+
+Treat these as the main production lanes the project is prepared to recommend publicly today.
+
+- `Codex runtime Go`
+  - promise: stable production-ready runtime lane inside the `Notify` contract
+  - boundary: repo-owned generated runtime wiring and the stable `Notify` path only, not parity with every Codex CLI behavior
+  - primary evidence: the runtime support matrix, generated config contract coverage, and deterministic Codex runtime tests
+- `Codex package`
+  - promise: stable production-ready official package lane
+  - boundary: the documented `codex-package` manifest and bundle layout contract, not every possible future sidecar or vendor CLI behavior
+  - primary evidence: target support matrix, package contract tests, and `generate|import|validate` coverage
+- `Gemini packaging`
+  - promise: stable production-ready official Gemini CLI extension packaging lane
+  - boundary: package-generation and documented extension packaging workflows, not unrelated runtime parity claims
+  - primary evidence: target support matrix plus deterministic `generate|import|validate` coverage
+- `Gemini Go runtime`
+  - promise: stable production-ready 9-hook Go runtime lane
+  - boundary: the promoted 9-hook Go runtime contract only
+  - primary evidence: runtime support matrix, deterministic Gemini runtime smoke, and dedicated opt-in live runtime smoke
+- `Claude default stable lane`
+  - promise: stable production-ready Claude lane for `Stop`, `PreToolUse`, and `UserPromptSubmit`
+  - boundary: the stable default hook subset and documented package authoring support, not the wider beta hook set
+  - primary evidence: runtime support matrix, strict generated hook-routing validation, and deterministic generated-project coverage
+- `Python` and `Node` local runtime lanes
+  - promise: recommended non-Go authoring lanes for supported local-runtime repos on `codex-runtime` and `claude`
+  - boundary: stable local interpreted subset only, with an explicit downstream runtime requirement on the target machine
+  - primary evidence: `doctor`, `bootstrap`, `validate --strict`, export and bundle coverage, plus the deterministic `test-polyglot-smoke` lane
+
+## Supported Advanced And Integration Lanes
+
+- `OpenCode` and `Cursor` are repo-managed integration lanes. They are supported delivery and workspace-management surfaces, not weak targets and not the default runtime starting point.
+- narrower or more specialized runtime expansions can be useful, but they should be adopted deliberately and described with their exact formal tier
+- install wrappers, convenience flows, and other specialized surfaces should not be treated as if they carry the same promise as the main production lanes
+
+## Public Language And Formal Terms
+
+Use this mapping consistently across public docs and team policy:
+
+- `Recommended` -> usually maps to promoted `public-stable` production lanes
+- `Advanced` -> supported surface with a narrower, more specialized, or more careful contract
+- `Experimental` -> opt-in surface without a normal compatibility promise
+
+When a team needs exact compatibility policy, the formal terms win:
 
 - `public-stable`: backward-compatible within a major release. Removal requires deprecation first.
 - `public-beta`: supported and documented, but may change before promotion. Breaking changes require changelog notes.
 - `public-experimental`: opt-in surface with no compatibility promise.
 - `internal`: not part of the public contract.
 
-## Current Contract
-
-The current source tree is split between `public-stable`, `public-beta`, and `public-experimental`.
+## Canonical Contract References
 
 The declared `v1` candidate set was reviewed through [V0_9_AUDIT.md](./V0_9_AUDIT.md). Post-`v1.0.0` community-first interpreted promotion is reviewed through [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md). Gemini runtime promotion is reviewed through [GEMINI_RUNTIME_AUDIT.md](./GEMINI_RUNTIME_AUDIT.md). Anything not listed remains `public-beta` or `internal`.
 
@@ -27,10 +68,23 @@ Canonical event-level support claims live in [generated/support_matrix.md](./gen
 - capability tags
 - live-test profile labels
 
-The generated support matrix is runtime-event-only. Gemini runtime hooks, plus the Claude/Codex runtime lanes, appear there; packaging-only or workspace-config-only targets such as OpenCode and Cursor are documented in this policy and in CLI docs.
-The target/package contract matrix lives in [generated/target_support_matrix.md](./generated/target_support_matrix.md). That table is the source of truth for target class, production class, import/generate/validate support, portable component kinds, target-native component kinds, and managed artifact sets.
+The generated support matrix is runtime-event-only. Gemini runtime hooks, plus the Claude and Codex runtime lanes, appear there. Packaging-only or workspace-config-only targets are defined in this policy and in CLI docs.
 
-## Contract Vocabulary
+The target and package contract matrix lives in [generated/target_support_matrix.md](./generated/target_support_matrix.md). That table is the source of truth for target class, production class, import/generate/validate support, portable component kinds, target-native component kinds, and managed artifact sets.
+
+## Contract Levels
+
+- `public-stable`: backward-compatible within a major release. Removal requires deprecation first.
+- `public-beta`: supported and documented, but may change before promotion. Breaking changes require changelog notes.
+- `public-experimental`: opt-in surface with no compatibility promise.
+- `internal`: not part of the public contract.
+
+## Current Contract
+
+The current source tree is split between `public-stable`, `public-beta`, and `public-experimental`.
+This section is the exact formal ledger. It should stay stricter and more exhaustive than the front-door product phrasing.
+
+## Exact Contract Vocabulary
 
 Use these terms consistently in public docs, generated artifacts, and CLI output:
 

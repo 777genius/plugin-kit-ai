@@ -33,6 +33,14 @@ flowchart TD
 
 Когда вы задаёте compatibility policy, формальные термины важнее.
 
+## Как читать Recommended
+
+`Recommended` - это продуктовый язык, а не замена формального контракта.
+
+- обычно это promoted `public-stable` production lane
+- это не означает parity между всеми target'ами
+- сама формулировка не поднимает `public-beta` или `public-experimental` surface выше
+
 ## Public-Stable
 
 Воспринимайте `public-stable` как уровень, на который можно опираться с нормальными production expectations.

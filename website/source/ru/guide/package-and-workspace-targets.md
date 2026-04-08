@@ -1,6 +1,6 @@
 ---
 title: "Package и workspace targets"
-description: "Как использовать package, extension и repo-managed integration lanes, не путая их с runtime-путями."
+description: "Как использовать package, extension и настройку интеграций в самом repo, не путая их с исполняемыми runtime-путями."
 canonicalId: "page:guide:package-and-workspace-targets"
 section: "guide"
 locale: "ru"
@@ -10,15 +10,15 @@ translationRequired: true
 
 # Package и workspace targets
 
-Не каждый lane в `plugin-kit-ai` является исполняемым runtime-путём.
+Не каждый путь в `plugin-kit-ai` является исполняемым runtime-путём.
 
-Читайте эту страницу перед выбором `codex-package`, `gemini`, `opencode` или `cursor`, потому что эти lanes решают другую delivery-задачу, чем `codex-runtime` и `claude`.
+Читайте эту страницу перед выбором `codex-package`, `gemini`, `opencode` или `cursor`, потому что эти target'ы решают другую задачу, чем `codex-runtime` и `claude`.
 
 ## Короткое правило
 
 - выбирайте `codex-runtime` или `claude`, когда продуктом является исполняемое поведение плагина
 - выбирайте `codex-package` или `gemini`, когда продуктом являются package или extension artifacts
-- выбирайте `opencode` или `cursor`, когда продуктом является repo-managed integration config
+- выбирайте `opencode` или `cursor`, когда продуктом является настройка интеграции в самом repo
 
 ## Рекомендуемые package и extension lanes
 
@@ -26,7 +26,7 @@ translationRequired: true
 
 Используйте `codex-package`, когда конечным результатом должен быть пакет Codex.
 
-Это правильный lane, когда:
+Это правильный путь, когда:
 
 - packaging и есть реальный delivery contract
 - repo должен оставаться единым
@@ -38,25 +38,25 @@ translationRequired: true
 
 Воспринимайте его так:
 
-- это рекомендуемый extension lane через `generate`, `import` и `validate`
+- это рекомендуемый extension path через `generate`, `import` и `validate`
 - это правильный выбор, когда Gemini extension artifacts и есть конечный продукт
-- это отдельный lane относительно стандартного Codex runtime старта
+- это отдельный путь относительно стандартного Codex runtime старта
 
-## Repo-managed integration lanes
+## Настройка интеграций в самом repo
 
 ### OpenCode
 
-Используйте `opencode`, когда repo должен владеть OpenCode integration config и связанными project assets.
+Используйте `opencode`, когда repo должен хранить OpenCode integration setup и связанные project assets.
 
 ### Cursor
 
-Используйте `cursor`, когда repo должен владеть Cursor integration config.
+Используйте `cursor`, когда repo должен хранить Cursor integration setup.
 
-Эти lanes ценны тогда, когда output - это управляемая integration/config ownership, а не исполняемое поведение.
+Эти пути ценны тогда, когда output - это настройка интеграции в repo, а не исполняемое поведение.
 
 ## Правило готовности
 
-Для этих lanes правило здорового repo остаётся тем же:
+Для этих путей правило здорового repo остаётся тем же:
 
 - authored project живёт в package-standard layout
 - generated files являются outputs

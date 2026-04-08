@@ -74,6 +74,12 @@ test-context7-live:
 test-chrome-devtools-live:
 	PLUGIN_KIT_AI_RUN_CHROME_DEVTOOLS_LIVE=1 go test -count=1 -run '^TestChromeDevtoolsCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
+test-vercel-live:
+	PLUGIN_KIT_AI_RUN_VERCEL_LIVE=1 go test -count=1 -run '^TestVercelCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-sentry-live:
+	PLUGIN_KIT_AI_RUN_SENTRY_LIVE=1 go test -count=1 -run '^TestSentryCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
 test-e2e-live: test-install-live
 
 # Root module is workspace-only; submodules are vetted explicitly.

@@ -10,7 +10,7 @@ translationRequired: true
 
 # Что можно построить
 
-`plugin-kit-ai` строится вокруг простой идеи: держите один authored repo, начинайте с одного рекомендуемого lane и расширяйтесь позже только тогда, когда продукту действительно нужны новые outputs.
+`plugin-kit-ai` строится вокруг простой идеи: держите один authored repo, начинайте с одного рекомендуемого пути и расширяйтесь позже только тогда, когда продукту действительно нужны новые outputs.
 
 <MermaidDiagram
   :chart="`
@@ -26,26 +26,23 @@ flowchart TD
 
 ## Рекомендуемая стартовая форма
 
-Большинству команд стоит начинать с одного из этих lanes:
+Большинству команд стоит начинать с `Codex runtime Go` как с пути по умолчанию.
 
-- `Codex runtime Go`
-- `Codex package`
-- `Gemini packaging`
-- `Claude default lane`
-
-Если runtime stack уже определён заранее, можно стартовать и с:
+Поддерживаемые пути для Node и Python тоже видны с первого дня:
 
 - `Node/TypeScript`
 - `Python`
 
+Выбор Node или Python не заставляет вас в первый же день решать все вопросы с упаковкой и интеграциями.
+
 ## Расширяйтесь позже из того же repo
 
-После того как первый lane здоров, тот же repo можно расширить до:
+После того как первый путь уже в порядке, тот же repo можно расширить до:
 
 - Claude outputs, когда hooks становятся частью продукта
 - Codex package outputs, когда важна package-доставка
-- Gemini extension packaging, когда Gemini становится реальным delivery lane
-- OpenCode и Cursor, когда repo должен владеть integration config
+- Gemini extension packaging, когда Gemini становится реальным способом поставки
+- OpenCode и Cursor, когда repo должен хранить и вести настройку интеграции
 - portable bundle handoff для поддерживаемых Python и Node repos
 
 ## Один repo, много поддерживаемых outputs
@@ -60,7 +57,7 @@ flowchart TD
 
 - один source of truth под `src/`
 - один validation workflow через `generate`, `validate` и CI
-- явный выбор lanes вместо ручной правки native files
+- явный выбор стартового пути вместо ручной правки native files
 - предсказуемый handoff между авторами и downstream-пользователями
 
 ## Bundle и shared runtime paths
@@ -72,13 +69,13 @@ flowchart TD
 
 Это choices поверх того же authored repo, а не отдельные продукты.
 
-## Какие delivery models покрываются
+## Что можно выпускать из того же repo
 
 `plugin-kit-ai` может покрывать:
 
-- runtime lanes для исполняемого поведения плагина
-- package lanes для официальных package artifacts
-- extension lanes для extension-style delivery
-- repo-managed integration lanes для config и workspace ownership
+- runtime paths для исполняемого поведения плагина
+- package paths для официальных package artifacts
+- extension paths для extension-style delivery
+- настройку интеграций в самом repo для config и workspace ownership
 
-В этом и состоит реальная multi-target story: один repo, один workflow, несколько delivery lanes со временем.
+В этом и состоит реальная multi-target story: один repo, один workflow, несколько способов поставки со временем.

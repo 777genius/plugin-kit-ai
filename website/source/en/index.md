@@ -14,38 +14,41 @@ outline: false
   <p class="docs-kicker">PUBLIC DOCUMENTATION</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Build in one repo, start with a recommended production lane, and expand later into packages,
-    extensions, and repo-managed integrations without splitting your authoring workflow.
+    Build in one repo, start with Go by default, and later add packages, Claude hooks, Gemini,
+    or repo-owned integration setup without splitting the project.
   </p>
 </div>
 
-## Recommended Production Lanes
+## Default Start
 
-- `Codex runtime Go` for the strongest default runtime lane.
-- `Codex package` when the product is an official Codex package.
-- `Gemini packaging` when the product is a Gemini extension package.
-- `Gemini Go runtime` when you need the promoted 9-hook runtime lane.
-- `Claude default lane` when Claude hooks are already the product requirement.
+- `Codex runtime Go` is the default start when you want the strongest runtime and release story.
 
 ## What To Know Right Away
 
 - one repo remains the source of truth as you add more lanes
-- choose the lane that matches your delivery model today
+- choose the starting path that matches what you need today
 - expand later from the same repo when the product needs more outputs
 - use `generate` and `validate --strict` as the shared readiness workflow
+
+## Supported Node And Python Paths
+
+- `codex-runtime --runtime node --typescript` is the main supported non-Go path.
+- `codex-runtime --runtime python` is the supported Python-first path.
+- both are local interpreted runtime paths, so the target machine still needs Node.js `20+` or Python `3.10+`.
+- they are clear early options for teams already working in those stacks, but they are not the default start.
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/quickstart">
     <h2>Start Fast</h2>
-    <p>Use the strongest default lane first, then expand only when the product needs more outputs.</p>
+    <p>Use the strongest default path first, then expand only when the product needs more outputs.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>See The Product Shape</h2>
-    <p>See how one repo grows into runtime, package, extension, and repo-managed integration lanes.</p>
+    <p>See how one repo grows into runtime, package, extension, and repo-owned integration setup.</p>
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
-    <h2>Choose A Lane</h2>
-    <p>Match the target to your delivery model instead of treating every output like the same product shape.</p>
+    <h2>Choose A Target</h2>
+    <p>Match the target to how you want to ship the plugin instead of treating every output like the same thing.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
     <h2>Check The Exact Contract</h2>
@@ -53,12 +56,11 @@ outline: false
   </a>
 </div>
 
-## Start Here
+## If You Need More Later
 
-- Start with `go` when you want the strongest runtime and release story.
-- Choose `node --typescript` when your team wants the main non-Go runtime lane.
-- Choose `python` when the repo is intentionally Python-first and stays local.
-- Choose package, extension, and repo-managed integration lanes when those are the real delivery outputs.
+- Add `Claude default lane` when Claude hooks are the product requirement.
+- Add `Codex package` or `Gemini packaging` when the product is a package or extension output.
+- Add `OpenCode` or `Cursor` when the repo should own integration setup.
 - Use `validate --strict` as the readiness gate before handoff or CI.
 
 ## Common Expansion Paths
@@ -73,7 +75,7 @@ outline: false
 <div class="docs-grid">
   <a class="docs-card" href="./guide/quickstart">
     <h2>1. Quickstart</h2>
-    <p>Start with one recommended lane before you think about expansion.</p>
+    <p>Start with one recommended path before you think about expansion.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>2. What You Can Build</h2>
@@ -81,7 +83,7 @@ outline: false
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
     <h2>3. Choose A Target</h2>
-    <p>Choose the lane that matches the delivery model you actually need today.</p>
+    <p>Choose the target that matches how you actually want to ship the plugin.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
     <h2>4. Support Boundary</h2>
@@ -100,7 +102,7 @@ If you are new, stop after those four pages. Everything else is deeper reference
 ## What This Site Helps You Do
 
 - start one plugin repo instead of splitting source of truth by ecosystem
-- pick a recommended lane without overlearning the whole target taxonomy
-- expand the same repo later into more delivery lanes
+- pick a recommended starting path without learning every target detail up front
+- expand the same repo later into more shipping paths
 - keep one review and validation story as the repo grows
 - find the exact contract only when you need it

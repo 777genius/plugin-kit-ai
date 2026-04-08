@@ -1,13 +1,35 @@
-import en from "~/content/en.json";
-import ru from "~/content/ru.json";
-import type { LandingContent, LocalizedContent } from "~/types/content";
-import type { LocaleCode } from "~/data/i18n";
+import en from '~/content/en.json';
+import ru from '~/content/ru.json';
+import { resolvePluginLogo } from '~/data/pluginLogos';
+import type { LandingContent, LocalizedContent, PluginCard } from '~/types/content';
+import type { LocaleCode } from '~/data/i18n';
 
 export const contentByLocale = {
   en: en as LandingContent,
-  ru: ru as LandingContent
+  ru: ru as LandingContent,
 } satisfies LocalizedContent;
 
+const normalizePlugins = (plugins: PluginCard[]): PluginCard[] =>
+  plugins.map((plugin) => {
+    const resolvedLogo = resolvePluginLogo(plugin.logoSrc);
+
+    return {
+      ...plugin,
+      slug: plugin.slug || plugin.id,
+      logoSrc: resolvedLogo.src,
+      logoSurface: resolvedLogo.surface ?? plugin.logoSurface ?? 'default',
+    };
+  });
+
 export const getContent = (locale: LocaleCode): LandingContent => {
-  return contentByLocale[locale] ?? contentByLocale.en;
+  const content = contentByLocale[locale] ?? contentByLocale.en;
+
+  return {
+    ...content,
+    plugins: normalizePlugins(content.plugins),
+  };
+};
+
+export const getPluginBySlug = (locale: LocaleCode, slug: string): PluginCard | undefined => {
+  return getContent(locale).plugins.find((plugin) => plugin.slug === slug);
 };

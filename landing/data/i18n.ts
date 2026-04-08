@@ -1,22 +1,22 @@
-export type LocaleCode = "en" | "ru";
+import enContent from '../content/en.json';
+
+export type LocaleCode = 'en' | 'ru';
 
 export const supportedLocales = [
-  { code: "en", iso: "en-US", name: "English", flag: "\u{1F1FA}\u{1F1F8}", file: "en.json" },
-  { code: "ru", iso: "ru-RU", name: "Русский", flag: "\u{1F1F7}\u{1F1FA}", file: "ru.json" }
+  { code: 'en', iso: 'en-US', name: 'English', flag: '\u{1F1FA}\u{1F1F8}', file: 'en.json' },
+  { code: 'ru', iso: 'ru-RU', name: 'Русский', flag: '\u{1F1F7}\u{1F1FA}', file: 'ru.json' },
 ] as const;
 
-export const defaultLocale: LocaleCode = "en";
+export const defaultLocale: LocaleCode = 'en';
 
-export const pages = [
-  "/",
-  "/download"
-] as const;
+const pluginDetailPages = (enContent.plugins as Array<{ id: string; slug?: string }>).map(
+  (plugin) => `/plugins/${plugin.slug ?? plugin.id}`,
+);
+
+export const pages = ['/', '/download', '/plugins', ...pluginDetailPages];
 
 /** Pages for sitemap */
-export const sitemapPages = [
-  "/",
-  "/download"
-] as const;
+export const sitemapPages = ['/', '/download', '/plugins', ...pluginDetailPages];
 
 /** Generates i18n routes for a given list of pages */
 const buildI18nRoutes = (source: readonly string[]): string[] => {
@@ -25,7 +25,7 @@ const buildI18nRoutes = (source: readonly string[]): string[] => {
     routes.push(page);
     for (const locale of supportedLocales) {
       if (locale.code === defaultLocale) continue;
-      routes.push(page === "/" ? `/${locale.code}` : `/${locale.code}${page}`);
+      routes.push(page === '/' ? `/${locale.code}` : `/${locale.code}${page}`);
     }
   }
   return routes;

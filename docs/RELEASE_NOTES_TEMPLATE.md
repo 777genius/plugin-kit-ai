@@ -9,11 +9,28 @@ Pair this with [REHEARSAL_TEMPLATE.md](./REHEARSAL_TEMPLATE.md) when collecting 
 - release tag:
 - candidate commit SHA:
 - release type:
+- one-sentence user summary:
 
 ## Public-Stable In This Release
 
 - list promoted stable surfaces
 - list any post-`v1` promotion ledger reviewed, for example `INTERPRETED_STABLE_SUBSET_AUDIT.md`
+
+## Why This Release Matters
+
+- explain the main user-facing outcome in plain language
+- say who benefits first
+- avoid release-process wording in the first paragraph
+
+## What Changed For Users
+
+- list the main user-facing changes
+- prefer concrete outcomes over internal implementation details
+
+## What To Do Now
+
+- list the default recommendation after this release
+- list any migration or upgrade action a user should actually take
 
 ## Still Public-Beta
 

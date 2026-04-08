@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { mdiClose, mdiGithub, mdiMenu } from "@mdi/js";
+import { mdiClose, mdiGithub, mdiMenu } from '@mdi/js';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -9,22 +9,20 @@ const config = useRuntimeConfig();
 const menuOpen = ref(false);
 const interactiveReady = ref(false);
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
-const homePath = computed(() => localePath("/"));
+const homePath = computed(() => localePath('/'));
 const homeHref = computed(() => router.resolve(homePath.value).href);
 
 const navItems = computed(() => [
-  { id: "features", label: t("nav.features") },
-  { id: "plugins", label: t("nav.plugins") },
-  { id: "download", label: t("nav.download") },
-  { id: "comparison", label: t("nav.comparison") },
-  { id: "faq", label: t("nav.faq") }
+  { id: 'features', label: t('nav.features') },
+  { id: 'plugins', label: t('nav.plugins') },
+  { id: 'download', label: t('nav.download') },
+  { id: 'comparison', label: t('nav.comparison') },
+  { id: 'faq', label: t('nav.faq') },
 ]);
 
-const normalizePath = (value: string) => (value !== "/" ? value.replace(/\/+$/, "") : "/");
+const normalizePath = (value: string) => (value !== '/' ? value.replace(/\/+$/, '') : '/');
 
-const isHomePage = computed(
-  () => normalizePath(route.path) === normalizePath(homePath.value)
-);
+const isHomePage = computed(() => normalizePath(route.path) === normalizePath(homePath.value));
 
 const sectionHref = (sectionId: string) =>
   isHomePage.value ? `#${sectionId}` : `${homeHref.value}#${sectionId}`;
@@ -58,7 +56,7 @@ onMounted(() => {
           class="app-header__github-btn"
           :prepend-icon="mdiGithub"
         >
-          {{ t("nav.viewOnGithub") }}
+          {{ t('nav.viewOnGithub') }}
         </v-btn>
         <template v-if="interactiveReady">
           <ThemeToggle />
@@ -78,7 +76,7 @@ onMounted(() => {
                   <div style="flex: 1" />
                   <v-btn :icon="mdiClose" variant="text" @click="menuOpen = false" />
                 </div>
-                <hr class="mobile-menu__divider">
+                <hr class="mobile-menu__divider" >
                 <nav class="mobile-menu__list">
                   <a
                     v-for="item in navItems"
@@ -96,17 +94,20 @@ onMounted(() => {
                     class="mobile-menu__link"
                     @click="menuOpen = false"
                   >
-                    {{ t("nav.viewOnGithub") }}
+                    {{ t('nav.viewOnGithub') }}
                   </a>
                 </nav>
-                <hr class="mobile-menu__divider">
+                <hr class="mobile-menu__divider" >
                 <div class="mobile-menu__actions">
                   <template v-if="interactiveReady">
                     <LanguageSwitcher compact />
                     <ThemeToggle />
                   </template>
                   <template v-else>
-                    <div class="app-header__control-fallback app-header__control-fallback--wide" aria-hidden="true" />
+                    <div
+                      class="app-header__control-fallback app-header__control-fallback--wide"
+                      aria-hidden="true"
+                    />
                     <div class="app-header__control-fallback" aria-hidden="true" />
                   </template>
                 </div>
@@ -189,7 +190,6 @@ onMounted(() => {
   border-color: rgba(15, 23, 42, 0.08);
 }
 
-
 .app-header__github-btn {
   border-color: rgba(0, 240, 255, 0.25) !important;
   color: #00f0ff !important;
@@ -225,13 +225,21 @@ onMounted(() => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgb(var(--v-theme-surface));
+  background: rgba(6, 8, 16, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.v-theme--light .mobile-menu-overlay {
+  background: rgba(248, 250, 252, 0.96);
 }
 
 .mobile-menu {
   padding: 16px 16px 24px;
   height: 100%;
   overflow-y: auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0)), transparent;
 }
 
 .mobile-menu__header {

@@ -388,7 +388,7 @@ func installedCursorBinaryOrSkip(t *testing.T) string {
 			candidates = append(candidates, bin)
 		}
 		for _, candidate := range candidates {
-			if out, err := exec.Command(candidate, cursorCLIArgs(candidate, "status")...).CombinedOutput(); err == nil {
+			if out, err := cursorCommandWithTimeout(candidate, 12*time.Second, cursorCLIArgs(candidate, "status")...); err == nil {
 				return candidate
 			} else if cursorEnvironmentIssue(string(out)) {
 				t.Skipf("cursor installed but not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
@@ -396,13 +396,19 @@ func installedCursorBinaryOrSkip(t *testing.T) string {
 		}
 		t.Skip("cursor not installed")
 	}
-	if out, err := exec.Command(cursorBin, cursorCLIArgs(cursorBin, "status")...).CombinedOutput(); err != nil {
+	if out, err := cursorCommandWithTimeout(cursorBin, 12*time.Second, cursorCLIArgs(cursorBin, "status")...); err != nil {
 		if cursorEnvironmentIssue(string(out)) {
 			t.Skipf("cursor installed but not ready for live smoke:\n%s", truncateRunes(string(out), 4000))
 		}
 		t.Skipf("cursor status failed:\n%s", out)
 	}
 	return cursorBin
+}
+
+func cursorCommandWithTimeout(cursorBin string, timeout time.Duration, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return exec.CommandContext(ctx, cursorBin, args...).CombinedOutput()
 }
 
 func cursorCLIArgs(cursorBin string, args ...string) []string {

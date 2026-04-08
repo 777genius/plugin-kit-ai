@@ -38,65 +38,242 @@
   "plugins": [
     {
       "id": "context7",
+      "slug": "context7",
       "eyebrow": "Реальный плагин каталога",
       "title": "Context7",
+      "tagline": "Свежая документация библиотек и примеры кода без постоянных прыжков в внешние docs.",
       "description": "Реальный multi-agent MCP-плагин для свежей документации библиотек и примеров кода, который один раз собирается и выпускается в Claude, Codex, Gemini, OpenCode и Cursor.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7",
+      "logoSrc": "context7.svg",
+      "logoAlt": "Логотип Context7",
+      "categories": ["docs", "research", "codeSearch"],
+      "highlights": [
+        "Подтягивает актуальную документацию библиотек, а не опирается на устаревшую память модели.",
+        "Собирает docs и примеры в одной MCP-поверхности для всех поддерживаемых агентов.",
+        "Особенно полезен, когда нужен быстрый технический lookup прямо во время работы с репозиторием."
+      ],
+      "useCases": [
+        "Проверить актуальный синтаксис SDK перед написанием кода.",
+        "Найти пример по фиче фреймворка, не уходя из редактора.",
+        "Сверить сгенерированный код с текущей документацией во время review."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "gitlab",
+      "slug": "gitlab",
       "eyebrow": "Реальный плагин каталога",
       "title": "GitLab",
+      "tagline": "Проекты, merge request и DevOps-потоки из одной GitLab-native MCP поверхности.",
       "description": "Реальный GitLab MCP-плагин для проектов, задач, merge request и DevOps-сценариев через официальный GitLab MCP endpoint.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/gitlab",
+      "logoSrc": "gitlab.svg",
+      "logoAlt": "Логотип GitLab",
+      "categories": ["git", "planning", "devops"],
+      "highlights": [
+        "Держит задачи, merge request и состояние проектов внутри одного agent workflow.",
+        "Лучше всего подходит командам, у которых GitLab уже основной источник истины.",
+        "Связывает работу с кодом, планирование и DevOps-действия в одном потоке."
+      ],
+      "useCases": [
+        "Триажить задачи и двигать связанную работу из одного контекста.",
+        "Проверять merge request и сразу видеть состояние проекта вокруг него.",
+        "Координировать DevOps-действия без лишних переходов между инструментами."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "github",
+      "slug": "github",
       "eyebrow": "Реальный плагин каталога",
       "title": "GitHub",
+      "tagline": "Репозитории, issue и pull request через официальный GitHub MCP service.",
       "description": "Реальный GitHub MCP-плагин для репозиториев, issue- и pull-request-воркфлоу через официальный GitHub MCP endpoint с токеном авторизации.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/github",
+      "logoSrc": "github.svg",
+      "logoAlt": "Логотип GitHub",
+      "categories": ["git", "review", "planning"],
+      "highlights": [
+        "Закрывает основной repo workflow, к которому команды разработки возвращаются каждый день.",
+        "Особенно силён там, где issue tracking и review живут прямо в GitHub.",
+        "Делает GitHub полноценной MCP-поверхностью, а не очередным табом для переключения."
+      ],
+      "useCases": [
+        "Проверять pull request и держать рядом контекст связанных issue.",
+        "Вести housekeeping репозитория, задачи и follow-up по PR в одном потоке.",
+        "Передавать планирование и review между людьми и агентами без потери контекста."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "firebase",
+      "slug": "firebase",
       "eyebrow": "Реальный плагин каталога",
       "title": "Firebase",
+      "tagline": "Firestore, Auth, Functions, Hosting и Storage в одном backend-ориентированном плагине.",
       "description": "Реальный Firebase MCP-плагин для операций с проектами по Firestore, Auth, Functions, Hosting и Storage через `firebase-tools mcp`.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
+      "logoSrc": "firebase.svg",
+      "logoAlt": "Логотип Firebase",
+      "categories": ["backend", "database", "cloud"],
+      "highlights": [
+        "Лучше всего подходит командам, у которых куски backend уже крутятся в Firebase.",
+        "Связывает данные, auth и deployment-задачи в одной plugin surface.",
+        "Удобен, когда нужно быстро переключаться между схемой, функциями и hosting."
+      ],
+      "useCases": [
+        "Проверять Firestore и Auth-конфигурацию во время разработки фич.",
+        "Координировать Functions и Hosting-изменения в одном MCP-потоке.",
+        "Поддерживать небольшие команды, которым нужен один backend plugin вместо набора отдельных тулов."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "linear",
+      "slug": "linear",
       "eyebrow": "Реальный плагин каталога",
       "title": "Linear",
+      "tagline": "Планирование задач и workflow-автоматизация для команд, которые уже живут в Linear.",
       "description": "Реальный MCP-плагин Linear для управления задачами, проектами и workflow через официальный Linear MCP endpoint.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/linear",
+      "logoSrc": "linear.svg",
+      "logoAlt": "Логотип Linear",
+      "categories": ["planning", "automation", "collaboration"],
+      "highlights": [
+        "Держит планирование и исполнение рядом для команд, у которых Linear уже центр управления.",
+        "Сильный вариант для issue hygiene, project tracking и workflow automation.",
+        "Полезен, когда агент должен не только summarise, но и реально двигать работу."
+      ],
+      "useCases": [
+        "Обновлять статус issue прямо во время реализации и review.",
+        "Следить за прогрессом проекта без прыжков между planning tools.",
+        "Автоматизировать рутинные шаги вокруг assign и статусов."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "notion",
+      "slug": "notion",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Notion",
+      "tagline": "Документы команды, planning-контекст и knowledge base через hosted MCP от Notion.",
+      "description": "Реальный Notion MCP-плагин для user-authorized доступа к workspace через hosted MCP endpoint Notion с одним OAuth-based remote integration для Claude, Codex, Gemini, OpenCode и Cursor.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/notion",
+      "logoSrc": "notion.svg",
+      "logoAlt": "Логотип Notion",
+      "categories": ["docs", "planning", "collaboration"],
+      "highlights": [
+        "Лучше всего подходит командам, у которых product docs, спеки и knowledge уже живут в Notion.",
+        "Держит интерактивный workspace context внутри одного agent flow через hosted MCP и OAuth.",
+        "Полезен для чтения, поиска и обновления planning-контекста без отдельной локальной интеграции."
+      ],
+      "useCases": [
+        "Подтягивать контекст проекта из командных docs перед изменениями в коде или продукте.",
+        "Проверять спеки, launch notes и operating docs, не выходя из agent workspace.",
+        "Обновлять общие planning pages во время выполнения задач и follow-up."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "vercel",
+      "slug": "vercel",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Vercel",
+      "tagline": "Hosted MCP-доступ к docs, проектам, deployment и логам Vercel, пока upstream service ещё находится в beta.",
+      "description": "Реальный Vercel MCP-плагин для OAuth-backed hosted доступа к документации, проектам, deployment и логам через официальный remote MCP endpoint Vercel.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/vercel",
+      "logoSrc": "vercel.svg",
+      "logoAlt": "Логотип Vercel",
+      "categories": ["devops", "cloud", "backend"],
+      "highlights": [
+        "Сильный вариант для команд, которые уже деплоят и оперируют через Vercel.",
+        "Соединяет docs lookup и аутентифицированные deployment/project workflow в одной MCP-поверхности.",
+        "Честно фиксирует, что upstream сервис пока beta, а не притворяется полностью устоявшимся."
+      ],
+      "useCases": [
+        "Проверять deployment state и логи при разборе production-поведения.",
+        "Тянуть Vercel docs в тот же workflow, где идут project operations.",
+        "Помогать агентам понимать platform и deployment context без выхода из workspace."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "sentry",
+      "slug": "sentry",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Sentry",
+      "tagline": "Human-in-the-loop debugging и incident context через hosted MCP от Sentry.",
+      "description": "Реальный Sentry MCP-плагин для hosted OAuth-backed доступа к issue, trace, debugging context и incident workflow через официальный remote MCP service Sentry.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/sentry",
+      "logoSrc": "sentry.svg",
+      "logoAlt": "Логотип Sentry",
+      "categories": ["backend", "review", "devops"],
+      "highlights": [
+        "Сделан для engineering-команд, которым нужен реальный production debugging context, а не только docs.",
+        "Держит issue, trace и incident context рядом с coding workflow.",
+        "Специально ограничен hosted SaaS path и не смешивает его с self-hosted и stdio-сложностью."
+      ],
+      "useCases": [
+        "Триажить production issue во время review кода и планирования фиксов.",
+        "Использовать trace и issue context, чтобы быстрее сузить вероятные failure path.",
+        "Вести incident follow-up без постоянных прыжков между dashboard и agent-сессией."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "supabase",
+      "slug": "supabase",
       "eyebrow": "Реальный плагин каталога",
       "title": "Supabase",
+      "tagline": "Project-scoped backend разработка через Supabase-hosted MCP поверхность.",
       "description": "Реальный MCP-плагин Supabase для операций с проектом и Dev-процессами через Supabase-hosted MCP.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/supabase",
+      "logoSrc": "supabase.svg",
+      "logoAlt": "Логотип Supabase",
+      "categories": ["backend", "database", "cloud"],
+      "highlights": [
+        "Сделан для команд, которые строят backend вокруг Supabase как главной платформы.",
+        "Упрощает project-scoped работу с базой и платформой в одном потоке.",
+        "Хорошо подходит продуктовым командам, которым нужна скорость без тяжёлого ops-слоя."
+      ],
+      "useCases": [
+        "Проверять project setup во время разработки database-backed фич.",
+        "Переходить между backend-задачами, не выходя из agent workspace.",
+        "Поддерживать команды, которым нужен один managed backend surface для быстрых релизов."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
       "id": "greptile",
+      "slug": "greptile",
       "eyebrow": "Реальный плагин каталога",
       "title": "Greptile",
+      "tagline": "Repository-aware code intelligence для глубокого поиска, сбора контекста и review-поддержки.",
       "description": "Реальный MCP-плагин Greptile для поиска по репозиторию и кода с помощью hosted MCP.",
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/greptile",
+      "logoSrc": "greptile.svg",
+      "logoAlt": "Логотип Greptile",
+      "categories": ["codeSearch", "review", "research"],
+      "highlights": [
+        "Помогает агентам разбирать реальный repo context, а не гадать по паре файлов.",
+        "Сильный вариант для глубокого code search, изучения незнакомых участков и подготовки review.",
+        "Особенно полезен там, где скорость понимания codebase так же важна, как и генерация."
+      ],
+      "useCases": [
+        "Изучать незнакомый код перед внесением изменений.",
+        "Находить связанные паттерны реализации по всему репозиторию во время review.",
+        "Собирать лучший технический контекст для debugging и refactoring."
+      ],
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     }
   ],
@@ -136,7 +313,10 @@
     {
       "id": "releasePath",
       "feature": "Понятные каналы установки и релизов",
-      "pluginKitAi": { "status": "yes", "note": "Документация, релизы и установка связаны в один понятный путь" },
+      "pluginKitAi": {
+        "status": "yes",
+        "note": "Документация, релизы и установка связаны в один понятный путь"
+      },
       "manual": { "status": "no", "note": "Всё собираете сами" },
       "duplicated": { "status": "partial", "note": "Можно, но это повторяющаяся работа" },
       "scripts": { "status": "no", "note": "Обычно только локально и без общей системы" }

@@ -30,12 +30,29 @@ translationRequired: true
 
 Эти слои связаны, но это не одно и то же.
 
+## Recommended lanes и formal tiers
+
+Используйте одну и ту же простую трансляцию между docs и policy:
+
+- `Recommended` обычно означает promoted `public-stable` production lane
+- `Advanced` означает поддерживаемую surface с более узким или специализированным контрактом
+- `Experimental` означает opt-in churn вне нормального compatibility expectation
+
+Главные recommended lanes сегодня:
+
+- `Codex runtime Go`
+- `Codex package`
+- `Gemini packaging`
+- `Gemini Go runtime`
+- `Claude default stable lane`
+- `Python` и `Node` local runtime lanes как поддерживаемый и рекомендуемый non-Go authoring path на поддерживаемых target'ах
+
 ## Что именно покрывает совместимость
 
 Самое сильное публичное обещание относится к:
 
 - заявленному публичному CLI contract
-- рекомендуемому пути через Go SDK
+- рекомендуемому пути через Go SDK и перечисленным выше recommended production lanes
 - рекомендуемым локальным Python и Node runtime lanes на поддерживаемых target'ах
 - задокументированному поведению `public-stable` generated outputs
 

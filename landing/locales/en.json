@@ -83,7 +83,40 @@
   "plugins": {
     "sectionTitle": "Our first plugins start here",
     "sectionSubtitle": "A first-party lineup designed for real repo work, with clear badges for the agent ecosystems each idea is meant to support.",
-    "supports": "Supports"
+    "supports": "Supports",
+    "openPlugin": "Open plugin",
+    "viewDetails": "View details",
+    "viewAll": "View all",
+    "catalogEyebrow": "Plugin catalog",
+    "catalogTitle": "Every first-party plugin in one searchable catalog",
+    "catalogSubtitle": "Browse the full lineup, filter by real workflow categories, and open a lightweight page for the plugin before jumping into the source repo.",
+    "searchLabel": "Search plugins",
+    "searchPlaceholder": "Search plugins or workflows…",
+    "filterLabel": "Filter by workflow",
+    "allCategories": "All workflows",
+    "clearSearch": "Clear search",
+    "emptyTitle": "No plugins matched that search",
+    "emptyText": "Try a broader keyword like Git, docs, backend, planning, or reset the active workflow filter.",
+    "backToCatalog": "Back to catalog",
+    "openRepository": "Open repository",
+    "detailSummaryEyebrow": "Plugin summary",
+    "categoriesTitle": "Built for",
+    "useCasesTitle": "Best for",
+    "highlightsTitle": "What stands out",
+    "categories": {
+      "docs": "Docs",
+      "research": "Research",
+      "codeSearch": "Code search",
+      "git": "Git workflows",
+      "planning": "Planning",
+      "devops": "DevOps",
+      "review": "Code review",
+      "database": "Database",
+      "backend": "Backend",
+      "cloud": "Cloud",
+      "automation": "Automation",
+      "collaboration": "Collaboration"
+    }
   },
   "faq": {
     "sectionTitle": "Got questions? We've got answers",
@@ -130,7 +163,11 @@
     "homeTitle": "plugin-kit-ai | Build AI plugins once, ship them to many agents",
     "homeDescription": "plugin-kit-ai is the home for our first-party AI plugins and the open-source toolkit for building one plugin repo and targeting multiple agent ecosystems.",
     "downloadTitle": "Get started with plugin-kit-ai | Install plugin-kit-ai",
-    "downloadDescription": "Choose an install path for plugin-kit-ai, open the docs, and start from one clean plugin repo."
+    "downloadDescription": "Choose an install path for plugin-kit-ai, open the docs, and start from one clean plugin repo.",
+    "pluginsTitle": "Plugin catalog | First-party plugins for plugin-kit-ai",
+    "pluginsDescription": "Browse the first-party plugin catalog for plugin-kit-ai, with searchable cards, workflow filters, and lightweight pages for every real plugin repository.",
+    "pluginDetailTitle": "{plugin} plugin | plugin-kit-ai catalog",
+    "pluginDetailDescription": "{plugin} is part of the first-party plugin-kit-ai catalog. {tagline}"
   },
   "error": {
     "notFoundTitle": "Page not found",

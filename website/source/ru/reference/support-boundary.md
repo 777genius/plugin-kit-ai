@@ -16,8 +16,8 @@ translationRequired: true
 
 - Go - рекомендуемый runtime lane по умолчанию.
 - `validate --strict` - главная проверка готовности для локальных Python и Node runtime repos.
-- Codex package и Gemini packaging рекомендуемы тогда, когда package или extension delivery и есть реальный продукт.
-- OpenCode и Cursor подходят тогда, когда repo должен владеть integration config.
+- `Codex runtime Go`, `Codex package`, `Gemini packaging`, `Gemini Go runtime` и Claude default stable lane - главные Recommended production lanes.
+- `Python` и `Node` - поддерживаемые non-Go lanes и рекомендуемый non-Go выбор, когда компромисс локального interpreted runtime выбран осознанно.
 
 ## Как это маппится на формальный контракт
 
@@ -32,12 +32,13 @@ translationRequired: true
 - Claude рекомендуется на default stable hook lane.
 - Codex рекомендуется и для `Notify` runtime lane, и для официального `codex-package` lane.
 - Gemini packaging рекомендуется, и promoted Gemini Go runtime тоже production-ready.
-- OpenCode и Cursor - это repo-managed integration lanes, а не стандартная runtime starting point.
+- OpenCode и Cursor - это repo-managed integration lanes, а не слабые targets и не стандартная runtime starting point.
 
 ## Advanced surfaces
 
 Используйте их только тогда, когда компромисс осознан и явно нужен:
 
+- OpenCode и Cursor, когда repo должен владеть integration config, а не runtime lane
 - более узкие или специализированные runtime expansions вне основных рекомендуемых lanes
 - install wrappers, если вас на самом деле интересует доставка CLI, а не runtime APIs или SDKs
 - специальные config surfaces, которые полезны, но не являются первым default для большинства команд

@@ -63,6 +63,23 @@ func TestPagesSite_CombinesLandingRootAndDocsSubpath(t *testing.T) {
 	site := string(siteBody)
 	mustContain(t, site, `export const docsBasePath = process.env.DOCS_BASE_PATH || "/plugin-kit-ai/docs/";`)
 
+	i18nBody, err := os.ReadFile(filepath.Join(root, "landing", "data", "i18n.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	i18n := string(i18nBody)
+	mustContain(t, i18n, `'/plugins'`)
+	mustContain(t, i18n, `const pluginDetailPages =`)
+	mustContain(t, i18n, "`/plugins/${plugin.slug ?? plugin.id}`")
+
+	pluginDetailPageBody, err := os.ReadFile(filepath.Join(root, "landing", "pages", "plugins", "[slug].vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginDetailPage := string(pluginDetailPageBody)
+	mustContain(t, pluginDetailPage, `plugins.openRepository`)
+	mustContain(t, pluginDetailPage, `plugins.backToCatalog`)
+
 	robotsBody, err := os.ReadFile(filepath.Join(root, "landing", "server", "routes", "robots.txt.ts"))
 	if err != nil {
 		t.Fatal(err)

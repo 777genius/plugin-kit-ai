@@ -17,11 +17,11 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	i18n := string(i18nBody)
-	mustContain(t, i18n, `export type LocaleCode = "en" | "ru";`)
-	mustContain(t, i18n, `{ code: "en"`)
-	mustContain(t, i18n, `{ code: "ru"`)
-	mustNotContain(t, i18n, `{ code: "de"`)
-	mustNotContain(t, i18n, `{ code: "fr"`)
+	mustContain(t, i18n, `export type LocaleCode = 'en' | 'ru';`)
+	mustContain(t, i18n, `{ code: 'en'`)
+	mustContain(t, i18n, `{ code: 'ru'`)
+	mustNotContain(t, i18n, `{ code: 'de'`)
+	mustNotContain(t, i18n, `{ code: 'fr'`)
 
 	docsLinksBody, err := os.ReadFile(filepath.Join(landingRoot, "composables", "useDocsLinks.ts"))
 	if err != nil {
@@ -101,6 +101,12 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, enLocale, `"comparison": "Why it works"`)
 	mustContain(t, enLocale, `"pluginKitAi": "plugin-kit-ai"`)
 	mustContain(t, enLocale, `"generate": "generate outputs"`)
+	mustContain(t, enLocale, `"viewAll": "View all"`)
+	mustContain(t, enLocale, `"viewDetails": "View details"`)
+	mustContain(t, enLocale, `"filterLabel": "Filter by workflow"`)
+	mustContain(t, enLocale, `"pluginDetailTitle": "{plugin} plugin | plugin-kit-ai catalog"`)
+	mustContain(t, enLocale, `"catalogTitle": "Every first-party plugin in one searchable catalog"`)
+	mustContain(t, enLocale, `"pluginsTitle": "Plugin catalog | First-party plugins for plugin-kit-ai"`)
 	mustNotContain(t, enLocale, `"pricing"`)
 	mustNotContain(t, enLocale, `Hookplex`)
 	mustNotContain(t, enLocale, `"hookplex":`)
@@ -116,6 +122,12 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, ruLocale, `"comparison": "Почему это работает"`)
 	mustContain(t, ruLocale, `"pluginKitAi": "plugin-kit-ai"`)
 	mustContain(t, ruLocale, `"generate": "собрать варианты"`)
+	mustContain(t, ruLocale, `"viewAll": "Смотреть все"`)
+	mustContain(t, ruLocale, `"viewDetails": "Подробнее"`)
+	mustContain(t, ruLocale, `"filterLabel": "Фильтр по сценариям"`)
+	mustContain(t, ruLocale, `"pluginDetailTitle": "Плагин {plugin} | каталог plugin-kit-ai"`)
+	mustContain(t, ruLocale, `"catalogTitle": "Вся первая линейка плагинов в одном каталоге с поиском"`)
+	mustContain(t, ruLocale, `"pluginsTitle": "Каталог плагинов | Первая линейка plugin-kit-ai"`)
 	mustNotContain(t, ruLocale, `"pricing"`)
 	mustNotContain(t, ruLocale, `Hookplex`)
 	mustNotContain(t, ruLocale, `"hookplex":`)
@@ -173,6 +185,52 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	}
 	indexPage := string(indexBody)
 	mustNotContain(t, indexPage, `LazyPricingSection`)
+
+	pluginsPageBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "plugins", "index.vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginsPage := string(pluginsPageBody)
+	mustContain(t, pluginsPage, `usePageSeo('meta.pluginsTitle', 'meta.pluginsDescription')`)
+	mustContain(t, pluginsPage, `v-model="searchQuery"`)
+	mustContain(t, pluginsPage, `filteredPlugins`)
+	mustContain(t, pluginsPage, `selectedCategory`)
+	mustContain(t, pluginsPage, `plugins.categories.`)
+	mustContain(t, pluginsPage, `pluginDetailPath`)
+
+	pluginDetailPageBody, err := os.ReadFile(filepath.Join(landingRoot, "pages", "plugins", "[slug].vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pluginDetailPage := string(pluginDetailPageBody)
+	mustContain(t, pluginDetailPage, `getPluginBySlug`)
+	mustContain(t, pluginDetailPage, `usePageSeo(detailTitle, detailDescription, { translate: false })`)
+	mustContain(t, pluginDetailPage, `plugins.useCasesTitle`)
+	mustContain(t, pluginDetailPage, `plugins.highlightsTitle`)
+
+	enContentBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "en.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	enContent := string(enContentBody)
+	mustContain(t, enContent, `"logoSrc": "context7.svg"`)
+	mustContain(t, enContent, `"logoAlt": "GitHub logo"`)
+	mustContain(t, enContent, `"slug": "context7"`)
+	mustContain(t, enContent, `"categories": ["docs", "research", "codeSearch"]`)
+	mustContain(t, enContent, `"highlights": [`)
+	mustContain(t, enContent, `"useCases": [`)
+
+	ruContentAgainBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "ru.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ruContentAgain := string(ruContentAgainBody)
+	mustContain(t, ruContentAgain, `"logoSrc": "greptile.svg"`)
+	mustContain(t, ruContentAgain, `"logoAlt": "Логотип GitLab"`)
+	mustContain(t, ruContentAgain, `"slug": "greptile"`)
+	mustContain(t, ruContentAgain, `"categories": ["codeSearch", "review", "research"]`)
+	mustContain(t, ruContentAgain, `"highlights": [`)
+	mustContain(t, ruContentAgain, `"useCases": [`)
 
 	matches, err := scanRemovedBranding(landingRoot)
 	if err != nil {

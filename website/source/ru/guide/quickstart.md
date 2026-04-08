@@ -10,15 +10,15 @@ translationRequired: true
 
 # Быстрый старт
 
-Это самый короткий рекомендуемый путь, если вам нужен один plugin repo, который потом можно расширять на новые delivery lanes.
+Это самый короткий рекомендуемый путь, если вам нужен один plugin repo, который потом можно расширять новыми способами поставки.
 
-Сначала выберите один сильный lane. Package, extension и repo-managed integration outputs можно добавить позже, когда они действительно понадобятся продукту.
+Сначала выберите один сильный стартовый путь. Package, extension и настройку интеграций в самом repo можно добавить позже, когда они действительно понадобятся продукту.
 
 ## Если читать только одно
 
-Начинайте с Go по умолчанию, если вы заранее не знаете, что продукт определяют Claude hooks, Node/TypeScript или Python.
+Начинайте с Go по умолчанию, если вы заранее не знаете, что продукт определяется Claude hooks, Node/TypeScript или Python.
 
-Первый lane - это стартовая точка, а не вечная граница репозитория.
+Первый выбор - это стартовая точка, а не вечная граница репозитория.
 
 ## Рекомендуемый старт по умолчанию
 
@@ -41,19 +41,25 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 - самая чистая runtime и release story сегодня
 - самая простая база для package, extension и integration lanes позже
 
-## Как выбрать первый lane
+## Что вы получите
 
-| Цель | Рекомендуемый первый lane |
-| --- | --- |
-| Самый сильный runtime lane | `codex-runtime` с `--runtime go` |
-| Официальный пакет Codex | `codex-package` |
-| Пакет расширения Gemini | `gemini` |
-| Локальный TypeScript runtime | `codex-runtime --runtime node --typescript` |
-| Локальный Python runtime | `codex-runtime --runtime python` |
+- один plugin repo с первого дня
+- authored files под `src/`
+- generated output для Codex runtime из того же repo
+- понятную проверку готовности через `validate --strict`
 
-`claude` выбирайте первым только тогда, когда hooks Claude уже являются реальным требованием продукта.
+## Поддерживаемые пути для Node и Python
 
-## Типовые первые команды
+Если команда уже живёт в Node/TypeScript или Python, эти пути поддерживаются и видны с самого начала:
+
+- `codex-runtime --runtime node --typescript`
+- `codex-runtime --runtime python`
+- оба варианта являются локальными interpreted runtime paths, поэтому на машине исполнения всё равно нужен Node.js `20+` или Python `3.10+`
+- Go всё равно остаётся путём по умолчанию, когда нужен самый сильный общий сценарий для продакшна
+
+## Если вы осознанно начинаете с Node или Python
+
+Используйте этот альтернативный flow только тогда, когда выбор языка уже является частью продуктового требования:
 
 ```bash
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript
@@ -63,15 +69,37 @@ plugin-kit-ai generate ./my-plugin
 plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ```
 
-## Что важно знать перед выбором Python или Node
+Или стартуйте с Python:
 
-- Python и Node - рекомендуемые локальные runtime lanes для команд, которые уже живут в этих стеках.
-- Но на машине исполнения всё равно должен быть установлен Python `3.10+` или Node.js `20+`.
-- Go остаётся рекомендуемым путём по умолчанию, когда нужен самый сильный runtime и distribution story.
+```bash
+plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
+plugin-kit-ai doctor ./my-plugin
+plugin-kit-ai bootstrap ./my-plugin
+plugin-kit-ai generate ./my-plugin
+plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
+```
+
+## Что делать дальше
+
+- правьте плагин под `src/`
+- после изменений снова запускайте `plugin-kit-ai generate ./my-plugin`
+- потом снова запускайте `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict`
+- и только после этого добавляйте другие способы поставки, если продукту это действительно нужно
+
+## Что добавлять потом
+
+| Цель | Что добавлять позже |
+| --- | --- |
+| Claude hooks как реальный продукт | `claude` |
+| Официальный пакет Codex | `codex-package` |
+| Пакет расширения Gemini | `gemini` |
+| Настройка интеграции в самом repo | `opencode` или `cursor` |
+
+`claude` выбирайте первым только тогда, когда hooks Claude уже являются реальным требованием продукта.
 
 ## Что расширяется потом
 
 - repo остаётся единым, когда вы добавляете новые lanes
 - package и extension lanes идут из того же authored source
-- OpenCode и Cursor нужны тогда, когда repo должен владеть integration config
+- OpenCode и Cursor нужны тогда, когда repo должен хранить и вести настройку интеграции
 - точная support boundary живёт в reference docs, а не в вашем первом стартовом flow

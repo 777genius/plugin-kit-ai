@@ -30,12 +30,29 @@ Think about versions in three layers:
 
 These layers are related, but they are not the same thing.
 
+## Recommended Lanes And Formal Tiers
+
+Use one simple translation across docs and policy:
+
+- `Recommended` usually means a promoted `public-stable` production lane
+- `Advanced` means a supported surface with a narrower or more specialized contract
+- `Experimental` means opt-in churn outside the normal compatibility expectation
+
+The main recommended lanes today are:
+
+- `Codex runtime Go`
+- `Codex package`
+- `Gemini packaging`
+- `Gemini Go runtime`
+- `Claude default stable lane`
+- `Python` and `Node` local runtime lanes as the supported and recommended non-Go authoring path on supported targets
+
 ## What Compatibility Really Covers Here
 
 The strongest public promise is around:
 
 - the declared public CLI contract
-- the recommended Go SDK path
+- the recommended Go SDK path and the recommended production lanes listed above
 - the recommended local Python and Node runtime lanes on supported targets
 - the documented behavior of `public-stable` generated outputs
 

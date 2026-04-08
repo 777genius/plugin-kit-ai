@@ -66,7 +66,7 @@ Your team keeps one repo and then uses `generate`, `validate`, import/normalize 
 In practice, the unified part is:
 
 - one repo layout
-- one authoring workflow
+- one build-and-maintain workflow
 - one validation story
 - one CI story
 - one place to review generated target outputs

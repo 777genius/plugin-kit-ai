@@ -4,6 +4,7 @@ import { docsBaseUrl, websiteRoot } from "../config/site.mjs";
 import { listMarkdownFiles } from "../lib/fs.mjs";
 
 const distRoot = path.join(websiteRoot, "dist");
+const repoRoot = path.resolve(websiteRoot, "..");
 const htmlFiles = (await listHtmlFiles(distRoot)).sort();
 const editPrefix = `https://github.com/777genius/plugin-kit-ai/edit/main/website/source/`;
 
@@ -49,6 +50,18 @@ if (!handAuthoredHome.includes(`${editPrefix}en/index.md`)) {
   console.error("Hand-authored EN home page is missing its edit link.");
   hasError = true;
 }
+if (!handAuthoredHome.includes("Default Start")) {
+  console.error("EN home page is missing its expected default-start framing.");
+  hasError = true;
+}
+if (!handAuthoredHome.includes("Supported Node And Python Paths")) {
+  console.error("EN home page is missing its expected non-Go support block.");
+  hasError = true;
+}
+if (handAuthoredHome.includes("delivery model") || handAuthoredHome.includes("repo-managed integration")) {
+  console.error("EN home page still contains heavy front-door jargon.");
+  hasError = true;
+}
 
 const generatedCli = await fs.readFile(path.join(distRoot, "en", "api", "cli", "plugin-kit-ai.html"), "utf8");
 if (generatedCli.includes(`${editPrefix}en/api/cli/plugin-kit-ai.md`)) {
@@ -69,6 +82,32 @@ if (!latestRelease.includes("Why This Release Matters")) {
 const productionReadiness = await fs.readFile(path.join(distRoot, "en", "guide", "production-readiness.html"), "utf8");
 if (!productionReadiness.includes("Pick The Right Path On Purpose")) {
   console.error("Production Readiness page is missing its expected checklist structure.");
+  hasError = true;
+}
+
+const quickstart = await fs.readFile(path.join(distRoot, "en", "guide", "quickstart.html"), "utf8");
+if (!quickstart.includes("Recommended Default")) {
+  console.error("Quickstart page is missing its expected canonical default flow.");
+  hasError = true;
+}
+if (!quickstart.includes("Supported Node And Python Paths")) {
+  console.error("Quickstart page is missing its expected non-Go support block.");
+  hasError = true;
+}
+if (!quickstart.includes("If You Are Intentionally Starting On Node Or Python")) {
+  console.error("Quickstart page is missing its expected intentional non-Go flow.");
+  hasError = true;
+}
+if (!quickstart.includes("What You Get")) {
+  console.error("Quickstart page is missing its expected outcome-first section.");
+  hasError = true;
+}
+if (!quickstart.includes("What To Do Next")) {
+  console.error("Quickstart page is missing its expected next-steps section.");
+  hasError = true;
+}
+if (quickstart.includes("runtime language") || quickstart.includes("repo-managed integration")) {
+  console.error("Quickstart page still contains heavy front-door jargon.");
   hasError = true;
 }
 
@@ -122,6 +161,10 @@ if (!whatYouCanBuild.includes("One Repo, Many Supported Outputs")) {
   console.error("What You Can Build page is missing its expected product-shape section.");
   hasError = true;
 }
+if (!whatYouCanBuild.includes("Choosing Node or Python does not force you to decide every packaging or integration detail on day one")) {
+  console.error("What You Can Build page is missing its expected language-vs-shipping guidance.");
+  hasError = true;
+}
 
 const oneProjectMultipleTargets = await fs.readFile(
   path.join(distRoot, "en", "guide", "one-project-multiple-targets.html"),
@@ -135,6 +178,10 @@ if (!oneProjectMultipleTargets.includes("The Short Rule")) {
 const chooseTarget = await fs.readFile(path.join(distRoot, "en", "guide", "choose-a-target.html"), "utf8");
 if (!chooseTarget.includes("Target Directory")) {
   console.error("Choose A Target page is missing its expected target-decision section.");
+  hasError = true;
+}
+if (!chooseTarget.includes("that changes the language choice")) {
+  console.error("Choose A Target page is missing its expected language-vs-target clarification.");
   hasError = true;
 }
 
@@ -171,6 +218,39 @@ if (!repositoryStandard.includes("The Main Rule")) {
 const supportBoundary = await fs.readFile(path.join(distRoot, "en", "reference", "support-boundary.html"), "utf8");
 if (!supportBoundary.includes("Safe Defaults")) {
   console.error("Support Boundary page is missing its expected safety framing.");
+  hasError = true;
+}
+if (!supportBoundary.includes("How This Maps To The Formal Contract")) {
+  console.error("Support Boundary page is missing its expected public-to-formal mapping.");
+  hasError = true;
+}
+
+const stabilityModel = await fs.readFile(path.join(distRoot, "en", "concepts", "stability-model.html"), "utf8");
+if (!stabilityModel.includes("How To Read Recommended")) {
+  console.error("Stability Model page is missing its expected Recommended-language framing.");
+  hasError = true;
+}
+
+const versionAndCompatibility = await fs.readFile(
+  path.join(distRoot, "en", "reference", "version-and-compatibility.html"),
+  "utf8"
+);
+if (!versionAndCompatibility.includes("Recommended Lanes And Formal Tiers")) {
+  console.error("Version And Compatibility page is missing its expected recommended-lane mapping.");
+  hasError = true;
+}
+
+const supportPolicy = await fs.readFile(path.join(repoRoot, "docs", "SUPPORT.md"), "utf8");
+if (!supportPolicy.includes("## Recommended Production Lanes")) {
+  console.error("SUPPORT.md is missing its expected Recommended Production Lanes section.");
+  hasError = true;
+}
+if (!supportPolicy.includes("## Public Language And Formal Terms")) {
+  console.error("SUPPORT.md is missing its expected public-to-formal term mapping.");
+  hasError = true;
+}
+if (!supportPolicy.includes("## Exact Contract Vocabulary")) {
+  console.error("SUPPORT.md is missing its expected exact contract vocabulary section.");
   hasError = true;
 }
 

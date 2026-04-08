@@ -1,6 +1,6 @@
 ---
 title: "Один проект, несколько target’ов"
-description: "Как один managed project в plugin-kit-ai может поддерживать несколько агентов или выходных target’ов."
+description: "Как один repo в plugin-kit-ai может поддерживать несколько агентов или выходных target’ов."
 canonicalId: "page:guide:one-project-multiple-targets"
 section: "guide"
 locale: "ru"
@@ -13,7 +13,7 @@ translationRequired: true
 Это одна из самых важных идей в `plugin-kit-ai`:
 
 - **starter repo** даёт хорошую первую точку входа
-- **managed project** может вырасти дальше этой первой точки входа
+- **один repo** может вырасти дальше этой первой точки входа
 
 Не путайте семейство starter’а с долгосрочной границей проекта.
 
@@ -21,7 +21,7 @@ translationRequired: true
 
 Начинайте с runtime или target’а, который является **главным требованием сегодня**.
 
-После этого продолжайте считать репозиторий одним managed source of truth и рендерите именно те target-specific artifacts, которые реально нужны.
+После этого продолжайте считать репозиторий одним source of truth и рендерите только те outputs, которые реально нужны.
 
 <MermaidDiagram
   :chart="`
@@ -42,7 +42,7 @@ flowchart LR
 - Claude-first plugin repo
 - package/config-first repo
 
-и со временем всё равно стать более широким managed project.
+и со временем всё равно стать более широким проектом.
 
 ## Почему starter’ы выглядят agent-specific
 
@@ -62,23 +62,23 @@ flowchart LR
 
 ## Что на самом деле остаётся единым
 
-Объединяющая часть — это **managed project model**.
+Объединяющая часть - это сам repo и общий workflow.
 
 Это означает, что команда ведёт один authored project, а затем использует `generate`, `validate`, import/normalize flow и target directories для управления нужными выходами.
 
 На практике единым остаётся:
 
 - один layout репозитория
-- один authoring workflow
+- один способ собирать и поддерживать проект
 - одна история валидации
 - одна история для CI
-- одно место, где ревьюятся managed target outputs
+- одно место, где ревьюятся generated outputs
 
 ## Что значит “несколько target’ов” на практике
 
 Обычно это выглядит как один из двух сценариев.
 
-### 1. Один основной runtime и несколько managed outputs
+### 1. Один основной runtime и несколько дополнительных outputs
 
 Пример:
 
@@ -87,17 +87,17 @@ flowchart LR
 
 Это самый частый вариант широкого проекта.
 
-### 2. Один managed repo, который покрывает больше одного agent family
+### 2. Один repo, который покрывает больше одного agent family
 
 Пример:
 
 - команда начинает с Codex как основного runtime path
-- позже тому же repo нужны Claude-specific managed artifacts или поддержка Claude
+- позже тому же repo нужны Claude-specific outputs или поддержка Claude
 
 Здесь важно не врать в документации:
 
 - это **не** обещание искусственной parity между всеми агентами
-- это **да** обещание, что `plugin-kit-ai` даёт одну managed project model вместо россыпи вручную поддерживаемых target files
+- это **да** обещание, что `plugin-kit-ai` даёт один repo и один workflow вместо россыпи вручную поддерживаемых target files
 
 ## Безопасная mental model
 
@@ -105,8 +105,8 @@ flowchart LR
 
 1. выберите лучший starter под **первое** реальное требование
 2. относитесь к starter’у как к входу, а не как к клетке
-3. сохраняйте repo в managed project model
-4. добавляйте target’ы и managed outputs по мере реальной необходимости
+3. сохраняйте repo единым
+4. добавляйте target’ы и outputs по мере реальной необходимости
 
 ## Когда всё-таки лучше разделять repo
 
@@ -114,7 +114,7 @@ flowchart LR
 
 - у команд явно разные release cadence
 - runtime-логика продуктов между собой почти не связана
-- границы владения важнее общего authoring flow
+- границы владения важнее общего способа вести проект
 
 Не делите repo только потому, что названия starter’ов выглядят agent-specific.
 

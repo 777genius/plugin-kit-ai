@@ -33,6 +33,14 @@ The public docs use a simpler first-pass vocabulary:
 
 When you are setting compatibility policy, the formal terms win.
 
+## How To Read Recommended
+
+`Recommended` is product language, not a replacement for the formal contract.
+
+- it usually means a promoted `public-stable` production lane
+- it does not mean parity across every target
+- it does not upgrade `public-beta` or `public-experimental` surfaces by wording alone
+
 ## Public-Stable
 
 Treat `public-stable` as the level you can build against with normal production expectations.

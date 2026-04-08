@@ -1,4 +1,6 @@
-import type { LocaleCode } from "~/data/i18n";
+import type { LocaleCode } from '~/data/i18n';
+
+export type PluginLogoSurface = 'default' | 'light';
 
 export interface FeatureItem {
   id: string;
@@ -8,10 +10,19 @@ export interface FeatureItem {
 
 export interface PluginCard {
   id: string;
+  slug: string;
   eyebrow: string;
   title: string;
+  tagline: string;
   description: string;
   status: string;
+  href: string;
+  logoSrc: string;
+  logoAlt: string;
+  logoSurface?: PluginLogoSurface;
+  categories: string[];
+  highlights: string[];
+  useCases: string[];
   badges: string[];
 }
 
@@ -56,7 +67,7 @@ export interface SupportLane {
 }
 
 export interface ComparisonCell {
-  status: "yes" | "partial" | "no";
+  status: 'yes' | 'partial' | 'no';
   note: string;
 }
 

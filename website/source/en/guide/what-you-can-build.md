@@ -10,7 +10,7 @@ translationRequired: true
 
 # What You Can Build
 
-`plugin-kit-ai` is built around one practical idea: keep one authored repo, start with one recommended lane, and expand later into more outputs only when the product needs them.
+`plugin-kit-ai` is built around one practical idea: keep one authored repo, start with one recommended path, and expand later only when the product needs more outputs.
 
 <MermaidDiagram
   :chart="`
@@ -26,26 +26,23 @@ flowchart TD
 
 ## Recommended Starting Shape
 
-Most teams should start with one of these lanes:
+Most teams should start with `Codex runtime Go` as the default path.
 
-- `Codex runtime Go`
-- `Codex package`
-- `Gemini packaging`
-- `Claude default lane`
-
-If your runtime stack is already fixed, you can also start on:
+Supported Node and Python paths stay visible from day one:
 
 - `Node/TypeScript`
 - `Python`
 
+Choosing Node or Python does not force you to decide every packaging or integration detail on day one.
+
 ## Expand Later From The Same Repo
 
-Once the first lane is healthy, the same repo can grow into:
+Once the first path is healthy, the same repo can grow into:
 
 - Claude outputs when hooks become part of the product
 - Codex package outputs when package delivery matters
-- Gemini extension packaging when Gemini is a real delivery lane
-- OpenCode and Cursor when the repo should manage integration config
+- Gemini extension packaging when Gemini is a real shipping requirement
+- OpenCode and Cursor when the repo should manage integration setup
 - portable bundle handoff for supported Python and Node repos
 
 ## One Repo, Many Supported Outputs
@@ -60,7 +57,7 @@ That means:
 
 - one source of truth under `src/`
 - one validation workflow through `generate`, `validate`, and CI
-- explicit lane choices instead of hand-edited native files
+- explicit starting-path choices instead of hand-edited native files
 - predictable handoff between authors and downstream users
 
 ## Bundle And Shared Runtime Paths
@@ -72,13 +69,13 @@ For supported Python and Node lanes, the repo can also produce:
 
 These are delivery choices layered on top of the same authored repo, not separate products.
 
-## Delivery Models Covered Here
+## What You Can Ship From The Same Repo
 
 `plugin-kit-ai` can cover:
 
-- runtime lanes for executable plugin behavior
-- package lanes for official package artifacts
-- extension lanes for extension-style delivery
-- repo-managed integration lanes for config and workspace ownership
+- runtime paths for executable plugin behavior
+- package paths for official package artifacts
+- extension paths for extension-style delivery
+- repo-owned integration setup for config and workspace ownership
 
-That is the real multi-target story: one repo, one workflow, multiple delivery lanes over time.
+That is the real multi-target story: one repo, one workflow, multiple shipping paths over time.

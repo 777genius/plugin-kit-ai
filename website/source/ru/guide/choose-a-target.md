@@ -1,6 +1,6 @@
 ---
 title: "Выбор target"
-description: "Практический гид по выбору lane под вашу delivery model."
+description: "Практический гид по выбору target под то, как вы хотите поставлять плагин."
 canonicalId: "page:guide:choose-a-target"
 section: "guide"
 locale: "ru"
@@ -10,9 +10,9 @@ translationRequired: true
 
 # Выбор target
 
-Используйте эту страницу, когда вы уже понимаете, что хотите работать с `plugin-kit-ai`, но ещё сопоставляете repo с тем, как именно будет доставляться продукт.
+Используйте эту страницу, когда вы уже понимаете, что хотите работать с `plugin-kit-ai`, но ещё сопоставляете repo с тем, как именно хотите поставлять плагин.
 
-Выбор target означает выбор главного lane на сегодня, а не вечный lock-in на один output.
+Выбор target означает выбор главного пути на сегодня, а не вечный lock-in на один output.
 
 <MermaidDiagram
   :chart="`
@@ -31,31 +31,33 @@ flowchart TD
 
 ## Короткое правило
 
-- выбирайте `codex-runtime`, когда нужен самый сильный runtime lane по умолчанию
+- выбирайте `codex-runtime`, когда нужен самый сильный runtime путь по умолчанию
 - выбирайте `claude`, когда Claude hooks и есть реальное требование продукта
 - выбирайте `codex-package`, когда продуктом является официальный пакет Codex
 - выбирайте `gemini`, когда продуктом является пакет расширения Gemini
-- выбирайте `opencode` или `cursor`, когда repo должен владеть integration/config outputs
+- выбирайте `opencode` или `cursor`, когда repo должен хранить integration/config setup
 
 ## Краткий справочник по target'ам
 
 | Target | Когда выбирать | Lane |
 | --- | --- | --- |
-| `codex-runtime` | Нужен основной путь для исполняемого плагина | Рекомендуемый runtime lane |
-| `claude` | Нужны именно Claude hooks | Рекомендуемый Claude lane |
-| `codex-package` | Нужен package output для Codex | Рекомендуемый package lane |
-| `gemini` | Вы выпускаете пакет расширения Gemini | Рекомендуемый extension lane |
-| `opencode` | Нужна repo-owned OpenCode integration config | Repo-managed integration lane |
-| `cursor` | Нужна repo-owned Cursor integration config | Repo-managed integration lane |
+| `codex-runtime` | Нужен основной путь для исполняемого плагина | Рекомендуемый runtime path |
+| `claude` | Нужны именно Claude hooks | Рекомендуемый Claude path |
+| `codex-package` | Нужен package output для Codex | Рекомендуемый package path |
+| `gemini` | Вы выпускаете пакет расширения Gemini | Рекомендуемый extension path |
+| `opencode` | Нужна настройка OpenCode в самом repo | Настройка интеграции в самом repo |
+| `cursor` | Нужна настройка Cursor в самом repo | Настройка интеграции в самом repo |
 
 ## Безопасный выбор по умолчанию
 
-Если вы не уверены, начинайте с `codex-runtime` и стандартного Go lane.
+Если вы не уверены, начинайте с `codex-runtime` и стандартного пути на Go.
 
-Это даёт самую чистую production starting point перед тем, как идти в более узкий или специализированный lane.
+Это даёт самую чистую production starting point перед тем, как идти в более узкий или специализированный путь.
+
+Если вы осознанно стартуете на поддерживаемом Node/TypeScript или Python, это меняет выбор языка, а не заставляет в первый день решать все вопросы с упаковкой и интеграциями.
 
 ## Что делать, если target'ов нужно несколько
 
-- сначала выберите основной lane, который определяет продукт сегодня
+- сначала выберите основной путь, который определяет продукт сегодня
 - держите repo единым
 - добавляйте новые target'ы только тогда, когда появляется реальная delivery или integration задача
