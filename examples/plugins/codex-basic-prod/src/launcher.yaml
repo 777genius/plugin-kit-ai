@@ -1,2 +1,2 @@
-runtime: "go"
-entrypoint: "./bin/codex-basic-prod"
+runtime: go
+entrypoint: ./bin/codex-basic-prod

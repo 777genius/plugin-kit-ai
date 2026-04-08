@@ -1,2 +1,2 @@
-runtime: "go"
-entrypoint: "./bin/claude-go-starter"
+runtime: go
+entrypoint: ./bin/claude-go-starter

@@ -174,6 +174,13 @@ func assertCursorConfig(t *testing.T, root string) {
 	if !bytes.Contains(agentsBody, []byte("[`GENERATED.md`](./GENERATED.md)")) {
 		t.Fatalf("unexpected root AGENTS.md:\n%s", agentsBody)
 	}
+	if !bytes.Contains(agentsBody, []byte("[`src/README.md`](./src/README.md)")) {
+		t.Fatalf("unexpected root AGENTS.md:\n%s", agentsBody)
+	}
+	claudeBody, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	if err == nil && !bytes.Contains(claudeBody, []byte("[`AGENTS.md`](./AGENTS.md)")) {
+		t.Fatalf("unexpected root CLAUDE.md:\n%s", claudeBody)
+	}
 }
 
 func assertOpenCodeConfig(t *testing.T, root, wantPlugin string) {

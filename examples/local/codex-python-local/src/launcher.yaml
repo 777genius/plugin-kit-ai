@@ -1,2 +1,2 @@
-runtime: "python"
-entrypoint: "./bin/codex-python-local"
+runtime: python
+entrypoint: ./bin/codex-python-local

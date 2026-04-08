@@ -1,2 +1,2 @@
-runtime: "node"
-entrypoint: "./bin/claude-node-typescript-starter"
+runtime: node
+entrypoint: ./bin/claude-node-typescript-starter

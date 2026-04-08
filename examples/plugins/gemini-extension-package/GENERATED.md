@@ -14,6 +14,8 @@ These committed root docs are guidance files and are not generated outputs:
 
 ## Managed Generated Outputs
 
+`README.md` is a generated root entrypoint that points readers to `src/README.md`.
+
 - `GEMINI.md`
 - `GENERATED.md`
 - `README.md`

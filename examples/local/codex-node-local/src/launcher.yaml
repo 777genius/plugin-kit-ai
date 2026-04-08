@@ -1,2 +1,2 @@
-runtime: "node"
-entrypoint: "./bin/codex-node-local"
+runtime: node
+entrypoint: ./bin/codex-node-local
