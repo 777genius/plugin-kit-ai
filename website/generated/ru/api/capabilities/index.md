@@ -7,14 +7,14 @@ section: "api"
 locale: "ru"
 generated: true
 editLink: false
-stability: "public-beta"
-maturity: "beta"
+stability: "public-stable"
+maturity: "stable"
 sourceRef: "docs/generated/support_matrix.md"
 translationRequired: false
 ---
 # Capabilities
 
-Capabilities показывают поведение runtime поперёк платформ, а не только структуру пакетов.
+Capabilities показывают runtime-поведение поперёк платформ после того, как вы уже понимаете, какой delivery lane проектируете.
 
 - Открывайте эту зону, когда важно само действие или реакция, а не только имя платформы.
 - Это лучший вход, если вы сравниваете похожее поведение между Claude и Codex.

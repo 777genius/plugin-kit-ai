@@ -1,6 +1,6 @@
 ---
 title: "Reference"
-description: "Reference material for install channels, contracts, and generated summaries."
+description: "Reference material for install channels, contracts, and support maps."
 canonicalId: "page:reference:index"
 section: "reference"
 locale: "en"
@@ -12,25 +12,25 @@ outline: false
 
 <div class="docs-hero docs-hero--compact">
   <p class="docs-kicker">REFERENCE</p>
-  <h1>Stable Facts</h1>
+  <h1>Exact Contract</h1>
   <p class="docs-lead">
-    Reference pages keep the public rules discoverable: install options, support matrices, and the exact behavior you can rely on.
+    Use the reference cluster when you need precise install rules, support maps, compatibility policy, and repository standards.
   </p>
 </div>
 
 ## Use This Section When
 
 - you need the exact contract, not a tutorial
-- you are checking what is stable versus beta
-- you want the shortest answer about install channels, support, validation, or repository shape
+- you are choosing what your team can standardize on
+- you want the shortest precise answer about install channels, support, validation, or repository shape
 
 ## Start Here For
 
 - installation questions: [Install Channels](/en/reference/install-channels)
-- version and compatibility policy: [Version And Compatibility Policy](/en/reference/version-and-compatibility)
+- policy for teams: [Version And Compatibility Policy](/en/reference/version-and-compatibility)
+- shortest practical support answer: [Support Boundary](/en/reference/support-boundary)
+- compact lane matrix: [Target Support](/en/reference/target-support)
 - repository health: [Repository Standard](/en/reference/repository-standard) and [Authoring Workflow](/en/reference/authoring-workflow)
-- support limits: [Support Boundary](/en/reference/support-boundary) and [Target Support](/en/reference/target-support)
-- terminology cleanup: [Glossary](/en/reference/glossary)
 
 <div class="docs-grid">
   <a class="docs-card" href="./install-channels">
@@ -39,7 +39,15 @@ outline: false
   </a>
   <a class="docs-card" href="./version-and-compatibility">
     <h2>Version And Compatibility Policy</h2>
-    <p>Keep release baselines, stable-versus-beta promises, wrappers, and SDK/runtime expectations in one place.</p>
+    <p>Keep release baselines, compatibility promises, wrappers, and SDK/runtime expectations in one place.</p>
+  </a>
+  <a class="docs-card" href="./support-boundary">
+    <h2>Support Boundary</h2>
+    <p>Get the shortest practical answer about recommended lanes, advanced surfaces, and exact contract limits.</p>
+  </a>
+  <a class="docs-card" href="./target-support">
+    <h2>Target Support</h2>
+    <p>See the compact support map by lane: runtime, package, extension, and repo-managed integration.</p>
   </a>
   <a class="docs-card" href="./authoring-workflow">
     <h2>Authoring Workflow</h2>
@@ -47,26 +55,6 @@ outline: false
   </a>
   <a class="docs-card" href="./repository-standard">
     <h2>Repository Standard</h2>
-    <p>See what a healthy plugin repo should look like and which files are source of truth versus generated outputs.</p>
-  </a>
-  <a class="docs-card" href="./support-boundary">
-    <h2>Support Boundary</h2>
-    <p>See what is stable, what is beta, and what you should not treat as a long-term contract.</p>
-  </a>
-  <a class="docs-card" href="./target-support">
-    <h2>Target Support</h2>
-    <p>See which targets are runtime-ready, package-only, or intentionally outside the main stable runtime path.</p>
-  </a>
-  <a class="docs-card" href="./faq">
-    <h2>FAQ</h2>
-    <p>Answer the common questions about wrappers, runtime choice, and strict validation.</p>
-  </a>
-  <a class="docs-card" href="./troubleshooting">
-    <h2>Troubleshooting</h2>
-    <p>Unblock the most common install, runtime, generate, and validation failures.</p>
-  </a>
-  <a class="docs-card" href="./glossary">
-    <h2>Glossary</h2>
-    <p>Normalize the core terms so target, source of truth, wrapper, and handoff mean one thing across the docs.</p>
+    <p>See what a healthy plugin repo looks like and which files are authored versus generated.</p>
   </a>
 </div>

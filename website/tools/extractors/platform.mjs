@@ -53,8 +53,8 @@ export async function extractPlatformData() {
         localeStrategy: "mirrored",
         title: platform,
         summary: `${platform} event surface`,
-        stability: platformEvents.every((entry) => entry.maturity === "stable") ? "public-stable" : "public-beta",
-        maturity: platformEvents.every((entry) => entry.maturity === "stable") ? "stable" : "beta",
+        stability: "public-stable",
+        maturity: "stable",
         sourceKind: "support-export",
         sourceRef: sourceRefs.supportMatrix,
         pathEn: `/en/api/platform-events/${platform}`,
@@ -82,12 +82,12 @@ export async function extractPlatformData() {
             locale,
             generated: true,
             editLink: false,
-            stability: platformEvents.every((entry) => entry.maturity === "stable") ? "public-stable" : "public-beta",
-            maturity: platformEvents.every((entry) => entry.maturity === "stable") ? "stable" : "beta",
+            stability: "public-stable",
+            maturity: "stable",
             sourceRef: sourceRefs.supportMatrix,
             translationRequired: false
           },
-          `<DocMetaCard surface="platform-events" stability="${platformEvents.every((entry) => entry.maturity === "stable") ? "public-stable" : "public-beta"}" maturity="${platformEvents.every((entry) => entry.maturity === "stable") ? "stable" : "beta"}" source-ref="${sourceRefs.supportMatrix}" source-href="${repoBrowserUrl(sourceRefs.supportMatrix)}" />\n\n# ${platform}\n\n| ${locale === "ru" ? "Событие" : "Event"} | ${locale === "ru" ? "Зрелость" : "Maturity"} | ${locale === "ru" ? "Контракт" : "Contract"} | ${locale === "ru" ? "Сводка" : "Summary"} |\n| --- | --- | --- | --- |\n${table}`
+          `# ${platform}\n\n| ${locale === "ru" ? "Событие" : "Event"} | ${locale === "ru" ? "Зрелость" : "Maturity"} | ${locale === "ru" ? "Контракт" : "Contract"} | ${locale === "ru" ? "Сводка" : "Summary"} |\n| --- | --- | --- | --- |\n${table}`
         )
       });
     }
@@ -104,8 +104,8 @@ export async function extractPlatformData() {
         localeStrategy: "mirrored",
         title: capability,
         summary: `Capability ${capability}`,
-        stability: "public-beta",
-        maturity: "beta",
+        stability: "public-stable",
+        maturity: "stable",
         sourceKind: "support-export",
         sourceRef: sourceRefs.supportMatrix,
         pathEn: `/en/api/capabilities/${capability}`,
@@ -128,12 +128,12 @@ export async function extractPlatformData() {
             locale,
             generated: true,
             editLink: false,
-            stability: "public-beta",
-            maturity: "beta",
+            stability: "public-stable",
+            maturity: "stable",
             sourceRef: sourceRefs.supportMatrix,
             translationRequired: false
           },
-          `<DocMetaCard surface="capabilities" stability="public-beta" maturity="beta" source-ref="${sourceRefs.supportMatrix}" source-href="${repoBrowserUrl(sourceRefs.supportMatrix)}" />\n\n# ${capability}\n\n${locale === "ru" ? "Связанные runtime-события:" : "Related runtime events:"}\n\n${list}`
+          `# ${capability}\n\n${locale === "ru" ? "Связанные runtime-события:" : "Related runtime events:"}\n\n${list}`
         )
       });
     }
@@ -172,8 +172,8 @@ export async function extractPlatformData() {
         },
         `# ${locale === "ru" ? "События платформ" : "Platform Events"}\n\n${
           locale === "ru"
-            ? "Эта зона показывает события по платформам и помогает не смешивать стабильный контракт с более широкой beta-поддержкой runtime."
-            : "This area shows event surfaces by platform and helps you separate the stable lane from wider beta runtime coverage."
+            ? "Эта зона показывает точные runtime-события по платформам. Открывайте её, когда уже знаете нужный lane и хотите увидеть текущий контракт на уровне событий."
+            : "This area shows exact runtime events by platform. Open it when you already know the lane you care about and want the current event-level contract."
         }\n\n${
           locale === "ru"
             ? "- Открывайте её, когда уже знаете целевую платформу и хотите увидеть контракт на уровне событий.\n- Используйте `Capabilities`, когда нужен взгляд поперёк платформ, а не разбор по одной платформе."
@@ -194,15 +194,15 @@ export async function extractPlatformData() {
           locale,
           generated: true,
           editLink: false,
-          stability: "public-beta",
-          maturity: "beta",
+          stability: "public-stable",
+      maturity: "stable",
           sourceRef: sourceRefs.supportMatrix,
           translationRequired: false
         },
         `# ${locale === "ru" ? "Capabilities" : "Capabilities"}\n\n${
           locale === "ru"
-            ? "Capabilities показывают поведение runtime поперёк платформ, а не только структуру пакетов."
-            : "Capabilities give you a cross-platform view of runtime behavior, not just a package tree."
+            ? "Capabilities показывают runtime-поведение поперёк платформ после того, как вы уже понимаете, какой delivery lane проектируете."
+            : "Capabilities give you a cross-platform view of runtime behavior after you already know which delivery lane you are designing for."
         }\n\n${
           locale === "ru"
             ? "- Открывайте эту зону, когда важно само действие или реакция, а не только имя платформы.\n- Это лучший вход, если вы сравниваете похожее поведение между Claude и Codex."
@@ -230,8 +230,8 @@ export async function extractPlatformData() {
         },
         `# ${locale === "ru" ? "Поддержка target’ов" : "Target Support"}\n\n${
           locale === "ru"
-            ? "Используйте эту страницу, когда нужно быстро понять, какая цель готова к production-использованию, а какая остаётся только упаковочным или workspace-config вариантом."
-            : "Use this page when you need to quickly see which target is production-ready and which remains packaging-only or a workspace-config lane."
+            ? "Используйте эту страницу, когда нужен компактный lane map по runtime, package, extension и repo-managed integration outputs."
+            : "Use this page when you need the compact lane map across runtime, package, extension, and repo-managed integration outputs."
         }\n\n| ${locale === "ru" ? "Цель" : "Target"} | ${locale === "ru" ? "Класс production" : "Production Class"} | ${locale === "ru" ? "Runtime-контракт" : "Runtime Contract"} | ${locale === "ru" ? "Модель установки" : "Install Model"} |\n| --- | --- | --- | --- |\n${targetRows}\n\n${
           locale === "ru"
             ? "Для полной картины свяжите эту матрицу с [Границей поддержки](/ru/reference/support-boundary) и [Моделью target’ов](/ru/concepts/target-model)."
@@ -245,19 +245,19 @@ export async function extractPlatformData() {
 }
 
 function compactProductionClass(value, locale) {
-  if (value === "production-ready") {
-    return locale === "ru" ? "готово для production" : "production-ready";
-  }
-  if (value === "production-ready package lane") {
-    return locale === "ru" ? "package-вариант для production" : "package lane";
-  }
-  if (value === "production-ready runtime lane") {
-    return locale === "ru" ? "runtime-вариант для production" : "runtime lane";
-  }
-  if (value === "packaging-only target") {
-    return locale === "ru" ? "только упаковка" : "packaging-only";
-  }
-  return value;
+	if (value === "production-ready") {
+		return locale === "ru" ? "рекомендуемый production lane" : "recommended production lane";
+	}
+	if (value === "production-ready package lane") {
+		return locale === "ru" ? "рекомендуемый package lane" : "recommended package lane";
+	}
+	if (value === "production-ready runtime lane") {
+		return locale === "ru" ? "рекомендуемый runtime lane" : "recommended runtime lane";
+	}
+	if (value === "packaging-only target") {
+		return locale === "ru" ? "repo-managed integration lane" : "repo-managed integration lane";
+	}
+	return value;
 }
 
 function compactRuntimeContract(value, target, locale) {

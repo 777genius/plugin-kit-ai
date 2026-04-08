@@ -1,6 +1,6 @@
 ---
 title: "Production Readiness"
-description: "A public checklist for deciding whether a plugin-kit-ai project is ready for CI, handoff, and community-facing use."
+description: "A public checklist for deciding whether a plugin-kit-ai project is ready for CI, handoff, and broad sharing."
 canonicalId: "page:guide:production-readiness"
 section: "guide"
 locale: "en"
@@ -10,12 +10,12 @@ translationRequired: true
 
 # Production Readiness
 
-Use this checklist before you call a project production-ready, handoff-ready, or stable enough to share broadly.
+Use this checklist before you call a project production-ready, handoff-ready, or ready to show broadly.
 
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Path[Path chosen on purpose] --> Source[One repo]
+  Path[Lane chosen on purpose] --> Source[One authored repo]
   Source --> Checks[generate and validate gates]
   Checks --> Boundary[Support boundary confirmed]
   Boundary --> Handoff[Docs and handoff are explicit]
@@ -25,16 +25,15 @@ flowchart LR
 
 ## 1. Pick The Right Path On Purpose
 
-- default to Go when you want the strongest production contract
-- choose Node/TypeScript only when the non-Go local runtime tradeoff is real
-- choose Python only when the project stays local to the repo and the team is intentionally Python-first
-- do not treat workspace-configuration or packaging targets as if they carried the same runtime guarantees
+- default to Go when you want the strongest runtime lane
+- choose Node/TypeScript or Python when the non-Go local-runtime tradeoff is real
+- choose package, extension, or integration lanes only when those are the real outputs you need
 
 ## 2. Keep One Repo Honest
 
-- keep the project source in the package-standard project layout
-- treat generated target files as outputs, not as the main place you edit by hand
-- do not patch generated files by hand and then expect `generate` to preserve those edits
+- keep the project source in the package-standard layout
+- treat generated target files as outputs, not as the main place you edit
+- do not patch generated files by hand and expect `generate` to preserve those edits
 
 ## 3. Run The Contract Gates
 
@@ -46,36 +45,30 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
-For Python and Node runtime paths, `doctor` and `bootstrap` are part of readiness. For a multi-target repo, this gate should be repeated explicitly for each target in the support scope.
+For Python and Node runtime lanes, `doctor` and `bootstrap` are part of readiness.
 
-## 4. Verify The Support Boundary
+## 4. Verify The Exact Support Boundary
 
-- confirm that the primary target, and each additional target in scope, is actually inside the public support boundary
-- confirm whether the path is stable, beta, or narrower than the main path
+- confirm that the primary lane, and each additional lane in scope, is inside the public support boundary
+- use the reference pages when you need exact `public-stable`, `public-beta`, or `public-experimental` terms
 - check the generated target support matrix before you promise compatibility to downstream users
 
 ## 5. Keep Install Story And API Story Separate
 
 - Homebrew, npm, and PyPI packages are install channels for the CLI
 - they are not runtime APIs or SDK surfaces
-- public API lives in the generated API section and in the documented stable workflows
+- public API lives in the generated API section and in the documented workflows
 
 ## 6. Document The Handoff
 
 A public-facing repo should make these things obvious:
 
-- which target is primary and which additional targets are genuinely supported
+- which lane is primary
+- which additional lanes are genuinely supported
 - which runtime it uses and whether that changes by target
-- how to install prerequisites
-- which command, or set of commands, is the canonical validation gate
+- which command set is the canonical validation gate
 - whether it depends on a shared runtime package or a Go SDK path
-
-## 7. Link To Current Release Notes
-
-If the repo depends on the latest stable path, point users to the current release note. Today, that baseline is [v1.0.6](/en/releases/v1-0-6).
 
 ## Final Rule
 
-If a teammate cannot clone the repo, run the documented flow, pass `validate --strict`, and understand the chosen path without tribal knowledge, the project is not yet production-ready.
-
-Pair this page with [Support Boundary](/en/reference/support-boundary), [Target Support](/en/reference/target-support), and [Authoring Workflow](/en/reference/authoring-workflow).
+If a teammate cannot clone the repo, run the documented flow, pass `validate --strict`, and understand the chosen lane without tribal knowledge, the project is not yet production-ready.

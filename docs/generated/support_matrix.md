@@ -1,6 +1,6 @@
 # Generated Support Matrix
 
-This generated table is the canonical per-event runtime support contract for shipped runtime claims. Gemini runtime hooks appear here alongside Claude and Codex; packaging-only or workspace-config-only targets remain documented in SUPPORT.md.
+This generated table is the canonical per-event runtime reference for shipped support claims. Use it as exact contract data, not as front-door positioning. Package, extension, and repo-managed integration lanes remain summarized in SUPPORT.md and the target support matrix.
 
 | Platform | Event | Status | Maturity | Contract Class | V1 Target | Invocation | Carrier | Transport Modes | Scaffold | Validate | Capabilities | Live Test | Summary |
 |----------|-------|--------|----------|----------------|-----------|------------|---------|-----------------|----------|----------|--------------|-----------|---------|

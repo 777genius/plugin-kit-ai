@@ -396,7 +396,7 @@ func renderValidateRules(m model) string {
 func renderSupportMatrix(m model) string {
 	var b strings.Builder
 	b.WriteString("# Generated Support Matrix\n\n")
-	b.WriteString("This generated table is the canonical per-event runtime support contract for shipped runtime claims. Gemini runtime hooks appear here alongside Claude and Codex; packaging-only or workspace-config-only targets remain documented in SUPPORT.md.\n\n")
+	b.WriteString("This generated table is the canonical per-event runtime reference for shipped support claims. Use it as exact contract data, not as front-door positioning. Package, extension, and repo-managed integration lanes remain summarized in SUPPORT.md and the target support matrix.\n\n")
 	b.WriteString("| Platform | Event | Status | Maturity | Contract Class | V1 Target | Invocation | Carrier | Transport Modes | Scaffold | Validate | Capabilities | Live Test | Summary |\n")
 	b.WriteString("|----------|-------|--------|----------|----------------|-----------|------------|---------|-----------------|----------|----------|--------------|-----------|---------|\n")
 	for _, e := range m.events {
@@ -424,6 +424,7 @@ func renderSupportMatrix(m model) string {
 func renderTargetSupportMatrix(m model) string {
 	var b strings.Builder
 	b.WriteString("# Target Support Matrix\n\n")
+	b.WriteString("This generated table is the canonical target-level contract reference. Use it to inspect exact lane metadata, not as the primary product-positioning page.\n\n")
 	b.WriteString("| Target | Platform Family | Target Class | Launcher | Target Noun | Install Model | Dev Model | Activation Model | Native Root | Production Class | Runtime Contract | Import | Generate | Validate | Portable Components | Target-native Components | Native Docs | Surface Tiers | Managed Artifacts | Summary |\n")
 	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, profile := range scaffoldTargetProfiles(m) {

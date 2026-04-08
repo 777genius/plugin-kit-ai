@@ -1,6 +1,6 @@
 ---
 title: "Готовность к продакшену"
-description: "Публичный checklist, помогающий понять, готов ли plugin-kit-ai проект к CI, handoff и широкому использованию."
+description: "Публичный checklist для оценки готовности plugin-kit-ai проекта к CI, handoff и широкому показу."
 canonicalId: "page:guide:production-readiness"
 section: "guide"
 locale: "ru"
@@ -10,12 +10,12 @@ translationRequired: true
 
 # Готовность к продакшену
 
-Используйте этот checklist перед тем, как называть проект production-ready, handoff-ready или достаточно стабильным для широкого показа.
+Используйте этот checklist перед тем, как называть проект production-ready, handoff-ready или готовым к широкому показу.
 
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Path[Выбран путь] --> Source[Один source of truth]
+  Path[Lane выбран осознанно] --> Source[Один authored repo]
   Source --> Checks[generate and validate gates]
   Checks --> Boundary[Support boundary confirmed]
   Boundary --> Handoff[Docs and handoff are explicit]
@@ -23,22 +23,21 @@ flowchart LR
 `"
 />
 
-## 1. Осознанно выберите путь
+## 1. Осознанно выберите правильный путь
 
-- по умолчанию выбирайте Go, когда нужен самый сильный путь для продакшена
-- выбирайте Node/TypeScript только тогда, когда компромисс локального non-Go runtime действительно нужен
-- выбирайте Python только тогда, когда проект остаётся локальным для репозитория, а команда осознанно Python-first
-- не воспринимайте workspace-config или packaging target’ы так, будто у них те же runtime guarantees, что у основного пути
+- по умолчанию выбирайте Go, когда нужен самый сильный runtime lane
+- выбирайте Node/TypeScript или Python, когда non-Go local-runtime tradeoff действительно нужен
+- выбирайте package, extension или integration lanes только тогда, когда именно они являются реальными outputs продукта
 
-## 2. Держите один источник истины
+## 2. Держите один repo честным
 
 - исходное состояние проекта должно жить в package-standard layout
-- generated target files — это outputs, а не долгосрочный источник истины
-- не патчите generated files вручную, если ожидаете, что `generate` потом сохранит эти правки
+- generated target files - это outputs, а не главное место для ручного редактирования
+- не патчите generated files руками, если ожидаете, что `generate` сохранит эти правки
 
-## 3. Прогоняйте обязательные проверки
+## 3. Прогоняйте contract gates
 
-Как минимум, репозиторий должен чисто проходить такой flow:
+Как минимум, repo должен чисто проходить такой flow:
 
 ```bash
 plugin-kit-ai doctor .
@@ -46,36 +45,30 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
-Для Python и Node runtime-путей `doctor` и `bootstrap` — часть готовности. Для multi-target repo этот gate должен явно повторяться для каждого target’а в support scope.
+Для Python и Node runtime lanes `doctor` и `bootstrap` - часть готовности.
 
-## 4. Проверяйте границу поддержки
+## 4. Проверяйте точную support boundary
 
-- убедитесь, что основной target и каждый дополнительный target в scope действительно находятся внутри публичной границы поддержки
-- подтвердите, является ли путь stable, beta или уже основного пути
-- смотрите generated target support matrix до того, как обещать совместимость другим пользователям
+- убедитесь, что основной lane и каждый дополнительный lane в scope действительно входят в публичную support boundary
+- используйте reference pages, когда нужны точные термины `public-stable`, `public-beta` или `public-experimental`
+- смотрите generated target support matrix до того, как обещать совместимость downstream-пользователям
 
-## 5. Не смешивайте установку и API
+## 5. Не смешивайте install story и API story
 
-- Homebrew, npm и PyPI пакеты — это способы установить CLI
-- это не runtime API и не SDK
-- публичный API живёт в generated API section и в задокументированных stable workflows
+- Homebrew, npm и PyPI пакеты - это способы установить CLI
+- это не runtime API и не SDK surface
+- публичный API живёт в generated API section и в задокументированных workflows
 
 ## 6. Документируйте handoff
 
 Для публичного repo должны быть очевидны такие вещи:
 
-- какой target является основным и какие дополнительные target’ы реально поддерживаются
-- какой runtime используется и меняется ли он по target’ам
-- как ставятся prerequisites
-- какая команда или какой набор команд являются главной проверкой готовности
+- какой lane основной
+- какие дополнительные lanes действительно поддерживаются
+- какой runtime используется и меняется ли он по target'ам
+- какой набор команд является canonical validation gate
 - зависит ли проект от shared runtime package или от Go SDK path
-
-## 7. Ссылайтесь на актуальные release notes
-
-Если репозиторий опирается на текущий стабильный путь, ведите пользователей на актуальный release note. Сейчас базовый релиз — [v1.0.6](/ru/releases/v1-0-6).
 
 ## Финальное правило
 
-Если коллега не может клонировать репозиторий, пройти задокументированный flow, успешно выполнить `validate --strict` и понять выбранный путь без tribal knowledge, значит проект ещё не готов к продакшену.
-
-Свяжите эту страницу с [Границей поддержки](/ru/reference/support-boundary), [Поддержкой target’ов](/ru/reference/target-support) и [Процессом авторинга](/ru/reference/authoring-workflow).
+Если коллега не может клонировать repo, пройти задокументированный flow, успешно выполнить `validate --strict` и понять выбранный lane без tribal knowledge, значит проект ещё не готов к продакшену.

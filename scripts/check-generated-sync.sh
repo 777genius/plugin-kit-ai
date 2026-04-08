@@ -16,6 +16,7 @@ generated_files=(
   "sdk/internal/descriptors/gen/resolvers_gen.go"
   "sdk/internal/descriptors/gen/support_gen.go"
   "docs/generated/support_matrix.md"
+  "docs/generated/target_support_matrix.md"
 )
 
 for f in "${generated_files[@]}"; do

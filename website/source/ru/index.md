@@ -14,114 +14,78 @@ outline: false
   <p class="docs-kicker">ПУБЛИЧНАЯ ДОКУМЕНТАЦИЯ</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Соберите плагин в одном репозитории, а потом рендерите поддерживаемые выходы для Claude,
-    Codex, Gemini и других target'ов из того же процесса вместо ручной поддержки отдельных конфигураций.
+    Работайте из одного репозитория, начинайте с рекомендуемого production-lane и позже расширяйтесь
+    на packages, extensions и repo-managed integrations без разрыва authoring workflow.
   </p>
 </div>
 
-## Один репозиторий, много поддерживаемых выходов
+## Рекомендуемые production lanes
 
-- Начинайте с одного репозитория плагина, а не с отдельного репозитория под каждую экосистему.
-- Добавляйте поддерживаемые выходы для Claude, Codex, Gemini и других target’ов по мере роста продукта.
-- Держите один процесс через `generate`, `validate` и CI.
-- Не превращайте конфигурацию в набор одноразовых шаблонов и хрупких скриптов.
+- `Codex runtime Go` для самого сильного runtime-пути по умолчанию.
+- `Codex package`, когда продуктом является официальный пакет Codex.
+- `Gemini packaging`, когда продуктом является пакет расширения Gemini.
+- `Gemini Go runtime`, когда нужен продвинутый 9-hook runtime lane.
+- `Claude default lane`, когда Claude hooks уже являются реальным требованием продукта.
 
 ## Что важно понять сразу
 
-- репозиторий и процесс остаются едиными
-- глубина поддержки зависит от target’а
-- runtime plugins, package outputs и workspace-config targets не дают одинаковые гарантии
-- честное обещание здесь: один репозиторий и много поддерживаемых выходов, а не фальшивая parity везде
+- один репозиторий остаётся source of truth по мере добавления новых lanes
+- выбирайте lane под реальную delivery model сегодняшнего продукта
+- расширяйтесь позже из того же repo, когда продукту понадобятся новые outputs
+- используйте `generate` и `validate --strict` как общий readiness workflow
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/quickstart">
     <h2>Быстрый старт</h2>
-    <p>Стартуйте с одного сильного пути, а расширение на другие target’ы отложите на второй шаг.</p>
+    <p>Начните с самого сильного стартового пути, а расширение оставьте на второй шаг.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>Что можно построить</h2>
-    <p>Посмотрите, как один repo может покрывать Claude, Codex, Gemini, bundles и config outputs.</p>
+    <p>Посмотрите на общую форму продукта: runtime, package, extension и repo-managed integration lanes.</p>
   </a>
-  <a class="docs-card" href="./guide/choose-a-starter">
-    <h2>Выбор стартового репозитория</h2>
-    <p>Выберите starter как entrypoint, а не как окончательную границу продукта.</p>
+  <a class="docs-card" href="./guide/choose-a-target">
+    <h2>Выбор target</h2>
+    <p>Сопоставьте target с вашей delivery model, а не пытайтесь считать все outputs одним и тем же продуктом.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
-    <h2>Граница поддержки</h2>
-    <p>Проверьте, где поддержка самая сильная, а где глубина зависит от target’а.</p>
+    <h2>Точный контракт</h2>
+    <p>Переходите в reference, когда нужен точный язык совместимости и границ поддержки.</p>
   </a>
 </div>
 
 ## С чего лучше начинать
 
-- Прочитайте [Модель управляемого проекта](/ru/concepts/managed-project-model), если вам нужно самое короткое объяснение того, чем вообще является этот продукт.
-- Начинайте с `go`, когда нужен самый сильный путь для продакшена и минимум лишних зависимостей.
-- Выбирайте `node --typescript`, когда команде нужен поддерживаемый путь на JavaScript или TypeScript внутри репозитория.
-- Выбирайте `python`, когда репозиторий осознанно Python-first.
-- Воспринимайте npm и PyPI пакеты `plugin-kit-ai` как способы установить CLI, а не как runtime-библиотеки.
-- Используйте `validate --strict` как финальную проверку перед тем, как передавать репозиторий другому человеку или машине.
-
-## Найдите свой сценарий
-
-- Новый автор плагина: начните с [Установки](/ru/guide/installation), [Быстрого старта](/ru/guide/quickstart) и [Первого плагина](/ru/guide/first-plugin).
-- Тимлид или maintainer: начните с [Плагина для команды](/ru/guide/team-ready-plugin), [Готовности к продакшену](/ru/guide/production-readiness) и [Интеграции с CI](/ru/guide/ci-integration).
-- Команда на Python или Node: начните с [Python runtime](/ru/guide/python-runtime), [Выбора модели поставки](/ru/guide/choose-delivery-model), [Bundle handoff](/ru/guide/bundle-handoff) и [v1.0.6](/ru/releases/v1-0-6).
-- Packaging или workspace config: начните с [Выбора target](/ru/guide/choose-a-target), [Package и workspace targets](/ru/guide/package-and-workspace-targets) и [Поддержки target’ов](/ru/reference/target-support).
-
-## Кому этот сайт особенно полезен
-
-- Отдельным авторам плагинов, которым нужен надёжный первый старт.
-- Командам, которым нужен репозиторий, который другой человек сможет проверить и выпустить.
-- Python и Node командам, которым нужна поддерживаемая история поставки, а не только локальный scaffold.
-- Интеграторам, которым нужен точный публичный API, поддержка target’ов и граница релизных изменений.
+- Начинайте с `go`, когда нужен самый сильный runtime и release story.
+- Выбирайте `node --typescript`, когда команде нужен основной non-Go runtime lane.
+- Выбирайте `python`, когда репозиторий осознанно Python-first и остаётся локальным.
+- Выбирайте package, extension и repo-managed integration lanes только тогда, когда именно они являются конечным продуктом.
+- Используйте `validate --strict` как readiness gate перед handoff и CI.
 
 ## Читайте в таком порядке
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/quickstart">
     <h2>1. Быстрый старт</h2>
-    <p>Стартуйте с одного сильного пути до того, как начнёте думать о расширении.</p>
+    <p>Начните с одного рекомендуемого пути до того, как уйдёте в taxonomy target’ов.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>2. Что можно построить</h2>
-    <p>Посмотрите, как тот же репозиторий позже покрывает больше поддерживаемых выходов.</p>
+    <p>Посмотрите на общую product shape по runtime, package, extension и integration lanes.</p>
   </a>
-  <a class="docs-card" href="./guide/choose-a-starter">
-    <h2>3. Выбор стартового репозитория</h2>
-    <p>Выберите starter как точку входа, а не как окончательную границу продукта.</p>
+  <a class="docs-card" href="./guide/choose-a-target">
+    <h2>3. Выбор target</h2>
+    <p>Выберите lane, который соответствует реальной delivery model продукта сегодня.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
     <h2>4. Граница поддержки</h2>
-    <p>Посмотрите, что stable, что beta и что проект сознательно пока не обещает.</p>
+    <p>Открывайте reference cluster, когда нужен точный compatibility language и support details.</p>
   </a>
 </div>
 
-Если вы новый пользователь, после этих четырёх страниц можно не идти глубже сразу.
+Если вы новый пользователь, на этих четырёх страницах уже можно остановиться.
 
 ## Текущий базовый релиз репозитория
 
-- Текущая публичная опорная версия в этом наборе docs — [`v1.0.6`](/ru/releases/v1-0-6).
-- Именно этот релиз сделал shared runtime-package delivery для Python и Node полноценным поддерживаемым путём, а не частичной историей.
-- Начинайте с него, если вам нужен baseline для текущего рекомендуемого пути.
-
-## Что с этим можно сделать
-
-- Делайте плагины для Codex runtime и Claude hooks из одной управляемой модели проекта.
-- Используйте Go для самого сильного продакшен-пути или Python и Node для поддерживаемых локальных runtime-проектов.
-- Отдавайте portable Python и Node bundles, когда нужны скачиваемые артефакты вместо живого репозитория.
-- Переиспользуйте helper-логику через `plugin-kit-ai-runtime`, когда общий runtime package лучше подходит, чем копирование файлов в каждый репозиторий.
-- Работайте с runtime, package, extension и workspace-config target’ами при явной и понятной границе поддержки.
-
-## Что покрывает сайт
-
-- Публичные гайды для пользователей и авторов плагинов.
-- Сгенерированный API reference из реального кода и дерева команд.
-- Публичные support и platform metadata.
-- Публичная история релизов и support framing.
-- Публичные policy-страницы про versioning, совместимость и ожидания по поддержке.
-
-## Что сознательно вынесено
-
-- Материалы внутренних release rehearsal.
-- Maintainer-only audit notes и operational checklists.
-- Внутренности wrapper packages, замаскированные под API.
+- Текущая публичная опорная версия в этом наборе docs - [`v1.0.6`](/ru/releases/v1-0-6).
+- Этот релиз сделал shared runtime-package delivery для Python и Node полноценной поддерживаемой историей.
+- Начинайте с него, если нужен актуальный baseline.

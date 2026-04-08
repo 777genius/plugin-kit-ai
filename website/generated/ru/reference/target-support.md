@@ -14,15 +14,15 @@ translationRequired: false
 ---
 # Поддержка target’ов
 
-Используйте эту страницу, когда нужно быстро понять, какая цель готова к production-использованию, а какая остаётся только упаковочным или workspace-config вариантом.
+Используйте эту страницу, когда нужен компактный lane map по runtime, package, extension и repo-managed integration outputs.
 
 | Цель | Класс production | Runtime-контракт | Модель установки |
 | --- | --- | --- | --- |
 | claude | production-ready package+runtime lane | стабильный поднабор runtime | marketplace или локально |
-| codex-package | package-вариант для production | только официальный пакет | marketplace или локально |
-| codex-runtime | runtime-вариант для production | стабильный notify-runtime | локально в репозитории |
-| cursor | только упаковка | workspace-config вариант | конфигурация workspace |
+| codex-package | рекомендуемый package lane | только официальный пакет | marketplace или локально |
+| codex-runtime | рекомендуемый runtime lane | стабильный notify-runtime | локально в репозитории |
+| cursor | repo-managed integration lane | workspace-config вариант | конфигурация workspace |
 | gemini | production-ready extension packaging lane | упаковка, не runtime | установка копированием |
-| opencode | только упаковка | workspace-config вариант | конфигурация workspace |
+| opencode | repo-managed integration lane | workspace-config вариант | конфигурация workspace |
 
 Для полной картины свяжите эту матрицу с [Границей поддержки](/ru/reference/support-boundary) и [Моделью target’ов](/ru/concepts/target-model).

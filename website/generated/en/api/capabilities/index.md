@@ -7,14 +7,14 @@ section: "api"
 locale: "en"
 generated: true
 editLink: false
-stability: "public-beta"
-maturity: "beta"
+stability: "public-stable"
+maturity: "stable"
 sourceRef: "docs/generated/support_matrix.md"
 translationRequired: false
 ---
 # Capabilities
 
-Capabilities give you a cross-platform view of runtime behavior, not just a package tree.
+Capabilities give you a cross-platform view of runtime behavior after you already know which delivery lane you are designing for.
 
 - Open this area when you care about the behavior itself, not only the platform name.
 - This is the better entry point when you compare similar behavior across Claude and Codex.

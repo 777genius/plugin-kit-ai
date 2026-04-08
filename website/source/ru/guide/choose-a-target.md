@@ -1,6 +1,6 @@
 ---
 title: "Выбор target"
-description: "Практический публичный гид по выбору между Codex runtime, Claude, Codex package, Gemini, OpenCode и Cursor."
+description: "Практический гид по выбору lane под вашу delivery model."
 canonicalId: "page:guide:choose-a-target"
 section: "guide"
 locale: "ru"
@@ -10,18 +10,16 @@ translationRequired: true
 
 # Выбор target
 
-Используйте эту страницу, когда вы уже понимаете, что хотите работать с `plugin-kit-ai`, но ещё выбираете target под свой продукт.
+Используйте эту страницу, когда вы уже понимаете, что хотите работать с `plugin-kit-ai`, но ещё сопоставляете repo с тем, как именно будет доставляться продукт.
 
-Выбор target на этой странице означает выбор главного требования сейчас, а не вечный lock-in на один target.
-
-Один managed repo в `plugin-kit-ai` может рендерить несколько target-specific outputs, если продукт действительно этого требует.
+Выбор target означает выбор главного lane на сегодня, а не вечный lock-in на один output.
 
 <MermaidDiagram
   :chart="`
 flowchart TD
-  Need[Что нужно продукту сейчас] --> Exec{Исполняемый plugin}
-  Need --> Artifact{Package or extension}
-  Need --> Config{Workspace config}
+  Need[Что нужно продукту сейчас] --> Exec{Исполняемое поведение}
+  Need --> Artifact{Package или extension}
+  Need --> Config{Repo managed integration}
   Exec --> Codex[codex-runtime]
   Exec --> Claude[claude]
   Artifact --> CodexPackage[codex-package]
@@ -33,45 +31,31 @@ flowchart TD
 
 ## Короткое правило
 
-- выбирайте `codex-runtime`, когда нужен исполняемый плагин с самым сильным путём по умолчанию
-- выбирайте `claude`, когда реальным требованием продукта являются Claude hooks
-- выбирайте `codex-package`, когда нужен package output для Codex, а не репозиторий с исполняемым плагином, и нужен официальный bundle layout с `.codex-plugin/plugin.json`
-- выбирайте `gemini`, когда нужен пакет расширения для Gemini
-- выбирайте `opencode` или `cursor`, когда репозиторий должен владеть workspace configuration, а не исполняемым плагином
+- выбирайте `codex-runtime`, когда нужен самый сильный runtime lane по умолчанию
+- выбирайте `claude`, когда Claude hooks и есть реальное требование продукта
+- выбирайте `codex-package`, когда продуктом является официальный пакет Codex
+- выбирайте `gemini`, когда продуктом является пакет расширения Gemini
+- выбирайте `opencode` или `cursor`, когда repo должен владеть integration/config outputs
 
-## Краткий справочник по target’ам
+## Краткий справочник по target'ам
 
-| Target | Когда выбирать | Чем он не является |
+| Target | Когда выбирать | Lane |
 | --- | --- | --- |
-| `codex-runtime` | Нужен основной путь для исполняемого плагина | Это не packaging-only target |
-| `claude` | Нужны именно Claude hooks | Это не основной путь для Codex |
-| `codex-package` | Нужен package output для Codex | Это не runtime-плагин |
-| `gemini` | Вы выпускаете пакет расширения для Gemini | Это не основной runtime-путь |
-| `opencode` | Нужна repo-owned OpenCode workspace config | Это не runtime-плагин |
-| `cursor` | Нужна repo-owned Cursor workspace config | Это не runtime-плагин |
+| `codex-runtime` | Нужен основной путь для исполняемого плагина | Рекомендуемый runtime lane |
+| `claude` | Нужны именно Claude hooks | Рекомендуемый Claude lane |
+| `codex-package` | Нужен package output для Codex | Рекомендуемый package lane |
+| `gemini` | Вы выпускаете пакет расширения Gemini | Рекомендуемый extension lane |
+| `opencode` | Нужна repo-owned OpenCode integration config | Repo-managed integration lane |
+| `cursor` | Нужна repo-owned Cursor integration config | Repo-managed integration lane |
 
 ## Безопасный выбор по умолчанию
 
-Если вы не уверены, начинайте с `codex-runtime` и стандартного Go path.
+Если вы не уверены, начинайте с `codex-runtime` и стандартного Go lane.
 
-Это даёт самую чистую стартовую точку для продакшена, прежде чем вы пойдёте в более узкий или специализированный target.
+Это даёт самую чистую production starting point перед тем, как идти в более узкий или специализированный lane.
 
 ## Что делать, если target'ов нужно несколько
 
-Не пытайтесь выбрать "идеальный единственный target навсегда".
-
-Безопасное правило такое:
-
-- сначала выберите основной target, который определяет продукт сегодня
-- держите authored state в одном managed repo
-- затем добавляйте другие target’ы, когда для них появляется реальная delivery или integration задача
-
-Если вам нужен именно этот mental model, сначала прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
-
-## Что читать дальше
-
-- Прочитайте [Выбор runtime](/ru/concepts/choosing-runtime), если вы выбрали runtime target и ещё решаете между Go, Python, Node и shell.
-- Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если вам нужен более широкий multi-target mental model.
-- Прочитайте [Package и workspace targets](/ru/guide/package-and-workspace-targets), если выбираете между packaging и workspace-config targets.
-- Прочитайте [Примеры и рецепты](/ru/guide/examples-and-recipes), если хотите увидеть реальные repos для разных форм продукта.
-- Прочитайте [Поддержку target’ов](/ru/reference/target-support), если вам нужна компактная support matrix.
+- сначала выберите основной lane, который определяет продукт сегодня
+- держите repo единым
+- добавляйте новые target'ы только тогда, когда появляется реальная delivery или integration задача

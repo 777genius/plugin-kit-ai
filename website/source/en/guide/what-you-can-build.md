@@ -1,6 +1,6 @@
 ---
 title: "What You Can Build"
-description: "A broad public overview of how one plugin repo can grow into more supported outputs."
+description: "A broad public overview of how one plugin repo can grow into multiple delivery lanes."
 canonicalId: "page:guide:what-you-can-build"
 section: "guide"
 locale: "en"
@@ -10,131 +10,75 @@ translationRequired: true
 
 # What You Can Build
 
-This page explains the main promise of `plugin-kit-ai`: start in one repo, then expand that same repo to more supported outputs as the product grows.
+`plugin-kit-ai` is built around one practical idea: keep one authored repo, start with one recommended lane, and expand later into more outputs only when the product needs them.
 
 <MermaidDiagram
   :chart="`
 flowchart TD
-  Product[One repo] --> Runtime[Runtime plugins]
-  Product --> Multi[More supported outputs later]
-  Product --> Bundle[Portable bundle handoff]
+  Product[One authored repo] --> Runtime[Runtime lane]
+  Product --> Package[Package lane]
+  Product --> Extension[Extension lane]
+  Product --> Bundle[Bundle handoff]
+  Product --> Integration[Repo managed integration lane]
   Product --> Shared[Shared runtime package]
-  Product --> Package[Package and extension targets]
-  Product --> Workspace[Workspace config targets]
 `"
 />
 
-## 1. One Repo, Many Supported Outputs
+## Recommended Starting Shape
 
-This is the core product promise.
+Most teams should start with one of these lanes:
 
-- Start with one plugin repo.
-- Add the outputs you actually need as the product grows.
-- Keep one workflow through `generate`, `validate`, and CI.
-- Do not assume every target has the same runtime guarantees.
+- `Codex runtime Go`
+- `Codex package`
+- `Gemini packaging`
+- `Claude default lane`
 
-The safe mental model is:
+If your runtime stack is already fixed, you can also start on:
 
-- same repo
-- same core workflow
-- many supported outputs
-- different support depth by target
+- `Node/TypeScript`
+- `Python`
 
-## 2. Start With The Strongest First Repo
+## Expand Later From The Same Repo
 
-Most teams should start with a Codex runtime repo on Go.
+Once the first lane is healthy, the same repo can grow into:
 
-That first repo gives you:
+- Claude outputs when hooks become part of the product
+- Codex package outputs when package delivery matters
+- Gemini extension packaging when Gemini is a real delivery lane
+- OpenCode and Cursor when the repo should manage integration config
+- portable bundle handoff for supported Python and Node repos
 
-- the strongest production-oriented starting point
-- one repo workflow instead of hand-edited target files
-- a clear path through `generate` and `validate --strict`
+## One Repo, Many Supported Outputs
 
-If your stack already dictates the runtime, the same first repo model also supports:
+The real product shape is not "many random targets." It is one authored repo that can produce multiple supported outputs as the delivery model expands.
 
-- Go for the strongest default production contract
-- Node/TypeScript for the mainstream non-Go stable lane
-- Python for repo-local Python-first teams
+## Team-Ready Repos
 
-## 3. Add Claude When Hooks Are The Real Requirement
+The point is not only scaffolding. The point is ending up with a repo another teammate can understand, validate, and ship.
 
-Use the Claude lane when Claude hooks are the actual product requirement.
+That means:
 
-This is the right choice when:
+- one source of truth under `src/`
+- one validation workflow through `generate`, `validate`, and CI
+- explicit lane choices instead of hand-edited native files
+- predictable handoff between authors and downstream users
 
-- you need Claude-specific runtime hooks
-- the stable Claude subset is enough for your plugin
-- you want a stronger authoring contract than native file editing
+## Bundle And Shared Runtime Paths
 
-## 4. Expand To More Supported Outputs Later
+For supported Python and Node lanes, the repo can also produce:
 
-Once the first repo is working, the same repo can grow into:
+- portable bundle handoff artifacts
+- shared helper delivery through `plugin-kit-ai-runtime`
 
-- Claude hooks outputs
-- Codex package outputs
-- Gemini extension packaging
-- OpenCode and Cursor workspace/config outputs
-- portable bundle delivery for supported Python and Node repos
+These are delivery choices layered on top of the same authored repo, not separate products.
 
-That is the real cross-target story: one repo, one workflow, more supported outputs over time.
+## Delivery Models Covered Here
 
-## 5. Team-Ready Plugin Repositories
+`plugin-kit-ai` can cover:
 
-`plugin-kit-ai` is not only about scaffolding. It is also about getting to a repo another teammate can understand, validate, and ship.
+- runtime lanes for executable plugin behavior
+- package lanes for official package artifacts
+- extension lanes for extension-style delivery
+- repo-managed integration lanes for config and workspace ownership
 
-That means the system supports:
-
-- strict readiness gates
-- CI-friendly flows
-- explicit lane and target choices
-- predictable handoff between authors and downstream consumers
-
-## 6. Portable Python And Node Handoff Bundles
-
-For supported Python and Node lanes, you can move beyond local authoring and produce portable bundle handoff artifacts.
-
-This matters when:
-
-- the delivery model needs fetched artifacts instead of a live repo
-- you want a cleaner downstream install story for interpreted runtime lanes
-- you are using the bundle publish/fetch flow as part of release handoff
-
-See [Bundle Handoff](/en/guide/bundle-handoff) for the actual public flow.
-
-## 7. Shared Runtime Package Flows
-
-Python and Node helper behavior can live either:
-
-- in vendored helper files inside the repo
-- in the shared `plugin-kit-ai-runtime` package
-
-This gives teams a supported path for:
-
-- reusable runtime helpers across multiple repos
-- cleaner dependency upgrades
-- a standardized helper API without copying scaffolded files by hand
-
-## 8. Package, Extension, And Workspace-Config Targets
-
-Not every public shape is a repo-local runtime plugin.
-
-`plugin-kit-ai` also covers:
-
-- packaging-oriented lanes
-- extension-style targets
-- workspace-config integration targets
-
-These targets matter when the end product is packaging or configuration, not an executable plugin.
-
-See [Package And Workspace Targets](/en/guide/package-and-workspace-targets) before you treat these targets like runtime plugins.
-
-## 9. Read In This Order
-
-If you are still deciding what to do:
-
-1. read this page
-2. use [Quickstart](/en/guide/quickstart) or [Choose A Starter Repo](/en/guide/choose-a-starter)
-3. read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when you want the honest explanation of expansion
-4. read [Target Model](/en/concepts/target-model) only once you are ready to compare output types precisely
-
-Pair this page with [Examples And Recipes](/en/guide/examples-and-recipes), [Choose A Starter Repo](/en/guide/choose-a-starter), [Choose Delivery Model](/en/guide/choose-delivery-model), [Bundle Handoff](/en/guide/bundle-handoff), [Package And Workspace Targets](/en/guide/package-and-workspace-targets), and [API Surfaces](/en/api/).
+That is the real multi-target story: one repo, one workflow, multiple delivery lanes over time.

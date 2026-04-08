@@ -1,53 +1,60 @@
 # plugin-kit-ai
 
-Build your plugin once and easily export it to any AI agent, like Claude, Codex, or Gemini, without duplicating code.
+Build one plugin repo and grow it into multiple production-ready lanes for Claude, Codex, Gemini, and repo-managed integrations without duplicating your authoring workflow.
 
-`plugin-kit-ai` helps you create, validate, and maintain a single plugin repo that can later cover supported outputs for Codex, Claude, Gemini, and other targets. Build it once, keep one workflow, start from `init` or a starter repo, pick Go, Node/TypeScript, or Python for the first path, and use `validate --strict` before handoff or CI.
+`plugin-kit-ai` keeps the authored source in one repo, lets you start from the strongest default path, and expand later into the delivery lanes your product actually needs.
 
 Common use cases:
 
-- start one repo and keep expanding it to more supported outputs over time
-- build a Codex runtime plugin on the strongest production path first
-- add Claude hooks, Gemini packaging, or workspace/config outputs later from that same repo
+- start with one plugin repo and keep expanding it as the product grows
+- ship the strongest default lane first with Codex runtime on Go
+- add Codex package, Claude, Gemini, or repo-managed integration lanes later from the same source of truth
 
 Docs site:
 
 - overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)
-- overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)
 - fastest start: [Quickstart](https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html)
-- one repo, many outputs: [What You Can Build](https://777genius.github.io/plugin-kit-ai/docs/en/guide/what-you-can-build.html)
-- honest caveat: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
+- product overview: [What You Can Build](https://777genius.github.io/plugin-kit-ai/docs/en/guide/what-you-can-build.html)
+- delivery model guide: [Choose A Target](https://777genius.github.io/plugin-kit-ai/docs/en/guide/choose-a-target.html)
+- exact support contract: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
+
+## Recommended Production Lanes
+
+Start with one of these lanes when you want the clearest production story today:
+
+- `codex-runtime` with Go for the strongest default runtime lane
+- `codex-package` when the real product is an official Codex package
+- `gemini` when the real product is a Gemini extension package
+- `gemini --runtime go` when you need the promoted Gemini Go runtime lane
+- `claude` when Claude hooks are already the product requirement
+
+Recommended non-Go runtime lanes:
+
+- `codex-runtime --runtime node --typescript`
+- `codex-runtime --runtime python`
+
+Repo-managed integration lanes:
+
+- `opencode`
+- `cursor`
 
 ## What To Know Right Away
 
-- one repo and one workflow can cover many supported outputs
-- support depth depends on the target you add
-- runtime plugins, package outputs, and workspace-managed config do not all behave the same way
-- the honest promise is `one repo / many supported outputs`, not fake parity everywhere
-
-## Use It When
-
-- you want a real plugin repo instead of one-off scripts and manually edited config files
-- you want a clear first path for Go, Node/TypeScript, or Python
-- you want a repeatable validation step before another person, machine, or CI uses the repo
-- you may later need Claude, bundles, package outputs, or workspace-managed config from the same repo
-
-## Skip It When
-
-- you only need a tiny throwaway local script
-- you want universal dependency management for every interpreted runtime ecosystem
-- you need every target and every hook family to have the same production promise today
+- one repo stays the source of truth as you add more lanes
+- choose the lane that matches your delivery model today
+- expand later from the same repo when the product needs more targets
+- use `generate` and `validate --strict` as the shared readiness workflow
 
 ## Quick Start
 
-Default install path:
+Recommended install path:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 ```
 
-Create the strongest default repo first:
+Start on the strongest default lane:
 
 ```bash
 plugin-kit-ai init my-plugin
@@ -59,56 +66,55 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 That gives you:
 
 - one plugin repo from day one
-- the strongest default path today: `codex-runtime` with `--runtime go`
-- the cleanest base for later expansion into more supported outputs
-- canonical new repos keep manually edited sources under `src/` and treat plugin-root manifests as generated outputs
+- the strongest default runtime lane today: `codex-runtime` with `--runtime go`
+- the cleanest base for later expansion into package, extension, and integration lanes
+- canonical new repos that keep authored sources under `src/`
 
-Need another install channel:
+Other supported CLI install methods:
 
 - npm: `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`
-- pipx (`public-beta`, only when that release is published to PyPI): `pipx install plugin-kit-ai`
-- fallback installer: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
+- pipx: `pipx install plugin-kit-ai` when that release is published to PyPI
+- verified script: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
 - source build for maintainers of this repo: `go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai`
 
-## Choose Your First Path
+## Choose Your First Lane
 
-Pick the first path by stack and delivery goal. Do not start by learning the full target taxonomy.
-
-| If you want | First path |
+| If you want | Recommended first lane |
 |---------|----------|
-| the strongest production path | `plugin-kit-ai init my-plugin` |
-| a TypeScript-first repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript` |
-| a Python-first repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime python` |
+| the strongest runtime lane | `plugin-kit-ai init my-plugin` |
+| a TypeScript-first runtime repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript` |
+| a Python-first runtime repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime python` |
+| an official Codex package | `plugin-kit-ai init my-plugin --platform codex-package` |
+| a Gemini extension package | `plugin-kit-ai init my-plugin --platform gemini` |
 
 Practical default:
 
-- choose Go when you want the cleanest production story
-- choose Node/TypeScript when your team already ships TypeScript
-- choose Python when the plugin stays repo-local and your team is Python-first
-- choose Claude first only when Claude hooks are already the real product requirement
+- choose Go when you want the cleanest runtime and release story
+- choose Node or Python when the repo stays local and your team already lives there
+- choose Claude first only when Claude hooks are the real product requirement
+- choose OpenCode or Cursor when the repo should own integration/config outputs instead of an executable runtime plugin
 
 ## Expand Later From The Same Repo
 
-- add Claude hooks when hooks become part of the product
-- add Gemini, Codex package, OpenCode, or Cursor outputs when packaging or workspace integration becomes necessary
-- keep one repo and one validation workflow while the product grows
-- check support depth before you promise the same thing everywhere
+- add Claude when hooks become part of the product
+- add Codex package or Gemini when packaging becomes the real delivery lane
+- add OpenCode or Cursor when the repo should manage integration config
+- keep one repo and one validation workflow as the product grows
 
 ## What Else It Supports
 
 - a typed Go SDK for Claude, Codex, and Gemini
-- stable repo-local Python and Node paths on `codex-runtime` and `claude`
-- portable bundle handoff for supported Python and Node plugin repos
+- supported local Python and Node runtime authoring on `codex-runtime` and `claude`
+- portable bundle handoff for supported Python and Node runtime repos
 - starter templates for Codex and Claude across Go, Python, and Node/TypeScript
-- package and workspace-config paths for Codex package, Gemini, OpenCode, and Cursor
+- package and repo-managed integration lanes for Codex package, Gemini, OpenCode, and Cursor
 
 ## Keep This Rule In Mind
 
-- start with one strong path
-- keep the repo and validation workflow unified
-- add supported outputs only when the product really needs them
-- check support depth before you promise the same thing everywhere
-
+- start with one recommended lane
+- keep the authored repo unified
+- add more lanes only when the product needs them
+- use the support/reference docs when you need the exact contract details
 ## Deep Product Details
 
 Everything below this point is for people comparing delivery models, import paths, and detailed support boundaries. If you only needed the main promise and first path, you can stop above.

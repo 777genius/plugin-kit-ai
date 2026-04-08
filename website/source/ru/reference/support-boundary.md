@@ -1,6 +1,6 @@
 ---
 title: "Граница поддержки"
-description: "Краткий гид по тому, что plugin-kit-ai считает stable, beta и сознательно вне области поддержки."
+description: "Самый короткий практический ответ о том, что plugin-kit-ai рекомендует, поддерживает осторожно и оставляет experimental."
 canonicalId: "page:reference:support-boundary"
 section: "reference"
 locale: "ru"
@@ -10,38 +10,38 @@ translationRequired: true
 
 # Граница поддержки
 
-Эта страница коротко отвечает на простой вопрос: на что можно опираться уже сейчас, а к чему стоит относиться осторожно.
+Эта страница отвечает на один практический вопрос: что можно рекомендовать уже сейчас, что считать advanced, а что остаётся experimental?
 
-## Безопасные значения по умолчанию
+## Безопасные defaults
 
-- Go — рекомендуемый production path.
-- `validate --strict` — главная проверка готовности для локальных Python и Node runtime-проектов.
-- CLI wrappers — это способы установки CLI, а не runtime API.
+- Go - рекомендуемый runtime lane по умолчанию.
+- `validate --strict` - главная проверка готовности для локальных Python и Node runtime repos.
+- Codex package и Gemini packaging рекомендуемы тогда, когда package или extension delivery и есть реальный продукт.
+- OpenCode и Cursor подходят тогда, когда repo должен владеть integration config.
 
-## Что stable по умолчанию
+## Как это маппится на формальный контракт
 
-- main public CLI contract
-- рекомендуемый путь через Go SDK
-- стабильный локальный Python и Node subset на поддерживаемых runtime target’ах
-- target’ы, которые явно помечены как stable в generated support matrix
+- `Recommended` обычно означает самые сильные текущие production lanes внутри `public-stable`.
+- `Advanced` означает поддерживаемую surface с более узким, специализированным или осторожным контрактом.
+- `Experimental` означает opt-in churn вне нормального compatibility expectation.
 
-Сегодня это означает следующее:
+Используйте формальные термины `public-stable`, `public-beta` и `public-experimental`, когда вы задаёте policy для команды или обещаете совместимость downstream-пользователям.
 
-- Claude готов для продакшена только в рамках стабильного базового набора hook-событий, а не по всей поверхности пакета целиком
-- Codex готов для продакшена в `Notify` runtime lane и в официальном `codex-package` пути
-- упаковочный путь Gemini для CLI-расширения готов для production, и опциональный Gemini Go runtime теперь тоже production-ready в рамках промоутнутого 9-hook контракта
-- OpenCode и Cursor поддерживаются как workspace-config пути, а не как продакшен-runtime target’ы
+## Что это означает сегодня
 
-## Что использовать осторожно
+- Claude рекомендуется на default stable hook lane.
+- Codex рекомендуется и для `Notify` runtime lane, и для официального `codex-package` lane.
+- Gemini packaging рекомендуется, и promoted Gemini Go runtime тоже production-ready.
+- OpenCode и Cursor - это repo-managed integration lanes, а не стандартная runtime starting point.
 
-- beta paths, которые ещё меняются
-- workspace-config targets, когда вам на самом деле нужен исполняемый плагин
-- install wrappers, если вам в действительности нужен runtime API или SDK
+## Advanced surfaces
 
-## Что вне scope
+Используйте их только тогда, когда компромисс осознан и явно нужен:
 
-- считать, что у всех targets одинаковые runtime guarantees
-- относиться к wrapper packages как к SDK или runtime-контрактам
-- считать, что experimental surfaces несут долгосрочные compatibility promises
+- более узкие или специализированные runtime expansions вне основных рекомендуемых lanes
+- install wrappers, если вас на самом деле интересует доставка CLI, а не runtime APIs или SDKs
+- специальные config surfaces, которые полезны, но не являются первым default для большинства команд
 
-Свяжите эту страницу с [Политикой версий и совместимости](/ru/reference/version-and-compatibility), [Поддержкой target’ов](/ru/reference/target-support) и [Моделью стабильности](/ru/concepts/stability-model).
+## Experimental surfaces
+
+Относитесь к experimental областям как к opt-in и high-churn. Они полезны ранним пользователям, но не должны молча становиться долгосрочной team policy.

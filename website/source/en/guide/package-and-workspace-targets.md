@@ -1,6 +1,6 @@
 ---
 title: "Package And Workspace Targets"
-description: "How to use Codex package, Gemini, OpenCode, and Cursor targets without confusing them with executable plugin paths."
+description: "How to use package, extension, and repo-managed integration lanes without confusing them with executable runtime lanes."
 canonicalId: "page:guide:package-and-workspace-targets"
 section: "guide"
 locale: "en"
@@ -10,100 +10,56 @@ translationRequired: true
 
 # Package And Workspace Targets
 
-Not every `plugin-kit-ai` target is an executable plugin.
+Not every `plugin-kit-ai` lane is an executable runtime lane.
 
-Read this page before you choose `codex-package`, `gemini`, `opencode`, or `cursor`, because these targets solve a different problem than `codex-runtime` or `claude`.
+Read this page before you choose `codex-package`, `gemini`, `opencode`, or `cursor`, because these lanes solve a different delivery problem than `codex-runtime` or `claude`.
 
 ## The Short Rule
 
-- choose `codex-runtime` or `claude` when the product is an executable plugin
+- choose `codex-runtime` or `claude` when the product is executable plugin behavior
 - choose `codex-package` or `gemini` when the product is a package or extension artifact
-- choose `opencode` or `cursor` when the product is repo-owned workspace configuration
+- choose `opencode` or `cursor` when the product is repo-managed integration config
 
-<MermaidDiagram
-  :chart="`
-flowchart TD
-  Product[What is the product] --> Exec{Executable plugin}
-  Product --> Artifact{Package or extension artifact}
-  Product --> Config{Workspace config}
-  Exec --> Runtime[codex-runtime or claude]
-  Artifact --> Package[codex-package or gemini]
-  Config --> Workspace[opencode or cursor]
-`"
-/>
+## Recommended Package And Extension Lanes
 
-## Codex Package
+### Codex Package
 
-Use `codex-package` when the end result is a Codex package, not an executable plugin repo.
+Use `codex-package` when the end result is a Codex package.
 
-This is useful when:
+This is the right lane when:
 
 - packaging is the real delivery contract
-- you want the repo to stay unified in one place
-- you do not want to pretend this target has the same runtime contract as `codex-runtime`
+- you want the repo to stay unified
+- the product should ship an official Codex package artifact
 
-Codex package also has a strict bundle-layout contract:
-
-- `.codex-plugin/` contains only `plugin.json`
-- optional `.app.json` and `.mcp.json` stay at the plugin root, not inside `.codex-plugin/`
-- those sidecars exist only when `.codex-plugin/plugin.json` references `./.app.json` or `./.mcp.json`
-
-## Gemini
+### Gemini
 
 Use `gemini` when the goal is a Gemini CLI extension package.
 
-This target is intentionally packaging-oriented.
-
 Treat it as:
 
-- a full extension-packaging lane through `generate`, `import`, and `validate`
-- not the main runtime path
-- something you choose when Gemini extension artifacts are the actual product
+- a recommended extension lane through `generate`, `import`, and `validate`
+- the right choice when Gemini extension artifacts are the real product
+- separate from the default Codex runtime starting point
 
-## OpenCode
+## Repo-Managed Integration Lanes
 
-Use `opencode` when the repo owns OpenCode workspace configuration and related project assets.
+### OpenCode
 
-This target is valuable when:
+Use `opencode` when the repo should own OpenCode integration config and related project assets.
 
-- the project needs managed `opencode.json`
-- the repo should own workspace-level MCP and config shape
-- you want a documented config authoring path instead of hand-edited files
+### Cursor
 
-Do not confuse that with the strongest runtime contract.
+Use `cursor` when the repo should own Cursor integration config.
 
-## Cursor
-
-Use `cursor` when the repo should manage Cursor workspace configuration.
-
-The documented subset includes:
-
-- `.cursor/mcp.json`
-- project-root `.cursor/rules/**`
-- root `CLAUDE.md` and `AGENTS.md` as plugin boundary docs, not Cursor-native target surfaces
-
-This is a workspace-configuration target, not the main runtime path.
-
-## Practical Decision Rule
-
-Choose these targets when the output is:
-
-- package artifacts
-- extension packaging
-- workspace config
-
-Do not choose them just because they sound close to a runtime path.
-
-If what you really need is executable plugin behavior, go back to [Choosing Runtime](/en/concepts/choosing-runtime) and start there.
+These lanes are valuable when the output is managed integration/config ownership, not executable behavior.
 
 ## Readiness Rule
 
-For these targets, the healthy repo rule is still the same:
+For these lanes, the healthy repo rule is still the same:
 
-- the repo stays unified in the package-standard layout
+- the authored project stays in the package-standard layout
 - generated files are outputs
-- `generate --check` and `validate --strict` are the core checks
+- `generate --check` and `validate --strict` remain the core gates
 
-## Pair It With
-
-Read this page with [How To Publish Plugins](/en/guide/how-to-publish-plugins), [Target Model](/en/concepts/target-model), [Target Support](/en/reference/target-support), and [Support Boundary](/en/reference/support-boundary).
+If what you really need is executable behavior, go back to [Choosing Runtime](/en/concepts/choosing-runtime).

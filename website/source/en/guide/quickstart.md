@@ -1,6 +1,6 @@
 ---
 title: "Quickstart"
-description: "The fastest supported path to a working plugin-kit-ai project."
+description: "The fastest recommended path to a working plugin-kit-ai project."
 canonicalId: "page:guide:quickstart"
 section: "guide"
 locale: "en"
@@ -10,19 +10,19 @@ translationRequired: true
 
 # Quickstart
 
-This is the shortest supported path when you want one plugin repo that can later expand to more supported targets.
+This is the shortest recommended path when you want one plugin repo that can later expand into more delivery lanes.
 
-Start with one clear path first. Expand the same repo later when you need Claude, Codex package, Gemini, or workspace/config outputs.
+Start with one strong lane first. Add package, extension, or repo-managed integration lanes later when the product actually needs them.
 
 ## If You Only Read One Thing
 
-Start with the default Go path unless you already know you need Claude hooks, Node/TypeScript, or Python.
+Start with the default Go lane unless you already know that Claude hooks, Node/TypeScript, or Python define the product requirement.
 
-Do not confuse the first path with the final product boundary: the repo can grow later.
+Your first lane is the starting point, not the permanent boundary of the repo.
 
 ## Recommended Default
 
-If you do not have a strong reason to choose another path, start here:
+If you do not have a strong reason to choose another lane, start here:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
@@ -33,32 +33,25 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-That gives you the strongest default path today: a Go-based Codex runtime repo that stays easy to validate, hand off, and expand later.
+That gives you the strongest default lane today: a Go-based Codex runtime repo that stays easy to validate, hand off, and expand later.
 
 ## Why This Is The Default
 
 - one repo from day one
-- the cleanest production story today
-- the easiest base for later expansion to other supported outputs
+- the cleanest runtime and release story today
+- the easiest base for later package, extension, and integration lanes
 
-## What Expands Later
+## Choose The First Lane
 
-- You still keep one repo and one validation workflow as you add more outputs.
-- You can generate supported outputs for Claude, Codex, Gemini, and other targets from the same repo.
-- Support depth depends on the target you add.
-- Runtime plugins, package outputs, and workspace-managed config do not all behave the same way.
-
-## Choose The First Path
-
-| If you want | Best starting path |
+| If you want | Recommended first lane |
 | --- | --- |
-| Strongest production path | `codex-runtime` with `--runtime go` |
-| Repo-local TypeScript plugin | `codex-runtime --runtime node --typescript` |
-| Repo-local Python plugin | `codex-runtime --runtime python` |
+| Strongest runtime lane | `codex-runtime` with `--runtime go` |
+| Official Codex package | `codex-package` |
+| Gemini extension package | `gemini` |
+| Repo-local TypeScript runtime | `codex-runtime --runtime node --typescript` |
+| Repo-local Python runtime | `codex-runtime --runtime python` |
 
 Choose `claude` first only when Claude hooks are already the real product requirement.
-
-Choose package, extension, and workspace/config targets later as expansion paths, not as the first default decision.
 
 ## Common First Commands
 
@@ -72,17 +65,20 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## Read This Before Choosing Python Or Node
 
-- Python and Node are supported first-class for the stable repo-local subset.
+- Python and Node are recommended local runtime lanes for teams that already live in those stacks.
 - They still require Python `3.10+` or Node.js `20+` on the machine that runs the plugin.
-- Go remains the recommended default when you want the cleanest production and distribution story.
+- Go remains the recommended default when you want the strongest runtime and distribution story.
+
+## What Expands Later
+
+- the repo stays unified as you add more lanes
+- package and extension lanes come from the same authored source
+- OpenCode and Cursor fit when the repo should own integration config
+- the exact support boundary stays in the reference docs, not in your first-start flow
 
 ## After Quickstart
 
 - Continue with [Build Your First Plugin](/en/guide/first-plugin) if you want the narrowest recommended tutorial.
-- Continue with [Build A Python Runtime Plugin](/en/guide/python-runtime) if your team is Python-first and the plugin stays repo-local.
-- Continue with [What You Can Build](/en/guide/what-you-can-build) if you want to see how the same repo can later cover more outputs.
-- Continue with [Choose A Starter Repo](/en/guide/choose-a-starter) if you want to start from a template instead of a blank repo.
-- Continue with [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when you are ready to expand beyond the first path.
-- Continue with [Choose A Target](/en/guide/choose-a-target) only after you already understand the basic product shape.
-
-See [Choosing Runtime](/en/concepts/choosing-runtime) for the decision model and [Installation](/en/guide/installation) for CLI install channels.
+- Continue with [What You Can Build](/en/guide/what-you-can-build) if you want the full product map.
+- Continue with [Choose A Target](/en/guide/choose-a-target) when you are ready to match the repo to a delivery model.
+- Continue with [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when you are ready to expand beyond the first lane.

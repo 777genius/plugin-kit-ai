@@ -1,30 +1,48 @@
 # plugin-kit-ai CLI
 
-Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submodule `github.com/777genius/plugin-kit-ai/cli` and builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `dev`, `test`, `export`, `bundle install`, `bundle fetch`, `bundle publish`, `generate`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`, plus experimental `skills` authoring commands.
+Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submodule `github.com/777genius/plugin-kit-ai/cli` and builds the **`plugin-kit-ai`** binary.
 
-Current CLI contract status in this source tree: `public-stable` shipped in `v1.0.0`. Repository-wide compatibility and release policy live in [../../docs/SUPPORT.md](../../docs/SUPPORT.md) and [../../docs/RELEASE.md](../../docs/RELEASE.md).
+The CLI is the repo authoring tool for one managed plugin project that can expand into multiple production-ready lanes and repo-managed integration lanes without splitting source of truth.
 
-`plugin-kit-ai init` scaffolds a package-standard project for **Codex runtime** (`--platform codex-runtime`, default), **Codex package** (`--platform codex-package`), **Claude** (`--platform claude`), **Gemini** (`--platform gemini`), **OpenCode** (`--platform opencode`), or **Cursor** (`--platform cursor`). Runtime selection `--runtime go|python|node|shell` applies to launcher-based targets only; `--typescript` is available only with `--runtime node` on launcher-based lanes. Gemini supports packaging-only authoring by default and a production-ready 9-hook Go runtime lane via `--platform gemini --runtime go`. Codex package, OpenCode, and Cursor remain non-launcher targets. Claude defaults to the stable `Stop`/`PreToolUse`/`UserPromptSubmit` subset; use `--claude-extended-hooks` only when you intentionally want the full runtime-supported hook scaffold.
-`plugin-kit-ai bootstrap` is the stable repo-local first-run helper for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It uses lockfile-first manager detection for Python and Node ecosystems, then installs dependencies and runs `build` for TypeScript-shaped Node projects. The same command remains `public-beta` for `shell`.
-`plugin-kit-ai doctor` is the stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It reports lane, runtime, detected manager, readiness status, and next commands without mutating files. The same command remains `public-beta` for `shell`.
-`plugin-kit-ai dev` is a `public-beta` watch loop for launcher-based runtime targets. It polls the workspace, re-generates managed artifacts, performs runtime-aware rebuilds, runs strict validation, and reruns the selected stable fixture smoke tests on every change.
-`plugin-kit-ai test` is the stable fixture-driven smoke surface for the declared stable Claude and Codex runtime events. Generated launcher-based Claude and Codex runtime projects now pre-seed the default `fixtures/` and `goldens/` layout during `init`, so `test` and `dev` work out of the box. `plugin-kit-ai test` loads JSON fixtures, invokes the configured launcher entrypoint with the correct carrier, compares `stdout`, `stderr`, and `exitcode` against golden files, and supports `--update-golden` to record the current outputs.
-`plugin-kit-ai export` is the stable portable handoff surface for `python` and `node` launcher-based projects on `codex-runtime` and `claude`. It writes a deterministic `.tar.gz` bundle, but does not extend `install`. The same command remains `public-beta` for `shell`.
-`plugin-kit-ai bundle install` is the stable local bundle installer for exported Python/Node handoff archives. It only accepts local `.tar.gz` bundles created by `plugin-kit-ai export`, unpacks them into `--dest`, and prints next steps. It does not extend `install`, and it does not run `bootstrap` automatically.
-`plugin-kit-ai bundle fetch` is the stable remote bundle fetch/install companion for exported Python/Node handoff archives. It supports direct HTTPS URLs and GitHub Releases bundle discovery, but remains separate from both stable local `bundle install` and binary-only `install`.
-`plugin-kit-ai bundle publish` is the stable GitHub Releases publish companion for exported Python/Node handoff archives. It exports the same bundle contract, creates a published release by default, supports `--draft` as an opt-in safety mode, uploads the bundle plus a sibling `.sha256` asset, and stays separate from both stable local `bundle install` and binary-only `install`.
-`plugin-kit-ai validate` checks package-standard projects, including generated-artifact drift, manifest warnings for unknown `plugin.yaml` keys, and Claude authored-hook routing consistency against `src/launcher.yaml.entrypoint`.
-For CI and other tooling, `plugin-kit-ai validate --format json` emits the versioned `plugin-kit-ai/validate-report` contract with `schema_version: 1`, explicit `outcome` values, and summary counters.
-Use [../../docs/VALIDATE_JSON_CONTRACT.md](../../docs/VALIDATE_JSON_CONTRACT.md) for the machine-readable validation ABI and [../../docs/CODEX_TARGET_BOUNDARY.md](../../docs/CODEX_TARGET_BOUNDARY.md) when choosing between `codex-runtime` and `codex-package`.
-`plugin-kit-ai generate` generates native target artifacts from the authored package-standard layout, `plugin-kit-ai import` backfills that layout from current native Claude/Codex/Gemini/OpenCode/Cursor artifacts into canonical `src/` authored inputs, and `plugin-kit-ai normalize` rewrites `src/plugin.yaml` into the package-standard shape.
-`plugin-kit-ai capabilities` defaults to the target/package view and supports `--mode runtime` for runtime-event metadata.
+## Recommended Production Lanes
 
-Supported bootstrap paths for the CLI itself:
+Use the CLI on one of these lanes when you want the strongest current story:
+
+- `codex-runtime` with Go for the strongest default runtime lane
+- `codex-package` for the official Codex plugin package lane
+- `gemini` for the official Gemini extension packaging lane
+- `gemini --runtime go` for the promoted Gemini Go runtime lane
+- `claude` for the recommended default Claude lane when Claude hooks are the real product requirement
+
+Recommended non-Go runtime lanes:
+
+- `codex-runtime --runtime node --typescript`
+- `codex-runtime --runtime python`
+
+Repo-managed integration lanes:
+
+- `opencode`
+- `cursor`
+
+## Start Here
+
+Recommended install path for the CLI itself:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 ```
+
+Start on the strongest default lane:
+
+```bash
+plugin-kit-ai init my-plugin
+cd my-plugin
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
+Other supported CLI install methods:
 
 ```bash
 npm i -g plugin-kit-ai
@@ -46,21 +64,26 @@ plugin-kit-ai version
 go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 ```
 
-Maintainer note: building the checked-in monorepo workspace currently requires
-Go `1.23.x` for the CLI module and CI lanes. Generated Go plugin projects stay
-on the public Go SDK path with Go `1.22+`.
+## What The CLI Gives You
 
-Choose the path that matches your goal:
+- one managed authored repo under `src/`
+- one shared workflow through `generate`, `validate`, and CI
+- the ability to expand later into package, extension, and repo-managed integration lanes
+- deterministic generated outputs instead of hand-maintained native config files
+
+## Pick The First Lane
 
 | Goal | Recommended lane |
 |------|------------------|
-| local notify/runtime plugin in your repo | `codex-runtime` |
-| official Codex bundle/package output | `codex-package` |
-| Claude hook runtime plugin | `claude` |
-| Gemini CLI extension package | `gemini` |
-| OpenCode workspace-config lane | `opencode` |
-| Cursor workspace-config lane | `cursor` |
+| strongest runtime lane | `codex-runtime` |
+| official Codex package output | `codex-package` |
+| Claude hook-driven product | `claude` |
+| Gemini extension package | `gemini` |
+| repo-managed integration config | `opencode` or `cursor` |
 
+Choose the lane that matches the delivery model you need today. Expand later from the same repo when the product needs more outputs.
+
+Maintainer note: building the checked-in monorepo workspace currently requires Go `1.23.x` for the CLI module and CI lanes. Generated Go plugin projects stay on the public Go SDK path with Go `1.22+`.
 ## Fast Local Plugin
 
 For repo-local plugins where fast iteration matters more than packaged distribution:

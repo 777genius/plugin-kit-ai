@@ -1,6 +1,6 @@
 ---
 title: "Support Boundary"
-description: "A compact guide to what plugin-kit-ai treats as stable, beta, and intentionally out of scope."
+description: "The shortest practical answer to what plugin-kit-ai recommends, supports with care, and keeps experimental."
 canonicalId: "page:reference:support-boundary"
 section: "reference"
 locale: "en"
@@ -10,39 +10,38 @@ translationRequired: true
 
 # Support Boundary
 
-This page answers one practical question: what can you safely promise today, and what should you describe more carefully?
+This page answers one practical question: what can you recommend today, what is advanced, and what stays experimental?
 
 ## Safe Defaults
 
-- Go is the recommended production path.
-- `validate --strict` is the main readiness check for local Python and Node runtime projects.
-- The CLI install wrappers are ways to install the CLI, not runtime APIs.
-- One repo can cover many supported outputs, but support depth still depends on the target.
+- Go is the recommended default runtime lane.
+- `validate --strict` is the main readiness gate for local Python and Node runtime repos.
+- Codex package and Gemini packaging are recommended when package or extension delivery is the real product.
+- OpenCode and Cursor fit when the repo should own integration config.
 
-## Stable By Default
+## How This Maps To The Formal Contract
 
-- the main public CLI contract
-- the recommended Go SDK path
-- the stable local Python and Node subset on supported runtime targets
-- the targets explicitly marked stable in the generated support matrix
+- `Recommended` usually maps to the strongest current `public-stable` production lanes.
+- `Advanced` means a supported surface with a narrower, more specialized, or more careful contract.
+- `Experimental` means opt-in churn outside the normal compatibility expectation.
 
-Today that means:
+Use the formal `public-stable`, `public-beta`, and `public-experimental` terms when you are setting policy for a team or promising compatibility to downstream users.
 
-- Claude is production-ready only for the stable default hook subset, not for every Claude package surface
-- Codex is production-ready for the `Notify` runtime lane and for the official `codex-package` lane
-- Gemini extension packaging is production-ready, and the optional Gemini Go runtime is now production-ready for the promoted 9-hook contract
-- OpenCode and Cursor are supported as workspace-config lanes, not as production-ready runtime targets
+## Today In Practice
 
-## Use Carefully
+- Claude is recommended on the default stable hook lane.
+- Codex is recommended both for the `Notify` runtime lane and the official `codex-package` lane.
+- Gemini packaging is recommended, and the promoted Gemini Go runtime is also production-ready.
+- OpenCode and Cursor are repo-managed integration lanes, not the default runtime starting point.
 
-- beta paths that are still evolving
-- workspace-configuration and packaging targets when what you really need is executable plugin behavior
-- install wrappers when what you really want is a runtime or SDK API
+## Advanced Surfaces
 
-## Out Of Scope
+Use these when the tradeoff is intentional and explicit:
 
-- treating every target as if it had the same runtime guarantees
-- treating wrapper packages as SDKs or runtime contracts
-- assuming experimental surfaces carry long-term compatibility promises
+- narrower or specialized runtime expansions beyond the main recommended lanes
+- install wrappers when your real concern is CLI delivery, not runtime APIs or SDKs
+- specialized configuration surfaces that are useful but not the first default for most teams
 
-Pair this page with [Version And Compatibility Policy](/en/reference/version-and-compatibility), [Target Support](/en/reference/target-support), and [Stability Model](/en/concepts/stability-model).
+## Experimental Surfaces
+
+Treat experimental areas as opt-in and high-churn. They are useful for early adopters, but they should not silently become long-term team policy.

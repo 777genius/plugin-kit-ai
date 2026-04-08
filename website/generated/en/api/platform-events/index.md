@@ -14,7 +14,7 @@ translationRequired: false
 ---
 # Platform Events
 
-This area shows event surfaces by platform and helps you separate the stable lane from wider beta runtime coverage.
+This area shows exact runtime events by platform. Open it when you already know the lane you care about and want the current event-level contract.
 
 - Open this when you already know the target and need the event-level contract.
 - Use `Capabilities` when you want a cross-platform view instead of a platform-first view.
