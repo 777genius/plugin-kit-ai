@@ -71,6 +71,33 @@
       "status": "Уже доступен",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "linear",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Linear",
+      "description": "Реальный MCP-плагин Linear для управления задачами, проектами и workflow через официальный Linear MCP endpoint.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/linear",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "supabase",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Supabase",
+      "description": "Реальный MCP-плагин Supabase для операций с проектом и Dev-процессами через Supabase-hosted MCP.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/supabase",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "greptile",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Greptile",
+      "description": "Реальный MCP-плагин Greptile для поиска по репозиторию и кода с помощью hosted MCP.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/greptile",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     }
   ],
   "comparisonRows": [

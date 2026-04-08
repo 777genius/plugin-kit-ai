@@ -71,6 +71,33 @@
       "status": "Available now",
       "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "linear",
+      "eyebrow": "Real catalog plugin",
+      "title": "Linear",
+      "description": "A real Linear MCP plugin for teams using issues, project planning, and workflow automation via the official Linear MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/linear",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "supabase",
+      "eyebrow": "Real catalog plugin",
+      "title": "Supabase",
+      "description": "A real Supabase MCP plugin for project-scoped development workflows through Supabase-hosted MCP.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/supabase",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "greptile",
+      "eyebrow": "Real catalog plugin",
+      "title": "Greptile",
+      "description": "A real Greptile MCP plugin for repository-aware code intelligence via Greptile hosted MCP.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/greptile",
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     }
   ],
   "comparisonRows": [
