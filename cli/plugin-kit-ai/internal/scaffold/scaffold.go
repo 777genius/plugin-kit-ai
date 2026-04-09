@@ -106,7 +106,7 @@ func IsKnownTemplate(name string) bool {
 func DefaultJobTemplateTargets(template string) []string {
 	switch NormalizeTemplate(template) {
 	case InitTemplateOnlineService, InitTemplateLocalTool:
-		return []string{"claude", "codex-package", "gemini", "opencode", "cursor"}
+		return []string{"claude", "codex-package", "opencode", "cursor"}
 	default:
 		return nil
 	}

@@ -78,6 +78,49 @@ func TestBuildPlan_LocalToolTemplateSingleTarget(t *testing.T) {
 	}
 }
 
+func TestDefaultJobTemplateTargetsDoNotIncludeGemini(t *testing.T) {
+	t.Parallel()
+	for _, templateName := range []string{InitTemplateOnlineService, InitTemplateLocalTool} {
+		targets := DefaultJobTemplateTargets(templateName)
+		if contains(targets, "gemini") {
+			t.Fatalf("%s targets unexpectedly include gemini: %v", templateName, targets)
+		}
+		for _, want := range []string{"claude", "codex-package", "opencode", "cursor"} {
+			if !contains(targets, want) {
+				t.Fatalf("%s targets missing %q: %v", templateName, want, targets)
+			}
+		}
+	}
+}
+
+func TestRenderTemplate_JobReadmesKeepGeneratedRootFilesOutOfEditableSource(t *testing.T) {
+	t.Parallel()
+	for _, templateName := range []string{"job.online-service.README.md.tmpl", "job.local-tool.README.md.tmpl"} {
+		body, _, err := RenderTemplate(templateName, Data{
+			ProjectName: "demo",
+			JobTemplate: strings.TrimSuffix(strings.TrimPrefix(templateName, "job."), ".README.md.tmpl"),
+			Targets:     []string{"claude", "codex-package", "opencode", "cursor"},
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", templateName, err)
+		}
+		rendered := string(body)
+		if !strings.Contains(rendered, "## Editable Source") {
+			t.Fatalf("%s missing editable source section:\n%s", templateName, rendered)
+		}
+		if !strings.Contains(rendered, "## Generated Root Files") {
+			t.Fatalf("%s missing generated root files section:\n%s", templateName, rendered)
+		}
+		editableSection := strings.SplitN(rendered, "## Generated Root Files", 2)[0]
+		if strings.Contains(editableSection, "CLAUDE.md") || strings.Contains(editableSection, "AGENTS.md") || strings.Contains(editableSection, "GENERATED.md") {
+			t.Fatalf("%s still lists generated root files as editable source:\n%s", templateName, rendered)
+		}
+		if !strings.Contains(rendered, "root `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`") {
+			t.Fatalf("%s missing generated boundary guidance:\n%s", templateName, rendered)
+		}
+	}
+}
+
 func TestPaths_Gemini(t *testing.T) {
 	t.Parallel()
 	got := Paths("gemini", "my-plugin", true)

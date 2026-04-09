@@ -58,6 +58,61 @@ func TestInitRunner_unknownPlatform(t *testing.T) {
 	}
 }
 
+func TestInitRunner_onlineServiceTemplateDoesNotRequireGeminiNameByDefault(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "DemoPlugin")
+	got, err := r.Run(InitOptions{
+		ProjectName: "DemoPlugin",
+		Template:    scaffold.InitTemplateOnlineService,
+		OutputDir:   out,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != out {
+		t.Fatalf("out = %q, want %q", got, out)
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "README.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
+		"README.md",
+		filepath.Join(".claude-plugin", "plugin.json"),
+		filepath.Join(".codex-plugin", "plugin.json"),
+		".mcp.json",
+		"opencode.json",
+		filepath.Join(".cursor", "mcp.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(out, "gemini-extension.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected gemini-extension.json to stay absent by default, err=%v", err)
+	}
+}
+
+func TestInitRunner_onlineServiceTemplateExplicitGeminiStillRequiresKebabCase(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	_, err := r.Run(InitOptions{
+		ProjectName:      "DemoPlugin",
+		Template:         scaffold.InitTemplateOnlineService,
+		Platform:         "gemini",
+		PlatformExplicit: true,
+		OutputDir:        filepath.Join(t.TempDir(), "DemoPlugin"),
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "must be lowercase kebab-case") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestInitRunner_claudeStableDefault(t *testing.T) {
 	t.Parallel()
 	var r InitRunner
