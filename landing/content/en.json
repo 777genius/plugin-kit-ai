@@ -157,6 +157,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "atlassian",
+      "slug": "atlassian",
+      "eyebrow": "Real catalog plugin",
+      "title": "Atlassian",
+      "tagline": "Hosted Atlassian Rovo MCP access to Jira, Confluence, and Compass through one OAuth-first remote integration.",
+      "description": "A real Atlassian MCP plugin for hosted access to Jira, Confluence, and Compass workflows through Atlassian's official remote MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/atlassian",
+      "logoSrc": "atlassian.svg",
+      "logoAlt": "Atlassian logo",
+      "categories": ["planning", "collaboration", "review"],
+      "highlights": [
+        "Brings Jira issues, Confluence docs, and Compass service context into the same agent workflow.",
+        "Keeps the community default clean with one hosted OAuth-based connection instead of mixing in token and proxy setup by default.",
+        "Strong fit for product and engineering teams that already live inside Atlassian Cloud."
+      ],
+      "useCases": [
+        "Search and update Jira work while implementing or reviewing changes.",
+        "Pull Confluence specs and operating docs into the same workflow as active coding work.",
+        "Use Compass service context to reason about ownership, dependencies, and change impact."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "notion",
       "slug": "notion",
       "eyebrow": "Real catalog plugin",

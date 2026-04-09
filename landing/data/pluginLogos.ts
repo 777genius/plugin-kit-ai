@@ -1,3 +1,4 @@
+import atlassianLogo from '~/assets/images/plugin-logos/atlassian.svg';
 import context7Logo from '~/assets/images/plugin-logos/context7.png';
 import firebaseLogo from '~/assets/images/plugin-logos/firebase.svg';
 import githubLogo from '~/assets/images/plugin-logos/github.svg';
@@ -18,6 +19,7 @@ interface PluginLogoDefinition {
 }
 
 const pluginLogos: Record<string, PluginLogoDefinition> = {
+  'atlassian.svg': { src: atlassianLogo },
   'context7.svg': { src: context7Logo },
   'firebase.svg': { src: firebaseLogo },
   'github.svg': { src: githubLogo, surface: 'light' },

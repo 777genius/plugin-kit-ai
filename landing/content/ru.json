@@ -157,6 +157,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "atlassian",
+      "slug": "atlassian",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Atlassian",
+      "tagline": "Hosted Atlassian Rovo MCP для Jira, Confluence и Compass через один OAuth-first remote integration path.",
+      "description": "Реальный Atlassian MCP-плагин для hosted доступа к workflow в Jira, Confluence и Compass через официальный remote MCP endpoint Atlassian.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/atlassian",
+      "logoSrc": "atlassian.svg",
+      "logoAlt": "Логотип Atlassian",
+      "categories": ["planning", "collaboration", "review"],
+      "highlights": [
+        "Подтягивает Jira issues, Confluence docs и Compass service context в тот же agent workflow, где идёт реальная работа.",
+        "Оставляет community-default чистым через один hosted OAuth-путь, а не смешивает token и proxy setup в базовой версии.",
+        "Сильный fit для product и engineering-команд, которые уже живут внутри Atlassian Cloud."
+      ],
+      "useCases": [
+        "Искать и обновлять Jira-задачи во время реализации и review.",
+        "Подтягивать Confluence-спеки и operating docs в тот же workflow, где идёт активная разработка.",
+        "Использовать Compass context, чтобы понимать ownership, зависимости и impact изменений."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "notion",
       "slug": "notion",
       "eyebrow": "Реальный плагин каталога",
