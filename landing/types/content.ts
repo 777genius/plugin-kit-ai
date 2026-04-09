@@ -103,6 +103,7 @@ export interface InstallChannel {
   href: string;
   note?: string;
   command?: string;
+  invocation?: string;
   recommended?: boolean;
 }
 

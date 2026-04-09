@@ -1001,19 +1001,20 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "建议已使用 Homebrew 的计算机进行本地安装。",
+      "description": "建议已经使用 Homebrew 的机器进行长期安装。",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Homebrew 可用时的最佳默认值。",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
-      "recommended": true
+      "note": "当您计划每天使用 plugin-kit-ai 时，这是更好的选择。",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
     },
     {
       "id": "npm",
-      "title": "新项目管理",
-      "description": "官方 JavaScript 生态系统包装器，适用于已经将工作流程集中在 npm 上的团队。",
+      "title": "npx",
+      "description": "当您想最快添加一个真实插件时，无需永久安装即可运行 plugin-kit-ai。",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "下载匹配的经过验证的版本二进制文件的公共测试版包装器。",
-      "command": "npm i -g plugin-kit-ai"
+      "note": "当您首先想要一次性插件安装时，这是最快的路径。",
+      "command": "npx plugin-kit-ai@latest version",
+      "invocation": "npx plugin-kit-ai@latest",
+      "recommended": true
     },
     {
       "id": "pipx",
@@ -1050,28 +1051,28 @@
   ],
   "quickstartSteps": [
     {
-      "id": "install",
-      "title": "安装 CLI",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
-      "note": "Homebrew 是 CLI 本身的推荐本地安装路径。"
+      "id": "install-cli",
+      "title": "按你的方式运行 plugin-kit-ai",
+      "command": "npx plugin-kit-ai@latest version",
+      "note": "使用 npx 获得最快的首次体验，或安装 CLI 供日常使用。"
     },
     {
-      "id": "init",
-      "title": "首先创建最强的默认存储库",
-      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "默认路径从最受支持的制作故事开始。"
+      "id": "try-plugin",
+      "title": "现在就试一个真实插件",
+      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
+      "note": "第一条命令是安全的单目标路径。第二条会为该插件安装所有受支持的输出。"
     },
     {
-      "id": "generate",
-      "title": "生成托管目标文件",
-      "command": "plugin-kit-ai generate .",
-      "note": "从一个创作的存储库生成托管目标工件。"
+      "id": "build-plugin",
+      "title": "创建你自己的插件仓库",
+      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
+      "note": "当安装路径已经清晰后，再从与任务匹配的模板开始。"
     },
     {
       "id": "validate",
-      "title": "移交前验证",
-      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "在 CI、队友交接或发布之前使用严格的验证门。"
+      "title": "在移交前生成并验证",
+      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
+      "note": "在 CI、交接给队友或发布之前使用 generate 和严格验证。"
     }
   ],
   "supportLanes": [

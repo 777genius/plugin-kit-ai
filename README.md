@@ -85,7 +85,17 @@ Guide:
 
 If you do not know which path to choose yet, start here:
 
-Recommended install path:
+Try a real plugin now without installing the CLI permanently:
+
+```bash
+npx plugin-kit-ai@latest add notion --target claude
+npx plugin-kit-ai@latest add notion
+```
+
+The first command is the safe single-target path.
+The second installs every supported output for that plugin.
+
+Recommended daily-use install path:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai

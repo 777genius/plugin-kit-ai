@@ -10,7 +10,17 @@ translationRequired: true
 
 # Installation
 
-Use Homebrew by default when it fits your environment. The goal here is simple: install the CLI and get to your first working repo fast.
+Use `npx` for the fastest first plugin install. Use Homebrew when you want plugin-kit-ai installed for daily work.
+
+## Fastest First Plugin Install
+
+```bash
+npx plugin-kit-ai@latest add notion --target claude
+npx plugin-kit-ai@latest add notion
+```
+
+- The first command is the safe single-target path.
+- The second installs every supported output for that plugin.
 
 ## Supported Channels
 
@@ -51,13 +61,14 @@ plugin-kit-ai version
 
 ## Which One Should Most People Use?
 
-- Use Homebrew if you are on macOS and want the smoothest default path.
+- Use `npx` when you want the shortest first run and do not want a permanent install yet.
+- Use Homebrew if you are on macOS and want the smoothest daily-use path.
 - Use npm or pipx only when that already matches your team environment.
 - Use the verified script when you need a fallback outside package-manager-first setups.
 
 ## After Install
 
-Most people should continue straight to [Quickstart](/en/guide/quickstart) and create the first repo on the default Go path.
+Most people should continue straight to [Quickstart](/en/guide/quickstart), try a real plugin first, then create the first repo on the job-first path that matches the work.
 
 If you chose `pipx` because your team is Python-first and you already know you want the Python path, continue with [Build A Python Runtime Plugin](/en/guide/python-runtime).
 

@@ -5,6 +5,7 @@ import CommandSnippetCard from '~/components/shared/CommandSnippetCard.vue';
 import { resolveAgentBadge } from '~/data/agentBadges';
 import { buildInstallCommandForSelection } from '~/data/pluginInstall';
 import type { InstallChannel, PluginCard, PluginResolvedInstallSpec } from '~/types/content';
+import { applyCliInvocation, getCliInvocation } from '~/utils/cliInvocation';
 
 const props = withDefaults(
   defineProps<{
@@ -72,6 +73,10 @@ const selectedInstallChannel = computed(
     installChannels.value[0],
 );
 
+const selectedCliInvocation = computed(() =>
+  getCliInvocation(selectedInstallChannel.value?.invocation),
+);
+
 const supportLanes = computed(() =>
   props.installSpec.recommendedTargetOrder
     .map((targetId) => targetLanes.value.find((lane) => lane.targetId === targetId))
@@ -87,6 +92,16 @@ const selectedTargetNames = computed(() => selectedTargets.value.map((lane) => l
 const installCommand = computed(() =>
   buildInstallCommandForSelection(props.installSpec, selectedTargetIds.value),
 );
+
+const renderedInstallCommand = computed(() =>
+  applyCliInvocation(installCommand.value, selectedCliInvocation.value),
+);
+
+const renderedManageCommands = computed(() => ({
+  update: applyCliInvocation(props.installSpec.manageCommands.update, selectedCliInvocation.value),
+  repair: applyCliInvocation(props.installSpec.manageCommands.repair, selectedCliInvocation.value),
+  remove: applyCliInvocation(props.installSpec.manageCommands.remove, selectedCliInvocation.value),
+}));
 
 const selectionScope = computed(() => {
   const uniqueScopes = [...new Set(selectedTargets.value.map((lane) => lane.scope))];
@@ -370,7 +385,7 @@ function toggleExpanded() {
 
                 <CommandSnippetCard
                   :label="t('plugins.install.installCommandLabel')"
-                  :command="installCommand"
+                  :command="renderedInstallCommand"
                   :copy-label="t('plugins.install.copy')"
                   :copied-label="t('plugins.install.copied')"
                   :accent="accent"
@@ -504,21 +519,21 @@ function toggleExpanded() {
                 <div class="plugin-install__manage-grid">
                   <CommandSnippetCard
                     :label="t('plugins.install.updateCommandLabel')"
-                    :command="installSpec.manageCommands.update"
+                    :command="renderedManageCommands.update"
                     :copy-label="t('plugins.install.copy')"
                     :copied-label="t('plugins.install.copied')"
                     :accent="accent"
                   />
                   <CommandSnippetCard
                     :label="t('plugins.install.repairCommandLabel')"
-                    :command="installSpec.manageCommands.repair"
+                    :command="renderedManageCommands.repair"
                     :copy-label="t('plugins.install.copy')"
                     :copied-label="t('plugins.install.copied')"
                     :accent="accent"
                   />
                   <CommandSnippetCard
                     :label="t('plugins.install.removeCommandLabel')"
-                    :command="installSpec.manageCommands.remove"
+                    :command="renderedManageCommands.remove"
                     :copy-label="t('plugins.install.copy')"
                     :copied-label="t('plugins.install.copied')"
                     :accent="accent"

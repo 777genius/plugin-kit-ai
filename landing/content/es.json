@@ -1001,19 +1001,20 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Instalación local recomendada para máquinas que ya usan Homebrew.",
+      "description": "Instalación permanente recomendada para máquinas que ya usan Homebrew.",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "El mejor valor predeterminado cuando Homebrew está disponible.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
-      "recommended": true
+      "note": "La mejor opción cuando planea usar plugin-kit-ai todos los días.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
     },
     {
       "id": "npm",
-      "title": "npm",
-      "description": "Envoltorio oficial del ecosistema JavaScript para equipos que ya centran su flujo de trabajo en npm.",
+      "title": "npx",
+      "description": "Ejecute plugin-kit-ai sin una instalación permanente cuando quiera añadir un plugin real lo más rápido posible.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Contenedor beta público que descarga el binario de versión verificada coincidente.",
-      "command": "npm i -g plugin-kit-ai"
+      "note": "La ruta más rápida cuando primero quiere una instalación de plugin con un solo comando.",
+      "command": "npx plugin-kit-ai@latest version",
+      "invocation": "npx plugin-kit-ai@latest",
+      "recommended": true
     },
     {
       "id": "pipx",
@@ -1050,28 +1051,28 @@
   ],
   "quickstartSteps": [
     {
-      "id": "install",
-      "title": "Instale el CLI",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
-      "note": "Homebrew es la ruta de instalación local recomendada para el propio CLI."
+      "id": "install-cli",
+      "title": "Ejecute plugin-kit-ai a su manera",
+      "command": "npx plugin-kit-ai@latest version",
+      "note": "Use npx para la primera prueba más rápida, o instale el CLI para el uso diario."
     },
     {
-      "id": "init",
-      "title": "Cree primero el repositorio predeterminado más sólido",
-      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "La ruta predeterminada comienza con la historia de producción compatible más sólida."
+      "id": "try-plugin",
+      "title": "Pruebe un plugin real ahora",
+      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
+      "note": "El primer comando es la ruta segura para un solo destino. El segundo instala todas las salidas compatibles para ese plugin."
     },
     {
-      "id": "generate",
-      "title": "Generar archivos de destino administrados",
-      "command": "plugin-kit-ai generate .",
-      "note": "Genere los artefactos de destino administrados a partir de un repositorio creado."
+      "id": "build-plugin",
+      "title": "Cree su propio repositorio de plugin",
+      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
+      "note": "Cuando la ruta de instalación ya esté clara, comience con la plantilla que coincide con el trabajo."
     },
     {
       "id": "validate",
-      "title": "Validar antes del traspaso",
-      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "Utilice la puerta de validación estricta antes de CI, traspaso de compañeros de equipo o liberación."
+      "title": "Genere y valide antes del traspaso",
+      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
+      "note": "Use generate y la validación estricta antes de CI, del traspaso a un compañero o de una versión."
     }
   ],
   "supportLanes": [

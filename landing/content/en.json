@@ -1001,18 +1001,20 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Recommended local install for machines that already use Homebrew.",
+      "description": "Recommended permanent install for machines that already use Homebrew.",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Best default when Homebrew is available.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
-      "recommended": true
+      "note": "Best when you plan to use plugin-kit-ai every day.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
     },
     {
       "id": "npm",
-      "title": "npm",
-      "description": "Official JavaScript ecosystem wrapper for teams that already center their workflow on npm.",
+      "title": "npx",
+      "description": "Run plugin-kit-ai without a permanent install when you want the fastest first plugin add.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "command": "npm i -g plugin-kit-ai"
+      "note": "Fastest path when you want a one-command plugin install first.",
+      "command": "npx plugin-kit-ai@latest version",
+      "invocation": "npx plugin-kit-ai@latest",
+      "recommended": true
     },
     {
       "id": "pipx",
@@ -1049,28 +1051,28 @@
   ],
   "quickstartSteps": [
     {
-      "id": "install",
-      "title": "Install the CLI",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
-      "note": "Homebrew is the recommended local install path for the CLI itself."
+      "id": "install-cli",
+      "title": "Run plugin-kit-ai your way",
+      "command": "npx plugin-kit-ai@latest version",
+      "note": "Use npx for the fastest first try, or install the CLI for daily use."
     },
     {
-      "id": "init",
-      "title": "Create the strongest default repo first",
-      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "The default path starts with the strongest supported production story."
+      "id": "try-plugin",
+      "title": "Try a real plugin now",
+      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
+      "note": "The first command is the safe single-target path. The second installs every supported output for that plugin."
     },
     {
-      "id": "generate",
-      "title": "Generate managed target files",
-      "command": "plugin-kit-ai generate .",
-      "note": "Generate the managed target artifacts from one authored repo."
+      "id": "build-plugin",
+      "title": "Build your own plugin repo",
+      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
+      "note": "Once the install path feels right, start from the template that matches the job."
     },
     {
       "id": "validate",
-      "title": "Validate before handoff",
-      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "Use the strict validation gate before CI, teammate handoff, or release."
+      "title": "Generate and validate before handoff",
+      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
+      "note": "Use generate plus strict validation before CI, teammate handoff, or release."
     }
   ],
   "supportLanes": [

@@ -1001,19 +1001,20 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Рекомендуемый локальный способ установки для машин, где уже используется Homebrew.",
+      "description": "Рекомендуемый постоянный способ установки для машин, где уже используется Homebrew.",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Лучший вариант по умолчанию, если Homebrew уже есть в системе.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
-      "recommended": true
+      "note": "Лучший вариант, если вы планируете пользоваться plugin-kit-ai каждый день.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
     },
     {
       "id": "npm",
-      "title": "npm",
-      "description": "Официальная JavaScript-обёртка для команд, где рабочий процесс уже построен вокруг npm.",
+      "title": "npx",
+      "description": "Запускайте plugin-kit-ai без постоянной установки, если хотите максимально быстро добавить реальный плагин.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Публичная бета-обёртка, которая загружает соответствующий проверенный бинарный релиз.",
-      "command": "npm i -g plugin-kit-ai"
+      "note": "Самый быстрый путь, если сначала нужен one-command install плагина.",
+      "command": "npx plugin-kit-ai@latest version",
+      "invocation": "npx plugin-kit-ai@latest",
+      "recommended": true
     },
     {
       "id": "pipx",
@@ -1050,28 +1051,28 @@
   ],
   "quickstartSteps": [
     {
-      "id": "install",
-      "title": "Установите CLI",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
-      "note": "Homebrew — рекомендуемый локальный путь установки самого CLI."
+      "id": "install-cli",
+      "title": "Запустите plugin-kit-ai удобным способом",
+      "command": "npx plugin-kit-ai@latest version",
+      "note": "Используйте npx для самого быстрого первого старта, а CLI ставьте отдельно для ежедневной работы."
     },
     {
-      "id": "init",
-      "title": "Сначала создайте самый сильный базовый репозиторий",
-      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "Путь по умолчанию стартует с самого сильного поддерживаемого сценария, готового для продакшена."
+      "id": "try-plugin",
+      "title": "Сразу попробуйте реальный плагин",
+      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
+      "note": "Первая команда - безопасный single-target путь. Вторая ставит все поддерживаемые outputs этого плагина."
     },
     {
-      "id": "generate",
-      "title": "Сгенерируйте управляемые файлы под выбранную платформу",
-      "command": "plugin-kit-ai generate .",
-      "note": "Так вы получаете управляемые артефакты из одного исходного репозитория."
+      "id": "build-plugin",
+      "title": "Создайте свой plugin repo",
+      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
+      "note": "Когда install path уже понятен, стартуйте с template, который совпадает с задачей."
     },
     {
       "id": "validate",
-      "title": "Проверьте всё перед передачей дальше",
-      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "Используйте строгую проверку до CI, передачи коллеге или релиза."
+      "title": "Сгенерируйте и проверьте перед handoff",
+      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
+      "note": "Используйте generate и строгую проверку до CI, handoff коллеге или релиза."
     }
   ],
   "supportLanes": [

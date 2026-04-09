@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import CommandSnippetCard from '~/components/shared/CommandSnippetCard.vue';
+import { applyCliInvocation, getCliInvocation } from '~/utils/cliInvocation';
 
 const { content } = useLandingContent();
 const { t, locale } = useI18n();
@@ -51,17 +52,39 @@ const selectedInstallChannel = computed(
     null,
 );
 
+const selectedCliInvocation = computed(() =>
+  getCliInvocation(selectedInstallChannel.value?.invocation),
+);
+
 const quickstartSteps = computed(() =>
   content.value.quickstartSteps.map((step) => {
-    if (step.id !== 'install' || !selectedInstallChannel.value?.command) {
-      return step;
+    if (step.id === 'install-cli' && selectedInstallChannel.value?.command) {
+      const command =
+        selectedInstallChannel.value.id === 'npm'
+          ? selectedInstallChannel.value.command
+          : `${selectedInstallChannel.value.command}\n${selectedCliInvocation.value} version`;
+      return {
+        ...step,
+        command,
+        note: selectedInstallChannel.value.note ?? step.note,
+      };
     }
 
-    return {
-      ...step,
-      command: `${selectedInstallChannel.value.command}\nplugin-kit-ai version`,
-      note: selectedInstallChannel.value.note ?? step.note,
-    };
+    if (step.id === 'try-plugin') {
+      return {
+        ...step,
+        command: `${selectedCliInvocation.value} add notion --target claude\n${selectedCliInvocation.value} add notion`,
+      };
+    }
+
+    if (step.id === 'build-plugin' || step.id === 'validate') {
+      return {
+        ...step,
+        command: applyCliInvocation(step.command, selectedCliInvocation.value),
+      };
+    }
+
+    return step;
   }),
 );
 </script>

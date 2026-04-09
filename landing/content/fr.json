@@ -1001,19 +1001,20 @@
     {
       "id": "brew",
       "title": "Homebrew",
-      "description": "Installation locale recommandée pour les machines qui utilisent déjà Homebrew.",
+      "description": "Installation permanente recommandée pour les machines qui utilisent déjà Homebrew.",
       "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
-      "note": "Meilleure valeur par défaut lorsque Homebrew est disponible.",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
-      "recommended": true
+      "note": "Le meilleur choix lorsque vous prévoyez d'utiliser plugin-kit-ai tous les jours.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai"
     },
     {
       "id": "npm",
-      "title": "npm",
-      "description": "Wrapper officiel de l'écosystème JavaScript pour les équipes qui centrent déjà leur flux de travail sur npm.",
+      "title": "npx",
+      "description": "Exécutez plugin-kit-ai sans installation permanente lorsque vous voulez ajouter un vrai plugin le plus vite possible.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Wrapper bêta public qui télécharge la version binaire vérifiée correspondante.",
-      "command": "npm i -g plugin-kit-ai"
+      "note": "Le chemin le plus rapide lorsque vous voulez d'abord une installation de plugin en une seule commande.",
+      "command": "npx plugin-kit-ai@latest version",
+      "invocation": "npx plugin-kit-ai@latest",
+      "recommended": true
     },
     {
       "id": "pipx",
@@ -1050,28 +1051,28 @@
   ],
   "quickstartSteps": [
     {
-      "id": "install",
-      "title": "Installez le CLI",
-      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
-      "note": "Homebrew est le chemin d'installation local recommandé pour le CLI lui-même."
+      "id": "install-cli",
+      "title": "Exécutez plugin-kit-ai comme vous voulez",
+      "command": "npx plugin-kit-ai@latest version",
+      "note": "Utilisez npx pour l'essai le plus rapide, ou installez le CLI pour un usage quotidien."
     },
     {
-      "id": "init",
-      "title": "Créez d'abord le dépôt par défaut le plus solide",
-      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
-      "note": "Le chemin par défaut commence par l'histoire de production prise en charge la plus solide."
+      "id": "try-plugin",
+      "title": "Essayez un vrai plugin maintenant",
+      "command": "plugin-kit-ai add notion --target claude\nplugin-kit-ai add notion",
+      "note": "La première commande est le chemin sûr pour une seule cible. La seconde installe toutes les sorties prises en charge pour ce plugin."
     },
     {
-      "id": "generate",
-      "title": "Générer des fichiers cibles gérés",
-      "command": "plugin-kit-ai generate .",
-      "note": "Générez les artefacts cibles gérés à partir d’un référentiel créé."
+      "id": "build-plugin",
+      "title": "Créez votre propre dépôt de plugin",
+      "command": "plugin-kit-ai init my-plugin --template online-service\ncd my-plugin",
+      "note": "Une fois le chemin d'installation clair, commencez avec le modèle qui correspond au travail."
     },
     {
       "id": "validate",
-      "title": "Valider avant le transfert",
-      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
-      "note": "Utilisez la porte de validation stricte avant le CI, le transfert d'un coéquipier ou la libération."
+      "title": "Générez et validez avant le transfert",
+      "command": "plugin-kit-ai generate .\nplugin-kit-ai validate . --platform claude --strict",
+      "note": "Utilisez generate et la validation stricte avant le CI, le transfert à un coéquipier ou une version."
     }
   ],
   "supportLanes": [

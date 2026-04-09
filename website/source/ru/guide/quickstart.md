@@ -24,6 +24,18 @@ translationRequired: true
 
 Если хотите сначала короткое объяснение, откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building).
 
+## Сразу попробуйте реальный плагин
+
+Если хотите максимально быстро убедиться, что flow реальный, начните отсюда:
+
+```bash
+npx plugin-kit-ai@latest add notion --target claude
+npx plugin-kit-ai@latest add notion
+```
+
+- Первая команда - безопасный single-target путь.
+- Вторая ставит все поддерживаемые outputs этого плагина.
+
 ## Если читать только одно
 
 Начинайте с job-first пути выше.
@@ -44,6 +56,15 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
 Это сохраняет старый путь для Codex runtime на Go, но это уже не рекомендуемый first-run путь для новых repo.
+
+## Установите CLI для ежедневной работы
+
+Если планируете пользоваться plugin-kit-ai постоянно, установите CLI отдельно:
+
+```bash
+brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
+plugin-kit-ai version
+```
 
 ## Почему этот путь всё ещё существует
 

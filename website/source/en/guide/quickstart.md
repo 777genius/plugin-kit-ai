@@ -24,6 +24,18 @@ Pick the repo shape by what you are building:
 
 If you want the shortest decision page first, read [Choose What You Are Building](/en/guide/choose-what-you-are-building).
 
+## Use A Real Plugin Now
+
+If you want the fastest first proof that the flow is real, start here:
+
+```bash
+npx plugin-kit-ai@latest add notion --target claude
+npx plugin-kit-ai@latest add notion
+```
+
+- The first command is the safe single-target path.
+- The second installs every supported output for that plugin.
+
 ## If You Only Read One Thing
 
 Start with the job-first path above.
@@ -44,6 +56,15 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
 That keeps the older Codex runtime Go path working, but it is not the recommended first-run path for new repos anymore.
+
+## Install The CLI For Daily Use
+
+If you plan to use plugin-kit-ai every day, install the CLI permanently:
+
+```bash
+brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
+plugin-kit-ai version
+```
 
 ## Why This Path Still Exists
 
