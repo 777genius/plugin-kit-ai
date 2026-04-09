@@ -241,40 +241,6 @@
       ]
     },
     {
-      "id": "notion",
-      "slug": "notion",
-      "eyebrow": "Complemento de catálogo real",
-      "title": "Noción",
-      "tagline": "Documentos del espacio de trabajo, contexto de planificación y conocimiento del equipo a través del servicio alojado MCP de Notion.",
-      "description": "Un complemento MCP real de Notion para el acceso al espacio de trabajo autorizado por el usuario a través del punto final alojado MCP de Notion con una integración remota basada en OAuth en Claude, Codex, Gemini, OpenCode y Cursor.",
-      "status": "Disponible ahora",
-      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/notion",
-      "logoSrc": "notion.svg",
-      "logoAlt": "Logotipo de noción",
-      "categories": [
-        "docs",
-        "planning",
-        "collaboration"
-      ],
-      "highlights": [
-        "Es mejor cuando el conocimiento del producto, las especificaciones y el equipo ya se encuentran en Notion.",
-        "Mantiene el contexto del espacio de trabajo interactivo dentro del mismo flujo de agente a través de MCP y OAuth alojados.",
-        "Útil para leer, buscar y actualizar el contexto de planificación sin crear una integración local separada."
-      ],
-      "useCases": [
-        "Extraer el contexto del proyecto de los documentos del equipo antes de realizar cambios en el código o el producto.",
-        "Verificar especificaciones, notas de lanzamiento o documentos operativos sin salir del espacio de trabajo del agente.",
-        "Actualización de páginas de planificación compartidas durante la ejecución y seguimiento."
-      ],
-      "badges": [
-        "Claude",
-        "Codex",
-        "Gemini",
-        "OpenCode",
-        "Cursor"
-      ]
-    },
-    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Complemento de catálogo real",
@@ -299,6 +265,40 @@
         "Buscar y actualizar trabajo de Jira mientras se implementan o revisan cambios.",
         "Incorporar especificaciones de Confluence y documentos operativos al mismo flujo que el trabajo de programación activo.",
         "Usar el contexto de Compass para razonar sobre ownership, dependencias e impacto de cambios."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "notion",
+      "slug": "notion",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Noción",
+      "tagline": "Documentos del espacio de trabajo, contexto de planificación y conocimiento del equipo a través del servicio alojado MCP de Notion.",
+      "description": "Un complemento MCP real de Notion para el acceso al espacio de trabajo autorizado por el usuario a través del punto final alojado MCP de Notion con una integración remota basada en OAuth en Claude, Codex, Gemini, OpenCode y Cursor.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/notion",
+      "logoSrc": "notion.svg",
+      "logoAlt": "Logotipo de noción",
+      "categories": [
+        "docs",
+        "planning",
+        "collaboration"
+      ],
+      "highlights": [
+        "Es mejor cuando el conocimiento del producto, las especificaciones y el equipo ya se encuentran en Notion.",
+        "Mantiene el contexto del espacio de trabajo interactivo dentro del mismo flujo de agente a través de MCP y OAuth alojados.",
+        "Útil para leer, buscar y actualizar el contexto de planificación sin crear una integración local separada."
+      ],
+      "useCases": [
+        "Extraer el contexto del proyecto de los documentos del equipo antes de realizar cambios en el código o el producto.",
+        "Verificar especificaciones, notas de lanzamiento o documentos operativos sin salir del espacio de trabajo del agente.",
+        "Actualización de páginas de planificación compartidas durante la ejecución y seguimiento."
       ],
       "badges": [
         "Claude",
