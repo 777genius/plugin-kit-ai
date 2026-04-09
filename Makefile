@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -79,6 +79,9 @@ test-chrome-devtools-live:
 
 test-atlassian-live:
 	PLUGIN_KIT_AI_RUN_ATLASSIAN_LIVE=1 go test -count=1 -run '^TestAtlassianCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-cloudflare-live:
+	PLUGIN_KIT_AI_RUN_CLOUDFLARE_LIVE=1 go test -count=1 -run '^TestCloudflareCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-vercel-live:
 	PLUGIN_KIT_AI_RUN_VERCEL_LIVE=1 go test -count=1 -run '^TestVercelCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)

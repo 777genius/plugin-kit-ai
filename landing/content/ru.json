@@ -157,6 +157,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "cloudflare",
+      "slug": "cloudflare",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Cloudflare",
+      "tagline": "Hosted OAuth-first доступ к Cloudflare API через token-efficient Code Mode MCP server от Cloudflare.",
+      "description": "Реальный Cloudflare MCP-плагин для широких Cloudflare API workflow через официальный hosted API MCP endpoint Cloudflare, где community-default остаётся на Code Mode server, а не на тысячах endpoint tools.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Логотип Cloudflare",
+      "categories": ["cloud", "backend", "devops"],
+      "highlights": [
+        "Сильный default для команд, которым нужен один широкий Cloudflare entrypoint вместо набора узких product plugins.",
+        "Использует официальный API MCP server Cloudflare с Code Mode, который резко снижает token cost по сравнению с тысячами native tools.",
+        "Оставляет OAuth чистым community-default, а bearer-token automation выносит в advanced path."
+      ],
+      "useCases": [
+        "Смотреть и управлять Workers, KV, R2, D1, DNS и другими Cloudflare-продуктами из того же agent workflow.",
+        "Позволять агентам искать нужную часть Cloudflare API и выполнять реальные операции без загрузки полного OpenAPI schema в контекст.",
+        "Поддерживать platform и infra changes без отдельного локального bridge в default plugin."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Реальный плагин каталога",

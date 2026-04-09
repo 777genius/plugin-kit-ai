@@ -157,6 +157,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "cloudflare",
+      "slug": "cloudflare",
+      "eyebrow": "Real catalog plugin",
+      "title": "Cloudflare",
+      "tagline": "Hosted OAuth-first access to the Cloudflare API through Cloudflare's token-efficient Code Mode MCP server.",
+      "description": "A real Cloudflare MCP plugin for broad Cloudflare API workflows through Cloudflare's official hosted API MCP endpoint, keeping the community default on the Code Mode server instead of thousands of endpoint tools.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare logo",
+      "categories": ["cloud", "backend", "devops"],
+      "highlights": [
+        "Strong default for teams that need one broad Cloudflare entrypoint instead of many narrow product plugins.",
+        "Uses Cloudflare's official API MCP server with Code Mode, which keeps token cost dramatically lower than exposing thousands of native tools.",
+        "Keeps OAuth as the clean community default and leaves bearer-token automation as an advanced path."
+      ],
+      "useCases": [
+        "Inspect and manage Workers, KV, R2, D1, DNS, and other Cloudflare products from the same agent workflow.",
+        "Let agents search the Cloudflare API surface and execute real operations without shipping the full OpenAPI schema into context.",
+        "Support infrastructure and platform changes without creating a separate local bridge in the default plugin."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Real catalog plugin",
