@@ -21,7 +21,10 @@ onMounted(() => {
 
 const flagIconMap: Record<string, string> = {
   en: "circle-flags:gb",
-  ru: "circle-flags:ru"
+  ru: "circle-flags:ru",
+  es: "circle-flags:es",
+  fr: "circle-flags:fr",
+  zh: "circle-flags:cn"
 };
 
 const items = computed(() =>

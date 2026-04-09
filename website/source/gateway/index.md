@@ -33,7 +33,14 @@ head:
           : [window.navigator.language || ""];
         candidates.push(...browserLanguages);
 
-        const locale = candidates.some((candidate) => /^ru\b/i.test(String(candidate))) ? "ru" : "en";
+        const preferredLocales = [
+          ["zh", /^zh\b/i],
+          ["es", /^es\b/i],
+          ["fr", /^fr\b/i],
+          ["ru", /^ru\b/i]
+        ];
+        const locale =
+          preferredLocales.find(([, pattern]) => candidates.some((candidate) => pattern.test(String(candidate))))?.[0] || "en";
         try {
           window.localStorage.setItem(storageKey, locale);
         } catch {

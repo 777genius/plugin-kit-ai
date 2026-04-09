@@ -17,19 +17,21 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	i18n := string(i18nBody)
-	mustContain(t, i18n, `export type LocaleCode = 'en' | 'ru';`)
+	mustContain(t, i18n, `export type LocaleCode = 'en' | 'ru' | 'es' | 'fr' | 'zh';`)
 	mustContain(t, i18n, `{ code: 'en'`)
 	mustContain(t, i18n, `{ code: 'ru'`)
+	mustContain(t, i18n, `{ code: 'es'`)
+	mustContain(t, i18n, `{ code: 'fr'`)
+	mustContain(t, i18n, `{ code: 'zh'`)
 	mustNotContain(t, i18n, `{ code: 'de'`)
-	mustNotContain(t, i18n, `{ code: 'fr'`)
 
 	docsLinksBody, err := os.ReadFile(filepath.Join(landingRoot, "composables", "useDocsLinks.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	docsLinks := string(docsLinksBody)
-	mustContain(t, docsLinks, `const docsLocalePattern = /\/(en|ru)(?=\/|$)/;`)
-	mustContain(t, docsLinks, `locale.value === "ru" ? "ru" : "en"`)
+	mustContain(t, docsLinks, `const docsLocalePattern = /\/(en|ru|es|fr|zh)(?=\/|$)/;`)
+	mustContain(t, docsLinks, `new Set<LocaleCode>(["en", "ru", "es", "fr", "zh"])`)
 	mustContain(t, docsLinks, `supportBoundaryUrl`)
 	mustContain(t, docsLinks, `https://777genius.github.io/plugin-kit-ai/docs/en/`)
 
@@ -132,6 +134,15 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, ruLocale, `Hookplex`)
 	mustNotContain(t, ruLocale, `"hookplex":`)
 	mustNotContain(t, ruLocale, `"generate": "generate"`)
+
+	for _, localeFile := range []string{"es.json", "fr.json", "zh.json"} {
+		if _, err := os.Stat(filepath.Join(landingRoot, "locales", localeFile)); err != nil {
+			t.Fatalf("expected locale file %s: %v", localeFile, err)
+		}
+		if _, err := os.Stat(filepath.Join(landingRoot, "content", localeFile)); err != nil {
+			t.Fatalf("expected content file %s: %v", localeFile, err)
+		}
+	}
 
 	headerBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "layout", "AppHeader.vue"))
 	if err != nil {

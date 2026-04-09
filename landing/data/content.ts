@@ -1,5 +1,8 @@
 import en from '~/content/en.json';
 import ru from '~/content/ru.json';
+import es from '~/content/es.json';
+import fr from '~/content/fr.json';
+import zh from '~/content/zh.json';
 import { resolvePluginLogo } from '~/data/pluginLogos';
 import type { LandingContent, LocalizedContent, PluginCard } from '~/types/content';
 import type { LocaleCode } from '~/data/i18n';
@@ -7,6 +10,9 @@ import type { LocaleCode } from '~/data/i18n';
 export const contentByLocale = {
   en: en as LandingContent,
   ru: ru as LandingContent,
+  es: es as LandingContent,
+  fr: fr as LandingContent,
+  zh: zh as LandingContent,
 } satisfies LocalizedContent;
 
 const normalizePlugins = (plugins: PluginCard[]): PluginCard[] =>

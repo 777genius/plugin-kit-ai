@@ -1,0 +1,51 @@
+---
+title: "plugin-kit-ai capabilities"
+description: "Show generated target/package or runtime support metadata"
+canonicalId: "command:plugin-kit-ai:capabilities"
+surface: "cli"
+section: "api"
+locale: "es"
+generated: true
+editLink: false
+stability: "public-stable"
+maturity: "stable"
+sourceRef: "cli:plugin-kit-ai capabilities"
+translationRequired: false
+---
+<DocMetaCard surface="cli" stability="public-stable" maturity="stable" source-ref="cli:plugin-kit-ai capabilities" source-href="https://github.com/777genius/plugin-kit-ai/tree/main/cli/plugin-kit-ai" />
+
+# plugin-kit-ai capabilities
+
+Generado a partir del árbol real de comandos Cobra.
+
+Show generated target/package or runtime support metadata
+
+## plugin-kit-ai capabilities
+
+Show generated target/package or runtime support metadata
+
+### Synopsis
+
+Shows generated contract metadata.
+
+Default mode is target/package-oriented because plugin authors usually need to understand target class,
+production boundary, import/generate/validate support, and supported component kinds.
+
+Use --mode runtime to inspect runtime-event support for Claude, Codex, and Gemini.
+
+```
+plugin-kit-ai capabilities [flags]
+```
+
+### Options
+
+```
+      --format string     output format: table or json (default "table")
+  -h, --help              help for capabilities
+      --mode string       capability view: targets or runtime (default "targets")
+      --platform string   limit output to a single platform
+```
+
+### SEE ALSO
+
+* plugin-kit-ai	 - plugin-kit-ai CLI - scaffold and tooling for AI plugins

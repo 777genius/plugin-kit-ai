@@ -1,0 +1,19 @@
+---
+title: "gemini_session_end"
+description: "Capability reference for gemini_session_end"
+canonicalId: "capability:gemini_session_end"
+surface: "capabilities"
+section: "api"
+locale: "es"
+generated: true
+editLink: false
+stability: "public-stable"
+maturity: "stable"
+sourceRef: "docs/generated/support_matrix.md"
+translationRequired: false
+---
+# gemini_session_end
+
+Related runtime events:
+
+- `gemini/SessionEnd`

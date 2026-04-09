@@ -80,7 +80,10 @@ export const sharedConfig = defineConfig({
   locales: {
     root: { label: "Language Gateway", lang: "en-US" },
     en: { label: "English", lang: "en-US" },
-    ru: { label: "Русский", lang: "ru-RU" }
+    ru: { label: "Русский", lang: "ru-RU" },
+    es: { label: "Español", lang: "es-ES" },
+    fr: { label: "Français", lang: "fr-FR" },
+    zh: { label: "简体中文", lang: "zh-CN" }
   },
   rewrites: readJson<Record<string, string>>("redirects.json", {}),
   themeConfig: {

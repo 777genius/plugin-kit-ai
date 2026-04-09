@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useData, useRoute, withBase } from "vitepress";
 
 type Variant = "navbar" | "screen";
-type LocaleCode = "en" | "ru";
+type LocaleCode = "en" | "ru" | "es" | "fr" | "zh";
 
 const props = withDefaults(
   defineProps<{
@@ -20,8 +20,11 @@ const open = ref(false);
 const rootEl = ref<HTMLElement | null>(null);
 
 const locales = [
+  { code: "en" as const, title: "English", shortTitle: "EN", basePath: "/en/" },
   { code: "ru" as const, title: "Русский", shortTitle: "RU", basePath: "/ru/" },
-  { code: "en" as const, title: "English", shortTitle: "EN", basePath: "/en/" }
+  { code: "es" as const, title: "Español", shortTitle: "ES", basePath: "/es/" },
+  { code: "fr" as const, title: "Français", shortTitle: "FR", basePath: "/fr/" },
+  { code: "zh" as const, title: "简体中文", shortTitle: "ZH", basePath: "/zh/" }
 ];
 
 const currentLocale = computed(() => {
@@ -42,11 +45,10 @@ const currentLocaleCode = computed(() => currentLocale.value?.code || null);
 
 function localeFromPath(path: string): LocaleCode | null {
   const normalized = stripBase(normalizePath(path));
-  if (normalized === "/en" || normalized.startsWith("/en/")) {
-    return "en";
-  }
-  if (normalized === "/ru" || normalized.startsWith("/ru/")) {
-    return "ru";
+  for (const locale of locales) {
+    if (normalized === `/${locale.code}` || normalized.startsWith(`/${locale.code}/`)) {
+      return locale.code;
+    }
   }
   return null;
 }
@@ -70,12 +72,12 @@ function stripBase(path: string): string {
 function buildLocalePath(target: LocaleCode): string {
   const normalized = stripBase(normalizePath(route.path));
   if (normalized === "/") {
-    return target === "ru" ? "/ru/" : "/en/";
+    return `/${target}/`;
   }
 
   const current = localeFromPath(normalized);
   if (!current) {
-    return target === "ru" ? "/ru/" : "/en/";
+    return `/${target}/`;
   }
 
   const currentPrefix = `/${current}`;

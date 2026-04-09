@@ -127,7 +127,8 @@ export const usePageSeo = (
     ];
 
     const isDownload = canonicalPath.value.endsWith('/download');
-    const isHome = canonicalPath.value === '/' || canonicalPath.value === '/ru';
+    const isHome =
+      canonicalPath.value === '/' || /^\/(ru|es|fr|zh)$/.test(canonicalPath.value);
 
     if (isHome || isDownload) {
       jsonLd.push({

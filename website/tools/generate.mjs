@@ -8,10 +8,13 @@ import { generatedRoot, generatedRegistryPaths, runtimeRoot, sourceRoot, website
 import { copyTree, ensureDir, listMarkdownFiles, rimraf, writeFile, writeJson } from "./lib/fs.mjs";
 import { readFrontmatter } from "./lib/site-model.mjs";
 
-const locales = ["en", "ru"];
+const sourceLocales = ["en", "ru"];
+const docsLocales = ["en", "ru", "es", "fr", "zh"];
+const mirroredGeneratedLocales = ["es", "fr", "zh"];
 
-await rimraf(path.join(generatedRoot, "en"));
-await rimraf(path.join(generatedRoot, "ru"));
+for (const locale of docsLocales) {
+  await rimraf(path.join(generatedRoot, locale));
+}
 await ensureDir(path.join(generatedRoot, "registries"));
 
 const bundles = await Promise.all([
@@ -23,7 +26,13 @@ const bundles = await Promise.all([
 ]);
 
 const generatedEntities = bundles.flatMap((bundle) => bundle.entities);
-const generatedPages = bundles.flatMap((bundle) => bundle.pages);
+const baseGeneratedPages = bundles.flatMap((bundle) => bundle.pages);
+const generatedPages = [
+  ...baseGeneratedPages,
+  ...baseGeneratedPages
+    .filter((page) => page.locale === "en")
+    .flatMap((page) => mirroredGeneratedLocales.map((locale) => mirrorGeneratedPage(page, locale)))
+];
 
 for (const page of generatedPages) {
   await writeFile(path.join(generatedRoot, page.relativePath), page.content);
@@ -36,20 +45,23 @@ const allEntities = [...sourceEntities, ...generatedEntities].sort((a, b) =>
 await writeJson(generatedRegistryPaths.entities, allEntities);
 await writeJson(generatedRegistryPaths.sidebarsEn, buildSidebar("en", allEntities));
 await writeJson(generatedRegistryPaths.sidebarsRu, buildSidebar("ru", allEntities));
+await writeJson(path.join(generatedRoot, "registries", "sidebars.es.json"), buildSidebar("es", allEntities));
+await writeJson(path.join(generatedRoot, "registries", "sidebars.fr.json"), buildSidebar("fr", allEntities));
+await writeJson(path.join(generatedRoot, "registries", "sidebars.zh.json"), buildSidebar("zh", allEntities));
 await writeJson(generatedRegistryPaths.redirects, {});
 
 await rimraf(runtimeRoot);
 await ensureDir(runtimeRoot);
 await copyTree(path.join(websiteRoot, "public"), path.join(runtimeRoot, "public"));
 await copyTree(path.join(sourceRoot, "gateway"), runtimeRoot);
-for (const locale of locales) {
+for (const locale of docsLocales) {
   await copyTree(path.join(sourceRoot, locale), path.join(runtimeRoot, locale));
   await copyTree(path.join(generatedRoot, locale), path.join(runtimeRoot, locale));
 }
 
 async function scanSourceEntities() {
   const entities = [];
-  for (const locale of locales) {
+  for (const locale of sourceLocales) {
     const files = await listMarkdownFiles(path.join(sourceRoot, locale));
     for (const filePath of files) {
       const meta = await readFrontmatter(filePath);
@@ -89,7 +101,15 @@ async function scanSourceEntities() {
 function buildSidebar(locale, entities) {
   const prefix = `/${locale}/`;
   const labels = localeLabels(locale);
-  const entityPath = (entry) => (locale === "en" ? entry.pathEn : entry.pathRu);
+  const entityPath = (entry) => {
+    if (locale === "en") {
+      return entry.pathEn;
+    }
+    if (locale === "ru") {
+      return entry.pathRu;
+    }
+    return entry.pathEn ? entry.pathEn.replace(/^\/en\//, `/${locale}/`) : "";
+  };
   const linkItem = (text, link) => ({ text, link });
   const pageLink = (canonicalId, fallback) => {
     const entry = entities.find((candidate) => candidate.canonicalId === canonicalId);
@@ -282,6 +302,231 @@ function buildCliGroups(locale, cliEntries, entityPath) {
 }
 
 function localeLabels(locale) {
+  if (locale === "es") {
+    return {
+      guide: "Guía",
+      guideStart: "Inicio",
+      guideCoreIdea: "Idea central",
+      guideBuild: "Crear plugins",
+      guideStarters: "Starters y ejemplos",
+      guideDelivery: "Entrega y targets",
+      guideOperate: "Producción y CI",
+      guideOverview: "Resumen",
+      quickstart: "Inicio rápido",
+      installation: "Instalación",
+      whatYouCanBuild: "Qué puedes crear",
+      oneProjectMultipleTargets: "Un proyecto, múltiples targets",
+      chooseTarget: "Elegir un target",
+      firstPlugin: "Crea tu primer plugin",
+      pythonRuntimeGuide: "Plugin Python runtime",
+      teamReadyPlugin: "Plugin listo para equipos",
+      claudePlugin: "Plugin para Claude",
+      nodeTypescriptRuntime: "Runtime Node/TypeScript",
+      starterTemplates: "Plantillas starter",
+      examplesAndRecipes: "Ejemplos y recetas",
+      chooseStarterRepo: "Elegir un starter repo",
+      chooseDeliveryModel: "Elegir modelo de entrega",
+      bundleHandoff: "Bundle handoff",
+      packageAndWorkspaceTargets: "Packages e integración",
+      howToPublishPlugins: "Cómo publicar plugins",
+      productionReadiness: "Preparación para producción",
+      ciIntegration: "Integración con CI",
+      concepts: "Conceptos",
+      conceptsFoundation: "Base",
+      conceptsDecisions: "Modelos de decisión",
+      conceptsOverview: "Resumen",
+      whyPluginKitAi: "Por qué plugin-kit-ai",
+      managedProjectModel: "Cómo funciona plugin-kit-ai",
+      authoringArchitecture: "Código fuente y outputs",
+      stabilityModel: "Modelo de estabilidad",
+      targetModel: "Modelo de targets",
+      choosingRuntime: "Elegir runtime",
+      reference: "Referencia",
+      referenceOperational: "Referencia operativa",
+      referenceSupport: "Soporte y límites",
+      referenceHelp: "Ayuda",
+      referenceOverview: "Resumen",
+      installChannels: "Canales de instalación",
+      versionAndCompatibility: "Versiones y compatibilidad",
+      authoringWorkflow: "Flujo de autoría",
+      repositoryStandard: "Estándar del repositorio",
+      supportBoundary: "Límite de soporte",
+      targetSupport: "Soporte de targets",
+      faq: "FAQ",
+      troubleshooting: "Resolución de problemas",
+      glossary: "Glosario",
+      apiOverview: "Resumen de API",
+      cliReference: "Referencia CLI",
+      cliOverview: "Resumen",
+      cliCore: "Comandos principales",
+      cliBundle: "Bundle",
+      cliCompletion: "Completion",
+      cliSkills: "Skills",
+      goSdk: "Go SDK",
+      goSdkOverview: "Resumen",
+      nodeRuntime: "Node Runtime",
+      nodeRuntimeOverview: "Resumen",
+      pythonRuntime: "Python Runtime",
+      pythonRuntimeOverview: "Resumen",
+      platformEvents: "Eventos de plataforma",
+      platformEventsOverview: "Resumen",
+      capabilities: "Capacidades",
+      capabilitiesOverview: "Resumen",
+      releases: "Lanzamientos",
+      releasesOverview: "Resumen"
+    };
+  }
+
+  if (locale === "fr") {
+    return {
+      guide: "Guide",
+      guideStart: "Démarrer",
+      guideCoreIdea: "Idée centrale",
+      guideBuild: "Créer des plugins",
+      guideStarters: "Starters et exemples",
+      guideDelivery: "Livraison et targets",
+      guideOperate: "Production et CI",
+      guideOverview: "Vue d'ensemble",
+      quickstart: "Démarrage rapide",
+      installation: "Installation",
+      whatYouCanBuild: "Ce que vous pouvez créer",
+      oneProjectMultipleTargets: "Un projet, plusieurs targets",
+      chooseTarget: "Choisir un target",
+      firstPlugin: "Créer votre premier plugin",
+      pythonRuntimeGuide: "Plugin Python runtime",
+      teamReadyPlugin: "Plugin prêt pour l'équipe",
+      claudePlugin: "Plugin Claude",
+      nodeTypescriptRuntime: "Runtime Node/TypeScript",
+      starterTemplates: "Templates starter",
+      examplesAndRecipes: "Exemples et recettes",
+      chooseStarterRepo: "Choisir un starter repo",
+      chooseDeliveryModel: "Choisir le modèle de livraison",
+      bundleHandoff: "Bundle handoff",
+      packageAndWorkspaceTargets: "Packages et intégration",
+      howToPublishPlugins: "Publier des plugins",
+      productionReadiness: "Préparation production",
+      ciIntegration: "Intégration CI",
+      concepts: "Concepts",
+      conceptsFoundation: "Fondations",
+      conceptsDecisions: "Modèles de décision",
+      conceptsOverview: "Vue d'ensemble",
+      whyPluginKitAi: "Pourquoi plugin-kit-ai",
+      managedProjectModel: "Comment fonctionne plugin-kit-ai",
+      authoringArchitecture: "Sources et outputs",
+      stabilityModel: "Modèle de stabilité",
+      targetModel: "Modèle de targets",
+      choosingRuntime: "Choisir le runtime",
+      reference: "Référence",
+      referenceOperational: "Référence opérationnelle",
+      referenceSupport: "Support et limites",
+      referenceHelp: "Aide",
+      referenceOverview: "Vue d'ensemble",
+      installChannels: "Canaux d'installation",
+      versionAndCompatibility: "Versions et compatibilité",
+      authoringWorkflow: "Workflow d'authoring",
+      repositoryStandard: "Standard du dépôt",
+      supportBoundary: "Périmètre de support",
+      targetSupport: "Support des targets",
+      faq: "FAQ",
+      troubleshooting: "Dépannage",
+      glossary: "Glossaire",
+      apiOverview: "Vue d'ensemble API",
+      cliReference: "Référence CLI",
+      cliOverview: "Vue d'ensemble",
+      cliCore: "Commandes principales",
+      cliBundle: "Bundle",
+      cliCompletion: "Completion",
+      cliSkills: "Skills",
+      goSdk: "Go SDK",
+      goSdkOverview: "Vue d'ensemble",
+      nodeRuntime: "Node Runtime",
+      nodeRuntimeOverview: "Vue d'ensemble",
+      pythonRuntime: "Python Runtime",
+      pythonRuntimeOverview: "Vue d'ensemble",
+      platformEvents: "Événements de plateforme",
+      platformEventsOverview: "Vue d'ensemble",
+      capabilities: "Capacités",
+      capabilitiesOverview: "Vue d'ensemble",
+      releases: "Versions",
+      releasesOverview: "Vue d'ensemble"
+    };
+  }
+
+  if (locale === "zh") {
+    return {
+      guide: "指南",
+      guideStart: "开始",
+      guideCoreIdea: "核心思路",
+      guideBuild: "构建插件",
+      guideStarters: "Starter 与示例",
+      guideDelivery: "交付与 targets",
+      guideOperate: "生产与 CI",
+      guideOverview: "总览",
+      quickstart: "快速开始",
+      installation: "安装",
+      whatYouCanBuild: "你可以构建什么",
+      oneProjectMultipleTargets: "一个项目，多个 targets",
+      chooseTarget: "选择 target",
+      firstPlugin: "构建第一个插件",
+      pythonRuntimeGuide: "Python runtime 插件",
+      teamReadyPlugin: "团队可用插件",
+      claudePlugin: "Claude 插件",
+      nodeTypescriptRuntime: "Node/TypeScript Runtime",
+      starterTemplates: "Starter 模板",
+      examplesAndRecipes: "示例与实践",
+      chooseStarterRepo: "选择 starter repo",
+      chooseDeliveryModel: "选择交付模型",
+      bundleHandoff: "Bundle 交付",
+      packageAndWorkspaceTargets: "Packages 与集成配置",
+      howToPublishPlugins: "如何发布插件",
+      productionReadiness: "生产准备",
+      ciIntegration: "CI 集成",
+      concepts: "概念",
+      conceptsFoundation: "基础",
+      conceptsDecisions: "决策模型",
+      conceptsOverview: "总览",
+      whyPluginKitAi: "为什么选择 plugin-kit-ai",
+      managedProjectModel: "plugin-kit-ai 如何工作",
+      authoringArchitecture: "源码与 outputs",
+      stabilityModel: "稳定性模型",
+      targetModel: "Target 模型",
+      choosingRuntime: "选择 runtime",
+      reference: "参考",
+      referenceOperational: "操作参考",
+      referenceSupport: "支持与边界",
+      referenceHelp: "帮助",
+      referenceOverview: "总览",
+      installChannels: "安装渠道",
+      versionAndCompatibility: "版本与兼容性",
+      authoringWorkflow: "编写流程",
+      repositoryStandard: "仓库标准",
+      supportBoundary: "支持边界",
+      targetSupport: "Target 支持",
+      faq: "FAQ",
+      troubleshooting: "故障排查",
+      glossary: "术语表",
+      apiOverview: "API 总览",
+      cliReference: "CLI 参考",
+      cliOverview: "总览",
+      cliCore: "核心命令",
+      cliBundle: "Bundle",
+      cliCompletion: "Completion",
+      cliSkills: "Skills",
+      goSdk: "Go SDK",
+      goSdkOverview: "总览",
+      nodeRuntime: "Node Runtime",
+      nodeRuntimeOverview: "总览",
+      pythonRuntime: "Python Runtime",
+      pythonRuntimeOverview: "总览",
+      platformEvents: "平台事件",
+      platformEventsOverview: "总览",
+      capabilities: "Capabilities",
+      capabilitiesOverview: "总览",
+      releases: "发布",
+      releasesOverview: "总览"
+    };
+  }
+
   if (locale === "ru") {
     return {
       guide: "Гайды",
@@ -316,8 +561,8 @@ function localeLabels(locale) {
       conceptsDecisions: "Модели выбора",
       conceptsOverview: "Обзор",
       whyPluginKitAi: "Зачем plugin-kit-ai",
-      managedProjectModel: "Модель управляемого проекта",
-      authoringArchitecture: "Архитектура авторинга",
+      managedProjectModel: "Как работает plugin-kit-ai",
+      authoringArchitecture: "Исходники и generated outputs",
       stabilityModel: "Модель стабильности",
       targetModel: "Модель target’ов",
       choosingRuntime: "Выбор runtime",
@@ -381,7 +626,7 @@ function localeLabels(locale) {
     chooseStarterRepo: "Choose A Starter Repo",
     chooseDeliveryModel: "Choose Delivery Model",
     bundleHandoff: "Bundle Handoff",
-    packageAndWorkspaceTargets: "Package And Workspace Targets",
+    packageAndWorkspaceTargets: "Packages And Integration Setup",
     howToPublishPlugins: "How To Publish Plugins",
     productionReadiness: "Production Readiness",
     ciIntegration: "CI Integration",
@@ -390,8 +635,8 @@ function localeLabels(locale) {
     conceptsDecisions: "Decision Models",
     conceptsOverview: "Overview",
     whyPluginKitAi: "Why plugin-kit-ai",
-    managedProjectModel: "Managed Project Model",
-    authoringArchitecture: "Authoring Architecture",
+    managedProjectModel: "How plugin-kit-ai Works",
+    authoringArchitecture: "Project Source And Outputs",
     stabilityModel: "Stability Model",
     targetModel: "Target Model",
     choosingRuntime: "Choosing Runtime",
@@ -429,4 +674,99 @@ function localeLabels(locale) {
     releases: "Releases",
     releasesOverview: "Overview"
   };
+}
+
+function mirrorGeneratedPage(page, locale) {
+  const relativePath = page.relativePath.replace(/^en\//, `${locale}/`);
+  const content = localizeMirroredGeneratedContent(
+    page.content
+      .replace(/\blocale:\s*"en"/, `locale: "${locale}"`)
+      .replaceAll("/en/", `/${locale}/`),
+    locale
+  );
+
+  return {
+    ...page,
+    locale,
+    relativePath,
+    content
+  };
+}
+
+function localizeMirroredGeneratedContent(content, locale) {
+  const replacements = mirroredGeneratedReplacements(locale);
+  return replacements.reduce((acc, [from, to]) => acc.replaceAll(from, to), content);
+}
+
+function mirroredGeneratedReplacements(locale) {
+  if (locale === "es") {
+    return [
+      ["CLI Reference", "Referencia CLI"],
+      ["Generated from the live Cobra command tree.", "Generado a partir del árbol real de comandos Cobra."],
+      ["Generated CLI reference", "Referencia CLI generada"],
+      ["Core Commands", "Comandos principales"],
+      ["Generated via pydoc-markdown.", "Generado mediante pydoc-markdown."],
+      ["Generated from the public Go package via gomarkdoc.", "Generado desde el paquete público de Go mediante gomarkdoc."],
+      ["Import path", "Ruta de importación"],
+      ["Platform Events", "Eventos de plataforma"],
+      ["Capabilities", "Capacidades"],
+      ["Target Support", "Soporte de targets"],
+      ["Generated via TypeDoc and typedoc-plugin-markdown.", "Generado mediante TypeDoc y typedoc-plugin-markdown."],
+      ["Generated Node runtime pages:", "Páginas generadas de Node runtime:"],
+      ["Generated Python runtime reference", "Referencia generada de Python runtime"],
+      ["Generated Go SDK package reference", "Referencia generada del paquete Go SDK"],
+      ["Generated platform event reference", "Referencia generada de eventos de plataforma"],
+      ["Generated capability reference", "Referencia generada de capacidades"],
+      ["Generated target support summary", "Resumen generado de soporte de targets"],
+      ["Generated Node runtime reference", "Referencia generada de Node runtime"],
+      ["Generated runtime helper API", "API generada de helpers de runtime"]
+    ];
+  }
+  if (locale === "fr") {
+    return [
+      ["CLI Reference", "Référence CLI"],
+      ["Generated from the live Cobra command tree.", "Généré à partir de l'arbre réel de commandes Cobra."],
+      ["Generated CLI reference", "Référence CLI générée"],
+      ["Core Commands", "Commandes principales"],
+      ["Generated via pydoc-markdown.", "Généré via pydoc-markdown."],
+      ["Generated from the public Go package via gomarkdoc.", "Généré à partir du package Go public via gomarkdoc."],
+      ["Import path", "Chemin d'import"],
+      ["Platform Events", "Événements de plateforme"],
+      ["Capabilities", "Capacités"],
+      ["Target Support", "Support des targets"],
+      ["Generated via TypeDoc and typedoc-plugin-markdown.", "Généré via TypeDoc et typedoc-plugin-markdown."],
+      ["Generated Node runtime pages:", "Pages Node runtime générées :"],
+      ["Generated Python runtime reference", "Référence Python runtime générée"],
+      ["Generated Go SDK package reference", "Référence générée du package Go SDK"],
+      ["Generated platform event reference", "Référence générée des événements de plateforme"],
+      ["Generated capability reference", "Référence générée des capacités"],
+      ["Generated target support summary", "Résumé généré du support des targets"],
+      ["Generated Node runtime reference", "Référence Node runtime générée"],
+      ["Generated runtime helper API", "API générée des helpers runtime"]
+    ];
+  }
+  if (locale === "zh") {
+    return [
+      ["CLI Reference", "CLI 参考"],
+      ["Generated from the live Cobra command tree.", "由实际的 Cobra 命令树生成。"],
+      ["Generated CLI reference", "生成的 CLI 参考"],
+      ["Core Commands", "核心命令"],
+      ["Generated via pydoc-markdown.", "通过 pydoc-markdown 生成。"],
+      ["Generated from the public Go package via gomarkdoc.", "通过 gomarkdoc 从公开 Go package 生成。"],
+      ["Import path", "导入路径"],
+      ["Platform Events", "平台事件"],
+      ["Capabilities", "Capabilities"],
+      ["Target Support", "Target 支持"],
+      ["Generated via TypeDoc and typedoc-plugin-markdown.", "通过 TypeDoc 和 typedoc-plugin-markdown 生成。"],
+      ["Generated Node runtime pages:", "生成的 Node runtime 页面："],
+      ["Generated Python runtime reference", "生成的 Python runtime 参考"],
+      ["Generated Go SDK package reference", "生成的 Go SDK package 参考"],
+      ["Generated platform event reference", "生成的平台事件参考"],
+      ["Generated capability reference", "生成的 capability 参考"],
+      ["Generated target support summary", "生成的 target 支持摘要"],
+      ["Generated Node runtime reference", "生成的 Node runtime 参考"],
+      ["Generated runtime helper API", "生成的 runtime helper API"]
+    ];
+  }
+  return [];
 }

@@ -1,7 +1,7 @@
 import { computed } from "vue";
 import type { LocaleCode } from "~/data/i18n";
 
-const docsLocalePattern = /\/(en|ru)(?=\/|$)/;
+const docsLocalePattern = /\/(en|ru|es|fr|zh)(?=\/|$)/;
 
 const replaceDocsLocale = (url: string, locale: LocaleCode): string => {
   if (!url) {
@@ -19,9 +19,10 @@ export const useDocsLinks = () => {
   const { locale } = useI18n();
   const config = useRuntimeConfig();
 
-  const currentLocale = computed<LocaleCode>(() =>
-    locale.value === "ru" ? "ru" : "en"
-  );
+  const currentLocale = computed<LocaleCode>(() => {
+    const supported = new Set<LocaleCode>(["en", "ru", "es", "fr", "zh"]);
+    return supported.has(locale.value as LocaleCode) ? (locale.value as LocaleCode) : "en";
+  });
 
   const docsUrl = computed(() =>
     replaceDocsLocale(

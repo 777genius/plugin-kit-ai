@@ -13,7 +13,10 @@ export const docsToolsRoot = path.join(websiteRoot, ".docs-tools");
 
 export const locales = [
   { code: "en", label: "English", lang: "en-US" },
-  { code: "ru", label: "Русский", lang: "ru-RU" }
+  { code: "ru", label: "Русский", lang: "ru-RU" },
+  { code: "es", label: "Español", lang: "es-ES" },
+  { code: "fr", label: "Français", lang: "fr-FR" },
+  { code: "zh", label: "简体中文", lang: "zh-CN" }
 ];
 
 export const publicGoPackages = [

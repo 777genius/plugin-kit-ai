@@ -15,7 +15,7 @@ for (const filePath of htmlFiles) {
     console.error(`Internal docs leaked into built output: ${filePath}`);
     hasError = true;
   }
-  if (/href="\/(en|ru)\//.test(body) || /src="\/assets\//.test(body)) {
+  if (/href="\/(en|ru|es|fr|zh)\//.test(body) || /src="\/assets\//.test(body)) {
     console.error(`Root-relative path detected in built output: ${filePath}`);
     hasError = true;
   }
@@ -208,6 +208,30 @@ if (!glossary.includes("Authored State")) {
   console.error("Glossary page is missing its expected term content.");
   hasError = true;
 }
+if (!glossary.includes("Use this page when a docs term is slowing you down")) {
+  console.error("Glossary page is missing its expected plain-language framing.");
+  hasError = true;
+}
+
+const faq = await fs.readFile(path.join(distRoot, "en", "reference", "faq.html"), "utf8");
+if (!faq.includes("Are npm And PyPI")) {
+  console.error("FAQ page is missing its expected install-vs-runtime question.");
+  hasError = true;
+}
+if (!faq.includes("Different paths carry different support promises")) {
+  console.error("FAQ page is missing its expected support-difference answer.");
+  hasError = true;
+}
+
+const troubleshooting = await fs.readFile(path.join(distRoot, "en", "reference", "troubleshooting.html"), "utf8");
+if (!troubleshooting.includes("Use this page when the workflow stops moving")) {
+  console.error("Troubleshooting page is missing its expected recovery framing.");
+  hasError = true;
+}
+if (!troubleshooting.includes("Treat this as signal, not noise")) {
+  console.error("Troubleshooting page is missing its expected validate guidance.");
+  hasError = true;
+}
 
 const repositoryStandard = await fs.readFile(path.join(distRoot, "en", "reference", "repository-standard.html"), "utf8");
 if (!repositoryStandard.includes("The Main Rule")) {
@@ -225,9 +249,49 @@ if (!supportBoundary.includes("How This Maps To The Formal Contract")) {
   hasError = true;
 }
 
+const conceptsIndex = await fs.readFile(path.join(distRoot, "en", "concepts", "index.html"), "utf8");
+if (conceptsIndex.includes("Managed Project Model")) {
+  console.error("Concepts index still leads with the old Managed Project Model framing.");
+  hasError = true;
+}
+if (!conceptsIndex.includes("How plugin-kit-ai Works")) {
+  console.error("Concepts index is missing the merged how-it-works concept entry.");
+  hasError = true;
+}
+
+const managedProjectModel = await fs.readFile(path.join(distRoot, "en", "concepts", "managed-project-model.html"), "utf8");
+if (!managedProjectModel.includes("How plugin-kit-ai Works")) {
+  console.error("Merged how-it-works concept page is missing its expected title.");
+  hasError = true;
+}
+if (!managedProjectModel.includes("source -&gt; generate -&gt; validate --strict -&gt; handoff")) {
+  console.error("Merged how-it-works concept page is missing its expected core loop.");
+  hasError = true;
+}
+
+const guideIndex = await fs.readFile(path.join(distRoot, "en", "guide", "index.html"), "utf8");
+if (!guideIndex.includes("Use this as the product map")) {
+  console.error("Guide index no longer distinguishes the product-map page.");
+  hasError = true;
+}
+if (!guideIndex.includes("when you need to decide whether one repo should grow")) {
+  console.error("Guide index no longer distinguishes the scaling guide.");
+  hasError = true;
+}
+
 const stabilityModel = await fs.readFile(path.join(distRoot, "en", "concepts", "stability-model.html"), "utf8");
 if (!stabilityModel.includes("How To Read Recommended")) {
   console.error("Stability Model page is missing its expected Recommended-language framing.");
+  hasError = true;
+}
+
+const referenceIndex = await fs.readFile(path.join(distRoot, "en", "reference", "index.html"), "utf8");
+if (!referenceIndex.includes("what is safe to standardize")) {
+  console.error("Reference index is missing its expected user-question framing.");
+  hasError = true;
+}
+if (referenceIndex.includes("compact lane matrix")) {
+  console.error("Reference index still uses matrix-first framing.");
   hasError = true;
 }
 
@@ -251,6 +315,16 @@ if (!supportPolicy.includes("## Public Language And Formal Terms")) {
 }
 if (!supportPolicy.includes("## Exact Contract Vocabulary")) {
   console.error("SUPPORT.md is missing its expected exact contract vocabulary section.");
+  hasError = true;
+}
+
+const releasesIndex = await fs.readFile(path.join(distRoot, "en", "releases", "index.html"), "utf8");
+if (!releasesIndex.toLowerCase().includes("what changed for users")) {
+  console.error("Releases index is missing its expected user-facing summary framing.");
+  hasError = true;
+}
+if (releasesIndex.includes("first-class public path") || releasesIndex.includes("replace friction")) {
+  console.error("Releases index still contains maintainer-centric wording.");
   hasError = true;
 }
 

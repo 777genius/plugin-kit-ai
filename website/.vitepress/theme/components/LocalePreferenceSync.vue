@@ -8,11 +8,10 @@ const route = useRoute();
 
 function localeFromPath(path: string): string | null {
   const normalized = stripBase(path === "/" ? "/" : path.replace(/\/+$/, ""));
-  if (normalized === "/en" || normalized.startsWith("/en/")) {
-    return "en";
-  }
-  if (normalized === "/ru" || normalized.startsWith("/ru/")) {
-    return "ru";
+  for (const locale of ["en", "ru", "es", "fr", "zh"]) {
+    if (normalized === `/${locale}` || normalized.startsWith(`/${locale}/`)) {
+      return locale;
+    }
   }
   return null;
 }

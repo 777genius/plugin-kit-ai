@@ -1,0 +1,179 @@
+{
+  "nav": {
+    "features": "功能",
+    "plugins": "插件",
+    "comparison": "为什么它有效",
+    "download": "开始使用",
+    "faq": "FAQ",
+    "viewOnGithub": "打开 GitHub"
+  },
+  "hero": {
+    "primaryCta": "打开 GitHub",
+    "secondaryCta": "See plugins",
+    "docsCta": "查看文档",
+    "preview": "plugin-kit-ai流程预览",
+    "latestRelease": "最新发布",
+    "status": "第一方插件即将推出",
+    "trust": {
+      "oneRepo": "一个仓库",
+      "validated": "清晰的工作流程",
+      "openSource": "开源"
+    },
+    "demo": {
+      "title": "plugin-kit-ai 流",
+      "subtitle": "一个仓库。清晰的阶段。多个输出。",
+      "live": "积极的",
+      "ready": "准备好",
+      "waiting": "等待",
+      "repo": "回购协议",
+      "sourceOfTruth": "真理的来源",
+      "outputs": "输出",
+      "supportedAgents": "支持的代理",
+      "steps": {
+        "author": "定义插件",
+        "generate": "生成输出",
+        "validate": "validate --strict",
+        "ship": "发布"
+      },
+      "captions": {
+        "author": "在一个托管存储库中描述一次插件。",
+        "generate": "创建您现在需要的特定于代理的输出。",
+        "validate": "检查结构、政策和移交准备情况。",
+        "ship": "通过文档、版本和安装路径进行发布。"
+      },
+      "logs": {
+        "author": "从一个托管存储库定义一次插件...",
+        "generate": "生成当前产品需求支持的输出...",
+        "validate": "在切换之前运行 validate --strict...",
+        "ship": "通过版本、文档和安装渠道进行发布..."
+      }
+    }
+  },
+  "download": {
+    "open": "打开",
+    "recommended": "受到推崇的",
+    "latestRelease": "最新发布",
+    "command": "Command",
+    "copy": "复制",
+    "copied": "已复制",
+    "quickstartTitle": "推荐的快速入门",
+    "quickstartSubtitle": "这是从安装到经过验证的存储库的最快受支持路径。",
+    "installTabsLabel": "选择安装路径",
+    "supportTitle": "支持快照",
+    "supportSubtitle": "今天的实际支持深度基于当前的支持政策和目标矩阵。",
+    "supportLink": "读取支撑边界"
+  },
+  "common": {
+    "previous": "以前的",
+    "next": "下一个"
+  },
+  "theme": {
+    "dark": "黑暗的",
+    "light": "光",
+    "toggle": "切换主题"
+  },
+  "language": {
+    "label": "语言",
+    "search": "搜索语言..."
+  },
+  "features": {
+    "sectionTitle": "从一个插件存储库到多个代理的干净路径",
+    "sectionSubtitle": "简单的语言定位、诚实的边界以及随着产品的发展而保持可管理的工作流程。"
+  },
+  "plugins": {
+    "sectionTitle": "我们的第一个插件从这里开始",
+    "sectionSubtitle": "专为真正的回购工作而设计的第一方阵容，为每个想法所支持的代理生态系统提供了清晰的徽章。",
+    "supports": "支持",
+    "openPlugin": "打开插件",
+    "viewDetails": "查看详情",
+    "viewAll": "查看全部",
+    "catalogEyebrow": "插件目录",
+    "catalogTitle": "一个可搜索目录中的每个第一方插件",
+    "catalogSubtitle": "浏览完整的产品系列，按实际工作流程类别进行过滤，并在跳转到源存储库之前打开插件的轻量级页面。",
+    "searchLabel": "搜索插件",
+    "searchPlaceholder": "搜索插件或工作流程...",
+    "filterLabel": "按工作流程过滤",
+    "allCategories": "所有工作流程",
+    "clearSearch": "清除搜索",
+    "emptyTitle": "没有与该搜索匹配的插件",
+    "emptyText": "尝试使用更广泛的关键字，例如 Git、文档、后端、规划，或重置活动工作流过滤器。",
+    "backToCatalog": "返回目录",
+    "openRepository": "打开存储库",
+    "detailSummaryEyebrow": "插件总结",
+    "categoriesTitle": "专为",
+    "useCasesTitle": "最适合",
+    "highlightsTitle": "有何突出之处",
+    "categories": {
+      "docs": "文档",
+      "research": "研究",
+      "codeSearch": "代码搜索",
+      "git": "Git 工作流程",
+      "planning": "规划",
+      "devops": "DevOps",
+      "review": "代码审查",
+      "database": "数据库",
+      "backend": "后端",
+      "cloud": "云",
+      "automation": "自动化",
+      "collaboration": "合作"
+    }
+  },
+  "faq": {
+    "sectionTitle": "Got 问题？我们已经有了答案",
+    "subtitle": "实用版本：它解决了什么问题，它适用于谁，以及首先打开哪个页面。",
+    "labels": {
+      "default": "问题",
+      "whatIsIt": "概述",
+      "whoShouldUseIt": "观众",
+      "oneRepoPerAgent": "工作流程",
+      "stableBoundary": "支持",
+      "fastestStart": "从这里开始",
+      "whichPathFirst": "选择一条路径"
+    },
+    "quickLinks": {
+      "badge": "从这里开始",
+      "title": "需要更清晰的下一步吗？",
+      "subtitle": "大多数人只需要三页：快速入门、Python 路径（如果这是您的堆栈）以及在承诺太多之前的支持边界。",
+      "quickstartTitle": "打开快速入门",
+      "quickstartBody": "从安装到经过验证的存储库的最短受支持路径。",
+      "pythonTitle": "打开Python指南",
+      "pythonBody": "当您的团队已经是 Python-第一时，下一页是最佳选择。",
+      "boundaryTitle": "检查支撑边界",
+      "boundaryBody": "查看目前哪些产品已经可以投入生产，哪些仍处于测试阶段。"
+    }
+  },
+  "comparison": {
+    "sectionTitle": "为什么它有效",
+    "sectionSubtitle": "不是与竞争对手的斗争。只是与插件团队通常造成不必要漂移的三种方式进行实际比较。",
+    "feature": "工作流程",
+    "columns": {
+      "pluginKitAi": "plugin-kit-ai",
+      "manual": "手动设置",
+      "duplicated": "重复的配置",
+      "scripts": "一次性脚本"
+    }
+  },
+  "footer": {
+    "copyright": "© {年}",
+    "tagline": "构建一次。运送给许多人工智能代理。",
+    "github": "GitHub",
+    "docs": "文档"
+  },
+  "meta": {
+    "homeTitle": "plugin-kit-ai |构建一次 AI 插件，将其发送给多个代理",
+    "homeDescription": "plugin-kit-ai 是我们第一方 AI 插件和开源工具包的所在地，用于构建一个插件存储库并针对多个代理生态系统。",
+    "downloadTitle": "开始使用 plugin-kit-ai |安装plugin-kit-ai",
+    "downloadDescription": "选择 plugin-kit-ai 的安装路径，打开文档，然后从一个干净的插件存储库开始。",
+    "pluginsTitle": "插件目录 | plugin-kit-ai 的第一方插件",
+    "pluginsDescription": "浏览 plugin-kit-ai 的第一方插件目录，其中包含每个真实插件存储库的可搜索卡片、工作流程过滤器和轻量级页面。",
+    "pluginDetailTitle": "{插件} 插件 | plugin-kit-ai 目录",
+    "pluginDetailDescription": "{plugin} 是第一方 plugin-kit-ai 目录的一部分。 {标语}"
+  },
+  "error": {
+    "notFoundTitle": "找不到页面",
+    "notFoundDescription": "您要查找的页面不存在或已被移动。",
+    "genericTitle": "出了点问题",
+    "genericDescription": "发生意外错误。请稍后重试。",
+    "goHome": "Go 到主页"
+  }
+}

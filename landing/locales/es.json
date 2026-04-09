@@ -1,0 +1,179 @@
+{
+  "nav": {
+    "features": "Características",
+    "plugins": "Complementos",
+    "comparison": "Por qué funciona",
+    "download": "empezar",
+    "faq": "FAQ",
+    "viewOnGithub": "Abrir GitHub"
+  },
+  "hero": {
+    "primaryCta": "Abrir GitHub",
+    "secondaryCta": "Ver complementos",
+    "docsCta": "Ver documentación",
+    "preview": "plugin-kit-ai vista previa del flujo",
+    "latestRelease": "Última versión",
+    "status": "Próximamente complementos propios",
+    "trust": {
+      "oneRepo": "Un repositorio",
+      "validated": "Flujo de trabajo claro",
+      "openSource": "Código abierto"
+    },
+    "demo": {
+      "title": "plugin-kit-ai flujo",
+      "subtitle": "Un repositorio. Etapas claras. Múltiples salidas.",
+      "live": "Activo",
+      "ready": "listo",
+      "waiting": "espera",
+      "repo": "repositorio",
+      "sourceOfTruth": "fuente de verdad",
+      "outputs": "salidas",
+      "supportedAgents": "agentes apoyados",
+      "steps": {
+        "author": "definir complemento",
+        "generate": "generar salidas",
+        "validate": "validate --strict",
+        "ship": "publicar"
+      },
+      "captions": {
+        "author": "Describe el complemento una vez en un repositorio administrado.",
+        "generate": "Cree los resultados específicos del agente que necesita ahora.",
+        "validate": "Verifique la estructura, la política y la preparación para la transferencia.",
+        "ship": "Publique a través de documentos, versiones y rutas de instalación."
+      },
+      "logs": {
+        "author": "Definir el complemento una vez desde un repositorio administrado...",
+        "generate": "Generando los resultados admitidos para la necesidad actual del producto...",
+        "validate": "Ejecutando validate --strict antes de la entrega...",
+        "ship": "Publicación a través de lanzamientos, documentos y canales de instalación..."
+      }
+    }
+  },
+  "download": {
+    "open": "Abierto",
+    "recommended": "Recomendado",
+    "latestRelease": "Última versión",
+    "command": "Command",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "quickstartTitle": "Inicio rápido recomendado",
+    "quickstartSubtitle": "Esta es la ruta admitida más rápida desde la instalación hasta un repositorio validado.",
+    "installTabsLabel": "Elija la ruta de instalación",
+    "supportTitle": "Instantánea de soporte",
+    "supportSubtitle": "Profundidad de soporte real hoy, según la política de soporte actual y la matriz de objetivos.",
+    "supportLink": "Leer el límite de soporte"
+  },
+  "common": {
+    "previous": "Anterior",
+    "next": "Próximo"
+  },
+  "theme": {
+    "dark": "Oscuro",
+    "light": "Luz",
+    "toggle": "Alternar tema"
+  },
+  "language": {
+    "label": "Idioma",
+    "search": "Idioma de búsqueda…"
+  },
+  "features": {
+    "sectionTitle": "Un camino limpio desde un repositorio de complementos a muchos agentes",
+    "sectionSubtitle": "Posicionamiento en lenguaje sencillo, límites honestos y un flujo de trabajo que sigue siendo manejable a medida que crece el producto."
+  },
+  "plugins": {
+    "sectionTitle": "Nuestros primeros complementos comienzan aquí",
+    "sectionSubtitle": "Una línea propia diseñada para trabajos de repositorio reales, con insignias claras para los ecosistemas de agentes que cada idea debe respaldar.",
+    "supports": "Soportes",
+    "openPlugin": "Abrir complemento",
+    "viewDetails": "Ver detalles",
+    "viewAll": "Ver todo",
+    "catalogEyebrow": "Catálogo de complementos",
+    "catalogTitle": "Todos los complementos propios en un catálogo con capacidad de búsqueda",
+    "catalogSubtitle": "Explore la lista completa, filtre por categorías de flujo de trabajo reales y abra una página liviana para el complemento antes de saltar al repositorio de origen.",
+    "searchLabel": "Complementos de búsqueda",
+    "searchPlaceholder": "Buscar complementos o flujos de trabajo...",
+    "filterLabel": "Filtrar por flujo de trabajo",
+    "allCategories": "Todos los flujos de trabajo",
+    "clearSearch": "Borrar búsqueda",
+    "emptyTitle": "Ningún complemento coincidió con esa búsqueda",
+    "emptyText": "Pruebe con una palabra clave más amplia como Git, documentos, backend, planificación o restablezca el filtro de flujo de trabajo activo.",
+    "backToCatalog": "Volver al catálogo",
+    "openRepository": "Repositorio abierto",
+    "detailSummaryEyebrow": "Resumen del complemento",
+    "categoriesTitle": "Construido para",
+    "useCasesTitle": "Lo mejor para",
+    "highlightsTitle": "lo que destaca",
+    "categories": {
+      "docs": "Documentos",
+      "research": "Investigación",
+      "codeSearch": "Búsqueda de código",
+      "git": "flujos de trabajo de Git",
+      "planning": "Planificación",
+      "devops": "DevOps",
+      "review": "Revisión de código",
+      "database": "Base de datos",
+      "backend": "backend",
+      "cloud": "Nube",
+      "automation": "Automatización",
+      "collaboration": "Colaboración"
+    }
+  },
+  "faq": {
+    "sectionTitle": "Got preguntas? Tenemos respuestas",
+    "subtitle": "La versión práctica: qué resuelve, para quién es y qué página abrir primero.",
+    "labels": {
+      "default": "Pregunta",
+      "whatIsIt": "Descripción general",
+      "whoShouldUseIt": "Audiencia",
+      "oneRepoPerAgent": "Flujo de trabajo",
+      "stableBoundary": "Apoyo",
+      "fastestStart": "Empieza aquí",
+      "whichPathFirst": "Elige un camino"
+    },
+    "quickLinks": {
+      "badge": "Empieza aquí",
+      "title": "¿Necesita un próximo paso más claro?",
+      "subtitle": "La mayoría de las personas solo necesitan tres páginas: inicio rápido, la ruta Python si esa es su pila y el límite de soporte antes de prometer demasiado.",
+      "quickstartTitle": "Abrir inicio rápido",
+      "quickstartBody": "La ruta admitida más corta desde la instalación hasta un repositorio validado.",
+      "pythonTitle": "Abrir guía Python",
+      "pythonBody": "La mejor página siguiente cuando tu equipo ya es Python-primero.",
+      "boundaryTitle": "Verificar el límite de soporte",
+      "boundaryBody": "Vea qué está listo para producción hoy y qué aún está en fase beta."
+    }
+  },
+  "comparison": {
+    "sectionTitle": "Por qué funciona",
+    "sectionSubtitle": "No es una lucha contra competidores. Solo una comparación práctica con las tres formas en que los equipos de complementos suelen crear derivas innecesarias.",
+    "feature": "Flujo de trabajo",
+    "columns": {
+      "pluginKitAi": "plugin-kit-ai",
+      "manual": "Configuración manual",
+      "duplicated": "Configuraciones duplicadas",
+      "scripts": "Guiones únicos"
+    }
+  },
+  "footer": {
+    "copyright": "© {año}",
+    "tagline": "Construir una vez. Envío a muchos agentes de IA.",
+    "github": "GitHub",
+    "docs": "Documentos"
+  },
+  "meta": {
+    "homeTitle": "plugin-kit-ai | Cree complementos de IA una vez y envíelos a muchos agentes",
+    "homeDescription": "plugin-kit-ai es el hogar de nuestros complementos de IA propios y el conjunto de herramientas de código abierto para crear un repositorio de complementos y apuntar a múltiples ecosistemas de agentes.",
+    "downloadTitle": "Comience con plugin-kit-ai | Instalar plugin-kit-ai",
+    "downloadDescription": "Elija una ruta de instalación para plugin-kit-ai, abra los documentos y comience desde un repositorio de complementos limpio.",
+    "pluginsTitle": "Catálogo de complementos | Complementos propios para plugin-kit-ai",
+    "pluginsDescription": "Explore el catálogo de complementos propios de plugin-kit-ai, con tarjetas con capacidad de búsqueda, filtros de flujo de trabajo y páginas livianas para cada repositorio de complementos real.",
+    "pluginDetailTitle": "complemento {complemento} | plugin-kit-ai catálogo",
+    "pluginDetailDescription": "{plugin} es parte del catálogo propio plugin-kit-ai. {lema}"
+  },
+  "error": {
+    "notFoundTitle": "Página no encontrada",
+    "notFoundDescription": "La página que buscas no existe o ha sido movida.",
+    "genericTitle": "algo salió mal",
+    "genericDescription": "Se produjo un error inesperado. Inténtelo de nuevo más tarde.",
+    "goHome": "Go a la página de inicio"
+  }
+}

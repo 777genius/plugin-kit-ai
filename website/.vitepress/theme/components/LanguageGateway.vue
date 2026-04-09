@@ -23,6 +23,24 @@ const locales: LocaleEntry[] = [
     title: "Русский",
     description: "Публичная документация для русскоязычных пользователей plugin-kit-ai.",
     href: withBase("/ru/")
+  },
+  {
+    code: "ES",
+    title: "Español",
+    description: "Documentación pública para equipos que trabajan en español.",
+    href: withBase("/es/")
+  },
+  {
+    code: "FR",
+    title: "Français",
+    description: "Documentation publique pour les équipes francophones sur plugin-kit-ai.",
+    href: withBase("/fr/")
+  },
+  {
+    code: "ZH",
+    title: "简体中文",
+    description: "面向中文团队的 plugin-kit-ai 公共文档。",
+    href: withBase("/zh/")
   }
 ];
 
@@ -62,7 +80,18 @@ function detectBrowserLocale(): string {
     ...(Array.isArray(window.navigator.languages) ? window.navigator.languages : []),
     window.navigator.language || ""
   ];
-  return candidates.some((candidate) => /^ru\b/i.test(String(candidate))) ? "ru" : "en";
+  const patterns: Array<[string, RegExp]> = [
+    ["zh", /^zh\b/i],
+    ["es", /^es\b/i],
+    ["fr", /^fr\b/i],
+    ["ru", /^ru\b/i]
+  ];
+  for (const [locale, pattern] of patterns) {
+    if (candidates.some((candidate) => pattern.test(String(candidate)))) {
+      return locale;
+    }
+  }
+  return "en";
 }
 
 function redirectToPreferredLocale() {

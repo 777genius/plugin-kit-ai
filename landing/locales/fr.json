@@ -1,0 +1,179 @@
+{
+  "nav": {
+    "features": "Caractéristiques",
+    "plugins": "Plugins",
+    "comparison": "Pourquoi ça marche",
+    "download": "Commencer",
+    "faq": "FAQ",
+    "viewOnGithub": "Ouvrir GitHub"
+  },
+  "hero": {
+    "primaryCta": "Ouvrir GitHub",
+    "secondaryCta": "Voir les plugins",
+    "docsCta": "Voir la documentation",
+    "preview": "Aperçu du flux plugin-kit-ai",
+    "latestRelease": "Dernière version",
+    "status": "Des plugins propriétaires seront bientôt disponibles",
+    "trust": {
+      "oneRepo": "Un dépôt",
+      "validated": "Flux de travail clair",
+      "openSource": "Source ouverte"
+    },
+    "demo": {
+      "title": "Flux plugin-kit-ai",
+      "subtitle": "Un dépôt. Des étapes claires. Sorties multiples.",
+      "live": "Actif",
+      "ready": "prêt",
+      "waiting": "en attendant",
+      "repo": "dépôt",
+      "sourceOfTruth": "source de vérité",
+      "outputs": "sorties",
+      "supportedAgents": "agents pris en charge",
+      "steps": {
+        "author": "définir le plugin",
+        "generate": "générer des résultats",
+        "validate": "validate --strict",
+        "ship": "publier"
+      },
+      "captions": {
+        "author": "Décrivez le plugin une fois dans un dépôt géré.",
+        "generate": "Créez les sorties spécifiques à l'agent dont vous avez besoin maintenant.",
+        "validate": "Vérifiez la structure, la politique et la préparation au transfert.",
+        "ship": "Publiez via des documents, des versions et des chemins d'installation."
+      },
+      "logs": {
+        "author": "Définir le plugin une fois à partir d'un dépôt géré...",
+        "generate": "Générer les sorties prises en charge pour les besoins actuels du produit...",
+        "validate": "Exécution de validate --strict avant le transfert...",
+        "ship": "Publication via des versions, des documents et des canaux d'installation..."
+      }
+    }
+  },
+  "download": {
+    "open": "Ouvrir",
+    "recommended": "Recommandé",
+    "latestRelease": "Dernière version",
+    "command": "Command",
+    "copy": "Copie",
+    "copied": "Copié",
+    "quickstartTitle": "Démarrage rapide recommandé",
+    "quickstartSubtitle": "Il s’agit du chemin pris en charge le plus rapide entre l’installation et un dépôt validé.",
+    "installTabsLabel": "Choisissez le chemin d'installation",
+    "supportTitle": "Instantané de prise en charge",
+    "supportSubtitle": "Véritable profondeur de support aujourd'hui, basée sur la politique de support actuelle et la matrice cible.",
+    "supportLink": "Lire la limite du support"
+  },
+  "common": {
+    "previous": "Précédent",
+    "next": "Suivant"
+  },
+  "theme": {
+    "dark": "Sombre",
+    "light": "Lumière",
+    "toggle": "Changer de thème"
+  },
+  "language": {
+    "label": "Langue",
+    "search": "Langue de recherche…"
+  },
+  "features": {
+    "sectionTitle": "Un chemin propre d'un dépôt de plugin à plusieurs agents",
+    "sectionSubtitle": "Un positionnement en langage simple, des limites honnêtes et un flux de travail qui reste gérable à mesure que le produit se développe."
+  },
+  "plugins": {
+    "sectionTitle": "Nos premiers plugins commencent ici",
+    "sectionSubtitle": "Une gamme propriétaire conçue pour un véritable travail de mise en pension, avec des badges clairs pour les écosystèmes d'agents que chaque idée est censée prendre en charge.",
+    "supports": "Prise en charge",
+    "openPlugin": "Ouvrir le plugin",
+    "viewDetails": "Afficher les détails",
+    "viewAll": "Voir tout",
+    "catalogEyebrow": "Catalogue de plugins",
+    "catalogTitle": "Chaque plugin propriétaire dans un catalogue consultable",
+    "catalogSubtitle": "Parcourez la gamme complète, filtrez par catégories de flux de travail réelles et ouvrez une page légère pour le plugin avant de passer au référentiel source.",
+    "searchLabel": "Plugins de recherche",
+    "searchPlaceholder": "Rechercher des plugins ou des workflows…",
+    "filterLabel": "Filtrer par flux de travail",
+    "allCategories": "Tous les flux de travail",
+    "clearSearch": "Effacer la recherche",
+    "emptyTitle": "Aucun plugin ne correspond à cette recherche",
+    "emptyText": "Essayez un mot-clé plus large comme Git, docs, backend, planning ou réinitialisez le filtre de workflow actif.",
+    "backToCatalog": "Retour au catalogue",
+    "openRepository": "Dépôt ouvert",
+    "detailSummaryEyebrow": "Résumé du plugin",
+    "categoriesTitle": "Construit pour",
+    "useCasesTitle": "Idéal pour",
+    "highlightsTitle": "Ce qui ressort",
+    "categories": {
+      "docs": "Documents",
+      "research": "Recherche",
+      "codeSearch": "Recherche de codes",
+      "git": "Flux de travail Git",
+      "planning": "Planification",
+      "devops": "DevOps",
+      "review": "Révision des codes",
+      "database": "Base de données",
+      "backend": "Back-end",
+      "cloud": "Nuage",
+      "automation": "Automation",
+      "collaboration": "Collaboration"
+    }
+  },
+  "faq": {
+    "sectionTitle": "Got des questions ? Nous avons des réponses",
+    "subtitle": "La version pratique : qu'est-ce que cela résout, à qui cela s'adresse-t-il et quelle page ouvrir en premier.",
+    "labels": {
+      "default": "Question",
+      "whatIsIt": "Aperçu",
+      "whoShouldUseIt": "Public",
+      "oneRepoPerAgent": "Flux de travail",
+      "stableBoundary": "Soutien",
+      "fastestStart": "Commencez ici",
+      "whichPathFirst": "Choisissez un chemin"
+    },
+    "quickLinks": {
+      "badge": "Commencez ici",
+      "title": "Besoin d’une prochaine étape plus claire ?",
+      "subtitle": "La plupart des gens n'ont besoin que de trois pages : un démarrage rapide, le chemin Python s'il s'agit de votre pile et la limite de support avant de trop promettre.",
+      "quickstartTitle": "Ouvrir le démarrage rapide",
+      "quickstartBody": "Le chemin pris en charge le plus court entre l’installation et un dépôt validé.",
+      "pythonTitle": "Ouvrir le guide Python",
+      "pythonBody": "Meilleure page suivante lorsque votre équipe est déjà Python-première.",
+      "boundaryTitle": "Vérifier la limite du support",
+      "boundaryBody": "Découvrez ce qui est prêt pour la production aujourd’hui et ce qui est encore en version bêta."
+    }
+  },
+  "comparison": {
+    "sectionTitle": "Pourquoi ça marche",
+    "sectionSubtitle": "Pas un combat contre des concurrents. Juste une comparaison pratique avec les trois façons dont les équipes de plugins créent généralement une dérive inutile.",
+    "feature": "Flux de travail",
+    "columns": {
+      "pluginKitAi": "plugin-kit-ai",
+      "manual": "Configuration manuelle",
+      "duplicated": "Configurations dupliquées",
+      "scripts": "Scripts ponctuels"
+    }
+  },
+  "footer": {
+    "copyright": "© {année}",
+    "tagline": "Construisez une fois. Expédiez à de nombreux agents IA.",
+    "github": "GitHub",
+    "docs": "Documents"
+  },
+  "meta": {
+    "homeTitle": "plugin-kit-ai | Créez des plugins IA une seule fois, envoyez-les à de nombreux agents",
+    "homeDescription": "plugin-kit-ai héberge nos plugins d'IA propriétaires et la boîte à outils open source pour créer un référentiel de plugins et cibler plusieurs écosystèmes d'agents.",
+    "downloadTitle": "Commencez avec plugin-kit-ai | Installez plugin-kit-ai",
+    "downloadDescription": "Choisissez un chemin d'installation pour plugin-kit-ai, ouvrez la documentation et démarrez à partir d'un dépôt de plugin propre.",
+    "pluginsTitle": "Catalogue de plugins | Plugins propriétaires pour plugin-kit-ai",
+    "pluginsDescription": "Parcourez le catalogue de plugins propriétaires pour plugin-kit-ai, avec des cartes consultables, des filtres de flux de travail et des pages légères pour chaque véritable référentiel de plugins.",
+    "pluginDetailTitle": "{plugin} plugin | Catalogue plugin-kit-ai",
+    "pluginDetailDescription": "{plugin} fait partie du catalogue propriétaire plugin-kit-ai. {slogan}"
+  },
+  "error": {
+    "notFoundTitle": "Page introuvable",
+    "notFoundDescription": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "genericTitle": "Quelque chose s'est mal passé",
+    "genericDescription": "Une erreur inattendue s'est produite. Veuillez réessayer plus tard.",
+    "goHome": "Go vers la page d'accueil"
+  }
+}

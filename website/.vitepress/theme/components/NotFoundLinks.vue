@@ -16,6 +16,21 @@ const links = [
     title: "Русская документация",
     description: "Откройте русскоязычный корень публичной документации.",
     href: withBase("/ru/")
+  },
+  {
+    title: "Documentación en español",
+    description: "Abra la raíz pública de la documentación en español.",
+    href: withBase("/es/")
+  },
+  {
+    title: "Documentation française",
+    description: "Ouvrez la racine publique de la documentation en français.",
+    href: withBase("/fr/")
+  },
+  {
+    title: "简体中文文档",
+    description: "打开简体中文公共文档首页。",
+    href: withBase("/zh/")
   }
 ];
 </script>

@@ -20,7 +20,7 @@
   <text x="110" y="318" font-size="42" font-family="Arial, sans-serif" fill="#cbd5e1">Guides, reference, and generated API</text>
   <text x="110" y="376" font-size="42" font-family="Arial, sans-serif" fill="#cbd5e1">for CLI, runtimes, events, and capabilities.</text>
   <rect x="110" y="436" width="250" height="72" rx="22" fill="#f97316" />
-  <text x="148" y="481" font-size="34" font-weight="700" font-family="Arial, sans-serif" fill="#fff7ed">/en  /ru</text>
+  <text x="148" y="481" font-size="34" font-weight="700" font-family="Arial, sans-serif" fill="#fff7ed">/en  /ru  /es  /fr  /zh</text>
   <rect x="838" y="160" width="220" height="270" rx="28" fill="#f8fafc" />
   <rect x="868" y="198" width="160" height="18" rx="9" fill="#0f172a" />
   <rect x="868" y="244" width="132" height="18" rx="9" fill="#334155" />

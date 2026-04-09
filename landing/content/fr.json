@@ -1,0 +1,712 @@
+{
+  "hero": {
+    "title": "plugin-kit-ai",
+    "subtitle": "Créez un plugin une fois. Expédiez-le à plusieurs agents IA à partir d’un seul dépôt. plugin-kit-ai héberge notre gamme de plugins propriétaires et la boîte à outils open source qui la sous-tend."
+  },
+  "features": [
+    {
+      "id": "oneRepo",
+      "title": "Un dépôt au lieu d'une configuration dispersée",
+      "description": "Conservez un référentiel de plugin comme source de vérité au lieu de copier la même logique dans des dossiers distincts spécifiques à l'agent."
+    },
+    {
+      "id": "growOutputs",
+      "title": "Commencez par un chemin solide, ajoutez-en d'autres plus tard",
+      "description": "Commencez par créer le plug-in pour l'agent dont vous avez besoin actuellement, puis développez-le pour inclure davantage d'agents pris en charge lorsque votre produit en a réellement besoin."
+    },
+    {
+      "id": "validate",
+      "title": "Valider avant le transfert",
+      "description": "Utilisez un flux de génération et de validation reproductible avant qu'un autre coéquipier, un travail CI ou un utilisateur final ne touche le plugin."
+    },
+    {
+      "id": "clearBoundary",
+      "title": "Limite honnête entre stable et bêta",
+      "description": "plugin-kit-ai est explicite sur ce qui est prêt pour la production, ce qui est une version bêta publique et les endroits où vous ne devriez pas encore promettre une fausse parité."
+    },
+    {
+      "id": "releasePath",
+      "title": "Effacer le chemin d'installation et de publication",
+      "description": "Homebrew, npm, pipx une fois publiés, script d'installation vérifié, versions GitHub et documents pointent tous vers un flux de démarrage propre."
+    },
+    {
+      "id": "openSource",
+      "title": "Open source dès le premier jour",
+      "description": "Utilisez la boîte à outils dès aujourd'hui, inspectez la source et suivez un flux de travail transparent pendant que notre catalogue de plugins propriétaires s'agrandit."
+    }
+  ],
+  "plugins": [
+    {
+      "id": "context7",
+      "slug": "context7",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Contexte7",
+      "tagline": "Nouveaux documents de bibliothèque et exemples de code sans revenir aux documents du fournisseur.",
+      "description": "Un véritable plugin multi-agent MCP pour de nouveaux documents de bibliothèque et des exemples de code, généré une seule fois et expédié à Claude, Codex, Gemini, OpenCode et Cursor.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7",
+      "logoSrc": "context7.svg",
+      "logoAlt": "Logo Context7",
+      "categories": [
+        "docs",
+        "research",
+        "codeSearch"
+      ],
+      "highlights": [
+        "Extrait les documents de bibliothèque actuels au lieu de s'appuyer sur la mémoire de modèle obsolète.",
+        "Place des exemples et des documents dans une seule surface MCP qui fonctionne avec tous les agents pris en charge.",
+        "Convient mieux lorsque les équipes ont besoin d’une recherche technique rapide dans le cadre d’un travail de pension actif."
+      ],
+      "useCases": [
+        "Vérifier la dernière syntaxe SDK avant d'écrire du code.",
+        "Trouver des exemples pour une fonctionnalité de framework sans quitter l'éditeur.",
+        "Vérification croisée du code généré avec les documents actuels lors des révisions."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "gitlab",
+      "slug": "gitlab",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "GitLab",
+      "tagline": "Workflows de projet, de demande de fusion et DevOps à partir d’une surface MCP native de GitLab.",
+      "description": "Un véritable plugin GitLab MCP pour les projets, les problèmes, les demandes de fusion et les workflows DevOps via le point de terminaison officiel GitLab MCP.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/gitlab",
+      "logoSrc": "gitlab.svg",
+      "logoAlt": "Logo GitLab",
+      "categories": [
+        "git",
+        "planning",
+        "devops"
+      ],
+      "highlights": [
+        "Conserve les problèmes, les demandes de fusion et l’état du projet dans le même flux de travail d’agent.",
+        "Utile pour les équipes déjà centrées sur GitLab comme source opérationnelle de vérité.",
+        "Le référentiel Bridges fonctionne avec des actions liées à la planification et au déploiement."
+      ],
+      "useCases": [
+        "Trier les problèmes et faire avancer les travaux liés à partir du même contexte.",
+        "Examiner les demandes de fusion tout en vérifiant l'état du projet associé.",
+        "Coordonner le suivi DevOps sans quitter le flux MCP."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "github",
+      "slug": "github",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "GitHub",
+      "tagline": "Opérations de référentiel, d'émission et de pull-request via le service officiel GitHub MCP.",
+      "description": "Un véritable plugin GitHub MCP pour les workflows de référentiel, de problèmes et de demandes d'extraction via le service officiel GitHub MCP avec un jeton d'autorisation configuré.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/github",
+      "logoSrc": "github.svg",
+      "logoAlt": "Logo GitHub",
+      "categories": [
+        "git",
+        "review",
+        "planning"
+      ],
+      "highlights": [
+        "Couvre le flux de travail principal des dépôts que la plupart des équipes d’ingénierie touchent quotidiennement.",
+        "Fonctionne bien lorsque le suivi des problèmes et l’examen des demandes d’extraction sont tous deux disponibles dans GitHub.",
+        "Transforme GitHub en une surface d'action MCP de première classe plutôt qu'en un changement de contexte."
+      ],
+      "useCases": [
+        "Examen des demandes d'extraction avec le contexte du problème associé à proximité.",
+        "Gérez la gestion interne du référentiel, les problèmes et le suivi des relations publiques en un seul flux.",
+        "Transférer le travail de planification et de révision entre les coéquipiers et les agents."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "firebase",
+      "slug": "firebase",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Base de feu",
+      "tagline": "Opérations Firestore, Auth, Fonctions, Hébergement et Stockage à partir d'un seul plugin axé sur le backend.",
+      "description": "Un véritable plugin Firebase MCP pour les opérations de projet sur Firestore, Auth, Fonctions, Hébergement et Stockage via `firebase-tools mcp`.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/firebase",
+      "logoSrc": "firebase.svg",
+      "logoAlt": "Logo Firebase",
+      "categories": [
+        "backend",
+        "database",
+        "cloud"
+      ],
+      "highlights": [
+        "Idéal lorsque les équipes produit exécutent déjà des éléments backend d'application via Firebase.",
+        "Connecte les opérations orientées données, authentification et déploiement dans une seule surface de plugin.",
+        "Utile pour se déplacer rapidement entre le schéma, les fonctions et les tâches d'hébergement."
+      ],
+      "useCases": [
+        "Vérification de la configuration de Firestore et d'Auth lors de l'itération sur les fonctionnalités de l'application.",
+        "Coordonner les fonctions et les modifications d'hébergement à partir d'un flux de travail MCP.",
+        "Prise en charge des petites équipes qui souhaitent un plugin orienté backend au lieu de plusieurs outils."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "linear",
+      "slug": "linear",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Linéaire",
+      "tagline": "Planification des problèmes et automatisation des flux de travail pour les équipes qui fonctionnent déjà sur Linear.",
+      "description": "Un véritable plugin Linear MCP pour les équipes utilisant les problèmes, la planification de projets et l'automatisation des flux de travail via le point de terminaison officiel Linear MCP.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/linear",
+      "logoSrc": "linear.svg",
+      "logoAlt": "Logo linéaire",
+      "categories": [
+        "planning",
+        "automation",
+        "collaboration"
+      ],
+      "highlights": [
+        "Maintient la planification et l'exécution en étroite collaboration pour les équipes vivant déjà dans Linear.",
+        "Idéal pour l'hygiène des problèmes, l'avancement des projets et les boucles d'automatisation des flux de travail.",
+        "Utile lorsque les agents doivent aider à déplacer le travail, pas seulement le résumer."
+      ],
+      "useCases": [
+        "Mise à jour de l'état du problème pendant la mise en œuvre et la révision.",
+        "Suivez l’élan du projet sans passer d’un outil de planification à l’autre.",
+        "Automatisation des étapes de routine du flux de travail autour de l'affectation et du statut."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "notion",
+      "slug": "notion",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Notion",
+      "tagline": "Documents de l'espace de travail, contexte de planification et connaissances de l'équipe grâce au service MCP hébergé de Notion.",
+      "description": "Un véritable plugin Notion MCP pour un accès autorisé à l'espace de travail par l'utilisateur via le point de terminaison hébergé MCP de Notion avec une intégration à distance basée sur OAuth sur Claude, Codex, Gemini, OpenCode et Cursor.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/notion",
+      "logoSrc": "notion.svg",
+      "logoAlt": "Logo de notion",
+      "categories": [
+        "docs",
+        "planning",
+        "collaboration"
+      ],
+      "highlights": [
+        "Idéal lorsque le produit, les spécifications et les connaissances de l'équipe résident déjà dans Notion.",
+        "Conserve le contexte de l’espace de travail interactif au sein du même flux d’agent via MCP et OAuth hébergés.",
+        "Utile pour lire, rechercher et mettre à jour le contexte de planification sans créer une intégration locale distincte."
+      ],
+      "useCases": [
+        "Extraire le contexte du projet à partir des documents de l'équipe avant d'apporter des modifications au code ou au produit.",
+        "Vérifiez les spécifications, les notes de lancement ou les documents d'exploitation sans quitter l'espace de travail de l'agent.",
+        "Mise à jour des pages de planning partagées lors de l'exécution et du suivi."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "stripe",
+      "slug": "stripe",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Bande",
+      "tagline": "Accès hébergé OAuth-first MCP aux paiements, à la facturation, aux clients et aux connaissances Stripe, avec des jetons avancés et des chemins locaux intentionnellement tenus à l'écart de la v1.",
+      "description": "Un véritable plugin Stripe MCP pour un accès hébergé aux flux de paiement, de facturation, de clientèle et de documentation via le point de terminaison distant officiel MCP de Stripe.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/stripe",
+      "logoSrc": "stripe.svg",
+      "logoAlt": "Logo rayé",
+      "categories": [
+        "payments",
+        "commerce",
+        "backend"
+      ],
+      "highlights": [
+        "Idéal pour les équipes qui ont besoin d'agents pour raisonner sur la facturation réelle et l'état du commerce, et pas seulement sur des documents.",
+        "Maintient la communauté par défaut propre avec OAuth hébergé au lieu d'intégrer des clés API restreintes dans la configuration générée.",
+        "Traite explicitement les modes locaux et autonomes pilotés par jetons comme des chemins avancés distincts plutôt que de les mélanger discrètement dans un seul plugin."
+      ],
+      "useCases": [
+        "Vérifiez les clients, les produits, les abonnements, les factures et les remboursements à partir du même espace de travail que le code et les opérations.",
+        "Intégrer les documents Stripe et les connaissances de support dans le même flux que les opérations de compte.",
+        "Aider les agents approuvés par l'homme à gérer le contexte de facturation et de paiement récurrent sans configuration locale supplémentaire."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "slack",
+      "slug": "slack",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Mou",
+      "tagline": "Accès Slack MCP hébergé pour la recherche, les messages, les canevas et le contexte de l'espace de travail via un chemin d'intégration honnête Claude et Cursor.",
+      "description": "Un véritable plugin Slack MCP pour l'accès à l'espace de travail hébergé via le point de terminaison officiel MCP de Slack, avec la forme d'authentification spécifique au client que Slack documente actuellement pour Claude et Cursor.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/slack",
+      "logoSrc": "slack.svg",
+      "logoAlt": "Logo Slack",
+      "categories": [
+        "collaboration",
+        "messaging",
+        "search"
+      ],
+      "highlights": [
+        "Conserve l’historique Slack, le contexte du canal et les flux de messages dans le même flux que le travail de code et de planification.",
+        "Utilise le point de terminaison MCP hébergé par Slack avec la forme d'authentification documentée pour le sous-ensemble client pris en charge au lieu de prétendre une fausse parité partout.",
+        "Idéal lorsque les décisions du projet et le contexte opérationnel sont déjà présents dans les conversations et les canevas Slack."
+      ],
+      "useCases": [
+        "Rechercher l'historique récent des chaînes avant de modifier un produit ou un code.",
+        "Rédiger ou envoyer des messages de suivi à partir du même flux de travail que le travail de mise en œuvre actif.",
+        "Intégrer le contexte Slack dans une session d'agent sans créer au préalable une intégration personnalisée."
+      ],
+      "badges": [
+        "Claude",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "vercel",
+      "slug": "vercel",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Vercel",
+      "tagline": "Accès hébergé MCP aux documents, projets, déploiements et journaux Vercel pendant que le service en amont est encore en version bêta.",
+      "description": "Un véritable plugin Vercel MCP pour un accès hébergé soutenu par OAuth à la documentation, aux projets, aux déploiements et aux journaux via le point de terminaison distant officiel MCP de Vercel.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/vercel",
+      "logoSrc": "vercel.svg",
+      "logoAlt": "Logo Vercel",
+      "categories": [
+        "devops",
+        "cloud",
+        "backend"
+      ],
+      "highlights": [
+        "Idéal pour les équipes qui expédient et opèrent déjà via Vercel.",
+        "Combine la recherche de documents avec des flux de déploiement et de projet authentifiés dans une seule surface MCP.",
+        "Maintient le plugin honnête sur le statut bêta en amont au lieu de prétendre que le service est entièrement réglé."
+      ],
+      "useCases": [
+        "Vérification de l'état du déploiement et des journaux lors du débogage du comportement de production.",
+        "Intégrer les documents Vercel dans le même flux de travail que les opérations du projet.",
+        "Aider les agents à réfléchir sur la plate-forme et le contexte de déploiement sans quitter l'espace de travail."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "sentry",
+      "slug": "sentry",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Sentinelle",
+      "tagline": "Débogage humain dans la boucle et contexte d'incident via le service MCP hébergé de Sentry.",
+      "description": "Un véritable plugin Sentry MCP pour un accès hébergé, soutenu par OAuth, aux problèmes, aux traces, au contexte de débogage et aux workflows d'incidents via le service distant officiel MCP de Sentry.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/sentry",
+      "logoSrc": "sentry.svg",
+      "logoAlt": "Logo de la sentinelle",
+      "categories": [
+        "backend",
+        "review",
+        "devops"
+      ],
+      "highlights": [
+        "Conçu pour les équipes d'ingénierie qui ont besoin d'un véritable contexte de débogage de production, pas seulement de documents.",
+        "Maintient le contexte des problèmes, des traces et des incidents à proximité du flux de travail de codage.",
+        "Délibérément limité au chemin SaaS hébergé au lieu de mélanger la complexité auto-hébergée et stdio."
+      ],
+      "useCases": [
+        "Triez les problèmes de production lors de la révision du code ou de la planification des correctifs.",
+        "Utilisez les traces et le contexte du problème pour réduire plus rapidement les chemins de défaillance probables.",
+        "Soutenez le suivi des incidents sans rebondir entre les tableaux de bord et les sessions d'agent."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "supabase",
+      "slug": "supabase",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Supabase",
+      "tagline": "Développement backend à l'échelle du projet via une surface MCP hébergée par Supabase.",
+      "description": "Un véritable plugin Supabase MCP pour les flux de travail de développement à l'échelle d'un projet via MCP hébergé par Supabase.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/supabase",
+      "logoSrc": "supabase.svg",
+      "logoAlt": "Logo Supabase",
+      "categories": [
+        "backend",
+        "database",
+        "cloud"
+      ],
+      "highlights": [
+        "Conçu pour les équipes créant des backends d'applications avec Supabase comme centre de gravité.",
+        "Facilite le fonctionnement de la base de données et de la plate-forme à l'échelle du projet en un seul flux.",
+        "Se marie bien avec les équipes produit qui ont besoin de vitesse backend sans une énorme couche opérationnelle."
+      ],
+      "useCases": [
+        "Vérification de la configuration du projet lors de l'itération sur les fonctionnalités basées sur la base de données.",
+        "Passer d’une tâche backend à l’autre sans quitter l’espace de travail de l’agent.",
+        "Soutenir les équipes qui préfèrent une surface backend gérée pour un travail rapide sur les produits."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "greptile",
+      "slug": "greptile",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Greptile",
+      "tagline": "Intelligence du code basée sur le référentiel pour la recherche approfondie, la collecte de contexte et la prise en charge de la révision.",
+      "description": "Un véritable plugin Greptile MCP pour l'intelligence du code compatible avec le référentiel via Greptile hébergé MCP.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/greptile",
+      "logoSrc": "greptile.svg",
+      "logoAlt": "Logo Greptile",
+      "categories": [
+        "codeSearch",
+        "review",
+        "research"
+      ],
+      "highlights": [
+        "Aide les agents à inspecter le contexte du référentiel au lieu de deviner à partir de fichiers partiels.",
+        "Idéal pour la recherche approfondie de code, la compréhension de domaines inconnus et la préparation aux révisions.",
+        "Fonctionne bien lorsque la compréhension rapide du référentiel est aussi importante que la génération brute."
+      ],
+      "useCases": [
+        "Explorer une base de code inconnue avant d'apporter des modifications.",
+        "Recherche de modèles de mise en œuvre associés dans un référentiel lors de l'examen.",
+        "Créer un meilleur contexte technique pour le débogage et la refactorisation."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    }
+  ],
+  "comparisonRows": [
+    {
+      "id": "oneRepo",
+      "feature": "Un dépôt pour plusieurs sorties d'agent",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Une source de vérité"
+      },
+      "manual": {
+        "status": "Non",
+        "note": "Nouvelle configuration par agent"
+      },
+      "duplicated": {
+        "status": "partiel",
+        "note": "Possible, mais dérive vite"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Généralement un seul flux local"
+      }
+    },
+    {
+      "id": "validate",
+      "feature": "Validation avant transfert",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Construit autour de validate --strict"
+      },
+      "manual": {
+        "status": "partiel",
+        "note": "Cela dépend de l'examen humain"
+      },
+      "duplicated": {
+        "status": "partiel",
+        "note": "Même contrôle répété partout"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Cas de bord faciles à manquer"
+      }
+    },
+    {
+      "id": "boundary",
+      "feature": "Effacer la limite entre stable et bêta",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Documenté et explicite"
+      },
+      "manual": {
+        "status": "Non",
+        "note": "Connaissance généralement tribale"
+      },
+      "duplicated": {
+        "status": "Non",
+        "note": "L'ambiguïté est également copiée"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Pas de contrat partagé"
+      }
+    },
+    {
+      "id": "expansion",
+      "feature": "Ajoutez des sorties plus tard sans recommencer",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Grandir à partir du même dépôt"
+      },
+      "manual": {
+        "status": "partiel",
+        "note": "Possible, mais lourd à retravailler"
+      },
+      "duplicated": {
+        "status": "Non",
+        "note": "Chaque nouvelle production repart de zéro"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Généralement une réécriture"
+      }
+    },
+    {
+      "id": "releasePath",
+      "feature": "Effacer les canaux d'installation et de publication",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Les documents, les versions et les chemins d'installation s'alignent"
+      },
+      "manual": {
+        "status": "Non",
+        "note": "Vous assemblez vous-même le flux"
+      },
+      "duplicated": {
+        "status": "partiel",
+        "note": "Travail possible, mais répété"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Principalement local et ponctuel"
+      }
+    },
+    {
+      "id": "teamFlow",
+      "feature": "Intégration conviviale",
+      "pluginKitAi": {
+        "status": "Oui",
+        "note": "Flux de travail partagé et exemples"
+      },
+      "manual": {
+        "status": "partiel",
+        "note": "Vit dans les gens et discute"
+      },
+      "duplicated": {
+        "status": "Non",
+        "note": "Plus de fichiers, même confusion"
+      },
+      "scripts": {
+        "status": "Non",
+        "note": "Difficile de s'en débarrasser proprement"
+      }
+    }
+  ],
+  "faq": [
+    {
+      "id": "whatIsIt",
+      "question": "Qu'est-ce que plugin-kit-ai ?",
+      "answer": "plugin-kit-ai est une boîte à outils open source permettant de conserver un dépôt de plugin comme source de vérité, puis de générer et de valider les sorties d'agent prises en charge dont vous avez réellement besoin."
+    },
+    {
+      "id": "whoShouldUseIt",
+      "question": "Qui devrait l’utiliser ?",
+      "answer": "Utilisez-le lorsque vous souhaitez un véritable dépôt de plug-in, un flux de travail partagé et un chemin plus propre que les scripts uniques ou la configuration spécifique à l'agent dupliquée."
+    },
+    {
+      "id": "oneRepoPerAgent",
+      "question": "Ai-je besoin d’un dépôt par agent ?",
+      "answer": "Le but est de conserver un référentiel source créé, puis de cibler les sorties prises en charge pour Claude, Codex, Gemini, OpenCode, Cursor et d'autres à partir de cette même base au lieu de reconstruire chacun d'entre eux à partir de zéro."
+    },
+    {
+      "id": "stableBoundary",
+      "question": "Toutes les sorties prises en charge sont-elles également stables aujourd’hui ?",
+      "answer": "Non. Certaines voies sont prêtes pour la production et d’autres restent en version bêta publique. plugin-kit-ai est explicite sur cette limite afin que vous puissiez faire des promesses de produits honnêtes."
+    },
+    {
+      "id": "fastestStart",
+      "question": "Quelle est la manière la plus rapide de commencer ?",
+      "answer": "Installez <code>plugin-kit-ai</code>, créez un dépôt avec <code>init</code>, puis exécutez <code>render</code> et <code>validate --strict</code>. La plupart des équipes devraient commencer par le <a href=\"https://777genius.github.io/plugin-kit-ai/docs/fr/guide/quickstart.html\">Quickstart</a>. Si votre équipe est intentionnellement Python-en premier, accédez directement au guide <a href=\"https://777genius.github.io/plugin-kit-ai/docs/fr/guide/python-runtime.html\">Python</a>."
+    },
+    {
+      "id": "whichPathFirst",
+      "question": "Par quel chemin dois-je commencer : Go, Python ou Node ?",
+      "answer": "Commencez par Go lorsque vous souhaitez le chemin par défaut le plus fort. Choisissez Node/TypeScript pour le chemin non-Go principal pris en charge. Choisissez Python lorsque le dépôt reste local et que votre équipe est déjà Python en premier."
+    }
+  ],
+  "download": {
+    "title": "Commencer",
+    "note": "Choisissez un chemin d'installation, ouvrez la documentation et démarrez à partir d'un dépôt de plugin propre."
+  },
+  "installChannels": [
+    {
+      "id": "brew",
+      "title": "Homebrew",
+      "description": "Installation locale recommandée pour les machines qui utilisent déjà Homebrew.",
+      "href": "https://github.com/777genius/homebrew-plugin-kit-ai",
+      "note": "Meilleure valeur par défaut lorsque Homebrew est disponible.",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai",
+      "recommended": true
+    },
+    {
+      "id": "npm",
+      "title": "npm",
+      "description": "Wrapper officiel de l'écosystème JavaScript pour les équipes qui centrent déjà leur flux de travail sur npm.",
+      "href": "https://www.npmjs.com/package/plugin-kit-ai",
+      "note": "Wrapper bêta public qui télécharge la version binaire vérifiée correspondante.",
+      "command": "npm i -g plugin-kit-ai"
+    },
+    {
+      "id": "pipx",
+      "title": "pipx",
+      "description": "Wrapper d'écosystème Python lorsque la version correspondante est publiée sur PyPI.",
+      "href": "https://pypi.org/project/plugin-kit-ai/",
+      "note": "Wrapper bêta public. Utilisez ce canal uniquement lorsque la version cible est disponible sur PyPI.",
+      "command": "pipx install plugin-kit-ai"
+    },
+    {
+      "id": "script",
+      "title": "Script d'installation vérifié",
+      "description": "Chemin d’amorçage de secours qui résout la dernière version stable publiée et vérifie les sommes de contrôle.",
+      "href": "https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh",
+      "note": "Good lorsque la configuration du gestionnaire de packages n'est pas celle que vous souhaitez en premier.",
+      "command": "curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh"
+    },
+    {
+      "id": "releases",
+      "title": "GitHub Versions",
+      "description": "Parcourez directement les notes de version publiées, les artefacts et l’historique des versions.",
+      "href": "https://github.com/777genius/plugin-kit-ai/releases",
+      "note": "Utilisez-le lorsque vous souhaitez obtenir une surface de libération brute.",
+      "command": "https://github.com/777genius/plugin-kit-ai/releases"
+    },
+    {
+      "id": "docs",
+      "title": "Guide de démarrage rapide pour Documents",
+      "description": "Accédez directement au démarrage rapide et au site de documentation plus large.",
+      "href": "https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html",
+      "note": "Meilleure prochaine étape une fois le CLI installé.",
+      "command": "plugin-kit-ai init my-plugin"
+    }
+  ],
+  "quickstartSteps": [
+    {
+      "id": "install",
+      "title": "Installez le CLI",
+      "command": "brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai\nplugin-kit-ai version",
+      "note": "Homebrew est le chemin d'installation local recommandé pour le CLI lui-même."
+    },
+    {
+      "id": "init",
+      "title": "Créez d'abord le dépôt par défaut le plus solide",
+      "command": "plugin-kit-ai init my-plugin\ncd my-plugin",
+      "note": "Le chemin par défaut commence par l'histoire de production prise en charge la plus solide."
+    },
+    {
+      "id": "generate",
+      "title": "Générer des fichiers cibles gérés",
+      "command": "plugin-kit-ai generate .",
+      "note": "Générez les artefacts cibles gérés à partir d’un référentiel créé."
+    },
+    {
+      "id": "validate",
+      "title": "Valider avant le transfert",
+      "command": "plugin-kit-ai validate . --platform codex-runtime --strict",
+      "note": "Utilisez la porte de validation stricte avant le CI, le transfert d'un coéquipier ou la libération."
+    }
+  ],
+  "supportLanes": [
+    {
+      "id": "claude",
+      "name": "Paquet de plug-ins Claude",
+      "status": "Sous-ensemble stable prêt pour la production",
+      "note": "Prêt pour la production pour le sous-ensemble de hooks par défaut stable. Les paramètres et la prise en charge du manifeste sont solides ; certaines surfaces de package Claude plus larges restent toujours en version bêta."
+    },
+    {
+      "id": "codex",
+      "name": "Codex runtime et voies de package",
+      "status": "Prêt pour la production",
+      "note": "La voie d'exécution de notification Codex et la voie de package officielle Codex sont toutes deux prêtes pour la production aujourd'hui."
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini voie de prolongement",
+      "status": "Prêt pour la production",
+      "note": "Le packaging d'extension Gemini est prêt pour la production, et la voie d'exécution Go est prête pour la production pour le contrat stable actuel à 9 crochets."
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode voie de configuration de l'espace de travail",
+      "status": "Cible uniquement sur l'emballage",
+      "note": "La configuration du référentiel local, MCP, les compétences, les commandes, les agents, les thèmes et les références de plugin sont pris en charge, mais il s'agit toujours d'une cible de configuration d'espace de travail, et non d'une voie d'exécution prête pour la production."
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor voie de configuration de l'espace de travail",
+      "status": "Cible uniquement sur l'emballage",
+      "note": "Les règles du projet et la configuration MCP sont couvertes, tandis que la racine CLAUDE.md et AGENTS.md restent réservées aux documents sur les limites du plugin ; Cursor reste une voie de configuration d'espace de travail stricte."
+    }
+  ]
+}

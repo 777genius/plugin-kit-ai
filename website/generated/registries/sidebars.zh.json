@@ -1,0 +1,719 @@
+{
+  "/zh/guide/": [
+    {
+      "text": "开始",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/guide/"
+        },
+        {
+          "text": "安装",
+          "link": "/zh/guide/installation"
+        },
+        {
+          "text": "快速开始",
+          "link": "/zh/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "核心思路",
+      "items": [
+        {
+          "text": "你可以构建什么",
+          "link": "/zh/guide/what-you-can-build"
+        },
+        {
+          "text": "一个项目，多个 targets",
+          "link": "/zh/guide/one-project-multiple-targets"
+        },
+        {
+          "text": "选择 target",
+          "link": "/zh/guide/choose-a-target"
+        }
+      ]
+    },
+    {
+      "text": "构建插件",
+      "items": [
+        {
+          "text": "构建第一个插件",
+          "link": "/zh/guide/first-plugin"
+        },
+        {
+          "text": "Python runtime 插件",
+          "link": "/zh/guide/python-runtime"
+        },
+        {
+          "text": "团队可用插件",
+          "link": "/zh/guide/team-ready-plugin"
+        },
+        {
+          "text": "Claude 插件",
+          "link": "/zh/guide/claude-plugin"
+        },
+        {
+          "text": "Node/TypeScript Runtime",
+          "link": "/zh/guide/node-typescript-runtime"
+        }
+      ]
+    },
+    {
+      "text": "Starter 与示例",
+      "items": [
+        {
+          "text": "Starter 模板",
+          "link": "/zh/guide/starter-templates"
+        },
+        {
+          "text": "选择 starter repo",
+          "link": "/zh/guide/choose-a-starter"
+        },
+        {
+          "text": "示例与实践",
+          "link": "/zh/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "交付与 targets",
+      "items": [
+        {
+          "text": "选择交付模型",
+          "link": "/zh/guide/choose-delivery-model"
+        },
+        {
+          "text": "Bundle 交付",
+          "link": "/zh/guide/bundle-handoff"
+        },
+        {
+          "text": "Packages 与集成配置",
+          "link": "/zh/guide/package-and-workspace-targets"
+        },
+        {
+          "text": "如何发布插件",
+          "link": "/zh/guide/how-to-publish-plugins"
+        }
+      ]
+    },
+    {
+      "text": "生产与 CI",
+      "items": [
+        {
+          "text": "生产准备",
+          "link": "/zh/guide/production-readiness"
+        },
+        {
+          "text": "CI 集成",
+          "link": "/zh/guide/ci-integration"
+        }
+      ]
+    }
+  ],
+  "/zh/concepts/": [
+    {
+      "text": "基础",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/concepts/"
+        },
+        {
+          "text": "为什么选择 plugin-kit-ai",
+          "link": "/zh/concepts/why-plugin-kit-ai"
+        },
+        {
+          "text": "plugin-kit-ai 如何工作",
+          "link": "/zh/concepts/managed-project-model"
+        },
+        {
+          "text": "源码与 outputs",
+          "link": "/zh/concepts/authoring-architecture"
+        }
+      ]
+    },
+    {
+      "text": "决策模型",
+      "items": [
+        {
+          "text": "稳定性模型",
+          "link": "/zh/concepts/stability-model"
+        },
+        {
+          "text": "Target 模型",
+          "link": "/zh/concepts/target-model"
+        },
+        {
+          "text": "选择 runtime",
+          "link": "/zh/concepts/choosing-runtime"
+        }
+      ]
+    }
+  ],
+  "/zh/reference/": [
+    {
+      "text": "操作参考",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/reference/"
+        },
+        {
+          "text": "安装渠道",
+          "link": "/zh/reference/install-channels"
+        },
+        {
+          "text": "版本与兼容性",
+          "link": "/zh/reference/version-and-compatibility"
+        },
+        {
+          "text": "编写流程",
+          "link": "/zh/reference/authoring-workflow"
+        },
+        {
+          "text": "仓库标准",
+          "link": "/zh/reference/repository-standard"
+        }
+      ]
+    },
+    {
+      "text": "支持与边界",
+      "items": [
+        {
+          "text": "支持边界",
+          "link": "/zh/reference/support-boundary"
+        },
+        {
+          "text": "Target 支持",
+          "link": "/zh/reference/target-support"
+        }
+      ]
+    },
+    {
+      "text": "帮助",
+      "items": [
+        {
+          "text": "FAQ",
+          "link": "/zh/reference/faq"
+        },
+        {
+          "text": "故障排查",
+          "link": "/zh/reference/troubleshooting"
+        },
+        {
+          "text": "术语表",
+          "link": "/zh/reference/glossary"
+        }
+      ]
+    }
+  ],
+  "/zh/api/": [
+    {
+      "text": "API 总览",
+      "items": [
+        {
+          "text": "API 总览",
+          "link": "/zh/api/"
+        },
+        {
+          "text": "CLI 参考",
+          "link": "/zh/api/cli/"
+        },
+        {
+          "text": "Go SDK",
+          "link": "/zh/api/go-sdk/"
+        },
+        {
+          "text": "Node Runtime",
+          "link": "/zh/api/runtime-node/"
+        },
+        {
+          "text": "Python Runtime",
+          "link": "/zh/api/runtime-python/"
+        },
+        {
+          "text": "平台事件",
+          "link": "/zh/api/platform-events/"
+        },
+        {
+          "text": "Capabilities",
+          "link": "/zh/api/capabilities/"
+        }
+      ]
+    }
+  ],
+  "/zh/api/cli/": [
+    {
+      "text": "CLI 参考",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/cli/"
+        }
+      ]
+    },
+    {
+      "text": "核心命令",
+      "items": [
+        {
+          "text": "plugin-kit-ai",
+          "link": "/zh/api/cli/plugin-kit-ai"
+        },
+        {
+          "text": "bootstrap",
+          "link": "/zh/api/cli/plugin-kit-ai-bootstrap"
+        },
+        {
+          "text": "capabilities",
+          "link": "/zh/api/cli/plugin-kit-ai-capabilities"
+        },
+        {
+          "text": "dev",
+          "link": "/zh/api/cli/plugin-kit-ai-dev"
+        },
+        {
+          "text": "doctor",
+          "link": "/zh/api/cli/plugin-kit-ai-doctor"
+        },
+        {
+          "text": "export",
+          "link": "/zh/api/cli/plugin-kit-ai-export"
+        },
+        {
+          "text": "generate",
+          "link": "/zh/api/cli/plugin-kit-ai-generate"
+        },
+        {
+          "text": "help",
+          "link": "/zh/api/cli/plugin-kit-ai-help"
+        },
+        {
+          "text": "import",
+          "link": "/zh/api/cli/plugin-kit-ai-import"
+        },
+        {
+          "text": "init",
+          "link": "/zh/api/cli/plugin-kit-ai-init"
+        },
+        {
+          "text": "inspect",
+          "link": "/zh/api/cli/plugin-kit-ai-inspect"
+        },
+        {
+          "text": "install",
+          "link": "/zh/api/cli/plugin-kit-ai-install"
+        },
+        {
+          "text": "integrations",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations"
+        },
+        {
+          "text": "integrations add",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-add"
+        },
+        {
+          "text": "integrations doctor",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-doctor"
+        },
+        {
+          "text": "integrations help",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-help"
+        },
+        {
+          "text": "integrations list",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-list"
+        },
+        {
+          "text": "integrations remove",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-remove"
+        },
+        {
+          "text": "integrations repair",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-repair"
+        },
+        {
+          "text": "integrations update",
+          "link": "/zh/api/cli/plugin-kit-ai-integrations-update"
+        },
+        {
+          "text": "normalize",
+          "link": "/zh/api/cli/plugin-kit-ai-normalize"
+        },
+        {
+          "text": "publication",
+          "link": "/zh/api/cli/plugin-kit-ai-publication"
+        },
+        {
+          "text": "publication doctor",
+          "link": "/zh/api/cli/plugin-kit-ai-publication-doctor"
+        },
+        {
+          "text": "publication help",
+          "link": "/zh/api/cli/plugin-kit-ai-publication-help"
+        },
+        {
+          "text": "publication materialize",
+          "link": "/zh/api/cli/plugin-kit-ai-publication-materialize"
+        },
+        {
+          "text": "publication remove",
+          "link": "/zh/api/cli/plugin-kit-ai-publication-remove"
+        },
+        {
+          "text": "publish",
+          "link": "/zh/api/cli/plugin-kit-ai-publish"
+        },
+        {
+          "text": "test",
+          "link": "/zh/api/cli/plugin-kit-ai-test"
+        },
+        {
+          "text": "validate",
+          "link": "/zh/api/cli/plugin-kit-ai-validate"
+        },
+        {
+          "text": "version",
+          "link": "/zh/api/cli/plugin-kit-ai-version"
+        }
+      ]
+    },
+    {
+      "text": "Bundle",
+      "items": [
+        {
+          "text": "bundle",
+          "link": "/zh/api/cli/plugin-kit-ai-bundle"
+        },
+        {
+          "text": "bundle fetch",
+          "link": "/zh/api/cli/plugin-kit-ai-bundle-fetch"
+        },
+        {
+          "text": "bundle help",
+          "link": "/zh/api/cli/plugin-kit-ai-bundle-help"
+        },
+        {
+          "text": "bundle install",
+          "link": "/zh/api/cli/plugin-kit-ai-bundle-install"
+        },
+        {
+          "text": "bundle publish",
+          "link": "/zh/api/cli/plugin-kit-ai-bundle-publish"
+        }
+      ]
+    },
+    {
+      "text": "Completion",
+      "items": [
+        {
+          "text": "completion",
+          "link": "/zh/api/cli/plugin-kit-ai-completion"
+        },
+        {
+          "text": "completion bash",
+          "link": "/zh/api/cli/plugin-kit-ai-completion-bash"
+        },
+        {
+          "text": "completion fish",
+          "link": "/zh/api/cli/plugin-kit-ai-completion-fish"
+        },
+        {
+          "text": "completion help",
+          "link": "/zh/api/cli/plugin-kit-ai-completion-help"
+        },
+        {
+          "text": "completion powershell",
+          "link": "/zh/api/cli/plugin-kit-ai-completion-powershell"
+        },
+        {
+          "text": "completion zsh",
+          "link": "/zh/api/cli/plugin-kit-ai-completion-zsh"
+        }
+      ]
+    },
+    {
+      "text": "Skills",
+      "items": [
+        {
+          "text": "skills",
+          "link": "/zh/api/cli/plugin-kit-ai-skills"
+        },
+        {
+          "text": "skills generate",
+          "link": "/zh/api/cli/plugin-kit-ai-skills-generate"
+        },
+        {
+          "text": "skills help",
+          "link": "/zh/api/cli/plugin-kit-ai-skills-help"
+        },
+        {
+          "text": "skills init",
+          "link": "/zh/api/cli/plugin-kit-ai-skills-init"
+        },
+        {
+          "text": "skills validate",
+          "link": "/zh/api/cli/plugin-kit-ai-skills-validate"
+        }
+      ]
+    }
+  ],
+  "/zh/api/go-sdk/": [
+    {
+      "text": "Go SDK",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/go-sdk/"
+        },
+        {
+          "text": "claude",
+          "link": "/zh/api/go-sdk/claude"
+        },
+        {
+          "text": "codex",
+          "link": "/zh/api/go-sdk/codex"
+        },
+        {
+          "text": "platformmeta",
+          "link": "/zh/api/go-sdk/platformmeta"
+        },
+        {
+          "text": "sdk",
+          "link": "/zh/api/go-sdk/sdk"
+        }
+      ]
+    }
+  ],
+  "/zh/api/runtime-node/": [
+    {
+      "text": "Node Runtime",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/runtime-node/"
+        },
+        {
+          "text": "allow",
+          "link": "/zh/api/runtime-node/allow"
+        },
+        {
+          "text": "Claude App",
+          "link": "/zh/api/runtime-node/claudeapp"
+        },
+        {
+          "text": "Claude Handler",
+          "link": "/zh/api/runtime-node/claudehandler"
+        },
+        {
+          "text": "CLAUDE_EXTENDED_HOOKS",
+          "link": "/zh/api/runtime-node/claude_extended_hooks"
+        },
+        {
+          "text": "CLAUDE_STABLE_HOOKS",
+          "link": "/zh/api/runtime-node/claude_stable_hooks"
+        },
+        {
+          "text": "Codex App",
+          "link": "/zh/api/runtime-node/codexapp"
+        },
+        {
+          "text": "Codex Handler",
+          "link": "/zh/api/runtime-node/codexhandler"
+        },
+        {
+          "text": "continue",
+          "link": "/zh/api/runtime-node/continue"
+        },
+        {
+          "text": "JSONMap",
+          "link": "/zh/api/runtime-node/jsonmap"
+        },
+        {
+          "text": "Overview",
+          "link": "/zh/api/runtime-node/runtime"
+        }
+      ]
+    }
+  ],
+  "/zh/api/runtime-python/": [
+    {
+      "text": "Python Runtime",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/runtime-python/"
+        },
+        {
+          "text": "plugin_kit_ai_runtime",
+          "link": "/zh/api/runtime-python/plugin-kit-ai-runtime"
+        }
+      ]
+    }
+  ],
+  "/zh/api/platform-events/": [
+    {
+      "text": "平台事件",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/platform-events/"
+        },
+        {
+          "text": "claude",
+          "link": "/zh/api/platform-events/claude"
+        },
+        {
+          "text": "codex",
+          "link": "/zh/api/platform-events/codex"
+        },
+        {
+          "text": "gemini",
+          "link": "/zh/api/platform-events/gemini"
+        }
+      ]
+    }
+  ],
+  "/zh/api/capabilities/": [
+    {
+      "text": "Capabilities",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/api/capabilities/"
+        },
+        {
+          "text": "config_change",
+          "link": "/zh/api/capabilities/config_change"
+        },
+        {
+          "text": "gemini_after_agent",
+          "link": "/zh/api/capabilities/gemini_after_agent"
+        },
+        {
+          "text": "gemini_after_model",
+          "link": "/zh/api/capabilities/gemini_after_model"
+        },
+        {
+          "text": "gemini_after_tool",
+          "link": "/zh/api/capabilities/gemini_after_tool"
+        },
+        {
+          "text": "gemini_before_agent",
+          "link": "/zh/api/capabilities/gemini_before_agent"
+        },
+        {
+          "text": "gemini_before_model",
+          "link": "/zh/api/capabilities/gemini_before_model"
+        },
+        {
+          "text": "gemini_before_tool",
+          "link": "/zh/api/capabilities/gemini_before_tool"
+        },
+        {
+          "text": "gemini_before_tool_selection",
+          "link": "/zh/api/capabilities/gemini_before_tool_selection"
+        },
+        {
+          "text": "gemini_session_end",
+          "link": "/zh/api/capabilities/gemini_session_end"
+        },
+        {
+          "text": "gemini_session_start",
+          "link": "/zh/api/capabilities/gemini_session_start"
+        },
+        {
+          "text": "notify",
+          "link": "/zh/api/capabilities/notify"
+        },
+        {
+          "text": "permission_request",
+          "link": "/zh/api/capabilities/permission_request"
+        },
+        {
+          "text": "post_tool",
+          "link": "/zh/api/capabilities/post_tool"
+        },
+        {
+          "text": "post_tool_failure",
+          "link": "/zh/api/capabilities/post_tool_failure"
+        },
+        {
+          "text": "pre_compact",
+          "link": "/zh/api/capabilities/pre_compact"
+        },
+        {
+          "text": "prompt_submit_gate",
+          "link": "/zh/api/capabilities/prompt_submit_gate"
+        },
+        {
+          "text": "session_end",
+          "link": "/zh/api/capabilities/session_end"
+        },
+        {
+          "text": "session_start",
+          "link": "/zh/api/capabilities/session_start"
+        },
+        {
+          "text": "setup",
+          "link": "/zh/api/capabilities/setup"
+        },
+        {
+          "text": "stop_gate",
+          "link": "/zh/api/capabilities/stop_gate"
+        },
+        {
+          "text": "subagent_start",
+          "link": "/zh/api/capabilities/subagent_start"
+        },
+        {
+          "text": "subagent_stop",
+          "link": "/zh/api/capabilities/subagent_stop"
+        },
+        {
+          "text": "task_completed",
+          "link": "/zh/api/capabilities/task_completed"
+        },
+        {
+          "text": "teammate_idle",
+          "link": "/zh/api/capabilities/teammate_idle"
+        },
+        {
+          "text": "tool_gate",
+          "link": "/zh/api/capabilities/tool_gate"
+        },
+        {
+          "text": "worktree_create",
+          "link": "/zh/api/capabilities/worktree_create"
+        },
+        {
+          "text": "worktree_remove",
+          "link": "/zh/api/capabilities/worktree_remove"
+        }
+      ]
+    }
+  ],
+  "/zh/releases/": [
+    {
+      "text": "发布",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/releases/"
+        },
+        {
+          "text": "v1.0.6",
+          "link": "/zh/releases/v1-0-6"
+        },
+        {
+          "text": "v1.0.0",
+          "link": "/zh/releases/v1-0-0"
+        },
+        {
+          "text": "v1.0.4 Go SDK",
+          "link": "/zh/releases/v1-0-4-go-sdk"
+        }
+      ]
+    }
+  ]
+}
