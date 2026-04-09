@@ -14,6 +14,8 @@ import (
 
 const stripeCatalogLiveEnvVar = "PLUGIN_KIT_AI_RUN_STRIPE_LIVE"
 const stripeCatalogDirEnvVar = "PLUGIN_KIT_AI_E2E_STRIPE_DIR"
+const stripeCatalogServerName = "stripe"
+const stripeCatalogServerURL = "https://mcp.stripe.com"
 
 func TestStripeCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(stripeCatalogLiveEnvVar)) != "1" {
@@ -23,6 +25,9 @@ func TestStripeCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	pluginDir := resolveStripeCatalogPluginDir(t)
 	pluginKitAIBin := buildPluginKitAI(t)
 	assertStripeCatalogRenderedAndValid(t, pluginKitAIBin, pluginDir)
+
+	server := readRenderedSharedMCPServer(t, pluginDir, stripeCatalogServerName)
+	assertStripeRenderedServer(t, server)
 
 	t.Run("Claude_plugin_dir_list_and_mcp_status", func(t *testing.T) {
 		claudeBin := installedClaudeBinaryOrSkip(t)
@@ -53,18 +58,13 @@ func TestStripeCatalogLiveAcrossInstalledAgents(t *testing.T) {
 			}
 			t.Fatalf("claude mcp list with --plugin-dir: %v\n%s", err, mcpListOut)
 		}
-		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:stripe:stripe:", "mcp.stripe.com")
+		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:stripe:stripe:", stripeCatalogServerURL)
 	})
 
 	t.Run("Codex_get_and_list_rendered_remote_server", func(t *testing.T) {
 		codexBin := installedCodexBinaryOrSkip(t)
-		server := readRenderedSharedMCPServer(t, pluginDir, "stripe")
-		url := strings.TrimSpace(fmt.Sprint(server["url"]))
-		if url == "" {
-			t.Fatalf("generated stripe server missing url: %#v", server)
-		}
 
-		getCmd := exec.Command(codexBin, "mcp", "get", "stripe", "--json", "-c", fmt.Sprintf("mcp_servers.stripe.url=%q", url))
+		getCmd := exec.Command(codexBin, "mcp", "get", stripeCatalogServerName, "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", stripeCatalogServerName, stripeCatalogServerURL))
 		getOut, err := getCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp get stripe: %v\n%s", err, getOut)
@@ -79,11 +79,11 @@ func TestStripeCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(getOut, &getDoc); err != nil {
 			t.Fatalf("parse codex mcp get stripe: %v\n%s", err, getOut)
 		}
-		if getDoc.Name != "stripe" || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != url {
+		if getDoc.Name != stripeCatalogServerName || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != stripeCatalogServerURL {
 			t.Fatalf("unexpected codex mcp get stripe output:\n%s", getOut)
 		}
 
-		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.stripe.url=%q", url))
+		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", stripeCatalogServerName, stripeCatalogServerURL))
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp list stripe: %v\n%s", err, listOut)
@@ -99,7 +99,7 @@ func TestStripeCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(listOut, &listDoc); err != nil {
 			t.Fatalf("parse codex mcp list stripe: %v\n%s", err, listOut)
 		}
-		assertCodexRemoteCatalogEntry(t, listDoc, "stripe", url)
+		assertCodexRemoteCatalogEntry(t, listDoc, stripeCatalogServerName, stripeCatalogServerURL)
 	})
 
 	t.Run("Gemini_extension_validate_link_and_list", func(t *testing.T) {
@@ -216,5 +216,18 @@ func assertStripeCatalogRenderedAndValid(t *testing.T, pluginKitAIBin, pluginDir
 	runCmd(t, root, exec.Command(pluginKitAIBin, "generate", pluginDir, "--check"))
 	for _, platform := range []string{"claude", "codex-package", "gemini", "opencode", "cursor"} {
 		runCmd(t, root, exec.Command(pluginKitAIBin, "validate", pluginDir, "--platform", platform, "--strict"))
+	}
+}
+
+func assertStripeRenderedServer(t *testing.T, server map[string]any) {
+	t.Helper()
+	if got := anyString(server["type"]); got != "http" {
+		t.Fatalf("generated stripe .mcp.json type = %q want http:\n%v", got, server)
+	}
+	if got := anyString(server["url"]); got != stripeCatalogServerURL {
+		t.Fatalf("generated stripe .mcp.json url = %q want %s:\n%v", got, stripeCatalogServerURL, server)
+	}
+	if _, ok := server["headers"]; ok {
+		t.Fatalf("generated stripe .mcp.json should not embed headers:\n%v", server)
 	}
 }

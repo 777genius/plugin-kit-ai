@@ -14,6 +14,8 @@ import (
 
 const vercelCatalogLiveEnvVar = "PLUGIN_KIT_AI_RUN_VERCEL_LIVE"
 const vercelCatalogDirEnvVar = "PLUGIN_KIT_AI_E2E_VERCEL_DIR"
+const vercelCatalogServerName = "vercel"
+const vercelCatalogServerURL = "https://mcp.vercel.com"
 
 func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(vercelCatalogLiveEnvVar)) != "1" {
@@ -23,6 +25,9 @@ func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	pluginDir := resolveVercelCatalogPluginDir(t)
 	pluginKitAIBin := buildPluginKitAI(t)
 	assertVercelCatalogRenderedAndValid(t, pluginKitAIBin, pluginDir)
+
+	server := readRenderedSharedMCPServer(t, pluginDir, vercelCatalogServerName)
+	assertVercelRenderedServer(t, server)
 
 	t.Run("Claude_plugin_dir_list_and_mcp_status", func(t *testing.T) {
 		claudeBin := installedClaudeBinaryOrSkip(t)
@@ -53,18 +58,13 @@ func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 			}
 			t.Fatalf("claude mcp list with --plugin-dir: %v\n%s", err, mcpListOut)
 		}
-		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:vercel:vercel:", "mcp.vercel.com")
+		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:vercel:vercel:", vercelCatalogServerURL)
 	})
 
 	t.Run("Codex_get_and_list_rendered_remote_server", func(t *testing.T) {
 		codexBin := installedCodexBinaryOrSkip(t)
-		server := readRenderedSharedMCPServer(t, pluginDir, "vercel")
-		url := strings.TrimSpace(fmt.Sprint(server["url"]))
-		if url == "" {
-			t.Fatalf("generated vercel server missing url: %#v", server)
-		}
 
-		getCmd := exec.Command(codexBin, "mcp", "get", "vercel", "--json", "-c", fmt.Sprintf("mcp_servers.vercel.url=%q", url))
+		getCmd := exec.Command(codexBin, "mcp", "get", vercelCatalogServerName, "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", vercelCatalogServerName, vercelCatalogServerURL))
 		getOut, err := getCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp get vercel: %v\n%s", err, getOut)
@@ -79,11 +79,11 @@ func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(getOut, &getDoc); err != nil {
 			t.Fatalf("parse codex mcp get vercel: %v\n%s", err, getOut)
 		}
-		if getDoc.Name != "vercel" || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != url {
+		if getDoc.Name != vercelCatalogServerName || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != vercelCatalogServerURL {
 			t.Fatalf("unexpected codex mcp get vercel output:\n%s", getOut)
 		}
 
-		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.vercel.url=%q", url))
+		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", vercelCatalogServerName, vercelCatalogServerURL))
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp list vercel: %v\n%s", err, listOut)
@@ -99,7 +99,7 @@ func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(listOut, &listDoc); err != nil {
 			t.Fatalf("parse codex mcp list vercel: %v\n%s", err, listOut)
 		}
-		assertCodexRemoteCatalogEntry(t, listDoc, "vercel", url)
+		assertCodexRemoteCatalogEntry(t, listDoc, vercelCatalogServerName, vercelCatalogServerURL)
 	})
 
 	t.Run("Gemini_extension_validate_link_and_list", func(t *testing.T) {
@@ -216,6 +216,19 @@ func assertVercelCatalogRenderedAndValid(t *testing.T, pluginKitAIBin, pluginDir
 	runCmd(t, root, exec.Command(pluginKitAIBin, "generate", pluginDir, "--check"))
 	for _, platform := range []string{"claude", "codex-package", "gemini", "opencode", "cursor"} {
 		runCmd(t, root, exec.Command(pluginKitAIBin, "validate", pluginDir, "--platform", platform, "--strict"))
+	}
+}
+
+func assertVercelRenderedServer(t *testing.T, server map[string]any) {
+	t.Helper()
+	if got := anyString(server["type"]); got != "http" {
+		t.Fatalf("generated vercel .mcp.json type = %q want http:\n%v", got, server)
+	}
+	if got := anyString(server["url"]); got != vercelCatalogServerURL {
+		t.Fatalf("generated vercel .mcp.json url = %q want %s:\n%v", got, vercelCatalogServerURL, server)
+	}
+	if _, ok := server["headers"]; ok {
+		t.Fatalf("generated vercel .mcp.json should not embed headers:\n%v", server)
 	}
 }
 

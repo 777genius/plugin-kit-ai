@@ -14,6 +14,8 @@ import (
 
 const sentryCatalogLiveEnvVar = "PLUGIN_KIT_AI_RUN_SENTRY_LIVE"
 const sentryCatalogDirEnvVar = "PLUGIN_KIT_AI_E2E_SENTRY_DIR"
+const sentryCatalogServerName = "sentry"
+const sentryCatalogServerURL = "https://mcp.sentry.dev"
 
 func TestSentryCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(sentryCatalogLiveEnvVar)) != "1" {
@@ -23,6 +25,9 @@ func TestSentryCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	pluginDir := resolveSentryCatalogPluginDir(t)
 	pluginKitAIBin := buildPluginKitAI(t)
 	assertSentryCatalogRenderedAndValid(t, pluginKitAIBin, pluginDir)
+
+	server := readRenderedSharedMCPServer(t, pluginDir, sentryCatalogServerName)
+	assertSentryRenderedServer(t, server)
 
 	t.Run("Claude_plugin_dir_list_and_mcp_status", func(t *testing.T) {
 		claudeBin := installedClaudeBinaryOrSkip(t)
@@ -53,18 +58,13 @@ func TestSentryCatalogLiveAcrossInstalledAgents(t *testing.T) {
 			}
 			t.Fatalf("claude mcp list with --plugin-dir: %v\n%s", err, mcpListOut)
 		}
-		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:sentry:sentry:", "mcp.sentry.dev")
+		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:sentry:sentry:", sentryCatalogServerURL)
 	})
 
 	t.Run("Codex_get_and_list_rendered_remote_server", func(t *testing.T) {
 		codexBin := installedCodexBinaryOrSkip(t)
-		server := readRenderedSharedMCPServer(t, pluginDir, "sentry")
-		url := strings.TrimSpace(fmt.Sprint(server["url"]))
-		if url == "" {
-			t.Fatalf("generated sentry server missing url: %#v", server)
-		}
 
-		getCmd := exec.Command(codexBin, "mcp", "get", "sentry", "--json", "-c", fmt.Sprintf("mcp_servers.sentry.url=%q", url))
+		getCmd := exec.Command(codexBin, "mcp", "get", sentryCatalogServerName, "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", sentryCatalogServerName, sentryCatalogServerURL))
 		getOut, err := getCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp get sentry: %v\n%s", err, getOut)
@@ -79,11 +79,11 @@ func TestSentryCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(getOut, &getDoc); err != nil {
 			t.Fatalf("parse codex mcp get sentry: %v\n%s", err, getOut)
 		}
-		if getDoc.Name != "sentry" || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != url {
+		if getDoc.Name != sentryCatalogServerName || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != sentryCatalogServerURL {
 			t.Fatalf("unexpected codex mcp get sentry output:\n%s", getOut)
 		}
 
-		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.sentry.url=%q", url))
+		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", sentryCatalogServerName, sentryCatalogServerURL))
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp list sentry: %v\n%s", err, listOut)
@@ -99,7 +99,7 @@ func TestSentryCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(listOut, &listDoc); err != nil {
 			t.Fatalf("parse codex mcp list sentry: %v\n%s", err, listOut)
 		}
-		assertCodexRemoteCatalogEntry(t, listDoc, "sentry", url)
+		assertCodexRemoteCatalogEntry(t, listDoc, sentryCatalogServerName, sentryCatalogServerURL)
 	})
 
 	t.Run("Gemini_extension_validate_link_and_list", func(t *testing.T) {
@@ -216,6 +216,19 @@ func assertSentryCatalogRenderedAndValid(t *testing.T, pluginKitAIBin, pluginDir
 	runCmd(t, root, exec.Command(pluginKitAIBin, "generate", pluginDir, "--check"))
 	for _, platform := range []string{"claude", "codex-package", "gemini", "opencode", "cursor"} {
 		runCmd(t, root, exec.Command(pluginKitAIBin, "validate", pluginDir, "--platform", platform, "--strict"))
+	}
+}
+
+func assertSentryRenderedServer(t *testing.T, server map[string]any) {
+	t.Helper()
+	if got := anyString(server["type"]); got != "http" {
+		t.Fatalf("generated sentry .mcp.json type = %q want http:\n%v", got, server)
+	}
+	if got := anyString(server["url"]); got != sentryCatalogServerURL {
+		t.Fatalf("generated sentry .mcp.json url = %q want %s:\n%v", got, sentryCatalogServerURL, server)
+	}
+	if _, ok := server["headers"]; ok {
+		t.Fatalf("generated sentry .mcp.json should not embed headers:\n%v", server)
 	}
 }
 
