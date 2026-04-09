@@ -1,6 +1,7 @@
 package pluginkitairepo_test
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,10 +89,27 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustNotContain(t, ruContent, `"testimonials"`)
 	mustContain(t, ruContent, `"title": "Проверяемый установочный скрипт"`)
 	mustContain(t, ruContent, `"note": "Публичная бета-обёртка, которая загружает соответствующий проверенный бинарный релиз."`)
-	mustContain(t, ruContent, `"pluginKitAi": { "status": "yes"`)
 	mustNotContain(t, ruContent, `Public-beta обёртка`)
 	mustNotContain(t, ruContent, `"pricing"`)
 	mustNotContain(t, ruContent, `"hookplex":`)
+	var ruDoc struct {
+		ComparisonRows []struct {
+			PluginKitAI struct {
+				Status string `json:"status"`
+			} `json:"pluginKitAi"`
+		} `json:"comparisonRows"`
+	}
+	if err := json.Unmarshal(ruContentBody, &ruDoc); err != nil {
+		t.Fatalf("parse landing/content/ru.json: %v", err)
+	}
+	if len(ruDoc.ComparisonRows) == 0 {
+		t.Fatalf("landing/content/ru.json missing comparisonRows")
+	}
+	for _, row := range ruDoc.ComparisonRows {
+		if row.PluginKitAI.Status != "yes" {
+			t.Fatalf("landing/content/ru.json comparisonRows pluginKitAi.status = %q want yes", row.PluginKitAI.Status)
+		}
+	}
 
 	enLocaleBody, err := os.ReadFile(filepath.Join(landingRoot, "locales", "en.json"))
 	if err != nil {
@@ -227,9 +245,18 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, enContent, `"logoSrc": "context7.svg"`)
 	mustContain(t, enContent, `"logoAlt": "GitHub logo"`)
 	mustContain(t, enContent, `"slug": "context7"`)
-	mustContain(t, enContent, `"categories": ["docs", "research", "codeSearch"]`)
 	mustContain(t, enContent, `"highlights": [`)
 	mustContain(t, enContent, `"useCases": [`)
+	var enDoc struct {
+		Plugins []struct {
+			ID         string   `json:"id"`
+			Categories []string `json:"categories"`
+		} `json:"plugins"`
+	}
+	if err := json.Unmarshal(enContentBody, &enDoc); err != nil {
+		t.Fatalf("parse landing/content/en.json: %v", err)
+	}
+	assertPluginCategories(t, enDoc.Plugins, "context7", []string{"docs", "research", "codeSearch"})
 
 	ruContentAgainBody, err := os.ReadFile(filepath.Join(landingRoot, "content", "ru.json"))
 	if err != nil {
@@ -239,9 +266,18 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 	mustContain(t, ruContentAgain, `"logoSrc": "greptile.svg"`)
 	mustContain(t, ruContentAgain, `"logoAlt": "Логотип GitLab"`)
 	mustContain(t, ruContentAgain, `"slug": "greptile"`)
-	mustContain(t, ruContentAgain, `"categories": ["codeSearch", "review", "research"]`)
 	mustContain(t, ruContentAgain, `"highlights": [`)
 	mustContain(t, ruContentAgain, `"useCases": [`)
+	var ruDocAgain struct {
+		Plugins []struct {
+			ID         string   `json:"id"`
+			Categories []string `json:"categories"`
+		} `json:"plugins"`
+	}
+	if err := json.Unmarshal(ruContentAgainBody, &ruDocAgain); err != nil {
+		t.Fatalf("parse landing/content/ru.json for plugin catalog checks: %v", err)
+	}
+	assertPluginCategories(t, ruDocAgain.Plugins, "greptile", []string{"codeSearch", "review", "research"})
 
 	matches, err := scanRemovedBranding(landingRoot)
 	if err != nil {
@@ -308,4 +344,21 @@ func scanRemovedBranding(root string) ([]string, error) {
 		}
 	}
 	return matches, nil
+}
+
+func assertPluginCategories(t *testing.T, plugins []struct {
+	ID         string   `json:"id"`
+	Categories []string `json:"categories"`
+}, wantID string, wantCategories []string) {
+	t.Helper()
+	for _, plugin := range plugins {
+		if plugin.ID != wantID {
+			continue
+		}
+		if strings.Join(plugin.Categories, "\x00") != strings.Join(wantCategories, "\x00") {
+			t.Fatalf("plugin %s categories = %#v want %#v", wantID, plugin.Categories, wantCategories)
+		}
+		return
+	}
+	t.Fatalf("plugin %s missing from landing content", wantID)
 }

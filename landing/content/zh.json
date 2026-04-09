@@ -309,6 +309,108 @@
       ]
     },
     {
+      "id": "cloudflare-bindings",
+      "slug": "cloudflare-bindings",
+      "eyebrow": "真实目录插件",
+      "title": "Cloudflare Bindings",
+      "tagline": "通过 Cloudflare 官方 bindings MCP 端点托管访问 Workers 的 storage、AI 和 compute primitives。",
+      "description": "真正的 Cloudflare Bindings MCP 插件，用于通过 Cloudflare 官方 bindings MCP 服务托管访问 Workers 的 storage、AI 和 compute primitives。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-bindings",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare 徽标",
+      "categories": [
+        "cloud",
+        "backend",
+        "developerTools"
+      ],
+      "highlights": [
+        "更适合围绕 Workers primitives 构建，而不是直接面对整块 Cloudflare API 面的团队。",
+        "把 storage、AI 和 compute 工作流从更宽的 Cloudflare API 插件里拆开，让目录更容易理解。",
+        "当代理工作从 app-building primitives 出发，而不是从基础设施大面操作出发时尤其合适。"
+      ],
+      "useCases": [
+        "在实现 storage、AI 和 compute 功能时处理 Workers bindings。",
+        "把更聚焦的 Cloudflare 平台上下文带进与应用开发相同的工作流。",
+        "让 app-building primitives 紧贴执行，而不必打开整块 Cloudflare API 面。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "hubspot-crm",
+      "slug": "hubspot-crm",
+      "eyebrow": "真实目录插件",
+      "title": "HubSpot CRM",
+      "tagline": "通过官方远程 MCP 服务托管访问 HubSpot CRM records、tickets、reporting 和账户工作流。",
+      "description": "真正的 HubSpot CRM MCP 插件，用于通过 HubSpot 官方远程 MCP 端点托管访问 contacts、companies、deals、tickets 和 reporting 工作流。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/hubspot-crm",
+      "logoSrc": "hubspot.svg",
+      "logoAlt": "HubSpot 徽标",
+      "categories": [
+        "crm",
+        "planning",
+        "collaboration"
+      ],
+      "highlights": [
+        "适合需要把真实客户和收入上下文带进产品与工程同一代理工作流的团队。",
+        "对远程认证边界保持诚实，而不是在没有 HubSpot MCP auth app 的情况下假装 turnkey 可用。",
+        "当代理需要理解 CRM records、支持工作和账户状态，而不只是代码或文档时非常有用。"
+      ],
+      "useCases": [
+        "把 account、deal 和 ticket 上下文带进实现或支持工作流。",
+        "在修改产品、onboarding 或支持流程前搜索并查看 CRM records。",
+        "无需先构建自定义 CRM bridge，就能让业务上下文贴近执行。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "hubspot-developer",
+      "slug": "hubspot-developer",
+      "eyebrow": "真实目录插件",
+      "title": "HubSpot Developer",
+      "tagline": "通过基于 CLI 的 MCP 服务器提供本地 HubSpot 开发工具，用于项目、CMS、builds 和 logs。",
+      "description": "真正的 HubSpot Developer MCP 插件，用于通过基于 HubSpot CLI 的 MCP 服务器处理本地项目、CMS、builds 和 logs 工作流。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/hubspot-developer",
+      "logoSrc": "hubspot.svg",
+      "logoAlt": "HubSpot 徽标",
+      "categories": [
+        "developerTools",
+        "cms",
+        "backend"
+      ],
+      "highlights": [
+        "展示了另一类插件 - 本地 stdio 开发工具，而不是又一个托管远程连接器。",
+        "固定 HubSpot CLI 路径以保证可复现，而不是假设机器已经做过全局准备。",
+        "很适合从编辑器里构建 HubSpot apps、CMS assets 和项目工作流的团队。"
+      ],
+      "useCases": [
+        "在同一个代码变更工作流里创建、检查并迭代 HubSpot 项目。",
+        "在不离开代理会话的情况下处理 CMS、builds 和 logs。",
+        "让 HubSpot 本地开发工具在多个支持的代理之间保持可移植。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "heroku",
       "slug": "heroku",
       "eyebrow": "真实目录插件",

@@ -6,6 +6,7 @@ import githubLogo from '~/assets/images/plugin-logos/github.svg';
 import gitlabLogo from '~/assets/images/plugin-logos/gitlab.svg';
 import greptileLogo from '~/assets/images/plugin-logos/greptile.svg';
 import herokuLogo from '~/assets/images/plugin-logos/heroku.svg';
+import hubspotLogo from '~/assets/images/plugin-logos/hubspot.svg';
 import linearLogo from '~/assets/images/plugin-logos/linear.svg';
 import notionLogo from '~/assets/images/plugin-logos/notion.png';
 import sentryLogo from '~/assets/images/plugin-logos/sentry.svg';
@@ -29,6 +30,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'gitlab.svg': { src: gitlabLogo },
   'greptile.svg': { src: greptileLogo },
   'heroku.svg': { src: herokuLogo },
+  'hubspot.svg': { src: hubspotLogo },
   'linear.svg': { src: linearLogo },
   'notion.svg': { src: notionLogo },
   'sentry.svg': { src: sentryLogo },

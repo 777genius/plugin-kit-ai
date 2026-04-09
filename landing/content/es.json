@@ -309,6 +309,108 @@
       ]
     },
     {
+      "id": "cloudflare-bindings",
+      "slug": "cloudflare-bindings",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Cloudflare Bindings",
+      "tagline": "Acceso alojado a Workers bindings para storage, AI y compute primitives mediante el endpoint oficial bindings MCP de Cloudflare.",
+      "description": "Un complemento real de Cloudflare Bindings MCP para acceso alojado a storage, AI y compute primitives de Workers mediante el servicio oficial bindings MCP de Cloudflare.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-bindings",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Logotipo de Cloudflare",
+      "categories": [
+        "cloud",
+        "backend",
+        "developerTools"
+      ],
+      "highlights": [
+        "Opción enfocada para equipos que construyen sobre Workers primitives en lugar de toda la superficie de la API de Cloudflare.",
+        "Separa storage, AI y compute workflows del plugin más amplio de la API de Cloudflare, lo que hace el catálogo más claro.",
+        "Buen ajuste cuando el trabajo del agente empieza desde app-building primitives y no desde operaciones de infraestructura amplias."
+      ],
+      "useCases": [
+        "Trabajar con Workers bindings al implementar funciones de storage, AI y compute.",
+        "Llevar contexto de plataforma de Cloudflare más enfocado al mismo flujo que el desarrollo activo de aplicaciones.",
+        "Mantener app-building primitives cerca de la ejecución sin abrir toda la superficie de la API de Cloudflare."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "hubspot-crm",
+      "slug": "hubspot-crm",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "HubSpot CRM",
+      "tagline": "Acceso alojado a HubSpot CRM para records, tickets, reporting y workflows de cuenta a través del servicio remoto MCP oficial.",
+      "description": "Un complemento real de HubSpot CRM MCP para acceso alojado a contacts, companies, deals, tickets y reporting workflows mediante el endpoint remoto oficial MCP de HubSpot.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/hubspot-crm",
+      "logoSrc": "hubspot.svg",
+      "logoAlt": "Logotipo de HubSpot",
+      "categories": [
+        "crm",
+        "planning",
+        "collaboration"
+      ],
+      "highlights": [
+        "Buen ajuste para equipos que necesitan contexto real de clientes e ingresos dentro del mismo flujo del agente que usa producto e ingeniería.",
+        "Mantiene el plugin honesto sobre la historia de auth remota en lugar de fingir acceso turnkey sin una MCP auth app de HubSpot.",
+        "Útil cuando el agente debe razonar sobre CRM records, support work y estado de cuentas, no solo sobre código o docs."
+      ],
+      "useCases": [
+        "Llevar contexto de account, deal y ticket a un flujo de implementación o soporte.",
+        "Buscar y revisar CRM records antes de cambiar flujos de producto, onboarding o soporte.",
+        "Mantener el contexto de negocio cerca de la ejecución sin construir primero un bridge CRM a medida."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "hubspot-developer",
+      "slug": "hubspot-developer",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "HubSpot Developer",
+      "tagline": "Herramientas locales de desarrollo de HubSpot mediante un servidor MCP respaldado por CLI para proyectos, CMS, builds y logs.",
+      "description": "Un complemento real de HubSpot Developer MCP para flujos locales de proyecto, CMS, builds y logs mediante el servidor MCP respaldado por la CLI de HubSpot.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/hubspot-developer",
+      "logoSrc": "hubspot.svg",
+      "logoAlt": "Logotipo de HubSpot",
+      "categories": [
+        "developerTools",
+        "cms",
+        "backend"
+      ],
+      "highlights": [
+        "Muestra otra clase de plugin - local stdio developer tooling en lugar de otro conector remoto alojado.",
+        "Fija la ruta de la HubSpot CLI para reproducibilidad en vez de asumir una máquina global ya preparada.",
+        "Buen ajuste para equipos que construyen apps de HubSpot, assets CMS y workflows de proyecto desde el editor."
+      ],
+      "useCases": [
+        "Crear, inspeccionar e iterar proyectos de HubSpot desde el mismo flujo que los cambios de código.",
+        "Trabajar con CMS, builds y logs sin salir de la sesión del agente.",
+        "Mantener el tooling local de HubSpot portátil entre varios agentes compatibles."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "heroku",
       "slug": "heroku",
       "eyebrow": "Complemento de catálogo real",
