@@ -205,6 +205,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "slack",
+      "slug": "slack",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Slack",
+      "tagline": "Hosted Slack MCP для поиска, сообщений, canvas и рабочего контекста через честный путь интеграции для Claude и Cursor.",
+      "description": "Реальный Slack MCP-плагин для hosted-доступа к workspace через официальный Slack MCP endpoint с тем client-specific auth shape, который Slack сейчас документирует для Claude и Cursor.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/slack",
+      "logoSrc": "slack.svg",
+      "logoAlt": "Логотип Slack",
+      "categories": ["collaboration", "messaging", "search"],
+      "highlights": [
+        "Держит Slack history, channel context и message workflows в том же потоке, что и код, планирование и review.",
+        "Использует hosted MCP endpoint Slack и документированный auth shape для поддерживаемого subset вместо фейковой одинаковой поддержки везде.",
+        "Сильный fit для команд, где решения и операционный контекст уже живут внутри Slack conversations и canvas."
+      ],
+      "useCases": [
+        "Искать недавний контекст в каналах перед изменением кода или продукта.",
+        "Готовить или отправлять follow-up сообщения из того же workflow, где идёт активная разработка.",
+        "Подтягивать Slack-контекст в agent-сессию без отдельной кастомной интеграции."
+      ],
+      "badges": ["Claude", "Cursor"]
+    },
+    {
       "id": "vercel",
       "slug": "vercel",
       "eyebrow": "Реальный плагин каталога",

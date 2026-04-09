@@ -205,6 +205,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "slack",
+      "slug": "slack",
+      "eyebrow": "Real catalog plugin",
+      "title": "Slack",
+      "tagline": "Hosted Slack MCP access for search, messages, canvases, and workspace context through an honest Claude and Cursor integration path.",
+      "description": "A real Slack MCP plugin for hosted workspace access through Slack's official MCP endpoint, with the client-specific auth shape Slack currently documents for Claude and Cursor.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/slack",
+      "logoSrc": "slack.svg",
+      "logoAlt": "Slack logo",
+      "categories": ["collaboration", "messaging", "search"],
+      "highlights": [
+        "Keeps Slack history, channel context, and message workflows in the same flow as code and planning work.",
+        "Uses Slack's hosted MCP endpoint with the documented auth shape for the supported client subset instead of pretending fake parity everywhere.",
+        "Strong fit when project decisions and operational context already live inside Slack conversations and canvases."
+      ],
+      "useCases": [
+        "Searching recent channel history before making a product or code change.",
+        "Drafting or sending follow-up messages from the same workflow as active implementation work.",
+        "Pulling Slack context into an agent session without building a custom integration first."
+      ],
+      "badges": ["Claude", "Cursor"]
+    },
+    {
       "id": "vercel",
       "slug": "vercel",
       "eyebrow": "Real catalog plugin",
