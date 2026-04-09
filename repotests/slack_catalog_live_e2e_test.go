@@ -1,6 +1,7 @@
 package pluginkitairepo_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,9 @@ import (
 
 const slackCatalogLiveEnvVar = "PLUGIN_KIT_AI_RUN_SLACK_LIVE"
 const slackCatalogDirEnvVar = "PLUGIN_KIT_AI_E2E_SLACK_DIR"
+const slackClaudeClientID = "1601185624273.8899143856786"
+const slackClaudeCallbackPort = "3118"
+const slackCursorClientID = "3660753192626.8903469228982"
 
 func TestSlackCatalogLiveAcrossSupportedAgents(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(slackCatalogLiveEnvVar)) != "1" {
@@ -126,17 +130,25 @@ func assertSlackCatalogRenderedAndValid(t *testing.T, pluginKitAIBin, pluginDir 
 	if !ok {
 		t.Fatalf("generated slack .mcp.json missing claude oauth block:\n%v", server)
 	}
-	clientID := strings.TrimSpace(serverString(oauth["clientId"]))
-	if clientID == "" {
-		t.Fatalf("generated slack .mcp.json missing oauth clientId:\n%v", server)
+	if got := anyString(oauth["clientId"]); got != slackClaudeClientID {
+		t.Fatalf("generated slack .mcp.json oauth.clientId = %q want %q:\n%v", got, slackClaudeClientID, server)
+	}
+	if got := anyString(oauth["callbackPort"]); got != slackClaudeCallbackPort {
+		t.Fatalf("generated slack .mcp.json oauth.callbackPort = %q want %q:\n%v", got, slackClaudeCallbackPort, server)
+	}
+	if got := anyString(server["type"]); got != "http" {
+		t.Fatalf("generated slack .mcp.json type = %q want http:\n%v", got, server)
+	}
+	if got := anyString(server["url"]); got != "https://mcp.slack.com/mcp" {
+		t.Fatalf("generated slack .mcp.json url = %q want https://mcp.slack.com/mcp:\n%v", got, server)
 	}
 
 	cursorBody, err := os.ReadFile(filepath.Join(pluginDir, ".cursor", "mcp.json"))
 	if err != nil {
 		t.Fatalf("read generated cursor slack config: %v", err)
 	}
-	if !strings.Contains(string(cursorBody), `"CLIENT_ID"`) {
-		t.Fatalf("generated .cursor/mcp.json missing Slack CLIENT_ID auth block:\n%s", cursorBody)
+	if !strings.Contains(string(cursorBody), `"CLIENT_ID": "`+slackCursorClientID+`"`) {
+		t.Fatalf("generated .cursor/mcp.json missing exact Slack CLIENT_ID auth block:\n%s", cursorBody)
 	}
 }
 
@@ -152,7 +164,9 @@ func assertSlackCursorCatalogState(t *testing.T, output string) {
 	t.Fatalf("cursor mcp list missing acceptable slack hosted boundary state:\n%s", output)
 }
 
-func serverString(value any) string {
-	text, _ := value.(string)
-	return text
+func anyString(value any) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
 }

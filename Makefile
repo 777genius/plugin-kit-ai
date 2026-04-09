@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -59,6 +59,9 @@ test-gemini-runtime-live:
 test-opencode-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeLoaderSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
+test-opencode-cli-live:
+	PLUGIN_KIT_AI_RUN_OPENCODE_CLI=1 go test -count=1 -run '^TestOpenCodeCLI' ./repotests $(EXTENDED_TEST_ARGS)
+
 test-opencode-tools-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeStandaloneToolsSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
@@ -82,6 +85,9 @@ test-sentry-live:
 
 test-stripe-live:
 	PLUGIN_KIT_AI_RUN_STRIPE_LIVE=1 go test -count=1 -run '^TestStripeCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-slack-live:
+	PLUGIN_KIT_AI_RUN_SLACK_LIVE=1 go test -count=1 -run '^TestSlackCatalogLiveAcrossSupportedAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-e2e-live: test-install-live
 
