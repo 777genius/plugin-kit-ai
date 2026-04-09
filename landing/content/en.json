@@ -181,6 +181,78 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "cloudflare-docs",
+      "slug": "cloudflare-docs",
+      "eyebrow": "Real catalog plugin",
+      "title": "Cloudflare Docs",
+      "tagline": "Hosted Cloudflare documentation and reference lookup through Cloudflare's official docs MCP endpoint.",
+      "description": "A real Cloudflare Docs MCP plugin for hosted access to product documentation, references, and implementation guidance through Cloudflare's official documentation MCP service.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-docs",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare logo",
+      "categories": ["docs", "cloud", "search"],
+      "highlights": [
+        "Best when teams want fast, official Cloudflare product guidance without mixing in broad infrastructure write access.",
+        "Keeps documentation lookup separate from the wider Cloudflare API plugin, which makes the intent clearer for both humans and agents.",
+        "Strong fit for implementation, migration, and debugging work that starts from docs and references first."
+      ],
+      "useCases": [
+        "Pull Workers, KV, R2, D1, DNS, and platform docs into the same workflow as active coding work.",
+        "Search official Cloudflare references without leaving the agent session.",
+        "Keep architecture and integration guidance close to execution without granting the broader API surface."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "cloudflare-observability",
+      "slug": "cloudflare-observability",
+      "eyebrow": "Real catalog plugin",
+      "title": "Cloudflare Observability",
+      "tagline": "Hosted Cloudflare observability access for logs, telemetry, and debugging workflows.",
+      "description": "A real Cloudflare Observability MCP plugin for hosted access to Cloudflare logs, telemetry, and debugging context through Cloudflare's official observability MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-observability",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare logo",
+      "categories": ["devops", "observability", "backend"],
+      "highlights": [
+        "Focused option for teams that care about production signals more than the full Cloudflare API surface.",
+        "Keeps logs and observability context close to the same debugging flow as code review and incident work.",
+        "Cleaner default than hiding observability behind one giant umbrella plugin."
+      ],
+      "useCases": [
+        "Inspect Cloudflare-side logs and telemetry while investigating platform incidents.",
+        "Support debugging workflows without exposing the broader write-heavy API surface.",
+        "Pull observability context into the same agent session as root-cause analysis."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "heroku",
+      "slug": "heroku",
+      "eyebrow": "Real catalog plugin",
+      "title": "Heroku",
+      "tagline": "Hosted OAuth-first access to Heroku apps, logs, add-ons, Postgres, and platform operations.",
+      "description": "A real Heroku MCP plugin for hosted access to apps, dynos, logs, config vars, add-ons, pipelines, and Postgres workflows through Heroku's official remote MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/heroku",
+      "logoSrc": "heroku.svg",
+      "logoAlt": "Heroku logo",
+      "categories": ["cloud", "devops", "backend"],
+      "highlights": [
+        "Strong fit for teams already running apps and operational workflows on Heroku.",
+        "Brings app state, logs, releases, and platform context into the same flow as implementation and incident response.",
+        "Keeps the community default on hosted OAuth instead of pushing users into ad hoc local bridges."
+      ],
+      "useCases": [
+        "Inspect apps, dynos, config vars, releases, and pipelines without leaving the agent workspace.",
+        "Review operational state and logs while debugging production behavior.",
+        "Keep routine platform operations in the same workflow as code changes and follow-up."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Real catalog plugin",

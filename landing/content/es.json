@@ -241,6 +241,108 @@
       ]
     },
     {
+      "id": "cloudflare-docs",
+      "slug": "cloudflare-docs",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Cloudflare Docs",
+      "tagline": "Acceso alojado a la documentación y referencias de Cloudflare mediante el endpoint oficial MCP de documentación.",
+      "description": "Un complemento real de Cloudflare Docs MCP para acceso alojado a documentación de producto, referencias y guías de implementación mediante el servicio oficial MCP de documentación de Cloudflare.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-docs",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Logotipo de Cloudflare",
+      "categories": [
+        "docs",
+        "cloud",
+        "search"
+      ],
+      "highlights": [
+        "Muy útil cuando el equipo quiere guía oficial rápida de Cloudflare sin mezclar acceso amplio de infraestructura.",
+        "Separa la búsqueda de documentación del plugin más amplio de la API de Cloudflare, lo que aclara la intención para personas y agentes.",
+        "Buen ajuste para implementación, migraciones y depuración que empiezan por docs y referencias."
+      ],
+      "useCases": [
+        "Traer documentación de Workers, KV, R2, D1, DNS y la plataforma al mismo flujo de trabajo que el código activo.",
+        "Buscar referencias oficiales de Cloudflare sin salir de la sesión del agente.",
+        "Mantener la guía de arquitectura e integración cerca de la ejecución sin abrir toda la superficie de la API."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "cloudflare-observability",
+      "slug": "cloudflare-observability",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Cloudflare Observability",
+      "tagline": "Acceso alojado a Cloudflare observability para logs, telemetría y flujos de depuración.",
+      "description": "Un complemento real de Cloudflare Observability MCP para acceso alojado a logs, telemetría y contexto de depuración de Cloudflare a través del endpoint oficial MCP de observabilidad.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-observability",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Logotipo de Cloudflare",
+      "categories": [
+        "devops",
+        "observability",
+        "backend"
+      ],
+      "highlights": [
+        "Opción enfocada para equipos a los que les importan más las señales de producción que toda la superficie de la API.",
+        "Mantiene logs y contexto de observabilidad cerca del mismo flujo de depuración, revisión de código e incidentes.",
+        "Más claro para la comunidad que esconder observabilidad dentro de un único plugin gigante."
+      ],
+      "useCases": [
+        "Inspeccionar logs y telemetría de Cloudflare mientras se investigan incidentes de plataforma.",
+        "Dar soporte a flujos de depuración sin exponer la superficie de API más amplia y sensible.",
+        "Llevar contexto de observabilidad a la misma sesión del agente donde se hace el análisis de causa raíz."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "heroku",
+      "slug": "heroku",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Heroku",
+      "tagline": "Acceso alojado con prioridad OAuth a apps de Heroku, logs, add-ons, Postgres y operaciones de plataforma.",
+      "description": "Un complemento real de Heroku MCP para acceso alojado a apps, dynos, logs, config vars, add-ons, pipelines y flujos de Postgres mediante el endpoint remoto oficial MCP de Heroku.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/heroku",
+      "logoSrc": "heroku.svg",
+      "logoAlt": "Logotipo de Heroku",
+      "categories": [
+        "cloud",
+        "devops",
+        "backend"
+      ],
+      "highlights": [
+        "Muy buena opción para equipos que ya ejecutan apps y operaciones sobre Heroku.",
+        "Lleva el estado de apps, logs, releases y contexto de plataforma al mismo flujo que la implementación y la respuesta a incidentes.",
+        "Mantiene el valor predeterminado de la comunidad en OAuth alojado en lugar de empujar a bridges locales improvisados."
+      ],
+      "useCases": [
+        "Inspeccionar apps, dynos, config vars, releases y pipelines sin salir del espacio de trabajo del agente.",
+        "Revisar estado operativo y logs mientras se depura comportamiento en producción.",
+        "Mantener operaciones rutinarias de plataforma en el mismo flujo que cambios de código y seguimiento."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Complemento de catálogo real",

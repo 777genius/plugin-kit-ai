@@ -181,6 +181,78 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "cloudflare-docs",
+      "slug": "cloudflare-docs",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Cloudflare Docs",
+      "tagline": "Hosted доступ к документации и reference-материалам Cloudflare через официальный docs MCP endpoint.",
+      "description": "Реальный Cloudflare Docs MCP-плагин для hosted доступа к документации, reference и implementation guidance через официальный documentation MCP service от Cloudflare.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-docs",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Логотип Cloudflare",
+      "categories": ["docs", "cloud", "search"],
+      "highlights": [
+        "Лучший вариант, когда команде нужен быстрый официальный Cloudflare docs path без широкого infra write-доступа.",
+        "Отделяет documentation lookup от широкого Cloudflare API plugin, поэтому и людям, и агентам легче понимать назначение.",
+        "Сильный fit для implementation, migration и debugging-задач, которые начинаются с docs и reference."
+      ],
+      "useCases": [
+        "Подтягивать Workers, KV, R2, D1, DNS и platform docs в тот же workflow, где идёт активная разработка.",
+        "Искать официальные Cloudflare references, не выходя из agent-сессии.",
+        "Держать architecture и integration guidance рядом с выполнением задач без широкого API surface."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "cloudflare-observability",
+      "slug": "cloudflare-observability",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Cloudflare Observability",
+      "tagline": "Hosted доступ к Cloudflare observability для логов, telemetry и debugging workflow.",
+      "description": "Реальный Cloudflare Observability MCP-плагин для hosted доступа к Cloudflare логам, telemetry и debugging context через официальный observability MCP endpoint Cloudflare.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-observability",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Логотип Cloudflare",
+      "categories": ["devops", "observability", "backend"],
+      "highlights": [
+        "Сфокусированный вариант для команд, которым production signals важнее, чем весь Cloudflare API surface.",
+        "Держит логи и observability context рядом с тем же debugging flow, где идёт code review и incident work.",
+        "Гораздо чище для сообщества, чем прятать observability внутри одного огромного umbrella plugin."
+      ],
+      "useCases": [
+        "Смотреть Cloudflare-side логи и telemetry при разборе platform incident.",
+        "Поддерживать debugging workflow без широкого write-heavy API surface.",
+        "Подтягивать observability context в ту же agent-сессию, где идёт root-cause analysis."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
+      "id": "heroku",
+      "slug": "heroku",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Heroku",
+      "tagline": "Hosted OAuth-first доступ к Heroku apps, логам, add-ons, Postgres и platform operations.",
+      "description": "Реальный Heroku MCP-плагин для hosted доступа к apps, dynos, логам, config vars, add-ons, pipelines и Postgres workflow через официальный remote MCP endpoint Heroku.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/heroku",
+      "logoSrc": "heroku.svg",
+      "logoAlt": "Логотип Heroku",
+      "categories": ["cloud", "devops", "backend"],
+      "highlights": [
+        "Сильный fit для команд, которые уже запускают приложения и ops-workflow на Heroku.",
+        "Подтягивает app state, логи, release и platform context в тот же flow, где идёт реализация и incident response.",
+        "Оставляет community-default на hosted OAuth, а не толкает пользователей в ad hoc local bridge."
+      ],
+      "useCases": [
+        "Смотреть apps, dynos, config vars, release и pipelines, не выходя из agent workspace.",
+        "Проверять operational state и логи при разборе production behavior.",
+        "Держать routine platform operations в том же workflow, где идут code changes и follow-up."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "Реальный плагин каталога",

@@ -5,6 +5,7 @@ import firebaseLogo from '~/assets/images/plugin-logos/firebase.svg';
 import githubLogo from '~/assets/images/plugin-logos/github.svg';
 import gitlabLogo from '~/assets/images/plugin-logos/gitlab.svg';
 import greptileLogo from '~/assets/images/plugin-logos/greptile.svg';
+import herokuLogo from '~/assets/images/plugin-logos/heroku.svg';
 import linearLogo from '~/assets/images/plugin-logos/linear.svg';
 import notionLogo from '~/assets/images/plugin-logos/notion.png';
 import sentryLogo from '~/assets/images/plugin-logos/sentry.svg';
@@ -27,6 +28,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'github.svg': { src: githubLogo, surface: 'light' },
   'gitlab.svg': { src: gitlabLogo },
   'greptile.svg': { src: greptileLogo },
+  'heroku.svg': { src: herokuLogo },
   'linear.svg': { src: linearLogo },
   'notion.svg': { src: notionLogo },
   'sentry.svg': { src: sentryLogo },

@@ -241,6 +241,108 @@
       ]
     },
     {
+      "id": "cloudflare-docs",
+      "slug": "cloudflare-docs",
+      "eyebrow": "真实目录插件",
+      "title": "Cloudflare Docs",
+      "tagline": "通过 Cloudflare 官方文档 MCP 端点托管访问 Cloudflare 文档与参考资料。",
+      "description": "真正的 Cloudflare Docs MCP 插件，用于通过 Cloudflare 官方文档 MCP 服务托管访问产品文档、参考资料和实现指南。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-docs",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare 徽标",
+      "categories": [
+        "docs",
+        "cloud",
+        "search"
+      ],
+      "highlights": [
+        "适合需要官方 Cloudflare 指南、但不想混入宽泛基础设施访问的团队。",
+        "把文档检索从更宽的 Cloudflare API 插件中拆开，让人和代理都更容易理解用途。",
+        "很适合从文档和参考资料起步的实现、迁移和调试工作。"
+      ],
+      "useCases": [
+        "把 Workers、KV、R2、D1、DNS 和平台文档带进与当前编码相同的工作流。",
+        "在不离开代理会话的情况下搜索官方 Cloudflare 参考资料。",
+        "在不打开整个 API 面的前提下，让架构和集成指导紧贴执行。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "cloudflare-observability",
+      "slug": "cloudflare-observability",
+      "eyebrow": "真实目录插件",
+      "title": "Cloudflare Observability",
+      "tagline": "为日志、遥测和调试工作流提供托管的 Cloudflare observability 访问。",
+      "description": "真正的 Cloudflare Observability MCP 插件，用于通过 Cloudflare 官方 observability MCP 端点托管访问日志、遥测和调试上下文。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-observability",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare 徽标",
+      "categories": [
+        "devops",
+        "observability",
+        "backend"
+      ],
+      "highlights": [
+        "更适合把生产信号看得比整块 API 面更重要的团队。",
+        "让日志和 observability 上下文紧贴同一个调试、代码审查和事故处理流程。",
+        "比把 observability 藏在一个巨型总插件里更清晰。"
+      ],
+      "useCases": [
+        "在排查平台事故时查看 Cloudflare 日志和遥测。",
+        "支持调试工作流，同时不暴露更宽的高风险 API 面。",
+        "把 observability 上下文带进做根因分析的同一个代理会话。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "heroku",
+      "slug": "heroku",
+      "eyebrow": "真实目录插件",
+      "title": "Heroku",
+      "tagline": "以 OAuth-first 方式托管访问 Heroku 应用、日志、add-ons、Postgres 和平台操作。",
+      "description": "真正的 Heroku MCP 插件，用于通过 Heroku 官方远程 MCP 端点托管访问应用、dynos、日志、config vars、add-ons、pipelines 和 Postgres 工作流。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/heroku",
+      "logoSrc": "heroku.svg",
+      "logoAlt": "Heroku 徽标",
+      "categories": [
+        "cloud",
+        "devops",
+        "backend"
+      ],
+      "highlights": [
+        "非常适合已经在 Heroku 上运行应用和操作流程的团队。",
+        "把应用状态、日志、发布和平台上下文带进与实现和事故响应相同的流程。",
+        "保持托管 OAuth 作为社区默认路径，而不是把用户推向临时本地 bridge。"
+      ],
+      "useCases": [
+        "在不离开代理工作空间的情况下查看 apps、dynos、config vars、releases 和 pipelines。",
+        "在调试生产行为时查看运行状态和日志。",
+        "让日常平台操作与代码变更和后续处理保持在同一工作流中。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "真实目录插件",
