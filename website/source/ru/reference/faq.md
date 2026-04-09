@@ -1,6 +1,6 @@
 ---
 title: "Частые вопросы"
-description: "Частые вопросы про выбор путей, установку, target’ы и рабочий процесс."
+description: "Короткие ответы на вопросы, которые команды чаще всего задают при старте и росте plugin-kit-ai repo."
 canonicalId: "page:reference:faq"
 section: "reference"
 locale: "ru"
@@ -12,7 +12,9 @@ translationRequired: true
 
 ## С чего начинать: Go, Python или Node?
 
-Начинайте с Go, если нет реальной причины выбрать иначе. Выбирайте Node/TypeScript для основного поддерживаемого пути без Go. Выбирайте Python, когда плагин остаётся локальным для репозитория, а команда уже Python-first.
+Начинайте с Go, если нет реальной причины выбрать иначе.
+
+Node/TypeScript - основной поддерживаемый non-Go path. Python подходит, когда plugin остаётся локальным для repo и команда уже Python-first.
 
 ## Какой самый простой Python-сценарий?
 
@@ -26,46 +28,52 @@ plugin-kit-ai generate ./my-plugin
 plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ```
 
+Дальше редактируйте plugin, заново делайте generate и снова валидируйте.
+
 См. [Python runtime](/ru/guide/python-runtime).
 
 ## Когда нужен `--runtime-package`?
 
-Используйте `--runtime-package` только когда хотите один и тот же helper dependency в нескольких репозиториях. Большинству команд лучше сначала пройти обычный путь с локальным helper.
+Используйте `--runtime-package` только тогда, когда осознанно хотите один общий helper dependency для нескольких repo.
 
-## npm и PyPI пакеты `plugin-kit-ai` — это runtime API?
+Большинству команд лучше сначала пройти обычный путь с локальным helper.
 
-Нет. Это способы установить CLI. Они не являются публичным runtime API и не являются SDK.
+## npm и PyPI пакеты `plugin-kit-ai` - это runtime API?
+
+Нет. Они устанавливают CLI. Это не runtime APIs и не SDK.
 
 ## Когда использовать bundle-команды?
 
-Используйте bundle-команды, когда нужны переносимые Python или Node артефакты, которые другая машина сможет скачать или установить. Не путайте их с основным способом установки CLI.
+Используйте bundle-команды, когда другой машине нужны переносимые Python или Node artifacts для скачивания или установки.
+
+Не путайте bundle delivery с основным способом установки CLI.
 
 ## Можно ли держать native target files как source of truth?
 
-Это не рекомендуемая долгосрочная модель. Исходное состояние проекта должно жить в package-standard layout, а target-файлы должны быть сгенерированными output-файлами.
+Нет. Рекомендуемая долгосрочная модель - держать source of truth в package-standard layout, а target files считать generated output.
 
-## `generate` — это опционально?
+## `generate` - это опционально?
 
-Нет, если вы хотите управляемую модель проекта. `generate` — часть основного процесса, а не случайный helper.
+Нет, если вы хотите управляемый project flow. `generate` - часть workflow.
 
-## `validate --strict` — это опционально?
+## `validate --strict` - это опционально?
 
-Воспринимайте его как главную проверку готовности, особенно для локальных Python и Node runtime-проектов.
+Воспринимайте его как главную проверку готовности, особенно для локальных Python и Node runtime repo.
 
-## Один repo может вести несколько target’ов?
+## Один repo может вести несколько target'ов?
 
-Да. Это одна из основных идей `plugin-kit-ai`.
+Да.
 
 Практическое правило такое:
 
 - держите authored state в одном managed repo
-- начинайте с главного target’а сегодня
-- добавляйте другие target’ы, когда появляются реальные product, delivery или integration требования
+- начинайте с главного target, который нужен сегодня
+- добавляйте другие target'ы только когда появляется реальная product, delivery или integration задача
 
-См. [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets) и [Модель target’ов](/ru/concepts/target-model).
+См. [Один проект, несколько target'ов](/ru/guide/one-project-multiple-targets) и [Модель target'ов](/ru/concepts/target-model).
 
-## Все targets одинаково стабильны?
+## Все target'ы одинаково стабильны?
 
-Нет. Runtime, packaging, extension и workspace-config target’ы не несут одинаковое обещание по поддержке.
+Нет.
 
-См. [Границу поддержки](/ru/reference/support-boundary), [Поддержку target’ов](/ru/reference/target-support) и [Процесс авторинга](/ru/reference/authoring-workflow).
+Разные paths несут разное обещание поддержки. Используйте [Границу поддержки](/ru/reference/support-boundary) для короткого ответа и [Поддержку target'ов](/ru/reference/target-support) для точной матрицы.

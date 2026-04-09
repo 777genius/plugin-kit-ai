@@ -1,0 +1,296 @@
+package claude
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
+)
+
+type stubRunner struct {
+	commands []ports.Command
+	run      func(ports.Command) (ports.CommandResult, error)
+}
+
+func (s *stubRunner) Run(_ context.Context, cmd ports.Command) (ports.CommandResult, error) {
+	s.commands = append(s.commands, cmd)
+	if s.run != nil {
+		return s.run(cmd)
+	}
+	return ports.CommandResult{ExitCode: 0}, nil
+}
+
+func TestApplyInstallLocalUsesManagedMarketplaceAndPluginInstall(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	source := filepath.Join(root, "source")
+	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "user-config.json"), "{\n  \"mode\": \"strict\"\n}\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "commands", "review.md"), "# review\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - claude\n  checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - run.mjs\n    targets:\n      - claude\n")
+
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, ProjectRoot: filepath.Join(root, "project"), UserHome: home}
+
+	result, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "claude-demo",
+			Version:       "0.1.0",
+			Description:   "Claude demo plugin",
+		},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
+		Policy:         domain.InstallPolicy{Scope: "project"},
+	})
+	if err != nil {
+		t.Fatalf("apply install: %v", err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	managedRoot := filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", "claude-demo")
+	marketplaceName := "integrationctl-claude-demo"
+	if got := runner.commands[0].Argv; !equalStrings(got, []string{"claude", "plugin", "marketplace", "add", managedRoot}) {
+		t.Fatalf("marketplace add argv = %#v", got)
+	}
+	if got := runner.commands[1].Argv; !equalStrings(got, []string{"claude", "plugin", "install", "claude-demo@" + marketplaceName, "--scope", "project"}) {
+		t.Fatalf("plugin install argv = %#v", got)
+	}
+	catalogBody, err := os.ReadFile(filepath.Join(managedRoot, ".claude-plugin", "marketplace.json"))
+	if err != nil {
+		t.Fatalf("read marketplace.json: %v", err)
+	}
+	var catalog map[string]any
+	if err := json.Unmarshal(catalogBody, &catalog); err != nil {
+		t.Fatalf("parse marketplace.json: %v", err)
+	}
+	if catalog["name"] != marketplaceName {
+		t.Fatalf("marketplace name = %#v", catalog["name"])
+	}
+	pluginManifestBody, err := os.ReadFile(filepath.Join(managedRoot, "plugins", "claude-demo", ".claude-plugin", "plugin.json"))
+	if err != nil {
+		t.Fatalf("read plugin manifest: %v", err)
+	}
+	var pluginDoc map[string]any
+	if err := json.Unmarshal(pluginManifestBody, &pluginDoc); err != nil {
+		t.Fatalf("parse plugin manifest: %v", err)
+	}
+	if pluginDoc["name"] != "claude-demo" || pluginDoc["skills"] != "./skills/" || pluginDoc["agents"] != "./agents/" || pluginDoc["mcpServers"] != "./.mcp.json" {
+		t.Fatalf("plugin manifest = %#v", pluginDoc)
+	}
+	if _, err := os.Stat(filepath.Join(managedRoot, "plugins", "claude-demo", "skills", "demo", "SKILL.md")); err != nil {
+		t.Fatalf("stat skill: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(managedRoot, "plugins", "claude-demo", "commands", "review.md")); err != nil {
+		t.Fatalf("stat command: %v", err)
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(managedRoot, "plugins", "claude-demo", ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read .mcp.json: %v", err)
+	}
+	var mcp map[string]map[string]any
+	if err := json.Unmarshal(mcpBody, &mcp); err != nil {
+		t.Fatalf("parse .mcp.json: %v", err)
+	}
+	if mcp["docs"]["type"] != "http" || mcp["checks"]["command"] != "node" {
+		t.Fatalf("mcp projection = %#v", mcp)
+	}
+	if result.State != domain.InstallInstalled || !result.ReloadRequired {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestApplyInstallRollbackRemovesMarketplaceWhenPluginInstallFails(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	source := filepath.Join(root, "source")
+	writeClaudeFile(t, filepath.Join(source, ".claude-plugin", "plugin.json"), "{\n  \"name\": \"claude-demo\",\n  \"version\": \"0.1.0\",\n  \"description\": \"demo\"\n}\n")
+	runner := &stubRunner{
+		run: func(cmd ports.Command) (ports.CommandResult, error) {
+			if len(cmd.Argv) >= 3 && cmd.Argv[0] == "claude" && cmd.Argv[1] == "plugin" && cmd.Argv[2] == "install" {
+				return ports.CommandResult{ExitCode: 1, Stderr: []byte("install failed")}, nil
+			}
+			return ports.CommandResult{ExitCode: 0}, nil
+		},
+	}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+	_, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest:       domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.1.0", Description: "demo"},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
+		Policy:         domain.InstallPolicy{Scope: "user"},
+	})
+	var de *domain.Error
+	if !errors.As(err, &de) || de.Code != domain.ErrMutationApply {
+		t.Fatalf("err = %#v, want mutation apply", err)
+	}
+	if len(runner.commands) != 3 {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	if got := runner.commands[2].Argv; !equalStrings(got, []string{"claude", "plugin", "marketplace", "remove", "integrationctl-claude-demo"}) {
+		t.Fatalf("rollback argv = %#v", got)
+	}
+}
+
+func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	source := filepath.Join(root, "source")
+	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Updated\n")
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+
+	result, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{
+		Manifest:       domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0", Description: "Claude demo plugin"},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
+		Record: &domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"marketplace_name":         "integrationctl-claude-demo",
+						"plugin_ref":               "claude-demo@integrationctl-claude-demo",
+						"materialized_source_root": filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", "claude-demo"),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	want := [][]string{
+		{"claude", "plugin", "marketplace", "update", "integrationctl-claude-demo"},
+		{"claude", "plugin", "uninstall", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
+		{"claude", "plugin", "install", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
+	}
+	if len(runner.commands) != len(want) {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	for i := range want {
+		if !equalStrings(runner.commands[i].Argv, want[i]) {
+			t.Fatalf("command %d = %#v want %#v", i, runner.commands[i].Argv, want[i])
+		}
+	}
+	body, err := os.ReadFile(filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", "claude-demo", "plugins", "claude-demo", "skills", "demo", "SKILL.md"))
+	if err != nil || !strings.Contains(string(body), "Updated") {
+		t.Fatalf("managed source not refreshed: %v %q", err, body)
+	}
+	if result.State != domain.InstallInstalled || !result.ReloadRequired {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	managedRoot := filepath.Join(root, ".plugin-kit-ai", "materialized", "claude", "claude-demo")
+	writeClaudeFile(t, filepath.Join(managedRoot, ".claude-plugin", "marketplace.json"), "{}\n")
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, UserHome: root}
+
+	result, err := adapter.ApplyRemove(context.Background(), ports.ApplyInput{
+		Record: &domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"marketplace_name":         "integrationctl-claude-demo",
+						"plugin_ref":               "claude-demo@integrationctl-claude-demo",
+						"materialized_source_root": managedRoot,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply remove: %v", err)
+	}
+	want := [][]string{
+		{"claude", "plugin", "uninstall", "claude-demo@integrationctl-claude-demo", "--scope", "project"},
+		{"claude", "plugin", "marketplace", "remove", "integrationctl-claude-demo"},
+	}
+	if len(runner.commands) != len(want) {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	for i := range want {
+		if !equalStrings(runner.commands[i].Argv, want[i]) {
+			t.Fatalf("command %d = %#v want %#v", i, runner.commands[i].Argv, want[i])
+		}
+	}
+	if _, err := os.Stat(managedRoot); !os.IsNotExist(err) {
+		t.Fatalf("managed root still exists: %v", err)
+	}
+	if result.State != domain.InstallRemoved {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRepairUsesUpdateSemantics(t *testing.T) {
+	t.Parallel()
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	root := t.TempDir()
+	writeClaudeFile(t, filepath.Join(root, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	_, err := adapter.Repair(context.Background(), ports.RepairInput{
+		Record: domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"marketplace_name": "integrationctl-claude-demo",
+						"plugin_ref":       "claude-demo@integrationctl-claude-demo",
+					},
+				},
+			},
+		},
+		Manifest:       &domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0", Description: "Claude demo plugin"},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: root},
+	})
+	if err != nil {
+		t.Fatalf("repair: %v", err)
+	}
+	if len(runner.commands) != 3 {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+}
+
+func writeClaudeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}

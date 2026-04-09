@@ -54,6 +54,8 @@ If you are unsure, start with `codex-runtime` and the default Go path.
 
 That gives you the cleanest production starting point before you choose a narrower or more specialized path.
 
+When you later move to `codex-package`, the official package lane follows the official `.codex-plugin/plugin.json` bundle layout.
+
 If you intentionally start on supported Node/TypeScript or Python, that changes the language choice, not the need to decide every packaging or integration detail on day one.
 
 ## What To Do When You Need More Than One Target

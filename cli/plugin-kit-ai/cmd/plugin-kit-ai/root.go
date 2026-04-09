@@ -26,5 +26,6 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(capabilitiesCmd)
 	rootCmd.AddCommand(installCmd)
+	rootCmd.AddCommand(integrationsCmd)
 	rootCmd.AddCommand(versionCmd)
 }

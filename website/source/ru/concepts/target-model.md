@@ -1,71 +1,44 @@
 ---
 title: "Модель target'ов"
-description: "Как plugin-kit-ai делит runtime, package, extension и repo-managed integration lanes."
+description: "Чем отличаются runtime, package, extension и repo-owned integration outputs, и как выбрать правильный путь."
 canonicalId: "page:concepts:target-model"
 section: "concepts"
 locale: "ru"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
 # Модель target'ов
 
-`plugin-kit-ai` поддерживает несколько типов target'ов, потому что продуктам нужны разные delivery models.
+Target - это тип output, который должен собирать ваш repo.
 
-## Короткое правило
+Здесь важна не абстрактная taxonomy, а то, что именно вы хотите ship'ить.
 
-- выбирайте runtime lane, когда нужен исполняемый plugin behavior
-- выбирайте package или extension lane, когда output - это устанавливаемый артефакт
-- выбирайте repo-managed integration lane, когда repo должен владеть configuration и integration shape
+## Быстрое правило
 
-<MermaidDiagram
-  :chart="`
-flowchart TD
-  Goal[Что вы поставляете] --> Runtime{Исполняемое поведение}
-  Goal --> Package{Устанавливаемый артефакт}
-  Goal --> Integration{Repo managed integration}
-  Runtime --> CodexRuntime[codex-runtime]
-  Runtime --> Claude[claude]
-  Package --> CodexPackage[codex-package]
-  Package --> Gemini[gemini]
-  Integration --> OpenCode[opencode]
-  Integration --> Cursor[cursor]
-`"
-/>
+- Выбирайте runtime path, когда нужен исполняемый plugin.
+- Выбирайте package path, когда другая система будет загружать package output.
+- Выбирайте extension path, когда host ожидает extension artifact.
+- Выбирайте repo-owned integration setup, когда repo в основном должен хранить checked-in configuration для другого инструмента.
 
-## Runtime lanes
+## Runtime paths
 
-Используйте их, когда проект сам владеет исполняемым поведением плагина.
+Runtime targets дают исполняемый результат. Это default start для большинства команд, потому что так проще всего владеть поведением, валидировать output и позже растить repo.
 
-Примеры:
+## Package paths
 
-- `codex-runtime`
-- `claude`
+Package targets дают package output вместо основной исполняемой runtime-формы. Используйте их, когда packaging - это реальное требование поставки, а не просто дополнительный export на будущее.
 
-## Package и extension lanes
+## Extension paths
 
-Используйте их, когда продукт - это артефакт для установки, публикации или поставки.
+Extension targets подходят для host'ов, которые ожидают конкретный extension artifact или installable package shape.
 
-Примеры:
+## Repo-owned integration setup
 
-- `codex-package`
-- `gemini`
+Некоторые outputs - это в основном checked-in configuration, которое помогает другому tool или workspace использовать plugin. Это тоже полезные supported paths, но они отвечают на другой delivery question, чем исполняемый runtime.
 
-## Repo-managed integration lanes
+## Безопасная модель
 
-Используйте их, когда repo должен владеть integration config и workspace behavior.
-
-Примеры:
-
-- `opencode`
-- `cursor`
-
-## Важное различие
-
-Один проект не обязан навсегда означать только один target.
-
-Ключевая граница здесь такая:
-
-- один managed authored project
-- явный выбор primary lane
-- честные ожидания по поддержке для каждого generated output
+Сначала выбирайте тот output, который реально нужен. Если repo позже вырастет, вы сможете добавить ещё один supported output, не меняя тот факт, что главный источник всё равно один.

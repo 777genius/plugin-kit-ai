@@ -1,86 +1,57 @@
 ---
-title: "Managed Project Model"
-description: "The core product model behind plugin-kit-ai: one authored repo, generated outputs, strict validation, and honest path boundaries."
+title: "How plugin-kit-ai Works"
+description: "How one repo stays the source of truth while you generate outputs, validate strictly, and hand off a clean result."
 canonicalId: "page:concepts:managed-project-model"
 section: "concepts"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Managed Project Model
+# How plugin-kit-ai Works
 
-If you only remember one idea about `plugin-kit-ai`, remember this:
+plugin-kit-ai keeps one repo as the source of truth for your plugin. You edit the files you own, generate the outputs you need, validate the result strictly, and hand off a repo that stays predictable over time.
 
-- it is a managed plugin project system, not just a starter collection and not just a CLI
+## The Short Version
 
-## In One Sentence
+The core loop is simple:
 
-You keep one authored repo, generate the outputs you need, validate the result strictly, and standardize only the paths whose support promise matches your team.
+```text
+source -> generate -> validate --strict -> handoff
+```
 
-## What Stays Constant
+That loop matters because the project is not just a starter template. The generated output can change as the target evolves, while your authored source stays clear and maintainable.
 
-These parts should stay stable in how you think about the product:
+## One Repo As The Source Of Truth
 
-- one repo is the authored source of truth
-- generated files are outputs, not the long-term editing surface
-- `validate --strict` matters before handoff and rollout
-- support promises differ by path and should be chosen deliberately
+The repo is where the plugin lives for real.
 
-## What Can Change
+- authored files stay under your control
+- generated outputs are rebuilt from that source
+- validation checks the output you plan to ship
+- handoff happens only after the generated result is clean
 
-The repo can still grow and change without breaking the model:
+This lets one project grow carefully instead of scattering the same plugin logic across several repos.
 
-- you can start from a starter repo or from `plugin-kit-ai init`
-- you can keep one primary target or grow to more than one output shape
-- you can stay on the strongest Go runtime path or adopt supported Node or Python lanes
-- you can add package, extension, or workspace-config targets when the repo really owns those outputs
+## What You Actually Edit
 
-## Why This Is Not Just A Starter Story
+You keep editing the project source and the plugin code you own. You do not treat generated output as the place where the project really lives.
 
-Starters matter, but they are only the entrypoint.
+That boundary is what keeps upgrades, target changes, and maintenance work manageable.
 
-The product promise is not "pick a starter name and stay inside that starter forever".
+## Why This Is More Than Starter Templates
 
-The product promise is:
+A starter template gives you an initial shape. plugin-kit-ai keeps managing the loop after day one:
 
-- author the project in one place
-- generate the outputs the needed target or targets require as the product grows
-- validate the repo against the declared standard
-- keep support boundaries explicit instead of pretending every path is equally strong
+- it regenerates target-specific output from the same source
+- it validates what you are about to ship
+- it keeps authored files and generated files clearly separated
+- it lets one repo expand to more outputs later without rewriting the whole project model
 
-## The Four-Step Loop
+## Where To Go Next
 
-The public workflow is easier to understand when you collapse it into four steps:
-
-<MermaidDiagram
-  :chart="`
-flowchart LR
-  Author[Author managed repo] --> Generate[Generate outputs]
-  Generate --> Validate[Validate strictly]
-  Validate --> Expand[Expand only for real product need]
-`"
-/>
-
-1. Author the managed repo.
-2. Generate the output files for the needed target or targets and delivery model.
-3. Validate strictly before handoff, CI, or rollout.
-4. Expand only when the next path is justified by a real team or product need.
-
-## What Good Teams Standardize
-
-Healthy teams standardize:
-
-- one reference repo shape
-- one clear primary path
-- one explicit support story
-- one repeatable validation gate
-
-Everything else should be treated as an exception, an extension, or a later rollout decision.
-
-## Read This With
-
-- Read [Why plugin-kit-ai](/en/concepts/why-plugin-kit-ai) for the problem and tradeoff framing.
-- Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) for the guide-level explanation of how one repo can support more than one generated output shape.
-- Read [Target Model](/en/concepts/target-model) when you need the exact distinction between runtime, package, extension, and workspace-configuration targets.
-- Read [Support Boundary](/en/reference/support-boundary) when your team needs the public contract, not just the mental model.
+- Read [Project Source And Outputs](/en/concepts/authoring-architecture) for the authored-vs-generated boundary.
+- Read [Target Model](/en/concepts/target-model) for the different output types.
+- Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when you want to grow one repo further.

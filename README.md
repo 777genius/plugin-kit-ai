@@ -1,8 +1,10 @@
 # plugin-kit-ai
 
-Build one plugin repo, start with Go by default, and later add packaging, Claude hooks, Gemini, or repo-owned integration setup without splitting the project.
+Build your plugin once and easily export it to any AI agent, like Claude, Codex, or Gemini, without duplicating code.
 
-`plugin-kit-ai` keeps your source in one repo, gives you one clear starting path, and still leaves room for Node, Python, packages, and integrations when you need them.
+`plugin-kit-ai` keeps your source in one repo, gives you one clear starting path, and still leaves room for supported outputs for Codex, Claude, Gemini, and other targets when you need them.
+In practice, one repo and one workflow can cover many supported outputs.
+the honest promise is `one repo / many supported outputs`, not fake parity everywhere.
 
 Common use cases:
 
@@ -15,9 +17,9 @@ Docs site:
 
 - overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)
 - fastest start: [Quickstart](https://777genius.github.io/plugin-kit-ai/docs/en/guide/quickstart.html)
-- product overview: [What You Can Build](https://777genius.github.io/plugin-kit-ai/docs/en/guide/what-you-can-build.html)
+- one repo, many outputs: [What You Can Build](https://777genius.github.io/plugin-kit-ai/docs/en/guide/what-you-can-build.html)
 - delivery model guide: [Choose A Target](https://777genius.github.io/plugin-kit-ai/docs/en/guide/choose-a-target.html)
-- exact support contract: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
+- honest caveat: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
 
 ## Default Start
 
@@ -103,17 +105,17 @@ Supported non-Go paths stay visible from the same starting point:
 Other supported CLI install methods:
 
 - npm: `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`
-- pipx: `pipx install plugin-kit-ai` when that release is published to PyPI
-- verified script: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
+- pipx (`public-beta`, only when that release is published to PyPI): `pipx install plugin-kit-ai`
+- fallback installer: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
 - source build for maintainers of this repo: `go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai`
 
-## Choose Your First Language
+## Choose Your First Path
 
 | If you want | Recommended start |
 |---------|----------|
-| the strongest runtime lane | `plugin-kit-ai init my-plugin` |
-| a TypeScript-first runtime repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript` |
-| a Python-first runtime repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime python` |
+| the strongest production path | `plugin-kit-ai init my-plugin` |
+| a TypeScript-first repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime node --typescript` |
+| a Python-first repo | `plugin-kit-ai init my-plugin --platform codex-runtime --runtime python` |
 
 Practical default:
 
@@ -132,17 +134,16 @@ Practical default:
 ## Expand Later From The Same Repo
 
 - add Claude when hooks become part of the product
-- add Codex package or Gemini when packaging becomes the real delivery lane
-- add OpenCode or Cursor when the repo should manage integration config
+- add Gemini, Codex package, OpenCode, or Cursor outputs when packaging or workspace integration becomes necessary
 - keep one repo and one validation workflow as the product grows
 
 ## What Else It Supports
 
 - a typed Go SDK for Claude, Codex, and Gemini
 - supported local Python and Node runtime authoring on `codex-runtime` and `claude`
-- portable bundle handoff for supported Python and Node runtime repos
+- portable bundle handoff for supported Python and Node plugin repos
 - starter templates for Codex and Claude across Go, Python, and Node/TypeScript
-- package and repo-managed integration lanes for Codex package, Gemini, OpenCode, and Cursor
+- package and workspace-config paths for Codex package, Gemini, OpenCode, and Cursor
 
 ## Keep This Rule In Mind
 

@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-docs-live test-cloudflare-observability-live test-heroku-live test-notion-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-opencode-mcp-live test-opencode-e2e-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-docs-live test-cloudflare-observability-live test-heroku-live test-notion-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -20,6 +20,7 @@ test-install-compat:
 test-extended:
 	go test -count=1 -run '^TestClaudeCLIHooks$$' ./repotests $(EXTENDED_TEST_ARGS)
 	go test -count=1 -run '^TestCodexCLINotify$$' ./repotests $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run '^TestOpenCodeCLIPluginLoadSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-polyglot-smoke:
 	go test -count=1 -run 'TestRenderTemplate_(PythonLauncherWindowsFallbackOrder|ShellLauncherWindowsRequiresBash)$$' ./cli/plugin-kit-ai/internal/scaffold
@@ -40,6 +41,9 @@ test-live: test-e2e-live
 
 test-live-cli:
 	go test -count=1 -run 'TestClaudeHooks_LiveHaikuLow' ./repotests $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run '^TestCodexCLINotify$$' ./repotests $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run '^TestOpenCodeCLIPluginLoadSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
+	go test -count=1 -run '^TestCursorCLI' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-install-live:
 	PLUGIN_KIT_AI_E2E_LIVE=1 go test -count=1 -timeout=15m -run '^TestLiveInstall_' ./repotests
@@ -60,10 +64,18 @@ test-opencode-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeLoaderSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-opencode-cli-live:
-	PLUGIN_KIT_AI_RUN_OPENCODE_CLI=1 go test -count=1 -run '^TestOpenCodeCLI' ./repotests $(EXTENDED_TEST_ARGS)
+	PLUGIN_KIT_AI_RUN_OPENCODE_CLI=1 go test -count=1 -run '^TestOpenCodeCLIPluginLoadSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-opencode-tools-live:
 	PLUGIN_KIT_AI_ENABLE_OPENCODE_SMOKE=1 go test -count=1 -run '^TestOpenCodeStandaloneToolsSmoke$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-opencode-mcp-live:
+	PLUGIN_KIT_AI_RUN_PORTABLE_MCP_LIVE=1 go test -count=1 -run 'TestPortableMCPLiveAcrossConsoleAgents/OpenCode_loader_initializes_shared_MCP' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-opencode-e2e-live:
+	$(MAKE) test-opencode-live EXTENDED_TEST_ARGS='$(EXTENDED_TEST_ARGS)'
+	$(MAKE) test-opencode-cli-live EXTENDED_TEST_ARGS='$(EXTENDED_TEST_ARGS)'
+	$(MAKE) test-opencode-mcp-live EXTENDED_TEST_ARGS='$(EXTENDED_TEST_ARGS)'
 
 test-cursor-live:
 	PLUGIN_KIT_AI_RUN_CURSOR_CLI=1 go test -count=1 -run '^TestCursorCLI' ./repotests $(EXTENDED_TEST_ARGS)

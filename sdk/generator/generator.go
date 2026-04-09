@@ -424,7 +424,6 @@ func renderSupportMatrix(m model) string {
 func renderTargetSupportMatrix(m model) string {
 	var b strings.Builder
 	b.WriteString("# Target Support Matrix\n\n")
-	b.WriteString("This generated table is the canonical target-level contract reference. Use it to inspect exact lane metadata, not as the primary product-positioning page.\n\n")
 	b.WriteString("| Target | Platform Family | Target Class | Launcher | Target Noun | Install Model | Dev Model | Activation Model | Native Root | Production Class | Runtime Contract | Import | Generate | Validate | Portable Components | Target-native Components | Native Docs | Surface Tiers | Managed Artifacts | Summary |\n")
 	b.WriteString("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, profile := range scaffoldTargetProfiles(m) {

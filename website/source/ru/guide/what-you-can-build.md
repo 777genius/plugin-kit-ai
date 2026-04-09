@@ -1,81 +1,38 @@
 ---
-title: "Что можно построить"
-description: "Публичный обзор того, как один plugin repo вырастает в несколько delivery lanes."
+title: "Что можно собрать"
+description: "Используйте эту страницу как product map: какие outputs существуют, как выглядит default start и куда один repo может вырасти позже."
 canonicalId: "page:guide:what-you-can-build"
 section: "guide"
 locale: "ru"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Что можно построить
+# Что можно собрать
 
-`plugin-kit-ai` строится вокруг простой идеи: держите один authored repo, начинайте с одного рекомендуемого пути и расширяйтесь позже только тогда, когда продукту действительно нужны новые outputs.
+Используйте эту страницу как product map. Она показывает, какие outputs вообще существуют, а не отвечает на вопрос, когда одному repo пора расти или делиться позже.
 
-<MermaidDiagram
-  :chart="`
-flowchart TD
-  Product[One authored repo] --> Runtime[Runtime lane]
-  Product --> Package[Package lane]
-  Product --> Extension[Extension lane]
-  Product --> Bundle[Bundle handoff]
-  Product --> Integration[Repo managed integration lane]
-  Product --> Shared[Shared runtime package]
-`"
-/>
+plugin-kit-ai может стартовать с одного исполняемого plugin и со временем вырасти в дополнительные supported outputs.
 
 ## Рекомендуемая стартовая форма
 
-Большинству команд стоит начинать с `Codex runtime Go` как с пути по умолчанию.
+Начните с одного runtime path, обычно с Codex runtime на Go. Так первый repo остаётся простым и даёт самый понятный validate-and-ship loop.
 
-Поддерживаемые пути для Node и Python тоже видны с первого дня:
+Если ваша команда уже работает на Node/TypeScript или Python, это тоже supported starting paths.
 
-- `Node/TypeScript`
-- `Python`
+## Один repo, много supported outputs
 
-Выбор Node или Python не заставляет вас в первый же день решать все вопросы с упаковкой и интеграциями.
+Из одного и того же проекта можно вырасти в:
 
-## Расширяйтесь позже из того же repo
+- runtime outputs для supported hosts
+- packaged outputs, если packaging - это реальное требование поставки
+- extension outputs для host'ов, которым нужен extension artifact
+- repo-owned integration setup, если repo в основном должен хранить checked-in configuration для другого tool
 
-После того как первый путь уже в порядке, тот же repo можно расширить до:
+## Для чего эта страница не нужна
 
-- Claude outputs, когда hooks становятся частью продукта
-- Codex package outputs, когда важна package-доставка
-- Gemini extension packaging, когда Gemini становится реальным способом поставки
-- OpenCode и Cursor, когда repo должен хранить и вести настройку интеграции
-- portable bundle handoff для поддерживаемых Python и Node repos
+Выбор Node или Python не заставляет вас в первый же день решать все вопросы про packaging или integration setup.
 
-## Один repo, много поддерживаемых outputs
-
-Реальная форма продукта - это не "много случайных target'ов", а один authored repo, который со временем начинает выпускать несколько поддерживаемых outputs по мере расширения delivery model.
-
-## Repo, готовый для команды
-
-Смысл не только в scaffolding. Смысл в repo, который другой коллега может понять, проверить и выпустить.
-
-Это означает:
-
-- один source of truth под `src/`
-- один validation workflow через `generate`, `validate` и CI
-- явный выбор стартового пути вместо ручной правки native files
-- предсказуемый handoff между авторами и downstream-пользователями
-
-## Bundle и shared runtime paths
-
-Для поддерживаемых Python и Node lanes repo может также выпускать:
-
-- portable bundle artifacts для handoff
-- shared helper delivery через `plugin-kit-ai-runtime`
-
-Это choices поверх того же authored repo, а не отдельные продукты.
-
-## Что можно выпускать из того же repo
-
-`plugin-kit-ai` может покрывать:
-
-- runtime paths для исполняемого поведения плагина
-- package paths для официальных package artifacts
-- extension paths для extension-style delivery
-- настройку интеграций в самом repo для config и workspace ownership
-
-В этом и состоит реальная multi-target story: один repo, один workflow, несколько способов поставки со временем.
+Эта страница - обзор. Если вопрос в том, стоит ли одному repo продолжать расти, читайте [Один проект, несколько target'ов](/ru/guide/one-project-multiple-targets).

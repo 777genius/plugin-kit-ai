@@ -1,81 +1,38 @@
 ---
 title: "What You Can Build"
-description: "A broad public overview of how one plugin repo can grow into multiple delivery lanes."
+description: "Use this page as the product map: what outputs exist, what the default start looks like, and how one repo can expand later."
 canonicalId: "page:guide:what-you-can-build"
 section: "guide"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
 # What You Can Build
 
-`plugin-kit-ai` is built around one practical idea: keep one authored repo, start with one recommended path, and expand later only when the product needs more outputs.
+Use this page as the product map. It shows what kinds of outputs exist, not when one repo should grow or split later.
 
-<MermaidDiagram
-  :chart="`
-flowchart TD
-  Product[One authored repo] --> Runtime[Runtime lane]
-  Product --> Package[Package lane]
-  Product --> Extension[Extension lane]
-  Product --> Bundle[Bundle handoff]
-  Product --> Integration[Repo managed integration lane]
-  Product --> Shared[Shared runtime package]
-`"
-/>
+plugin-kit-ai can start with one executable plugin and expand into additional supported outputs over time.
 
 ## Recommended Starting Shape
 
-Most teams should start with `Codex runtime Go` as the default path.
+Start with one runtime path, usually Codex runtime with Go. That keeps the first repo simple and gives you the clearest validate-and-ship loop.
 
-Supported Node and Python paths stay visible from day one:
-
-- `Node/TypeScript`
-- `Python`
-
-Choosing Node or Python does not force you to decide every packaging or integration detail on day one.
-
-## Expand Later From The Same Repo
-
-Once the first path is healthy, the same repo can grow into:
-
-- Claude outputs when hooks become part of the product
-- Codex package outputs when package delivery matters
-- Gemini extension packaging when Gemini is a real shipping requirement
-- OpenCode and Cursor when the repo should manage integration setup
-- portable bundle handoff for supported Python and Node repos
+If your team already works in Node/TypeScript or Python, those are supported starting paths too.
 
 ## One Repo, Many Supported Outputs
 
-The real product shape is not "many random targets." It is one authored repo that can produce multiple supported outputs as the delivery model expands.
+From the same project, you can grow toward:
 
-## Team-Ready Repos
+- runtime outputs for supported hosts
+- packaged outputs when packaging is the real delivery requirement
+- extension outputs for hosts that expect an extension artifact
+- repo-owned integration setup when the repo mostly needs checked-in configuration for another tool
 
-The point is not only scaffolding. The point is ending up with a repo another teammate can understand, validate, and ship.
+## What This Page Is Not For
 
-That means:
+Choosing Node or Python does not force you to decide every packaging or integration detail on day one.
 
-- one source of truth under `src/`
-- one validation workflow through `generate`, `validate`, and CI
-- explicit starting-path choices instead of hand-edited native files
-- predictable handoff between authors and downstream users
-
-## Bundle And Shared Runtime Paths
-
-For supported Python and Node lanes, the repo can also produce:
-
-- portable bundle handoff artifacts
-- shared helper delivery through `plugin-kit-ai-runtime`
-
-These are delivery choices layered on top of the same authored repo, not separate products.
-
-## What You Can Ship From The Same Repo
-
-`plugin-kit-ai` can cover:
-
-- runtime paths for executable plugin behavior
-- package paths for official package artifacts
-- extension paths for extension-style delivery
-- repo-owned integration setup for config and workspace ownership
-
-That is the real multi-target story: one repo, one workflow, multiple shipping paths over time.
+This page is the overview. If your question is whether one repo should keep growing, read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets).

@@ -1,123 +1,45 @@
 ---
 title: "One Project, Multiple Targets"
-description: "How one plugin repo can grow into more supported outputs without splitting into separate setups."
+description: "How to decide when one repo should grow to more outputs, when it should stay narrow, and when it is time to split."
 canonicalId: "page:guide:one-project-multiple-targets"
 section: "guide"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
 # One Project, Multiple Targets
 
-This is one of the most important ideas in `plugin-kit-ai`: start with the best first repo for today, then expand that same repo into more supported outputs later.
-
-Do not confuse the starter family with the long-term limit of the repo.
+Use this page after the first working repo, when the real question becomes: should this same repo grow, and if so, how far?
 
 ## The Short Rule
 
-Start with the runtime or target that is your **primary requirement today**.
+One repo can safely cover more than one output when the same plugin logic, release intent, and ownership model still hold together.
 
-After that, keep one repo, keep one validation story, and add only the outputs you actually need.
+## When One Repo Should Grow
 
-<MermaidDiagram
-  :chart="`
-flowchart LR
-  Repo[One repo] --> Generate[generate]
-  Generate --> CodexRuntime[codex-runtime]
-  Generate --> Claude[claude]
-  Generate --> CodexPackage[codex-package]
-  Generate --> Gemini[gemini]
-  Generate --> OpenCode[opencode]
-  Generate --> Cursor[cursor]
-`"
-/>
+Grow the same repo when:
 
-That means a project can begin as:
+- the plugin behavior is still one coherent product
+- the new output is another way to deliver the same plugin
+- one team can still own the authored source cleanly
+- regeneration and validation still keep the repo easy to review
 
-- a Codex-first plugin repo
-- a Claude-first plugin repo
-- a package/config-first repo
+## When One Repo Should Stay Narrow
 
-and still grow into a broader multi-output repo over time.
+Keep the repo focused when the current output already solves the real need and extra outputs would only add maintenance overhead.
 
-## Why The Starters Look Agent-Specific
+## When To Split Repos
 
-The official starters are split by primary path on purpose:
+Split repos when the product stops being one thing in practice:
 
-- Codex starters optimize the default Codex runtime path
-- Claude starters optimize the stable Claude hook path
-- language variants optimize the first runtime team choice
-
-That makes the first run predictable.
-
-What it does **not** mean:
-
-- that `plugin-kit-ai` only supports one agent forever
-- that you must keep separate repos for every agent
-- that the starter name defines the final product boundary
-
-## What Actually Stays Unified
-
-The unifying part is the repo and workflow.
-
-Your team keeps one repo and then uses `generate`, `validate`, import/normalize flows, and target directories to manage the outputs that matter.
-
-In practice, the unified part is:
-
-- one repo layout
-- one build-and-maintain workflow
-- one validation story
-- one CI story
-- one place to review generated target outputs
-
-## What “Multiple Targets” Means In Practice
-
-There are two common cases.
-
-### 1. One Primary Runtime, Several Additional Outputs
-
-Example:
-
-- your main plugin behavior is Codex runtime
-- but the same repo also renders package/config targets such as Gemini, OpenCode, or Cursor
-
-This is the most common broad-project shape.
-
-### 2. One Repo That Also Covers More Than One Agent Family
-
-Example:
-
-- a team starts with Codex as the default runtime path
-- later the repo also needs Claude-specific outputs or Claude-oriented support
-
-The docs must be careful here:
-
-- this is **not** a promise of fake runtime parity between every agent
-- this **is** a promise that `plugin-kit-ai` gives you one repo and one workflow instead of separate hand-maintained target files everywhere
+- different teams own the work
+- release timing diverges
+- behavior diverges beyond simple target adaptation
+- the repo would become harder to reason about than two smaller repos
 
 ## The Safe Mental Model
 
-Use this model:
-
-1. choose the best starter for the **first** real requirement
-2. treat the starter as an entrypoint, not as a cage
-3. keep the repo unified
-4. add the targets and outputs you actually need
-
-## When To Split Repos Anyway
-
-Separate repos still make sense when:
-
-- teams have clearly different release cadences
-- the runtime logic is unrelated between the products
-- ownership boundaries are more important than shared authoring
-
-Do **not** split repos just because the starter names are agent-specific.
-
-## Read This Next
-
-- [Starter Templates](/en/guide/starter-templates)
-- [Choose A Starter Repo](/en/guide/choose-a-starter)
-- [What You Can Build](/en/guide/what-you-can-build)
-- [Target Model](/en/concepts/target-model)
+Start narrow, validate one working output, and only then grow the repo with another supported output.

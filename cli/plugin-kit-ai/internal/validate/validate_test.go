@@ -524,7 +524,7 @@ targets: ["opencode"]
 	}
 }
 
-func TestValidate_OpenCodeRejectsRemovedConfigExtra(t *testing.T) {
+func TestValidate_OpenCodeAllowsConfigExtra(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
@@ -542,12 +542,10 @@ targets: ["opencode"]
 		t.Fatal(err)
 	}
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "config.extra.json")) &&
-			(strings.Contains(failure.Message, "must not exist") || strings.Contains(failure.Message, "forbids")) {
-			return
+		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "config.extra.json")) {
+			t.Fatalf("unexpected config.extra.json failure: %+v", failure)
 		}
 	}
-	t.Fatalf("failures = %+v", report.Failures)
 }
 
 func TestValidate_GeminiRejectsNonYAMLSettingsAndThemes(t *testing.T) {

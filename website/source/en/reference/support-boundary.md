@@ -10,39 +10,59 @@ translationRequired: true
 
 # Support Boundary
 
-This page answers one practical question: what can you recommend today, what is advanced, and what stays experimental?
+Use this page when you need the shortest honest answer about support.
+
+It answers three team questions:
+
+- what is safe to recommend by default
+- what is supported, but should be chosen on purpose
+- what is still experimental and should not quietly become team policy
 
 ## Safe Defaults
 
-- Go is the recommended default runtime lane.
+These are the safest defaults today:
+
+- Go is the recommended default runtime path.
 - `validate --strict` is the main readiness gate for local Python and Node runtime repos.
 - `Codex runtime Go`, `Codex package`, `Gemini packaging`, `Gemini Go runtime`, and the Claude default stable lane are the main Recommended production lanes.
-- `Python` and `Node` are supported non-Go lanes and the recommended non-Go choice when the local interpreted runtime tradeoff is intentional.
+- `Python` and `Node` are supported non-Go paths and the recommended non-Go choice when the local interpreted runtime tradeoff is intentional.
 
 ## How This Maps To The Formal Contract
+
+The public docs use three simple words first:
 
 - `Recommended` usually maps to the strongest current `public-stable` production lanes.
 - `Advanced` means a supported surface with a narrower, more specialized, or more careful contract.
 - `Experimental` means opt-in churn outside the normal compatibility expectation.
 
-Use the formal `public-stable`, `public-beta`, and `public-experimental` terms when you are setting policy for a team or promising compatibility to downstream users.
+When a team needs exact policy language, the formal terms win: `public-stable`, `public-beta`, and `public-experimental`.
 
-## Today In Practice
+## Recommended Today
 
-- Claude is recommended on the default stable hook lane.
-- Codex is recommended both for the `Notify` runtime lane and the official `codex-package` lane.
+If you need the practical answer, start here:
+
+- Claude is recommended on the default stable hook path.
+- Codex is recommended both for the `Notify` runtime path and the official `codex-package` path.
 - Gemini packaging is recommended, and the promoted Gemini Go runtime is also production-ready.
-- OpenCode and Cursor are repo-managed integration lanes, not weak targets and not the default runtime starting point.
+- OpenCode and Cursor are repo-owned integration setup paths. They are useful, but they are not the default executable runtime start.
 
 ## Advanced Surfaces
 
-Use these when the tradeoff is intentional and explicit:
+Choose advanced surfaces only when the tradeoff is explicit and worth it.
 
-- OpenCode and Cursor when the repo should own integration config instead of a runtime lane
-- narrower or specialized runtime expansions beyond the main recommended lanes
-- install wrappers when your real concern is CLI delivery, not runtime APIs or SDKs
-- specialized configuration surfaces that are useful but not the first default for most teams
+Typical examples:
+
+- OpenCode and Cursor when the repo should own integration config instead of shipping a runtime path
+- narrower or specialized runtime expansions beyond the main recommended paths
+- install wrappers when the real concern is CLI delivery, not runtime APIs or SDKs
+- specialized configuration surfaces that are useful, but not the first default for most teams
 
 ## Experimental Surfaces
 
-Treat experimental areas as opt-in and high-churn. They are useful for early adopters, but they should not silently become long-term team policy.
+Treat experimental areas as opt-in and high-churn.
+
+They can be useful for early adopters, but they should not quietly become a long-term standard for the team.
+
+## Practical Rule
+
+If you are choosing for a team, standardize the narrowest path whose promise you are actually willing to defend in CI, rollout, and handoff.

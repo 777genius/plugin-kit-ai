@@ -124,11 +124,11 @@
           "link": "/ru/concepts/why-plugin-kit-ai"
         },
         {
-          "text": "Модель управляемого проекта",
+          "text": "Как работает plugin-kit-ai",
           "link": "/ru/concepts/managed-project-model"
         },
         {
-          "text": "Архитектура авторинга",
+          "text": "Исходники и generated outputs",
           "link": "/ru/concepts/authoring-architecture"
         }
       ]
@@ -303,6 +303,38 @@
         {
           "text": "install",
           "link": "/ru/api/cli/plugin-kit-ai-install"
+        },
+        {
+          "text": "integrations",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations"
+        },
+        {
+          "text": "integrations add",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-add"
+        },
+        {
+          "text": "integrations doctor",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-doctor"
+        },
+        {
+          "text": "integrations help",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-help"
+        },
+        {
+          "text": "integrations list",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-list"
+        },
+        {
+          "text": "integrations remove",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-remove"
+        },
+        {
+          "text": "integrations repair",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-repair"
+        },
+        {
+          "text": "integrations update",
+          "link": "/ru/api/cli/plugin-kit-ai-integrations-update"
         },
         {
           "text": "normalize",

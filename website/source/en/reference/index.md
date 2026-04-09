@@ -1,6 +1,6 @@
 ---
 title: "Reference"
-description: "Reference material for install channels, contracts, and support maps."
+description: "Exact answers about installation, support, compatibility, and healthy repo expectations."
 canonicalId: "page:reference:index"
 section: "reference"
 locale: "en"
@@ -12,49 +12,43 @@ outline: false
 
 <div class="docs-hero docs-hero--compact">
   <p class="docs-kicker">REFERENCE</p>
-  <h1>Exact Contract</h1>
+  <h1>Exact answers when you need the contract</h1>
   <p class="docs-lead">
-    Use the reference cluster when you need precise install rules, support maps, compatibility policy, and repository standards.
+    Use the reference section when you are no longer asking how to start, but what is safe to standardize, what is supported, and what a healthy repo should look like.
   </p>
 </div>
 
-## Use This Section When
+## Start Here When You Need
 
-- you need the exact contract, not a tutorial
-- you are choosing what your team can standardize on
-- you want the shortest precise answer about install channels, support, validation, or repository shape
-
-## Start Here For
-
-- installation questions: [Install Channels](/en/reference/install-channels)
-- policy for teams: [Version And Compatibility Policy](/en/reference/version-and-compatibility)
-- shortest practical support answer: [Support Boundary](/en/reference/support-boundary)
-- compact lane matrix: [Target Support](/en/reference/target-support)
-- repository health: [Repository Standard](/en/reference/repository-standard) and [Authoring Workflow](/en/reference/authoring-workflow)
+- the install answer: [Install Channels](/en/reference/install-channels)
+- the short support answer: [Support Boundary](/en/reference/support-boundary)
+- the team policy answer: [Version And Compatibility](/en/reference/version-and-compatibility)
+- the support map by output type: [Target Support](/en/reference/target-support)
+- the healthy repo answer: [Repository Standard](/en/reference/repository-standard) and [Authoring Workflow](/en/reference/authoring-workflow)
 
 <div class="docs-grid">
   <a class="docs-card" href="./install-channels">
     <h2>Install Channels</h2>
-    <p>Understand Homebrew, npm, PyPI, and the verified script without confusing install paths with runtime APIs.</p>
-  </a>
-  <a class="docs-card" href="./version-and-compatibility">
-    <h2>Version And Compatibility Policy</h2>
-    <p>Keep release baselines, compatibility promises, wrappers, and SDK/runtime expectations in one place.</p>
+    <p>See the supported ways to install the CLI and understand which path to recommend to your team.</p>
   </a>
   <a class="docs-card" href="./support-boundary">
     <h2>Support Boundary</h2>
-    <p>Get the shortest practical answer about recommended lanes, advanced surfaces, and exact contract limits.</p>
+    <p>Get the shortest practical answer about recommended paths, advanced surfaces, and exact support limits.</p>
+  </a>
+  <a class="docs-card" href="./version-and-compatibility">
+    <h2>Version And Compatibility</h2>
+    <p>Use the team-facing policy for release baselines, compatibility promises, and long-term standardization.</p>
   </a>
   <a class="docs-card" href="./target-support">
     <h2>Target Support</h2>
-    <p>See the compact support map by lane: runtime, package, extension, and repo-managed integration.</p>
+    <p>See what is supported across runtime, package, extension, and repo-owned integration outputs.</p>
   </a>
   <a class="docs-card" href="./authoring-workflow">
     <h2>Authoring Workflow</h2>
-    <p>See the canonical `init -> generate -> validate --strict -> test -> handoff` flow.</p>
+    <p>Review the canonical build loop from `init` to `generate`, `validate --strict`, testing, and handoff.</p>
   </a>
   <a class="docs-card" href="./repository-standard">
     <h2>Repository Standard</h2>
-    <p>See what a healthy plugin repo looks like and which files are authored versus generated.</p>
+    <p>Check what a healthy plugin repo looks like and which files are authored versus generated.</p>
   </a>
 </div>

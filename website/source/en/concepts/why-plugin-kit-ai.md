@@ -1,50 +1,44 @@
 ---
 title: "Why plugin-kit-ai"
-description: "What problem plugin-kit-ai solves, who it is for, and when it is the wrong tool."
+description: "What problem plugin-kit-ai solves, who it fits, and when it is the wrong tool."
 canonicalId: "page:concepts:why-plugin-kit-ai"
 section: "concepts"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
 # Why plugin-kit-ai
 
-`plugin-kit-ai` exists to solve a very specific problem: teams want one real plugin repo that can grow into more supported outputs, not a pile of hand-edited target files and one-off helper scripts.
+plugin-kit-ai exists for teams that want one maintained plugin project instead of a pile of disconnected target-specific repos, copies, or starter templates.
 
-## What It Gives You
+## The Problem It Solves
 
-- one repo instead of drift across separate target setups
-- one workflow that can generate multiple supported outputs without turning into a pile of hand-maintained repos
-- a strong default Go path and stable local Python and Node paths
-- deterministic generate and validation flows
-- generated API and support metadata that stay tied to real source data
+Most agent integrations are easy to start and hard to maintain.
 
-## Who It Is For
+You get one-off templates, target-specific folders, and repeated setup work. As soon as you need to support another runtime, package, or integration path, the project starts fragmenting.
 
-- plugin authors who want a stronger structure than ad-hoc local scripts
-- teams migrating from native target files to a repo-owned workflow
-- maintainers who care about drift detection, strict validation, and explicit public boundaries
+plugin-kit-ai gives you one repo that stays authoritative while you generate the outputs you need.
+
+## Who It Fits
+
+This product is a good fit when you want to:
+
+- keep one source project for the plugin
+- regenerate supported outputs instead of hand-maintaining copies
+- validate the exact result you plan to ship
+- expand carefully to more outputs over time
 
 ## When It Is The Wrong Tool
 
-It is probably the wrong choice when:
+It is probably the wrong tool if you only need:
 
-- you only want a tiny one-off local script with no intention to maintain structure
-- you want universal dependency management for every interpreted runtime ecosystem
-- you want every target and every hook family to carry the same stability promise
+- a throwaway single-target starter
+- a quick copy-paste prototype with no long-term maintenance plan
+- a repo where generated output becomes the main source of truth
 
-## What Matters Most
+## How The Product Model Works
 
-`plugin-kit-ai` optimizes for manageability, not ad-hoc flexibility.
-
-In practice, that means:
-
-- one repo instead of drift across target files
-- one clear workflow through `generate`, `validate`, and CI
-- one repo that can grow into more supported outputs without losing structure
-- an explicit support boundary that makes engineering decisions easier for teams
-
-Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if you want the direct product-level explanation of how one repo grows over time.
-Read [Managed Project Model](/en/concepts/managed-project-model) if you want the deeper internal model behind that workflow.
-Pair this page with [Choosing Runtime](/en/concepts/choosing-runtime) and [Support Boundary](/en/reference/support-boundary).
+If the product fit is clear and you want the operating model, read [How plugin-kit-ai Works](/en/concepts/managed-project-model).

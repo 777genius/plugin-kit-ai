@@ -44,6 +44,7 @@ CLI plugin-kit-ai для создания проектов и служебных
 * plugin-kit-ai init	 - Создаёт каркас проекта plugin-kit-ai.
 * plugin-kit-ai inspect	 - Показывает найденный package graph и покрытие целевых платформ.
 * plugin-kit-ai install	 - Устанавливает бинарник плагина из GitHub Releases с проверкой через `checksums.txt`.
+* plugin-kit-ai integrations	 - Foundation lifecycle commands for multi-agent integration management
 * plugin-kit-ai normalize	 - Нормализует `plugin.yaml` в package-standard проекте.
 * plugin-kit-ai publication	 - Show the publication-oriented package and channel view
 * plugin-kit-ai publish	 - Publish a package target through a bounded channel workflow

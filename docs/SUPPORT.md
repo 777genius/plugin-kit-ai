@@ -68,9 +68,9 @@ Canonical event-level support claims live in [generated/support_matrix.md](./gen
 - capability tags
 - live-test profile labels
 
-The generated support matrix is runtime-event-only. Gemini runtime hooks, plus the Claude and Codex runtime lanes, appear there. Packaging-only or workspace-config-only targets are defined in this policy and in CLI docs.
+The generated support matrix is runtime-event-only. Gemini runtime hooks, plus the Claude/Codex runtime lanes, appear there. Packaging-only or workspace-config-only targets are defined in this policy and in CLI docs.
 
-The target and package contract matrix lives in [generated/target_support_matrix.md](./generated/target_support_matrix.md). That table is the source of truth for target class, production class, import/generate/validate support, portable component kinds, target-native component kinds, and managed artifact sets.
+The target/package contract matrix lives in [generated/target_support_matrix.md](./generated/target_support_matrix.md). That table is the source of truth for target class, production class, import/generate/validate support, portable component kinds, target-native component kinds, and managed artifact sets.
 
 ## Contract Levels
 
@@ -140,7 +140,7 @@ Current production-ready target boundary:
 - Codex package bundle contract: `.codex-plugin/` contains only `plugin.json`, while optional `.app.json` and `.mcp.json` stay at plugin root and must match manifest refs
 - Gemini packaging: production-ready official Gemini CLI extension packaging lane through `plugin-kit-ai generate|import|validate` and local `extensions link|config|disable|enable`
 - Gemini runtime: optional production-ready 9-hook Go runtime lane for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`, with dedicated deterministic runtime smoke and dedicated opt-in real CLI runtime smoke
-- OpenCode: workspace-config lane through `plugin-kit-ai generate|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope import; not a production-ready runtime target
+- OpenCode: workspace-config lane through `plugin-kit-ai generate|import|validate`, `opencode.json.plugin`, inline `mcp`, validated mirrored `.opencode/skills/`, first-class `.opencode/{commands,agents,themes,tools}/`, first-class `default_agent`, `instructions`, `permission`, sanctioned `config.extra.json`, stable `.opencode/plugins/` plus `.opencode/package.json`, and JSON/JSONC plus explicit user-scope import; not a production-ready runtime target
 
 Stable CLI commands:
 
@@ -210,8 +210,8 @@ Runtime recommendation contract:
 ## Current Public-Beta Surfaces
 
 Current beta surfaces that remain intentionally outside the stable set:
-- OpenCode workspace-config lane through `plugin-kit-ai generate|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, `config.extra.json`, and passthrough config surfaces like `agent`, `permission`, and `instructions`; `custom_tools` remain beta across standalone tools and plugin code
-- Cursor workspace-config lane through `plugin-kit-ai generate|import|validate`, covering `.cursor/mcp.json`, project-root `.cursor/rules/**`, and strict documented-subset behavior that defers root boundary docs `CLAUDE.md` and `AGENTS.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC; not a production-ready runtime target
+- OpenCode workspace-config lane through `plugin-kit-ai generate|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs including tuple-form plugin options, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class `default_agent`, `instructions`, `permission`, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, and sanctioned `config.extra.json` for broader product config; `custom_tools` remain beta across standalone tools and plugin code
+- Cursor workspace-config lane through `plugin-kit-ai generate|import|validate`, covering repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, authored `src/targets/cursor/AGENTS.md` merged into root `AGENTS.md`, and `--include-user-scope` import from `~/.cursor/mcp.json`; nested non-root `.cursor/rules/**`, JSONC, GUI-only/global rule authoring, and extension packaging remain outside scope; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
 - `plugin-kit-ai generate`, `plugin-kit-ai import`, and `plugin-kit-ai normalize`
@@ -253,8 +253,9 @@ Config contract:
 - Gemini CLI extension manifest generated by `plugin-kit-ai generate --target gemini`, with optional Go launcher-based runtime support in the current production-ready 9-hook runtime contract
 - OpenCode workspace config generated by `plugin-kit-ai generate --target opencode`, with workspace-config-only status in the current contract
 - Cursor workspace config generated by `plugin-kit-ai generate --target cursor`, with workspace-config-only status in the current contract
-- OpenCode local plugin loading stable subset is guarded by `generate --check`, strict validation, the production example canary, and the documented `test-opencode-live` smoke path
+- OpenCode local plugin loading stable subset is guarded by `generate --check`, strict validation, the production example canary, the documented `test-opencode-live` loader smoke path, and the documented `test-opencode-cli-live` real-model smoke path
 - OpenCode standalone tools beta subset is guarded by `generate --check`, strict validation, the production example canary, and the documented `test-opencode-tools-live` smoke path
+- OpenCode shared portable MCP initialization evidence is guarded by the documented `test-opencode-mcp-live` smoke path
 - package-standard authored projects are defined by `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/launcher.yaml`, optional `src/skills/**`, optional `src/publish/**`, and `src/targets/<platform>/...`
 - generated native target files remain managed artifacts, not authored source-of-truth files
 - generated Claude/Codex config wiring is a repo-owned contract surface guarded by `generate --check`, deterministic generated-project canaries, and the `polyglot-smoke` lane

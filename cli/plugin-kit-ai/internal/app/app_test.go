@@ -518,7 +518,7 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"@opencode-ai/plugin": "1.3.11"`, `"type": "module"`} {
+	for _, want := range []string{`"@opencode-ai/plugin": "1.4.0"`, `"type": "module"`} {
 		if !strings.Contains(string(packageJSONBody), want) {
 			t.Fatalf("OpenCode package.json missing %q:\n%s", want, packageJSONBody)
 		}

@@ -17,9 +17,15 @@ import (
 type opencodeAdapter struct{}
 
 type opencodeImportedState struct {
-	plugins         []string
+	plugins         []opencodePluginRef
 	pluginsProvided bool
 	mcp             map[string]any
+	defaultAgent    string
+	defaultAgentSet bool
+	instructions    []string
+	instructionsSet bool
+	permission      any
+	permissionSet   bool
 	extra           map[string]any
 	artifacts       map[string]pluginmodel.Artifact
 	warnings        []pluginmodel.Warning
@@ -48,10 +54,8 @@ func (opencodeAdapter) RefineDiscovery(root string, state *pluginmodel.TargetSta
 			return fmt.Errorf("parse %s: %w", rel, err)
 		}
 		if ok {
-			for i, plugin := range meta.Plugins {
-				if strings.TrimSpace(plugin) == "" {
-					return fmt.Errorf("%s plugin entry %d must be a non-empty string", rel, i)
-				}
+			if err := validateOpenCodePluginRefs(meta.Plugins); err != nil {
+				return fmt.Errorf("%s %w", rel, err)
 			}
 		}
 	}
@@ -116,7 +120,7 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 
 	artifacts := []pluginmodel.Artifact{{
 		RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.yaml"),
-		Content: mustYAML(opencodePackageMeta{Plugins: append([]string(nil), state.plugins...)}),
+		Content: mustYAML(opencodePackageMeta{Plugins: append([]opencodePluginRef(nil), state.plugins...)}),
 	}}
 	if len(state.mcp) > 0 {
 		artifact, err := importedPortableMCPArtifact("opencode", state.mcp)
@@ -124,6 +128,28 @@ func (opencodeAdapter) Import(root string, seed ImportSeed) (ImportResult, error
 			return ImportResult{}, err
 		}
 		artifacts = append(artifacts, artifact)
+	}
+	if state.defaultAgentSet {
+		artifacts = append(artifacts, pluginmodel.Artifact{
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "default_agent.txt"),
+			Content: append([]byte(state.defaultAgent), '\n'),
+		})
+	}
+	if state.instructionsSet {
+		artifacts = append(artifacts, pluginmodel.Artifact{
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "instructions.yaml"),
+			Content: mustYAML(state.instructions),
+		})
+	}
+	if state.permissionSet {
+		body, err := marshalJSON(state.permission)
+		if err != nil {
+			return ImportResult{}, err
+		}
+		artifacts = append(artifacts, pluginmodel.Artifact{
+			RelPath: filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "permission.json"),
+			Content: body,
+		})
 	}
 	if len(state.extra) > 0 {
 		artifacts = append(artifacts, pluginmodel.Artifact{
@@ -147,17 +173,14 @@ func (opencodeAdapter) Generate(root string, graph pluginmodel.PackageGraph, sta
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
 	}
-	for i, plugin := range meta.Plugins {
-		if strings.TrimSpace(plugin) == "" {
-			return nil, fmt.Errorf("%s plugin entry %d must be a non-empty string", state.DocPath("package_metadata"), i)
-		}
-		meta.Plugins[i] = strings.TrimSpace(plugin)
+	if err := validateOpenCodePluginRefs(meta.Plugins); err != nil {
+		return nil, fmt.Errorf("%s %w", state.DocPath("package_metadata"), err)
 	}
 	extra, err := loadNativeExtraDoc(root, state, "config_extra", pluginmodel.NativeDocFormatJSON)
 	if err != nil {
 		return nil, err
 	}
-	managedPaths := []string{"$schema", "plugin", "mcp"}
+	managedPaths := []string{"$schema", "plugin", "mcp", "default_agent", "instructions", "permission", "mode"}
 	if err := pluginmodel.ValidateNativeExtraDocConflicts(extra, "opencode config.extra.json", managedPaths); err != nil {
 		return nil, err
 	}
@@ -165,7 +188,7 @@ func (opencodeAdapter) Generate(root string, graph pluginmodel.PackageGraph, sta
 		"$schema": "https://opencode.ai/config.json",
 	}
 	if len(meta.Plugins) > 0 {
-		doc["plugin"] = append([]string(nil), meta.Plugins...)
+		doc["plugin"] = jsonValuesForOpenCodePlugins(meta.Plugins)
 	}
 	if graph.Portable.MCP != nil {
 		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "opencode")
@@ -173,6 +196,47 @@ func (opencodeAdapter) Generate(root string, graph pluginmodel.PackageGraph, sta
 			return nil, err
 		}
 		doc["mcp"] = projected
+	}
+	if rel := strings.TrimSpace(state.DocPath("default_agent")); rel != "" {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			return nil, err
+		}
+		text := strings.TrimSpace(string(body))
+		if text == "" {
+			return nil, fmt.Errorf("%s must contain a non-empty agent name", rel)
+		}
+		doc["default_agent"] = text
+	}
+	if rel := strings.TrimSpace(state.DocPath("instructions_config")); rel != "" {
+		instructions, _, err := readYAMLDoc[[]string](root, rel)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", rel, err)
+		}
+		if len(instructions) == 0 {
+			return nil, fmt.Errorf("%s must contain at least one instruction path", rel)
+		}
+		for i, instruction := range instructions {
+			if strings.TrimSpace(instruction) == "" {
+				return nil, fmt.Errorf("%s instruction entry %d must be a non-empty string", rel, i)
+			}
+			instructions[i] = strings.TrimSpace(instruction)
+		}
+		doc["instructions"] = instructions
+	}
+	if rel := strings.TrimSpace(state.DocPath("permission_config")); rel != "" {
+		body, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			return nil, err
+		}
+		var permission any
+		if err := json.Unmarshal(body, &permission); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", rel, err)
+		}
+		if !isOpenCodePermissionValue(permission) {
+			return nil, fmt.Errorf("%s must be a JSON string or object", rel)
+		}
+		doc["permission"] = permission
 	}
 	if err := pluginmodel.MergeNativeExtraObject(doc, extra, "opencode config.extra.json", managedPaths); err != nil {
 		return nil, err
@@ -218,16 +282,14 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
 	}
-	for i, plugin := range meta.Plugins {
-		if strings.TrimSpace(plugin) == "" {
-			diagnostics = append(diagnostics, Diagnostic{
-				Severity: SeverityFailure,
-				Code:     CodeManifestInvalid,
-				Path:     state.DocPath("package_metadata"),
-				Target:   "opencode",
-				Message:  fmt.Sprintf("OpenCode package metadata plugin entry %d must be a non-empty string", i),
-			})
-		}
+	if err := validateOpenCodePluginRefs(meta.Plugins); err != nil {
+		diagnostics = append(diagnostics, Diagnostic{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     state.DocPath("package_metadata"),
+			Target:   "opencode",
+			Message:  "OpenCode package metadata " + err.Error(),
+		})
 	}
 	configPath, warnings, ok, err := resolveOpenCodeConfigPath(root)
 	if err != nil {
@@ -299,18 +361,17 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 				Code:     CodeManifestInvalid,
 				Path:     configPath,
 				Target:   "opencode",
-				Message:  `OpenCode config field "plugin" must be an array of strings`,
+				Message:  `OpenCode config field "plugin" must be an array of strings or [name, options] tuples`,
 			})
 		} else {
 			for i, value := range values {
-				text, ok := value.(string)
-				if !ok || strings.TrimSpace(text) == "" {
+				if _, err := normalizeImportedOpenCodePluginRef(value); err != nil {
 					diagnostics = append(diagnostics, Diagnostic{
 						Severity: SeverityFailure,
 						Code:     CodeManifestInvalid,
 						Path:     configPath,
 						Target:   "opencode",
-						Message:  fmt.Sprintf(`OpenCode config field "plugin" must contain non-empty strings (invalid entry at index %d)`, i),
+						Message:  fmt.Sprintf(`OpenCode config field "plugin" has invalid entry at index %d: %v`, i, err),
 					})
 				}
 			}
@@ -326,6 +387,52 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 				Message:  `OpenCode config field "mcp" must be a JSON object`,
 			})
 		}
+	}
+	if raw, ok := doc["default_agent"]; ok {
+		text, ok := raw.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     configPath,
+				Target:   "opencode",
+				Message:  `OpenCode config field "default_agent" must be a non-empty string`,
+			})
+		}
+	}
+	if raw, ok := doc["instructions"]; ok {
+		values, ok := raw.([]any)
+		if !ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     configPath,
+				Target:   "opencode",
+				Message:  `OpenCode config field "instructions" must be an array of strings`,
+			})
+		} else {
+			for i, value := range values {
+				text, ok := value.(string)
+				if !ok || strings.TrimSpace(text) == "" {
+					diagnostics = append(diagnostics, Diagnostic{
+						Severity: SeverityFailure,
+						Code:     CodeManifestInvalid,
+						Path:     configPath,
+						Target:   "opencode",
+						Message:  fmt.Sprintf(`OpenCode config field "instructions" must contain non-empty strings (invalid entry at index %d)`, i),
+					})
+				}
+			}
+		}
+	}
+	if raw, ok := doc["permission"]; ok && !isOpenCodePermissionValue(raw) {
+		diagnostics = append(diagnostics, Diagnostic{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     configPath,
+			Target:   "opencode",
+			Message:  `OpenCode config field "permission" must be a string or JSON object`,
+		})
 	}
 	if len(graph.Portable.Paths("skills")) > 0 {
 		authoredRoot := filepath.Join(root, pluginmodel.SourceDirName)
@@ -345,6 +452,9 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 	}
 	diagnostics = append(diagnostics, validateOpenCodeCommandFiles(root, state.ComponentPaths("commands"))...)
 	diagnostics = append(diagnostics, validateOpenCodeAgentFiles(root, state.ComponentPaths("agents"))...)
+	diagnostics = append(diagnostics, validateOpenCodeDefaultAgent(root, state.DocPath("default_agent"))...)
+	diagnostics = append(diagnostics, validateOpenCodeInstructions(root, state.DocPath("instructions_config"))...)
+	diagnostics = append(diagnostics, validateOpenCodePermission(root, state.DocPath("permission_config"))...)
 	diagnostics = append(diagnostics, validateOpenCodeThemeFiles(root, state.ComponentPaths("themes"))...)
 	packageDoc, packageDiagnostics := validateOpenCodePluginPackageJSON(root, state.DocPath("local_plugin_dependencies"))
 	diagnostics = append(diagnostics, packageDiagnostics...)
@@ -516,7 +626,7 @@ func (s *opencodeImportedState) addArtifacts(artifacts ...pluginmodel.Artifact) 
 func (s *opencodeImportedState) mergeConfig(config importedOpenCodeConfig) {
 	if config.PluginsProvided {
 		s.pluginsProvided = true
-		s.plugins = append([]string(nil), config.Plugins...)
+		s.plugins = append([]opencodePluginRef(nil), config.Plugins...)
 	}
 	if config.MCPProvided {
 		if s.mcp == nil {
@@ -529,6 +639,18 @@ func (s *opencodeImportedState) mergeConfig(config importedOpenCodeConfig) {
 			s.extra = map[string]any{}
 		}
 		mergeOpenCodeObject(s.extra, config.Extra)
+	}
+	if config.DefaultAgentSet {
+		s.defaultAgent = config.DefaultAgent
+		s.defaultAgentSet = true
+	}
+	if config.InstructionsSet {
+		s.instructions = append([]string(nil), config.Instructions...)
+		s.instructionsSet = true
+	}
+	if config.PermissionSet {
+		s.permission = config.Permission
+		s.permissionSet = true
 	}
 }
 
@@ -791,9 +913,10 @@ func normalizeInlineOpenCodeAgent(name string, spec map[string]any) (map[string]
 	if !ok || strings.TrimSpace(description) == "" {
 		return nil, "", false
 	}
+	_, _ = name, spec
 	for key := range spec {
 		switch key {
-		case "description", "mode", "model", "temperature", "tools", "permission", "disable", "steps", "prompt":
+		case "description", "mode", "model", "variant", "temperature", "top_p", "tools", "permission", "disable", "hidden", "options", "color", "steps", "maxSteps", "prompt":
 		default:
 			return nil, "", false
 		}
@@ -815,6 +938,13 @@ func normalizeInlineOpenCodeAgent(name string, spec map[string]any) (map[string]
 		}
 		frontmatter["model"] = strings.TrimSpace(text)
 	}
+	if variant, ok := spec["variant"]; ok {
+		text, ok := variant.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["variant"] = strings.TrimSpace(text)
+	}
 	if temperature, ok := spec["temperature"]; ok {
 		switch value := temperature.(type) {
 		case float64:
@@ -823,10 +953,35 @@ func normalizeInlineOpenCodeAgent(name string, spec map[string]any) (map[string]
 			return nil, "", false
 		}
 	}
+	if topP, ok := spec["top_p"]; ok {
+		switch value := topP.(type) {
+		case float64:
+			frontmatter["top_p"] = value
+		default:
+			return nil, "", false
+		}
+	}
 	if tools, ok := spec["tools"]; ok {
-		frontmatter["tools"] = tools
+		toolMap, ok := tools.(map[string]any)
+		if !ok {
+			return nil, "", false
+		}
+		normalizedTools := map[string]any{}
+		for key, value := range toolMap {
+			flag, ok := value.(bool)
+			if !ok || strings.TrimSpace(key) == "" {
+				return nil, "", false
+			}
+			normalizedTools[key] = flag
+		}
+		if _, exists := frontmatter["permission"]; !exists && len(normalizedTools) > 0 {
+			frontmatter["permission"] = map[string]any{"tools": normalizedTools}
+		}
 	}
 	if permission, ok := spec["permission"]; ok {
+		if !isOpenCodePermissionValue(permission) {
+			return nil, "", false
+		}
 		frontmatter["permission"] = permission
 	}
 	if disable, ok := spec["disable"]; ok {
@@ -836,12 +991,42 @@ func normalizeInlineOpenCodeAgent(name string, spec map[string]any) (map[string]
 		}
 		frontmatter["disable"] = flag
 	}
+	if hidden, ok := spec["hidden"]; ok {
+		flag, ok := hidden.(bool)
+		if !ok {
+			return nil, "", false
+		}
+		frontmatter["hidden"] = flag
+	}
+	if options, ok := spec["options"]; ok {
+		typed, ok := options.(map[string]any)
+		if !ok {
+			return nil, "", false
+		}
+		frontmatter["options"] = typed
+	}
+	if color, ok := spec["color"]; ok {
+		text, ok := color.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return nil, "", false
+		}
+		frontmatter["color"] = strings.TrimSpace(text)
+	}
 	if steps, ok := spec["steps"]; ok {
 		value, ok := steps.(float64)
 		if !ok || value != float64(int(value)) {
 			return nil, "", false
 		}
 		frontmatter["steps"] = int(value)
+	}
+	if maxSteps, ok := spec["maxSteps"]; ok {
+		if _, exists := frontmatter["steps"]; !exists {
+			value, ok := maxSteps.(float64)
+			if !ok || value != float64(int(value)) {
+				return nil, "", false
+			}
+			frontmatter["steps"] = int(value)
+		}
 	}
 	body := ""
 	if prompt, ok := spec["prompt"]; ok {
@@ -1000,8 +1185,222 @@ func validateOpenCodeAgentFiles(root string, rels []string) []Diagnostic {
 				})
 			}
 		}
+		if model, ok := frontmatter["model"]; ok {
+			text, ok := model.(string)
+			if !ok || strings.TrimSpace(text) == "" {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     rel,
+					Target:   "opencode",
+					Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a non-empty string", rel, "model"),
+				})
+			}
+		}
+		if variant, ok := frontmatter["variant"]; ok {
+			text, ok := variant.(string)
+			if !ok || strings.TrimSpace(text) == "" {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     rel,
+					Target:   "opencode",
+					Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a non-empty string", rel, "variant"),
+				})
+			}
+		}
+		for _, numericField := range []string{"temperature", "top_p"} {
+			if raw, ok := frontmatter[numericField]; ok {
+				if _, ok := raw.(float64); !ok {
+					diagnostics = append(diagnostics, Diagnostic{
+						Severity: SeverityFailure,
+						Code:     CodeManifestInvalid,
+						Path:     rel,
+						Target:   "opencode",
+						Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a number", rel, numericField),
+					})
+				}
+			}
+		}
+		for _, boolField := range []string{"disable", "hidden"} {
+			if raw, ok := frontmatter[boolField]; ok {
+				if _, ok := raw.(bool); !ok {
+					diagnostics = append(diagnostics, Diagnostic{
+						Severity: SeverityFailure,
+						Code:     CodeManifestInvalid,
+						Path:     rel,
+						Target:   "opencode",
+						Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a boolean", rel, boolField),
+					})
+				}
+			}
+		}
+		if raw, ok := frontmatter["color"]; ok {
+			text, ok := raw.(string)
+			if !ok || strings.TrimSpace(text) == "" {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     rel,
+					Target:   "opencode",
+					Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a non-empty string", rel, "color"),
+				})
+			}
+		}
+		if raw, ok := frontmatter["steps"]; ok {
+			value, ok := raw.(int)
+			if !ok || value <= 0 {
+				if floatValue, ok := raw.(float64); !ok || floatValue != float64(int(floatValue)) || int(floatValue) <= 0 {
+					diagnostics = append(diagnostics, Diagnostic{
+						Severity: SeverityFailure,
+						Code:     CodeManifestInvalid,
+						Path:     rel,
+						Target:   "opencode",
+						Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a positive integer", rel, "steps"),
+					})
+				}
+			}
+		}
+		if raw, ok := frontmatter["options"]; ok {
+			if _, ok := raw.(map[string]any); !ok {
+				diagnostics = append(diagnostics, Diagnostic{
+					Severity: SeverityFailure,
+					Code:     CodeManifestInvalid,
+					Path:     rel,
+					Target:   "opencode",
+					Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be an object", rel, "options"),
+				})
+			}
+		}
+		if raw, ok := frontmatter["permission"]; ok && !isOpenCodePermissionValue(raw) {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "opencode",
+				Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q must be a string or object", rel, "permission"),
+			})
+		}
+		if _, ok := frontmatter["tools"]; ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "opencode",
+				Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q is deprecated; use %q instead", rel, "tools", "permission"),
+			})
+		}
+		if _, ok := frontmatter["maxSteps"]; ok {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "opencode",
+				Message:  fmt.Sprintf("OpenCode agent file %s frontmatter field %q is deprecated; use %q instead", rel, "maxSteps", "steps"),
+			})
+		}
 	}
 	return diagnostics
+}
+
+func validateOpenCodeDefaultAgent(root string, rel string) []Diagnostic {
+	if strings.TrimSpace(rel) == "" {
+		return nil
+	}
+	body, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("OpenCode default agent file %s is not readable: %v", rel, err),
+		}}
+	}
+	if strings.TrimSpace(string(body)) == "" {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("OpenCode default agent file %s must contain a non-empty agent name", rel),
+		}}
+	}
+	return nil
+}
+
+func validateOpenCodeInstructions(root string, rel string) []Diagnostic {
+	if strings.TrimSpace(rel) == "" {
+		return nil
+	}
+	values, _, err := readYAMLDoc[[]string](root, rel)
+	if err != nil {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("parse %s: %v", rel, err),
+		}}
+	}
+	if len(values) == 0 {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("OpenCode instructions file %s must contain at least one instruction path", rel),
+		}}
+	}
+	var diagnostics []Diagnostic
+	for i, value := range values {
+		if strings.TrimSpace(value) == "" {
+			diagnostics = append(diagnostics, Diagnostic{
+				Severity: SeverityFailure,
+				Code:     CodeManifestInvalid,
+				Path:     rel,
+				Target:   "opencode",
+				Message:  fmt.Sprintf("OpenCode instructions file %s entry %d must be a non-empty string", rel, i),
+			})
+		}
+	}
+	return diagnostics
+}
+
+func validateOpenCodePermission(root string, rel string) []Diagnostic {
+	if strings.TrimSpace(rel) == "" {
+		return nil
+	}
+	body, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("OpenCode permission file %s is not readable: %v", rel, err),
+		}}
+	}
+	var permission any
+	if err := json.Unmarshal(body, &permission); err != nil {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("parse %s: %v", rel, err),
+		}}
+	}
+	if !isOpenCodePermissionValue(permission) {
+		return []Diagnostic{{
+			Severity: SeverityFailure,
+			Code:     CodeManifestInvalid,
+			Path:     rel,
+			Target:   "opencode",
+			Message:  fmt.Sprintf("OpenCode permission file %s must be a JSON string or object", rel),
+		}}
+	}
+	return nil
 }
 
 func validateOpenCodeThemeFiles(root string, rels []string) []Diagnostic {

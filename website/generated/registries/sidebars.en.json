@@ -88,7 +88,7 @@
           "link": "/en/guide/bundle-handoff"
         },
         {
-          "text": "Package And Workspace Targets",
+          "text": "Packages And Integration Setup",
           "link": "/en/guide/package-and-workspace-targets"
         },
         {
@@ -124,11 +124,11 @@
           "link": "/en/concepts/why-plugin-kit-ai"
         },
         {
-          "text": "Managed Project Model",
+          "text": "How plugin-kit-ai Works",
           "link": "/en/concepts/managed-project-model"
         },
         {
-          "text": "Authoring Architecture",
+          "text": "Project Source And Outputs",
           "link": "/en/concepts/authoring-architecture"
         }
       ]
@@ -303,6 +303,38 @@
         {
           "text": "install",
           "link": "/en/api/cli/plugin-kit-ai-install"
+        },
+        {
+          "text": "integrations",
+          "link": "/en/api/cli/plugin-kit-ai-integrations"
+        },
+        {
+          "text": "integrations add",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-add"
+        },
+        {
+          "text": "integrations doctor",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-doctor"
+        },
+        {
+          "text": "integrations help",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-help"
+        },
+        {
+          "text": "integrations list",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-list"
+        },
+        {
+          "text": "integrations remove",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-remove"
+        },
+        {
+          "text": "integrations repair",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-repair"
+        },
+        {
+          "text": "integrations update",
+          "link": "/en/api/cli/plugin-kit-ai-integrations-update"
         },
         {
           "text": "normalize",

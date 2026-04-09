@@ -20,15 +20,28 @@ func TestCursorDetectNativeIgnoresStandaloneRootAgents(t *testing.T) {
 	}
 }
 
-func TestCursorImportRejectsIncludeUserScope(t *testing.T) {
-	t.Parallel()
+func TestCursorImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	root := t.TempDir()
-	_, err := (cursorAdapter{}).Import(root, ImportSeed{
+	if err := os.MkdirAll(filepath.Join(home, ".cursor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".cursor", "mcp.json"), []byte(`{"global":{"command":"node"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	imported, err := (cursorAdapter{}).Import(root, ImportSeed{
 		Manifest:         pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo", Targets: []string{"cursor"}},
 		IncludeUserScope: true,
 	})
-	if err == nil || !strings.Contains(err.Error(), "--include-user-scope") {
+	if err != nil {
 		t.Fatalf("Import error = %v", err)
+	}
+	if len(imported.Artifacts) != 1 {
+		t.Fatalf("artifacts = %+v", imported.Artifacts)
+	}
+	if !strings.Contains(string(imported.Artifacts[0].Content), "global:") {
+		t.Fatalf("portable MCP import missing global server:\n%s", imported.Artifacts[0].Content)
 	}
 }
 
@@ -137,10 +150,19 @@ servers:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(artifacts) != 1 {
+	if len(artifacts) != 2 {
 		t.Fatalf("artifacts = %v", artifacts)
 	}
-	got := string(artifacts[0].Content)
+	var got string
+	for _, artifact := range artifacts {
+		if artifact.RelPath == filepath.ToSlash(filepath.Join(".cursor", "mcp.json")) {
+			got = string(artifact.Content)
+			break
+		}
+	}
+	if got == "" {
+		t.Fatalf("artifacts missing .cursor/mcp.json: %+v", artifacts)
+	}
 	for _, want := range []string{"${env:API_KEY}", "${workspaceFolder}", "${input:token}"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated mcp missing %q:\n%s", want, got)

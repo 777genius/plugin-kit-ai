@@ -1,65 +1,49 @@
 ---
-title: "Package и workspace targets"
-description: "Как использовать package, extension и настройку интеграций в самом repo, не путая их с исполняемыми runtime-путями."
+title: "Packages и настройка интеграций"
+description: "Когда packaging или checked-in integration setup нужны вместо исполняемого runtime plugin."
 canonicalId: "page:guide:package-and-workspace-targets"
 section: "guide"
 locale: "ru"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Package и workspace targets
+# Packages и настройка интеграций
 
-Не каждый путь в `plugin-kit-ai` является исполняемым runtime-путём.
+Не каждый проект должен поставляться как исполняемый runtime plugin.
 
-Читайте эту страницу перед выбором `codex-package`, `gemini`, `opencode` или `cursor`, потому что эти target'ы решают другую задачу, чем `codex-runtime` и `claude`.
+Иногда реальное требование - это package, который загрузит другая система, extension artifact или checked-in integration setup, живущий прямо в repo.
 
 ## Короткое правило
 
-- выбирайте `codex-runtime` или `claude`, когда продуктом является исполняемое поведение плагина
-- выбирайте `codex-package` или `gemini`, когда продуктом являются package или extension artifacts
-- выбирайте `opencode` или `cursor`, когда продуктом является настройка интеграции в самом repo
+Выбирайте packages или integration setup, когда форма поставки важнее, чем прямой запуск plugin.
 
-## Рекомендуемые package и extension lanes
+## Когда нужна именно эта страница
 
-### Codex Package
+Этот путь подходит, когда:
 
-Используйте `codex-package`, когда конечным результатом должен быть пакет Codex.
+- packaging - это реальное требование поставки
+- host ожидает extension или packaged artifact
+- repo в основном должен хранить checked-in integration setup для другого tool
+- исполняемый runtime добавил бы лишнюю operational complexity
 
-Это правильный путь, когда:
+## Чем это отличается от runtime path
 
-- packaging и есть реальный delivery contract
-- repo должен оставаться единым
-- продукт должен выпускать официальный package artifact для Codex
+Runtime path обычно остаётся самым понятным default, когда нужен исполняемый plugin.
 
-### Gemini
+Packages и integration setup отвечают на другой вопрос: в какой форме этот plugin должен быть доставлен или подключён к другой системе?
 
-Используйте `gemini`, когда цель - пакет расширения Gemini CLI.
+## Безопасная модель
 
-Воспринимайте его так:
+Выбирайте runtime, когда хотите запускать plugin напрямую. Выбирайте packages или integration setup, когда форма поставки - это главное требование.
 
-- это рекомендуемый extension path через `generate`, `import` и `validate`
-- это правильный выбор, когда Gemini extension artifacts и есть конечный продукт
-- это отдельный путь относительно стандартного Codex runtime старта
+## Граница Codex package
 
-## Настройка интеграций в самом repo
+Для официального Codex package lane держите bundle layout узким и явным:
 
-### OpenCode
+- `.codex-plugin/` содержит только `plugin.json`
+- optional `.app.json` и `.mcp.json` лежат в корне plugin
 
-Используйте `opencode`, когда repo должен хранить OpenCode integration setup и связанные project assets.
-
-### Cursor
-
-Используйте `cursor`, когда repo должен хранить Cursor integration setup.
-
-Эти пути ценны тогда, когда output - это настройка интеграции в repo, а не исполняемое поведение.
-
-## Правило готовности
-
-Для этих путей правило здорового repo остаётся тем же:
-
-- authored project живёт в package-standard layout
-- generated files являются outputs
-- `generate --check` и `validate --strict` остаются главными gates
-
-Если вам на самом деле нужно исполняемое поведение, вернитесь к [Выбору runtime](/ru/concepts/choosing-runtime).
+Этот package path нужен для официального Codex plugin bundle surface, а не для смешивания repo-local runtime wiring с package layout.

@@ -1,65 +1,49 @@
 ---
-title: "Package And Workspace Targets"
-description: "How to use package, extension, and repo-owned integration setup without confusing them with executable runtime paths."
+title: "Packages And Integration Setup"
+description: "When packaging or checked-in integration setup is the right answer instead of an executable runtime plugin."
 canonicalId: "page:guide:package-and-workspace-targets"
 section: "guide"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Package And Workspace Targets
+# Packages And Integration Setup
 
-Not every `plugin-kit-ai` path is an executable runtime path.
+Not every project should ship as an executable runtime plugin.
 
-Read this page before you choose `codex-package`, `gemini`, `opencode`, or `cursor`, because these targets solve a different problem than `codex-runtime` or `claude`.
+Sometimes the real requirement is a package another system will load, an extension artifact, or checked-in integration setup that lives in the repo.
 
 ## The Short Rule
 
-- choose `codex-runtime` or `claude` when the product is executable plugin behavior
-- choose `codex-package` or `gemini` when the product is a package or extension artifact
-- choose `opencode` or `cursor` when the product is repo-owned integration setup
+Choose packages or integration setup when the delivery shape matters more than running the plugin directly.
 
-## Recommended Package And Extension Lanes
-
-### Codex Package
-
-Use `codex-package` when the end result is a Codex package.
+## Choose This Page When
 
 This is the right path when:
 
-- packaging is the real delivery contract
-- you want the repo to stay unified
-- the product should ship an official Codex package artifact
+- packaging is the real delivery requirement
+- the host expects an extension or packaged artifact
+- the repo mainly needs checked-in integration setup for another tool
+- an executable runtime would add unnecessary operational work
 
-### Gemini
+## What Makes This Different From A Runtime Path
 
-Use `gemini` when the goal is a Gemini CLI extension package.
+A runtime path is usually the clearest default when you want an executable plugin.
 
-Treat it as:
+Packages and integration setup answer a different question: how should this plugin be delivered or wired into another system?
 
-- a recommended extension path through `generate`, `import`, and `validate`
-- the right choice when Gemini extension artifacts are the real product
-- separate from the default Codex runtime starting point
+## The Safe Mental Model
 
-## Repo-Owned Integration Setup
+Pick runtime when you want to run the plugin directly. Pick packages or integration setup when delivery shape is the main requirement.
 
-### OpenCode
+## Codex Package Boundary
 
-Use `opencode` when the repo should own OpenCode integration setup and related project assets.
+For the official Codex package lane, keep the bundle layout explicit and narrow:
 
-### Cursor
+- `.codex-plugin/` contains only `plugin.json`
+- optional `.app.json` and `.mcp.json` stay at the plugin root
 
-Use `cursor` when the repo should own Cursor integration setup.
-
-These paths are valuable when the output is integration setup in the repo, not executable behavior.
-
-## Readiness Rule
-
-For these paths, the healthy repo rule is still the same:
-
-- the authored project stays in the package-standard layout
-- generated files are outputs
-- `generate --check` and `validate --strict` remain the core gates
-
-If what you really need is executable behavior, go back to [Choosing Runtime](/en/concepts/choosing-runtime).
+This package path is for the official Codex plugin bundle surface, not for mixing repo-local runtime wiring into the package layout.

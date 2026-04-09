@@ -1,6 +1,6 @@
 ---
 title: "Словарь терминов"
-description: "Канонические термины, которые используются по всей публичной документации plugin-kit-ai."
+description: "Короткие определения публичных терминов, которые встречаются в docs plugin-kit-ai."
 canonicalId: "page:reference:glossary"
 section: "reference"
 locale: "ru"
@@ -10,52 +10,54 @@ translationRequired: true
 
 # Словарь терминов
 
+Используйте эту страницу, когда какой-то термин тормозит чтение docs. Цель здесь не идеальная теория, а быстрое общее понимание.
+
 ## Authored State
 
-Исходное состояние проекта, которым владеет сам репозиторий. Оно живёт в package-standard layout, а `generate` превращает его в output-файлы для нужного target’а.
+Часть repo, которой команда владеет напрямую. `generate` превращает этот source в target-specific output.
 
 ## Generated Target Files
 
-Сгенерированные файлы для конкретного target’а. Это не предпочтительный долгосрочный источник истины.
+Файлы, которые появляются для конкретного target после генерации. Это реальный delivery output, но не долгосрочный source of truth.
 
 ## Path
 
-Практический путь со своими правилами работы. Примеры: стандартный путь на Go, локальный Node/TypeScript runtime path и пути для workspace-config.
+Практический способ собрать и поставлять plugin. Примеры: default Go runtime path, локальный Node/TypeScript path и repo-owned integration setup.
 
 ## Target
 
-Тип результата или интеграции, в который вы целитесь: `codex-runtime`, `claude`, `codex-package`, `gemini`, `opencode` или `cursor`.
+Output, в который вы целитесь, например `codex-runtime`, `claude`, `codex-package`, `gemini`, `opencode` или `cursor`.
 
 ## Runtime Path
 
-Путь, в котором проект напрямую владеет исполняемым поведением плагина. Поэтому выбор runtime, поведение обработчиков и strict validation здесь особенно важны.
+Path, в котором repo напрямую владеет исполняемым поведением plugin.
 
 ## Package Or Extension Path
 
-Путь, сфокусированный на корректной сборке package или extension artifacts, а не на локальном исполняемом плагине.
+Path, сфокусированный на правильном package или extension artifact, а не на основной исполняемой runtime-форме.
 
-## Workspace-Config Path
+## Repo-Owned Integration Setup
 
-Путь, где основным продуктом является конфигурация под управлением репозитория, а не исполняемый runtime-плагин.
+Path, где repo в основном поставляет checked-in configuration для другого tool или workspace.
 
-## Wrapper Install Channel
+## Install Channel
 
-Способ установить CLI, например через Homebrew, npm или PyPI. Это не public runtime API.
+Способ установить CLI, например через Homebrew, npm, PyPI или verified script. Это не public runtime API.
 
 ## Shared Runtime Package
 
-Зависимость `plugin-kit-ai-runtime`, используемая в одобренных Python и Node сценариях вместо копирования helper-файлов в каждый репозиторий.
+Зависимость `plugin-kit-ai-runtime`, которую используют одобренные Python и Node flows вместо копирования helper files в каждый repo.
 
 ## Support Boundary
 
-Публичная граница между тем, что проект считает stable, тем, что остаётся beta, и тем, что сознательно не входит в долгосрочное обещание.
+Публичная граница между тем, что проект рекомендует по умолчанию, что поддерживает осторожнее и что оставляет experimental.
 
 ## Readiness Gate
 
-Команда или flow, который нужно воспринимать как публичный сигнал, что репозиторий в порядке. Для большинства проектов это `validate --strict`, часто вместе с `doctor` и `generate`.
+Проверка, которую стоит считать сигналом, что repo уже достаточно здоров для handoff. Для большинства repo это `validate --strict`.
 
 ## Handoff
 
-Момент, когда repo, artifact или package уже можно передать другому человеку, другой машине или пользователю без скрытых договорённостей.
+Момент, когда другой человек, другая машина или другой пользователь может использовать repo без скрытых шагов setup.
 
-Свяжите этот словарь с [Моделью target’ов](/ru/concepts/target-model), [Границей поддержки](/ru/reference/support-boundary) и [Готовностью к продакшену](/ru/guide/production-readiness).
+Связанные страницы: [Модель target'ов](/ru/concepts/target-model), [Граница поддержки](/ru/reference/support-boundary) и [Готовность к продакшену](/ru/guide/production-readiness).

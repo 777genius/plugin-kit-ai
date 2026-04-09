@@ -45,7 +45,7 @@ Then run the fixture-driven smoke:
 - Claude: run `plugin-kit-ai test . --platform claude --all`; generated launcher-based Claude projects already scaffold `fixtures/claude/{Stop,PreToolUse,UserPromptSubmit}.json` and matching `goldens/claude/*`, and `--update-golden` is only needed when you intentionally want to refresh that checked-in output contract
 - Codex: run `plugin-kit-ai test . --platform codex-runtime --event Notify`; generated launcher-based Codex runtime projects already scaffold `fixtures/codex-runtime/Notify.json` and matching `goldens/codex-runtime/*`, and `--update-golden` is only needed when you intentionally want to refresh that checked-in output contract
 - Cursor: treat `generate --check` plus `validate --strict` as the repo-local readiness gate for the documented workspace-config subset
-- OpenCode: run `make test-opencode-live` when recording stable local-plugin-loading evidence, and run `make test-opencode-tools-live` when recording standalone-tools beta evidence; both remain opt-in and require `opencode` in `PATH`
+- OpenCode: run `make test-opencode-e2e-live` for the full stable live lane, or run `make test-opencode-live` for the loader smoke, `make test-opencode-cli-live` for stable real-model local-plugin-loading evidence, `make test-opencode-tools-live` for standalone-tools beta evidence, and `make test-opencode-mcp-live` for the shared portable MCP init proof; all remain opt-in and require `opencode` in `PATH`
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
 
@@ -118,8 +118,9 @@ Reference implementation:
 - Treat the stable promise as applying to repo-local authored/generate/import/validate for local plugin subtree ownership and shared dependency metadata in `.opencode/package.json`
 - Treat standalone `.opencode/tools/**` authoring as first-class `public-beta`
 - Treat `custom_tools` as `public-beta` whether they ship through standalone tool files or plugin code
-- Record `make test-opencode-live` evidence whenever you are refreshing or asserting the OpenCode stable boundary
+- Record `make test-opencode-live` plus `make test-opencode-cli-live` evidence whenever you are refreshing or asserting the OpenCode stable boundary
 - Record `make test-opencode-tools-live` evidence whenever you are refreshing or asserting the standalone-tools beta boundary
+- Record `make test-opencode-mcp-live` evidence whenever you are refreshing or asserting the OpenCode shared portable MCP init boundary
 
 Reference implementation:
 
@@ -142,8 +143,9 @@ Reference implementation:
 - generated native artifacts are in sync
 - strict validation passes with no manifest drift and no Claude authored-hook entrypoint drift
 - the committed example-shaped repo can build and execute a deterministic local smoke path
-- OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` smoke path
+- OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` loader smoke path plus the real-model `test-opencode-cli-live` smoke path
 - OpenCode standalone tools beta evidence is recorded separately through the deterministic marker-based `test-opencode-tools-live` smoke path
+- OpenCode shared portable MCP initialization is evidenced through the deterministic `test-opencode-mcp-live` smoke path
 - Cursor workspace-config readiness is bounded to deterministic generate/import/validate behavior for the documented repo-local subset
 
 ## Gemini Packaging Boundary

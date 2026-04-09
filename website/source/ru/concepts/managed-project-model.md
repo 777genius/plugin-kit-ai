@@ -1,86 +1,57 @@
 ---
-title: "Модель управляемого проекта"
-description: "Базовая модель продукта plugin-kit-ai: один authored repo, generated outputs, строгая validation и честные границы путей."
+title: "Как работает plugin-kit-ai"
+description: "Как один repo остаётся source of truth, пока вы генерируете outputs, строго валидируете результат и передаёте чистый handoff."
 canonicalId: "page:concepts:managed-project-model"
 section: "concepts"
 locale: "ru"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Модель управляемого проекта
+# Как работает plugin-kit-ai
 
-Если запомнить про `plugin-kit-ai` только одну мысль, то вот она:
+plugin-kit-ai держит один repo как source of truth для плагина. Вы редактируете только те файлы, которыми владеете, генерируете нужные outputs, строго валидируете результат и передаёте дальше repo, который остаётся предсказуемым со временем.
 
-- это managed system для plugin project, а не просто набор starter'ов и не просто CLI
+## Короткая версия
 
-## В одном предложении
+Базовый цикл очень простой:
 
-Вы ведёте один authored repo, рендерите нужные выходы, строго проверяете результат и стандартизируете только те пути, чья граница поддержки подходит вашей команде.
+```text
+source -> generate -> validate --strict -> handoff
+```
 
-## Что остаётся неизменным
+Этот цикл важен, потому что проект - это не просто starter template. Generated output может меняться вместе с target, а ваш authored source остаётся понятным и поддерживаемым.
 
-Вот что должно оставаться стабильным в вашей mental model:
+## Один repo как source of truth
 
-- один repo остаётся authored source of truth
-- generated files — это выходы, а не главная поверхность долгой ручной правки
-- `validate --strict` действительно важен перед handoff и rollout
-- обещания поддержки различаются по путям, и этот выбор нужно делать сознательно
+Repo - это место, где плагин живёт по-настоящему.
 
-## Что может меняться
+- authored files остаются под вашим прямым контролем
+- generated outputs пересобираются из этого source
+- validation проверяет именно тот результат, который вы собираетесь отдавать
+- handoff происходит только после того, как generated результат чистый
 
-При этом сам repo всё ещё может расти без поломки модели:
+Так один проект может аккуратно расти, не расползаясь на несколько копий одного и того же плагина.
 
-- можно стартовать со starter repo или с `plugin-kit-ai init`
-- можно держать один главный target или вырасти до нескольких output shapes
-- можно остаться на самом сильном Go runtime path или взять поддерживаемые Node и Python lanes
-- можно добавить package, extension или workspace-config targets, если repo действительно владеет этими выходами
+## Что вы реально редактируете
 
-## Почему это не просто история про starter'ы
+Вы продолжаете редактировать исходный проект и тот plugin code, которым владеете. Generated output не должен становиться местом, где живёт настоящая правда проекта.
 
-Starter'ы важны, но это только точка входа.
+Именно эта граница делает обновления, смену target и долгую поддержку управляемыми.
 
-Обещание продукта не звучит как "выберите имя starter'а и живите в его рамках вечно".
+## Почему это не просто starter templates
 
-Обещание продукта звучит так:
+Starter template даёт стартовую форму. plugin-kit-ai продолжает вести проект и после первого дня:
 
-- авторьте проект в одном месте
-- рендерите выходы под нужные target’ы и delivery model по мере реальной необходимости
-- валидируйте repo против заявленного стандарта
-- держите границы поддержки явными, а не делайте вид, что все пути одинаково сильны
+- заново генерирует target-specific output из одного source
+- валидирует то, что вы реально собираетесь ship'ить
+- чётко разделяет authored files и generated files
+- позволяет одному repo позже вырасти в несколько outputs без полной смены модели проекта
 
-## Цикл из четырёх шагов
+## Куда идти дальше
 
-Публичный workflow проще всего держать в голове в четырёх шагах:
-
-<MermaidDiagram
-  :chart="`
-flowchart LR
-  Author[Author managed repo] --> Generate[Generate outputs]
-  Generate --> Validate[Validate strictly]
-  Validate --> Expand[Expand only for real product need]
-`"
-/>
-
-1. Авторьте managed repo.
-2. Рендерите выходные файлы под нужный target или набор target’ов и delivery model.
-3. Строго валидируйте repo перед handoff, CI и rollout.
-4. Расширяйте набор путей только тогда, когда это оправдано реальной задачей команды или продукта.
-
-## Что хорошие команды делают стандартом
-
-Здоровая команда стандартизирует:
-
-- одну эталонную форму reference repo
-- один ясный основной путь
-- одну явную историю поддержки
-- один повторяемый validation gate
-
-Всё остальное нужно рассматривать как исключение, расширение или более позднее решение для rollout.
-
-## С чем читать вместе
-
-- Прочитайте [Зачем plugin-kit-ai](/ru/concepts/why-plugin-kit-ai) для постановки проблемы и tradeoff framing.
-- Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets) для guide-уровня, где объясняется, как один repo может поддерживать несколько output shapes.
-- Прочитайте [Модель target’ов](/ru/concepts/target-model), когда нужна точная разница между runtime, package, extension и workspace-config target’ами.
-- Прочитайте [Границу поддержки](/ru/reference/support-boundary), когда команде нужен уже не только взгляд на модель, а публичный контракт.
+- Читайте [Исходники и generated outputs](/ru/concepts/authoring-architecture), если нужен authored-vs-generated boundary.
+- Читайте [Модель target'ов](/ru/concepts/target-model), если нужно понять типы outputs.
+- Читайте [Один проект, несколько target'ов](/ru/guide/one-project-multiple-targets), если хотите дальше растить один repo.

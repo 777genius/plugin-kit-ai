@@ -1,71 +1,44 @@
 ---
 title: "Target Model"
-description: "How plugin-kit-ai divides runtime, package, extension, and repo-managed integration lanes."
+description: "How runtime, package, extension, and repo-owned integration outputs differ, and how to choose the right path."
 canonicalId: "page:concepts:target-model"
 section: "concepts"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
 # Target Model
 
-`plugin-kit-ai` supports several target types because products need different delivery models.
+A target is the kind of output you want the repo to produce.
+
+The important choice is not abstract taxonomy. The important choice is what you are trying to ship.
 
 ## Quick Rule
 
-- choose a runtime lane when you want executable plugin behavior
-- choose a package or extension lane when the output is an installable artifact
-- choose a repo-managed integration lane when the repo should own configuration and integration shape
+- Choose a runtime path when you want an executable plugin.
+- Choose a package path when another system will load your packaged output.
+- Choose an extension path when the host expects an extension artifact.
+- Choose a repo-owned integration setup when the repo mainly needs checked-in configuration for another tool.
 
-<MermaidDiagram
-  :chart="`
-flowchart TD
-  Goal[What are you shipping] --> Runtime{Executable behavior}
-  Goal --> Package{Installable artifact}
-  Goal --> Integration{Repo managed integration}
-  Runtime --> CodexRuntime[codex-runtime]
-  Runtime --> Claude[claude]
-  Package --> CodexPackage[codex-package]
-  Package --> Gemini[gemini]
-  Integration --> OpenCode[opencode]
-  Integration --> Cursor[cursor]
-`"
-/>
+## Runtime Paths
 
-## Runtime Lanes
+Runtime targets produce something executable. This is the default starting point for most teams because it is the clearest way to own behavior, validate output, and grow the repo later.
 
-Use these when the project owns executable plugin behavior directly.
+## Package Paths
 
-Examples:
+Package targets produce packaged output instead of the main executable runtime shape. Use them when packaging is the real delivery requirement, not just an extra export you might need later.
 
-- `codex-runtime`
-- `claude`
+## Extension Paths
 
-## Package And Extension Lanes
+Extension targets fit hosts that expect a specific extension artifact or installable package shape.
 
-Use these when the product is an artifact to install, publish, or ship.
+## Repo-Owned Integration Setup
 
-Examples:
+Some outputs are mostly checked-in configuration that helps another tool or workspace use the plugin. These are still useful supported paths, but they answer a different delivery question than an executable runtime.
 
-- `codex-package`
-- `gemini`
+## The Safe Mental Model
 
-## Repo-Managed Integration Lanes
-
-Use these when the repo should own integration config and workspace behavior.
-
-Examples:
-
-- `opencode`
-- `cursor`
-
-## Important Distinction
-
-One project does not have to mean one target forever.
-
-The important boundary is:
-
-- one managed authored project
-- clear primary lane choices
-- honest support expectations for each generated output
+Start with the output you need first. If the repo grows later, you can add another supported output without changing the fact that one project stays authoritative.

@@ -1,6 +1,6 @@
 ---
 title: "Диагностика проблем"
-description: "Самые частые проблемы при установке, generate, validate и bootstrap в plugin-kit-ai проектах."
+description: "Быстрые recovery steps для самых частых проблем с install, generate, validate и bootstrap."
 canonicalId: "page:reference:troubleshooting"
 section: "reference"
 locale: "ru"
@@ -10,20 +10,24 @@ translationRequired: true
 
 # Диагностика проблем
 
+Используйте эту страницу, когда workflow перестал двигаться. Начинайте с самой простой проверки.
+
 ## CLI установился, но не запускается
 
-Проверьте, что binary действительно находится в shell `PATH`. Если вы ставили CLI через npm или PyPI, убедитесь, что пакет реально скачал опубликованный binary, а не воспринимайте сам пакет как runtime.
+Проверьте, что binary действительно находится в shell `PATH`.
 
-## Python или Node runtime-проекты падают слишком рано
+Если вы ставили CLI через npm или PyPI, убедитесь, что пакет реально скачал опубликованный binary. Не воспринимайте wrapper package как сам runtime.
+
+## Python или Node runtime-repo падают слишком рано
 
 Сначала проверьте сам runtime:
 
-- Python runtime-проекты требуют Python `3.10+`
-- Node runtime-проекты требуют Node.js `20+`
+- Python runtime repo требуют Python `3.10+`
+- Node runtime repo требуют Node.js `20+`
 
-Используйте `plugin-kit-ai doctor <path>`, прежде чем считать, что сломан сам проект.
+Используйте `plugin-kit-ai doctor <path>`, прежде чем считать, что сломан сам repo.
 
-Типовой сценарий восстановления:
+Типовой recovery flow:
 
 ```bash
 plugin-kit-ai doctor ./my-plugin
@@ -34,20 +38,24 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## Падает `validate --strict`
 
-Воспринимайте это как сигнал, а не как шум. Смысл strict validation именно в том, чтобы ловить drift и readiness problems до того, как вы объявите проект здоровым.
+Воспринимайте это как сигнал, а не как шум.
 
 Частые причины:
 
 - generated artifacts устарели, потому что был пропущен `generate`
-- выбранная platform не соответствует исходному состоянию проекта
-- выбранный runtime-путь требует bootstrap или исправления окружения
+- выбранная platform не соответствует project source
+- runtime path всё ещё требует bootstrap или исправления окружения
 
 ## `generate` выдаёт не то, что ожидалось
 
-Обычно это значит, что исходное состояние проекта и ваша ментальная модель уже разошлись. Проверьте package-standard layout, а не редактируйте generated target files вручную в попытке “починить” output.
+Обычно это значит, что project source и ваша ментальная модель разошлись.
 
-## Я не понимаю, какой путь выбрать
+Сначала перепроверьте package-standard layout, а не редактируйте generated target files вручную, чтобы силой подогнать output.
 
-Начинайте с пути Go по умолчанию, если нужен самый сильный контракт. Переходите на Node/TypeScript или Python только тогда, когда компромисс локального runtime действительно осознан и нужен.
+## Я не понимаю, какой path выбрать
+
+Начинайте с default Go path, если нужен самый сильный контракт.
+
+Переходите на Node/TypeScript или Python только тогда, когда локальный runtime tradeoff действительно осознан и нужен.
 
 См. [Python runtime](/ru/guide/python-runtime), [Процесс авторинга](/ru/reference/authoring-workflow) и [Частые вопросы](/ru/reference/faq).

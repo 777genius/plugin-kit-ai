@@ -15,6 +15,8 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - generated artifacts in sync
 - root GitHub Release asset publish result recorded
 - support matrix matches shipped claims
+- OpenCode and Cursor parity audit refreshed when their documented surfaces or generated contracts changed
+- `@opencode-ai/plugin` scaffold pin re-checked against the latest stable npm release when OpenCode scaffolds, examples, or live smoke fixtures changed
 - changelog updated
 - support/status/release docs updated if contract changed
 - candidate commit SHA recorded

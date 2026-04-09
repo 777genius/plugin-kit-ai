@@ -3,6 +3,7 @@ go 1.23
 use (
 	.
 	./cli/plugin-kit-ai
+	./install/integrationctl
 	./install/plugininstall
 	./sdk
 )

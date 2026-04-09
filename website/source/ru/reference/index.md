@@ -1,6 +1,6 @@
 ---
 title: "Справочник"
-description: "Справочные материалы про каналы установки, контракты и карту поддержки."
+description: "Точные ответы про установку, поддержку, совместимость и признаки здорового repo."
 canonicalId: "page:reference:index"
 section: "reference"
 locale: "ru"
@@ -11,50 +11,44 @@ outline: false
 ---
 
 <div class="docs-hero docs-hero--compact">
-  <p class="docs-kicker">СПРАВОЧНИК</p>
-  <h1>Точный контракт</h1>
+  <p class="docs-kicker">REFERENCE</p>
+  <h1>Точные ответы, когда нужен контракт</h1>
   <p class="docs-lead">
-    Используйте reference cluster, когда нужны точные правила установки, support maps, compatibility policy и repository standards.
+    Используйте этот раздел, когда вопрос уже не в том, как начать, а в том, что безопасно стандартизировать, что действительно поддерживается и как должен выглядеть здоровый repo.
   </p>
 </div>
-
-## Когда идти в этот раздел
-
-- когда нужен точный контракт, а не tutorial
-- когда вы выбираете, что команда действительно может стандартизировать
-- когда нужен короткий и точный ответ про каналы установки, поддержку, validation или устройство repo
 
 ## Начинайте здесь, если нужен
 
 - ответ про установку: [Каналы установки](/ru/reference/install-channels)
-- policy для команды: [Политика версий и совместимости](/ru/reference/version-and-compatibility)
-- самый короткий практический ответ про поддержку: [Граница поддержки](/ru/reference/support-boundary)
-- компактная матрица lanes: [Поддержка target'ов](/ru/reference/target-support)
-- ответ про здоровье repo: [Стандарт репозитория](/ru/reference/repository-standard) и [Процесс авторинга](/ru/reference/authoring-workflow)
+- самый короткий ответ про поддержку: [Граница поддержки](/ru/reference/support-boundary)
+- team-facing policy: [Политика версий и совместимости](/ru/reference/version-and-compatibility)
+- support map по типам outputs: [Поддержка target'ов](/ru/reference/target-support)
+- ответ про здоровый repo: [Стандарт репозитория](/ru/reference/repository-standard) и [Процесс авторинга](/ru/reference/authoring-workflow)
 
 <div class="docs-grid">
   <a class="docs-card" href="./install-channels">
     <h2>Каналы установки</h2>
-    <p>Поймите Homebrew, npm, PyPI и verified script, не смешивая install paths с runtime APIs.</p>
-  </a>
-  <a class="docs-card" href="./version-and-compatibility">
-    <h2>Политика версий и совместимости</h2>
-    <p>Держите release baselines, compatibility promises, wrappers и ожидания по SDK/runtime в одном месте.</p>
+    <p>Посмотрите поддерживаемые способы установить CLI и поймите, какой путь стоит рекомендовать команде.</p>
   </a>
   <a class="docs-card" href="./support-boundary">
     <h2>Граница поддержки</h2>
-    <p>Получите самый короткий практический ответ про рекомендуемые lanes, advanced surfaces и точные contract limits.</p>
+    <p>Получите самый короткий практический ответ про рекомендуемые paths, advanced surfaces и точные support limits.</p>
+  </a>
+  <a class="docs-card" href="./version-and-compatibility">
+    <h2>Политика версий и совместимости</h2>
+    <p>Используйте team-facing policy для release baselines, compatibility promises и долгой стандартизации.</p>
   </a>
   <a class="docs-card" href="./target-support">
     <h2>Поддержка target'ов</h2>
-    <p>Смотрите компактную карту поддержки по lanes: runtime, package, extension и repo-managed integration.</p>
+    <p>Смотрите, что поддерживается в runtime, package, extension и repo-owned integration outputs.</p>
   </a>
   <a class="docs-card" href="./authoring-workflow">
     <h2>Процесс авторинга</h2>
-    <p>Посмотрите на канонический `init -> generate -> validate --strict -> test -> handoff` flow.</p>
+    <p>Посмотрите на канонический build loop от `init` до `generate`, `validate --strict`, testing и handoff.</p>
   </a>
   <a class="docs-card" href="./repository-standard">
     <h2>Стандарт репозитория</h2>
-    <p>Посмотрите, как выглядит здоровый plugin repo и какие файлы являются authored, а какие generated.</p>
+    <p>Проверьте, как выглядит здоровый plugin repo и какие файлы считаются authored, а какие generated.</p>
   </a>
 </div>

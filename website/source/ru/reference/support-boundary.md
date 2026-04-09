@@ -10,39 +10,59 @@ translationRequired: true
 
 # Граница поддержки
 
-Эта страница отвечает на один практический вопрос: что можно рекомендовать уже сейчас, что считать advanced, а что остаётся experimental?
+Используйте эту страницу, когда нужен самый короткий честный ответ про поддержку.
+
+Она отвечает на три командных вопроса:
+
+- что безопасно рекомендовать по умолчанию
+- что поддерживается, но должно выбираться осознанно
+- что всё ещё experimental и не должно незаметно становиться team policy
 
 ## Безопасные defaults
 
-- Go - рекомендуемый runtime lane по умолчанию.
+Вот самые безопасные defaults на сегодня:
+
+- Go - рекомендуемый runtime path по умолчанию.
 - `validate --strict` - главная проверка готовности для локальных Python и Node runtime repos.
 - `Codex runtime Go`, `Codex package`, `Gemini packaging`, `Gemini Go runtime` и Claude default stable lane - главные Recommended production lanes.
-- `Python` и `Node` - поддерживаемые non-Go lanes и рекомендуемый non-Go выбор, когда компромисс локального interpreted runtime выбран осознанно.
+- `Python` и `Node` - поддерживаемые non-Go paths и рекомендуемый non-Go выбор, когда компромисс локального interpreted runtime выбран осознанно.
 
 ## Как это маппится на формальный контракт
 
-- `Recommended` обычно означает самые сильные текущие production lanes внутри `public-stable`.
+Сначала публичные docs используют три простых слова:
+
+- `Recommended` обычно маппится на самые сильные текущие `public-stable` production lanes.
 - `Advanced` означает поддерживаемую surface с более узким, специализированным или осторожным контрактом.
 - `Experimental` означает opt-in churn вне нормального compatibility expectation.
 
-Используйте формальные термины `public-stable`, `public-beta` и `public-experimental`, когда вы задаёте policy для команды или обещаете совместимость downstream-пользователям.
+Когда команде нужен точный policy language, важнее формальные термины: `public-stable`, `public-beta` и `public-experimental`.
 
-## Что это означает сегодня
+## Что рекомендуется сегодня
 
-- Claude рекомендуется на default stable hook lane.
-- Codex рекомендуется и для `Notify` runtime lane, и для официального `codex-package` lane.
+Если нужен практический ответ, начинайте отсюда:
+
+- Claude рекомендуется на default stable hook path.
+- Codex рекомендуется и для `Notify` runtime path, и для официального `codex-package` path.
 - Gemini packaging рекомендуется, и promoted Gemini Go runtime тоже production-ready.
-- OpenCode и Cursor - это repo-managed integration lanes, а не слабые targets и не стандартная runtime starting point.
+- OpenCode и Cursor - это repo-owned integration setup paths. Они полезны, но это не default executable runtime start.
 
 ## Advanced surfaces
 
-Используйте их только тогда, когда компромисс осознан и явно нужен:
+Выбирайте advanced surfaces только тогда, когда компромисс ясен и действительно нужен.
 
-- OpenCode и Cursor, когда repo должен владеть integration config, а не runtime lane
-- более узкие или специализированные runtime expansions вне основных рекомендуемых lanes
-- install wrappers, если вас на самом деле интересует доставка CLI, а не runtime APIs или SDKs
+Типичные примеры:
+
+- OpenCode и Cursor, когда repo должен владеть integration config вместо runtime path
+- более узкие или специализированные runtime expansions вне основных рекомендуемых paths
+- install wrappers, если реальная задача - доставка CLI, а не runtime APIs или SDKs
 - специальные config surfaces, которые полезны, но не являются первым default для большинства команд
 
 ## Experimental surfaces
 
-Относитесь к experimental областям как к opt-in и high-churn. Они полезны ранним пользователям, но не должны молча становиться долгосрочной team policy.
+Относитесь к experimental областям как к opt-in и high-churn.
+
+Они могут быть полезны ранним пользователям, но не должны тихо становиться долгосрочным стандартом для команды.
+
+## Практическое правило
+
+Если выбираете за команду, стандартизируйте самый узкий path, чьё обещание вы действительно готовы защищать в CI, rollout и handoff.

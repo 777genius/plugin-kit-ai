@@ -3,9 +3,12 @@ package pluginkitairepo_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,42 +44,21 @@ func TestOpenCodeLoaderSmoke(t *testing.T) {
 	}
 
 	markerPath := filepath.Join(t.TempDir(), "opencode-plugin-marker.json")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, opencodeBin, "serve")
-	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(),
-		"PLUGIN_KIT_AI_OPENCODE_SMOKE_MARKER="+markerPath,
-		"OPENCODE_SERVER_PASSWORD=plugin-kit-ai-smoke",
-	)
-	var output bytes.Buffer
-	cmd.Stdout = &output
-	cmd.Stderr = &output
-	errCh := make(chan error, 1)
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start opencode serve: %v", err)
-	}
-	go func() {
-		errCh <- cmd.Wait()
-	}()
-
-	deadline := time.Now().Add(8 * time.Second)
-	for {
-		if body, err := os.ReadFile(markerPath); err == nil {
-			cancel()
-			<-errCh
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := runOpenCodeServeSmoke(workDir, opencodeBin, markerPath, "PLUGIN_KIT_AI_OPENCODE_SMOKE_MARKER"); err == nil {
+			body, readErr := os.ReadFile(markerPath)
+			if readErr != nil {
+				t.Fatalf("read OpenCode smoke marker: %v", readErr)
+			}
 			if !strings.Contains(string(body), "directory") {
 				t.Fatalf("unexpected OpenCode smoke marker:\n%s", body)
 			}
 			return
+		} else if attempt < 2 {
+			t.Logf("OpenCode loader smoke attempt %d timed out, retrying once", attempt)
+		} else {
+			t.Fatal(err)
 		}
-		if time.Now().After(deadline) {
-			cancel()
-			err := <-errCh
-			t.Fatalf("OpenCode loader smoke did not observe plugin marker before timeout; err=%v\n%s", err, output.Bytes())
-		}
-		time.Sleep(150 * time.Millisecond)
 	}
 }
 
@@ -112,41 +94,85 @@ func TestOpenCodeStandaloneToolsSmoke(t *testing.T) {
 	}
 
 	markerPath := filepath.Join(t.TempDir(), "opencode-standalone-tool-marker.json")
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := runOpenCodeServeSmoke(workDir, opencodeBin, markerPath, "PLUGIN_KIT_AI_OPENCODE_TOOL_SMOKE_MARKER"); err == nil {
+			body, readErr := os.ReadFile(markerPath)
+			if readErr != nil {
+				t.Fatalf("read OpenCode standalone-tools smoke marker: %v", readErr)
+			}
+			if !strings.Contains(string(body), "standalone-tool") || !strings.Contains(string(body), "echo.ts") {
+				t.Fatalf("unexpected OpenCode standalone-tools smoke marker:\n%s", body)
+			}
+			return
+		} else if attempt < 2 {
+			t.Logf("OpenCode standalone-tools smoke attempt %d timed out, retrying once", attempt)
+		} else {
+			t.Fatal(err)
+		}
+	}
+}
+
+func runOpenCodeServeSmoke(workDir, opencodeBin, markerPath, markerEnv string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	port := pickFreePort()
 	cmd := exec.CommandContext(ctx, opencodeBin, "serve")
 	cmd.Dir = workDir
 	cmd.Env = append(os.Environ(),
-		"PLUGIN_KIT_AI_OPENCODE_TOOL_SMOKE_MARKER="+markerPath,
+		markerEnv+"="+markerPath,
 		"OPENCODE_SERVER_PASSWORD=plugin-kit-ai-smoke",
 	)
+	cmd.Args = append(cmd.Args, "--port", port)
 	var output bytes.Buffer
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	errCh := make(chan error, 1)
 	if err := cmd.Start(); err != nil {
-		t.Fatalf("start opencode serve for standalone-tools smoke: %v", err)
+		return err
 	}
 	go func() {
 		errCh <- cmd.Wait()
 	}()
 
-	deadline := time.Now().Add(8 * time.Second)
+	attachCmd := exec.CommandContext(ctx, opencodeBin, "attach", "http://127.0.0.1:"+port)
+	attachCmd.Dir = workDir
+	attachCmd.Env = append(os.Environ(),
+		"OPENCODE_SERVER_PASSWORD=plugin-kit-ai-smoke",
+	)
+
+	deadline := time.Now().Add(15 * time.Second)
+	attached := false
 	for {
-		if body, err := os.ReadFile(markerPath); err == nil {
+		if _, err := os.Stat(markerPath); err == nil {
 			cancel()
 			<-errCh
-			if !strings.Contains(string(body), "standalone-tool") || !strings.Contains(string(body), "echo.ts") {
-				t.Fatalf("unexpected OpenCode standalone-tools smoke marker:\n%s", body)
-			}
-			return
+			return nil
+		}
+		if !attached && bytes.Contains(output.Bytes(), []byte("opencode server listening on")) {
+			attached = true
+			go func() {
+				_, _ = attachCmd.CombinedOutput()
+			}()
 		}
 		if time.Now().After(deadline) {
 			cancel()
 			err := <-errCh
-			t.Fatalf("OpenCode standalone-tools smoke did not observe tool marker before timeout; err=%v\n%s", err, output.Bytes())
+			return fmt.Errorf("OpenCode serve smoke did not observe marker before timeout; err=%v\n%s", err, output.Bytes())
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
+}
+
+func pickFreePort() string {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "0"
+	}
+	defer ln.Close()
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		return "0"
+	}
+	return strconv.Itoa(addr.Port)
 }

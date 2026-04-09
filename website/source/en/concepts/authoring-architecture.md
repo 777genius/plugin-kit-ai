@@ -1,16 +1,18 @@
 ---
-title: "Authoring Architecture"
-description: "How the project source, generate, validation, targets, and handoff fit together in plugin-kit-ai."
+title: "Project Source And Outputs"
+description: "How authored files, generated outputs, strict validation, and handoff fit together in plugin-kit-ai."
 canonicalId: "page:concepts:authoring-architecture"
 section: "concepts"
 locale: "en"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Authoring Architecture
+# Project Source And Outputs
 
-`plugin-kit-ai` is easiest to understand when you stop thinking in terms of hand-edited target files and start thinking in terms of one managed project system.
+This page is narrower than the main product model. It explains the working boundary inside the repo: what you author, what gets generated, and why that split keeps the project maintainable.
 
 ## The Core Shape
 
@@ -18,68 +20,27 @@ translationRequired: true
 project source -> generate -> target outputs -> validate --strict -> handoff
 ```
 
-<MermaidDiagram
-  :chart="`
-flowchart LR
-  Source[Project source] --> Generate[plugin-kit-ai generate]
-  Generate --> Runtime[Runtime outputs]
-  Generate --> Package[Package or extension outputs]
-  Generate --> Workspace[Workspace config outputs]
-  Runtime --> Validate[validate --strict]
-  Package --> Validate
-  Workspace --> Validate
-  Doctor[doctor and bootstrap when needed] -. supports .-> Validate
-  Validate --> Handoff[Handoff to teammate, CI, machine, or downstream user]
-`"
-/>
+The source stays stable. The outputs can change per target. Validation makes sure the generated result is still safe to hand off.
 
-This is the core loop behind the public documentation, the generated API, and the supported authoring flows.
+## Authored Files vs Generated Files
 
-## Project Source
+Authored files are the part of the repo you are expected to maintain directly.
 
-The project source lives in the package-standard layout. It is the place where the repo owns intent.
+Generated files are build artifacts for the targets you chose. They are real delivery output, but they are not the place where the project truth should drift.
 
-That means:
+That distinction keeps the repo readable and makes regeneration safe.
 
-- the project source is the long-term source of truth
-- target files are outputs
-- import exists to bring native config into this model, not to preserve native files as the primary contract
+## Why The Split Matters
 
-## Generate
+Without a clear split, teams end up editing generated output, losing repeatability, and making upgrades harder than they need to be.
 
-`generate` converts the project source into target-specific artifacts.
+With a clear split, you can:
 
-You should treat it as part of the normal workflow, not as a convenience helper that runs only at the end.
+- review source changes directly
+- regenerate output confidently
+- validate the same delivery shape every time
+- add another supported output later without rebuilding the repo from scratch
 
-## Targets
+## How This Relates To The Bigger Model
 
-Targets are not all equivalent.
-
-- runtime targets are about executable behavior
-- package and extension targets are about delivery artifacts
-- workspace-configuration targets are about repo-owned integration shape
-
-That is why target choice changes the operational contract, not just the file output.
-
-## Validation
-
-`validate --strict` is the readiness gate that proves the project source, generated artifacts, and declared target actually agree.
-
-For Python and Node runtime targets, `doctor` and `bootstrap` often belong next to validation as part of the same practical workflow.
-
-## Handoff
-
-The goal of the system is reliable handoff:
-
-- to another teammate
-- to CI
-- to another machine
-- to a downstream consumer
-
-If the repo only works for the original author, this architecture has failed.
-
-## Practical Consequence
-
-The project is intentionally opinionated because the public goal is not “maximum flexibility at any cost.” The goal is predictable authoring, explicit stability boundaries, and less drift between intent and output.
-
-Pair this page with [Target Model](/en/concepts/target-model), [Authoring Workflow](/en/reference/authoring-workflow), and [Production Readiness](/en/guide/production-readiness).
+If you want the higher-level explanation, start with [How plugin-kit-ai Works](/en/concepts/managed-project-model).

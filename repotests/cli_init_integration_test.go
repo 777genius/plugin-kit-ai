@@ -149,7 +149,7 @@ func assertConfigTargetRenderedOutputs(t *testing.T, root, platform string) {
 		if err != nil {
 			t.Fatalf("read src/targets/opencode/package.json: %v", err)
 		}
-		if !strings.Contains(string(packageBody), `"@opencode-ai/plugin": "1.3.11"`) {
+		if !strings.Contains(string(packageBody), `"@opencode-ai/plugin": "1.4.0"`) {
 			t.Fatalf("opencode package.json missing helper dependency:\n%s", packageBody)
 		}
 	case "cursor":

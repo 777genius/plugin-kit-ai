@@ -1,6 +1,6 @@
 # plugin-kit-ai CLI
 
-Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submodule `github.com/777genius/plugin-kit-ai/cli` and builds the **`plugin-kit-ai`** binary.
+Canonical repo: `github.com/777genius/plugin-kit-ai`. The CLI lives in the submodule `github.com/777genius/plugin-kit-ai/cli` and builds the **`plugin-kit-ai`** binary: `init`, `bootstrap`, `doctor`, `dev`, `test`, `export`, `bundle install`, `bundle fetch`, `bundle publish`, `generate`, `import`, `inspect`, `normalize`, `validate`, `capabilities`, `install`, `version`, plus experimental `skills` authoring commands.
 
 The CLI is the repo authoring tool for one managed plugin project that can expand into multiple production-ready lanes and repo-managed integration lanes without splitting source of truth.
 
@@ -26,7 +26,7 @@ Repo-managed integration lanes:
 
 ## Start Here
 
-Recommended install path for the CLI itself:
+Supported bootstrap paths for the CLI itself:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
@@ -75,11 +75,12 @@ go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 
 | Goal | Recommended lane |
 |------|------------------|
-| strongest runtime lane | `codex-runtime` |
+| local notify/runtime plugin in your repo | `codex-runtime` |
 | official Codex package output | `codex-package` |
 | Claude hook-driven product | `claude` |
 | Gemini extension package | `gemini` |
-| repo-managed integration config | `opencode` or `cursor` |
+| OpenCode workspace-config lane | `opencode` |
+| Cursor workspace-config lane | `cursor` |
 
 Choose the lane that matches the delivery model you need today. Expand later from the same repo when the product needs more outputs.
 
@@ -111,6 +112,12 @@ Fast starter repos: [../../examples/starters/README.md](../../examples/starters/
 Reference repos: [../../examples/local/README.md](../../examples/local/README.md)
 Helper delivery modes: [../../docs/CHOOSING_HELPER_DELIVERY_MODE.md](../../docs/CHOOSING_HELPER_DELIVERY_MODE.md)
 Released CLIs auto-pin `plugin-kit-ai-runtime` to their own stable tag and print the chosen helper dependency; development builds require `--runtime-package-version`.
+`plugin-kit-ai bootstrap` is the stable repo-local first-run helper for `python` and `node` launcher-based projects on `codex-runtime` and `claude`.
+`plugin-kit-ai doctor` is the stable read-only readiness check for `python` and `node` launcher-based projects on `codex-runtime` and `claude`.
+`plugin-kit-ai export` is the stable portable handoff surface for `python` and `node` launcher-based projects on `codex-runtime` and `claude`.
+`plugin-kit-ai bundle install` is the stable local bundle installer for exported Python/Node handoff archives.
+`plugin-kit-ai bundle fetch` is the stable remote bundle fetch/install companion for exported Python/Node handoff archives.
+`plugin-kit-ai bundle publish` is the stable GitHub Releases publish companion for exported Python/Node handoff archives.
 
 Official starter templates:
 
@@ -202,6 +209,9 @@ Need the short user-facing guide for choosing the right publication flow for Cod
 
 For the experimental skills subsystem, handwritten `skills/<name>/SKILL.md` is supported directly. `skills init` is convenience scaffold, not a required entrypoint.
 For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself; use Homebrew as the recommended local install path, the `public-beta` npm wrapper as the official JS ecosystem path, the `public-beta` PyPI/pipx wrapper when that release was published to PyPI, `scripts/install.sh` as the verified fallback, or `setup-plugin-kit-ai@v1` in CI.
+`plugin-kit-ai validate --format json` emits the versioned `plugin-kit-ai/validate-report` contract.
+[../../docs/VALIDATE_JSON_CONTRACT.md](../../docs/VALIDATE_JSON_CONTRACT.md)
+[../../docs/CODEX_TARGET_BOUNDARY.md](../../docs/CODEX_TARGET_BOUNDARY.md)
 Executable runtime scaffolds for `python` and `node` are the stable repo-local local-runtime subset on `codex-runtime` and `claude`; launcher-based `shell` authoring remains `public-beta`. These paths provide bounded ecosystem bootstrap rather than a universal dependency-management contract for interpreted runtimes. Canonical new authoring uses `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/launcher.yaml`, optional `src/skills/**`, optional `src/publish/**`, and `src/targets/<platform>/...`; plugin-root native Claude/Codex/Gemini/OpenCode/Cursor config files are generated managed artifacts, and `import` exists to recover authored state from those native layouts. Root `CLAUDE.md` and `AGENTS.md` are boundary docs that tell humans and agents to edit only `src/`. Unknown manifest keys warn via `validate`. Codex package authoring now treats `src/plugin.yaml` as the default source for shared package metadata, keeps `src/targets/codex-package/package.yaml` as an override surface when needed, keeps `src/targets/codex-package/interface.json` as the official interface surface, keeps `src/targets/codex-package/app.json` as the optional app surface, reserves `src/targets/codex-package/manifest.extra.json` for unsupported future manifest fields only, requires `.codex-plugin/` to contain only `plugin.json`, and keeps `.app.json` / `.mcp.json` as managed root sidecars only when `.codex-plugin/plugin.json` references them; Codex runtime keeps `src/targets/codex-runtime/config.extra.toml` as the explicit repo-local passthrough surface beyond managed `model` and `notify`. Gemini is a production-ready Gemini CLI extension target in this CLI surface; the supported Gemini contract is the full official extension packaging lane through `gemini-extension.json`, inline `mcpServers`, target-native contexts, settings, themes, commands, hooks, policies, `manifest.extra.json`, local `gemini extensions link|config|disable|enable` workflows, plus the production-ready 9-hook Go runtime lane behind `plugin-kit-ai init --platform gemini --runtime go`. OpenCode is a `workspace-config OpenCode target` in this CLI surface; the supported OpenCode contract is `opencode.json` or `opencode.jsonc`, `plugin` package refs, inline `mcp`, validated skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes mirrored into `.opencode/{commands,agents,themes}/`, first-class standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for both tools and plugins, beta `custom_tools` spanning standalone tools and plugin code, explicit `--include-user-scope` import for `~/.config/opencode`, and `src/targets/opencode/config.extra.json` passthrough for broader permission-first config. Cursor is a `workspace-config Cursor target` in this CLI surface; the supported Cursor contract is `.cursor/mcp.json`, project-root `.cursor/rules/**`, and strict documented-subset behavior that defers root boundary docs `CLAUDE.md` and `AGENTS.md`, global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, and JSONC. `plugin-kit-ai capabilities` defaults to the target/package view so package authors can see target class, production boundary, and managed artifacts first. For generated Python and Node projects, `plugin-kit-ai doctor <path>` is the read-only readiness check, `plugin-kit-ai bootstrap <path>` is the supported first-run helper before `validate --strict`, `plugin-kit-ai test <path> --platform <target> --event <event>` is the stable fixture-driven smoke command for the declared stable Claude and Codex runtime events, and `plugin-kit-ai export <path> --platform <target>` is the stable portable handoff surface for that subset. Generated launcher-based Claude and Codex runtime projects now pre-seed `fixtures/<platform>/<event>.json` and `goldens/<platform>/<event>.*` during `init`, so the default scaffold is immediately ready for `plugin-kit-ai test` and `plugin-kit-ai dev`. `plugin-kit-ai test` uses that layout by default, emits JSON-friendly per-case summaries plus mismatch previews, supports `--all` to run every stable event for the selected platform, and supports `--update-golden` to refresh the checked-in output contract. For config-first `codex-package`, `gemini`, `opencode`, and `cursor` scaffolds, `plugin-kit-ai init --extras` now also pre-seeds `src/mcp/servers.yaml`, so the first portable MCP flow is ready before the first `generate`. When teams need a shared helper dependency instead of vendored helper files, `plugin-kit-ai init ... --runtime-package` is the official opt-in scaffold mode; see [../../docs/CHOOSING_HELPER_DELIVERY_MODE.md](../../docs/CHOOSING_HELPER_DELIVERY_MODE.md).
 Generated Claude/Codex package-runtime config shapes are part of the repo-owned contract surface; `generate --check` and the deterministic `polyglot-smoke` lane are the primary drift guards for that wiring. Claude authored hook routing consistency with `launcher.yaml.entrypoint` is enforced by `validate --strict`.
 

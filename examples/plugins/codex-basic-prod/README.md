@@ -10,3 +10,29 @@ Start here:
 - generated root output inventory: [`GENERATED.md`](./GENERATED.md)
 
 This plugin root is the native/generated output surface for the supported targets.
+
+## Source Guide
+
+The authored guide below is copied from `src/README.md` and stays the source of truth for this plugin.
+
+Reference Codex runtime repo for the current `plugin-kit-ai` production workflow.
+
+Stable runtime lane:
+
+- `Notify`
+- repo-local MCP passthrough via `src/targets/codex-runtime/config.extra.toml`
+
+## Workflow
+
+```bash
+plugin-kit-ai normalize .
+plugin-kit-ai generate .
+plugin-kit-ai generate --check .
+plugin-kit-ai validate . --platform codex-runtime --strict
+go test ./...
+go build -o bin/codex-basic-prod ./cmd/codex-basic-prod
+./bin/codex-basic-prod notify '{"client":"codex-tui"}'
+codex -C . mcp get release-checks --json
+```
+
+This example covers the repo-local Codex notify/config lane, including repo-local MCP passthrough generated into `.codex/config.toml`. It does not claim to be the official Codex plugin bundle lane.

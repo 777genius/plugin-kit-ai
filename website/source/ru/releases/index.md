@@ -1,6 +1,6 @@
 ---
 title: "Релизы"
-description: "Публичная история релизов plugin-kit-ai."
+description: "Что изменилось для пользователей в каждом публичном релизе, почему это важно и что стоит обновить дальше."
 canonicalId: "page:releases:index"
 section: "releases"
 locale: "ru"
@@ -11,43 +11,34 @@ outline: false
 ---
 
 <div class="docs-hero docs-hero--compact">
-  <p class="docs-kicker">РЕЛИЗЫ</p>
-  <h1>Изменения для пользователей</h1>
+  <p class="docs-kicker">RELEASES</p>
+  <h1>Что изменилось для пользователей</h1>
   <p class="docs-lead">
-    Эта зона предназначена для публичной истории релизов, важной авторам плагинов и интеграторам.
+    Читайте release notes, когда нужен практический итог: что изменилось, почему это важно и надо ли вашей команде что-то обновить.
   </p>
 </div>
 
-## Какой релиз читать первым
+## Читайте это, когда хотите понять
 
-- Читайте [v1.0.6](/ru/releases/v1-0-6), если вам важна актуальная история поставки для Python и Node.
-- Читайте [v1.0.4 Go SDK](/ru/releases/v1-0-4-go-sdk), если вы интегрируетесь через Go и хотите увидеть релиз, который упростил обычное использование SDK.
-- Читайте [v1.0.0](/ru/releases/v1-0-0), если хотите увидеть первый стабильный публичный baseline проекта.
-
-## С чем читать вместе
-
-- Прочитайте [Политику версий и совместимости](/ru/reference/version-and-compatibility), если ваш реальный вопрос — что именно команда должна сделать стандартом.
-- Прочитайте [Границу поддержки](/ru/reference/support-boundary), если нужен самый короткий contract framing про то, что stable прямо сейчас.
+- что улучшилось для обычной ежедневной работы
+- меняет ли релиз default path или support expectations
+- что стоит обновить в repo, workflow или install guidance
 
 <div class="docs-grid">
   <a class="docs-card" href="./v1-0-6">
     <h2>v1.0.6</h2>
-    <p>Релиз, который сделал shared runtime-package delivery полноценным публичным путём для Python и Node команд.</p>
+    <p>Shared runtime-package delivery стал более понятным публичным вариантом, а релиз прояснил, как безопасно заменить главный generated entrypoint.</p>
+  </a>
+  <a class="docs-card" href="./v1-0-5">
+    <h2>v1.0.5</h2>
+    <p>Compatibility policy, support wording и generated docs стали понятнее и безопаснее для командной стандартизации.</p>
+  </a>
+  <a class="docs-card" href="./v1-0-4">
+    <h2>v1.0.4</h2>
+    <p>Старт для новых пользователей стал проще: релиз убрал лишнее трение в первом setup и ужал первый рабочий flow.</p>
   </a>
   <a class="docs-card" href="./v1-0-0">
     <h2>v1.0.0</h2>
-    <p>Первый стабильный запуск: core CLI, stable event set и начальный публичный контракт Go SDK.</p>
-  </a>
-  <a class="docs-card" href="./v1-0-4-go-sdk">
-    <h2>v1.0.4 Go SDK</h2>
-    <p>Патч, который сделал обычное использование Go SDK проще и убрал лишнее `replace` friction для новых пользователей.</p>
+    <p>Проект зафиксировал первый стабильный публичный контракт и заложил baseline, который дальше только уточняется.</p>
   </a>
 </div>
-
-## Что будет здесь
-
-- Публичные release notes.
-- Явные breaking-change callouts.
-- Только user-facing changes.
-
-Maintainer rehearsal и audit-материалы остаются вне публичного сайта.

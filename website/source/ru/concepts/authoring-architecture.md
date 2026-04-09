@@ -1,85 +1,46 @@
 ---
-title: "Архитектура авторинга"
-description: "Как исходное состояние проекта, generate, validation, target’ы и handoff складываются в plugin-kit-ai."
+title: "Исходники и generated outputs"
+description: "Как authored files, generated outputs, strict validation и handoff складываются в рабочую модель plugin-kit-ai."
 canonicalId: "page:concepts:authoring-architecture"
 section: "concepts"
 locale: "ru"
 generated: false
 translationRequired: true
+aside: true
+outline: [2, 3]
 ---
 
-# Архитектура авторинга
+# Исходники и generated outputs
 
-`plugin-kit-ai` проще понять, если перестать мыслить вручную правлеными target-файлами и начать мыслить одной управляемой системой проекта.
+Эта страница уже уже, чем основная модель продукта. Она объясняет рабочую границу внутри repo: что вы author'ите, что генерируется и почему это разделение делает проект поддерживаемым.
 
 ## Базовая форма
 
 ```text
-исходное состояние проекта -> generate -> target outputs -> validate --strict -> handoff
+project source -> generate -> target outputs -> validate --strict -> handoff
 ```
 
-<MermaidDiagram
-  :chart="`
-flowchart LR
-  Source[Исходное состояние проекта] --> Generate[plugin-kit-ai generate]
-  Generate --> Runtime[Runtime outputs]
-  Generate --> Package[Package or extension outputs]
-  Generate --> Workspace[Workspace config outputs]
-  Runtime --> Validate[validate --strict]
-  Package --> Validate
-  Workspace --> Validate
-  Doctor[doctor and bootstrap when needed] -. supports .-> Validate
-  Validate --> Handoff[Handoff to teammate, CI, machine, or downstream user]
-`"
-/>
+Source остаётся стабильным. Outputs могут отличаться в зависимости от target. Validation проверяет, что generated результат всё ещё безопасно передавать дальше.
 
-Это основной цикл, на котором держатся публичная документация, generated API и поддерживаемые сценарии авторинга.
+## Authored files и generated files
 
-## Исходное состояние проекта
+Authored files - это часть repo, которую команда поддерживает напрямую.
 
-Исходное состояние проекта живёт в package-standard layout. Именно здесь репозиторий фиксирует намерение.
+Generated files - это build artifacts для выбранных target'ов. Они реальны и нужны для поставки, но именно они не должны становиться местом, где начинает дрейфовать правда проекта.
 
-Это означает:
+Это разделение делает regen повторяемым и keeps the repo readable.
 
-- исходное состояние проекта — долгосрочный источник истины
-- target-файлы — это outputs
-- миграция нужна для переноса native config в эту модель, а не для сохранения native files как основного контракта
+## Почему это важно
 
-## Generate
+Без этой границы команды начинают редактировать generated output вручную, теряют повторяемость и усложняют обновления сильнее, чем нужно.
 
-`generate` превращает исходное состояние проекта в артефакты для нужного target’а.
+С этой границей можно:
 
-Его стоит воспринимать как часть нормального workflow, а не как удобный helper, который запускается только в конце.
+- ревьюить изменения в source напрямую
+- спокойно пересобирать output
+- валидировать один и тот же delivery shape каждый раз
+- позже добавлять ещё один supported output без пересборки repo с нуля
 
-## Target’ы
+## Как это связано с общей моделью
 
-Не все target’ы равнозначны.
-
-- runtime target’ы связаны с исполняемым поведением
-- package и extension target’ы связаны с delivery artifacts
-- workspace-config target’ы связаны с интеграцией и конфигурацией под управлением репозитория
-
-Именно поэтому выбор target меняет практический контракт проекта, а не только формат файлов на выходе.
-
-## Validation
-
-`validate --strict` — это проверка готовности, которая доказывает, что исходное состояние проекта, generated artifacts и заявленный target реально согласованы.
-
-Для Python и Node runtime target’ов `doctor` и `bootstrap` часто нужно воспринимать рядом с validation как часть одного практического сценария.
-
-## Handoff
-
-Цель всей системы — надёжный handoff:
-
-- другому члену команды
-- в CI
-- на другую машину
-- downstream-пользователю
-
-Если репозиторий работает только у исходного автора, значит архитектура авторинга не справилась.
-
-## Практическое следствие
-
-Проект сознательно делает структуру более жёсткой, потому что публичная цель здесь не в “максимальной гибкости любой ценой”. Цель — предсказуемый процесс авторинга, явные границы поддержки и меньше drift между намерением и output.
-
-Свяжите эту страницу с [Моделью target’ов](/ru/concepts/target-model), [Процессом авторинга](/ru/reference/authoring-workflow) и [Готовностью к продакшену](/ru/guide/production-readiness).
+Если нужен уровень выше, начинайте с [Как работает plugin-kit-ai](/ru/concepts/managed-project-model).

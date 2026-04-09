@@ -1,6 +1,6 @@
 ---
 title: "Политика версий и совместимости"
-description: "Как мыслить про релизы, compatibility promises, wrappers, SDK, и vocabulary поддержки в plugin-kit-ai."
+description: "Как мыслить про релизы, compatibility promises, wrappers, SDK и vocabulary поддержки в plugin-kit-ai."
 canonicalId: "page:reference:version-and-compatibility"
 section: "reference"
 locale: "ru"
@@ -10,9 +10,7 @@ translationRequired: true
 
 # Политика версий и совместимости
 
-Эта страница даёт короткий публичный ответ на командный вопрос:
-
-- какие версии задают текущий baseline и какие promises совместимости реально достаточно сильны, чтобы сделать их стандартом
+Эта страница нужна для одного практического командного решения: что мы стандартизируем и насколько сильное это обещание?
 
 ## Выбор за 60 секунд
 
@@ -22,69 +20,71 @@ translationRequired: true
 
 ## Публичный baseline
 
-Полезно думать о версиях в трёх слоях:
+Полезно думать о стандартизации в трёх слоях:
 
-- release line, которую вы стандартизируете между repo
-- support level lane внутри этой release line
-- install или delivery mechanism вокруг этого lane
+- release line, которую вы выбираете между repo
+- support level path внутри этой release line
+- install или delivery mechanism вокруг этого path
 
-Эти слои связаны, но это не одно и то же.
+Эти слои связаны, но они не взаимозаменяемы.
 
 ## Recommended lanes и formal tiers
 
 Используйте одну и ту же простую трансляцию между docs и policy:
 
-- `Recommended` обычно означает promoted `public-stable` production lane
+- `Recommended` обычно означает promoted `public-stable` production path
 - `Advanced` означает поддерживаемую surface с более узким или специализированным контрактом
 - `Experimental` означает opt-in churn вне нормального compatibility expectation
 
-Главные recommended lanes сегодня:
+Главные recommended paths сегодня:
 
 - `Codex runtime Go`
 - `Codex package`
 - `Gemini packaging`
 - `Gemini Go runtime`
 - `Claude default stable lane`
-- `Python` и `Node` local runtime lanes как поддерживаемый и рекомендуемый non-Go authoring path на поддерживаемых target'ах
+- `Python` и `Node` local runtime paths как поддерживаемый и рекомендуемый non-Go authoring choice на поддерживаемых target'ах
 
 ## Что именно покрывает совместимость
 
 Самое сильное публичное обещание относится к:
 
 - заявленному публичному CLI contract
-- рекомендуемому пути через Go SDK и перечисленным выше recommended production lanes
-- рекомендуемым локальным Python и Node runtime lanes на поддерживаемых target'ах
+- рекомендуемому Go SDK path и перечисленным выше recommended production paths
+- рекомендуемым локальным Python и Node runtime paths на поддерживаемых target'ах
 - задокументированному поведению `public-stable` generated outputs
 
 Совместимость не означает, что каждый wrapper, convenience path или специализированная surface движутся с одинаковой силой обещаний.
 
 ## Публичный язык и формальные термины
 
-Используйте простую трансляцию:
+Используйте такую трансляцию, когда говорите с командой:
 
-- `Recommended` обычно означает lane внутри самого сильного текущего `public-stable` контракта
-- `Advanced` означает поддерживаемую surface, которая уже, осторожнее или специализированнее первого default
+- `Recommended` обычно означает, что path находится внутри самого сильного текущего `public-stable` контракта
+- `Advanced` означает, что surface поддерживается, но уже или специализированнее первого default
 - `Experimental` означает opt-in churn без нормального compatibility expectation
 
 Когда команде нужен точный policy layer, используйте формальные термины `public-stable`, `public-beta` и `public-experimental`.
 
 ## Wrappers, SDK и runtime APIs
 
-Не смешивайте эти категории.
+Не стандартизируйте эти категории так, будто это одно и то же.
 
 - Homebrew, npm, PyPI и verified script - это install channels для CLI
 - Go SDK - это публичная SDK surface
-- runtime APIs привязаны к своим объявленным runtime lanes
+- runtime APIs привязаны к своим declared runtime paths
+
+Если относиться к install wrappers так, будто они несут то же обещание, что SDK или runtime path, команда стандартизирует не тот слой.
 
 ## Что командам стоит стандартизировать
 
 Здоровые команды обычно стандартизируют:
 
 - одну явную release baseline
-- один основной lane с понятной support story
+- один основной path с понятной support story
 - один validation gate перед handoff и rollout
 - одно общее понимание формальных compatibility terms
 
 ## Финальное правило
 
-Стандартизируйте только ту release line и тот lane, чьё публичное обещание ваша команда действительно готова защищать через CI, handoff и rollout.
+Стандартизируйте только ту release line и тот path, чьё публичное обещание команда действительно готова защищать в CI, handoff и rollout.

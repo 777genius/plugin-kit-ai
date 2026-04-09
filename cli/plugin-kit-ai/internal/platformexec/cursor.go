@@ -8,11 +8,16 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 )
 
 type cursorAdapter struct{}
 
 const removedCursorRulesFileName = "." + "cursor" + "rules"
+const (
+	cursorAgentsSectionStart = "<!-- plugin-kit-ai:cursor-agents:start -->"
+	cursorAgentsSectionEnd   = "<!-- plugin-kit-ai:cursor-agents:end -->"
+)
 
 func (cursorAdapter) ID() string { return "cursor" }
 
@@ -33,29 +38,35 @@ func (cursorAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState
 }
 
 func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) {
-	if seed.IncludeUserScope {
-		return ImportResult{}, fmt.Errorf("cursor import does not support --include-user-scope yet; global ~/.cursor/mcp.json is deferred in the current contract")
-	}
 	result := ImportResult{Manifest: seed.Manifest}
 	var hasCursorState bool
+	mergedServers := map[string]any{}
 
-	if body, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json")); err == nil {
-		doc, err := decodeJSONObject(body, "Cursor MCP config .cursor/mcp.json")
+	if seed.IncludeUserScope {
+		home, err := os.UserHomeDir()
 		if err != nil {
-			return ImportResult{}, err
+			return ImportResult{}, fmt.Errorf("resolve user home for Cursor import: %w", err)
 		}
-		servers, err := cursorMCPServersFromDocument(doc)
-		if err != nil {
+		if imported, ok, err := readCursorMCPServers(filepath.Join(home, ".cursor", "mcp.json"), filepath.ToSlash(filepath.Join("~", ".cursor", "mcp.json"))); err != nil {
 			return ImportResult{}, err
+		} else if ok {
+			mergeOpenCodeObject(mergedServers, imported)
+			hasCursorState = true
 		}
-		artifact, err := importedPortableMCPArtifact("cursor", servers)
+	}
+
+	if imported, ok, err := readCursorMCPServers(filepath.Join(root, ".cursor", "mcp.json"), ".cursor/mcp.json"); err != nil {
+		return ImportResult{}, err
+	} else if ok {
+		mergeOpenCodeObject(mergedServers, imported)
+		hasCursorState = true
+	}
+	if len(mergedServers) > 0 {
+		artifact, err := importedPortableMCPArtifact("cursor", mergedServers)
 		if err != nil {
 			return ImportResult{}, err
 		}
 		result.Artifacts = append(result.Artifacts, artifact)
-		hasCursorState = true
-	} else if !os.IsNotExist(err) {
-		return ImportResult{}, err
 	}
 
 	ruleArtifacts, err := importCursorRuleArtifacts(root)
@@ -73,8 +84,15 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		return ImportResult{}, err
 	}
 
+	if agentsArtifact, ok, err := importCursorAgentsArtifact(root); err != nil {
+		return ImportResult{}, err
+	} else if ok {
+		result.Artifacts = append(result.Artifacts, agentsArtifact)
+		hasCursorState = true
+	}
+
 	if !hasCursorState {
-		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json or .cursor/rules/**")
+		return ImportResult{}, fmt.Errorf("Cursor import requires .cursor/mcp.json, .cursor/rules/**, root AGENTS.md, or --include-user-scope with ~/.cursor/mcp.json")
 	}
 	result.Artifacts = compactArtifacts(result.Artifacts)
 	return result, nil
@@ -103,26 +121,108 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		return nil, err
 	}
 	artifacts = append(artifacts, rules...)
+	agentsContent, err := renderCursorRootAgents(root, state)
+	if err != nil {
+		return nil, err
+	}
+	artifacts = append(artifacts, pluginmodel.Artifact{
+		RelPath: "AGENTS.md",
+		Content: agentsContent,
+	})
 	return compactArtifacts(artifacts), nil
 }
 
 func (cursorAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
-	return nil, nil
+	return []string{"AGENTS.md"}, nil
 }
 
 func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
-	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 {
+	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 && strings.TrimSpace(state.DocPath("agents_markdown")) == "" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     filepath.ToSlash(filepath.Join("targets", "cursor")),
 			Target:   "cursor",
-			Message:  "Cursor target requires at least one of src/mcp/servers.yaml or src/targets/cursor/rules/**",
+			Message:  "Cursor target requires at least one of src/mcp/servers.yaml, src/targets/cursor/rules/**, or src/targets/cursor/AGENTS.md",
 		})
 	}
 	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)
+	diagnostics = append(diagnostics, validateCursorAgentsMarkdown(root, state.DocPath("agents_markdown"))...)
 	return diagnostics, nil
+}
+
+func readCursorMCPServers(path string, label string) (map[string]any, bool, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	doc, err := decodeJSONObject(body, "Cursor MCP config "+label)
+	if err != nil {
+		return nil, false, err
+	}
+	servers, err := cursorMCPServersFromDocument(doc)
+	if err != nil {
+		return nil, false, err
+	}
+	return servers, true, nil
+}
+
+func renderCursorRootAgents(root string, state pluginmodel.TargetState) ([]byte, error) {
+	body, _, err := scaffold.RenderTemplate("ROOT.AGENTS.md.tmpl", scaffold.Data{Platform: "cursor"})
+	if err != nil {
+		return nil, err
+	}
+	rel := strings.TrimSpace(state.DocPath("agents_markdown"))
+	if rel == "" {
+		return body, nil
+	}
+	authored, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		return nil, err
+	}
+	content := strings.TrimSpace(string(authored))
+	if content == "" {
+		return body, nil
+	}
+	merged := strings.TrimRight(string(body), "\n") + "\n\n" + cursorAgentsSectionStart + "\n" + content + "\n" + cursorAgentsSectionEnd + "\n"
+	return []byte(merged), nil
+}
+
+func importCursorAgentsArtifact(root string) (pluginmodel.Artifact, bool, error) {
+	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return pluginmodel.Artifact{}, false, nil
+		}
+		return pluginmodel.Artifact{}, false, err
+	}
+	content := extractCursorManagedAgentsSection(string(body))
+	if strings.TrimSpace(content) == "" {
+		content = strings.TrimSpace(string(body))
+	}
+	if strings.TrimSpace(content) == "" {
+		return pluginmodel.Artifact{}, false, nil
+	}
+	return pluginmodel.Artifact{
+		RelPath: filepath.ToSlash(filepath.Join("targets", "cursor", "AGENTS.md")),
+		Content: append([]byte(content), '\n'),
+	}, true, nil
+}
+
+func extractCursorManagedAgentsSection(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	body = strings.ReplaceAll(body, "\r", "\n")
+	start := strings.Index(body, cursorAgentsSectionStart)
+	end := strings.Index(body, cursorAgentsSectionEnd)
+	if start < 0 || end < 0 || end <= start {
+		return ""
+	}
+	start += len(cursorAgentsSectionStart)
+	return strings.TrimSpace(body[start:end])
 }
 
 func importCursorRuleArtifacts(root string) ([]pluginmodel.Artifact, error) {

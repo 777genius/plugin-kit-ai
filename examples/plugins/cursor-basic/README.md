@@ -10,3 +10,23 @@ Start here:
 - generated root output inventory: [`GENERATED.md`](./GENERATED.md)
 
 This plugin root is the native/generated output surface for the supported targets.
+
+## Source Guide
+
+The authored guide below is copied from `src/README.md` and stays the source of truth for this plugin.
+
+Reference Cursor workspace-config example for `plugin-kit-ai`.
+
+This example demonstrates the current documented Cursor subset:
+
+- portable `src/mcp/servers.yaml` generated into `.cursor/mcp.json`
+- target-authored `src/targets/cursor/rules/project.mdc` mirrored into `.cursor/rules/project.mdc`
+- optional `src/targets/cursor/AGENTS.md` merged into generated root `AGENTS.md`
+- strict parity-lite positioning: repo-local generation only, importable `--include-user-scope` support for `~/.cursor/mcp.json`, and no nested non-root `.cursor/rules/**` or JSONC promise for `.cursor/mcp.json`
+
+Validate it with:
+
+```bash
+plugin-kit-ai generate --check .
+plugin-kit-ai validate . --platform cursor --strict
+```

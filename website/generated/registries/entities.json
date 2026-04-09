@@ -952,6 +952,158 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "plugin-kit-ai integrations"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations",
+    "summary": "Foundation lifecycle commands for multi-agent integration management",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations add"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:add",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations add",
+    "summary": "Plan installation of an integration across supported agent targets",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations add",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-add",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-add"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations doctor"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:doctor",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations doctor",
+    "summary": "Inspect integration state and open lifecycle journals",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations doctor",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-doctor",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-doctor"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations help"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:help",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations help",
+    "summary": "Help about any command",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations help",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-help",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-help"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations list"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:list",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations list",
+    "summary": "List managed integrations from local state",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations list",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-list",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-list"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations remove"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:remove",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations remove",
+    "summary": "Plan or remove managed integration targets",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations remove",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-remove",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-remove"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations repair"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:repair",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations repair",
+    "summary": "Plan or repair managed integration drift",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations repair",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-repair",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-repair"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations update"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:update",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations update",
+    "summary": "Plan or apply an update for a managed integration",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations update",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-update",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-update"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "plugin-kit-ai normalize"
     ],
     "publicVisibility": "public",
@@ -1637,8 +1789,8 @@
     "kind": "page",
     "surface": "concepts",
     "localeStrategy": "mirrored",
-    "title": "Authoring Architecture",
-    "summary": "How the project source, generate, validation, targets, and handoff fit together in plugin-kit-ai.",
+    "title": "Project Source And Outputs",
+    "summary": "How authored files, generated outputs, strict validation, and handoff fit together in plugin-kit-ai.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1648,7 +1800,7 @@
     "pathRu": "/ru/concepts/authoring-architecture",
     "relatedIds": [],
     "searchTerms": [
-      "Authoring Architecture"
+      "Project Source And Outputs"
     ]
   },
   {
@@ -1676,7 +1828,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Concepts",
-    "summary": "Core concepts behind plugin-kit-ai.",
+    "summary": "The mental model behind plugin-kit-ai: why it exists, how one repo works, how targets differ, and where policy starts to matter.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1694,8 +1846,8 @@
     "kind": "page",
     "surface": "concepts",
     "localeStrategy": "mirrored",
-    "title": "Managed Project Model",
-    "summary": "The core product model behind plugin-kit-ai: one authored repo, generated outputs, strict validation, and honest path boundaries.",
+    "title": "How plugin-kit-ai Works",
+    "summary": "How one repo stays the source of truth while you generate outputs, validate strictly, and hand off a clean result.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1705,7 +1857,7 @@
     "pathRu": "/ru/concepts/managed-project-model",
     "relatedIds": [],
     "searchTerms": [
-      "Managed Project Model"
+      "How plugin-kit-ai Works"
     ]
   },
   {
@@ -1733,7 +1885,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Target Model",
-    "summary": "How plugin-kit-ai divides runtime, package, extension, and repo-managed integration lanes.",
+    "summary": "How runtime, package, extension, and repo-owned integration outputs differ, and how to choose the right path.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1752,7 +1904,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Why plugin-kit-ai",
-    "summary": "What problem plugin-kit-ai solves, who it is for, and when it is the wrong tool.",
+    "summary": "What problem plugin-kit-ai solves, who it fits, and when it is the wrong tool.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1941,8 +2093,8 @@
     "kind": "page",
     "surface": "guide",
     "localeStrategy": "mirrored",
-    "title": "Guide",
-    "summary": "Start here for public plugin-kit-ai guides.",
+    "title": "Guides",
+    "summary": "Start fast, then expand carefully: quickstart, first plugin, target choice, and how one repo grows over time.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1952,7 +2104,7 @@
     "pathRu": "/ru/guide/",
     "relatedIds": [],
     "searchTerms": [
-      "Guide"
+      "Guides"
     ]
   },
   {
@@ -1999,7 +2151,7 @@
     "surface": "guide",
     "localeStrategy": "mirrored",
     "title": "One Project, Multiple Targets",
-    "summary": "How one plugin repo can grow into more supported outputs without splitting into separate setups.",
+    "summary": "How to decide when one repo should grow to more outputs, when it should stay narrow, and when it is time to split.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2017,8 +2169,8 @@
     "kind": "page",
     "surface": "guide",
     "localeStrategy": "mirrored",
-    "title": "Package And Workspace Targets",
-    "summary": "How to use package, extension, and repo-owned integration setup without confusing them with executable runtime paths.",
+    "title": "Packages And Integration Setup",
+    "summary": "When packaging or checked-in integration setup is the right answer instead of an executable runtime plugin.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2028,7 +2180,7 @@
     "pathRu": "/ru/guide/package-and-workspace-targets",
     "relatedIds": [],
     "searchTerms": [
-      "Package And Workspace Targets"
+      "Packages And Integration Setup"
     ]
   },
   {
@@ -2132,7 +2284,7 @@
     "surface": "guide",
     "localeStrategy": "mirrored",
     "title": "What You Can Build",
-    "summary": "A broad public overview of how one plugin repo can grow into multiple delivery lanes.",
+    "summary": "Use this page as the product map: what outputs exist, what the default start looks like, and how one repo can expand later.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2189,7 +2341,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "FAQ",
-    "summary": "Common questions about choosing paths, wrappers, targets, and authoring flows.",
+    "summary": "Short answers to the questions teams ask most often when starting and scaling plugin-kit-ai repos.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2208,7 +2360,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Glossary",
-    "summary": "Canonical terms used across the public plugin-kit-ai documentation.",
+    "summary": "Short definitions for the public terms used across plugin-kit-ai docs.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2227,7 +2379,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Reference",
-    "summary": "Reference material for install channels, contracts, and support maps.",
+    "summary": "Exact answers about installation, support, compatibility, and healthy repo expectations.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2303,7 +2455,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Troubleshooting",
-    "summary": "The most common failure modes when installing, generating, validating, or bootstrapping plugin-kit-ai projects.",
+    "summary": "Fast recovery steps for the most common install, generate, validate, and bootstrap problems.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2341,7 +2493,7 @@
     "surface": "releases",
     "localeStrategy": "mirrored",
     "title": "Releases",
-    "summary": "Public release history for plugin-kit-ai.",
+    "summary": "What changed for users in each public release, why it matters, and what to update next.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
