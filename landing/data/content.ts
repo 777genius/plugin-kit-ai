@@ -22,6 +22,7 @@ const normalizePlugins = (plugins: PluginCard[]): PluginCard[] =>
     return {
       ...plugin,
       slug: plugin.slug || plugin.id,
+      pluginType: plugin.pluginType ?? 'online-service',
       logoSrc: resolvedLogo.src,
       logoSurface: resolvedLogo.surface ?? plugin.logoSurface ?? 'default',
     };

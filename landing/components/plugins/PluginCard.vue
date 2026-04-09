@@ -24,6 +24,7 @@ const props = withDefaults(
 );
 
 const linkTag = computed(() => (props.to ? resolveComponent('NuxtLink') : 'a'));
+const { t } = useI18n();
 const linkAttrs = computed(() =>
   props.to
     ? { to: props.to }
@@ -58,7 +59,10 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
           <SearchHighlight :text="plugin.title" :query="highlightQuery" />
         </h3>
       </div>
-      <span class="plugin-card__status">{{ plugin.status }}</span>
+      <div class="plugin-card__meta">
+        <span class="plugin-card__type">{{ t(`plugins.types.${plugin.pluginType}`) }}</span>
+        <span class="plugin-card__status">{{ plugin.status }}</span>
+      </div>
     </div>
 
     <p class="plugin-card__desc">
@@ -126,6 +130,13 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
   margin-bottom: 16px;
 }
 
+.plugin-card__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
 .plugin-card__brand {
   display: flex;
   align-items: center;
@@ -165,6 +176,19 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
   font-size: 1.22rem;
   line-height: 1.15;
   color: #e0e6ff;
+}
+
+.plugin-card__type {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  background: rgba(0, 240, 255, 0.08);
+  color: #7dd3fc;
+  border: 1px solid rgba(125, 211, 252, 0.16);
 }
 
 .plugin-card__status {
@@ -268,8 +292,5 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
     height: 24px;
   }
 
-  .plugin-card__status {
-    display: none;
-  }
 }
 </style>

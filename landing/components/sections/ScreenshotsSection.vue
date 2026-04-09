@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
 import { register } from 'swiper/element/bundle';
 import { mdiChevronLeft, mdiChevronRight } from '@mdi/js';
 
@@ -19,11 +19,26 @@ register();
 
 const swiperRef = ref<SwiperContainerElement | null>(null);
 const swiperReady = ref(false);
+const selectedPluginType = ref('all');
 const accents = ['#00f0ff', '#ff00ff', '#39ff14', '#ffd700', '#00f0ff', '#ff00ff'];
 const catalogPath = computed(() => localePath('/plugins'));
 const pluginDetailPath = (slug: string) => localePath(`/plugins/${slug}`);
 
-onMounted(() => {
+const pluginTypeOptions = computed(() => {
+  const types = new Set<string>();
+  for (const plugin of content.value.plugins) {
+    types.add(plugin.pluginType);
+  }
+  return ['all', ...types];
+});
+
+const visiblePlugins = computed(() =>
+  content.value.plugins.filter((plugin) =>
+    selectedPluginType.value === 'all' ? true : plugin.pluginType === selectedPluginType.value,
+  ),
+);
+
+function initializeSwiper() {
   if (!swiperRef.value) return;
   Object.assign(swiperRef.value, {
     slidesPerView: 1.08,
@@ -37,15 +52,21 @@ onMounted(() => {
     injectStyles: [
       `
       .swiper-pagination {
-        position: relative !important;
+        position: static !important;
         bottom: auto !important;
-        margin-top: 28px;
+        inset: auto !important;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin-top: 22px;
       }
       .swiper-pagination-bullet {
         width: 10px;
         height: 10px;
         background: rgba(0, 240, 255, 0.4);
         opacity: 1;
+        margin: 0 !important;
       }
       .swiper-pagination-bullet-active {
         background: #00f0ff;
@@ -79,6 +100,16 @@ onMounted(() => {
   });
   swiperRef.value.initialize();
   swiperReady.value = true;
+}
+
+onMounted(() => {
+  initializeSwiper();
+});
+
+watch(selectedPluginType, async () => {
+  swiperReady.value = false;
+  await nextTick();
+  initializeSwiper();
 });
 
 function slidePrev() {
@@ -101,6 +132,22 @@ function slideNext() {
           <p class="screenshots-section__subtitle">
             {{ t('plugins.sectionSubtitle') }}
           </p>
+          <div class="screenshots-section__type-chips">
+            <button
+              v-for="pluginType in pluginTypeOptions"
+              :key="pluginType"
+              type="button"
+              class="screenshots-section__type-chip"
+              :class="{ 'is-active': selectedPluginType === pluginType }"
+              @click="selectedPluginType = pluginType"
+            >
+              {{
+                pluginType === 'all'
+                  ? t('plugins.allTypes')
+                  : t(`plugins.types.${pluginType}`)
+              }}
+            </button>
+          </div>
         </div>
         <v-btn
           variant="outlined"
@@ -114,9 +161,14 @@ function slideNext() {
     </v-container>
 
     <div class="screenshots-section__carousel-wrap" :class="{ 'is-ready': swiperReady }">
-      <swiper-container ref="swiperRef" init="false" class="screenshots-section__swiper">
+      <swiper-container
+        :key="selectedPluginType"
+        ref="swiperRef"
+        init="false"
+        class="screenshots-section__swiper"
+      >
         <swiper-slide
-          v-for="(plugin, idx) in content.plugins"
+          v-for="(plugin, idx) in visiblePlugins"
           :key="plugin.id"
           class="screenshots-section__slide"
         >
@@ -184,6 +236,41 @@ function slideNext() {
   max-width: 640px;
 }
 
+.screenshots-section__type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.screenshots-section__type-chip {
+  border-radius: 999px;
+  border: 1px solid rgba(0, 240, 255, 0.16);
+  background: rgba(10, 10, 15, 0.7);
+  color: #dbe7ff;
+  padding: 9px 14px;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.screenshots-section__type-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 240, 255, 0.32);
+}
+
+.screenshots-section__type-chip.is-active {
+  background: rgba(0, 240, 255, 0.12);
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.28);
+}
+
 .screenshots-section__carousel-wrap {
   position: relative;
   overflow: hidden;
@@ -191,7 +278,7 @@ function slideNext() {
 
 .screenshots-section__swiper {
   display: block;
-  padding: 0 40px 8px;
+  padding: 0 40px 44px;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -258,6 +345,12 @@ function slideNext() {
   -webkit-text-fill-color: transparent;
 }
 
+.v-theme--light .screenshots-section__type-chip {
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  border-color: rgba(14, 165, 233, 0.16);
+}
+
 .v-theme--light .screenshots-section__subtitle {
   color: #475569;
 }
@@ -275,7 +368,7 @@ function slideNext() {
 
 @media (max-width: 600px) {
   .screenshots-section__swiper {
-    padding-inline: 20px;
+    padding: 0 20px 40px;
   }
 
   .screenshots-section__header {

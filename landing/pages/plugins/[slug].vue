@@ -73,6 +73,7 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
             </div>
 
             <div class="plugin-detail__chips">
+              <span class="plugin-detail__type">{{ t(`plugins.types.${plugin.pluginType}`) }}</span>
               <span class="plugin-detail__status">{{ plugin.status }}</span>
               <span
                 v-for="category in plugin.categories"
@@ -123,6 +124,15 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
                   tone="detail"
                 />
               </div>
+            </div>
+
+            <div class="plugin-detail__summary-block">
+              <div class="plugin-detail__summary-title">{{ t('plugins.pathTitle') }}</div>
+              <ul class="plugin-detail__list">
+                <li class="plugin-detail__list-item">
+                  {{ t(`plugins.types.${plugin.pluginType}`) }}
+                </li>
+              </ul>
             </div>
 
             <div class="plugin-detail__summary-block">
@@ -287,12 +297,19 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
   gap: 10px;
 }
 
+.plugin-detail__type,
 .plugin-detail__status,
 .plugin-detail__category {
   border-radius: 999px;
   padding: 9px 12px;
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.plugin-detail__type {
+  background: rgba(0, 240, 255, 0.08);
+  color: #7dd3fc;
+  border: 1px solid rgba(125, 211, 252, 0.16);
 }
 
 .plugin-detail__status {

@@ -47,6 +47,23 @@
         "validate": "Running validate --strict before handoff...",
         "ship": "Publishing through releases, docs, and install channels..."
       }
+    },
+    "paths": {
+      "onlineService": {
+        "title": "Connect an online service",
+        "description": "Start with a hosted integration like Notion, Stripe, Cloudflare, or Vercel.",
+        "example": "See the Notion example"
+      },
+      "localTool": {
+        "title": "Connect a local tool",
+        "description": "Start with a repo-owned tool like Docker Hub, Chrome DevTools, or HubSpot Developer.",
+        "example": "See the Docker Hub example"
+      },
+      "customLogic": {
+        "title": "Build custom plugin logic",
+        "description": "Start with launcher-backed code when hooks, runtime logic, or custom behavior define the product.",
+        "example": "See the codex-basic-prod example"
+      }
     }
   },
   "download": {
@@ -116,6 +133,15 @@
       "cloud": "Cloud",
       "automation": "Automation",
       "collaboration": "Collaboration"
+    },
+    "allTypes": "All plugin types",
+    "typeFilterLabel": "Filter by plugin type",
+    "pathTitle": "Best starting path",
+    "types": {
+      "online-service": "Online service",
+      "local-tool": "Local tool",
+      "custom-logic": "Custom logic"
+    }
     }
   },
   "faq": {

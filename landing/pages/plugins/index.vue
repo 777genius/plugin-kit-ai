@@ -3,6 +3,7 @@ const { content } = useLandingContent();
 const { t } = useI18n();
 const localePath = useLocalePath();
 const searchQuery = ref('');
+const selectedPluginType = ref('all');
 const selectedCategory = ref('all');
 
 usePageSeo('meta.pluginsTitle', 'meta.pluginsDescription');
@@ -21,6 +22,14 @@ const categoryOptions = computed(() => {
   return ['all', ...categories];
 });
 
+const pluginTypeOptions = computed(() => {
+  const types = new Set<string>();
+  for (const plugin of content.value.plugins) {
+    types.add(plugin.pluginType);
+  }
+  return ['all', ...types];
+});
+
 const searchFilteredPlugins = computed(() => {
   const query = normalizedQuery.value;
   if (!query) return content.value.plugins;
@@ -32,6 +41,7 @@ const searchFilteredPlugins = computed(() => {
       plugin.description,
       plugin.eyebrow,
       plugin.status,
+      t(`plugins.types.${plugin.pluginType}`),
       ...plugin.badges,
       ...plugin.categories.map((category) => t(`plugins.categories.${category}`)),
     ]
@@ -44,12 +54,15 @@ const searchFilteredPlugins = computed(() => {
 
 const filteredPlugins = computed(() =>
   searchFilteredPlugins.value.filter((plugin) =>
-    selectedCategory.value === 'all' ? true : plugin.categories.includes(selectedCategory.value),
+    (selectedPluginType.value === 'all' ? true : plugin.pluginType === selectedPluginType.value) &&
+    (selectedCategory.value === 'all' ? true : plugin.categories.includes(selectedCategory.value)),
   ),
 );
 
 const hasActiveSearch = computed(() => normalizedQuery.value.length > 0);
-const hasActiveFilters = computed(() => hasActiveSearch.value || selectedCategory.value !== 'all');
+const hasActiveFilters = computed(
+  () => hasActiveSearch.value || selectedCategory.value !== 'all' || selectedPluginType.value !== 'all',
+);
 const showInlineClearButton = computed(
   () => hasActiveSearch.value && filteredPlugins.value.length > 0,
 );
@@ -60,6 +73,7 @@ function clearSearch() {
 
 function resetFilters() {
   searchQuery.value = '';
+  selectedPluginType.value = 'all';
   selectedCategory.value = 'all';
 }
 
@@ -99,6 +113,32 @@ function pluginDetailPath(slug: string) {
               >
                 {{ t('plugins.clearSearch') }}
               </button>
+            </div>
+
+            <div class="plugins-page__filters">
+              <div class="plugins-page__filters-label">
+                {{ t('plugins.typeFilterLabel') }}
+              </div>
+              <div
+                class="plugins-page__chips"
+                role="tablist"
+                :aria-label="t('plugins.typeFilterLabel')"
+              >
+                <button
+                  v-for="pluginType in pluginTypeOptions"
+                  :key="pluginType"
+                  type="button"
+                  class="plugins-page__chip"
+                  :class="{ 'is-active': selectedPluginType === pluginType }"
+                  @click="selectedPluginType = pluginType"
+                >
+                  {{
+                    pluginType === 'all'
+                      ? t('plugins.allTypes')
+                      : t(`plugins.types.${pluginType}`)
+                  }}
+                </button>
+              </div>
             </div>
 
             <div class="plugins-page__filters">

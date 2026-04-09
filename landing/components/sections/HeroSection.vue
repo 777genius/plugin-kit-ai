@@ -3,6 +3,7 @@ import { mdiOpenSourceInitiative, mdiRobotOutline, mdiViewDashboardOutline } fro
 
 const { content } = useLandingContent();
 const { t, locale } = useI18n();
+const localePath = useLocalePath();
 const config = useRuntimeConfig();
 const githubUrl = `https://github.com/${config.public.githubRepo}`;
 const { docsUrl } = useDocsLinks();
@@ -14,6 +15,40 @@ const releaseDate = computed(() => {
   if (!raw) return null;
   return formatReleaseDate(raw, locale.value);
 });
+
+const customLogicExampleUrl = computed(
+  () => `https://github.com/${config.public.githubRepo}/tree/main/examples/plugins/codex-basic-prod`,
+);
+
+const pathCards = computed(() => [
+  {
+    id: "online-service",
+    title: t("hero.paths.onlineService.title"),
+    description: t("hero.paths.onlineService.description"),
+    command: "plugin-kit-ai init my-plugin --template online-service",
+    exampleLabel: t("hero.paths.onlineService.example"),
+    exampleHref: localePath("/plugins/notion"),
+    external: false,
+  },
+  {
+    id: "local-tool",
+    title: t("hero.paths.localTool.title"),
+    description: t("hero.paths.localTool.description"),
+    command: "plugin-kit-ai init my-plugin --template local-tool",
+    exampleLabel: t("hero.paths.localTool.example"),
+    exampleHref: localePath("/plugins/docker-hub"),
+    external: false,
+  },
+  {
+    id: "custom-logic",
+    title: t("hero.paths.customLogic.title"),
+    description: t("hero.paths.customLogic.description"),
+    command: "plugin-kit-ai init my-plugin --template custom-logic",
+    exampleLabel: t("hero.paths.customLogic.example"),
+    exampleHref: customLogicExampleUrl.value,
+    external: true,
+  },
+]);
 </script>
 
 <template>
@@ -29,6 +64,26 @@ const releaseDate = computed(() => {
           <p class="hero-section__subtitle">
             {{ content.hero.subtitle }}
           </p>
+
+          <div class="hero-section__paths">
+            <article
+              v-for="path in pathCards"
+              :key="path.id"
+              class="hero-section__path-card"
+            >
+              <div class="hero-section__path-title">{{ path.title }}</div>
+              <p class="hero-section__path-copy">{{ path.description }}</p>
+              <code class="hero-section__path-command">{{ path.command }}</code>
+              <a
+                class="hero-section__path-link"
+                :href="path.exampleHref"
+                :target="path.external ? '_blank' : undefined"
+                :rel="path.external ? 'noopener noreferrer' : undefined"
+              >
+                {{ path.exampleLabel }}
+              </a>
+            </article>
+          </div>
 
           <div class="hero-section__actions">
             <v-btn
@@ -153,9 +208,64 @@ const releaseDate = computed(() => {
   color: #8892b0;
   opacity: 0.9;
   max-width: 560px;
-  margin-bottom: 36px;
+  margin-bottom: 28px;
   animation: heroFadeIn 0.8s ease both;
   animation-delay: 0.3s;
+}
+
+.hero-section__paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+  animation: heroFadeIn 0.8s ease both;
+  animation-delay: 0.36s;
+}
+
+.hero-section__path-card {
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(10, 10, 15, 0.72);
+  border: 1px solid rgba(0, 240, 255, 0.12);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+}
+
+.hero-section__path-title {
+  color: #e0e6ff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.hero-section__path-copy {
+  margin: 0 0 12px;
+  color: #8892b0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.hero-section__path-command {
+  display: block;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #7dd3fc;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  overflow-x: auto;
+}
+
+.hero-section__path-link {
+  display: inline-flex;
+  margin-top: 12px;
+  color: #39ff14;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
 }
 
 .hero-section__actions {
@@ -310,6 +420,24 @@ const releaseDate = computed(() => {
   color: #64748b;
 }
 
+.v-theme--light .hero-section__path-card {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(14, 165, 233, 0.14);
+}
+
+.v-theme--light .hero-section__path-title {
+  color: #0f172a;
+}
+
+.v-theme--light .hero-section__path-copy {
+  color: #475569;
+}
+
+.v-theme--light .hero-section__path-command {
+  background: rgba(241, 245, 249, 0.92);
+  color: #0369a1;
+}
+
 @media (max-width: 960px) {
   .hero-section {
     min-height: auto;
@@ -328,6 +456,10 @@ const releaseDate = computed(() => {
   .hero-section__subtitle {
     font-size: 1.05rem;
     margin-bottom: 28px;
+  }
+
+  .hero-section__paths {
+    grid-template-columns: 1fr;
   }
 
   .hero-section__trust {

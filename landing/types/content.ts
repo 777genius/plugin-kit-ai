@@ -1,6 +1,7 @@
 import type { LocaleCode } from '~/data/i18n';
 
 export type PluginLogoSurface = 'default' | 'light';
+export type PluginType = 'online-service' | 'local-tool' | 'custom-logic';
 
 export interface FeatureItem {
   id: string;
@@ -11,6 +12,7 @@ export interface FeatureItem {
 export interface PluginCard {
   id: string;
   slug: string;
+  pluginType: PluginType;
   eyebrow: string;
   title: string;
   tagline: string;

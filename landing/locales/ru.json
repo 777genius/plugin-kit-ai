@@ -47,6 +47,23 @@
         "validate": "Запускаем validate --strict перед передачей дальше...",
         "ship": "Публикуем через релизы, документацию и каналы установки..."
       }
+    },
+    "paths": {
+      "onlineService": {
+        "title": "Подключить онлайн-сервис",
+        "description": "Начните с hosted-интеграции вроде Notion, Stripe, Cloudflare или Vercel.",
+        "example": "Смотреть пример Notion"
+      },
+      "localTool": {
+        "title": "Подключить локальный инструмент",
+        "description": "Начните с инструмента, которым repo владеет сам, например Docker Hub, Chrome DevTools или HubSpot Developer.",
+        "example": "Смотреть пример Docker Hub"
+      },
+      "customLogic": {
+        "title": "Сделать свой plugin с логикой",
+        "description": "Начните с launcher-backed кода, когда продукт определяют hooks, runtime logic или кастомное поведение.",
+        "example": "Смотреть пример codex-basic-prod"
+      }
     }
   },
   "download": {
@@ -116,6 +133,15 @@
       "cloud": "Облако",
       "automation": "Автоматизация",
       "collaboration": "Командная работа"
+    },
+    "allTypes": "Все типы плагинов",
+    "typeFilterLabel": "Фильтр по типу плагина",
+    "pathTitle": "Лучший стартовый путь",
+    "types": {
+      "online-service": "Онлайн-сервис",
+      "local-tool": "Локальный инструмент",
+      "custom-logic": "Своя логика"
+    }
     }
   },
   "faq": {
