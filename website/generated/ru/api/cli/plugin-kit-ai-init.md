@@ -28,25 +28,27 @@ translationRequired: false
 
 Создаёт каркас plugin-kit-ai проекта в package-standard формате.
 
-Выберите lane, который соответствует вашей цели:
+Start with the job you want to solve:
 
-Быстрый локальный плагин:
-  Используйте `--runtime python` или `--runtime node`, когда локальная итерация в репозитории важнее, чем пакетная поставка.
-  Это поддерживаемые пути для executable runtime, но не равноценные production-пути.
+Connect an online service:
+  Use --template online-service for hosted integrations like Notion, Stripe, Cloudflare, or Vercel.
+  This starter creates an MCP-first repo with shared authored source under src/ and no launcher code.
 
-Production-ready репозиторий плагина:
-  Обычный `init` оставляет наиболее надёжный поддерживаемый runtime-путь. `--runtime go` остаётся значением по умолчанию, а `--platform codex-runtime` остаётся целевой платформой по умолчанию.
-  Используйте `--platform claude` для Claude hooks, а `--claude-extended-hooks` добавляйте только когда осознанно нужен более широкий runtime-поддерживаемый набор.
-  Используйте `--platform codex-package` для официального Codex plugin bundle без локальной `notify`/runtime-обвязки.
-  Используйте `--platform opencode` для OpenCode workspace-config lane без launcher/runtime scaffold.
-  Используйте `--platform cursor` для Cursor workspace-config lane без launcher/runtime scaffold.
+Connect a local tool:
+  Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
+  This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
+
+Build custom plugin logic:
+  Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
+  Plain init stays backward-compatible here: codex-runtime plus --runtime go remains the default path.
 
 Уже есть нативная конфигурация:
   Используйте `plugin-kit-ai import`, чтобы привести текущие нативные файлы Claude/Codex/Gemini/OpenCode/Cursor к authored layout package-standard проекта.
   `init` нужен для создания нового package-standard проекта, а не для сохранения нативных файлов как основного authored source of truth.
 
 Публичные флаги:
-  --platform   Поддерживаются: `codex-runtime` (по умолчанию), `codex-package`, `claude`, `gemini`, `opencode` и `cursor`.
+  --template   Recommended start: "online-service", "local-tool", or "custom-logic".
+  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".
   --runtime    Поддерживаются: `go` (по умолчанию), `python`, `node`, `shell`; `shell` доступен только для launcher-based targets.
   --typescript Генерирует TypeScript scaffold поверх node runtime lane (требует `--runtime node`).
   --runtime-package
@@ -75,6 +77,7 @@ plugin-kit-ai init [project-name] [flags]
       --runtime string                   runtime (`go`, `python`, `node` или `shell`) (по умолчанию `go`)
       --runtime-package                  для `--runtime python` или `--runtime node` импортирует общий пакет `plugin-kit-ai-runtime` вместо вендоринга helper-файла
       --runtime-package-version string   фиксирует версию сгенерированной зависимости `plugin-kit-ai-runtime`
+      --template string                  recommended start ("online-service", "local-tool", or "custom-logic")
       --typescript                       генерирует TypeScript scaffold поверх node runtime lane
 ```
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
+	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 	"github.com/spf13/cobra"
 )
 
@@ -16,6 +17,7 @@ type initCommandRunner interface {
 }
 
 type initFlagState struct {
+	template              string
 	platform              string
 	runtime               string
 	typescript            bool
@@ -35,25 +37,27 @@ var stableRuntimePackageVersionRe = regexp.MustCompile(`^v?\d+\.\d+\.\d+$`)
 
 const initLongDescription = `Creates a package-standard plugin-kit-ai project scaffold.
 
-Choose the lane that matches your goal:
+Start with the job you want to solve:
 
-Fast local plugin:
-  Use --runtime python or --runtime node when repo-local iteration matters more than packaged distribution.
-  These are supported executable-runtime paths, not equal production paths.
+Connect an online service:
+  Use --template online-service for hosted integrations like Notion, Stripe, Cloudflare, or Vercel.
+  This starter creates an MCP-first repo with shared authored source under src/ and no launcher code.
 
-Production-ready plugin repo:
-  Plain init keeps the strongest supported runtime path. --runtime go remains the default, and --platform codex-runtime remains the default target.
-  Use --platform claude for Claude hooks, and add --claude-extended-hooks only when you intentionally want the wider runtime-supported subset.
-  Use --platform codex-package for the official Codex plugin bundle without local notify/runtime wiring.
-  Use --platform opencode for the OpenCode workspace-config lane without launcher/runtime scaffolding.
-  Use --platform cursor for the Cursor workspace-config lane without launcher/runtime scaffolding.
+Connect a local tool:
+  Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
+  This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
+
+Build custom plugin logic:
+  Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
+  Plain init stays backward-compatible here: codex-runtime plus --runtime go remains the default path.
 
 Already have native config:
   Use plugin-kit-ai import to bring current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
   init is for creating a new package-standard project, not for preserving native files as the authored source of truth.
 
 Public flags:
-  --platform   Supported: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", and "cursor".
+  --template   Recommended start: "online-service", "local-tool", or "custom-logic".
+  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   --runtime-package
@@ -77,6 +81,7 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 			return runInit(cmd, runner, flags, args)
 		},
 	}
+	cmd.Flags().StringVar(&flags.template, "template", "", `recommended start ("online-service", "local-tool", or "custom-logic")`)
 	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", "gemini", "opencode", or "cursor")`)
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "go", `runtime ("go", "python", "node", or "shell")`)
 	cmd.Flags().BoolVar(&flags.typescript, "typescript", false, "generate a TypeScript scaffold on top of the node runtime lane")
@@ -101,8 +106,11 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 	}
 	opts := app.InitOptions{
 		ProjectName:           name,
+		Template:              flags.template,
 		Platform:              flags.platform,
+		PlatformExplicit:      cmd.Flags().Changed("platform"),
 		Runtime:               runtime,
+		RuntimeExplicit:       cmd.Flags().Changed("runtime"),
 		TypeScript:            flags.typescript,
 		RuntimePackage:        flags.runtimePackage,
 		RuntimePackageVersion: resolveRuntimePackageVersion(flags.runtimePackage, flags.runtimePackageVersion),
@@ -120,6 +128,7 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 }
 
 func formatInitSuccess(outDir string, opts app.InitOptions) string {
+	templateName := strings.TrimSpace(opts.Template)
 	platform := strings.TrimSpace(opts.Platform)
 	if platform == "" {
 		platform = "codex-runtime"
@@ -133,6 +142,21 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		fmt.Sprintf("Created plugin %q at %s", opts.ProjectName, outDir),
 		"Next:",
 		fmt.Sprintf("  cd %s", strconv.Quote(outDir)),
+	}
+
+	if templateName == scaffold.InitTemplateOnlineService || templateName == scaffold.InitTemplateLocalTool {
+		lines = append(lines,
+			"  plugin-kit-ai inspect . --authoring",
+			"  plugin-kit-ai generate .",
+			"  plugin-kit-ai generate --check .",
+		)
+		if opts.PlatformExplicit && strings.TrimSpace(opts.Platform) != "" {
+			lines = append(lines, fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", strings.TrimSpace(opts.Platform)))
+		} else {
+			lines = append(lines, "  plugin-kit-ai validate . --platform claude --strict")
+		}
+		lines = append(lines, "  See src/README.md for the first run")
+		return strings.Join(lines, "\n") + "\n"
 	}
 
 	if platform == "gemini" && strings.TrimSpace(opts.Runtime) == "go" {

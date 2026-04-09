@@ -31,6 +31,7 @@ plugin-kit-ai inspect [path] [flags]
 ### Опции
 
 ```
+      --authoring       show a plain-language authoring view instead of the raw contract view
       --format string   output format: text or json (default "text")
   -h, --help            справка по inspect
       --target string   inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor") (default "all")

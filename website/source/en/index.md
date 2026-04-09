@@ -14,33 +14,31 @@ outline: false
   <p class="docs-kicker">PUBLIC DOCUMENTATION</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Build in one repo, start with Go by default, and later add packages, Claude hooks, Gemini,
-    or repo-owned integration setup without splitting the project.
+    Build one plugin repo and ship it to many AI agents without learning the whole target model on day one.
   </p>
 </div>
 
-## Default Start
+## Start By Job
 
-- `Codex runtime Go` is the default start when you want the strongest runtime and release story.
+- [Connect an online service](/en/guide/choose-what-you-are-building#connect-an-online-service)
+- [Connect a local tool](/en/guide/choose-what-you-are-building#connect-a-local-tool)
+- [Build custom plugin logic](/en/guide/choose-what-you-are-building#build-custom-plugin-logic)
 
 ## What To Know Right Away
 
 - one repo remains the source of truth as you add more lanes
-- choose the starting path that matches what you need today
+- choose the starting path that matches the job you need today
 - expand later from the same repo when the product needs more outputs
 - use `generate` and `validate --strict` as the shared readiness workflow
 
-## Supported Node And Python Paths
-
-- `codex-runtime --runtime node --typescript` is the main supported non-Go path.
-- `codex-runtime --runtime python` is the supported Python-first path.
-- both are local interpreted runtime paths, so the target machine still needs Node.js `20+` or Python `3.10+`.
-- they are clear early options for teams already working in those stacks, but they are not the default start.
-
 <div class="docs-grid">
+  <a class="docs-card" href="./guide/choose-what-you-are-building">
+    <h2>Choose What You Are Building</h2>
+    <p>Start with the job first, then learn the deeper target model only when you need it.</p>
+  </a>
   <a class="docs-card" href="./guide/quickstart">
     <h2>Start Fast</h2>
-    <p>Use the strongest default path first, then expand only when the product needs more outputs.</p>
+    <p>Get a working repo fast from the new job-first entry path.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>See The Product Shape</h2>
@@ -56,37 +54,27 @@ outline: false
   </a>
 </div>
 
-## If You Need More Later
-
-- Add `Claude default lane` when Claude hooks are the product requirement.
-- Add `Codex package` or `Gemini packaging` when the product is a package or extension output.
-- Add `OpenCode` or `Cursor` when the repo should own integration setup.
-- Use `validate --strict` as the readiness gate before handoff or CI.
-
-## Common Expansion Paths
-
-- Start with a Codex runtime repo, then add Codex package or Gemini when packaging becomes part of the product.
-- Start with Claude when Claude hooks are the product, then keep the repo open for broader delivery lanes later.
-- Start on Node or Python locally, then add bundle handoff when downstream delivery matters.
-- Add OpenCode or Cursor when the repo should manage integration config, not just executable behavior.
-
 ## Read In This Order
 
 <div class="docs-grid">
+  <a class="docs-card" href="./guide/choose-what-you-are-building">
+    <h2>1. Choose What You Are Building</h2>
+    <p>Pick online service, local tool, or custom logic before you go deeper.</p>
+  </a>
   <a class="docs-card" href="./guide/quickstart">
-    <h2>1. Quickstart</h2>
-    <p>Start with one recommended path before you think about expansion.</p>
+    <h2>2. Quickstart</h2>
+    <p>Turn that choice into a working repo and a clean first validation loop.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
-    <h2>2. What You Can Build</h2>
+    <h2>3. What You Can Build</h2>
     <p>See the product shape across runtime, package, extension, and integration lanes.</p>
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
-    <h2>3. Choose A Target</h2>
-    <p>Choose the target that matches how you actually want to ship the plugin.</p>
+    <h2>4. Choose A Target</h2>
+    <p>Use this later when you are ready for target-specific shipping decisions.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
-    <h2>4. Support Boundary</h2>
+    <h2>5. Support Boundary</h2>
     <p>Use the reference cluster when you need exact compatibility language and support details.</p>
   </a>
 </div>

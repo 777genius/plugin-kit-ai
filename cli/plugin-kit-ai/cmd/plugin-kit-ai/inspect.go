@@ -13,6 +13,7 @@ import (
 
 var inspectTarget string
 var inspectFormat string
+var inspectAuthoring bool
 
 type inspectRunner interface {
 	Inspect(app.PluginInspectOptions) (pluginmanifest.Inspection, []pluginmanifest.Warning, error)
@@ -39,6 +40,10 @@ func newInspectCmd(runner inspectRunner) *cobra.Command {
 			}
 			for _, warning := range warnings {
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: %s\n", warning.Message)
+			}
+			if inspectAuthoring {
+				_, _ = fmt.Fprint(cmd.OutOrStdout(), renderInspectAuthoring(report))
+				return nil
 			}
 			switch strings.ToLower(strings.TrimSpace(inspectFormat)) {
 			case "", "text":
@@ -166,6 +171,7 @@ func newInspectCmd(runner inspectRunner) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&inspectTarget, "target", "all", `inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor")`)
 	cmd.Flags().StringVar(&inspectFormat, "format", "text", "output format: text or json")
+	cmd.Flags().BoolVar(&inspectAuthoring, "authoring", false, "show a plain-language authoring view instead of the raw contract view")
 	return cmd
 }
 
@@ -215,4 +221,126 @@ func inspectTargetAdvice(report pluginmanifest.Inspection, target pluginmanifest
 		"runtime_gate=make test-gemini-runtime",
 		"live_runtime_gate=make test-gemini-runtime-live",
 	}
+}
+
+func renderInspectAuthoring(report pluginmanifest.Inspection) string {
+	lines := []string{
+		fmt.Sprintf("Plugin repo: %s %s", report.Manifest.Name, report.Manifest.Version),
+		fmt.Sprintf("This repo is set up to %s.", inspectAuthoringPath(report)),
+	}
+
+	if authoredRoot := strings.TrimSpace(report.Layout.AuthoredRoot); authoredRoot != "" {
+		lines = append(lines, fmt.Sprintf("Editable source lives under %s.", authoredRoot))
+	}
+
+	if len(report.Layout.AuthoredInputs) > 0 {
+		lines = append(lines, "", "Edit these files:")
+		for _, path := range report.Layout.AuthoredInputs {
+			lines = append(lines, "  - "+path)
+		}
+	}
+
+	generated := authoredGeneratedOutputs(report)
+	if len(generated) > 0 {
+		lines = append(lines, "", "Generated files at the repo root:")
+		for _, path := range generated {
+			lines = append(lines, "  - "+path)
+		}
+	}
+
+	if len(report.Manifest.Targets) > 0 {
+		lines = append(lines, "", "Supported outputs:")
+		for _, target := range report.Manifest.Targets {
+			lines = append(lines, "  - "+target)
+		}
+	}
+
+	lines = append(lines, "", "Next commands:")
+	for _, command := range inspectAuthoringNextCommands(report) {
+		lines = append(lines, "  - "+command)
+	}
+
+	return strings.Join(lines, "\n") + "\n"
+}
+
+func inspectAuthoringPath(report pluginmanifest.Inspection) string {
+	if report.Launcher != nil {
+		return "build custom plugin logic"
+	}
+	if report.Portable.MCP != nil && report.Portable.MCP.File != nil {
+		hasRemote := false
+		hasLocal := false
+		for _, server := range report.Portable.MCP.File.Servers {
+			switch strings.TrimSpace(server.Type) {
+			case "remote":
+				hasRemote = true
+			case "stdio":
+				hasLocal = true
+			}
+		}
+		switch {
+		case hasRemote && !hasLocal:
+			return "connect an online service"
+		case hasLocal && !hasRemote:
+			return "connect a local tool"
+		case hasLocal && hasRemote:
+			return "connect online services and local tools"
+		}
+	}
+	return "manage generated plugin outputs from one authored source"
+}
+
+func authoredGeneratedOutputs(report pluginmanifest.Inspection) []string {
+	seen := map[string]struct{}{}
+	items := make([]string, 0, len(report.Layout.GeneratedOutputs)+len(report.Layout.BoundaryDocs)+1)
+	for _, path := range report.Layout.GeneratedOutputs {
+		switch path {
+		case "README.md", "CLAUDE.md", "AGENTS.md", "GENERATED.md":
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			items = append(items, path)
+		}
+	}
+	for _, path := range report.Layout.BoundaryDocs {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		items = append(items, path)
+	}
+	if generatedGuide := strings.TrimSpace(report.Layout.GeneratedGuide); generatedGuide != "" {
+		if _, ok := seen[generatedGuide]; !ok {
+			seen[generatedGuide] = struct{}{}
+			items = append(items, generatedGuide)
+		}
+	}
+	if len(items) > 0 {
+		return items
+	}
+	if len(report.Layout.GeneratedOutputs) == 0 {
+		return nil
+	}
+	items = make([]string, 0, len(report.Layout.GeneratedOutputs))
+	for _, path := range report.Layout.GeneratedOutputs {
+		items = append(items, path)
+	}
+	return slices.Compact(items)
+}
+
+func inspectAuthoringNextCommands(report pluginmanifest.Inspection) []string {
+	commands := []string{"plugin-kit-ai generate ."}
+	if report.Launcher == nil {
+		commands = append(commands, "plugin-kit-ai generate --check .")
+	}
+	commands = append(commands, fmt.Sprintf("plugin-kit-ai validate . --platform %s --strict", inspectAuthoringPrimaryTarget(report)))
+	return commands
+}
+
+func inspectAuthoringPrimaryTarget(report pluginmanifest.Inspection) string {
+	if len(report.Manifest.Targets) == 0 {
+		return "claude"
+	}
+	return report.Manifest.Targets[0]
 }

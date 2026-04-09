@@ -3,4 +3,6 @@ name: "{{.ProjectName}}"
 version: "{{.Version}}"
 description: "{{.Description}}"
 targets:
-  - "{{.Platform}}"
+{{- range .EffectiveTargets }}
+  - "{{ . }}"
+{{- end }}

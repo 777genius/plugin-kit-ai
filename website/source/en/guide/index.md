@@ -20,6 +20,7 @@ outline: false
 
 ## Recommended Reading Order
 
+- [Choose What You Are Building](/en/guide/choose-what-you-are-building)
 - [Quickstart](/en/guide/quickstart)
 - [Build Your First Plugin](/en/guide/first-plugin)
 - [What You Can Build](/en/guide/what-you-can-build)
@@ -28,9 +29,13 @@ outline: false
 - [How To Publish Plugins](/en/guide/how-to-publish-plugins)
 
 <div class="docs-grid">
+  <a class="docs-card" href="./choose-what-you-are-building">
+    <h2>Choose What You Are Building</h2>
+    <p>Start with online service, local tool, or custom logic before you touch the deeper target model.</p>
+  </a>
   <a class="docs-card" href="./quickstart">
     <h2>Quickstart</h2>
-    <p>Get a working repo fast with the default Go path and clear supported Node/Python alternatives.</p>
+    <p>Turn that job-first choice into a working repo and a clean first validation loop.</p>
   </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Build Your First Plugin</h2>

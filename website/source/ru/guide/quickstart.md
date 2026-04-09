@@ -14,13 +14,23 @@ translationRequired: true
 
 Сначала выберите один сильный стартовый путь. Package, extension и настройку интеграций в самом repo можно добавить позже, когда они действительно понадобятся продукту.
 
+## Начните с задачи
+
+Выберите форму repo по тому, что именно вы собираете:
+
+- online service: `plugin-kit-ai init my-plugin --template online-service`
+- local tool: `plugin-kit-ai init my-plugin --template local-tool`
+- custom logic: `plugin-kit-ai init my-plugin --template custom-logic`
+
+Если хотите сначала короткое объяснение, откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building).
+
 ## Если читать только одно
 
-Начинайте с Go по умолчанию, если вы заранее не знаете, что продукт определяется Claude hooks, Node/TypeScript или Python.
+Начинайте с job-first пути выше, если вы заранее не знаете, что вам нужен backward-compatible путь по умолчанию на Go или какой-то конкретный advanced target.
 
 Первый выбор - это стартовая точка, а не вечная граница репозитория.
 
-## Рекомендуемый старт по умолчанию
+## Backward-compatible путь по умолчанию
 
 Если у вас нет сильной причины выбрать другой путь, начинайте так:
 
@@ -33,7 +43,7 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-Это даёт самый сильный путь по умолчанию: Go-репозиторий для Codex runtime, который проще всего проверять, передавать другим и потом расширять.
+Это сохраняет самый сильный legacy-путь по умолчанию: Go-репозиторий для Codex runtime, который проще всего проверять, передавать другим и потом расширять.
 
 ## Почему это путь по умолчанию
 
@@ -103,3 +113,10 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 - package и extension lanes идут из того же authored source
 - OpenCode и Cursor нужны тогда, когда repo должен хранить и вести настройку интеграции
 - точная support boundary живёт в reference docs, а не в вашем первом стартовом flow
+
+## Что читать дальше
+
+- [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
+- [Создайте первый plugin](/ru/guide/first-plugin)
+- [Что можно собрать](/ru/guide/what-you-can-build)
+- [Выбор target](/ru/guide/choose-a-target)

@@ -20,6 +20,7 @@ outline: false
 
 ## Рекомендуемый порядок чтения
 
+- [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
 - [Quickstart](/ru/guide/quickstart)
 - [Создайте первый plugin](/ru/guide/first-plugin)
 - [Что можно собрать](/ru/guide/what-you-can-build)
@@ -28,9 +29,13 @@ outline: false
 - [Как публиковать плагины](/ru/guide/how-to-publish-plugins)
 
 <div class="docs-grid">
+  <a class="docs-card" href="./choose-what-you-are-building">
+    <h2>Что именно вы собираете</h2>
+    <p>Сначала выберите online service, local tool или custom logic, а уже потом уходите в target-модель.</p>
+  </a>
   <a class="docs-card" href="./quickstart">
     <h2>Quickstart</h2>
-    <p>Быстро поднимите рабочий repo через default Go path и сразу увидьте понятные supported alternatives для Node/Python.</p>
+    <p>Превратите этот выбор в рабочий repo и первый validation loop.</p>
   </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Создайте первый plugin</h2>

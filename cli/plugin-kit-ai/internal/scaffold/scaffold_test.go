@@ -37,6 +37,47 @@ func TestLookupPlatform(t *testing.T) {
 	}
 }
 
+func TestBuildPlan_OnlineServiceTemplate(t *testing.T) {
+	t.Parallel()
+	plan, err := BuildPlan(Data{
+		ProjectName: "demo",
+		JobTemplate: InitTemplateOnlineService,
+		Targets:     DefaultJobTemplateTargets(InitTemplateOnlineService),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "README.md"),
+		"CLAUDE.md",
+		"AGENTS.md",
+	} {
+		if !containsPlannedFile(plan.Files, want) {
+			t.Fatalf("missing %q in %+v", want, plan.Files)
+		}
+	}
+	if containsPlannedFile(plan.Files, filepath.Join("src", "launcher.yaml")) {
+		t.Fatalf("unexpected launcher in %+v", plan.Files)
+	}
+}
+
+func TestBuildPlan_LocalToolTemplateSingleTarget(t *testing.T) {
+	t.Parallel()
+	plan, err := BuildPlan(Data{
+		ProjectName: "demo",
+		JobTemplate: InitTemplateLocalTool,
+		Targets:     []string{"cursor"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Data.PrimaryTarget() != "cursor" {
+		t.Fatalf("primary target = %q", plan.Data.PrimaryTarget())
+	}
+}
+
 func TestPaths_Gemini(t *testing.T) {
 	t.Parallel()
 	got := Paths("gemini", "my-plugin", true)
@@ -1555,6 +1596,13 @@ func liveTemplateNames() map[string]struct{} {
 			out[file.Template] = struct{}{}
 		}
 	}
+	for _, templateName := range []string{InitTemplateOnlineService, InitTemplateLocalTool} {
+		for _, extras := range []bool{false, true} {
+			for _, file := range jobTemplateFilesFor(templateName, extras) {
+				out[file.Template] = struct{}{}
+			}
+		}
+	}
 	return out
 }
 
@@ -1637,6 +1685,18 @@ func contains(haystack []string, needle string) bool {
 			return true
 		}
 		if item == canonicalTestPath(needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPlannedFile(files []PlannedFile, needle string) bool {
+	for _, file := range files {
+		if file.RelPath == needle {
+			return true
+		}
+		if file.RelPath == canonicalTestPath(needle) {
 			return true
 		}
 	}

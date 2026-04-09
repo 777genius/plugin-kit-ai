@@ -14,33 +14,31 @@ outline: false
   <p class="docs-kicker">ПУБЛИЧНАЯ ДОКУМЕНТАЦИЯ</p>
   <h1>plugin-kit-ai</h1>
   <p class="docs-lead">
-    Работайте из одного репозитория, начинайте с Go по умолчанию, а потом при необходимости
-    добавляйте packages, Claude hooks, Gemini или настройку интеграций в самом репозитории.
+    Собирайте один plugin repo и отправляйте его в несколько AI agents, не погружаясь в полную target-модель в первый же день.
   </p>
 </div>
 
-## Старт по умолчанию
+## Начните с задачи
 
-- `Codex runtime Go` - это старт по умолчанию для самого сильного runtime и release story.
+- [Подключить онлайн-сервис](/ru/guide/choose-what-you-are-building#подключить-онлайн-сервис)
+- [Подключить локальный инструмент](/ru/guide/choose-what-you-are-building#подключить-локальный-инструмент)
+- [Сделать свой plugin с логикой](/ru/guide/choose-what-you-are-building#сделать-свой-plugin-с-логикой)
 
 ## Что важно понять сразу
 
 - один репозиторий остаётся source of truth по мере добавления новых lanes
-- выбирайте стартовый путь под то, что вам нужно прямо сейчас
+- выбирайте стартовый путь под задачу, которая нужна прямо сейчас
 - расширяйтесь позже из того же repo, когда продукту понадобятся новые outputs
 - используйте `generate` и `validate --strict` как общий readiness workflow
 
-## Поддерживаемые пути для Node и Python
-
-- `codex-runtime --runtime node --typescript` - основной поддерживаемый non-Go путь.
-- `codex-runtime --runtime python` - поддерживаемый путь для Python-first команды.
-- оба варианта являются локальными interpreted runtime paths, поэтому на машине исполнения всё равно нужен Node.js `20+` или Python `3.10+`.
-- это понятные ранние варианты для команд, которые уже живут в этих стеках, но это не старт по умолчанию.
-
 <div class="docs-grid">
+  <a class="docs-card" href="./guide/choose-what-you-are-building">
+    <h2>Что именно вы делаете</h2>
+    <p>Сначала выберите задачу, а уже потом уходите в детали target'ов и packaging.</p>
+  </a>
   <a class="docs-card" href="./guide/quickstart">
     <h2>Быстрый старт</h2>
-    <p>Начните с самого сильного стартового пути, а всё остальное добавляйте позже.</p>
+    <p>Быстро поднимите рабочий repo через новый job-first вход.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>Что можно построить</h2>
@@ -56,30 +54,27 @@ outline: false
   </a>
 </div>
 
-## Что добавлять потом
-
-- Добавляйте `Claude default lane`, когда Claude hooks и есть реальное требование продукта.
-- Добавляйте `Codex package` или `Gemini packaging`, когда продуктом становится package или extension output.
-- Добавляйте `OpenCode` или `Cursor`, когда repo должен хранить и вести настройку интеграции.
-- Используйте `validate --strict` как readiness gate перед handoff и CI.
-
 ## Читайте в таком порядке
 
 <div class="docs-grid">
+  <a class="docs-card" href="./guide/choose-what-you-are-building">
+    <h2>1. Что вы собираете</h2>
+    <p>Выберите online service, local tool или custom logic до target-деталей.</p>
+  </a>
   <a class="docs-card" href="./guide/quickstart">
-    <h2>1. Быстрый старт</h2>
-    <p>Начните с одного рекомендуемого пути до того, как уйдёте в детали по target'ам.</p>
+    <h2>2. Быстрый старт</h2>
+    <p>Превратите этот выбор в рабочий repo и первый validation loop.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
-    <h2>2. Что можно построить</h2>
+    <h2>3. Что можно построить</h2>
     <p>Посмотрите на общую product shape по runtime, package, extension и integration lanes.</p>
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
-    <h2>3. Выбор target</h2>
-    <p>Выберите target, который соответствует тому, как вы реально хотите поставлять плагин сегодня.</p>
+    <h2>4. Выбор target</h2>
+    <p>Открывайте это позже, когда уже нужны конкретные решения по способу поставки.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
-    <h2>4. Граница поддержки</h2>
+    <h2>5. Граница поддержки</h2>
     <p>Открывайте reference cluster, когда нужен точный compatibility language и support details.</p>
   </a>
 </div>

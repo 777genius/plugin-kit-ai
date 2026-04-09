@@ -2,6 +2,15 @@
 
 This document is the canonical production authoring path for plugin authors using `plugin-kit-ai`.
 
+If you are starting a new repo, use the job-first entry layer first:
+
+- `plugin-kit-ai init my-plugin --template online-service`
+- `plugin-kit-ai init my-plugin --template local-tool`
+- `plugin-kit-ai init my-plugin --template custom-logic`
+
+Those are onboarding categories, not new target IDs.
+Under the hood they still map into the same target system, generation contracts, and support boundary described in the rest of this document.
+
 ## Current Target Boundary
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set when launcher-backed hooks are used, and also supports a production-ready package/config lane for package-only plugins under the same `claude` target

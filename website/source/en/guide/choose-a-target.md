@@ -10,6 +10,9 @@ translationRequired: true
 
 # Choose A Target
 
+This is an advanced page.
+If you are still deciding what kind of repo to create, start with [Choose What You Are Building](/en/guide/choose-what-you-are-building) first.
+
 Use this page when you already know you want `plugin-kit-ai`, but you still need to match the repo to how you want to ship the plugin.
 
 Choosing a target means choosing the main path the product needs today, not locking the repo forever.

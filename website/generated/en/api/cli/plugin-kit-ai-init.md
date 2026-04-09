@@ -28,25 +28,27 @@ Create a plugin-kit-ai package scaffold
 
 Creates a package-standard plugin-kit-ai project scaffold.
 
-Choose the lane that matches your goal:
+Start with the job you want to solve:
 
-Fast local plugin:
-  Use --runtime python or --runtime node when repo-local iteration matters more than packaged distribution.
-  These are supported executable-runtime paths, not equal production paths.
+Connect an online service:
+  Use --template online-service for hosted integrations like Notion, Stripe, Cloudflare, or Vercel.
+  This starter creates an MCP-first repo with shared authored source under src/ and no launcher code.
 
-Production-ready plugin repo:
-  Plain init keeps the strongest supported runtime path. --runtime go remains the default, and --platform codex-runtime remains the default target.
-  Use --platform claude for Claude hooks, and add --claude-extended-hooks only when you intentionally want the wider runtime-supported subset.
-  Use --platform codex-package for the official Codex plugin bundle without local notify/runtime wiring.
-  Use --platform opencode for the OpenCode workspace-config lane without launcher/runtime scaffolding.
-  Use --platform cursor for the Cursor workspace-config lane without launcher/runtime scaffolding.
+Connect a local tool:
+  Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
+  This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
+
+Build custom plugin logic:
+  Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
+  Plain init stays backward-compatible here: codex-runtime plus --runtime go remains the default path.
 
 Already have native config:
   Use plugin-kit-ai import to bring current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
   init is for creating a new package-standard project, not for preserving native files as the authored source of truth.
 
 Public flags:
-  --platform   Supported: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", and "cursor".
+  --template   Recommended start: "online-service", "local-tool", or "custom-logic".
+  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   --runtime-package
@@ -75,6 +77,7 @@ plugin-kit-ai init [project-name] [flags]
       --runtime string                   runtime ("go", "python", "node", or "shell") (default "go")
       --runtime-package                  for --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file
       --runtime-package-version string   pin the generated plugin-kit-ai-runtime dependency version
+      --template string                  recommended start ("online-service", "local-tool", or "custom-logic")
       --typescript                       generate a TypeScript scaffold on top of the node runtime lane
 ```
 

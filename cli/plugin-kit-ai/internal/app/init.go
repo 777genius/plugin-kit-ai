@@ -17,8 +17,11 @@ import (
 // InitOptions is parsed CLI state for plugin-kit-ai init.
 type InitOptions struct {
 	ProjectName           string
+	Template              string
 	Platform              string
+	PlatformExplicit      bool
 	Runtime               string
+	RuntimeExplicit       bool
 	TypeScript            bool
 	RuntimePackage        bool
 	RuntimePackageVersion string
@@ -40,62 +43,128 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		return "", err
 	}
 
+	templateName := scaffold.NormalizeTemplate(opts.Template)
+	if !scaffold.IsKnownTemplate(templateName) {
+		return "", fmt.Errorf("unknown template %q", opts.Template)
+	}
+
 	p := strings.ToLower(strings.TrimSpace(opts.Platform))
-	if _, ok := scaffold.LookupPlatform(p); !ok {
-		return "", errUnknownPlatform(opts.Platform)
-	}
-	if opts.ClaudeExtendedHooks && p != "claude" {
-		return "", fmt.Errorf("--claude-extended-hooks is only supported with --platform claude")
-	}
-	if p == "gemini" {
-		if opts.TypeScript {
-			return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
-		}
-		if err := pluginmanifest.ValidateGeminiExtensionName(name); err != nil {
-			return "", err
-		}
-		runtimeFlag := strings.ToLower(strings.TrimSpace(opts.Runtime))
-		if runtimeFlag != "" && runtimeFlag != scaffold.RuntimeGo {
-			return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
-		}
-	}
-	if p == "opencode" || p == "cursor" {
-		if opts.TypeScript {
-			return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
-		}
-		if strings.TrimSpace(opts.Runtime) != "" {
-			return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
-		}
-	}
-	if p == "codex-package" && strings.TrimSpace(opts.Runtime) != "" {
-		return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
-	}
-	if p == "codex-package" && opts.TypeScript {
-		return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
-	}
-	if opts.RuntimePackage && (p == "gemini" || p == "codex-package" || p == "opencode" || p == "cursor") {
-		return "", fmt.Errorf("--runtime-package is not supported with --platform %s", p)
-	}
 	r := strings.ToLower(strings.TrimSpace(opts.Runtime))
-	if p != "codex-package" && p != "opencode" && p != "cursor" {
-		if _, ok := scaffold.LookupRuntime(r); !ok {
-			return "", errUnknownRuntime(opts.Runtime)
-		}
-	}
-	if opts.TypeScript && r != scaffold.RuntimeNode {
-		return "", fmt.Errorf("--typescript requires --runtime node")
-	}
-	if opts.RuntimePackage && r != scaffold.RuntimePython && r != scaffold.RuntimeNode {
-		return "", fmt.Errorf("--runtime-package requires --runtime python or --runtime node")
-	}
-	if !opts.RuntimePackage && strings.TrimSpace(opts.RuntimePackageVersion) != "" {
-		return "", fmt.Errorf("--runtime-package-version requires --runtime-package")
-	}
+	targets := []string(nil)
 	runtimePackageVersion := strings.TrimSpace(opts.RuntimePackageVersion)
-	if opts.RuntimePackage && runtimePackageVersion == "" {
-		runtimePackageVersion = defaultRuntimePackageVersion()
-		if runtimePackageVersion == "" {
-			return "", fmt.Errorf("--runtime-package requires --runtime-package-version when the CLI build does not have a stable tagged version")
+
+	if scaffold.IsPackageOnlyJobTemplate(templateName) {
+		if opts.ClaudeExtendedHooks {
+			return "", fmt.Errorf("--claude-extended-hooks is only supported with --template custom-logic and --platform claude")
+		}
+		if opts.TypeScript {
+			return "", fmt.Errorf("--typescript is not supported with --template %s; use --template custom-logic when you need runtime code", templateName)
+		}
+		if opts.RuntimePackage {
+			return "", fmt.Errorf("--runtime-package is not supported with --template %s; use --template custom-logic when you need a shared runtime package", templateName)
+		}
+		if runtimePackageVersion != "" {
+			return "", fmt.Errorf("--runtime-package-version requires --template custom-logic with --runtime-package")
+		}
+		if opts.RuntimeExplicit && r != "" {
+			return "", fmt.Errorf("--runtime is not supported with --template %s; use --template custom-logic when you need launcher-backed code", templateName)
+		}
+		if opts.PlatformExplicit {
+			platform, ok := scaffold.LookupPlatform(p)
+			if !ok {
+				return "", errUnknownPlatform(opts.Platform)
+			}
+			switch platform.Name {
+			case "claude", "codex-package", "gemini", "opencode", "cursor":
+				targets = []string{platform.Name}
+			default:
+				return "", fmt.Errorf("--template %s only supports package and workspace outputs; use --template custom-logic for %s", templateName, platform.Name)
+			}
+		} else {
+			targets = scaffold.DefaultJobTemplateTargets(templateName)
+		}
+		for _, target := range targets {
+			if target == "gemini" {
+				if err := pluginmanifest.ValidateGeminiExtensionName(name); err != nil {
+					return "", fmt.Errorf("project name %q must be lowercase kebab-case when --template %s includes gemini output: %w", name, templateName, err)
+				}
+			}
+		}
+		p = ""
+		r = ""
+	} else {
+		if templateName == scaffold.InitTemplateCustomLogic {
+			if !opts.PlatformExplicit {
+				p = "codex-runtime"
+			}
+			switch p {
+			case "codex-runtime", "claude", "gemini":
+			case "":
+				p = "codex-runtime"
+			default:
+				return "", fmt.Errorf("--template custom-logic supports launcher-backed targets only; choose codex-runtime, claude, or gemini")
+			}
+			if !opts.RuntimeExplicit {
+				r = scaffold.RuntimeGo
+			}
+			if p == "gemini" && !opts.RuntimeExplicit {
+				r = scaffold.RuntimeGo
+			}
+		}
+		if _, ok := scaffold.LookupPlatform(p); !ok {
+			return "", errUnknownPlatform(opts.Platform)
+		}
+		if opts.ClaudeExtendedHooks && p != "claude" {
+			return "", fmt.Errorf("--claude-extended-hooks is only supported with --platform claude")
+		}
+		if p == "gemini" {
+			if opts.TypeScript {
+				return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
+			}
+			if err := pluginmanifest.ValidateGeminiExtensionName(name); err != nil {
+				return "", err
+			}
+			runtimeFlag := strings.ToLower(strings.TrimSpace(r))
+			if runtimeFlag != "" && runtimeFlag != scaffold.RuntimeGo {
+				return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
+			}
+		}
+		if p == "opencode" || p == "cursor" {
+			if opts.TypeScript {
+				return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
+			}
+			if strings.TrimSpace(r) != "" {
+				return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
+			}
+		}
+		if p == "codex-package" && strings.TrimSpace(r) != "" {
+			return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
+		}
+		if p == "codex-package" && opts.TypeScript {
+			return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
+		}
+		if opts.RuntimePackage && (p == "gemini" || p == "codex-package" || p == "opencode" || p == "cursor") {
+			return "", fmt.Errorf("--runtime-package is not supported with --platform %s", p)
+		}
+		if p != "codex-package" && p != "opencode" && p != "cursor" {
+			if _, ok := scaffold.LookupRuntime(r); !ok {
+				return "", errUnknownRuntime(opts.Runtime)
+			}
+		}
+		if opts.TypeScript && r != scaffold.RuntimeNode {
+			return "", fmt.Errorf("--typescript requires --runtime node")
+		}
+		if opts.RuntimePackage && r != scaffold.RuntimePython && r != scaffold.RuntimeNode {
+			return "", fmt.Errorf("--runtime-package requires --runtime python or --runtime node")
+		}
+		if !opts.RuntimePackage && runtimePackageVersion != "" {
+			return "", fmt.Errorf("--runtime-package-version requires --runtime-package")
+		}
+		if opts.RuntimePackage && runtimePackageVersion == "" {
+			runtimePackageVersion = defaultRuntimePackageVersion()
+			if runtimePackageVersion == "" {
+				return "", fmt.Errorf("--runtime-package requires --runtime-package-version when the CLI build does not have a stable tagged version")
+			}
 		}
 	}
 
@@ -117,7 +186,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 	d := scaffold.Data{
 		ProjectName:           name,
 		ModulePath:            scaffold.DefaultModulePath(name),
-		Description:           "plugin-kit-ai plugin",
+		Description:           initDescription(templateName),
 		Version:               "0.1.0",
 		GoSDKReplacePath:      defaultGoSDKReplacePath(),
 		Platform:              p,
@@ -129,6 +198,17 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		HasCommands:           opts.Extras,
 		WithExtras:            opts.Extras,
 		ClaudeExtendedHooks:   opts.ClaudeExtendedHooks,
+		JobTemplate:           templateName,
+		Targets:               targets,
+	}
+	if templateName == scaffold.InitTemplateCustomLogic {
+		d.Description = "Build custom plugin logic with one plugin repo"
+	}
+	if templateName == scaffold.InitTemplateOnlineService {
+		d.Description = "Connect an online service with one plugin repo"
+	}
+	if templateName == scaffold.InitTemplateLocalTool {
+		d.Description = "Connect a local tool with one plugin repo"
 	}
 	if p == "codex-runtime" {
 		d.CodexModel = scaffold.DefaultCodexModel
@@ -158,6 +238,19 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		return "", err
 	}
 	return out, nil
+}
+
+func initDescription(templateName string) string {
+	switch templateName {
+	case scaffold.InitTemplateOnlineService:
+		return "Connect an online service with one plugin repo"
+	case scaffold.InitTemplateLocalTool:
+		return "Connect a local tool with one plugin repo"
+	case scaffold.InitTemplateCustomLogic:
+		return "Build custom plugin logic with one plugin repo"
+	default:
+		return "plugin-kit-ai plugin"
+	}
 }
 
 func errUnknownPlatform(platform string) error {

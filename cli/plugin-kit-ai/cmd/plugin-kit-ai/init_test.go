@@ -39,20 +39,19 @@ func TestInitHelpIncludesScenarioLanesAndDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"Fast local plugin",
-		"Production-ready plugin repo",
+		"Connect an online service",
+		"Connect a local tool",
+		"Build custom plugin logic",
 		"Already have native config",
 		"plugin-kit-ai import",
-		`--platform   Supported: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", and "cursor".`,
+		`--template   Recommended start: "online-service", "local-tool", or "custom-logic".`,
+		`--platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".`,
 		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.`,
 		"--typescript Generate a TypeScript scaffold on top of the node runtime lane",
 		"--runtime-package",
 		"--runtime-package-version",
 		"import the shared plugin-kit-ai-runtime package instead of vendoring the helper file",
-		"--runtime go remains the default",
-		"--platform codex-package",
-		"--platform opencode",
-		"--platform cursor",
+		"Plain init stays backward-compatible here",
 		"--claude-extended-hooks",
 	} {
 		if !strings.Contains(output, want) {
@@ -77,6 +76,9 @@ func TestInitCommandUsesDefaultPlatformAndRuntime(t *testing.T) {
 	}
 	if runner.gotOpts.Runtime != "go" {
 		t.Fatalf("runtime = %q, want go", runner.gotOpts.Runtime)
+	}
+	if runner.gotOpts.Template != "" {
+		t.Fatalf("template = %q, want empty", runner.gotOpts.Template)
 	}
 }
 
@@ -268,6 +270,86 @@ func TestInitCommandPassesRuntimePackageFlag(t *testing.T) {
 	}
 	if runner.gotOpts.RuntimePackageVersion != scaffold.DefaultRuntimePackageVersion {
 		t.Fatalf("runtime package version = %q", runner.gotOpts.RuntimePackageVersion)
+	}
+}
+
+func TestInitCommandUsesOnlineServiceTemplate(t *testing.T) {
+	t.Parallel()
+	runner := &fakeInitRunner{outDir: "/tmp/demo plugin"}
+	cmd := newInitCmd(runner)
+	cmd.SetArgs([]string{"demo", "--template", "online-service"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if runner.gotOpts.Template != scaffold.InitTemplateOnlineService {
+		t.Fatalf("template = %q", runner.gotOpts.Template)
+	}
+	if runner.gotOpts.PlatformExplicit {
+		t.Fatal("platform should not be explicit")
+	}
+	if runner.gotOpts.RuntimeExplicit {
+		t.Fatal("runtime should not be explicit")
+	}
+}
+
+func TestInitCommandUsesLocalToolTemplateWithExplicitTarget(t *testing.T) {
+	t.Parallel()
+	runner := &fakeInitRunner{outDir: "/tmp/demo plugin"}
+	cmd := newInitCmd(runner)
+	cmd.SetArgs([]string{"demo", "--template", "local-tool", "--platform", "cursor"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if runner.gotOpts.Template != scaffold.InitTemplateLocalTool {
+		t.Fatalf("template = %q", runner.gotOpts.Template)
+	}
+	if runner.gotOpts.Platform != "cursor" || !runner.gotOpts.PlatformExplicit {
+		t.Fatalf("platform opts = %+v", runner.gotOpts)
+	}
+}
+
+func TestInitSuccessOutputForOnlineServiceTemplate(t *testing.T) {
+	t.Parallel()
+	output := formatInitSuccess("/tmp/demo plugin", app.InitOptions{
+		ProjectName: "demo",
+		Template:    scaffold.InitTemplateOnlineService,
+	})
+	for _, want := range []string{
+		"plugin-kit-ai inspect . --authoring",
+		"plugin-kit-ai generate .",
+		"plugin-kit-ai generate --check .",
+		"plugin-kit-ai validate . --platform claude --strict",
+		"See src/README.md for the first run",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestInitCommandRejectsRuntimeOnOnlineServiceTemplate(t *testing.T) {
+	t.Parallel()
+	cmd := newInitCmd(app.InitRunner{})
+	cmd.SetArgs([]string{"demo", "--template", "online-service", "--runtime", "node", "-o", t.TempDir()})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--runtime is not supported with --template online-service") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestInitCommandRejectsPackageLaneOnCustomLogicTemplate(t *testing.T) {
+	t.Parallel()
+	cmd := newInitCmd(app.InitRunner{})
+	cmd.SetArgs([]string{"demo", "--template", "custom-logic", "--platform", "cursor", "-o", t.TempDir()})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "--template custom-logic supports launcher-backed targets only") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

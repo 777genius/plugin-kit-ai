@@ -19,6 +19,12 @@ var tmplFS embed.FS
 
 const DefaultCodexModel = "gpt-5.4-mini"
 
+const (
+	InitTemplateOnlineService = "online-service"
+	InitTemplateLocalTool     = "local-tool"
+	InitTemplateCustomLogic   = "custom-logic"
+)
+
 // Data is passed to all templates.
 type Data struct {
 	ModulePath            string
@@ -39,6 +45,8 @@ type Data struct {
 	HasSkills             bool
 	HasCommands           bool
 	WithExtras            bool
+	JobTemplate           string
+	Targets               []string
 }
 
 type TemplateFile struct {
@@ -80,6 +88,67 @@ func ValidateProjectName(name string) error {
 // DefaultModulePath returns example.com/<name> for generated go.mod.
 func DefaultModulePath(name string) string {
 	return "example.com/" + name
+}
+
+func NormalizeTemplate(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
+}
+
+func IsKnownTemplate(name string) bool {
+	switch NormalizeTemplate(name) {
+	case "", InitTemplateOnlineService, InitTemplateLocalTool, InitTemplateCustomLogic:
+		return true
+	default:
+		return false
+	}
+}
+
+func DefaultJobTemplateTargets(template string) []string {
+	switch NormalizeTemplate(template) {
+	case InitTemplateOnlineService, InitTemplateLocalTool:
+		return []string{"claude", "codex-package", "gemini", "opencode", "cursor"}
+	default:
+		return nil
+	}
+}
+
+func IsPackageOnlyJobTemplate(template string) bool {
+	switch NormalizeTemplate(template) {
+	case InitTemplateOnlineService, InitTemplateLocalTool:
+		return true
+	default:
+		return false
+	}
+}
+
+func (d Data) EffectiveTargets() []string {
+	if len(d.Targets) > 0 {
+		return append([]string(nil), d.Targets...)
+	}
+	if strings.TrimSpace(d.Platform) == "" {
+		return nil
+	}
+	return []string{d.Platform}
+}
+
+func (d Data) PrimaryTarget() string {
+	targets := d.EffectiveTargets()
+	if len(targets) == 1 {
+		return targets[0]
+	}
+	return ""
+}
+
+func (d Data) IsOnlineServiceTemplate() bool {
+	return NormalizeTemplate(d.JobTemplate) == InitTemplateOnlineService
+}
+
+func (d Data) IsLocalToolTemplate() bool {
+	return NormalizeTemplate(d.JobTemplate) == InitTemplateLocalTool
+}
+
+func (d Data) IsCustomLogicTemplate() bool {
+	return NormalizeTemplate(d.JobTemplate) == InitTemplateCustomLogic
 }
 
 // Paths lists relative paths created by Write (for tests and docs).
@@ -139,6 +208,9 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 	}
 	if strings.TrimSpace(d.GoSDKVersion) == "" {
 		d.GoSDKVersion = DefaultGoSDKVersion
+	}
+	if IsPackageOnlyJobTemplate(d.JobTemplate) {
+		return buildJobTemplatePlan(d)
 	}
 	p, ok := LookupPlatform(d.Platform)
 	if !ok {
@@ -217,6 +289,60 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 		Files:    expandTemplateFiles(planFilesFor(p.Name, d.Runtime, d.WithExtras, d.TypeScript, d.SharedRuntimePackage), d),
 	}
 	return out, nil
+}
+
+func buildJobTemplatePlan(d Data) (ProjectPlan, error) {
+	templateName := NormalizeTemplate(d.JobTemplate)
+	targets := d.EffectiveTargets()
+	if len(targets) == 0 {
+		targets = DefaultJobTemplateTargets(templateName)
+	}
+	if len(targets) == 0 {
+		return ProjectPlan{}, fmt.Errorf("template %q requires at least one target", templateName)
+	}
+	for i, target := range targets {
+		p, ok := LookupPlatform(target)
+		if !ok {
+			return ProjectPlan{}, fmt.Errorf("unknown platform %q", target)
+		}
+		if p.Name == "codex-runtime" {
+			return ProjectPlan{}, fmt.Errorf("template %q does not support --platform %s", templateName, p.Name)
+		}
+		targets[i] = p.Name
+	}
+	d.Targets = targets
+	if len(targets) == 1 {
+		d.Platform = targets[0]
+	} else {
+		d.Platform = ""
+	}
+	if d.WithExtras {
+		d.HasSkills = true
+	}
+	return ProjectPlan{
+		Platform: strings.Join(targets, ","),
+		Data:     d,
+		Files:    expandTemplateFiles(jobTemplateFilesFor(templateName, d.WithExtras), d),
+	}, nil
+}
+
+func jobTemplateFilesFor(templateName string, extras bool) []TemplateFile {
+	files := []TemplateFile{
+		{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
+		{Path: "src/mcp/servers.yaml", Template: "job.online-service.mcp.servers.yaml.tmpl", Extra: false},
+		{Path: "src/README.md", Template: "job.online-service.README.md.tmpl", Extra: false},
+		{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl", Extra: false},
+		{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl", Extra: false},
+	}
+	switch templateName {
+	case InitTemplateLocalTool:
+		files[1].Template = "job.local-tool.mcp.servers.yaml.tmpl"
+		files[2].Template = "job.local-tool.README.md.tmpl"
+	}
+	if extras {
+		files = append(files, TemplateFile{Path: "src/skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true})
+	}
+	return files
 }
 
 func planFilesFor(platform, runtime string, extras, typescript, sharedRuntimePackage bool) []TemplateFile {

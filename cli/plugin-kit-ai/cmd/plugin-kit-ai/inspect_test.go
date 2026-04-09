@@ -10,6 +10,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 type fakeInspectRunner struct {
@@ -55,6 +56,69 @@ func TestInspectTextShowsLauncherAndGeminiGuidance(t *testing.T) {
 		"next=go test ./...; plugin-kit-ai generate --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
 		"runtime_gate=make test-gemini-runtime",
 		"live_runtime_gate=make test-gemini-runtime-live",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestInspectAuthoringShowsJobFirstSummary(t *testing.T) {
+	t.Parallel()
+	cmd := newInspectCmd(fakeInspectRunner{
+		report: pluginmanifest.Inspection{
+			Manifest: pluginmanifest.Manifest{
+				Name:    "demo",
+				Version: "0.1.0",
+				Targets: []string{"claude", "codex-package", "gemini", "opencode", "cursor"},
+			},
+			Portable: pluginmanifest.PortableComponents{
+				MCP: &pluginmanifest.PortableMCP{
+					File: &pluginmodel.PortableMCPFile{
+						Servers: map[string]pluginmodel.PortableMCPServer{
+							"service": {
+								Type: "remote",
+								Remote: &pluginmodel.PortableMCPRemote{
+									URL:      "https://example.com/mcp",
+									Protocol: "streamable_http",
+								},
+							},
+						},
+					},
+				},
+			},
+			Layout: pluginmanifest.InspectLayout{
+				AuthoredRoot:     "src",
+				AuthoredInputs:   []string{"src/plugin.yaml", "src/mcp/servers.yaml"},
+				GeneratedOutputs: []string{"README.md", "CLAUDE.md", "AGENTS.md", "GENERATED.md", ".mcp.json"},
+			},
+		},
+	})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--authoring", "."})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	output := buf.String()
+	for _, want := range []string{
+		"This repo is set up to connect an online service.",
+		"Editable source lives under src.",
+		"Edit these files:",
+		"  - src/plugin.yaml",
+		"  - src/mcp/servers.yaml",
+		"Generated files at the repo root:",
+		"  - README.md",
+		"  - CLAUDE.md",
+		"  - AGENTS.md",
+		"  - GENERATED.md",
+		"Supported outputs:",
+		"  - claude",
+		"Next commands:",
+		"  - plugin-kit-ai generate .",
+		"  - plugin-kit-ai generate --check .",
+		"  - plugin-kit-ai validate . --platform claude --strict",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)

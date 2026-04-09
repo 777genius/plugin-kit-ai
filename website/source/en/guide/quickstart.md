@@ -14,13 +14,23 @@ This is the shortest recommended path when you want one plugin repo that can lat
 
 Start with one strong path first. Add packages, extensions, or repo-owned integration setup later when the product actually needs them.
 
+## Start With The Job
+
+Pick the repo shape by what you are building:
+
+- online service: `plugin-kit-ai init my-plugin --template online-service`
+- local tool: `plugin-kit-ai init my-plugin --template local-tool`
+- custom logic: `plugin-kit-ai init my-plugin --template custom-logic`
+
+If you want the shortest decision page first, read [Choose What You Are Building](/en/guide/choose-what-you-are-building).
+
 ## If You Only Read One Thing
 
-Start with the default Go path unless you already know that Claude hooks, Node/TypeScript, or Python define the product requirement.
+Start with the job-first path above unless you already know you need the backward-compatible default Go path or a specific advanced target.
 
 Your first choice is the starting point, not the permanent boundary of the repo.
 
-## Recommended Default
+## Backward-Compatible Default
 
 If you do not have a strong reason to choose another path, start here:
 
@@ -33,7 +43,7 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-That gives you the strongest default path today: a Go-based Codex runtime repo that stays easy to validate, hand off, and expand later.
+That keeps the strongest legacy default path today: a Go-based Codex runtime repo that stays easy to validate, hand off, and expand later.
 
 ## Why This Is The Default
 
@@ -106,6 +116,7 @@ Choose `claude` first only when Claude hooks are already the real product requir
 
 ## After Quickstart
 
+- Continue with [Choose What You Are Building](/en/guide/choose-what-you-are-building) if you want the shortest decision page for new repos.
 - Continue with [Build Your First Plugin](/en/guide/first-plugin) if you want the narrowest recommended tutorial.
 - Continue with [What You Can Build](/en/guide/what-you-can-build) if you want the full product map.
 - Continue with [Choose A Target](/en/guide/choose-a-target) when you are ready to match the repo to how you want to ship it.
