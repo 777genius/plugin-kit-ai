@@ -6,6 +6,7 @@ import greptileLogo from '~/assets/images/plugin-logos/greptile.svg';
 import linearLogo from '~/assets/images/plugin-logos/linear.svg';
 import notionLogo from '~/assets/images/plugin-logos/notion.png';
 import sentryLogo from '~/assets/images/plugin-logos/sentry.svg';
+import stripeLogo from '~/assets/images/plugin-logos/stripe.svg';
 import supabaseLogo from '~/assets/images/plugin-logos/supabase.svg';
 import vercelLogo from '~/assets/images/plugin-logos/vercel.svg';
 import type { PluginLogoSurface } from '~/types/content';
@@ -24,6 +25,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'linear.svg': { src: linearLogo },
   'notion.svg': { src: notionLogo },
   'sentry.svg': { src: sentryLogo },
+  'stripe.svg': { src: stripeLogo },
   'supabase.svg': { src: supabaseLogo },
   'vercel.svg': { src: vercelLogo },
 };

@@ -80,6 +80,9 @@ test-vercel-live:
 test-sentry-live:
 	PLUGIN_KIT_AI_RUN_SENTRY_LIVE=1 go test -count=1 -run '^TestSentryCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
+test-stripe-live:
+	PLUGIN_KIT_AI_RUN_STRIPE_LIVE=1 go test -count=1 -run '^TestStripeCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
 test-e2e-live: test-install-live
 
 # Root module is workspace-only; submodules are vetted explicitly.

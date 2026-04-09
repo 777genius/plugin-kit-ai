@@ -181,6 +181,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "stripe",
+      "slug": "stripe",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Stripe",
+      "tagline": "Hosted OAuth-first MCP-доступ к платежам, billing, customer и знаниям Stripe, где token и local path специально не смешаны в v1.",
+      "description": "Реальный Stripe MCP-плагин для hosted доступа к платежам, billing, customer и документации через официальный remote MCP endpoint Stripe.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/stripe",
+      "logoSrc": "stripe.svg",
+      "logoAlt": "Логотип Stripe",
+      "categories": ["payments", "commerce", "backend"],
+      "highlights": [
+        "Сильный вариант для команд, которым нужен агентный доступ к реальному billing и commerce state, а не только к docs.",
+        "Оставляет community-default чистым через hosted OAuth и не зашивает restricted API keys в generated config.",
+        "Явно выносит local и autonomous token-driven режимы в отдельные advanced path, а не прячет их внутри одного плагина."
+      ],
+      "useCases": [
+        "Проверять customer, product, subscription, invoice и refund прямо в том же workspace, где идут код и ops-задачи.",
+        "Тянуть Stripe docs и support knowledge в тот же flow, где идут account operations.",
+        "Помогать human-approved агентам работать с recurring billing и payments context без отдельного локального setup."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "vercel",
       "slug": "vercel",
       "eyebrow": "Реальный плагин каталога",

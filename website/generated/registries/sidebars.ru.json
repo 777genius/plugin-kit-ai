@@ -124,11 +124,11 @@
           "link": "/ru/concepts/why-plugin-kit-ai"
         },
         {
-          "text": "Модель управляемого проекта",
+          "text": "Как работает plugin-kit-ai",
           "link": "/ru/concepts/managed-project-model"
         },
         {
-          "text": "Архитектура авторинга",
+          "text": "Исходники и generated outputs",
           "link": "/ru/concepts/authoring-architecture"
         }
       ]

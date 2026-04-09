@@ -181,6 +181,30 @@
       "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
     },
     {
+      "id": "stripe",
+      "slug": "stripe",
+      "eyebrow": "Real catalog plugin",
+      "title": "Stripe",
+      "tagline": "Hosted OAuth-first MCP access to payments, billing, customers, and Stripe knowledge, with advanced token and local paths intentionally kept out of v1.",
+      "description": "A real Stripe MCP plugin for hosted access to payments, billing, customer, and documentation workflows through Stripe's official remote MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/stripe",
+      "logoSrc": "stripe.svg",
+      "logoAlt": "Stripe logo",
+      "categories": ["payments", "commerce", "backend"],
+      "highlights": [
+        "Strong fit for teams that need agents to reason about real billing and commerce state, not only docs.",
+        "Keeps the community default clean with hosted OAuth instead of baking restricted API keys into generated config.",
+        "Explicitly treats local and autonomous token-driven modes as separate advanced paths rather than quietly mixing them into one plugin."
+      ],
+      "useCases": [
+        "Checking customers, products, subscriptions, invoices, and refunds from the same workspace as code and ops work.",
+        "Pulling Stripe docs and support knowledge into the same flow as account operations.",
+        "Helping human-approved agents handle recurring billing and payments context without extra local setup."
+      ],
+      "badges": ["Claude", "Codex", "Gemini", "OpenCode", "Cursor"]
+    },
+    {
       "id": "vercel",
       "slug": "vercel",
       "eyebrow": "Real catalog plugin",
