@@ -188,6 +188,96 @@ func TestInspectFlagsManagedPolicyBlockWhenPathPatternDisallowsMarketplace(t *te
 	}
 }
 
+func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	settingsPath := filepath.Join(workspaceA, ".claude", "settings.json")
+	writeClaudeFile(t, settingsPath, "{\n  \"plugins\": []\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope: "project",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed", inspect.State)
+	}
+	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != settingsPath {
+		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, settingsPath)
+	}
+}
+
+func TestInspectUsesNativePluginListForKnownPluginState(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace-a")
+	settingsPath := filepath.Join(workspace, ".claude", "settings.json")
+	writeClaudeFile(t, settingsPath, "{\n  \"enabledPlugins\": {\n    \"claude-demo@integrationctl-claude-demo\": true\n  }\n}\n")
+	binDir := filepath.Join(root, "bin")
+	writeClaudeFile(t, filepath.Join(binDir, "claude"), "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(filepath.Join(binDir, "claude"), 0o755); err != nil {
+		t.Fatalf("chmod claude shim: %v", err)
+	}
+	prevPath := os.Getenv("PATH")
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+prevPath)
+	runner := &stubRunner{
+		run: func(cmd ports.Command) (ports.CommandResult, error) {
+			if !equalStrings(cmd.Argv, []string{"claude", "plugin", "list", "--json"}) {
+				t.Fatalf("argv = %#v", cmd.Argv)
+			}
+			return ports.CommandResult{ExitCode: 0, Stdout: []byte("[]")}, nil
+		},
+	}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: t.TempDir()}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope:         "project",
+		IntegrationID: "claude-demo",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspace,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"plugin_ref": "claude-demo@integrationctl-claude-demo",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallRemoved {
+		t.Fatalf("state = %s, want removed from native plugin list", inspect.State)
+	}
+	if len(runner.commands) != 1 || runner.commands[0].Dir != workspace {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+}
+
 func TestPlanUpdateBlocksWhenMarketplaceIsSeedManaged(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
@@ -242,17 +332,34 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	source := filepath.Join(root, "source")
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(workspaceA, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-a: %v", err)
+	}
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
 	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
 	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Updated\n")
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
 
 	result, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{
 		Manifest:       domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0", Description: "Claude demo plugin"},
 		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
 		Record: &domain.InstallationRecord{
 			IntegrationID: "claude-demo",
-			Policy:        domain.InstallPolicy{Scope: "user"},
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
 			Targets: map[domain.TargetID]domain.TargetInstallation{
 				domain.TargetClaude: {
 					TargetID: domain.TargetClaude,
@@ -270,8 +377,8 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 	}
 	want := [][]string{
 		{"claude", "plugin", "marketplace", "update", "integrationctl-claude-demo"},
-		{"claude", "plugin", "uninstall", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
-		{"claude", "plugin", "install", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
+		{"claude", "plugin", "uninstall", "claude-demo@integrationctl-claude-demo", "--scope", "project"},
+		{"claude", "plugin", "install", "claude-demo@integrationctl-claude-demo", "--scope", "project"},
 	}
 	if len(runner.commands) != len(want) {
 		t.Fatalf("commands = %#v", runner.commands)
@@ -279,6 +386,9 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 	for i := range want {
 		if !equalStrings(runner.commands[i].Argv, want[i]) {
 			t.Fatalf("command %d = %#v want %#v", i, runner.commands[i].Argv, want[i])
+		}
+		if runner.commands[i].Dir != workspaceA {
+			t.Fatalf("command %d dir = %q want %q", i, runner.commands[i].Dir, workspaceA)
 		}
 	}
 	body, err := os.ReadFile(filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", "claude-demo", "plugins", "claude-demo", "skills", "demo", "SKILL.md"))
@@ -293,15 +403,32 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(workspaceA, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-a: %v", err)
+	}
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
 	managedRoot := filepath.Join(root, ".plugin-kit-ai", "materialized", "claude", "claude-demo")
 	writeClaudeFile(t, filepath.Join(managedRoot, ".claude-plugin", "marketplace.json"), "{}\n")
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, UserHome: root}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
 
 	result, err := adapter.ApplyRemove(context.Background(), ports.ApplyInput{
 		Record: &domain.InstallationRecord{
 			IntegrationID: "claude-demo",
 			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
 			Targets: map[domain.TargetID]domain.TargetInstallation{
 				domain.TargetClaude: {
 					TargetID: domain.TargetClaude,
@@ -328,6 +455,9 @@ func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
 		if !equalStrings(runner.commands[i].Argv, want[i]) {
 			t.Fatalf("command %d = %#v want %#v", i, runner.commands[i].Argv, want[i])
 		}
+		if runner.commands[i].Dir != workspaceA {
+			t.Fatalf("command %d dir = %q want %q", i, runner.commands[i].Dir, workspaceA)
+		}
 	}
 	if _, err := os.Stat(managedRoot); !os.IsNotExist(err) {
 		t.Fatalf("managed root still exists: %v", err)
@@ -339,14 +469,32 @@ func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
 
 func TestRepairUsesMarketplaceRefreshAndBestEffortUninstall(t *testing.T) {
 	t.Parallel()
-	runner := &stubRunner{}
-	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: t.TempDir()}
 	root := t.TempDir()
-	writeClaudeFile(t, filepath.Join(root, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
-	_, err := adapter.Repair(context.Background(), ports.RepairInput{
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(workspaceA, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-a: %v", err)
+	}
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: filepath.Join(root, "home")}
+	source := filepath.Join(root, "source")
+	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+	_, err = adapter.Repair(context.Background(), ports.RepairInput{
 		Record: domain.InstallationRecord{
 			IntegrationID: "claude-demo",
-			Policy:        domain.InstallPolicy{Scope: "user"},
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
 			Targets: map[domain.TargetID]domain.TargetInstallation{
 				domain.TargetClaude: {
 					TargetID: domain.TargetClaude,
@@ -358,13 +506,18 @@ func TestRepairUsesMarketplaceRefreshAndBestEffortUninstall(t *testing.T) {
 			},
 		},
 		Manifest:       &domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0", Description: "Claude demo plugin"},
-		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: root},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
 	})
 	if err != nil {
 		t.Fatalf("repair: %v", err)
 	}
 	if len(runner.commands) != 3 {
 		t.Fatalf("commands = %#v", runner.commands)
+	}
+	for i := range runner.commands {
+		if runner.commands[i].Dir != workspaceA {
+			t.Fatalf("command %d dir = %q want %q", i, runner.commands[i].Dir, workspaceA)
+		}
 	}
 }
 

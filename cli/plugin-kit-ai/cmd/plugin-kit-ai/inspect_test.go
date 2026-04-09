@@ -108,17 +108,24 @@ func TestInspectAuthoringShowsJobFirstSummary(t *testing.T) {
 		"Edit these files:",
 		"  - src/plugin.yaml",
 		"  - src/mcp/servers.yaml",
-		"Generated files at the repo root:",
+		"Managed guidance files:",
 		"  - README.md",
 		"  - CLAUDE.md",
 		"  - AGENTS.md",
 		"  - GENERATED.md",
+		"Generated target outputs:",
+		"  - .mcp.json",
 		"Supported outputs:",
-		"  - claude",
+		"  - Claude (claude)",
+		"  - Codex package (codex-package)",
+		"  - Gemini extension (gemini)",
+		"  - OpenCode (opencode)",
+		"  - Cursor plugin (cursor)",
 		"Next commands:",
 		"  - plugin-kit-ai generate .",
 		"  - plugin-kit-ai generate --check .",
 		"  - plugin-kit-ai validate . --platform claude --strict",
+		"  - Then validate any other outputs you plan to ship.",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)
@@ -379,12 +386,14 @@ func TestInspectTextSeparatesAuthoredAndGeneratedOutputs(t *testing.T) {
 		"generated_outputs:",
 		"  - GENERATED.md",
 		"  - README.md",
-		"  - .cursor/mcp.json",
+		"  - .cursor-plugin/plugin.json",
+		"  - .mcp.json",
 		"generated_by_target:",
 		"  cursor:",
 		"    - GENERATED.md",
 		"    - README.md",
-		"    - .cursor/mcp.json",
+		"    - .cursor-plugin/plugin.json",
+		"    - .mcp.json",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)

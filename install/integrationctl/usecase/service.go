@@ -14,15 +14,16 @@ import (
 )
 
 type Service struct {
-	SourceResolver ports.SourceResolver
-	ManifestLoader ports.ManifestLoader
-	StateStore     ports.StateStore
-	WorkspaceLock  ports.WorkspaceLockStore
-	LockManager    ports.LockManager
-	Journal        ports.OperationJournal
-	Evidence       ports.EvidenceRegistry
-	Adapters       map[domain.TargetID]ports.TargetAdapter
-	Now            func() time.Time
+	SourceResolver       ports.SourceResolver
+	ManifestLoader       ports.ManifestLoader
+	StateStore           ports.StateStore
+	WorkspaceLock        ports.WorkspaceLockStore
+	LockManager          ports.LockManager
+	Journal              ports.OperationJournal
+	Evidence             ports.EvidenceRegistry
+	Adapters             map[domain.TargetID]ports.TargetAdapter
+	CurrentWorkspaceRoot string
+	Now                  func() time.Time
 }
 
 type AddInput struct {
@@ -94,17 +95,17 @@ func (s Service) Doctor(ctx context.Context) (domain.Report, error) {
 				authPendingCount++
 			}
 			report.Targets = append(report.Targets, domain.TargetReport{
-				TargetID:                 string(targetID),
-				DeliveryKind:             string(ti.DeliveryKind),
-				CapabilitySurface:        append([]string(nil), ti.CapabilitySurface...),
-				ActionClass:              "doctor_attention",
-				State:                    string(ti.State),
-				ActivationState:          string(ti.ActivationState),
-				InteractiveAuthState:     ti.InteractiveAuthState,
-				CatalogPolicy:            cloneCatalogPolicy(ti.CatalogPolicy),
-				EnvironmentRestrictions:  restrictionsToStrings(ti.EnvironmentRestrictions),
-				SourceAccessState:        ti.SourceAccessState,
-				ManualSteps:              doctorManualSteps(inst.IntegrationID, ti),
+				TargetID:                string(targetID),
+				DeliveryKind:            string(ti.DeliveryKind),
+				CapabilitySurface:       append([]string(nil), ti.CapabilitySurface...),
+				ActionClass:             "doctor_attention",
+				State:                   string(ti.State),
+				ActivationState:         string(ti.ActivationState),
+				InteractiveAuthState:    ti.InteractiveAuthState,
+				CatalogPolicy:           cloneCatalogPolicy(ti.CatalogPolicy),
+				EnvironmentRestrictions: restrictionsToStrings(ti.EnvironmentRestrictions),
+				SourceAccessState:       ti.SourceAccessState,
+				ManualSteps:             doctorManualSteps(inst.IntegrationID, ti),
 			})
 		}
 	}
@@ -759,7 +760,8 @@ func (s Service) applyExisting(ctx context.Context, record domain.InstallationRe
 		return domain.Report{}, err
 	}
 
-	verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &record, target.Adapter, action)
+	verifyRecord := provisionalRecordForExisting(record, target, applyResult)
+	verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &verifyRecord, target.Adapter, action)
 	if err != nil {
 		_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
 		return domain.Report{}, err
@@ -1083,7 +1085,8 @@ func (s Service) applyRepairExisting(ctx context.Context, record domain.Installa
 		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "ok"}); err != nil {
 			return domain.Report{}, err
 		}
-		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &record, target.Adapter, "repair_drift")
+		verifyRecord := provisionalRecordForExisting(record, target, applyResult)
+		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &verifyRecord, target.Adapter, "repair_drift")
 		if err != nil {
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
 			markTargetDegraded(&nextRecord, target.TargetID)
@@ -1223,7 +1226,8 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "ok"}); err != nil {
 			return domain.Report{}, err
 		}
-		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &record, target.Adapter, "update_version")
+		verifyRecord := provisionalRecordForExisting(record, target, applyResult)
+		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &verifyRecord, target.Adapter, "update_version")
 		if err != nil {
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
 			markPlannedTargetDegraded(&nextRecord, target)
@@ -1461,7 +1465,7 @@ func (s Service) applyAdd(ctx context.Context, operationID string, manifest doma
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "failed"})
 			rollbackFailed, rollbackWarnings := s.rollbackAppliedAdd(ctx, operationID, manifest, policy, startedAt, applied)
 			if len(rollbackFailed) > 0 {
-				state.Installations = upsertInstallation(state.Installations, degradedRecordFromApplied(manifest, policy, startedAt, rollbackFailed))
+				state.Installations = upsertInstallation(state.Installations, degradedRecordFromApplied(manifest, policy, s.workspaceRootForPolicy(policy), startedAt, rollbackFailed))
 				if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
 					return domain.Report{}, saveErr
 				}
@@ -1491,12 +1495,13 @@ func (s Service) applyAdd(ctx context.Context, operationID string, manifest doma
 		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "ok"}); err != nil {
 			return domain.Report{}, err
 		}
-		verified, err := s.verifyPostApply(ctx, manifest.IntegrationID, policy, nil, target.Adapter, "add")
+		verifyRecord := provisionalRecordForAdd(manifest, policy, s.workspaceRootForPolicy(policy), target, applyResult)
+		verified, err := s.verifyPostApply(ctx, manifest.IntegrationID, policy, &verifyRecord, target.Adapter, "add")
 		if err != nil {
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
 			rollbackFailed, rollbackWarnings := s.rollbackAppliedAdd(ctx, operationID, manifest, policy, startedAt, append(applied, appliedTargetInstall{Planned: target, Result: applyResult}))
 			if len(rollbackFailed) > 0 {
-				state.Installations = upsertInstallation(state.Installations, degradedRecordFromApplied(manifest, policy, startedAt, rollbackFailed))
+				state.Installations = upsertInstallation(state.Installations, degradedRecordFromApplied(manifest, policy, s.workspaceRootForPolicy(policy), startedAt, rollbackFailed))
 				if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
 					return domain.Report{}, saveErr
 				}
@@ -1530,7 +1535,7 @@ func (s Service) applyAdd(ctx context.Context, operationID string, manifest doma
 		reportTargets = append(reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	}
 
-	state.Installations = upsertInstallation(state.Installations, installationRecordFromApplied(manifest, policy, startedAt, applied))
+	state.Installations = upsertInstallation(state.Installations, installationRecordFromApplied(manifest, policy, s.workspaceRootForPolicy(policy), startedAt, applied))
 	if err := s.StateStore.Save(ctx, state); err != nil {
 		return domain.Report{}, err
 	}
@@ -1600,7 +1605,7 @@ func toAppliedTargetReport(delivery domain.Delivery, inspect ports.InspectResult
 	return report
 }
 
-func installationRecordFromApplied(manifest domain.IntegrationManifest, policy domain.InstallPolicy, startedAt string, applied []appliedTargetInstall) domain.InstallationRecord {
+func installationRecordFromApplied(manifest domain.IntegrationManifest, policy domain.InstallPolicy, workspaceRoot string, startedAt string, applied []appliedTargetInstall) domain.InstallationRecord {
 	targets := make(map[domain.TargetID]domain.TargetInstallation, len(applied))
 	for _, item := range applied {
 		targets[item.Planned.TargetID] = targetInstallationFromApplied(item)
@@ -1613,14 +1618,15 @@ func installationRecordFromApplied(manifest domain.IntegrationManifest, policy d
 		SourceDigest:       manifest.SourceDigest,
 		ManifestDigest:     manifest.ManifestDigest,
 		Policy:             policy,
+		WorkspaceRoot:      workspaceRoot,
 		Targets:            targets,
 		LastCheckedAt:      startedAt,
 		LastUpdatedAt:      startedAt,
 	}
 }
 
-func degradedRecordFromApplied(manifest domain.IntegrationManifest, policy domain.InstallPolicy, startedAt string, applied []appliedTargetInstall) domain.InstallationRecord {
-	record := installationRecordFromApplied(manifest, policy, startedAt, applied)
+func degradedRecordFromApplied(manifest domain.IntegrationManifest, policy domain.InstallPolicy, workspaceRoot string, startedAt string, applied []appliedTargetInstall) domain.InstallationRecord {
+	record := installationRecordFromApplied(manifest, policy, workspaceRoot, startedAt, applied)
 	for key, target := range record.Targets {
 		target.State = domain.InstallDegraded
 		record.Targets[key] = target
@@ -1735,6 +1741,7 @@ func (s Service) rollbackAppliedAdd(ctx context.Context, operationID string, man
 			SourceDigest:       manifest.SourceDigest,
 			ManifestDigest:     manifest.ManifestDigest,
 			Policy:             policy,
+			WorkspaceRoot:      s.workspaceRootForPolicy(policy),
 			Targets: map[domain.TargetID]domain.TargetInstallation{
 				item.Planned.TargetID: targetInstallationFromApplied(item),
 			},
@@ -2142,6 +2149,51 @@ func defaultString(v, fallback string) string {
 		return fallback
 	}
 	return strings.TrimSpace(v)
+}
+
+func provisionalRecordForAdd(manifest domain.IntegrationManifest, policy domain.InstallPolicy, workspaceRoot string, target plannedTargetInstall, result ports.ApplyResult) domain.InstallationRecord {
+	return domain.InstallationRecord{
+		IntegrationID:      manifest.IntegrationID,
+		RequestedSourceRef: manifest.RequestedRef,
+		ResolvedSourceRef:  manifest.ResolvedRef,
+		ResolvedVersion:    manifest.Version,
+		SourceDigest:       manifest.SourceDigest,
+		ManifestDigest:     manifest.ManifestDigest,
+		Policy:             policy,
+		WorkspaceRoot:      workspaceRoot,
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			target.TargetID: {
+				TargetID:           target.TargetID,
+				DeliveryKind:       target.Delivery.DeliveryKind,
+				CapabilitySurface:  append([]string(nil), target.Delivery.CapabilitySurface...),
+				NativeRef:          target.Delivery.NativeRefHint,
+				OwnedNativeObjects: append([]domain.NativeObjectRef(nil), result.OwnedNativeObjects...),
+				AdapterMetadata:    cloneMetadata(result.AdapterMetadata),
+			},
+		},
+	}
+}
+
+func provisionalRecordForExisting(record domain.InstallationRecord, target plannedExistingTarget, result ports.ApplyResult) domain.InstallationRecord {
+	next := cloneInstallationRecord(record)
+	if next.Targets == nil {
+		next.Targets = map[domain.TargetID]domain.TargetInstallation{}
+	}
+	next.Targets[target.TargetID] = targetInstallationFromExisting(target, result, ports.InspectResult{})
+	if target.Manifest != nil {
+		applyManifestMetadata(&next, *target.Manifest, record.LastUpdatedAt)
+	}
+	return next
+}
+
+func (s Service) workspaceRootForPolicy(policy domain.InstallPolicy) string {
+	if !strings.EqualFold(strings.TrimSpace(policy.Scope), "project") {
+		return ""
+	}
+	if root := strings.TrimSpace(s.CurrentWorkspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
+	return ""
 }
 
 func defaultBool(v *bool, fallback bool) bool {

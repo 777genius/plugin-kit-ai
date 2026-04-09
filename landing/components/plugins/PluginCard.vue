@@ -61,11 +61,14 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
       </div>
       <div class="plugin-card__meta">
         <span class="plugin-card__type">{{ t(`plugins.types.${plugin.pluginType}`) }}</span>
-        <span class="plugin-card__status">{{ plugin.status }}</span>
       </div>
     </div>
 
     <p class="plugin-card__desc">
+      <SearchHighlight :text="plugin.tagline" :query="highlightQuery" />
+    </p>
+
+    <p class="plugin-card__subdesc">
       <SearchHighlight :text="plugin.description" :query="highlightQuery" />
     </p>
 
@@ -132,9 +135,7 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
 
 .plugin-card__meta {
   display: flex;
-  flex-direction: column;
   align-items: flex-end;
-  gap: 8px;
 }
 
 .plugin-card__brand {
@@ -191,20 +192,15 @@ const linkIcon = computed(() => (props.external ? mdiOpenInNew : mdiArrowRight))
   border: 1px solid rgba(125, 211, 252, 0.16);
 }
 
-.plugin-card__status {
-  flex-shrink: 0;
-  border-radius: 999px;
-  padding: 7px 10px;
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-weight: 700;
-  background: rgba(57, 255, 20, 0.08);
-  color: #39ff14;
-  border: 1px solid rgba(57, 255, 20, 0.15);
+.plugin-card__desc {
+  margin: 0 0 10px;
+  color: #d9e2ff;
+  line-height: 1.55;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
-.plugin-card__desc {
+.plugin-card__subdesc {
   margin: 0 0 28px;
   color: #8892b0;
   line-height: 1.65;

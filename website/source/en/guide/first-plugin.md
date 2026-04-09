@@ -10,7 +10,7 @@ translationRequired: true
 
 # Build Your First Plugin
 
-This tutorial gives you the simplest first working repo on the strongest default path.
+This tutorial now covers the narrow legacy-compatible Codex runtime Go path.
 
 It keeps the scope intentionally narrow:
 
@@ -18,7 +18,7 @@ It keeps the scope intentionally narrow:
 - first language: `go`
 - first readiness gate: `validate --strict`
 
-That narrow shape is only for the first run. If the broader one-repo, many-outputs story is the main thing you care about, read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) right after this tutorial.
+If you are still choosing the path for a new repo, start with [Choose What You Are Building](/en/guide/choose-what-you-are-building) or [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic) first.
 
 ## 1. Install The CLI
 
@@ -34,7 +34,7 @@ plugin-kit-ai init my-plugin
 cd my-plugin
 ```
 
-The default `init` path is already the recommended production starting point.
+This path still exists for backward compatibility, but it is no longer the recommended first start for new repos.
 
 ## 3. Generate The Target Files
 
@@ -72,7 +72,7 @@ That does not mean the repo must stay single-target forever: start with the most
 
 ## Next Steps
 
-- Read [Choosing Runtime](/en/concepts/choosing-runtime) before you leave the default path.
+- Read [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic) if what you really want is the advanced runtime path rather than the narrow legacy-compatible tutorial.
 - Read [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) if the one-repo, many-outputs idea is a core reason you care about the product.
 - Use [Starter Templates](/en/guide/starter-templates) when you want a known-good example repo.
 - Browse [CLI Reference](/en/api/cli/) when you need exact command behavior.

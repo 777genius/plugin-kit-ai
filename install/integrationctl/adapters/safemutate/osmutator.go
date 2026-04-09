@@ -101,5 +101,9 @@ func (OS) MutateFile(ctx context.Context, in ports.SafeFileMutationInput) (ports
 			return ports.SafeFileMutationResult{}, domain.NewError(domain.ErrMutationApply, "post-validate safe mutation payload", err)
 		}
 	}
+	if result.BackupPath != "" {
+		_ = os.Remove(result.BackupPath)
+		result.BackupPath = ""
+	}
 	return result, nil
 }

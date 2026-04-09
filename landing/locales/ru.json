@@ -61,8 +61,9 @@
       },
       "customLogic": {
         "title": "Сделать свой plugin с логикой",
+        "badge": "Advanced",
         "description": "Начните с launcher-backed кода, когда продукт определяют hooks, runtime logic или кастомное поведение.",
-        "example": "Смотреть пример codex-basic-prod"
+        "example": "Открыть advanced guide по custom logic"
       }
     }
   },
@@ -99,14 +100,16 @@
   },
   "plugins": {
     "sectionTitle": "С этого стартует наша первая линейка плагинов",
-    "sectionSubtitle": "Первая линейка для реальной работы с репозиториями, с понятными метками поддерживаемых экосистем у каждой идеи.",
+    "sectionSubtitle": "Здесь находится реальный first-party каталог для online services и local tools. Если ценность продукта живёт в вашем runtime code, используйте advanced path custom-logic.",
     "supports": "Поддержка",
     "openPlugin": "Открыть плагин",
     "viewDetails": "Подробнее",
     "viewAll": "Смотреть все",
     "catalogEyebrow": "Каталог плагинов",
     "catalogTitle": "Вся первая линейка плагинов в одном каталоге с поиском",
-    "catalogSubtitle": "Откройте полный список, фильтруйте по реальным рабочим сценариям и сначала посмотрите короткую страницу плагина, а потом переходите в исходный репозиторий.",
+    "catalogSubtitle": "Откройте реальный каталог online services и local tools, а в исходный репозиторий переходите уже после того, как убедились, что плагин подходит под задачу.",
+    "catalogAdvancedNote": "Нужны hooks, orchestration или runtime behavior вместо catalog plugin?",
+    "catalogAdvancedLink": "Откройте advanced guide по custom-logic.",
     "searchLabel": "Поиск по плагинам",
     "searchPlaceholder": "Найдите плагин или сценарий…",
     "filterLabel": "Фильтр по сценариям",
@@ -120,6 +123,87 @@
     "categoriesTitle": "Подходит для",
     "useCasesTitle": "Лучше всего для",
     "highlightsTitle": "Что выделяет",
+    "install": {
+      "eyebrow": "Install flow",
+      "title": "Установить этот плагин",
+      "subtitle": "Выберите своего агента, установите plugin-kit-ai если его ещё нет, затем скопируйте точную команду для этого плагина.",
+      "supportedLabel": "Доступные targets",
+      "allAgents": "All",
+      "chooseAgentTitle": "Выберите агента",
+      "chooseAgentBody": "По умолчанию выбраны все targets. Выберите меньший набор, если нужна более узкая команда установки.",
+      "getCliTitle": "Установите plugin-kit-ai, если его ещё нет",
+      "getCliBody": "Если CLI ещё не установлен, начните здесь с самого понятного и поддерживаемого пути.",
+      "installTitle": "Установить плагин",
+      "installBody": "Запустите команду установки для выбранного target. Команда остаётся явной, чтобы потом было легко понять итоговый scope.",
+      "manualTitle": "Нужен native или manual setup?",
+      "manualBody": "Откройте репозиторий или официальную документацию агента, если хотите пройти native путь без plugin-kit-ai control plane.",
+      "manageTitle": "Управление потом",
+      "manageBody": "После установки используйте эти команды, чтобы обновлять плагин, чинить drift или удалять его аккуратно.",
+      "recommended": "Рекомендуется",
+      "showInstallCta": "Установить",
+      "hideInstallCta": "Скрыть шаги установки",
+      "cliCommandLabel": "Команда установки CLI",
+      "installCommandLabel": "Команда установки плагина",
+      "updateCommandLabel": "Команда обновления",
+      "repairCommandLabel": "Команда repair",
+      "removeCommandLabel": "Команда удаления",
+      "copy": "Копировать",
+      "copied": "Скопировано",
+      "fullOnboardingCta": "Открыть полный onboarding",
+      "alreadyInstalled": "CLI уже установлен? Тогда сразу переходите к шагу 3.",
+      "repositoryCta": "Открыть репозиторий плагина",
+      "agentDocsCta": "Открыть docs {agent}",
+      "boundaryLabel": "Важно",
+      "targetsLabel": "Targets",
+      "scopeLabel": "Scope",
+      "writesToLabel": "Пишет в",
+      "nextStepLabel": "После установки",
+      "userScope": "User scope",
+      "projectScope": "Project scope",
+      "mixedScope": "Смешанные scopes",
+      "projectRootHint": "Запускайте это из корня проекта, чтобы plugin-kit-ai обновил workspace config в правильном месте.",
+      "projectRootHintMixed": "В этом выборе есть project-first targets. Запускайте команду из корня проекта, чтобы workspace-owned targets попали в правильный config.",
+      "selectionBodies": {
+        "all": "Устанавливает все поддерживаемые targets этого плагина одной командой. Используйте chips агентов, если нужен более узкий путь установки.",
+        "multi": "Устанавливает выбранные targets: {agents}."
+      },
+      "manualNotes": {
+        "all": "Откройте репозиторий, если хотите посмотреть сгенерированные outputs напрямую, или используйте docs агента для native path.",
+        "multi": "Откройте репозиторий или docs выбранных агентов, если хотите проверить или завершить native setup для {agents}."
+      },
+      "followUps": {
+        "none": "Готово к использованию сразу после установки",
+        "reload": "Перезагрузите плагины или заново откройте агента, если плагин не появился сразу",
+        "enable": "Проверьте permissions или включите extension, если Gemini попросит подтверждение",
+        "activation": "Пакет для Codex уже подготовлен, но финальная активация всё ещё может потребовать native install или новый thread внутри Codex",
+        "depends": "Зависит от выбранных targets"
+      },
+      "targets": {
+        "claude": {
+          "installBody": "Устанавливает плагин в managed plugin flow Claude с user-level default.",
+          "manualNote": "Откройте репозиторий, если хотите посмотреть на сгенерированный Claude package или пройти native Claude flow вручную.",
+          "boundaryNote": "Если Claude уже открыт, перезагрузите плагины или заново откройте сессию, чтобы новый плагин появился."
+        },
+        "codex": {
+          "installBody": "Подготавливает Codex package и local marketplace entry через integration control plane.",
+          "manualNote": "Откройте репозиторий или docs Codex, если хотите сами проверить подготовленный пакет или завершить native activation path.",
+          "boundaryNote": "Автоматизация для Codex здесь сознательно консервативная. plugin-kit-ai подготавливает пакет и marketplace, но Codex всё ещё может требовать отдельный native шаг до полной активации."
+        },
+        "gemini": {
+          "installBody": "Устанавливает Gemini extension в user extension directory и дальше использует тот же managed root для update и repair.",
+          "manualNote": "Откройте репозиторий, если хотите посмотреть на сгенерированный Gemini extension package или управлять им через native Gemini commands.",
+          "boundaryNote": "Gemini может попросить подтверждение или review permissions в зависимости от ваших local extension security settings."
+        },
+        "opencode": {
+          "installBody": "Добавляет этот плагин в project-owned OpenCode config и managed .opencode support files.",
+          "manualNote": "Откройте репозиторий или docs OpenCode, если хотите подключить тот же config вручную."
+        },
+        "cursor": {
+          "installBody": "Добавляет этот плагин в project Cursor MCP config, чтобы интеграция жила внутри versioned workspace setup.",
+          "manualNote": "Откройте репозиторий или Cursor MCP docs, если хотите вести этот server entry вручную."
+        }
+      }
+    },
     "categories": {
       "docs": "Документация",
       "research": "Ресёрч",
@@ -132,7 +216,15 @@
       "backend": "Бэкенд",
       "cloud": "Облако",
       "automation": "Автоматизация",
-      "collaboration": "Командная работа"
+      "collaboration": "Командная работа",
+      "search": "Поиск",
+      "observability": "Наблюдаемость",
+      "developerTools": "Инструменты разработчика",
+      "crm": "CRM",
+      "cms": "CMS",
+      "payments": "Платежи",
+      "commerce": "Коммерция",
+      "messaging": "Сообщения"
     },
     "allTypes": "Все типы плагинов",
     "typeFilterLabel": "Фильтр по типу плагина",
@@ -140,9 +232,32 @@
     "types": {
       "online-service": "Онлайн-сервис",
       "local-tool": "Локальный инструмент",
-      "custom-logic": "Своя логика"
+      "custom-logic": "Своя логика - Advanced"
     }
+  },
+  "customLogic": {
+    "eyebrow": "Advanced path",
+    "title": "Собирайте custom plugin logic, когда продукт живёт в вашем коде",
+    "subtitle": "Этот путь остаётся first-class, но он не такой же простой starter, как catalog-backed service и tool plugins. Используйте его, когда продукт определяется runtime behavior, hooks или orchestration.",
+    "advancedBadge": "Advanced",
+    "commandLabel": "Стартовая команда",
+    "commandBody": "Начинайте отсюда, когда ценность плагина живёт в вашем коде и вы хотите держать authored source, generated outputs и runtime behavior в одном repo.",
+    "openGuide": "Открыть advanced guide",
+    "openExample": "Открыть пример repo",
+    "points": {
+      "code": "Редактируйте runtime-facing files под src/ и repo-owned entrypoint, который определяет поведение плагина.",
+      "generated": "Держите generated root outputs управляемыми, а не относитесь к ним как к hand-edited source.",
+      "guide": "Используйте inspect --authoring и advanced guide до того, как начнёте добавлять новые outputs."
     }
+  },
+  "createPlugin": {
+    "eyebrow": "Создание своего плагина",
+    "title": "Создание своего плагина",
+    "subtitle": "Выберите форму repo под задачу, а потом откройте гайд, который объясняет этот путь подробнее.",
+    "onlineServiceCta": "Открыть job-first guide",
+    "localToolCta": "Открыть job-first guide",
+    "customLogicCta": "Открыть advanced guide",
+    "customLogicDescription": "Выбирайте это, когда продукт определяют ваш код, hooks или runtime behavior."
   },
   "faq": {
     "sectionTitle": "Есть вопросы? У нас есть ответы",

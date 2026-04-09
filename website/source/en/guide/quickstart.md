@@ -20,19 +20,19 @@ Pick the repo shape by what you are building:
 
 - online service: `plugin-kit-ai init my-plugin --template online-service`
 - local tool: `plugin-kit-ai init my-plugin --template local-tool`
-- custom logic: `plugin-kit-ai init my-plugin --template custom-logic`
+- custom logic - Advanced: `plugin-kit-ai init my-plugin --template custom-logic`
 
 If you want the shortest decision page first, read [Choose What You Are Building](/en/guide/choose-what-you-are-building).
 
 ## If You Only Read One Thing
 
-Start with the job-first path above unless you already know you need the backward-compatible default Go path or a specific advanced target.
+Start with the job-first path above.
 
 Your first choice is the starting point, not the permanent boundary of the repo.
 
-## Backward-Compatible Default
+## Legacy Compatibility Path
 
-If you do not have a strong reason to choose another path, start here:
+Use this only when you are intentionally maintaining the older Codex runtime Go path or matching existing docs and scripts:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
@@ -43,13 +43,13 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-That keeps the strongest legacy default path today: a Go-based Codex runtime repo that stays easy to validate, hand off, and expand later.
+That keeps the older Codex runtime Go path working, but it is not the recommended first-run path for new repos anymore.
 
-## Why This Is The Default
+## Why This Path Still Exists
 
-- one repo from day one
-- the cleanest runtime and release story today
-- the easiest base for later package, extension, and integration lanes
+- backward compatibility for older docs and scripts
+- a stable Go-based Codex runtime path when you already need it
+- a migration bridge, not the main recommendation for new users
 
 ## What You Get
 
@@ -117,7 +117,8 @@ Choose `claude` first only when Claude hooks are already the real product requir
 ## After Quickstart
 
 - Continue with [Choose What You Are Building](/en/guide/choose-what-you-are-building) if you want the shortest decision page for new repos.
-- Continue with [Build Your First Plugin](/en/guide/first-plugin) if you want the narrowest recommended tutorial.
+- Continue with [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic) if you are intentionally taking the advanced runtime path.
+- Continue with [Build Your First Plugin](/en/guide/first-plugin) if you specifically want the narrow legacy-compatible Codex runtime tutorial.
 - Continue with [What You Can Build](/en/guide/what-you-can-build) if you want the full product map.
 - Continue with [Choose A Target](/en/guide/choose-a-target) when you are ready to match the repo to how you want to ship it.
 - Continue with [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when you are ready to expand beyond the first path.

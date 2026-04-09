@@ -86,6 +86,99 @@ func TestApplyRemoveDeletesOnlyOwnedAliases(t *testing.T) {
 	}
 }
 
+func TestApplyUpdateRemovesStaleOwnedAliasesAfterAliasRename(t *testing.T) {
+	t.Parallel()
+	projectRoot := t.TempDir()
+	sourceRoot := t.TempDir()
+	configPath := filepath.Join(projectRoot, ".cursor", "mcp.json")
+	mustWriteFile(t, configPath, `{"mcpServers":{"user-owned":{"command":"node","args":["user.mjs"]},"release-checks":{"command":"node","args":["managed-old.mjs"]}}}`)
+	mustWriteFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks-v2:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks-v2.mjs\n")
+
+	adapter := Adapter{
+		FS:          fsadapter.OS{},
+		ProjectRoot: projectRoot,
+		UserHome:    t.TempDir(),
+	}
+	_, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{
+		Policy:         domain.InstallPolicy{Scope: "project"},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: sourceRoot},
+		Record: &domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: projectRoot,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetCursor: {
+					TargetID: domain.TargetCursor,
+					OwnedNativeObjects: []domain.NativeObjectRef{
+						{Kind: "file", Path: configPath},
+						{Kind: "cursor_mcp_server", Name: "release-checks", Path: configPath},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	doc := readJSONFile(t, configPath)
+	servers := mustObject(t, doc["mcpServers"])
+	if _, ok := servers["release-checks"]; ok {
+		t.Fatal("expected stale owned Cursor MCP entry to be removed")
+	}
+	if _, ok := servers["release-checks-v2"]; !ok {
+		t.Fatal("expected renamed managed Cursor MCP entry to be present")
+	}
+	if _, ok := servers["user-owned"]; !ok {
+		t.Fatal("expected unmanaged Cursor MCP entry to remain")
+	}
+}
+
+func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	configPath := filepath.Join(workspaceA, ".cursor", "mcp.json")
+	mustWriteFile(t, configPath, `{"mcpServers":{"release-checks":{"command":"node","args":["managed.mjs"]}}}`)
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetCursor: {
+					TargetID: domain.TargetCursor,
+					OwnedNativeObjects: []domain.NativeObjectRef{
+						{Kind: "cursor_mcp_server", Name: "release-checks", Path: configPath},
+					},
+				},
+			},
+		},
+		Scope: "project",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed", inspect.State)
+	}
+	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != configPath {
+		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, configPath)
+	}
+}
+
 func mustWriteFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

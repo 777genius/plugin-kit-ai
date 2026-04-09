@@ -25,7 +25,7 @@ Plan or apply an update for a managed integration
 Plan or apply an update for a managed integration
 
 ```
-plugin-kit-ai integrations update &lt;name&gt; [flags]
+plugin-kit-ai integrations update [name] [flags]
 ```
 
 ### Опции

@@ -47,9 +47,10 @@ Connect a local tool:
   Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
   This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
 
-Build custom plugin logic:
+Build custom plugin logic - Advanced:
   Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
-  Plain init stays backward-compatible here: codex-runtime plus --runtime go remains the default path.
+  This path is more powerful and more engineering-heavy than the first two starters.
+  Plain init remains as a legacy compatibility path for the older codex-runtime plus Go starter.
 
 Already have native config:
   Use plugin-kit-ai import to bring current Claude/Codex/Gemini/OpenCode/Cursor native files into the package-standard authored layout.
@@ -57,7 +58,7 @@ Already have native config:
 
 Public flags:
   --template   Recommended start: "online-service", "local-tool", or "custom-logic".
-  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".
+  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", "cursor", or "cursor-workspace".
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   --runtime-package
@@ -82,7 +83,7 @@ func newInitCmd(runner initCommandRunner) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&flags.template, "template", "", `recommended start ("online-service", "local-tool", or "custom-logic")`)
-	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", "gemini", "opencode", or "cursor")`)
+	cmd.Flags().StringVar(&flags.platform, "platform", "codex-runtime", `target lane ("codex-runtime", "codex-package", "claude", "gemini", "opencode", "cursor", or "cursor-workspace")`)
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "go", `runtime ("go", "python", "node", or "shell")`)
 	cmd.Flags().BoolVar(&flags.typescript, "typescript", false, "generate a TypeScript scaffold on top of the node runtime lane")
 	cmd.Flags().BoolVar(&flags.runtimePackage, "runtime-package", false, "for --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file")
@@ -100,7 +101,8 @@ func runInit(cmd *cobra.Command, runner initCommandRunner, flags initFlagState, 
 	if (strings.EqualFold(strings.TrimSpace(flags.platform), "gemini") ||
 		strings.EqualFold(strings.TrimSpace(flags.platform), "codex-package") ||
 		strings.EqualFold(strings.TrimSpace(flags.platform), "opencode") ||
-		strings.EqualFold(strings.TrimSpace(flags.platform), "cursor")) &&
+		strings.EqualFold(strings.TrimSpace(flags.platform), "cursor") ||
+		strings.EqualFold(strings.TrimSpace(flags.platform), "cursor-workspace")) &&
 		!cmd.Flags().Changed("runtime") {
 		runtime = ""
 	}
@@ -159,6 +161,12 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		return strings.Join(lines, "\n") + "\n"
 	}
 
+	if templateName == scaffold.InitTemplateCustomLogic {
+		lines = append(lines,
+			"  plugin-kit-ai inspect . --authoring",
+		)
+	}
+
 	if platform == "gemini" && strings.TrimSpace(opts.Runtime) == "go" {
 		if opts.Extras {
 			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
@@ -173,12 +181,12 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			"  make test-gemini-runtime",
 			"  gemini extensions link .",
 			"  make test-gemini-runtime-live",
-			"  See README.md for Gemini runtime steps",
+			"  See src/README.md for Gemini runtime steps",
 		)
 		return strings.Join(lines, "\n") + "\n"
 	}
 
-	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" {
+	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" || platform == "cursor-workspace" {
 		if opts.Extras {
 			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
 		}
@@ -186,7 +194,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			"  plugin-kit-ai generate .",
 			"  plugin-kit-ai generate --check .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
-			"  See README.md for the full first run",
+			"  See src/README.md for the full first run",
 		)
 		return strings.Join(lines, "\n") + "\n"
 	}
@@ -202,7 +210,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See README.md for the full first run",
+			"  See src/README.md for the full first run",
 		)
 	case "node":
 		if opts.RuntimePackage && strings.TrimSpace(opts.RuntimePackageVersion) != "" {
@@ -214,7 +222,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See README.md for the full first run",
+			"  See src/README.md for the full first run",
 		)
 	case "shell":
 		lines = append(lines,
@@ -223,15 +231,21 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See README.md for the full first run",
+			"  See src/README.md for the full first run",
 		)
 	default:
 		lines = append(lines,
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See README.md for SDK setup and first-run steps",
+			"  See src/README.md for SDK setup and first-run steps",
 		)
+	}
+
+	if templateName == scaffold.InitTemplateCustomLogic {
+		lines = append(lines, "  Advanced path: start with src/README.md, then grow into deeper runtime and hook details only when you need them.")
+	} else if templateName == "" {
+		lines = append(lines, "  Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.")
 	}
 
 	return strings.Join(lines, "\n") + "\n"

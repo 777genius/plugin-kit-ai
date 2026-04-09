@@ -2,6 +2,9 @@ import type { LocaleCode } from '~/data/i18n';
 
 export type PluginLogoSurface = 'default' | 'light';
 export type PluginType = 'online-service' | 'local-tool' | 'custom-logic';
+export type PluginInstallTargetId = 'claude' | 'codex' | 'gemini' | 'opencode' | 'cursor';
+export type PluginInstallScope = 'user' | 'project';
+export type PluginInstallFollowUpKind = 'none' | 'reload' | 'enable' | 'activation';
 
 export interface FeatureItem {
   id: string;
@@ -28,6 +31,55 @@ export interface PluginCard {
   badges: string[];
 }
 
+export interface PluginInstallCommandSet {
+  install: string;
+  update: string;
+  repair: string;
+  remove: string;
+}
+
+export interface PluginManageCommands {
+  update: string;
+  repair: string;
+  remove: string;
+}
+
+export interface PluginManualFallback {
+  href: string;
+  label: string;
+}
+
+export interface PluginTargetInstallLane {
+  targetId: PluginInstallTargetId;
+  badgeLabel: string;
+  scope: PluginInstallScope;
+  installPath: string;
+  projectRootRequired?: boolean;
+  followUp: PluginInstallFollowUpKind;
+  vendorDocsHref?: string;
+}
+
+export interface PluginResolvedInstallLane extends PluginTargetInstallLane {
+  commands: PluginInstallCommandSet;
+}
+
+export interface PluginInstallSpec {
+  slug: string;
+  cliSource: string;
+  integrationName: string;
+  recommendedTargetOrder: PluginInstallTargetId[];
+  supportedTargets: PluginTargetInstallLane[];
+}
+
+export interface PluginResolvedInstallSpec {
+  slug: string;
+  cliSource: string;
+  integrationName: string;
+  recommendedTargetOrder: PluginInstallTargetId[];
+  supportedTargets: PluginResolvedInstallLane[];
+  manageCommands: PluginManageCommands;
+}
+
 export interface FaqItem {
   id: string;
   question: string;
@@ -49,7 +101,7 @@ export interface InstallChannel {
   title: string;
   description: string;
   href: string;
-  note: string;
+  note?: string;
   command?: string;
   recommended?: boolean;
 }

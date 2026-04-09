@@ -75,7 +75,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 				return "", errUnknownPlatform(opts.Platform)
 			}
 			switch platform.Name {
-			case "claude", "codex-package", "gemini", "opencode", "cursor":
+			case "claude", "codex-package", "gemini", "opencode", "cursor", "cursor-workspace":
 				targets = []string{platform.Name}
 			default:
 				return "", fmt.Errorf("--template %s only supports package and workspace outputs; use --template custom-logic for %s", templateName, platform.Name)
@@ -129,7 +129,7 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 				return "", fmt.Errorf("--runtime is not supported with --platform %s", p)
 			}
 		}
-		if p == "opencode" || p == "cursor" {
+		if p == "opencode" || p == "cursor" || p == "cursor-workspace" {
 			if opts.TypeScript {
 				return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
 			}
@@ -143,10 +143,10 @@ func (InitRunner) Run(opts InitOptions) (outDir string, err error) {
 		if p == "codex-package" && opts.TypeScript {
 			return "", fmt.Errorf("--typescript is not supported with --platform %s", p)
 		}
-		if opts.RuntimePackage && (p == "gemini" || p == "codex-package" || p == "opencode" || p == "cursor") {
+		if opts.RuntimePackage && (p == "gemini" || p == "codex-package" || p == "opencode" || p == "cursor" || p == "cursor-workspace") {
 			return "", fmt.Errorf("--runtime-package is not supported with --platform %s", p)
 		}
-		if p != "codex-package" && p != "opencode" && p != "cursor" {
+		if p != "codex-package" && p != "opencode" && p != "cursor" && p != "cursor-workspace" {
 			if _, ok := scaffold.LookupRuntime(r); !ok {
 				return "", errUnknownRuntime(opts.Runtime)
 			}

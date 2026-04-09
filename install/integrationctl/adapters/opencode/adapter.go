@@ -140,7 +140,7 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 }
 
 func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
-	surface := a.inspectSurface(in.Scope)
+	surface := a.inspectSurface(in.Scope, workspaceRootFromInspectInput(in))
 	config := surface.ConfigPath
 	observed := []domain.NativeObjectRef{}
 	if in.Record != nil {
@@ -231,9 +231,9 @@ func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.Insp
 }
 
 func (a Adapter) PlanInstall(ctx context.Context, in ports.PlanInstallInput) (ports.AdapterPlan, error) {
-	configPath := a.configPath(in.Policy.Scope)
+	configPath := a.configPath(in.Policy.Scope, "")
 	paths := []string{configPath}
-	if root := a.assetsRoot(in.Policy.Scope); root != "" {
+	if root := a.assetsRoot(in.Policy.Scope, ""); root != "" {
 		paths = append(paths, root)
 	}
 	manualSteps, blocking := planBlockingManualSteps(in.Inspect)
@@ -250,17 +250,14 @@ func (a Adapter) PlanInstall(ctx context.Context, in ports.PlanInstallInput) (po
 }
 
 func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
-	if err := a.requireMutableEnvironment(); err != nil {
-		return ports.ApplyResult{}, err
-	}
 	if in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "OpenCode apply requires resolved source", nil)
 	}
-	material, err := a.loadSourceMaterial(ctx, in.ResolvedSource.LocalPath, in.Policy.Scope)
+	material, err := a.loadSourceMaterial(ctx, in.ResolvedSource.LocalPath, in.Policy.Scope, workspaceRootFromApplyInput(in))
 	if err != nil {
 		return ports.ApplyResult{}, err
 	}
-	configPath := a.configPath(in.Policy.Scope)
+	configPath := a.configPath(in.Policy.Scope, workspaceRootFromApplyInput(in))
 	patch, err := a.patchConfig(ctx, configPath, configMutation{
 		WholeSet:   material.WholeFields,
 		PluginsSet: material.Plugins,
@@ -292,9 +289,9 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 }
 
 func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
-	configPath := a.configPath("user")
+	configPath := a.configPath("user", "")
 	if target, ok := in.CurrentRecord.Targets[domain.TargetOpenCode]; ok {
-		configPath = configPathFromTarget(target, configPath)
+		configPath = configPathFromTarget(target, a.configPath(in.CurrentRecord.Policy.Scope, workspaceRootFromRecord(in.CurrentRecord)))
 	}
 	manualSteps, blocking := planBlockingManualSteps(in.Inspect)
 	return ports.AdapterPlan{
@@ -302,7 +299,7 @@ func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.
 		ActionClass:     "update_version",
 		Summary:         "Owned projection refresh for OpenCode",
 		RestartRequired: true,
-		PathsTouched:    []string{configPath, a.assetsRoot(in.CurrentRecord.Policy.Scope)},
+		PathsTouched:    []string{configPath, a.assetsRoot(in.CurrentRecord.Policy.Scope, workspaceRootFromRecord(in.CurrentRecord))},
 		ManualSteps:     manualSteps,
 		Blocking:        blocking,
 		EvidenceKey:     "target.opencode.native_surface",
@@ -310,9 +307,6 @@ func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.
 }
 
 func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
-	if err := a.requireMutableEnvironment(); err != nil {
-		return ports.ApplyResult{}, err
-	}
 	if in.Record == nil || in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "OpenCode update requires current record and resolved source", nil)
 	}
@@ -320,11 +314,11 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if !ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "OpenCode target is missing from installation record", nil)
 	}
-	material, err := a.loadSourceMaterial(ctx, in.ResolvedSource.LocalPath, in.Record.Policy.Scope)
+	material, err := a.loadSourceMaterial(ctx, in.ResolvedSource.LocalPath, in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record))
 	if err != nil {
 		return ports.ApplyResult{}, err
 	}
-	configPath := configPathFromTarget(target, a.configPath(in.Record.Policy.Scope))
+	configPath := configPathFromTarget(target, a.configPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
 	patch, err := a.patchConfig(ctx, configPath, material.mutationForUpdate(target), &target)
 	if err != nil {
 		return ports.ApplyResult{}, err
@@ -355,16 +349,16 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 }
 
 func (a Adapter) PlanRemove(_ context.Context, in ports.PlanRemoveInput) (ports.AdapterPlan, error) {
-	configPath := a.configPath("user")
+	configPath := a.configPath("user", "")
 	if target, ok := in.Record.Targets[domain.TargetOpenCode]; ok {
-		configPath = configPathFromTarget(target, configPath)
+		configPath = configPathFromTarget(target, a.configPath(in.Record.Policy.Scope, workspaceRootFromRecord(in.Record)))
 	}
 	manualSteps, blocking := planBlockingManualSteps(in.Inspect)
 	return ports.AdapterPlan{
 		TargetID:     a.ID(),
 		ActionClass:  "remove_orphaned_target",
 		Summary:      "Remove owned OpenCode projection",
-		PathsTouched: []string{configPath, a.assetsRoot(in.Record.Policy.Scope)},
+		PathsTouched: []string{configPath, a.assetsRoot(in.Record.Policy.Scope, workspaceRootFromRecord(in.Record))},
 		ManualSteps:  manualSteps,
 		Blocking:     blocking,
 		EvidenceKey:  "target.opencode.native_surface",
@@ -372,9 +366,6 @@ func (a Adapter) PlanRemove(_ context.Context, in ports.PlanRemoveInput) (ports.
 }
 
 func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
-	if err := a.requireMutableEnvironment(); err != nil {
-		return ports.ApplyResult{}, err
-	}
 	if in.Record == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "OpenCode remove requires current record", nil)
 	}
@@ -382,7 +373,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if !ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "OpenCode target is missing from installation record", nil)
 	}
-	configPath := configPathFromTarget(target, a.configPath(in.Record.Policy.Scope))
+	configPath := configPathFromTarget(target, a.configPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
 	patch, err := a.patchConfig(ctx, configPath, configMutation{
 		WholeRemove:   ownedConfigKeys(target),
 		PluginsRemove: ownedPluginRefs(target),
@@ -412,9 +403,6 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 }
 
 func (a Adapter) Repair(ctx context.Context, in ports.RepairInput) (ports.ApplyResult, error) {
-	if err := a.requireMutableEnvironment(); err != nil {
-		return ports.ApplyResult{}, err
-	}
 	if in.Manifest == nil || in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrRepairApply, "OpenCode repair requires resolved source and manifest", nil)
 	}
@@ -448,11 +436,11 @@ func (a Adapter) mutator() ports.SafeFileMutator {
 	return safemutate.OS{}
 }
 
-func (a Adapter) configPath(scope string) string {
+func (a Adapter) configPath(scope string, workspaceRoot string) string {
 	if strings.EqualFold(strings.TrimSpace(scope), "project") {
 		return preferredConfigPath(
-			filepath.Join(a.effectiveProjectRoot(), "opencode.json"),
-			filepath.Join(a.effectiveProjectRoot(), "opencode.jsonc"),
+			filepath.Join(a.effectiveProjectRoot(workspaceRoot), "opencode.json"),
+			filepath.Join(a.effectiveProjectRoot(workspaceRoot), "opencode.jsonc"),
 		)
 	}
 	return preferredConfigPath(
@@ -462,14 +450,17 @@ func (a Adapter) configPath(scope string) string {
 	)
 }
 
-func (a Adapter) assetsRoot(scope string) string {
+func (a Adapter) assetsRoot(scope string, workspaceRoot string) string {
 	if strings.EqualFold(strings.TrimSpace(scope), "project") {
-		return filepath.Join(a.effectiveProjectRoot(), ".opencode")
+		return filepath.Join(a.effectiveProjectRoot(workspaceRoot), ".opencode")
 	}
 	return filepath.Join(a.userHome(), ".config", "opencode")
 }
 
-func (a Adapter) projectRoot() string {
+func (a Adapter) projectRoot(workspaceRoot string) string {
+	if root := strings.TrimSpace(workspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
 	if strings.TrimSpace(a.ProjectRoot) != "" {
 		return a.ProjectRoot
 	}
@@ -477,18 +468,18 @@ func (a Adapter) projectRoot() string {
 	return cwd
 }
 
-func (a Adapter) effectiveProjectRoot() string {
-	root := filepath.Clean(a.projectRoot())
+func (a Adapter) effectiveProjectRoot(workspaceRoot string) string {
+	root := filepath.Clean(a.projectRoot(workspaceRoot))
 	for {
 		if root == "." || root == string(filepath.Separator) || strings.TrimSpace(root) == "" {
-			return a.projectRoot()
+			return a.projectRoot(workspaceRoot)
 		}
 		if fileExists(filepath.Join(root, ".git")) {
 			return root
 		}
 		parent := filepath.Dir(root)
 		if parent == root {
-			return a.projectRoot()
+			return a.projectRoot(workspaceRoot)
 		}
 		root = parent
 	}
@@ -502,7 +493,7 @@ func (a Adapter) userHome() string {
 	return home
 }
 
-func (a Adapter) loadSourceMaterial(ctx context.Context, sourceRoot, scope string) (sourceMaterial, error) {
+func (a Adapter) loadSourceMaterial(ctx context.Context, sourceRoot, scope string, workspaceRoot string) (sourceMaterial, error) {
 	fields := map[string]any{
 		"$schema": "https://opencode.ai/config.json",
 	}
@@ -527,7 +518,7 @@ func (a Adapter) loadSourceMaterial(ctx context.Context, sourceRoot, scope strin
 		if err := material.mergeExtra(extra); err != nil {
 			return sourceMaterial{}, err
 		}
-		copyFiles, err := collectCopyFiles(sourceRoot, a.assetsRoot(scope))
+		copyFiles, err := collectCopyFiles(sourceRoot, a.assetsRoot(scope, workspaceRoot))
 		if err != nil {
 			return sourceMaterial{}, err
 		}
@@ -547,7 +538,7 @@ func (a Adapter) loadSourceMaterial(ctx context.Context, sourceRoot, scope strin
 	if err := material.mergeExtra(extra); err != nil {
 		return sourceMaterial{}, err
 	}
-	copyFiles, err := collectCopyFiles(sourceRoot, a.assetsRoot(scope))
+	copyFiles, err := collectCopyFiles(sourceRoot, a.assetsRoot(scope, workspaceRoot))
 	if err != nil {
 		return sourceMaterial{}, err
 	}
@@ -1178,36 +1169,15 @@ func isMissingPortableMCP(err error) bool {
 	return false
 }
 
-func (a Adapter) inspectSurface(scope string) inspectSurface {
+func (a Adapter) inspectSurface(scope string, workspaceRoot string) inspectSurface {
 	settings := []string{}
 	restrictions := []domain.EnvironmentRestrictionCode{}
 	volatile := false
 	sourceAccess := ""
-	if strings.TrimSpace(os.Getenv("OPENCODE_CONFIG_CONTENT")) != "" {
-		volatile = true
-		restrictions = append(restrictions, domain.RestrictionVolatileOverride)
-		sourceAccess = "inline_config_override"
-	}
-	if customFile := strings.TrimSpace(os.Getenv("OPENCODE_CONFIG")); customFile != "" {
-		volatile = true
-		restrictions = append(restrictions, domain.RestrictionVolatileOverride)
-		settings = append(settings, customFile)
-		if sourceAccess == "" {
-			sourceAccess = "custom_config_file_override"
-		}
-	}
-	if customDir := strings.TrimSpace(os.Getenv("OPENCODE_CONFIG_DIR")); customDir != "" {
-		volatile = true
-		restrictions = append(restrictions, domain.RestrictionVolatileOverride)
-		settings = append(settings, customDir)
-		if sourceAccess == "" {
-			sourceAccess = "custom_config_dir_override"
-		}
-	}
 
 	var configPath string
 	if strings.EqualFold(strings.TrimSpace(scope), "project") {
-		root := a.effectiveProjectRoot()
+		root := a.effectiveProjectRoot(workspaceRoot)
 		configPath = preferredConfigPath(
 			filepath.Join(root, "opencode.json"),
 			filepath.Join(root, "opencode.jsonc"),
@@ -1243,23 +1213,43 @@ func (a Adapter) inspectSurface(scope string) inspectSurface {
 	return inspectSurface{
 		ConfigPath:              configPath,
 		SettingsFiles:           settings,
-		ConfigPrecedenceContext: []string{"remote", "global", "custom_config", "project", ".opencode", "inline_config", "managed"},
+		ConfigPrecedenceContext: []string{"remote", "global", "project", ".opencode", "managed"},
 		EnvironmentRestrictions: dedupeRestrictionCodes(restrictions),
 		VolatileOverride:        volatile,
 		SourceAccessState:       sourceAccess,
 	}
 }
 
+func workspaceRootFromInspectInput(in ports.InspectInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromApplyInput(in ports.ApplyInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromRecord(record domain.InstallationRecord) string {
+	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
+		return strings.TrimSpace(record.WorkspaceRoot)
+	}
+	return ""
+}
+
 func planBlockingManualSteps(inspect ports.InspectResult) ([]string, bool) {
 	steps := []string{}
 	blocking := false
-	if inspect.VolatileOverrideDetected {
-		steps = append(steps,
-			"unset OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, and OPENCODE_CONFIG_CONTENT before mutating managed OpenCode state",
-			"run the same command again after the volatile OpenCode override layer is removed",
-		)
-		blocking = true
-	}
 	for _, restriction := range inspect.EnvironmentRestrictions {
 		if restriction == domain.RestrictionReadOnlyNativeLayer {
 			steps = append(steps,
@@ -1271,15 +1261,6 @@ func planBlockingManualSteps(inspect ports.InspectResult) ([]string, bool) {
 		}
 	}
 	return dedupeStrings(steps), blocking
-}
-
-func (a Adapter) requireMutableEnvironment() error {
-	if strings.TrimSpace(os.Getenv("OPENCODE_CONFIG")) == "" &&
-		strings.TrimSpace(os.Getenv("OPENCODE_CONFIG_DIR")) == "" &&
-		strings.TrimSpace(os.Getenv("OPENCODE_CONFIG_CONTENT")) == "" {
-		return nil
-	}
-	return domain.NewError(domain.ErrMutationApply, "OpenCode mutation is blocked while OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, or OPENCODE_CONFIG_CONTENT is set", nil)
 }
 
 func (a Adapter) managedConfigPaths() []string {
@@ -1446,9 +1427,20 @@ func (a Adapter) removeStaleFiles(ctx context.Context, previous, keep []string) 
 }
 
 func (a Adapter) assetsRootForPath(path string) string {
-	projectRoot := filepath.Join(a.projectRoot(), ".opencode")
-	if strings.HasPrefix(path, projectRoot) {
-		return projectRoot
+	clean := filepath.Clean(path)
+	parts := strings.Split(clean, string(filepath.Separator))
+	for i, part := range parts {
+		if part != ".opencode" {
+			continue
+		}
+		prefix := string(filepath.Separator)
+		if i > 0 {
+			prefix = filepath.Join(parts[:i+1]...)
+			if !strings.HasPrefix(prefix, string(filepath.Separator)) && strings.HasPrefix(clean, string(filepath.Separator)) {
+				prefix = string(filepath.Separator) + prefix
+			}
+		}
+		return prefix
 	}
 	return filepath.Join(a.userHome(), ".config", "opencode")
 }

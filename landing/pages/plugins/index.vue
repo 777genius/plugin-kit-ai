@@ -2,6 +2,7 @@
 const { content } = useLandingContent();
 const { t } = useI18n();
 const localePath = useLocalePath();
+const { customLogicGuideUrl } = useDocsLinks();
 const searchQuery = ref('');
 const selectedPluginType = ref('all');
 const selectedCategory = ref('all');
@@ -92,6 +93,17 @@ function pluginDetailPath(slug: string) {
           <p class="plugins-page__eyebrow">{{ t('plugins.catalogEyebrow') }}</p>
           <h1 class="plugins-page__title">{{ t('plugins.catalogTitle') }}</h1>
           <p class="plugins-page__subtitle">{{ t('plugins.catalogSubtitle') }}</p>
+          <p class="plugins-page__advanced-note">
+            {{ t('plugins.catalogAdvancedNote') }}
+            <a
+              :href="customLogicGuideUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="plugins-page__advanced-link"
+            >
+              {{ t('plugins.catalogAdvancedLink') }}
+            </a>
+          </p>
 
           <div class="plugins-page__search-shell">
             <label class="plugins-page__search-label" for="plugins-search">
@@ -238,6 +250,22 @@ function pluginDetailPath(slug: string) {
   color: #91a0bf;
   font-size: 1.05rem;
   line-height: 1.72;
+}
+
+.plugins-page__advanced-note {
+  margin: 0 0 24px;
+  color: #cbd5f5;
+  line-height: 1.7;
+}
+
+.plugins-page__advanced-link {
+  color: #ffd166;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.plugins-page__advanced-link:hover {
+  text-decoration: underline;
 }
 
 .plugins-page__search-shell {

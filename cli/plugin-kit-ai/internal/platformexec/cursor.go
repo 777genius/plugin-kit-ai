@@ -11,7 +11,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/scaffold"
 )
 
-type cursorAdapter struct{}
+type cursorWorkspaceAdapter struct{}
 
 const removedCursorRulesFileName = "." + "cursor" + "rules"
 const (
@@ -19,16 +19,16 @@ const (
 	cursorAgentsSectionEnd   = "<!-- plugin-kit-ai:cursor-agents:end -->"
 )
 
-func (cursorAdapter) ID() string { return "cursor" }
+func (cursorWorkspaceAdapter) ID() string { return "cursor-workspace" }
 
-func (cursorAdapter) DetectNative(root string) bool {
+func (cursorWorkspaceAdapter) DetectNative(root string) bool {
 	if fileExists(filepath.Join(root, ".cursor", "mcp.json")) {
 		return true
 	}
 	return len(discoverFiles(root, filepath.Join(".cursor", "rules"), nil)) > 0
 }
 
-func (cursorAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState) error {
+func (cursorWorkspaceAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState) error {
 	for _, rel := range state.ComponentPaths("rules") {
 		if strings.ToLower(filepath.Ext(rel)) != ".mdc" {
 			return fmt.Errorf("unsupported Cursor rule file %s: use .mdc", rel)
@@ -37,7 +37,7 @@ func (cursorAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState
 	return nil
 }
 
-func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) {
+func (cursorWorkspaceAdapter) Import(root string, seed ImportSeed) (ImportResult, error) {
 	result := ImportResult{Manifest: seed.Manifest}
 	var hasCursorState bool
 	mergedServers := map[string]any{}
@@ -62,7 +62,7 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		hasCursorState = true
 	}
 	if len(mergedServers) > 0 {
-		artifact, err := importedPortableMCPArtifact("cursor", mergedServers)
+		artifact, err := importedPortableMCPArtifact("cursor-workspace", mergedServers)
 		if err != nil {
 			return ImportResult{}, err
 		}
@@ -98,10 +98,10 @@ func (cursorAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 	return result, nil
 }
 
-func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]pluginmodel.Artifact, error) {
+func (cursorWorkspaceAdapter) Generate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]pluginmodel.Artifact, error) {
 	var artifacts []pluginmodel.Artifact
 	if graph.Portable.MCP != nil {
-		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "cursor")
+		projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "cursor-workspace")
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 			Content: body,
 		})
 	}
-	rules, err := copyArtifacts(root, authoredComponentDir(state, "rules", filepath.Join("targets", "cursor", "rules")), filepath.Join(".cursor", "rules"))
+	rules, err := copyArtifacts(root, authoredComponentDir(state, "rules", filepath.Join("targets", "cursor-workspace", "rules")), filepath.Join(".cursor", "rules"))
 	if err != nil {
 		return nil, err
 	}
@@ -132,19 +132,19 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 	return compactArtifacts(artifacts), nil
 }
 
-func (cursorAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
+func (cursorWorkspaceAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
 	return []string{"AGENTS.md"}, nil
 }
 
-func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
+func (cursorWorkspaceAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
 	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 && strings.TrimSpace(state.DocPath("agents_markdown")) == "" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("targets", "cursor")),
-			Target:   "cursor",
-			Message:  "Cursor target requires at least one of src/mcp/servers.yaml, src/targets/cursor/rules/**, or src/targets/cursor/AGENTS.md",
+			Path:     filepath.ToSlash(filepath.Join("targets", "cursor-workspace")),
+			Target:   "cursor-workspace",
+			Message:  "Cursor workspace target requires at least one of src/mcp/servers.yaml, src/targets/cursor-workspace/rules/**, or src/targets/cursor-workspace/AGENTS.md",
 		})
 	}
 	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)
@@ -172,7 +172,7 @@ func readCursorMCPServers(path string, label string) (map[string]any, bool, erro
 }
 
 func renderCursorRootAgents(root string, state pluginmodel.TargetState) ([]byte, error) {
-	body, _, err := scaffold.RenderTemplate("ROOT.AGENTS.md.tmpl", scaffold.Data{Platform: "cursor"})
+	body, _, err := scaffold.RenderTemplate("ROOT.AGENTS.md.tmpl", scaffold.Data{Platform: "cursor-workspace"})
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func importCursorAgentsArtifact(root string) (pluginmodel.Artifact, bool, error)
 		return pluginmodel.Artifact{}, false, nil
 	}
 	return pluginmodel.Artifact{
-		RelPath: filepath.ToSlash(filepath.Join("targets", "cursor", "AGENTS.md")),
+		RelPath: filepath.ToSlash(filepath.Join("targets", "cursor-workspace", "AGENTS.md")),
 		Content: append([]byte(content), '\n'),
 	}, true, nil
 }
@@ -257,7 +257,7 @@ func importCursorRuleArtifacts(root string) ([]pluginmodel.Artifact, error) {
 			return err
 		}
 		artifacts = append(artifacts, pluginmodel.Artifact{
-			RelPath: filepath.ToSlash(filepath.Join("targets", "cursor", "rules", rel)),
+			RelPath: filepath.ToSlash(filepath.Join("targets", "cursor-workspace", "rules", rel)),
 			Content: body,
 		})
 		return nil
@@ -282,8 +282,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s must stay within src/targets/cursor/rules without path traversal", rel),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s must stay within src/targets/cursor-workspace/rules without path traversal", rel),
 			})
 			continue
 		}
@@ -293,8 +293,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule files %s and %s collide on case-insensitive filesystems", prior, rel),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule files %s and %s collide on case-insensitive filesystems", prior, rel),
 			})
 		} else {
 			seenCaseFolded[lower] = clean
@@ -304,8 +304,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s must use the .mdc extension", rel),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s must use the .mdc extension", rel),
 			})
 			continue
 		}
@@ -316,8 +316,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s is not readable: %v", rel, err),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s is not readable: %v", rel, err),
 			})
 			continue
 		}
@@ -326,8 +326,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s must not be a symlink", rel),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s must not be a symlink", rel),
 			})
 			continue
 		}
@@ -337,8 +337,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s is not readable: %v", rel, err),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s is not readable: %v", rel, err),
 			})
 			continue
 		}
@@ -347,8 +347,8 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
 				Path:     rel,
-				Target:   "cursor",
-				Message:  fmt.Sprintf("Cursor rule file %s must not be empty", rel),
+				Target:   "cursor-workspace",
+				Message:  fmt.Sprintf("Cursor workspace rule file %s must not be empty", rel),
 			})
 		}
 	}
@@ -366,8 +366,8 @@ func validateCursorAgentsMarkdown(root string, rel string) []Diagnostic {
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     rel,
-			Target:   "cursor",
-			Message:  fmt.Sprintf("Cursor AGENTS markdown %s is not readable: %v", rel, err),
+			Target:   "cursor-workspace",
+			Message:  fmt.Sprintf("Cursor workspace AGENTS markdown %s is not readable: %v", rel, err),
 		}}
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
@@ -375,8 +375,8 @@ func validateCursorAgentsMarkdown(root string, rel string) []Diagnostic {
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     rel,
-			Target:   "cursor",
-			Message:  fmt.Sprintf("Cursor AGENTS markdown %s must not be a symlink", rel),
+			Target:   "cursor-workspace",
+			Message:  fmt.Sprintf("Cursor workspace AGENTS markdown %s must not be a symlink", rel),
 		}}
 	}
 	body, err := os.ReadFile(full)
@@ -385,8 +385,8 @@ func validateCursorAgentsMarkdown(root string, rel string) []Diagnostic {
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     rel,
-			Target:   "cursor",
-			Message:  fmt.Sprintf("Cursor AGENTS markdown %s is not readable: %v", rel, err),
+			Target:   "cursor-workspace",
+			Message:  fmt.Sprintf("Cursor workspace AGENTS markdown %s is not readable: %v", rel, err),
 		}}
 	}
 	if strings.TrimSpace(string(body)) == "" {
@@ -394,8 +394,8 @@ func validateCursorAgentsMarkdown(root string, rel string) []Diagnostic {
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     rel,
-			Target:   "cursor",
-			Message:  fmt.Sprintf("Cursor AGENTS markdown %s must not be empty", rel),
+			Target:   "cursor-workspace",
+			Message:  fmt.Sprintf("Cursor workspace AGENTS markdown %s must not be empty", rel),
 		}}
 	}
 	return nil

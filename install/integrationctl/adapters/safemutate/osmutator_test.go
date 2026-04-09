@@ -76,3 +76,36 @@ func TestMutateFileCreatesFileWhenMissing(t *testing.T) {
 		t.Fatalf("body = %q, want %q", got, want)
 	}
 }
+
+func TestMutateFileRemovesBackupAfterSuccessfulWrite(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(root, "config.json")
+	if err := os.WriteFile(path, []byte("{\"before\":true}\n"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+
+	result, err := OS{}.MutateFile(context.Background(), ports.SafeFileMutationInput{
+		Path: path,
+		Mode: 0o644,
+		Build: func(original []byte, exists bool) ([]byte, error) {
+			if !exists {
+				t.Fatal("expected original file to exist")
+			}
+			return []byte("{\"after\":true}\n"), nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("mutate file: %v", err)
+	}
+	if result.BackupPath != "" {
+		t.Fatalf("backup path = %q, want empty after successful cleanup", result.BackupPath)
+	}
+	matches, err := filepath.Glob(filepath.Join(root, "config.json.bak-*"))
+	if err != nil {
+		t.Fatalf("glob backups: %v", err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("backup files left behind: %#v", matches)
+	}
+}

@@ -16,10 +16,11 @@ These committed root docs are guidance files and are not generated outputs:
 
 `README.md` is a generated root entrypoint that points readers to `src/README.md`.
 
-- `.cursor/mcp.json`
-- `.cursor/rules/project.mdc`
+- `.cursor-plugin/plugin.json`
+- `.mcp.json`
 - `GENERATED.md`
 - `README.md`
+- `skills/release-checks/SKILL.md`
 
 ## Refresh
 

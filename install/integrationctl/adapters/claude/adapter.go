@@ -38,9 +38,10 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 	}, nil
 }
 
-func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.InspectResult, error) {
+func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
 	scope := scopeForInspect(in)
-	settings := a.settingsPath(scope)
+	workspaceRoot := workspaceRootFromInspectInput(in)
+	settings := a.settingsPath(scope, workspaceRoot)
 	_, cmdErr := exec.LookPath("claude")
 	_, statErr := os.Stat(settings)
 	restrictions := []domain.EnvironmentRestrictionCode{}
@@ -53,12 +54,12 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	if cmdErr != nil && statErr != nil {
 		restrictions = append(restrictions, domain.RestrictionSourceToolMissing)
 	}
-	if managedPath, managed, ok := a.readManagedSettings(scope); ok {
+	if managedPath, managed, ok := a.readManagedSettings(scope, workspaceRoot); ok {
 		settingsFiles = append(settingsFiles, managedPath)
 		if managed.blocksAllMarketplaceAdds() {
 			restrictions = append(restrictions, domain.RestrictionManagedPolicyBlock)
 		} else if integrationID != "" {
-			if blocked, _ := a.marketplaceAddBlocked(scope, integrationID); blocked {
+			if blocked, _ := a.marketplaceAddBlocked(scope, workspaceRoot, integrationID); blocked {
 				restrictions = append(restrictions, domain.RestrictionManagedPolicyBlock)
 			}
 		}
@@ -75,7 +76,13 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	if hasRestriction(restrictions, domain.RestrictionReadOnlyNativeLayer) {
 		restrictions = dedupeRestrictions(restrictions)
 	}
-	if statErr == nil || cmdErr == nil {
+	if cmdErr == nil && integrationID != "" {
+		if nativeState, ok, err := a.inspectPluginList(ctx, scope, workspaceRoot, integrationID, in.Record); err != nil {
+			return ports.InspectResult{}, err
+		} else if ok {
+			state = nativeState
+		}
+	} else if statErr == nil || cmdErr == nil {
 		state = domain.InstallInstalled
 	}
 	return ports.InspectResult{
@@ -88,6 +95,57 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 		SettingsFiles:           settingsFiles,
 		EvidenceClass:           domain.EvidenceConfirmed,
 	}, nil
+}
+
+type listedPlugin struct {
+	ID      string `json:"id"`
+	Scope   string `json:"scope"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (a Adapter) inspectPluginList(ctx context.Context, scope string, workspaceRoot string, integrationID string, record *domain.InstallationRecord) (domain.InstallState, bool, error) {
+	commandDir := a.commandDirForScope(scope, workspaceRoot)
+	result, err := a.runner().Run(ctx, ports.Command{
+		Argv: []string{"claude", "plugin", "list", "--json"},
+		Dir:  commandDir,
+	})
+	if err != nil {
+		return "", false, domain.NewError(domain.ErrMutationApply, "run Claude plugin list", err)
+	}
+	if result.ExitCode != 0 {
+		msg := strings.TrimSpace(string(result.Stderr))
+		if msg == "" {
+			msg = strings.TrimSpace(string(result.Stdout))
+		}
+		if msg == "" {
+			msg = "Claude plugin list failed"
+		}
+		return "", false, domain.NewError(domain.ErrMutationApply, msg, nil)
+	}
+	var items []listedPlugin
+	if err := json.Unmarshal(result.Stdout, &items); err != nil {
+		return "", false, domain.NewError(domain.ErrMutationApply, "parse Claude plugin list JSON", err)
+	}
+	wantRef := integrationID + "@" + managedMarketplaceName(integrationID)
+	if record != nil {
+		if value := pluginRefFromRecord(*record); value != "" {
+			wantRef = value
+		}
+	}
+	wantScope := strings.ToLower(strings.TrimSpace(scope))
+	for _, item := range items {
+		if strings.TrimSpace(item.ID) != wantRef {
+			continue
+		}
+		if wantScope != "" && strings.ToLower(strings.TrimSpace(item.Scope)) != wantScope {
+			continue
+		}
+		if item.Enabled {
+			return domain.InstallInstalled, true, nil
+		}
+		return domain.InstallDisabled, true, nil
+	}
+	return domain.InstallRemoved, true, nil
 }
 
 func hasRestriction(items []domain.EnvironmentRestrictionCode, want domain.EnvironmentRestrictionCode) bool {
@@ -114,9 +172,9 @@ func dedupeRestrictions(items []domain.EnvironmentRestrictionCode) []domain.Envi
 
 func (a Adapter) PlanInstall(_ context.Context, in ports.PlanInstallInput) (ports.AdapterPlan, error) {
 	marketplaceRoot := managedMarketplaceRoot(a.userHome(), in.Manifest.IntegrationID)
-	settings := a.settingsPath(in.Policy.Scope)
+	settings := a.settingsPath(in.Policy.Scope, "")
 	manual, blocking := blockingSteps(in.Inspect)
-	if blocked, message := a.marketplaceAddBlocked(in.Policy.Scope, in.Manifest.IntegrationID); blocked {
+	if blocked, message := a.marketplaceAddBlocked(in.Policy.Scope, "", in.Manifest.IntegrationID); blocked {
 		manual = append(manual, message)
 		blocking = true
 	}
@@ -136,26 +194,27 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	if in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Claude install requires resolved source", nil)
 	}
+	commandDir := a.commandDirForScope(in.Policy.Scope, workspaceRootFromApplyInput(in))
 	materializedRoot, marketplaceName, pluginRef, err := a.syncManagedMarketplace(ctx, in.Manifest, in.ResolvedSource.LocalPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
 	}
-	if err := a.runClaude(ctx, []string{"claude", "plugin", "marketplace", "add", materializedRoot}, ""); err != nil {
+	if err := a.runClaude(ctx, []string{"claude", "plugin", "marketplace", "add", materializedRoot}, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	installArgv := []string{"claude", "plugin", "install", pluginRef}
 	if scope := strings.TrimSpace(in.Policy.Scope); scope != "" {
 		installArgv = append(installArgv, "--scope", scope)
 	}
-	if err := a.runClaude(ctx, installArgv, ""); err != nil {
-		_ = a.runClaude(ctx, []string{"claude", "plugin", "marketplace", "remove", marketplaceName}, "")
+	if err := a.runClaude(ctx, installArgv, commandDir); err != nil {
+		_ = a.runClaude(ctx, []string{"claude", "plugin", "marketplace", "remove", marketplaceName}, commandDir)
 		return ports.ApplyResult{}, err
 	}
 	return ports.ApplyResult{
 		TargetID:           a.ID(),
 		State:              domain.InstallInstalled,
 		ActivationState:    domain.ActivationReloadPending,
-		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Policy.Scope, materializedRoot),
+		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Policy.Scope, workspaceRootFromApplyInput(in), materializedRoot),
 		EvidenceClass:      domain.EvidenceConfirmed,
 		ReloadRequired:     true,
 		ManualSteps:        []string{"run /reload-plugins in Claude Code if the current session should pick up the new plugin immediately"},
@@ -178,7 +237,7 @@ func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.
 		ReloadRequired: true,
 		PathsTouched: []string{
 			managedMarketplaceRoot(a.userHome(), in.CurrentRecord.IntegrationID),
-			a.settingsPath(in.CurrentRecord.Policy.Scope),
+			a.settingsPath(in.CurrentRecord.Policy.Scope, workspaceRootFromRecord(in.CurrentRecord)),
 		},
 		ManualSteps: manual,
 		Blocking:    blocking,
@@ -196,33 +255,34 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if seedPath, ok := a.seedManagedMarketplacePath(in.Record.IntegrationID, in.Record); ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Claude marketplace is seed-managed and read-only: "+seedPath, nil)
 	}
+	commandDir := a.commandDirForScope(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record))
 	materializedRoot, marketplaceName, pluginRef, err := a.syncManagedMarketplace(ctx, in.Manifest, in.ResolvedSource.LocalPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
 	}
 	updateArgv := []string{"claude", "plugin", "marketplace", "update", marketplaceName}
-	if err := a.runClaude(ctx, updateArgv, ""); err != nil {
+	if err := a.runClaude(ctx, updateArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	uninstallArgv := []string{"claude", "plugin", "uninstall", pluginRef}
 	if scope := strings.TrimSpace(in.Record.Policy.Scope); scope != "" {
 		uninstallArgv = append(uninstallArgv, "--scope", scope)
 	}
-	if err := a.runClaude(ctx, uninstallArgv, ""); err != nil {
+	if err := a.runClaude(ctx, uninstallArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	installArgv := []string{"claude", "plugin", "install", pluginRef}
 	if scope := strings.TrimSpace(in.Record.Policy.Scope); scope != "" {
 		installArgv = append(installArgv, "--scope", scope)
 	}
-	if err := a.runClaude(ctx, installArgv, ""); err != nil {
+	if err := a.runClaude(ctx, installArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	return ports.ApplyResult{
 		TargetID:           a.ID(),
 		State:              domain.InstallInstalled,
 		ActivationState:    domain.ActivationReloadPending,
-		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Record.Policy.Scope, materializedRoot),
+		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record), materializedRoot),
 		EvidenceClass:      domain.EvidenceConfirmed,
 		ReloadRequired:     true,
 		ManualSteps:        []string{"run /reload-plugins in Claude Code so the updated plugin package is reloaded in the current session"},
@@ -246,7 +306,7 @@ func (a Adapter) PlanRemove(_ context.Context, in ports.PlanRemoveInput) (ports.
 		ReloadRequired: true,
 		PathsTouched: []string{
 			managedMarketplaceRoot(a.userHome(), in.Record.IntegrationID),
-			a.settingsPath(in.Record.Policy.Scope),
+			a.settingsPath(in.Record.Policy.Scope, workspaceRootFromRecord(in.Record)),
 		},
 		ManualSteps: manual,
 		Blocking:    blocking,
@@ -261,6 +321,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if seedPath, ok := a.seedManagedMarketplacePath(in.Record.IntegrationID, in.Record); ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Claude marketplace is seed-managed and read-only: "+seedPath, nil)
 	}
+	commandDir := a.commandDirForScope(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record))
 	marketplaceName := marketplaceNameFromRecord(*in.Record)
 	if marketplaceName == "" {
 		marketplaceName = managedMarketplaceName(in.Record.IntegrationID)
@@ -273,11 +334,11 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if scope := strings.TrimSpace(in.Record.Policy.Scope); scope != "" {
 		uninstallArgv = append(uninstallArgv, "--scope", scope)
 	}
-	if err := a.runClaude(ctx, uninstallArgv, ""); err != nil {
+	if err := a.runClaude(ctx, uninstallArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	removeMarketArgv := []string{"claude", "plugin", "marketplace", "remove", marketplaceName}
-	if err := a.runClaude(ctx, removeMarketArgv, ""); err != nil {
+	if err := a.runClaude(ctx, removeMarketArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	if materializedRoot := materializedRootFromRecord(*in.Record); materializedRoot != "" {
@@ -311,14 +372,15 @@ func (a Adapter) Repair(ctx context.Context, in ports.RepairInput) (ports.ApplyR
 	if seedPath, ok := a.seedManagedMarketplacePath(in.Record.IntegrationID, &in.Record); ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrRepairApply, "Claude marketplace is seed-managed and read-only: "+seedPath, nil)
 	}
+	commandDir := a.commandDirForScope(in.Record.Policy.Scope, workspaceRootFromRecord(in.Record))
 	materializedRoot, marketplaceName, pluginRef, err := a.syncManagedMarketplace(ctx, *in.Manifest, in.ResolvedSource.LocalPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
 	}
 	updateMarketArgv := []string{"claude", "plugin", "marketplace", "update", marketplaceName}
-	if err := a.runClaude(ctx, updateMarketArgv, ""); err != nil {
+	if err := a.runClaude(ctx, updateMarketArgv, commandDir); err != nil {
 		addMarketArgv := []string{"claude", "plugin", "marketplace", "add", materializedRoot}
-		if addErr := a.runClaude(ctx, addMarketArgv, ""); addErr != nil {
+		if addErr := a.runClaude(ctx, addMarketArgv, commandDir); addErr != nil {
 			return ports.ApplyResult{}, addErr
 		}
 		updateMarketArgv = addMarketArgv
@@ -327,19 +389,19 @@ func (a Adapter) Repair(ctx context.Context, in ports.RepairInput) (ports.ApplyR
 	if scope := strings.TrimSpace(in.Record.Policy.Scope); scope != "" {
 		uninstallArgv = append(uninstallArgv, "--scope", scope)
 	}
-	_ = a.runClaude(ctx, uninstallArgv, "")
+	_ = a.runClaude(ctx, uninstallArgv, commandDir)
 	installArgv := []string{"claude", "plugin", "install", pluginRef}
 	if scope := strings.TrimSpace(in.Record.Policy.Scope); scope != "" {
 		installArgv = append(installArgv, "--scope", scope)
 	}
-	if err := a.runClaude(ctx, installArgv, ""); err != nil {
+	if err := a.runClaude(ctx, installArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	return ports.ApplyResult{
 		TargetID:           a.ID(),
 		State:              domain.InstallInstalled,
 		ActivationState:    domain.ActivationReloadPending,
-		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Record.Policy.Scope, materializedRoot),
+		OwnedNativeObjects: a.ownedObjects(in.Manifest.IntegrationID, in.Record.Policy.Scope, workspaceRootFromRecord(in.Record), materializedRoot),
 		EvidenceClass:      domain.EvidenceConfirmed,
 		ReloadRequired:     true,
 		ManualSteps:        []string{"run /reload-plugins in Claude Code so the repaired plugin package is reloaded in the current session"},
@@ -394,23 +456,18 @@ func (a Adapter) userHome() string {
 	return home
 }
 
-func (a Adapter) settingsPath(scope string) string {
+func (a Adapter) settingsPath(scope string, workspaceRoot string) string {
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	switch scope {
 	case "project":
-		root := strings.TrimSpace(a.ProjectRoot)
-		if root == "" {
-			if cwd, err := os.Getwd(); err == nil {
-				root = cwd
-			}
-		}
+		root := effectiveWorkspaceRoot(workspaceRoot, a.ProjectRoot)
 		return filepath.Join(root, ".claude", "settings.json")
 	default:
 		return filepath.Join(a.userHome(), ".claude", "settings.json")
 	}
 }
 
-func (a Adapter) ownedObjects(integrationID, scope, materializedRoot string) []domain.NativeObjectRef {
+func (a Adapter) ownedObjects(integrationID, scope, workspaceRoot, materializedRoot string) []domain.NativeObjectRef {
 	return []domain.NativeObjectRef{
 		{
 			Kind:            "managed_marketplace_root",
@@ -419,7 +476,7 @@ func (a Adapter) ownedObjects(integrationID, scope, materializedRoot string) []d
 		},
 		{
 			Kind:            "settings_file",
-			Path:            a.settingsPath(scope),
+			Path:            a.settingsPath(scope, workspaceRoot),
 			ProtectionClass: protectionForScope(scope),
 		},
 	}
@@ -504,8 +561,8 @@ func materializedRootFromRecord(record domain.InstallationRecord) string {
 	return ""
 }
 
-func (a Adapter) readManagedSettings(scope string) (string, managedSettings, bool) {
-	for _, candidate := range a.managedSettingsCandidates(scope) {
+func (a Adapter) readManagedSettings(scope, workspaceRoot string) (string, managedSettings, bool) {
+	for _, candidate := range a.managedSettingsCandidates(scope, workspaceRoot) {
 		body, err := os.ReadFile(candidate)
 		if err != nil {
 			continue
@@ -519,16 +576,11 @@ func (a Adapter) readManagedSettings(scope string) (string, managedSettings, boo
 	return "", managedSettings{}, false
 }
 
-func (a Adapter) managedSettingsCandidates(scope string) []string {
+func (a Adapter) managedSettingsCandidates(scope, workspaceRoot string) []string {
 	candidates := []string{}
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	if scope == "project" {
-		root := strings.TrimSpace(a.ProjectRoot)
-		if root == "" {
-			if cwd, err := os.Getwd(); err == nil {
-				root = cwd
-			}
-		}
+		root := effectiveWorkspaceRoot(workspaceRoot, a.ProjectRoot)
 		if root != "" {
 			candidates = append(candidates, filepath.Join(root, ".claude", "managed-settings.json"))
 		}
@@ -540,13 +592,60 @@ func (a Adapter) managedSettingsCandidates(scope string) []string {
 	return candidates
 }
 
+func workspaceRootFromInspectInput(in ports.InspectInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromApplyInput(in ports.ApplyInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromRecord(record domain.InstallationRecord) string {
+	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
+		return strings.TrimSpace(record.WorkspaceRoot)
+	}
+	return ""
+}
+
+func effectiveWorkspaceRoot(workspaceRoot string, projectRoot string) string {
+	if root := strings.TrimSpace(workspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
+	if root := strings.TrimSpace(projectRoot); root != "" {
+		return filepath.Clean(root)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return filepath.Clean(cwd)
+	}
+	return ""
+}
+
+func (a Adapter) commandDirForScope(scope string, workspaceRoot string) string {
+	if strings.EqualFold(strings.TrimSpace(scope), "project") {
+		return effectiveWorkspaceRoot(workspaceRoot, a.ProjectRoot)
+	}
+	return ""
+}
+
 func (m managedSettings) blocksAllMarketplaceAdds() bool {
 	raw := strings.TrimSpace(string(m.StrictKnownMarketplaces))
 	return raw == "[]"
 }
 
-func (a Adapter) marketplaceAddBlocked(scope, integrationID string) (bool, string) {
-	_, managed, ok := a.readManagedSettings(scope)
+func (a Adapter) marketplaceAddBlocked(scope, workspaceRoot, integrationID string) (bool, string) {
+	_, managed, ok := a.readManagedSettings(scope, workspaceRoot)
 	if !ok {
 		return false, ""
 	}

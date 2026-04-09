@@ -36,12 +36,12 @@ flowchart LR
 
 ## 1. Начните с самого узкого стабильного пути
 
-Используйте самый сильный путь по умолчанию, если нет реальной причины поступить иначе:
+Начинайте с самого узкого пути, который реально соответствует задаче:
 
 ```bash
-plugin-kit-ai init my-plugin
+plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
-plugin-kit-ai generate .
+plugin-kit-ai inspect . --authoring
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
@@ -84,7 +84,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## 5. Проверьте, действительно ли вам нужен другой путь
 
-Уходите от пути по умолчанию только тогда, когда компромисс действительно оправдан:
+Уходите от стартового пути только тогда, когда компромисс действительно оправдан:
 
 - используйте `claude`, когда Claude hooks — это реальное product requirement
 - используйте `node --typescript`, когда команда TypeScript-first и локальный runtime-путь действительно приемлем

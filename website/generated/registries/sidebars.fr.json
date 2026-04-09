@@ -313,8 +313,16 @@
           "link": "/fr/api/cli/plugin-kit-ai-integrations-add"
         },
         {
+          "text": "integrations disable",
+          "link": "/fr/api/cli/plugin-kit-ai-integrations-disable"
+        },
+        {
           "text": "integrations doctor",
           "link": "/fr/api/cli/plugin-kit-ai-integrations-doctor"
+        },
+        {
+          "text": "integrations enable",
+          "link": "/fr/api/cli/plugin-kit-ai-integrations-enable"
         },
         {
           "text": "integrations help",
@@ -331,6 +339,10 @@
         {
           "text": "integrations repair",
           "link": "/fr/api/cli/plugin-kit-ai-integrations-repair"
+        },
+        {
+          "text": "integrations sync",
+          "link": "/fr/api/cli/plugin-kit-ai-integrations-sync"
         },
         {
           "text": "integrations update",

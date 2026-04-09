@@ -990,6 +990,25 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "plugin-kit-ai integrations disable"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:disable",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations disable",
+    "summary": "Disable a managed integration target where the native agent supports toggling",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations disable",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-disable",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-disable"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "plugin-kit-ai integrations doctor"
     ],
     "publicVisibility": "public",
@@ -1005,6 +1024,25 @@
     "sourceRef": "cli:plugin-kit-ai integrations doctor",
     "pathEn": "/en/api/cli/plugin-kit-ai-integrations-doctor",
     "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-doctor"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations enable"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:enable",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations enable",
+    "summary": "Enable a managed integration target where the native agent supports toggling",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations enable",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-enable",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-enable"
   },
   {
     "relatedIds": [],
@@ -1081,6 +1119,25 @@
     "sourceRef": "cli:plugin-kit-ai integrations repair",
     "pathEn": "/en/api/cli/plugin-kit-ai-integrations-repair",
     "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-repair"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai integrations sync"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:integrations:sync",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai integrations sync",
+    "summary": "Reconcile workspace desired integrations from .plugin-kit-ai.lock",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai integrations sync",
+    "pathEn": "/en/api/cli/plugin-kit-ai-integrations-sync",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-integrations-sync"
   },
   {
     "relatedIds": [],
@@ -1991,6 +2048,25 @@
     "relatedIds": [],
     "searchTerms": [
       "Choose Delivery Model"
+    ]
+  },
+  {
+    "canonicalId": "page:guide:choose-what-you-are-building",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Choose What You Are Building",
+    "summary": "Pick the right plugin-kit-ai starting path before you think about target taxonomy.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/choose-what-you-are-building.md",
+    "pathEn": "/en/guide/choose-what-you-are-building",
+    "pathRu": "/ru/guide/choose-what-you-are-building",
+    "relatedIds": [],
+    "searchTerms": [
+      "Choose What You Are Building"
     ]
   },
   {

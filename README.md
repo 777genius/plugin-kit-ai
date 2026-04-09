@@ -62,11 +62,12 @@ Real examples:
 - [hubspot-developer](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/hubspot-developer)
 - [chrome-devtools](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/win4r/chrome-devtools-codex-plugin)
 
-### Build custom plugin logic
+### Build custom plugin logic - Advanced
 
 Use this when the product is defined by hooks, runtime behavior, or custom plugin code.
 
-Backward compatibility stays intact here: plain `init` is still the default `codex-runtime` plus Go path.
+This path is more powerful and more engineering-heavy than the first two starters.
+Plain `plugin-kit-ai init my-plugin` still exists as the legacy compatibility path for the older Codex runtime Go starter.
 
 ```bash
 plugin-kit-ai init my-plugin --template custom-logic
@@ -78,7 +79,7 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 Guide:
 
-- [Build Your First Plugin](https://777genius.github.io/plugin-kit-ai/docs/en/guide/first-plugin.html)
+- [Build Custom Plugin Logic](https://777genius.github.io/plugin-kit-ai/docs/en/guide/build-custom-plugin-logic.html)
 
 ## Quick Start
 
@@ -99,14 +100,8 @@ plugin-kit-ai init my-plugin --template local-tool
 plugin-kit-ai init my-plugin --template custom-logic
 ```
 
-Plain `plugin-kit-ai init my-plugin` is still supported and still starts on the strongest backward-compatible default path:
-
-```bash
-plugin-kit-ai init my-plugin
-cd my-plugin
-plugin-kit-ai generate .
-plugin-kit-ai validate . --platform codex-runtime --strict
-```
+Plain `plugin-kit-ai init my-plugin` still exists for backward compatibility, but it is no longer the recommended first start for new repos.
+Use one of the three job-first templates above unless you are intentionally maintaining the older Codex runtime Go path.
 
 ## What You Get
 
@@ -177,8 +172,9 @@ Start here:
 
 Choose this when you want the strongest supported release and distribution story.
 
-- Best default: `plugin-kit-ai init my-plugin`
-- Claude-first path: `plugin-kit-ai init my-plugin --platform claude`
+- Online service path: `plugin-kit-ai init my-plugin --template online-service`
+- Local tool path: `plugin-kit-ai init my-plugin --template local-tool`
+- Advanced runtime path: `plugin-kit-ai init my-plugin --template custom-logic`
 - Package/config expansion later: `codex-package`, `gemini`, `opencode`, `cursor`
 - Real multi-target MCP-first example: [`context7` in universal-plugins-for-ai-agents](https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/context7)
 

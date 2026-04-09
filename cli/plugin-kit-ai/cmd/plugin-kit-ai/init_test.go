@@ -41,17 +41,17 @@ func TestInitHelpIncludesScenarioLanesAndDefaults(t *testing.T) {
 	for _, want := range []string{
 		"Connect an online service",
 		"Connect a local tool",
-		"Build custom plugin logic",
+		"Build custom plugin logic - Advanced",
 		"Already have native config",
 		"plugin-kit-ai import",
 		`--template   Recommended start: "online-service", "local-tool", or "custom-logic".`,
-		`--platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".`,
+		`--platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", "cursor", or "cursor-workspace".`,
 		`--runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.`,
 		"--typescript Generate a TypeScript scaffold on top of the node runtime lane",
 		"--runtime-package",
 		"--runtime-package-version",
 		"import the shared plugin-kit-ai-runtime package instead of vendoring the helper file",
-		"Plain init stays backward-compatible here",
+		"Plain init remains as a legacy compatibility path",
 		"--claude-extended-hooks",
 	} {
 		if !strings.Contains(output, want) {
@@ -103,7 +103,8 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See README.md for SDK setup and first-run steps",
+				"See src/README.md for SDK setup and first-run steps",
+				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 		},
 		{
@@ -117,7 +118,8 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
+				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 			notWant: []string{
 				"production-ready",
@@ -134,7 +136,8 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
+				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 			notWant: []string{
 				"production-ready",
@@ -149,7 +152,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
 			},
 		},
 		{
@@ -161,7 +164,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
 			},
 		},
 		{
@@ -179,11 +182,12 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"make test-gemini-runtime",
 				"gemini extensions link .",
 				"make test-gemini-runtime-live",
-				"See README.md for Gemini runtime steps",
+				"See src/README.md for Gemini runtime steps",
 			},
 			notWant: []string{
 				"plugin-kit-ai test .",
 				"plugin-kit-ai dev .",
+				"Legacy compatibility path.",
 			},
 		},
 		{
@@ -195,7 +199,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
 			},
 		},
 		{
@@ -207,7 +211,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
-				"See README.md for the full first run",
+				"See src/README.md for the full first run",
 			},
 		},
 		{
@@ -254,6 +258,26 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				t.Fatalf("platform = %q, want %q", runner.gotOpts.Platform, tc.wantPlatform)
 			}
 		})
+	}
+}
+
+func TestInitSuccessOutput_CustomLogicHighlightsAdvancedPath(t *testing.T) {
+	t.Parallel()
+	output, err := executeInitCommand(t, "demo", "--template", "custom-logic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"plugin-kit-ai inspect . --authoring",
+		"See src/README.md for SDK setup and first-run steps",
+		"Advanced path: start with src/README.md, then grow into deeper runtime and hook details only when you need them.",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+	if strings.Contains(output, "Legacy compatibility path.") {
+		t.Fatalf("custom-logic output should not look like legacy init:\n%s", output)
 	}
 }
 

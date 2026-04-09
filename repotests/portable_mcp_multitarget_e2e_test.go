@@ -133,23 +133,28 @@ servers:
 		t.Fatalf("opencode release-checks projection = %#v", opencodeDoc.MCP["release-checks"])
 	}
 
-	cursorBody, err := os.ReadFile(filepath.Join(workDir, ".cursor", "mcp.json"))
+	cursorManifestBody, err := os.ReadFile(filepath.Join(workDir, ".cursor-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cursorDoc struct {
-		MCPServers map[string]map[string]any `json:"mcpServers"`
+	if !strings.Contains(string(cursorManifestBody), `"mcpServers": "./.mcp.json"`) {
+		t.Fatalf(".cursor-plugin/plugin.json missing shared MCP ref:\n%s", cursorManifestBody)
 	}
+	cursorBody, err := os.ReadFile(filepath.Join(workDir, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cursorDoc map[string]map[string]any
 	if err := json.Unmarshal(cursorBody, &cursorDoc); err != nil {
-		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, cursorBody)
+		t.Fatalf("parse .mcp.json: %v\n%s", err, cursorBody)
 	}
-	cursorDocs := cursorDoc.MCPServers["docs"]
+	cursorDocs := cursorDoc["docs"]
 	if cursorDocs["type"] != "http" || cursorDocs["url"] != "https://example.com/mcp" {
 		t.Fatalf("cursor docs projection = %#v", cursorDocs)
 	}
-	cursorChecks := cursorDoc.MCPServers["release-checks"]
+	cursorChecks := cursorDoc["release-checks"]
 	cursorArgs, _ := cursorChecks["args"].([]any)
-	if len(cursorArgs) != 1 || cursorArgs[0] != "${workspaceFolder}/bin/release-checks.mjs" {
+	if len(cursorArgs) != 1 || cursorArgs[0] != "./bin/release-checks.mjs" {
 		t.Fatalf("cursor release-checks args = %#v", cursorChecks["args"])
 	}
 }

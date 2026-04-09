@@ -10,13 +10,13 @@ translationRequired: true
 
 # Соберите первый плагин
 
-Этот гайд использует самый сильный путь по умолчанию и специально держит сценарий узким:
+Этот гайд теперь покрывает узкий legacy-compatible путь для Codex runtime на Go:
 
 - target: `codex-runtime`
 - язык: `go`
 - readiness gate: `validate --strict`
 
-Узость этого tutorial нужна только для первого запуска. Если вам сразу важна более широкая история про один repo и несколько outputs, после него идите в [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
+Если вы ещё выбираете путь для нового repo, сначала откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building) или [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic).
 
 ## 1. Установите CLI
 
@@ -32,7 +32,7 @@ plugin-kit-ai init my-plugin
 cd my-plugin
 ```
 
-Путь `init` по умолчанию уже является рекомендуемой стартовой точкой для продакшена.
+Этот путь сохраняется ради backward compatibility, но уже не является рекомендуемым первым стартом для новых repo.
 
 ## 3. Сгенерируйте target-файлы
 
@@ -70,7 +70,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## Следующие шаги
 
-- Прочитайте [Выбор runtime](/ru/concepts/choosing-runtime), прежде чем уходить с пути по умолчанию.
+- Откройте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), если вам на самом деле нужен advanced runtime path, а не узкий legacy-compatible tutorial.
 - Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если для вас важна идея одного repo и нескольких outputs как основная идея продукта.
 - Используйте [Стартовые шаблоны](/ru/guide/starter-templates), когда нужен проверенный пример репозитория.
 - Откройте [Справочник CLI](/ru/api/cli/), когда нужно точное поведение команд.

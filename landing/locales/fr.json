@@ -61,8 +61,9 @@
       },
       "customLogic": {
         "title": "Build custom plugin logic",
+        "badge": "Advanced",
         "description": "Start with launcher-backed code when hooks, runtime logic, or custom behavior define the product.",
-        "example": "See the codex-basic-prod example"
+        "example": "Open the advanced custom-logic guide"
       }
     }
   },
@@ -99,14 +100,16 @@
   },
   "plugins": {
     "sectionTitle": "Nos premiers plugins commencent ici",
-    "sectionSubtitle": "Une gamme propriétaire conçue pour un véritable travail de mise en pension, avec des badges clairs pour les écosystèmes d'agents que chaque idée est censée prendre en charge.",
+    "sectionSubtitle": "Browse the real first-party catalog for online services and local tools. If the product value lives in your own runtime code, use the advanced custom-logic path instead.",
     "supports": "Prise en charge",
     "openPlugin": "Ouvrir le plugin",
     "viewDetails": "Afficher les détails",
     "viewAll": "Voir tout",
     "catalogEyebrow": "Catalogue de plugins",
     "catalogTitle": "Chaque plugin propriétaire dans un catalogue consultable",
-    "catalogSubtitle": "Parcourez la gamme complète, filtrez par catégories de flux de travail réelles et ouvrez une page légère pour le plugin avant de passer au référentiel source.",
+    "catalogSubtitle": "Browse the real catalog for online services and local tools, then open the source repo only after you know the plugin fits the job.",
+    "catalogAdvancedNote": "Need hooks, orchestration, or runtime behavior instead of a catalog plugin?",
+    "catalogAdvancedLink": "Open the advanced custom-logic guide.",
     "searchLabel": "Plugins de recherche",
     "searchPlaceholder": "Rechercher des plugins ou des workflows…",
     "filterLabel": "Filtrer par flux de travail",
@@ -120,6 +123,87 @@
     "categoriesTitle": "Construit pour",
     "useCasesTitle": "Idéal pour",
     "highlightsTitle": "Ce qui ressort",
+    "install": {
+      "eyebrow": "Install flow",
+      "title": "Installer ce plugin",
+      "subtitle": "Choisissez votre agent, installez plugin-kit-ai si nécessaire, puis copiez la commande exacte pour ce plugin.",
+      "supportedLabel": "Targets disponibles",
+      "allAgents": "All",
+      "chooseAgentTitle": "Choisissez votre agent",
+      "chooseAgentBody": "Tous les targets sont sélectionnés par défaut. Choisissez un sous-ensemble si vous voulez une commande d'installation plus ciblée.",
+      "getCliTitle": "Installez plugin-kit-ai si nécessaire",
+      "getCliBody": "Si vous n'avez pas encore le CLI, commencez ici avec le chemin pris en charge le plus clair et le plus rapide.",
+      "installTitle": "Installer le plugin",
+      "installBody": "Exécutez la commande d'installation pour le target sélectionné. La commande reste explicite pour que le scope final reste évident ensuite.",
+      "manualTitle": "Vous préférez un setup natif ou manuel ?",
+      "manualBody": "Ouvrez le dépôt ou la documentation officielle de l'agent si vous préférez la surface native au lieu du control plane plugin-kit-ai.",
+      "manageTitle": "Gérer plus tard",
+      "manageBody": "Après installation, utilisez ces commandes pour mettre à jour, réparer le drift ou supprimer proprement le plugin.",
+      "recommended": "Recommandé",
+      "showInstallCta": "Installer",
+      "hideInstallCta": "Masquer les étapes d'installation",
+      "cliCommandLabel": "Commande d'installation du CLI",
+      "installCommandLabel": "Commande d'installation du plugin",
+      "updateCommandLabel": "Commande de mise à jour",
+      "repairCommandLabel": "Commande de repair",
+      "removeCommandLabel": "Commande de suppression",
+      "copy": "Copier",
+      "copied": "Copié",
+      "fullOnboardingCta": "Ouvrir l'onboarding complet",
+      "alreadyInstalled": "Vous avez déjà le CLI ? Passez directement à l'étape 3.",
+      "repositoryCta": "Ouvrir le dépôt du plugin",
+      "agentDocsCta": "Ouvrir la doc {agent}",
+      "boundaryLabel": "Attention",
+      "targetsLabel": "Targets",
+      "scopeLabel": "Scope",
+      "writesToLabel": "Écrit dans",
+      "nextStepLabel": "Après l'installation",
+      "userScope": "User scope",
+      "projectScope": "Project scope",
+      "mixedScope": "Scopes mixtes",
+      "projectRootHint": "Exécutez ceci depuis la racine du projet pour que plugin-kit-ai mette à jour la configuration du workspace au bon endroit.",
+      "projectRootHintMixed": "Cette sélection inclut des targets project-first. Exécutez la commande depuis la racine du projet pour que les targets du workspace arrivent dans la bonne configuration.",
+      "selectionBodies": {
+        "all": "Installe tous les targets pris en charge de ce plugin avec une seule commande. Utilisez les chips d'agents si vous voulez un chemin d'installation plus étroit.",
+        "multi": "Installe les targets sélectionnés : {agents}."
+      },
+      "manualNotes": {
+        "all": "Ouvrez le dépôt si vous voulez inspecter directement les outputs générés, ou utilisez la documentation officielle de l'agent pour un chemin natif.",
+        "multi": "Ouvrez le dépôt ou la documentation des agents sélectionnés si vous voulez inspecter ou terminer la configuration native pour {agents}."
+      },
+      "followUps": {
+        "none": "Prêt à être utilisé après l'installation",
+        "reload": "Rechargez les plugins ou rouvrez l'agent s'il n'apparaît pas immédiatement",
+        "enable": "Vérifiez les permissions ou activez l'extension si Gemini demande une confirmation",
+        "activation": "Le paquet est préparé pour Codex, mais l'activation finale peut encore demander une installation native ou un nouveau thread dans Codex",
+        "depends": "Dépend des targets sélectionnés"
+      },
+      "targets": {
+        "claude": {
+          "installBody": "Installe le plugin dans le flux géré de Claude avec un default au niveau utilisateur.",
+          "manualNote": "Ouvrez le dépôt si vous voulez inspecter le package Claude généré ou suivre manuellement le flux natif de Claude.",
+          "boundaryNote": "Si Claude est déjà ouvert, rechargez les plugins ou rouvrez la session pour faire apparaître le nouveau plugin."
+        },
+        "codex": {
+          "installBody": "Prépare le package Codex et l'entrée du marketplace local via l'integration control plane.",
+          "manualNote": "Ouvrez le dépôt ou la doc Codex si vous voulez inspecter le package préparé ou terminer vous-même l'activation native.",
+          "boundaryNote": "L'automatisation pour Codex reste volontairement conservative ici. plugin-kit-ai prépare le package et le marketplace, mais Codex peut encore demander une étape native supplémentaire avant activation."
+        },
+        "gemini": {
+          "installBody": "Installe l'extension Gemini dans le répertoire d'extensions utilisateur et réutilise ensuite le même managed root pour update et repair.",
+          "manualNote": "Ouvrez le dépôt si vous voulez inspecter le package d'extension Gemini généré ou le gérer avec les commandes natives de Gemini.",
+          "boundaryNote": "Gemini peut demander une confirmation ou une revue des permissions selon vos paramètres locaux de sécurité des extensions."
+        },
+        "opencode": {
+          "installBody": "Ajoute ce plugin à la configuration OpenCode du projet et aux fichiers gérés dans .opencode.",
+          "manualNote": "Ouvrez le dépôt ou la doc OpenCode si vous voulez câbler la même configuration manuellement."
+        },
+        "cursor": {
+          "installBody": "Ajoute ce plugin à la configuration MCP Cursor du projet pour que l'intégration reste dans le setup versionné du workspace.",
+          "manualNote": "Ouvrez le dépôt ou la doc MCP Cursor si vous préférez gérer la même entrée serveur manuellement."
+        }
+      }
+    },
     "categories": {
       "docs": "Documents",
       "research": "Recherche",
@@ -132,7 +216,15 @@
       "backend": "Back-end",
       "cloud": "Nuage",
       "automation": "Automation",
-      "collaboration": "Collaboration"
+      "collaboration": "Collaboration",
+      "search": "Recherche",
+      "observability": "Observabilité",
+      "developerTools": "Outils développeur",
+      "crm": "CRM",
+      "cms": "CMS",
+      "payments": "Paiements",
+      "commerce": "Commerce",
+      "messaging": "Messagerie"
     },
     "allTypes": "All plugin types",
     "typeFilterLabel": "Filter by plugin type",
@@ -140,9 +232,32 @@
     "types": {
       "online-service": "Online service",
       "local-tool": "Local tool",
-      "custom-logic": "Custom logic"
+      "custom-logic": "Custom logic - Advanced"
     }
+  },
+  "customLogic": {
+    "eyebrow": "Advanced path",
+    "title": "Build custom plugin logic when the product lives in your code",
+    "subtitle": "This path stays first-class, but it is not the same kind of starter as the catalog-backed service and tool plugins. Use it when runtime behavior, hooks, or orchestration define the product.",
+    "advancedBadge": "Advanced",
+    "commandLabel": "Start command",
+    "commandBody": "Start here when the plugin value lives in your code and you want one repo to keep authored source, generated outputs, and runtime behavior aligned.",
+    "openGuide": "Open advanced guide",
+    "openExample": "Open example repo",
+    "points": {
+      "code": "Edit runtime-facing files under src/, plus the repo-owned entrypoint that defines the plugin behavior.",
+      "generated": "Keep generated root outputs managed instead of treating them like hand-edited source.",
+      "guide": "Use inspect --authoring and the advanced guide before you add more outputs."
     }
+  },
+  "createPlugin": {
+    "eyebrow": "Build your own plugin",
+    "title": "Create your own plugin",
+    "subtitle": "Pick the repo shape that matches the job, then open the guide that explains that path in more detail.",
+    "onlineServiceCta": "Open the job-first guide",
+    "localToolCta": "Open the job-first guide",
+    "customLogicCta": "Open the advanced guide",
+    "customLogicDescription": "Choose this when your code, hooks, or runtime behavior define the product."
   },
   "faq": {
     "sectionTitle": "Got des questions ? Nous avons des réponses",
@@ -180,7 +295,7 @@
     }
   },
   "footer": {
-    "copyright": "© {année}",
+    "copyright": "© {year}",
     "tagline": "Construisez une fois. Expédiez à de nombreux agents IA.",
     "github": "GitHub",
     "docs": "Documents"

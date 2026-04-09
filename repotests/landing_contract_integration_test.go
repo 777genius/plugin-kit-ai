@@ -179,9 +179,16 @@ func TestLandingSurface_LocalesLinksAndBrandingStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 	download := string(downloadBody)
-	mustContain(t, download, `navigator.clipboard?.writeText`)
 	mustContain(t, download, `download.copy`)
 	mustContain(t, download, `download.copied`)
+	mustContain(t, download, `CommandSnippetCard`)
+
+	commandSnippetBody, err := os.ReadFile(filepath.Join(landingRoot, "components", "shared", "CommandSnippetCard.vue"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	commandSnippet := string(commandSnippetBody)
+	mustContain(t, commandSnippet, `navigator.clipboard?.writeText`)
 
 	robotsBody, err := os.ReadFile(filepath.Join(landingRoot, "server", "routes", "robots.txt.ts"))
 	if err != nil {

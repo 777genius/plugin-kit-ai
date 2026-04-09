@@ -1,13 +1,13 @@
 # cursor-basic
 
-Reference Cursor workspace-config example for `plugin-kit-ai`.
+Reference Cursor packaged-plugin example for `plugin-kit-ai`.
 
-This example demonstrates the current documented Cursor subset:
+This example demonstrates the current packaged Cursor subset:
 
-- portable `src/mcp/servers.yaml` generated into `.cursor/mcp.json`
-- target-authored `src/targets/cursor/rules/project.mdc` mirrored into `.cursor/rules/project.mdc`
-- root `CLAUDE.md` and `AGENTS.md` are plugin boundary docs, not Cursor-native authored surfaces
-- strict documented-subset positioning: no global `~/.cursor/mcp.json`, no nested non-root `.cursor/rules/**`, and no JSONC promise for `.cursor/mcp.json`
+- portable `src/skills/**` generated into root `skills/**`
+- portable `src/mcp/servers.yaml` generated into shared `.mcp.json`
+- generated `.cursor-plugin/plugin.json` references the managed shared `.mcp.json`
+- root `CLAUDE.md` and `AGENTS.md` remain boundary docs that point back to `src/`
 
 Validate it with:
 

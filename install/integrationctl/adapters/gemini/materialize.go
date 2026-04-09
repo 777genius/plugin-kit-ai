@@ -18,7 +18,6 @@ import (
 type packageMeta struct {
 	ContextFileName string   `yaml:"context_file_name,omitempty"`
 	ExcludeTools    []string `yaml:"exclude_tools,omitempty"`
-	MigratedTo      string   `yaml:"migrated_to,omitempty"`
 	PlanDirectory   string   `yaml:"plan_directory,omitempty"`
 }
 
@@ -71,9 +70,6 @@ func (a Adapter) materializeAuthoredGeminiSource(ctx context.Context, manifest d
 	}
 	if len(meta.ExcludeTools) > 0 {
 		doc["excludeTools"] = append([]string(nil), meta.ExcludeTools...)
-	}
-	if strings.TrimSpace(meta.MigratedTo) != "" {
-		doc["migratedTo"] = strings.TrimSpace(meta.MigratedTo)
 	}
 	if strings.TrimSpace(meta.PlanDirectory) != "" {
 		doc["plan"] = map[string]any{"directory": strings.TrimSpace(meta.PlanDirectory)}
@@ -199,7 +195,6 @@ func loadPackageMeta(path string) (packageMeta, error) {
 		return meta, domain.NewError(domain.ErrMutationApply, "parse Gemini package metadata", err)
 	}
 	meta.ContextFileName = strings.TrimSpace(meta.ContextFileName)
-	meta.MigratedTo = strings.TrimSpace(meta.MigratedTo)
 	meta.PlanDirectory = strings.TrimSpace(meta.PlanDirectory)
 	return meta, nil
 }
@@ -382,7 +377,7 @@ func mergeManifestExtra(doc map[string]any, path string) error {
 	}
 	for key, value := range extra {
 		switch strings.TrimSpace(key) {
-		case "", "name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "migratedTo", "settings", "themes":
+		case "", "name", "version", "description", "mcpServers", "contextFileName", "excludeTools", "settings", "themes":
 			return domain.NewError(domain.ErrMutationApply, "Gemini manifest.extra.json may not override managed key "+key, nil)
 		case "plan":
 			raw, ok := value.(map[string]any)

@@ -59,7 +59,9 @@ function initializeSwiper() {
         justify-content: center;
         align-items: center;
         gap: 10px;
-        margin-top: 22px;
+        margin-top: 40px;
+        padding-top: 4px;
+        padding-bottom: 12px;
       }
       .swiper-pagination-bullet {
         width: 10px;
@@ -278,7 +280,7 @@ function slideNext() {
 
 .screenshots-section__swiper {
   display: block;
-  padding: 0 40px 44px;
+  padding: 18px 40px 136px;
   opacity: 0;
   transition: opacity 0.3s ease;
 }
@@ -289,6 +291,7 @@ function slideNext() {
 
 .screenshots-section__slide {
   height: auto;
+  padding-bottom: 52px;
 }
 
 .screenshots-section__view-all {
@@ -368,7 +371,7 @@ function slideNext() {
 
 @media (max-width: 600px) {
   .screenshots-section__swiper {
-    padding: 0 20px 40px;
+    padding: 14px 20px 108px;
   }
 
   .screenshots-section__header {

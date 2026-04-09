@@ -39,6 +39,7 @@ servers:
     targets:
       - opencode
       - cursor
+      - cursor-workspace
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -94,8 +95,20 @@ servers:
 		t.Fatalf("cursor local-tools = %#v", cursor["local-tools"])
 	}
 	cursorArgs, ok := cursorLocal["args"].([]any)
-	if !ok || len(cursorArgs) != 1 || cursorArgs[0] != "${workspaceFolder}/server.mjs" {
+	if !ok || len(cursorArgs) != 1 || cursorArgs[0] != "./server.mjs" {
 		t.Fatalf("cursor local-tools args = %#v", cursorLocal["args"])
+	}
+	cursorWorkspace, err := mcp.RenderForTarget("cursor-workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursorWorkspaceLocal, ok := cursorWorkspace["local-tools"].(map[string]any)
+	if !ok {
+		t.Fatalf("cursor-workspace local-tools = %#v", cursorWorkspace["local-tools"])
+	}
+	cursorWorkspaceArgs, ok := cursorWorkspaceLocal["args"].([]any)
+	if !ok || len(cursorWorkspaceArgs) != 1 || cursorWorkspaceArgs[0] != "${workspaceFolder}/server.mjs" {
+		t.Fatalf("cursor-workspace local-tools args = %#v", cursorWorkspaceLocal["args"])
 	}
 
 	claude, err := mcp.RenderForTarget("claude")

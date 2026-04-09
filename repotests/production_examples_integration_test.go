@@ -71,11 +71,6 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 				bootstrapGeneratedGoPlugin(t, workDir)
 			}
 
-			if tc.platform == "cursor" {
-				// Normalize generated Cursor workspace artifacts before the drift-only check.
-				// Deterministic Cursor generating is covered by dedicated manifest/platform tests.
-				runCmd(t, root, exec.Command(pluginKitAIBin, "generate", workDir))
-			}
 			runCmd(t, root, exec.Command(pluginKitAIBin, "generate", workDir, "--check"))
 			runCmd(t, root, exec.Command(pluginKitAIBin, "validate", workDir, "--platform", tc.platform, "--strict"))
 			if tc.platform == "codex-runtime" {
@@ -127,41 +122,42 @@ func TestProductionExamples_RenderValidateBuildAndSmoke(t *testing.T) {
 
 func assertCursorConfig(t *testing.T, root string) {
 	t.Helper()
-	body, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json"))
+	manifestBody, err := os.ReadFile(filepath.Join(root, ".cursor-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var doc struct {
-		MCPServers map[string]struct {
-			Command string   `json:"command"`
-			Args    []string `json:"args"`
-		} `json:"mcpServers"`
+	if !bytes.Contains(manifestBody, []byte(`"mcpServers": "./.mcp.json"`)) {
+		t.Fatalf("unexpected cursor plugin manifest:\n%s", manifestBody)
+	}
+	body, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]struct {
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
-		t.Fatalf("parse cursor mcp config: %v\n%s", err, body)
+		t.Fatalf("parse .mcp.json: %v\n%s", err, body)
 	}
-	server, ok := doc.MCPServers["release-checks"]
+	server, ok := doc["release-checks"]
 	if !ok {
-		t.Fatalf(".cursor/mcp.json missing release-checks server: %s", body)
+		t.Fatalf(".mcp.json missing release-checks server: %s", body)
 	}
 	if server.Command != "node" {
 		t.Fatalf("release-checks command = %q want %q", server.Command, "node")
 	}
-	if len(server.Args) != 1 || server.Args[0] != "${workspaceFolder}/bin/release-checks.mjs" {
+	if len(server.Args) != 1 || server.Args[0] != "./bin/release-checks.mjs" {
 		t.Fatalf("release-checks args = %v", server.Args)
 	}
-	ruleBody, err := os.ReadFile(filepath.Join(root, ".cursor", "rules", "project.mdc"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Contains(ruleBody, []byte("generated/plugin-root split")) {
-		t.Fatalf("unexpected cursor rule file:\n%s", ruleBody)
+	if _, err := os.Stat(filepath.Join(root, "skills", "release-checks", "SKILL.md")); err != nil {
+		t.Fatalf("stat generated cursor skill: %v", err)
 	}
 	generatedBody, err := os.ReadFile(filepath.Join(root, "GENERATED.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(generatedBody, []byte(".cursor/mcp.json")) {
+	if !bytes.Contains(generatedBody, []byte(".cursor-plugin/plugin.json")) {
 		t.Fatalf("unexpected GENERATED.md:\n%s", generatedBody)
 	}
 	agentsBody, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))

@@ -11,9 +11,9 @@ import (
 	"sort"
 	"strings"
 
+	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/portablemcp"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/safemutate"
-	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
@@ -42,7 +42,7 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 }
 
 func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
-	config := a.targetConfigPath(in.Scope)
+	config := a.targetConfigPath(in.Scope, workspaceRootFromInspectInput(in))
 	observed := []domain.NativeObjectRef{}
 	if in.Record != nil {
 		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
@@ -107,9 +107,9 @@ func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.Insp
 }
 
 func (a Adapter) PlanInstall(_ context.Context, in ports.PlanInstallInput) (ports.AdapterPlan, error) {
-	configPath := a.targetConfigPath("user")
+	configPath := a.targetConfigPath("user", "")
 	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
-		configPath = a.targetConfigPath("project")
+		configPath = a.targetConfigPath("project", "")
 	}
 	return ports.AdapterPlan{
 		TargetID:     a.ID(),
@@ -124,7 +124,7 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	if in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Cursor apply requires resolved source", nil)
 	}
-	docPath := a.targetConfigPath(in.Policy.Scope)
+	docPath := a.targetConfigPath(in.Policy.Scope, workspaceRootFromApplyInput(in))
 	loader := portablemcp.Loader{FS: a.fs()}
 	loaded, err := loader.LoadForTarget(ctx, in.ResolvedSource.LocalPath, domain.TargetCursor)
 	if err != nil {
@@ -137,6 +137,16 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	doc, wrapped, originalBody, err := a.readDocument(ctx, docPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
+	}
+	if in.Record != nil {
+		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
+			for _, alias := range ownedAliases(target.OwnedNativeObjects) {
+				if _, keep := projected[alias]; keep {
+					continue
+				}
+				delete(doc, alias)
+			}
+		}
 	}
 	merged := mergeServers(doc, projected)
 	body, err := marshalCursorDocument(merged, wrapped)
@@ -178,9 +188,9 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 }
 
 func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
-	configPath := a.targetConfigPath("user")
+	configPath := a.targetConfigPath("user", "")
 	if target, ok := in.CurrentRecord.Targets[domain.TargetCursor]; ok {
-		configPath = configPathFromTarget(target, configPath)
+		configPath = configPathFromTarget(target, a.targetConfigPath(in.CurrentRecord.Policy.Scope, workspaceRootFromRecord(in.CurrentRecord)))
 	}
 	return ports.AdapterPlan{
 		TargetID:     a.ID(),
@@ -196,9 +206,9 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 }
 
 func (a Adapter) PlanRemove(_ context.Context, in ports.PlanRemoveInput) (ports.AdapterPlan, error) {
-	configPath := a.targetConfigPath("user")
+	configPath := a.targetConfigPath("user", "")
 	if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
-		configPath = configPathFromTarget(target, configPath)
+		configPath = configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(in.Record)))
 	}
 	return ports.AdapterPlan{
 		TargetID:     a.ID(),
@@ -217,7 +227,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if !ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Cursor target is missing from installation record", nil)
 	}
-	docPath := configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope))
+	docPath := configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
 	doc, wrapped, originalBody, err := a.readDocument(ctx, docPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
@@ -263,9 +273,9 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		ActivationState: domain.ActivationNotRequired,
 		EvidenceClass:   domain.EvidenceConfirmed,
 		AdapterMetadata: map[string]any{
-			"config_path":   docPath,
+			"config_path":     docPath,
 			"removed_aliases": aliases,
-			"wrapped_style": wrapped,
+			"wrapped_style":   wrapped,
 		},
 	}, nil
 }
@@ -305,20 +315,50 @@ func (a Adapter) mutator() ports.SafeFileMutator {
 	return safemutate.OS{}
 }
 
-func (a Adapter) targetConfigPath(scope string) string {
+func (a Adapter) targetConfigPath(scope string, workspaceRoot string) string {
 	scope = strings.ToLower(strings.TrimSpace(scope))
 	if scope == "project" {
-		return filepath.Join(a.projectRoot(), ".cursor", "mcp.json")
+		return filepath.Join(a.projectRoot(workspaceRoot), ".cursor", "mcp.json")
 	}
 	return filepath.Join(a.userHome(), ".cursor", "mcp.json")
 }
 
-func (a Adapter) projectRoot() string {
+func (a Adapter) projectRoot(workspaceRoot string) string {
+	if root := strings.TrimSpace(workspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
 	if strings.TrimSpace(a.ProjectRoot) != "" {
 		return a.ProjectRoot
 	}
 	cwd, _ := os.Getwd()
 	return cwd
+}
+
+func workspaceRootFromInspectInput(in ports.InspectInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromApplyInput(in ports.ApplyInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromRecord(record domain.InstallationRecord) string {
+	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
+		return strings.TrimSpace(record.WorkspaceRoot)
+	}
+	return ""
 }
 
 func (a Adapter) userHome() string {

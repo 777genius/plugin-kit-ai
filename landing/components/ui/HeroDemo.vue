@@ -165,20 +165,51 @@ onUnmounted(() => {
 
 .hero-demo__steps {
   display: grid;
-  gap: 0;
+  gap: 6px;
   margin-bottom: 14px;
 }
 
 .hero-demo__step {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 11px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0);
+  transition:
+    border-color 0.22s ease,
+    background-color 0.22s ease,
+    box-shadow 0.22s ease;
+}
+
+.hero-demo__step::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -3px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hero-demo__step:last-child::after,
+.hero-demo__step--active::after {
+  display: none;
 }
 
 .hero-demo__step--active {
-  border-bottom-color: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 0.06));
+  border-color: color-mix(in srgb, var(--accent) 44%, rgba(255, 255, 255, 0.12));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 12%, rgba(255, 255, 255, 0.02)),
+      rgba(255, 255, 255, 0.02)
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .hero-demo__step-index {
@@ -238,15 +269,6 @@ onUnmounted(() => {
 
 .hero-demo__step--active .hero-demo__step-state {
   color: color-mix(in srgb, var(--accent) 82%, #ffffff 18%);
-}
-
-.hero-demo__steps .hero-demo__step:first-child {
-  padding-top: 0;
-}
-
-.hero-demo__steps .hero-demo__step:last-child {
-  padding-bottom: 0;
-  border-bottom: none;
 }
 
 .hero-demo__files {
@@ -316,6 +338,23 @@ onUnmounted(() => {
 
 .v-theme--light .hero-demo__file-list {
   color: #164e63;
+}
+
+.v-theme--light .hero-demo__step::after {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.v-theme--light .hero-demo__step--active {
+  border-color: color-mix(in srgb, var(--accent) 38%, rgba(15, 23, 42, 0.12));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.86)),
+      rgba(255, 255, 255, 0.92)
+    );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent),
+    0 10px 24px rgba(15, 23, 42, 0.05);
 }
 
 @media (max-width: 700px) {

@@ -46,6 +46,14 @@ func (s stubWorkspaceLockStore) Path() string {
 	return s.path
 }
 
+type stubManifestLoader struct {
+	load func(ports.ResolvedSource) (domain.IntegrationManifest, error)
+}
+
+func (s stubManifestLoader) Load(_ context.Context, resolved ports.ResolvedSource) (domain.IntegrationManifest, error) {
+	return s.load(resolved)
+}
+
 type stubTargetAdapter struct {
 	id           domain.TargetID
 	inspect      func(ports.InspectInput) (ports.InspectResult, error)
@@ -289,11 +297,13 @@ func TestUpdateAllDryRunAggregatesManagedIntegrations(t *testing.T) {
 		t.Fatalf("save state: %v", err)
 	}
 	svc := Service{
-		StateStore:     store,
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
-		SourceResolver: stubResolver{resolve: func(ref domain.IntegrationRef) (ports.ResolvedSource, error) { return ports.ResolvedSource{LocalPath: ref.Raw}, nil }},
+		StateStore:  store,
+		LockManager: locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:     journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:    evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver: stubResolver{resolve: func(ref domain.IntegrationRef) (ports.ResolvedSource, error) {
+			return ports.ResolvedSource{LocalPath: ref.Raw}, nil
+		}},
 		ManifestLoader: manifest.Loader{},
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor: stubTargetAdapter{
@@ -340,12 +350,13 @@ func TestAddNonDryRunInstallsCursorAndPersistsState(t *testing.T) {
 	fs := fsadapter.OS{}
 	projectRoot := filepath.Join(root, "workspace")
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor: cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 		},
@@ -407,10 +418,12 @@ func TestSyncNonDryRunInstallsFromWorkspaceLockRelativeSource(t *testing.T) {
 		SourceResolver: source.Resolver{},
 		ManifestLoader: manifest.Loader{},
 		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		WorkspaceLock:  stubWorkspaceLockStore{path: filepath.Join(workspace, ".plugin-kit-ai.lock"), load: func() (domain.WorkspaceLock, error) { return domain.WorkspaceLock{APIVersion: "v1", Integrations: []domain.WorkspaceLockIntegration{{Source: "./plugins/cursor-demo", Targets: []string{"cursor"}, Policy: domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"}}}}, nil }},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		WorkspaceLock: stubWorkspaceLockStore{path: filepath.Join(workspace, ".plugin-kit-ai.lock"), load: func() (domain.WorkspaceLock, error) {
+			return domain.WorkspaceLock{APIVersion: "v1", Integrations: []domain.WorkspaceLockIntegration{{Source: "./plugins/cursor-demo", Targets: []string{"cursor"}, Policy: domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"}}}}, nil
+		}},
+		LockManager: locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:     journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:    evidence.Registry{FS: fs, Path: evidencePath},
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor: cursor.Adapter{FS: fs, ProjectRoot: workspace, UserHome: filepath.Join(root, "home")},
 		},
@@ -496,12 +509,13 @@ func TestAddNonDryRunInstallsMultipleTargetsAndPersistsUnifiedState(t *testing.T
 	fs := fsadapter.OS{}
 	projectRoot := filepath.Join(root, "workspace")
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor:   cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 			domain.TargetOpenCode: opencode.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
@@ -591,12 +605,13 @@ func TestUpdateNonDryRunRefreshesCursorManagedEntry(t *testing.T) {
 	fs := fsadapter.OS{}
 	projectRoot := filepath.Join(root, "workspace")
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor: cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 		},
@@ -643,12 +658,13 @@ func TestUpdateNonDryRunRefreshesMultipleTargetsAndPersistsUnifiedState(t *testi
 	fs := fsadapter.OS{}
 	projectRoot := filepath.Join(root, "workspace")
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor:   cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 			domain.TargetOpenCode: opencode.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
@@ -703,12 +719,13 @@ func TestUpdateDryRunCleansMaterializedResolvedSource(t *testing.T) {
 	fs := fsadapter.OS{}
 	projectRoot := filepath.Join(root, "workspace")
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor: cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 		},
@@ -893,12 +910,13 @@ func TestRemoveNonDryRunRemovesMultipleTargetsAndClearsUnifiedState(t *testing.T
 	writeFile(t, filepath.Join(projectRoot, ".cursor", "mcp.json"), `{"mcpServers":{"user-owned":{"command":"node","args":["user.mjs"]}}}`)
 	writeFile(t, filepath.Join(projectRoot, "opencode.json"), `{"theme":"midnight","plugin":["@user/existing"]}`)
 	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		SourceResolver:       source.Resolver{},
+		ManifestLoader:       manifest.Loader{},
+		StateStore:           jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: projectRoot,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetCursor:   cursor.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
 			domain.TargetOpenCode: opencode.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
@@ -1238,8 +1256,12 @@ func TestRepairNonDryRunPersistsPartialProgressWhenLaterTargetFails(t *testing.T
 				id: domain.TargetCursor,
 				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
 					if in.Record != nil {
-						if target, ok := in.Record.Targets[domain.TargetCursor]; ok && target.State == domain.InstallDegraded {
-							return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete, SourceAccessState: "ok"}, nil
+						if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
+							for _, obj := range target.OwnedNativeObjects {
+								if obj.Kind == "config_file" && obj.Path == "cursor.json" {
+									return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete, SourceAccessState: "ok"}, nil
+								}
+							}
 						}
 					}
 					return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallDegraded, SourceAccessState: "ok"}, nil
@@ -1488,43 +1510,6 @@ func TestRepairNonDryRunRestoresOpenCodeManagedEntries(t *testing.T) {
 	}
 	if !strings.Contains(string(configBody), "@acme/opencode-demo-plugin") || !strings.Contains(string(configBody), "\"permission\"") || !strings.Contains(string(configBody), "@user/existing") {
 		t.Fatalf("OpenCode config missing repaired managed entries:\n%s", configBody)
-	}
-}
-
-func TestAddDryRunSurfacesOpenCodeVolatileOverrideBlocking(t *testing.T) {
-	root := t.TempDir()
-	sourceRoot := filepath.Join(root, "plugin")
-	writeFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), "api_version: v1\nname: opencode-demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - opencode\n")
-	evidencePath := filepath.Join(root, "evidence.json")
-	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"target.opencode.native_surface","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]}]}`)
-	fs := fsadapter.OS{}
-	projectRoot := filepath.Join(root, "workspace", "nested")
-	t.Setenv("OPENCODE_CONFIG", filepath.Join(root, "volatile.json"))
-	svc := Service{
-		SourceResolver: source.Resolver{},
-		ManifestLoader: manifest.Loader{},
-		StateStore:     jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")},
-		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
-		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
-		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
-		Adapters: map[domain.TargetID]ports.TargetAdapter{
-			domain.TargetOpenCode: opencode.Adapter{FS: fs, ProjectRoot: projectRoot, UserHome: filepath.Join(root, "home")},
-		},
-	}
-
-	report, err := svc.Add(context.Background(), AddInput{
-		Source: sourceRoot,
-		Scope:  "project",
-		DryRun: true,
-	})
-	if err != nil {
-		t.Fatalf("add dry-run: %v", err)
-	}
-	if len(report.Targets) != 1 || !report.Targets[0].VolatileOverrideDetected {
-		t.Fatalf("report targets = %+v", report.Targets)
-	}
-	if len(report.Targets[0].ManualSteps) == 0 {
-		t.Fatalf("expected blocking manual steps, got %+v", report.Targets[0])
 	}
 }
 
@@ -1913,6 +1898,178 @@ func TestUpdateNonDryRunPersistsVerifiedStateInsteadOfRawApplyState(t *testing.T
 	}
 	if len(target.EnvironmentRestrictions) != 1 || target.EnvironmentRestrictions[0] != domain.RestrictionReloadRequired {
 		t.Fatalf("restrictions = %+v", target.EnvironmentRestrictions)
+	}
+}
+
+func TestUpdateNonDryRunVerifiesAgainstProvisionalOwnedState(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	sourceRoot := filepath.Join(root, "plugin")
+	writeFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), "api_version: v1\nname: verify-owned-update-demo\nversion: 0.2.0\ndescription: test\ntargets:\n  - cursor\n")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.cursor","claim":"x","evidence_class":"project_policy","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	stateStore := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "verify-owned-update-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedVersion:    "0.1.0",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"},
+		WorkspaceRoot:      filepath.Join(root, "workspace-a"),
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCursor: {
+				TargetID:          domain.TargetCursor,
+				DeliveryKind:      domain.DeliveryCursorMCP,
+				CapabilitySurface: []string{"mcp"},
+				State:             domain.InstallInstalled,
+				OwnedNativeObjects: []domain.NativeObjectRef{
+					{Kind: "cursor_mcp_server", Name: "release-checks"},
+				},
+			},
+		},
+	}
+	if err := stateStore.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	inspectCalls := 0
+	svc := Service{
+		SourceResolver: source.Resolver{},
+		ManifestLoader: manifest.Loader{},
+		StateStore:     stateStore,
+		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetCursor: stubTargetAdapter{
+				id: domain.TargetCursor,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					inspectCalls++
+					if inspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, SourceAccessState: "ok"}, nil
+					}
+					if in.Record == nil {
+						t.Fatal("expected verify inspect to receive provisional record")
+					}
+					target := in.Record.Targets[domain.TargetCursor]
+					for _, obj := range target.OwnedNativeObjects {
+						if obj.Kind == "cursor_mcp_server" && obj.Name == "release-checks-v2" {
+							return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, SourceAccessState: "verified"}, nil
+						}
+					}
+					return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallRemoved, SourceAccessState: "verified"}, nil
+				},
+				planUpdate: func(in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetCursor, ActionClass: "update_version", EvidenceKey: "test.cursor"}, nil
+				},
+				applyUpdate: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{
+						TargetID: domain.TargetCursor,
+						State:    domain.InstallInstalled,
+						OwnedNativeObjects: []domain.NativeObjectRef{
+							{Kind: "cursor_mcp_server", Name: "release-checks-v2"},
+						},
+					}, nil
+				},
+			},
+		},
+		CurrentWorkspaceRoot: filepath.Join(root, "workspace-b"),
+	}
+
+	report, err := svc.Update(context.Background(), NamedDryRunInput{Name: "verify-owned-update-demo", DryRun: false})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if len(report.Targets) != 1 || report.Targets[0].State != string(domain.InstallInstalled) {
+		t.Fatalf("report = %+v", report)
+	}
+	state, err := stateStore.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	target := state.Installations[0].Targets[domain.TargetCursor]
+	if len(target.OwnedNativeObjects) != 1 || target.OwnedNativeObjects[0].Name != "release-checks-v2" {
+		t.Fatalf("owned native objects = %+v", target.OwnedNativeObjects)
+	}
+}
+
+func TestAddPersistsWorkspaceRootForProjectScope(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.json")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.gemini","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: statePath}
+	workspaceRoot := filepath.Join(root, "workspace-a")
+	inspectCalls := 0
+
+	svc := Service{
+		SourceResolver: stubResolver{
+			resolve: func(ref domain.IntegrationRef) (ports.ResolvedSource, error) {
+				return ports.ResolvedSource{
+					Kind:      "local_path",
+					Requested: domain.RequestedSourceRef{Kind: "local_path", Value: ref.Raw},
+					Resolved:  domain.ResolvedSourceRef{Kind: "local_path", Value: ref.Raw},
+					LocalPath: ref.Raw,
+				}, nil
+			},
+		},
+		ManifestLoader: stubManifestLoader{
+			load: func(ports.ResolvedSource) (domain.IntegrationManifest, error) {
+				return domain.IntegrationManifest{
+					IntegrationID: "gemini-demo",
+					Version:       "0.1.0",
+					RequestedRef:  domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					ResolvedRef:   domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					Deliveries: []domain.Delivery{{
+						TargetID:      domain.TargetGemini,
+						DeliveryKind:  domain.DeliveryGeminiExtension,
+						Name:          "gemini-demo",
+						NativeRefHint: "gemini-demo",
+					}},
+				}, nil
+			},
+		},
+		StateStore:           store,
+		LockManager:          locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:              journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:             evidence.Registry{FS: fs, Path: evidencePath},
+		CurrentWorkspaceRoot: workspaceRoot,
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetGemini: stubTargetAdapter{
+				id: domain.TargetGemini,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					inspectCalls++
+					if inspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallRemoved}, nil
+					}
+					return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallInstalled}, nil
+				},
+				applyInstall: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetGemini, State: domain.InstallInstalled}, nil
+				},
+			},
+		},
+	}
+
+	_, err := svc.Add(context.Background(), AddInput{
+		Source:  filepath.Join(root, "plugin"),
+		Targets: []string{"gemini"},
+		Scope:   "project",
+	})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(state.Installations) != 1 {
+		t.Fatalf("installations = %d, want 1", len(state.Installations))
+	}
+	if got := state.Installations[0].WorkspaceRoot; got != workspaceRoot {
+		t.Fatalf("workspace root = %q, want %q", got, workspaceRoot)
 	}
 }
 

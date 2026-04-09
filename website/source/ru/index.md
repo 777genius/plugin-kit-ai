@@ -22,7 +22,7 @@ outline: false
 
 - [Подключить онлайн-сервис](/ru/guide/choose-what-you-are-building#подключить-онлайн-сервис)
 - [Подключить локальный инструмент](/ru/guide/choose-what-you-are-building#подключить-локальный-инструмент)
-- [Сделать свой plugin с логикой](/ru/guide/choose-what-you-are-building#сделать-свой-plugin-с-логикой)
+- [Сделать свой plugin с логикой - Advanced](/ru/guide/build-custom-plugin-logic)
 
 ## Что важно понять сразу
 
@@ -39,6 +39,10 @@ outline: false
   <a class="docs-card" href="./guide/quickstart">
     <h2>Быстрый старт</h2>
     <p>Быстро поднимите рабочий repo через новый job-first вход.</p>
+  </a>
+  <a class="docs-card" href="./guide/build-custom-plugin-logic">
+    <h2>Advanced custom logic</h2>
+    <p>Откройте guided path для runtime code, hooks и orchestration, когда одного wiring уже недостаточно.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>Что можно построить</h2>
@@ -65,16 +69,20 @@ outline: false
     <h2>2. Быстрый старт</h2>
     <p>Превратите этот выбор в рабочий repo и первый validation loop.</p>
   </a>
+  <a class="docs-card" href="./guide/build-custom-plugin-logic">
+    <h2>3. Advanced custom logic</h2>
+    <p>Используйте этот путь, когда ценность плагина живёт в вашем коде, hooks и runtime behavior.</p>
+  </a>
   <a class="docs-card" href="./guide/what-you-can-build">
-    <h2>3. Что можно построить</h2>
+    <h2>4. Что можно построить</h2>
     <p>Посмотрите на общую product shape по runtime, package, extension и integration lanes.</p>
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
-    <h2>4. Выбор target</h2>
+    <h2>5. Выбор target</h2>
     <p>Открывайте это позже, когда уже нужны конкретные решения по способу поставки.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
-    <h2>5. Граница поддержки</h2>
+    <h2>6. Граница поддержки</h2>
     <p>Открывайте reference cluster, когда нужен точный compatibility language и support details.</p>
   </a>
 </div>

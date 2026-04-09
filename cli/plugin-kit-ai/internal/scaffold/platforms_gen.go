@@ -61,8 +61,19 @@ var generatedPlatforms = map[string]PlatformDefinition{
 		Files: []TemplateFile{
 			{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
 			{Path: "src/README.md", Template: "cursor.README.md.tmpl", Extra: false},
-			{Path: "src/targets/cursor/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
-			{Path: "src/targets/cursor/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
+			{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl", Extra: false},
+			{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl", Extra: false},
+			{Path: "src/mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
+			{Path: "src/skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+		},
+	},
+	"cursor-workspace": {
+		Name: "cursor-workspace",
+		Files: []TemplateFile{
+			{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
+			{Path: "src/README.md", Template: "cursor-workspace.README.md.tmpl", Extra: false},
+			{Path: "src/targets/cursor-workspace/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
+			{Path: "src/targets/cursor-workspace/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
 			{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl", Extra: false},
 			{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl", Extra: false},
 		},

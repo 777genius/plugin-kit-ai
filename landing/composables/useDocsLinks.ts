@@ -46,5 +46,12 @@ export const useDocsLinks = () => {
     )
   );
 
-  return { docsUrl, quickstartUrl, supportBoundaryUrl };
+  const customLogicGuideUrl = computed(() =>
+    replaceDocsLocale(
+      "https://777genius.github.io/plugin-kit-ai/docs/en/guide/build-custom-plugin-logic.html",
+      currentLocale.value
+    )
+  );
+
+  return { docsUrl, quickstartUrl, supportBoundaryUrl, customLogicGuideUrl };
 };

@@ -1,195 +1,69 @@
 <script setup lang="ts">
-const { content } = useLandingContent()
-const { t, locale } = useI18n()
-const { data: releaseData, fallbackUrl } = useReleaseDownloads()
-const { quickstartUrl, supportBoundaryUrl } = useDocsLinks()
-const copiedCommandId = ref<string | null>(null)
-const selectedInstallId = ref<string | null>(null)
+import CommandSnippetCard from '~/components/shared/CommandSnippetCard.vue';
 
-let copiedTimer: ReturnType<typeof setTimeout> | null = null
+const { content } = useLandingContent();
+const { t, locale } = useI18n();
+const { data: releaseData, fallbackUrl } = useReleaseDownloads();
+const { quickstartUrl, supportBoundaryUrl } = useDocsLinks();
+const selectedInstallId = ref<string | null>(null);
 
-onBeforeUnmount(() => {
-  if (copiedTimer) {
-    clearTimeout(copiedTimer)
-  }
-})
-
-const releaseVersion = computed(() => releaseData.value?.version || null)
+const releaseVersion = computed(() => releaseData.value?.version || null);
 const releaseDate = computed(() => {
   if (!releaseData.value?.pubDate) {
-    return ""
+    return '';
   }
 
-  return formatReleaseDate(releaseData.value.pubDate, locale.value)
-})
+  return formatReleaseDate(releaseData.value.pubDate, locale.value);
+});
 
-const supportAccent = ["#39ff14", "#00f0ff", "#ffb703", "#f472b6", "#94a3b8"]
+const supportAccent = ['#39ff14', '#00f0ff', '#ffb703', '#f472b6', '#94a3b8'];
 
 const installChannels = computed(() =>
   content.value.installChannels.map((channel) =>
-    channel.id === "docs"
-      ? { ...channel, href: quickstartUrl.value }
-      : channel
-  )
-)
+    channel.id === 'docs' ? { ...channel, href: quickstartUrl.value } : channel,
+  ),
+);
 
 const quickstartInstallChannels = computed(() =>
-  installChannels.value.filter((channel) => channel.command && !["docs", "releases"].includes(channel.id))
-)
+  installChannels.value.filter(
+    (channel) => channel.command && !['docs', 'releases'].includes(channel.id),
+  ),
+);
 
 watchEffect(() => {
-  if (selectedInstallId.value && quickstartInstallChannels.value.some((channel) => channel.id === selectedInstallId.value)) {
-    return
+  if (
+    selectedInstallId.value &&
+    quickstartInstallChannels.value.some((channel) => channel.id === selectedInstallId.value)
+  ) {
+    return;
   }
 
   selectedInstallId.value =
     quickstartInstallChannels.value.find((channel) => channel.recommended)?.id ||
     quickstartInstallChannels.value[0]?.id ||
-    null
-})
+    null;
+});
 
 const selectedInstallChannel = computed(
   () =>
     quickstartInstallChannels.value.find((channel) => channel.id === selectedInstallId.value) ||
     quickstartInstallChannels.value[0] ||
-    null
-)
+    null,
+);
 
 const quickstartSteps = computed(() =>
   content.value.quickstartSteps.map((step) => {
-    if (step.id !== "install" || !selectedInstallChannel.value?.command) {
-      return step
+    if (step.id !== 'install' || !selectedInstallChannel.value?.command) {
+      return step;
     }
 
     return {
       ...step,
       command: `${selectedInstallChannel.value.command}\nplugin-kit-ai version`,
-      note: selectedInstallChannel.value.note
-    }
-  })
-)
-
-const setCopiedState = (commandId: string) => {
-  copiedCommandId.value = commandId
-
-  if (copiedTimer) {
-    clearTimeout(copiedTimer)
-  }
-
-  copiedTimer = setTimeout(() => {
-    if (copiedCommandId.value === commandId) {
-      copiedCommandId.value = null
-    }
-  }, 1800)
-}
-
-const fallbackCopy = async (text: string) => {
-  const textarea = document.createElement("textarea")
-  textarea.value = text
-  textarea.setAttribute("readonly", "")
-  textarea.style.position = "absolute"
-  textarea.style.left = "-9999px"
-  document.body.appendChild(textarea)
-  textarea.select()
-  document.execCommand("copy")
-  document.body.removeChild(textarea)
-}
-
-const copyCommand = async (commandId: string, command: string) => {
-  if (!import.meta.client) {
-    return
-  }
-
-  const text = command.trim()
-
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      await fallbackCopy(text)
-    }
-  } catch {
-    await fallbackCopy(text)
-  }
-
-  setCopiedState(commandId)
-}
-
-const copyLabel = (commandId: string) =>
-  copiedCommandId.value === commandId ? t("download.copied") : t("download.copy")
-
-const commandActions = new Set([
-  "install",
-  "version",
-  "init",
-  "generate",
-  "validate",
-  "run",
-  "open",
-  "link",
-  "config",
-  "disable",
-  "enable",
-  "publish",
-  "fetch"
-])
-
-const classifyToken = (token: string, tokenIndex: number) => {
-  if (["|", "&&", "||"].includes(token)) {
-    return "operator"
-  }
-
-  if (token.startsWith("https://") || token.startsWith("http://")) {
-    return "url"
-  }
-
-  if (token.startsWith("--") || (token.startsWith("-") && token.length > 1)) {
-    return "flag"
-  }
-
-  if (tokenIndex === 0) {
-    return "command"
-  }
-
-  if (tokenIndex === 1 && commandActions.has(token)) {
-    return "action"
-  }
-
-  if (
-    token === "." ||
-    token.startsWith("./") ||
-    token.startsWith("/") ||
-    token.startsWith("~/") ||
-    token.includes("/") ||
-    token.endsWith(".sh") ||
-    token.endsWith(".yaml") ||
-    token.endsWith(".json") ||
-    token.endsWith(".txt")
-  ) {
-    return "path"
-  }
-
-  return "plain"
-}
-
-const renderHighlightedCommand = (command: string) =>
-  command
-    .split("\n")
-    .map((line) => {
-      const tokens = line.match(/\S+|\s+/g) || []
-      let tokenIndex = 0
-
-      return tokens
-        .map((part) => {
-          if (/^\s+$/.test(part)) {
-            return { text: part, className: "plain" }
-          }
-
-          const tokenClass = classifyToken(part, tokenIndex)
-          tokenIndex += 1
-          return { text: part, className: tokenClass }
-        })
-    })
+      note: selectedInstallChannel.value.note ?? step.note,
+    };
+  }),
+);
 </script>
 
 <template>
@@ -199,26 +73,28 @@ const renderHighlightedCommand = (command: string) =>
         <h2 class="download-section__title">{{ content.download.title }}</h2>
         <p class="download-section__subtitle">{{ content.download.note }}</p>
         <p v-if="releaseVersion" class="download-section__release-info">
-          {{ t("download.latestRelease") }} ·
+          {{ t('download.latestRelease') }} ·
           <a :href="fallbackUrl" target="_blank" rel="noopener noreferrer">v{{ releaseVersion }}</a>
           <template v-if="releaseDate"> · {{ releaseDate }}</template>
         </p>
       </div>
 
       <div class="download-section__overview">
-        <article class="download-section__overview-card download-section__overview-card--quickstart">
+        <article
+          class="download-section__overview-card download-section__overview-card--quickstart"
+        >
           <div class="download-section__overview-top">
             <h3 class="download-section__overview-title">
-              {{ t("download.quickstartTitle") }}
+              {{ t('download.quickstartTitle') }}
             </h3>
             <p class="download-section__overview-subtitle">
-              {{ t("download.quickstartSubtitle") }}
+              {{ t('download.quickstartSubtitle') }}
             </p>
           </div>
 
           <div class="download-section__install-tabs">
             <div class="download-section__install-tabs-label">
-              {{ t("download.installTabsLabel") }}
+              {{ t('download.installTabsLabel') }}
             </div>
             <div class="download-section__install-tabs-row">
               <button
@@ -226,13 +102,15 @@ const renderHighlightedCommand = (command: string) =>
                 :key="channel.id"
                 type="button"
                 class="download-section__install-tab"
-                :class="{ 'download-section__install-tab--active': channel.id === selectedInstallId }"
+                :class="{
+                  'download-section__install-tab--active': channel.id === selectedInstallId,
+                }"
                 :aria-pressed="channel.id === selectedInstallId"
                 @click="selectedInstallId = channel.id"
               >
                 <span>{{ channel.title }}</span>
                 <span v-if="channel.recommended" class="download-section__install-tab-badge">
-                  {{ t("download.recommended") }}
+                  {{ t('download.recommended') }}
                 </span>
               </button>
             </div>
@@ -250,28 +128,12 @@ const renderHighlightedCommand = (command: string) =>
               <div class="download-section__step-index">0{{ index + 1 }}</div>
               <div class="download-section__step-body">
                 <h4 class="download-section__step-title">{{ step.title }}</h4>
-                <div class="download-section__command-wrap">
-                  <div class="download-section__command-head">
-                    <span class="download-section__command-label">{{ t("download.command") }}</span>
-                    <button
-                      type="button"
-                      class="download-section__copy-btn"
-                      :aria-label="copyLabel(`step-${step.id}`)"
-                      @click="copyCommand(`step-${step.id}`, step.command)"
-                    >
-                      {{ copyLabel(`step-${step.id}`) }}
-                    </button>
-                  </div>
-                  <pre class="download-section__step-command"><code><template
-                    v-for="(line, lineIndex) in renderHighlightedCommand(step.command)"
-                    :key="`${step.id}-line-${lineIndex}`"
-                  ><span class="download-section__command-line"><span
-                    v-for="(token, tokenIndex) in line"
-                    :key="`${step.id}-line-${lineIndex}-token-${tokenIndex}`"
-                    class="download-section__token"
-                    :class="`download-section__token--${token.className}`"
-                  >{{ token.text }}</span></span></template></code></pre>
-                </div>
+                <CommandSnippetCard
+                  :label="t('download.command')"
+                  :command="step.command"
+                  :copy-label="t('download.copy')"
+                  :copied-label="t('download.copied')"
+                />
                 <p class="download-section__step-note">{{ step.note }}</p>
               </div>
             </div>
@@ -282,10 +144,10 @@ const renderHighlightedCommand = (command: string) =>
       <article class="download-section__overview-card download-section__overview-card--support">
         <div class="download-section__overview-top">
           <h3 class="download-section__overview-title">
-            {{ t("download.supportTitle") }}
+            {{ t('download.supportTitle') }}
           </h3>
           <p class="download-section__overview-subtitle">
-            {{ t("download.supportSubtitle") }}
+            {{ t('download.supportSubtitle') }}
           </p>
         </div>
 
@@ -310,7 +172,7 @@ const renderHighlightedCommand = (command: string) =>
           target="_blank"
           rel="noopener noreferrer"
         >
-          {{ t("download.supportLink") }}
+          {{ t('download.supportLink') }}
         </a>
       </article>
     </v-container>
@@ -354,7 +216,7 @@ const renderHighlightedCommand = (command: string) =>
   margin: 16px 0 0;
   font-size: 0.82rem;
   color: #8892b0;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .download-section__release-info a {
@@ -421,7 +283,7 @@ const renderHighlightedCommand = (command: string) =>
   font-size: 0.74rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .download-section__install-tabs-row {
@@ -510,7 +372,7 @@ const renderHighlightedCommand = (command: string) =>
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .download-section__step-body {
@@ -530,14 +392,13 @@ const renderHighlightedCommand = (command: string) =>
   padding: 14px 16px;
   border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(0, 240, 255, 0.02), rgba(0, 0, 0, 0.2)),
-    rgba(0, 0, 0, 0.26);
+    linear-gradient(180deg, rgba(0, 240, 255, 0.02), rgba(0, 0, 0, 0.2)), rgba(0, 0, 0, 0.26);
   border: 1px solid rgba(255, 255, 255, 0.07);
   font-size: 0.8rem;
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-x: auto;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
@@ -629,7 +490,7 @@ const renderHighlightedCommand = (command: string) =>
   font-size: 0.7rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  font-family: "JetBrains Mono", monospace;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .download-section__copy-btn {

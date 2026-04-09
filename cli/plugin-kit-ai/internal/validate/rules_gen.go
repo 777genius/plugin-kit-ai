@@ -46,6 +46,17 @@ var generatedRules = map[string]Rule{
 		Platform: "cursor",
 		RequiredFiles: []string{
 			"README.md",
+			".cursor-plugin/plugin.json",
+		},
+		ForbiddenFiles: []string{
+			"launcher.yaml",
+		},
+		BuildTargets: []string{},
+	},
+	"cursor-workspace": {
+		Platform: "cursor-workspace",
+		RequiredFiles: []string{
+			"README.md",
 		},
 		ForbiddenFiles: []string{
 			"launcher.yaml",

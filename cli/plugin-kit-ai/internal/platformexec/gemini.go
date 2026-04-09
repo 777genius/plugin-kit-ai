@@ -74,6 +74,7 @@ func (geminiAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 		}
 	}
 	copied, err = copyArtifactDirs(root,
+		artifactDir{src: "skills", dst: "skills"},
 		artifactDir{src: "commands", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "commands")},
 		artifactDir{src: "policies", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "policies")},
 		artifactDir{src: "contexts", dst: filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts")},
@@ -197,6 +198,11 @@ func (geminiAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		return nil, err
 	}
 	artifacts = append(artifacts, pluginmodel.Artifact{RelPath: "gemini-extension.json", Content: manifestJSON})
+	skillArtifacts, err := renderPortableSkills(root, graph.Portable.Paths("skills"), "skills")
+	if err != nil {
+		return nil, err
+	}
+	artifacts = append(artifacts, skillArtifacts...)
 	if hookPaths := state.ComponentPaths("hooks"); len(hookPaths) > 0 {
 		copied, err := copyArtifacts(root, authoredComponentDir(state, "hooks", filepath.Join("targets", "gemini", "hooks")), "hooks")
 		if err != nil {

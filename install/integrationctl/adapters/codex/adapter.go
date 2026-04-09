@@ -39,7 +39,8 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 }
 
 func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.InspectResult, error) {
-	catalogPath := a.catalogPath(scopeForInspect(in))
+	workspaceRoot := workspaceRootFromInspectInput(in)
+	catalogPath := a.catalogPath(scopeForInspect(in), workspaceRoot)
 	if in.Record != nil {
 		if target, ok := in.Record.Targets[domain.TargetCodex]; ok {
 			catalogPath = catalogPathFromTarget(target, catalogPath)
@@ -48,7 +49,7 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	configPath := filepath.Join(a.userHome(), ".codex", "config.toml")
 	pluginRoot := pluginRootFromRecord(in.Record)
 	if pluginRoot == "" {
-		pluginRoot = a.pluginRoot(scopeForInspect(in), integrationIDForInspect(in.Record))
+		pluginRoot = a.pluginRoot(scopeForInspect(in), workspaceRoot, integrationIDForInspect(in.Record))
 	}
 	_, cmdErr := exec.LookPath("codex")
 	catalogInfo, catalogErr := os.Stat(catalogPath)
@@ -85,7 +86,9 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	var catalogPolicy *domain.CatalogPolicySnapshot
 	warnings := []string{}
 	marketplaceName := marketplaceNameFromRecord(in.Record)
+	entryFound := false
 	if entry, found, err := readMarketplaceEntry(catalogPath, integrationIDForInspect(in.Record)); err == nil && found {
+		entryFound = true
 		catalogPolicy = policyFromEntry(entry)
 	} else if err != nil {
 		warnings = append(warnings, err.Error())
@@ -126,6 +129,9 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 			ProtectionClass: domain.ProtectionUserMutable,
 		})
 	}
+	pluginExists := pluginErr == nil && pluginInfo != nil && pluginInfo.IsDir()
+	preparedExists := entryFound && pluginExists
+	partialPrepared := entryFound || pluginExists
 	cacheExists := cacheErr == nil && cacheInfo != nil && cacheInfo.IsDir()
 	switch {
 	case cacheExists && configState.Present && configState.Disabled:
@@ -139,11 +145,11 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 			state = domain.InstallInstalled
 		}
 		activation = domain.ActivationComplete
-	case catalogErr == nil && pluginErr == nil:
+	case preparedExists:
 		state = domain.InstallActivationPending
 		activation = domain.ActivationNativePending
 		restrictions = append(restrictions, domain.RestrictionNativeActivation, domain.RestrictionNewThreadRequired)
-	case catalogErr == nil || pluginErr == nil:
+	case partialPrepared:
 		state = domain.InstallDegraded
 		activation = domain.ActivationNativePending
 		restrictions = append(restrictions, domain.RestrictionNativeActivation)
@@ -153,7 +159,7 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	}
 	return ports.InspectResult{
 		TargetID:                a.ID(),
-		Installed:               catalogErr == nil && pluginErr == nil,
+		Installed:               cacheExists || preparedExists || configState.Present,
 		State:                   state,
 		ActivationState:         activation,
 		CatalogPolicy:           catalogPolicy,
@@ -171,8 +177,8 @@ func (a Adapter) PlanInstall(_ context.Context, in ports.PlanInstallInput) (port
 	if strings.TrimSpace(scope) == "" {
 		scope = "user"
 	}
-	catalogPath := a.catalogPath(scope)
-	pluginRoot := a.pluginRoot(scope, in.Manifest.IntegrationID)
+	catalogPath := a.catalogPath(scope, "")
+	pluginRoot := a.pluginRoot(scope, "", in.Manifest.IntegrationID)
 	return ports.AdapterPlan{
 		TargetID:          a.ID(),
 		ActionClass:       "install_missing",
@@ -192,8 +198,8 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Codex install requires resolved source", nil)
 	}
 	scope := normalizedScope(in.Policy.Scope)
-	pluginRoot := a.pluginRoot(scope, in.Manifest.IntegrationID)
-	catalogPath := a.catalogPath(scope)
+	pluginRoot := a.pluginRoot(scope, workspaceRootFromApplyInput(in), in.Manifest.IntegrationID)
+	catalogPath := a.catalogPath(scope, workspaceRootFromApplyInput(in))
 	if err := a.syncManagedPlugin(ctx, in.Manifest, in.ResolvedSource.LocalPath, pluginRoot); err != nil {
 		return ports.ApplyResult{}, err
 	}
@@ -228,8 +234,8 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 
 func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
 	scope := normalizedScope(in.CurrentRecord.Policy.Scope)
-	catalogPath := catalogPathFromTarget(in.CurrentRecord.Targets[domain.TargetCodex], a.catalogPath(scope))
-	pluginRoot := pluginRootFromTarget(in.CurrentRecord.Targets[domain.TargetCodex], a.pluginRoot(scope, in.CurrentRecord.IntegrationID))
+	catalogPath := catalogPathFromTarget(in.CurrentRecord.Targets[domain.TargetCodex], a.catalogPath(scope, workspaceRootFromRecord(in.CurrentRecord)))
+	pluginRoot := pluginRootFromTarget(in.CurrentRecord.Targets[domain.TargetCodex], a.pluginRoot(scope, workspaceRootFromRecord(in.CurrentRecord), in.CurrentRecord.IntegrationID))
 	return ports.AdapterPlan{
 		TargetID:          a.ID(),
 		ActionClass:       "update_version",
@@ -254,8 +260,8 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Codex target is missing from installation record", nil)
 	}
 	scope := normalizedScope(in.Record.Policy.Scope)
-	catalogPath := catalogPathFromTarget(target, a.catalogPath(scope))
-	pluginRoot := pluginRootFromTarget(target, a.pluginRoot(scope, in.Record.IntegrationID))
+	catalogPath := catalogPathFromTarget(target, a.catalogPath(scope, workspaceRootFromRecord(*in.Record)))
+	pluginRoot := pluginRootFromTarget(target, a.pluginRoot(scope, workspaceRootFromRecord(*in.Record), in.Record.IntegrationID))
 	if err := a.syncManagedPlugin(ctx, in.Manifest, in.ResolvedSource.LocalPath, pluginRoot); err != nil {
 		return ports.ApplyResult{}, err
 	}
@@ -289,8 +295,8 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 
 func (a Adapter) PlanRemove(_ context.Context, in ports.PlanRemoveInput) (ports.AdapterPlan, error) {
 	scope := normalizedScope(in.Record.Policy.Scope)
-	catalogPath := catalogPathFromTarget(in.Record.Targets[domain.TargetCodex], a.catalogPath(scope))
-	pluginRoot := pluginRootFromTarget(in.Record.Targets[domain.TargetCodex], a.pluginRoot(scope, in.Record.IntegrationID))
+	catalogPath := catalogPathFromTarget(in.Record.Targets[domain.TargetCodex], a.catalogPath(scope, workspaceRootFromRecord(in.Record)))
+	pluginRoot := pluginRootFromTarget(in.Record.Targets[domain.TargetCodex], a.pluginRoot(scope, workspaceRootFromRecord(in.Record), in.Record.IntegrationID))
 	return ports.AdapterPlan{
 		TargetID:        a.ID(),
 		ActionClass:     "remove_orphaned_target",
@@ -311,8 +317,8 @@ func (a Adapter) ApplyRemove(_ context.Context, in ports.ApplyInput) (ports.Appl
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Codex target is missing from installation record", nil)
 	}
 	scope := normalizedScope(in.Record.Policy.Scope)
-	catalogPath := catalogPathFromTarget(target, a.catalogPath(scope))
-	pluginRoot := pluginRootFromTarget(target, a.pluginRoot(scope, in.Record.IntegrationID))
+	catalogPath := catalogPathFromTarget(target, a.catalogPath(scope, workspaceRootFromRecord(*in.Record)))
+	pluginRoot := pluginRootFromTarget(target, a.pluginRoot(scope, workspaceRootFromRecord(*in.Record), in.Record.IntegrationID))
 	if err := removeMarketplaceEntry(catalogPath, in.Record.IntegrationID); err != nil {
 		return ports.ApplyResult{}, err
 	}
@@ -363,7 +369,10 @@ func (a Adapter) fs() ports.FileSystem {
 	return fsadapter.OS{}
 }
 
-func (a Adapter) projectRoot() string {
+func (a Adapter) projectRoot(workspaceRoot string) string {
+	if root := strings.TrimSpace(workspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
 	if strings.TrimSpace(a.ProjectRoot) != "" {
 		return a.ProjectRoot
 	}
@@ -371,18 +380,18 @@ func (a Adapter) projectRoot() string {
 	return cwd
 }
 
-func (a Adapter) effectiveProjectRoot() string {
-	root := filepath.Clean(a.projectRoot())
+func (a Adapter) effectiveProjectRoot(workspaceRoot string) string {
+	root := filepath.Clean(a.projectRoot(workspaceRoot))
 	for {
 		if root == "." || root == string(filepath.Separator) || strings.TrimSpace(root) == "" {
-			return a.projectRoot()
+			return a.projectRoot(workspaceRoot)
 		}
 		if fileExists(filepath.Join(root, ".git")) {
 			return root
 		}
 		parent := filepath.Dir(root)
 		if parent == root {
-			return a.projectRoot()
+			return a.projectRoot(workspaceRoot)
 		}
 		root = parent
 	}
@@ -403,19 +412,46 @@ func normalizedScope(scope string) string {
 	return "user"
 }
 
-func (a Adapter) marketplaceRoot(scope string) string {
+func (a Adapter) marketplaceRoot(scope string, workspaceRoot string) string {
 	if normalizedScope(scope) == "project" {
-		return filepath.Join(a.effectiveProjectRoot(), ".agents", "plugins")
+		return filepath.Join(a.effectiveProjectRoot(workspaceRoot), ".agents", "plugins")
 	}
 	return filepath.Join(a.userHome(), ".agents", "plugins")
 }
 
-func (a Adapter) catalogPath(scope string) string {
-	return filepath.Join(a.marketplaceRoot(scope), "marketplace.json")
+func (a Adapter) catalogPath(scope string, workspaceRoot string) string {
+	return filepath.Join(a.marketplaceRoot(scope, workspaceRoot), "marketplace.json")
 }
 
-func (a Adapter) pluginRoot(scope, integrationID string) string {
-	return filepath.Join(a.marketplaceRoot(scope), "plugins", integrationID)
+func (a Adapter) pluginRoot(scope, workspaceRoot, integrationID string) string {
+	return filepath.Join(a.marketplaceRoot(scope, workspaceRoot), "plugins", integrationID)
+}
+
+func workspaceRootFromInspectInput(in ports.InspectInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromApplyInput(in ports.ApplyInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
+		return ""
+	}
+	return ""
+}
+
+func workspaceRootFromRecord(record domain.InstallationRecord) string {
+	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
+		return strings.TrimSpace(record.WorkspaceRoot)
+	}
+	return ""
 }
 
 func (a Adapter) cachePath(marketplaceName, integrationID string) string {

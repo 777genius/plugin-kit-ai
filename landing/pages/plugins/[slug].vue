@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { mdiArrowLeft, mdiOpenInNew } from '@mdi/js';
+import { computed, nextTick, ref } from 'vue';
+import { mdiArrowLeft, mdiDownload, mdiOpenInNew } from '@mdi/js';
 import { getPluginBySlug } from '~/data/content';
+import { getResolvedPluginInstallSpec } from '~/data/pluginInstall';
 import type { LocaleCode } from '~/data/i18n';
 
 const route = useRoute();
@@ -20,6 +21,7 @@ const pluginAccentMap: Record<string, string> = {
 
 const slug = computed(() => String(route.params.slug));
 const plugin = computed(() => getPluginBySlug(locale.value as LocaleCode, slug.value));
+const installSpec = computed(() => getResolvedPluginInstallSpec(slug.value));
 
 if (!plugin.value) {
   throw createError({
@@ -39,6 +41,16 @@ const detailDescription = computed(() =>
     tagline: plugin.value?.tagline ?? '',
   }),
 );
+const installExpanded = ref(false);
+
+async function openInstallSection() {
+  installExpanded.value = true;
+  await nextTick();
+  document.getElementById('plugin-install')?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  });
+}
 
 usePageSeo(detailTitle, detailDescription, { translate: false });
 </script>
@@ -49,6 +61,18 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 
     <section class="plugin-detail__hero section">
       <v-container>
+        <div class="plugin-detail__hero-topbar">
+          <v-btn
+            :to="backToCatalogPath"
+            variant="text"
+            icon
+            :aria-label="t('plugins.backToCatalog')"
+            class="plugin-detail__back-cta"
+          >
+            <v-icon :icon="mdiArrowLeft" size="22" />
+          </v-btn>
+        </div>
+
         <div class="plugin-detail__hero-shell">
           <div class="plugin-detail__hero-copy">
             <div class="plugin-detail__headline">
@@ -58,6 +82,7 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
                   `plugin-detail__logo-wrap--${plugin.logoSurface ?? 'default'}`,
                 ]"
               >
+                <!-- prettier-ignore -->
                 <img
                   :src="plugin.logoSrc"
                   :alt="plugin.logoAlt"
@@ -88,6 +113,14 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 
             <div class="plugin-detail__actions">
               <v-btn
+                size="x-large"
+                class="plugin-detail__install-cta"
+                @click="openInstallSection"
+              >
+                {{ t('plugins.install.showInstallCta') }}
+                <v-icon :icon="mdiDownload" end size="20" />
+              </v-btn>
+              <v-btn
                 :href="plugin.href"
                 target="_blank"
                 rel="noreferrer noopener"
@@ -96,15 +129,6 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
               >
                 {{ t('plugins.openRepository') }}
                 <v-icon :icon="mdiOpenInNew" end size="18" />
-              </v-btn>
-              <v-btn
-                :to="backToCatalogPath"
-                variant="outlined"
-                size="large"
-                class="plugin-detail__secondary-cta"
-              >
-                <v-icon :icon="mdiArrowLeft" start size="18" />
-                {{ t('plugins.backToCatalog') }}
               </v-btn>
             </div>
           </div>
@@ -152,6 +176,15 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
       </v-container>
     </section>
 
+    <PluginInstallSection
+      v-if="plugin && installSpec"
+      :plugin="plugin"
+      :install-spec="installSpec"
+      :accent="accent"
+      :expanded="installExpanded"
+      @update:expanded="installExpanded = $event"
+    />
+
     <section class="plugin-detail__sections section">
       <v-container>
         <div class="plugin-detail__grid">
@@ -187,8 +220,15 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 }
 
 .plugin-detail__hero {
-  padding-top: 120px;
+  padding-top: 12px;
   padding-bottom: 16px;
+}
+
+.plugin-detail__hero-topbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-left: 4px;
 }
 
 .plugin-detail__hero-shell {
@@ -201,6 +241,7 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 .plugin-detail__hero-copy,
 .plugin-detail__summary-card,
 .plugin-detail__panel {
+  position: relative;
   border-radius: 28px;
   border: 1px solid color-mix(in srgb, var(--accent) 16%, rgba(255, 255, 255, 0.08));
   background:
@@ -215,11 +256,12 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 }
 
 .plugin-detail__hero-copy {
-  padding: 30px;
+  padding: 32px 30px 30px;
 }
 
 .plugin-detail__summary-card {
   padding: 24px;
+  height: 100%;
 }
 
 .plugin-detail__panel-eyebrow,
@@ -332,16 +374,39 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
   max-width: 720px;
 }
 
+.plugin-detail__back-cta {
+  color: #dffaff !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
 .plugin-detail__actions {
   margin-top: 24px;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
+}
+
+.plugin-detail__install-cta {
+  min-height: 58px !important;
+  padding-inline: 24px !important;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 82%, #ffffff 18%),
+    #d9fbff
+  ) !important;
+  color: #04131d !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.03em !important;
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--accent) 22%, transparent) !important;
 }
 
 .plugin-detail__primary-cta {
-  background: color-mix(in srgb, var(--accent) 88%, #0f172a) !important;
-  color: #04131d !important;
+  min-height: 54px !important;
+  border-color: color-mix(in srgb, var(--accent) 20%, rgba(255, 255, 255, 0.08)) !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: #dffaff !important;
   font-weight: 800 !important;
 }
 
@@ -444,10 +509,24 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
   color: #475569;
 }
 
+.v-theme--light .plugin-detail__install-cta {
+  color: #0f172a !important;
+}
+
+.v-theme--light .plugin-detail__back-cta,
+.v-theme--light .plugin-detail__primary-cta {
+  color: #0f172a !important;
+}
+
 @media (max-width: 960px) {
   .plugin-detail__hero {
-    padding-top: 104px;
+    padding-top: 10px;
     padding-bottom: 8px;
+  }
+
+  .plugin-detail__hero-topbar {
+    margin-bottom: 8px;
+    padding-left: 0;
   }
 
   .plugin-detail__hero-shell,
@@ -457,6 +536,10 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
 }
 
 @media (max-width: 640px) {
+  .plugin-detail__hero {
+    padding-top: 8px;
+  }
+
   .plugin-detail__hero-copy,
   .plugin-detail__summary-card,
   .plugin-detail__panel {
@@ -483,6 +566,11 @@ usePageSeo(detailTitle, detailDescription, { translate: false });
   .plugin-detail__summary {
     font-size: 0.95rem;
     line-height: 1.66;
+  }
+
+  .plugin-detail__hero-topbar {
+    margin-bottom: 6px;
+    padding-left: 0;
   }
 
   .plugin-detail__actions :deep(.v-btn) {

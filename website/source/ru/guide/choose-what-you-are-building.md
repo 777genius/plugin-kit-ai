@@ -10,7 +10,7 @@ translationRequired: true
 
 # Что именно вы собираете
 
-Начинайте с задачи. Вам не нужно понимать `codex-package`, `runtime lanes` или `local MCP over stdio` до того, как вы создадите repo.
+Начинайте с задачи. Вам не нужно понимать target IDs, runtime lanes или детали local MCP transport до того, как вы создадите repo.
 
 ## Подключить онлайн-сервис
 
@@ -22,10 +22,10 @@ plugin-kit-ai init my-plugin --template online-service
 
 Это создаёт:
 
-- один authored repo под `src/`
-- общий portable MCP source
-- generated outputs для поддерживаемых package и workspace targets
-- без launcher-кода по умолчанию
+- один редактируемый source под `src/`
+- общий hosted-service wiring под `src/mcp/servers.yaml`
+- generated app-specific output files для поддерживаемых package и workspace targets
+- без runtime-кода и launcher-контракта по умолчанию
 
 ## Подключить локальный инструмент
 
@@ -37,20 +37,26 @@ plugin-kit-ai init my-plugin --template local-tool
 
 Это создаёт:
 
-- один authored repo под `src/`
-- общий local tool MCP wiring
-- generated outputs для поддерживаемых package и workspace targets
-- без launcher-кода по умолчанию
+- один редактируемый source под `src/`
+- wiring для локальной команды, контейнера или инструмента под `src/mcp/servers.yaml`
+- generated app-specific output files для поддерживаемых package и workspace targets
+- без runtime-кода и launcher-контракта по умолчанию
 
-## Сделать свой plugin с логикой
+## Сделать свой plugin с логикой - Advanced
 
-Используйте это, когда продукт определяется hooks, runtime behavior или custom code.
+Используйте это, когда ценность плагина живёт в вашем коде, hooks, runtime behavior или orchestration logic.
 
 ```bash
 plugin-kit-ai init my-plugin --template custom-logic
 ```
 
-Это сохраняет самый сильный backward-compatible runtime-first путь и использует текущую launcher-backed модель authoring.
+Этот путь даёт больше контроля и больше ответственности, чем первые два starter'а:
+
+- вы редактируете runtime-facing files под `src/`
+- вы сохраняете один repo, даже когда generated target outputs появляются в корне
+- вы сами владеете runtime entrypoint, test flow и поведением, которые определяют плагин
+
+Откройте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), если вам нужен отдельный advanced guide для этого пути.
 
 ## Что делать дальше
 
@@ -68,5 +74,6 @@ plugin-kit-ai generate --check .
 ## Когда открывать advanced pages
 
 - Открывайте [Быстрый старт](/ru/guide/quickstart), когда нужен самый короткий first-run flow.
+- Открывайте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), когда вы осознанно выбираете advanced runtime path.
 - Открывайте [Выбор target](/ru/guide/choose-a-target), когда нужны конкретные решения по способу поставки.
 - Открывайте [Что можно собрать](/ru/guide/what-you-can-build), когда нужна полная product map.

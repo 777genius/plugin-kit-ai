@@ -25,14 +25,14 @@
       "description": "plugin-kit-ai es explícito sobre qué está listo para producción, qué es la versión beta pública y dónde no se debe prometer una paridad falsa todavía."
     },
     {
-      "id": "releasePath",
-      "title": "Borrar ruta de instalación y lanzamiento",
-      "description": "Homebrew, npm, pipx cuando se publican, el script de instalación verificado, las versiones GitHub y los documentos apuntan a un flujo de inicio limpio."
+      "id": "installAcrossAgents",
+      "title": "Instale complementos en varios agentes",
+      "description": "Use una sola ruta de instalación para llevar el mismo complemento a Claude, Codex, Gemini, OpenCode, Cursor y otros destinos compatibles."
     },
     {
-      "id": "openSource",
-      "title": "Código abierto desde el primer día",
-      "description": "Utilice el kit de herramientas hoy, inspeccione la fuente y siga un flujo de trabajo transparente mientras nuestro catálogo de complementos propios crece."
+      "id": "managedLifecycle",
+      "title": "Actualice, repare y elimine con seguridad",
+      "description": "Mantenga actualizadas las instalaciones administradas, repare la deriva cuando un destino se salga de sincronización y elimine los complementos limpiamente cuando ya no los necesite."
     }
   ],
   "plugins": [

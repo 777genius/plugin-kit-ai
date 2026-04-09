@@ -200,6 +200,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 		if !ok {
 			continue
 		}
+		profile, _ := platformmeta.Lookup(targetName)
 		tc := graph.Targets[targetName]
 		supportedPortable := setOf(entry.PortableComponentKinds)
 		if len(graph.Portable.Paths("skills")) > 0 && !supportedPortable["skills"] {
@@ -218,6 +219,7 @@ func validatePluginProject(root, platform string) (Report, error) {
 				Message: fmt.Sprintf("target %s does not support portable component kind mcp_servers", targetName),
 			})
 		}
+		report.Failures = append(report.Failures, validatePortableContractCoverage(targetName, profile, graph)...)
 		supportedNative := setOf(entry.TargetComponentKinds)
 		for _, kind := range pluginmanifest.DiscoveredTargetKinds(tc) {
 			if supportedNative[kind] {
@@ -265,6 +267,34 @@ func validatePluginProject(root, platform string) (Report, error) {
 	}
 	validatePluginRuntimeFiles(root, manifest, graph.Launcher, &report)
 	return normalizeReport(report), nil
+}
+
+func validatePortableContractCoverage(target string, profile platformmeta.PlatformProfile, graph pluginmanifest.PackageGraph) []Failure {
+	var failures []Failure
+	if len(graph.Portable.Paths("skills")) == 0 {
+		return failures
+	}
+	if !slices.Contains(profile.Contract.PortableComponentKinds, "skills") {
+		return failures
+	}
+	if !portableSkillsManaged(profile) {
+		failures = append(failures, Failure{
+			Kind:    FailureGeneratedContractInvalid,
+			Path:    unsupportedPortablePath(graph.Portable, "skills"),
+			Target:  target,
+			Message: fmt.Sprintf("target %s declares portable skills support but does not declare managed skill artifacts", target),
+		})
+	}
+	return failures
+}
+
+func portableSkillsManaged(profile platformmeta.PlatformProfile) bool {
+	for _, spec := range profile.ManagedArtifacts {
+		if spec.Kind == platformmeta.ManagedArtifactPortableSkills {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeReport(report Report) Report {

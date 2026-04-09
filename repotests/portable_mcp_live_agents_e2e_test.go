@@ -267,19 +267,24 @@ func assertPortableMCPLiveRenderedArtifacts(t *testing.T, workDir, mcpBin string
 		t.Fatalf("opencode release-checks command = %#v want [%q]\n%s", opencodeServer["command"], filepath.ToSlash(mcpBin), opencodeBody)
 	}
 
-	cursorBody, err := os.ReadFile(filepath.Join(workDir, ".cursor", "mcp.json"))
+	cursorManifestBody, err := os.ReadFile(filepath.Join(workDir, ".cursor-plugin", "plugin.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var cursorDoc struct {
-		MCPServers map[string]map[string]any `json:"mcpServers"`
+	if !strings.Contains(string(cursorManifestBody), `"mcpServers": "./.mcp.json"`) {
+		t.Fatalf(".cursor-plugin/plugin.json missing shared MCP ref:\n%s", cursorManifestBody)
 	}
+	cursorBody, err := os.ReadFile(filepath.Join(workDir, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cursorDoc map[string]map[string]any
 	if err := json.Unmarshal(cursorBody, &cursorDoc); err != nil {
-		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, cursorBody)
+		t.Fatalf("parse .mcp.json: %v\n%s", err, cursorBody)
 	}
-	cursorServer, ok := cursorDoc.MCPServers["release-checks"]
+	cursorServer, ok := cursorDoc["release-checks"]
 	if !ok {
-		t.Fatalf(".cursor/mcp.json missing release-checks MCP projection:\n%s", cursorBody)
+		t.Fatalf(".mcp.json missing release-checks MCP projection:\n%s", cursorBody)
 	}
 	if got := strings.TrimSpace(fmt.Sprint(cursorServer["command"])); got != filepath.ToSlash(mcpBin) {
 		t.Fatalf("cursor release-checks command = %q want %q\n%s", got, filepath.ToSlash(mcpBin), cursorBody)

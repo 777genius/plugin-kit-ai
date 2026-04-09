@@ -222,6 +222,7 @@ func newService() (usecase.Service, error) {
 			FS:   fs,
 			Path: filepath.Join(repoRoot, "docs", "generated", "integrationctl_evidence_registry.json"),
 		},
+		CurrentWorkspaceRoot: cwd,
 		Adapters: map[domain.TargetID]ports.TargetAdapter{
 			domain.TargetClaude:   claude.Adapter{Runner: process.OS{}, FS: fs, ProjectRoot: cwd, UserHome: home},
 			domain.TargetCodex:    codex.Adapter{FS: fs, ProjectRoot: cwd, UserHome: home},

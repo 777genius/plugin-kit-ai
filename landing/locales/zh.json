@@ -61,8 +61,9 @@
       },
       "customLogic": {
         "title": "Build custom plugin logic",
+        "badge": "Advanced",
         "description": "Start with launcher-backed code when hooks, runtime logic, or custom behavior define the product.",
-        "example": "See the codex-basic-prod example"
+        "example": "Open the advanced custom-logic guide"
       }
     }
   },
@@ -99,14 +100,16 @@
   },
   "plugins": {
     "sectionTitle": "我们的第一个插件从这里开始",
-    "sectionSubtitle": "专为真正的回购工作而设计的第一方阵容，为每个想法所支持的代理生态系统提供了清晰的徽章。",
+    "sectionSubtitle": "Browse the real first-party catalog for online services and local tools. If the product value lives in your own runtime code, use the advanced custom-logic path instead.",
     "supports": "支持",
     "openPlugin": "打开插件",
     "viewDetails": "查看详情",
     "viewAll": "查看全部",
     "catalogEyebrow": "插件目录",
     "catalogTitle": "一个可搜索目录中的每个第一方插件",
-    "catalogSubtitle": "浏览完整的产品系列，按实际工作流程类别进行过滤，并在跳转到源存储库之前打开插件的轻量级页面。",
+    "catalogSubtitle": "Browse the real catalog for online services and local tools, then open the source repo only after you know the plugin fits the job.",
+    "catalogAdvancedNote": "Need hooks, orchestration, or runtime behavior instead of a catalog plugin?",
+    "catalogAdvancedLink": "Open the advanced custom-logic guide.",
     "searchLabel": "搜索插件",
     "searchPlaceholder": "搜索插件或工作流程...",
     "filterLabel": "按工作流程过滤",
@@ -120,6 +123,87 @@
     "categoriesTitle": "专为",
     "useCasesTitle": "最适合",
     "highlightsTitle": "有何突出之处",
+    "install": {
+      "eyebrow": "Install flow",
+      "title": "安装这个插件",
+      "subtitle": "先选择你的代理，如果还没有 plugin-kit-ai 就先安装，然后复制这个插件的准确命令。",
+      "supportedLabel": "可用 targets",
+      "allAgents": "All",
+      "chooseAgentTitle": "选择你的代理",
+      "chooseAgentBody": "默认已经选中了全部 targets。如果你只想生成更窄的安装命令，可以改成更小的选择集合。",
+      "getCliTitle": "如果需要，先安装 plugin-kit-ai",
+      "getCliBody": "如果你还没有 CLI，可以先从这里走最快且受支持的安装路径。",
+      "installTitle": "安装插件",
+      "installBody": "运行当前 target 的安装命令。命令保持显式，这样后续更容易看清最终 scope。",
+      "manualTitle": "更想走原生或手动方式？",
+      "manualBody": "如果你更想直接使用原生 agent surface，而不是 plugin-kit-ai control plane，就打开仓库或官方文档。",
+      "manageTitle": "之后再管理",
+      "manageBody": "安装完成后，可以用这些命令来更新、修复 drift，或者干净地删除插件。",
+      "recommended": "推荐",
+      "showInstallCta": "安装",
+      "hideInstallCta": "收起安装步骤",
+      "cliCommandLabel": "CLI 安装命令",
+      "installCommandLabel": "插件安装命令",
+      "updateCommandLabel": "更新命令",
+      "repairCommandLabel": "Repair 命令",
+      "removeCommandLabel": "删除命令",
+      "copy": "复制",
+      "copied": "已复制",
+      "fullOnboardingCta": "打开完整 onboarding",
+      "alreadyInstalled": "已经装好了 CLI？那就直接去第 3 步。",
+      "repositoryCta": "打开插件仓库",
+      "agentDocsCta": "打开 {agent} 文档",
+      "boundaryLabel": "注意",
+      "targetsLabel": "Targets",
+      "scopeLabel": "Scope",
+      "writesToLabel": "写入到",
+      "nextStepLabel": "安装后",
+      "userScope": "User scope",
+      "projectScope": "Project scope",
+      "mixedScope": "混合 scopes",
+      "projectRootHint": "请在项目根目录运行，这样 plugin-kit-ai 才会把 workspace config 写到正确的位置。",
+      "projectRootHintMixed": "这个选择里包含 project-first targets。请在项目根目录运行命令，这样 workspace 级 targets 才会写到正确的配置里。",
+      "selectionBodies": {
+        "all": "一条命令安装这个插件支持的全部 targets。如果你只想要更窄的安装路径，可以改选具体代理。",
+        "multi": "安装所选 targets: {agents}。"
+      },
+      "manualNotes": {
+        "all": "如果你想直接检查生成出来的 outputs，可以打开仓库；如果你想走原生路径，可以打开对应 agent 的官方文档。",
+        "multi": "如果你想检查或完成 {agents} 的原生配置，可以打开仓库或这些 agents 的文档。"
+      },
+      "followUps": {
+        "none": "安装后即可使用",
+        "reload": "如果没有马上出现，请重新加载插件或重新打开代理",
+        "enable": "如果 Gemini 要求确认，请检查权限或启用扩展",
+        "activation": "Codex 所需的包已经准备好，但最终激活仍可能需要在 Codex 内执行原生安装或开启新 thread",
+        "depends": "取决于所选 targets"
+      },
+      "targets": {
+        "claude": {
+          "installBody": "把插件安装到 Claude 的托管插件流程里，默认走 user-level 安装。",
+          "manualNote": "如果你想检查生成出来的 Claude package，或者手动走 Claude 原生插件流程，可以打开仓库。",
+          "boundaryNote": "如果 Claude 已经打开，请重新加载插件或重新打开当前会话，让新插件显示出来。"
+        },
+        "codex": {
+          "installBody": "通过 integration control plane 为 Codex 准备 package 和本地 marketplace entry。",
+          "manualNote": "如果你想自己检查准备好的包，或者亲自完成原生激活路径，可以打开仓库或 Codex 文档。",
+          "boundaryNote": "这里对 Codex 的自动化是刻意保守的。plugin-kit-ai 会准备好 package 和 marketplace，但 Codex 仍可能在真正激活前要求额外的原生步骤。"
+        },
+        "gemini": {
+          "installBody": "把 Gemini 扩展安装到用户扩展目录中，后续 update 和 repair 也会继续复用同一个 managed root。",
+          "manualNote": "如果你想检查生成出来的 Gemini extension package，或者直接使用 Gemini 原生命令管理它，可以打开仓库。",
+          "boundaryNote": "Gemini 可能会根据你本地的扩展安全设置要求确认或权限审查。"
+        },
+        "opencode": {
+          "installBody": "把这个插件加入项目级 OpenCode 配置和托管的 .opencode 支持文件中。",
+          "manualNote": "如果你想手动接同样的配置，可以打开仓库或 OpenCode 插件文档。"
+        },
+        "cursor": {
+          "installBody": "把这个插件加入项目级 Cursor MCP 配置，让集成保留在版本化的 workspace setup 里。",
+          "manualNote": "如果你想手动维护同样的服务项，可以打开仓库或 Cursor MCP 文档。"
+        }
+      }
+    },
     "categories": {
       "docs": "文档",
       "research": "研究",
@@ -132,7 +216,15 @@
       "backend": "后端",
       "cloud": "云",
       "automation": "自动化",
-      "collaboration": "合作"
+      "collaboration": "合作",
+      "search": "搜索",
+      "observability": "可观测性",
+      "developerTools": "开发者工具",
+      "crm": "CRM",
+      "cms": "CMS",
+      "payments": "支付",
+      "commerce": "商业",
+      "messaging": "消息"
     },
     "allTypes": "All plugin types",
     "typeFilterLabel": "Filter by plugin type",
@@ -140,9 +232,32 @@
     "types": {
       "online-service": "Online service",
       "local-tool": "Local tool",
-      "custom-logic": "Custom logic"
+      "custom-logic": "Custom logic - Advanced"
     }
+  },
+  "customLogic": {
+    "eyebrow": "Advanced path",
+    "title": "Build custom plugin logic when the product lives in your code",
+    "subtitle": "This path stays first-class, but it is not the same kind of starter as the catalog-backed service and tool plugins. Use it when runtime behavior, hooks, or orchestration define the product.",
+    "advancedBadge": "Advanced",
+    "commandLabel": "Start command",
+    "commandBody": "Start here when the plugin value lives in your code and you want one repo to keep authored source, generated outputs, and runtime behavior aligned.",
+    "openGuide": "Open advanced guide",
+    "openExample": "Open example repo",
+    "points": {
+      "code": "Edit runtime-facing files under src/, plus the repo-owned entrypoint that defines the plugin behavior.",
+      "generated": "Keep generated root outputs managed instead of treating them like hand-edited source.",
+      "guide": "Use inspect --authoring and the advanced guide before you add more outputs."
     }
+  },
+  "createPlugin": {
+    "eyebrow": "Build your own plugin",
+    "title": "Create your own plugin",
+    "subtitle": "Pick the repo shape that matches the job, then open the guide that explains that path in more detail.",
+    "onlineServiceCta": "Open the job-first guide",
+    "localToolCta": "Open the job-first guide",
+    "customLogicCta": "Open the advanced guide",
+    "customLogicDescription": "Choose this when your code, hooks, or runtime behavior define the product."
   },
   "faq": {
     "sectionTitle": "Got 问题？我们已经有了答案",
@@ -180,7 +295,7 @@
     }
   },
   "footer": {
-    "copyright": "© {年}",
+    "copyright": "© {year}",
     "tagline": "构建一次。运送给许多人工智能代理。",
     "github": "GitHub",
     "docs": "文档"
@@ -192,8 +307,8 @@
     "downloadDescription": "选择 plugin-kit-ai 的安装路径，打开文档，然后从一个干净的插件存储库开始。",
     "pluginsTitle": "插件目录 | plugin-kit-ai 的第一方插件",
     "pluginsDescription": "浏览 plugin-kit-ai 的第一方插件目录，其中包含每个真实插件存储库的可搜索卡片、工作流程过滤器和轻量级页面。",
-    "pluginDetailTitle": "{插件} 插件 | plugin-kit-ai 目录",
-    "pluginDetailDescription": "{plugin} 是第一方 plugin-kit-ai 目录的一部分。 {标语}"
+    "pluginDetailTitle": "{plugin} 插件 | plugin-kit-ai 目录",
+    "pluginDetailDescription": "{plugin} 是第一方 plugin-kit-ai 目录的一部分。 {tagline}"
   },
   "error": {
     "notFoundTitle": "找不到页面",

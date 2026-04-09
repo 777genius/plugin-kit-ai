@@ -42,13 +42,10 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 
 func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
 	home := a.userHome()
-	settings := a.settingsPath(scopeFromInspectInput(in))
-	workspaceSettings := ""
-	if in.Record != nil && strings.EqualFold(strings.TrimSpace(in.Record.Policy.Scope), "project") {
-		if cwd, err := os.Getwd(); err == nil {
-			workspaceSettings = filepath.Join(cwd, ".gemini", "settings.json")
-		}
-	}
+	workspaceRoot := workspaceRootFromInspectInput(in)
+	settings := a.settingsPath(scopeFromInspectInput(in), workspaceRoot)
+	workspaceSettings := workspaceSettingsPath(workspaceRoot)
+	enablement := a.enablementPath()
 	trusted := filepath.Join(home, ".gemini", "trustedFolders.json")
 	extensionDir := ""
 	if in.Record != nil {
@@ -72,7 +69,7 @@ func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.Insp
 			state = domain.InstallInstalled
 		}
 	}
-	settingsFiles := []string{settings, trusted}
+	settingsFiles := []string{settings, enablement, trusted}
 	if workspaceSettings != "" {
 		settingsFiles = append(settingsFiles, workspaceSettings)
 	}
@@ -96,7 +93,7 @@ func (a Adapter) PlanEnable(_ context.Context, in ports.PlanToggleInput) (ports.
 		ActionClass:     "enable_target",
 		Summary:         "Enable Gemini extension in the native scope",
 		RestartRequired: true,
-		PathsTouched:    []string{a.settingsPath(scopeFromRecord(in.Record))},
+		PathsTouched:    dedupeStrings([]string{a.settingsPath(scopeFromRecord(in.Record), workspaceRootFromRecord(in.Record)), a.enablementPath()}),
 		EvidenceKey:     "target.gemini.native_surface",
 	}, nil
 }
@@ -111,7 +108,7 @@ func (a Adapter) ApplyEnable(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	}
 	scope := geminiToggleScope(scopeFromRecord(*in.Record))
 	argv := []string{"gemini", "extensions", "enable", name, "--scope", scope}
-	if err := a.runGemini(ctx, argv, ""); err != nil {
+	if err := a.runGemini(ctx, argv, a.commandDirForRecord(*in.Record)); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	return ports.ApplyResult{
@@ -134,7 +131,7 @@ func (a Adapter) PlanDisable(_ context.Context, in ports.PlanToggleInput) (ports
 		ActionClass:     "disable_target",
 		Summary:         "Disable Gemini extension in the native scope",
 		RestartRequired: true,
-		PathsTouched:    []string{a.settingsPath(scopeFromRecord(in.Record))},
+		PathsTouched:    dedupeStrings([]string{a.settingsPath(scopeFromRecord(in.Record), workspaceRootFromRecord(in.Record)), a.enablementPath()}),
 		EvidenceKey:     "target.gemini.native_surface",
 	}, nil
 }
@@ -149,7 +146,7 @@ func (a Adapter) ApplyDisable(ctx context.Context, in ports.ApplyInput) (ports.A
 	}
 	scope := geminiToggleScope(scopeFromRecord(*in.Record))
 	argv := []string{"gemini", "extensions", "disable", name, "--scope", scope}
-	if err := a.runGemini(ctx, argv, ""); err != nil {
+	if err := a.runGemini(ctx, argv, a.commandDirForRecord(*in.Record)); err != nil {
 		return ports.ApplyResult{}, err
 	}
 	return ports.ApplyResult{
@@ -171,7 +168,7 @@ func (a Adapter) PlanInstall(_ context.Context, in ports.PlanInstallInput) (port
 	if in.Manifest.RequestedRef.Kind == "local_path" {
 		paths = append(paths, in.Manifest.RequestedRef.Value)
 	}
-	manualSteps, blocking := a.securityBlockers(in.Manifest, in.Policy.Scope)
+	manualSteps, blocking := a.securityBlockers(in.Manifest, in.Policy.Scope, "")
 	return ports.AdapterPlan{
 		TargetID:        a.ID(),
 		ActionClass:     "install_missing",
@@ -234,7 +231,7 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 }
 
 func (a Adapter) PlanUpdate(_ context.Context, in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
-	manualSteps, blocking := a.securityBlockers(in.NextManifest, in.CurrentRecord.Policy.Scope)
+	manualSteps, blocking := a.securityBlockers(in.NextManifest, in.CurrentRecord.Policy.Scope, in.CurrentRecord.WorkspaceRoot)
 	return ports.AdapterPlan{
 		TargetID:        a.ID(),
 		ActionClass:     "update_version",
@@ -281,7 +278,7 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		metadata["update_mode"] = "local_projection"
 	} else {
 		argv := []string{"gemini", "extensions", "update", name}
-		if err := a.runGemini(ctx, argv, ""); err != nil {
+		if err := a.runGemini(ctx, argv, a.commandDirForRecord(*in.Record)); err != nil {
 			return ports.ApplyResult{}, err
 		}
 		metadata["update_argv"] = argv
@@ -325,7 +322,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		metadata["remove_mode"] = "local_projection"
 	} else {
 		argv := []string{"gemini", "extensions", "uninstall", name}
-		if err := a.runGemini(ctx, argv, ""); err != nil {
+		if err := a.runGemini(ctx, argv, a.commandDirForRecord(*in.Record)); err != nil {
 			return ports.ApplyResult{}, err
 		}
 		metadata["remove_argv"] = argv
@@ -529,6 +526,9 @@ func (a Adapter) activateManagedLocalInstall(managedRoot, name string) error {
 	if err := copyDirIfExists(managedRoot, tmpRoot); err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Gemini managed source into extension dir", err)
 	}
+	if err := writeGeminiInstallMetadata(filepath.Join(tmpRoot, ".gemini-extension-install.json"), managedRoot); err != nil {
+		return err
+	}
 	existingEnv := filepath.Join(extensionDir, ".env")
 	if fileExists(existingEnv) {
 		if err := copyFile(existingEnv, filepath.Join(tmpRoot, ".env")); err != nil {
@@ -586,20 +586,31 @@ func geminiToggleScope(scope string) string {
 	return "user"
 }
 
-func (a Adapter) settingsPath(scope string) string {
+func (a Adapter) settingsPath(scope string, workspaceRoot string) string {
 	if scope == "project" {
-		if cwd, err := os.Getwd(); err == nil {
-			return filepath.Join(cwd, ".gemini", "settings.json")
+		if root := effectiveWorkspaceRoot(workspaceRoot); root != "" {
+			return filepath.Join(root, ".gemini", "settings.json")
 		}
 	}
 	return filepath.Join(a.userHome(), ".gemini", "settings.json")
+}
+
+func (a Adapter) enablementPath() string {
+	return filepath.Join(a.userHome(), ".gemini", "extensions", "extension-enablement.json")
 }
 
 func (a Adapter) isDisabled(ctx context.Context, in ports.InspectInput) (bool, error) {
 	if in.Record == nil {
 		return false, nil
 	}
-	settingsPath := a.settingsPath(scopeFromInspectInput(in))
+	scope := scopeFromInspectInput(in)
+	workspaceRoot := workspaceRootFromInspectInput(in)
+	if disabled, handled, err := a.disabledByEnablement(ctx, scope, workspaceRoot, strings.TrimSpace(in.Record.IntegrationID)); err != nil {
+		return false, err
+	} else if handled {
+		return disabled, nil
+	}
+	settingsPath := a.settingsPath(scope, workspaceRoot)
 	body, err := a.fs().ReadFile(ctx, settingsPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -626,6 +637,58 @@ func (a Adapter) isDisabled(ctx context.Context, in ports.InspectInput) (bool, e
 		}
 	}
 	return false, nil
+}
+
+func (a Adapter) disabledByEnablement(ctx context.Context, scope string, workspaceRoot string, name string) (bool, bool, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false, false, nil
+	}
+	body, err := a.fs().ReadFile(ctx, a.enablementPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, false, nil
+		}
+		return false, false, domain.NewError(domain.ErrMutationApply, "read Gemini extension enablement during inspect", err)
+	}
+	var doc map[string]struct {
+		Overrides []string `json:"overrides"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return false, false, domain.NewError(domain.ErrMutationApply, "parse Gemini extension enablement during inspect", err)
+	}
+	entry, ok := doc[name]
+	if !ok {
+		return false, false, nil
+	}
+	if scope == "project" {
+		root := workspaceRootForScope(scope, workspaceRoot)
+		if root == "" {
+			return false, false, nil
+		}
+		expected := filepath.Clean(root) + string(os.PathSeparator) + "*"
+		for _, override := range entry.Overrides {
+			override = strings.TrimSpace(override)
+			if override == "" {
+				continue
+			}
+			if strings.TrimPrefix(override, "!") != expected {
+				continue
+			}
+			return strings.HasPrefix(override, "!"), true, nil
+		}
+		return false, false, nil
+	}
+	for _, override := range entry.Overrides {
+		override = strings.TrimSpace(override)
+		if override == "!*" {
+			return true, true, nil
+		}
+		if override == "*" {
+			return false, true, nil
+		}
+	}
+	return false, false, nil
 }
 
 func ownedGeminiObjects(record domain.InstallationRecord, home string) []domain.NativeObjectRef {
@@ -675,11 +738,11 @@ func (a Adapter) systemSettingsPaths() []string {
 	}
 }
 
-func (a Adapter) securityBlockers(manifest domain.IntegrationManifest, scope string) ([]string, bool) {
+func (a Adapter) securityBlockers(manifest domain.IntegrationManifest, scope string, workspaceRoot string) ([]string, bool) {
 	if !isGitBackedGeminiSource(manifest.RequestedRef.Kind) {
 		return nil, false
 	}
-	settings, err := a.loadMergedSettings(scope)
+	settings, err := a.loadMergedSettings(scope, workspaceRoot)
 	if err != nil {
 		return []string{"inspect Gemini settings manually before installing or updating this Git-backed extension"}, true
 	}
@@ -713,12 +776,10 @@ func (a Adapter) securityBlockers(manifest domain.IntegrationManifest, scope str
 	return nil, false
 }
 
-func (a Adapter) loadMergedSettings(scope string) (map[string]any, error) {
+func (a Adapter) loadMergedSettings(scope string, workspaceRoot string) (map[string]any, error) {
 	paths := []string{filepath.Join(a.userHome(), ".gemini", "settings.json")}
-	if scope == "project" {
-		if cwd, err := os.Getwd(); err == nil {
-			paths = append(paths, filepath.Join(cwd, ".gemini", "settings.json"))
-		}
+	if workspaceSettings := workspaceSettingsPath(workspaceRootForScope(scope, workspaceRoot)); workspaceSettings != "" {
+		paths = append(paths, workspaceSettings)
 	}
 	paths = append(paths, a.systemSettingsPaths()...)
 	merged := map[string]any{}
@@ -802,4 +863,61 @@ func dedupeStrings(in []string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+func workspaceRootFromInspectInput(in ports.InspectInput) string {
+	if in.Record != nil {
+		return workspaceRootFromRecord(*in.Record)
+	}
+	return workspaceRootForScope(defaultScope(in.Scope), "")
+}
+
+func workspaceRootFromRecord(record domain.InstallationRecord) string {
+	return workspaceRootForScope(defaultScope(record.Policy.Scope), record.WorkspaceRoot)
+}
+
+func workspaceRootForScope(scope string, workspaceRoot string) string {
+	if scope != "project" {
+		return ""
+	}
+	return effectiveWorkspaceRoot(workspaceRoot)
+}
+
+func effectiveWorkspaceRoot(workspaceRoot string) string {
+	if root := strings.TrimSpace(workspaceRoot); root != "" {
+		return filepath.Clean(root)
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return filepath.Clean(cwd)
+	}
+	return ""
+}
+
+func workspaceSettingsPath(workspaceRoot string) string {
+	if strings.TrimSpace(workspaceRoot) == "" {
+		return ""
+	}
+	return filepath.Join(workspaceRoot, ".gemini", "settings.json")
+}
+
+func (a Adapter) commandDirForRecord(record domain.InstallationRecord) string {
+	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
+		return workspaceRootFromRecord(record)
+	}
+	return ""
+}
+
+func writeGeminiInstallMetadata(path string, source string) error {
+	doc := map[string]any{
+		"source": strings.TrimSpace(source),
+		"type":   "link",
+	}
+	body, err := marshalJSON(doc)
+	if err != nil {
+		return domain.NewError(domain.ErrMutationApply, "marshal Gemini install metadata", err)
+	}
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "write Gemini install metadata", err)
+	}
+	return nil
 }

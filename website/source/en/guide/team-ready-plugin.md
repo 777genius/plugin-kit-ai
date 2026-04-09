@@ -36,12 +36,12 @@ By the end, you should have:
 
 ## 1. Start From The Narrowest Stable Path
 
-Use the strongest default path unless you have a real reason not to:
+Start from the narrowest path that actually matches the job:
 
 ```bash
-plugin-kit-ai init my-plugin
+plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
-plugin-kit-ai generate .
+plugin-kit-ai inspect . --authoring
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
@@ -84,7 +84,7 @@ If the repo supports multiple targets, the CI gate should check each supported t
 
 ## 5. Check Whether You Actually Need A Different Path
 
-Only move away from the default path when the tradeoff is real:
+Only move away from the starting path when the tradeoff is real:
 
 - use `claude` when Claude hooks are the product requirement
 - use `node --typescript` when the team is TypeScript-first and the local runtime tradeoff is acceptable

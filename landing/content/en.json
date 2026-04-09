@@ -25,14 +25,14 @@
       "description": "plugin-kit-ai is explicit about what is production-ready, what is public beta, and where you should not promise fake parity yet."
     },
     {
-      "id": "releasePath",
-      "title": "Clear install and release path",
-      "description": "Homebrew, npm, pipx when published, verified install script, GitHub releases, and docs all point to one clean starting flow."
+      "id": "installAcrossAgents",
+      "title": "Install plugins across agents",
+      "description": "Use one install path to land the same plugin in Claude, Codex, Gemini, OpenCode, Cursor, and other supported targets."
     },
     {
-      "id": "openSource",
-      "title": "Open source from day one",
-      "description": "Use the toolkit today, inspect the source, and follow a transparent workflow while our first-party plugin catalog grows."
+      "id": "managedLifecycle",
+      "title": "Update, repair, and remove safely",
+      "description": "Keep managed installs current, repair drift when a target falls out of sync, and remove plugins cleanly when you no longer need them."
     }
   ],
   "plugins": [
@@ -1012,7 +1012,6 @@
       "title": "npm",
       "description": "Official JavaScript ecosystem wrapper for teams that already center their workflow on npm.",
       "href": "https://www.npmjs.com/package/plugin-kit-ai",
-      "note": "Public-beta wrapper that downloads the matching verified release binary.",
       "command": "npm i -g plugin-kit-ai"
     },
     {

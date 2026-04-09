@@ -22,7 +22,7 @@ outline: false
 
 - [Connect an online service](/en/guide/choose-what-you-are-building#connect-an-online-service)
 - [Connect a local tool](/en/guide/choose-what-you-are-building#connect-a-local-tool)
-- [Build custom plugin logic](/en/guide/choose-what-you-are-building#build-custom-plugin-logic)
+- [Build custom plugin logic - Advanced](/en/guide/build-custom-plugin-logic)
 
 ## What To Know Right Away
 
@@ -39,6 +39,10 @@ outline: false
   <a class="docs-card" href="./guide/quickstart">
     <h2>Start Fast</h2>
     <p>Get a working repo fast from the new job-first entry path.</p>
+  </a>
+  <a class="docs-card" href="./guide/build-custom-plugin-logic">
+    <h2>Advanced Custom Logic</h2>
+    <p>Open the guided path for runtime code, hooks, and orchestration when wiring alone is not enough.</p>
   </a>
   <a class="docs-card" href="./guide/what-you-can-build">
     <h2>See The Product Shape</h2>
@@ -65,16 +69,20 @@ outline: false
     <h2>2. Quickstart</h2>
     <p>Turn that choice into a working repo and a clean first validation loop.</p>
   </a>
+  <a class="docs-card" href="./guide/build-custom-plugin-logic">
+    <h2>3. Advanced Custom Logic</h2>
+    <p>Use this when the plugin's value lives in your code, hooks, and runtime behavior.</p>
+  </a>
   <a class="docs-card" href="./guide/what-you-can-build">
-    <h2>3. What You Can Build</h2>
+    <h2>4. What You Can Build</h2>
     <p>See the product shape across runtime, package, extension, and integration lanes.</p>
   </a>
   <a class="docs-card" href="./guide/choose-a-target">
-    <h2>4. Choose A Target</h2>
+    <h2>5. Choose A Target</h2>
     <p>Use this later when you are ready for target-specific shipping decisions.</p>
   </a>
   <a class="docs-card" href="./reference/support-boundary">
-    <h2>5. Support Boundary</h2>
+    <h2>6. Support Boundary</h2>
     <p>Use the reference cluster when you need exact compatibility language and support details.</p>
   </a>
 </div>

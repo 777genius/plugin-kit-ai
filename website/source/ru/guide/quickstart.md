@@ -20,19 +20,19 @@ translationRequired: true
 
 - online service: `plugin-kit-ai init my-plugin --template online-service`
 - local tool: `plugin-kit-ai init my-plugin --template local-tool`
-- custom logic: `plugin-kit-ai init my-plugin --template custom-logic`
+- custom logic - Advanced: `plugin-kit-ai init my-plugin --template custom-logic`
 
 Если хотите сначала короткое объяснение, откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building).
 
 ## Если читать только одно
 
-Начинайте с job-first пути выше, если вы заранее не знаете, что вам нужен backward-compatible путь по умолчанию на Go или какой-то конкретный advanced target.
+Начинайте с job-first пути выше.
 
 Первый выбор - это стартовая точка, а не вечная граница репозитория.
 
-## Backward-compatible путь по умолчанию
+## Legacy path для совместимости
 
-Если у вас нет сильной причины выбрать другой путь, начинайте так:
+Используйте этот путь только тогда, когда вы осознанно поддерживаете старый Codex runtime Go flow или подстраиваетесь под существующие docs и scripts:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
@@ -43,13 +43,13 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-Это сохраняет самый сильный legacy-путь по умолчанию: Go-репозиторий для Codex runtime, который проще всего проверять, передавать другим и потом расширять.
+Это сохраняет старый путь для Codex runtime на Go, но это уже не рекомендуемый first-run путь для новых repo.
 
-## Почему это путь по умолчанию
+## Почему этот путь всё ещё существует
 
-- один репозиторий с первого дня
-- самая чистая runtime и release story сегодня
-- самая простая база для package, extension и integration lanes позже
+- backward compatibility для старых docs и scripts
+- стабильный Codex runtime Go path, когда он вам уже действительно нужен
+- мост для миграции, а не главная рекомендация для новых пользователей
 
 ## Что вы получите
 
@@ -117,6 +117,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ## Что читать дальше
 
 - [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
+- [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic)
 - [Создайте первый plugin](/ru/guide/first-plugin)
 - [Что можно собрать](/ru/guide/what-you-can-build)
 - [Выбор target](/ru/guide/choose-a-target)

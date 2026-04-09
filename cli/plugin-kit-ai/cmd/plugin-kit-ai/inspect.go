@@ -11,10 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var inspectTarget string
-var inspectFormat string
-var inspectAuthoring bool
-
 type inspectRunner interface {
 	Inspect(app.PluginInspectOptions) (pluginmanifest.Inspection, []pluginmanifest.Warning, error)
 }
@@ -22,6 +18,9 @@ type inspectRunner interface {
 var inspectCmd = newInspectCmd(pluginService)
 
 func newInspectCmd(runner inspectRunner) *cobra.Command {
+	inspectTarget := "all"
+	inspectFormat := "text"
+	inspectAuthoring := false
 	cmd := &cobra.Command{
 		Use:   "inspect [path]",
 		Short: "Inspect the discovered package graph and target coverage",
@@ -169,7 +168,7 @@ func newInspectCmd(runner inspectRunner) *cobra.Command {
 			}
 		},
 	}
-	cmd.Flags().StringVar(&inspectTarget, "target", "all", `inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor")`)
+	cmd.Flags().StringVar(&inspectTarget, "target", "all", `inspect target ("all", "claude", "codex-package", "codex-runtime", "gemini", "opencode", "cursor", or "cursor-workspace")`)
 	cmd.Flags().StringVar(&inspectFormat, "format", "text", "output format: text or json")
 	cmd.Flags().BoolVar(&inspectAuthoring, "authoring", false, "show a plain-language authoring view instead of the raw contract view")
 	return cmd
@@ -240,10 +239,16 @@ func renderInspectAuthoring(report pluginmanifest.Inspection) string {
 		}
 	}
 
-	generated := authoredGeneratedOutputs(report)
-	if len(generated) > 0 {
-		lines = append(lines, "", "Generated files at the repo root:")
-		for _, path := range generated {
+	guides, outputs := authoredGeneratedOutputs(report)
+	if len(guides) > 0 {
+		lines = append(lines, "", "Managed guidance files:")
+		for _, path := range guides {
+			lines = append(lines, "  - "+path)
+		}
+	}
+	if len(outputs) > 0 {
+		lines = append(lines, "", "Generated target outputs:")
+		for _, path := range outputs {
 			lines = append(lines, "  - "+path)
 		}
 	}
@@ -251,7 +256,7 @@ func renderInspectAuthoring(report pluginmanifest.Inspection) string {
 	if len(report.Manifest.Targets) > 0 {
 		lines = append(lines, "", "Supported outputs:")
 		for _, target := range report.Manifest.Targets {
-			lines = append(lines, "  - "+target)
+			lines = append(lines, "  - "+inspectAuthoringTargetLabel(target))
 		}
 	}
 
@@ -290,9 +295,9 @@ func inspectAuthoringPath(report pluginmanifest.Inspection) string {
 	return "manage generated plugin outputs from one authored source"
 }
 
-func authoredGeneratedOutputs(report pluginmanifest.Inspection) []string {
+func authoredGeneratedOutputs(report pluginmanifest.Inspection) ([]string, []string) {
 	seen := map[string]struct{}{}
-	items := make([]string, 0, len(report.Layout.GeneratedOutputs)+len(report.Layout.BoundaryDocs)+1)
+	guides := make([]string, 0, len(report.Layout.GeneratedOutputs)+len(report.Layout.BoundaryDocs)+1)
 	for _, path := range report.Layout.GeneratedOutputs {
 		switch path {
 		case "README.md", "CLAUDE.md", "AGENTS.md", "GENERATED.md":
@@ -300,7 +305,7 @@ func authoredGeneratedOutputs(report pluginmanifest.Inspection) []string {
 				continue
 			}
 			seen[path] = struct{}{}
-			items = append(items, path)
+			guides = append(guides, path)
 		}
 	}
 	for _, path := range report.Layout.BoundaryDocs {
@@ -308,25 +313,25 @@ func authoredGeneratedOutputs(report pluginmanifest.Inspection) []string {
 			continue
 		}
 		seen[path] = struct{}{}
-		items = append(items, path)
+		guides = append(guides, path)
 	}
 	if generatedGuide := strings.TrimSpace(report.Layout.GeneratedGuide); generatedGuide != "" {
 		if _, ok := seen[generatedGuide]; !ok {
 			seen[generatedGuide] = struct{}{}
-			items = append(items, generatedGuide)
+			guides = append(guides, generatedGuide)
 		}
 	}
-	if len(items) > 0 {
-		return items
-	}
-	if len(report.Layout.GeneratedOutputs) == 0 {
-		return nil
-	}
-	items = make([]string, 0, len(report.Layout.GeneratedOutputs))
+	outputs := make([]string, 0, len(report.Layout.GeneratedOutputs))
 	for _, path := range report.Layout.GeneratedOutputs {
-		items = append(items, path)
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		outputs = append(outputs, path)
 	}
-	return slices.Compact(items)
+	if len(guides) == 0 && len(outputs) == 0 {
+		return nil, nil
+	}
+	return orderAuthoringGuideFiles(slices.Compact(guides)), slices.Compact(outputs)
 }
 
 func inspectAuthoringNextCommands(report pluginmanifest.Inspection) []string {
@@ -335,6 +340,9 @@ func inspectAuthoringNextCommands(report pluginmanifest.Inspection) []string {
 		commands = append(commands, "plugin-kit-ai generate --check .")
 	}
 	commands = append(commands, fmt.Sprintf("plugin-kit-ai validate . --platform %s --strict", inspectAuthoringPrimaryTarget(report)))
+	if len(report.Manifest.Targets) > 1 {
+		commands = append(commands, "Then validate any other outputs you plan to ship.")
+	}
 	return commands
 }
 
@@ -343,4 +351,55 @@ func inspectAuthoringPrimaryTarget(report pluginmanifest.Inspection) string {
 		return "claude"
 	}
 	return report.Manifest.Targets[0]
+}
+
+func inspectAuthoringTargetLabel(target string) string {
+	switch strings.TrimSpace(target) {
+	case "claude":
+		return "Claude (claude)"
+	case "codex-package":
+		return "Codex package (codex-package)"
+	case "codex-runtime":
+		return "Codex runtime (codex-runtime)"
+	case "gemini":
+		return "Gemini extension (gemini)"
+	case "opencode":
+		return "OpenCode (opencode)"
+	case "cursor":
+		return "Cursor plugin (cursor)"
+	case "cursor-workspace":
+		return "Cursor workspace (cursor-workspace)"
+	default:
+		trimmed := strings.TrimSpace(target)
+		if trimmed == "" {
+			return target
+		}
+		return strings.ToUpper(trimmed[:1]) + trimmed[1:] + " (" + trimmed + ")"
+	}
+}
+
+func orderAuthoringGuideFiles(paths []string) []string {
+	preferred := []string{"README.md", "CLAUDE.md", "AGENTS.md", "GENERATED.md"}
+	seen := make(map[string]struct{}, len(paths))
+	ordered := make([]string, 0, len(paths))
+	for _, want := range preferred {
+		for _, path := range paths {
+			if path != want {
+				continue
+			}
+			if _, ok := seen[path]; ok {
+				continue
+			}
+			seen[path] = struct{}{}
+			ordered = append(ordered, path)
+		}
+	}
+	for _, path := range paths {
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		ordered = append(ordered, path)
+	}
+	return ordered
 }

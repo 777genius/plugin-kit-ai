@@ -171,6 +171,7 @@ type InstallationRecord struct {
 	SourceDigest       string                          `json:"source_digest"`
 	ManifestDigest     string                          `json:"manifest_digest"`
 	Policy             InstallPolicy                   `json:"policy"`
+	WorkspaceRoot      string                          `json:"workspace_root,omitempty"`
 	Targets            map[TargetID]TargetInstallation `json:"targets"`
 	LastCheckedAt      string                          `json:"last_checked_at"`
 	LastUpdatedAt      string                          `json:"last_updated_at"`
@@ -199,21 +200,21 @@ type Report struct {
 }
 
 type TargetReport struct {
-	TargetID                 string   `json:"target"`
-	DeliveryKind             string   `json:"delivery_kind,omitempty"`
-	CapabilitySurface        []string `json:"capability_surface,omitempty"`
-	ActionClass              string   `json:"action_class,omitempty"`
-	State                    string   `json:"state,omitempty"`
-	ActivationState          string   `json:"activation_state,omitempty"`
-	InteractiveAuthState     string   `json:"interactive_auth_state,omitempty"`
-	RestartRequired          bool     `json:"restart_required,omitempty"`
-	ReloadRequired           bool     `json:"reload_required,omitempty"`
-	NewThreadRequired        bool     `json:"new_thread_required,omitempty"`
+	TargetID                 string                 `json:"target"`
+	DeliveryKind             string                 `json:"delivery_kind,omitempty"`
+	CapabilitySurface        []string               `json:"capability_surface,omitempty"`
+	ActionClass              string                 `json:"action_class,omitempty"`
+	State                    string                 `json:"state,omitempty"`
+	ActivationState          string                 `json:"activation_state,omitempty"`
+	InteractiveAuthState     string                 `json:"interactive_auth_state,omitempty"`
+	RestartRequired          bool                   `json:"restart_required,omitempty"`
+	ReloadRequired           bool                   `json:"reload_required,omitempty"`
+	NewThreadRequired        bool                   `json:"new_thread_required,omitempty"`
 	CatalogPolicy            *CatalogPolicySnapshot `json:"catalog_policy,omitempty"`
-	EnvironmentRestrictions  []string `json:"environment_restrictions,omitempty"`
-	VolatileOverrideDetected bool     `json:"volatile_override_detected,omitempty"`
-	TrustResolutionSource    string   `json:"trust_resolution_source,omitempty"`
-	SourceAccessState        string   `json:"source_access_state,omitempty"`
-	EvidenceKey              string   `json:"evidence_key,omitempty"`
-	ManualSteps              []string `json:"manual_steps,omitempty"`
+	EnvironmentRestrictions  []string               `json:"environment_restrictions,omitempty"`
+	VolatileOverrideDetected bool                   `json:"volatile_override_detected,omitempty"`
+	TrustResolutionSource    string                 `json:"trust_resolution_source,omitempty"`
+	SourceAccessState        string                 `json:"source_access_state,omitempty"`
+	EvidenceKey              string                 `json:"evidence_key,omitempty"`
+	ManualSteps              []string               `json:"manual_steps,omitempty"`
 }

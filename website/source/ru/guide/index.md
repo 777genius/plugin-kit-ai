@@ -22,6 +22,7 @@ outline: false
 
 - [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
 - [Quickstart](/ru/guide/quickstart)
+- [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic)
 - [Создайте первый plugin](/ru/guide/first-plugin)
 - [Что можно собрать](/ru/guide/what-you-can-build)
 - [Выберите target](/ru/guide/choose-a-target)
@@ -37,9 +38,13 @@ outline: false
     <h2>Quickstart</h2>
     <p>Превратите этот выбор в рабочий repo и первый validation loop.</p>
   </a>
+  <a class="docs-card" href="./build-custom-plugin-logic">
+    <h2>Build Custom Plugin Logic</h2>
+    <p>Используйте advanced guided path, когда ценность плагина живёт в runtime code, hooks или orchestration.</p>
+  </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Создайте первый plugin</h2>
-    <p>Посмотрите, что живёт в repo, что вы редактируете и что происходит после regenerate и validate.</p>
+    <p>Используйте этот узкий legacy-compatible tutorial, только когда вам нужен именно такой Codex runtime path.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>Что можно собрать</h2>

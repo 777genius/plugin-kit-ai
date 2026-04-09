@@ -139,6 +139,92 @@ func TestApplyUpdateRefreshesBundleAndPreservesOtherMarketplaceEntries(t *testin
 	}
 }
 
+func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a", "nested")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(filepath.Join(workspaceA, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	catalogPath := filepath.Join(workspaceA, ".agents", "plugins", "marketplace.json")
+	if err := os.MkdirAll(filepath.Dir(catalogPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalogPath, []byte("{\n  \"name\": \"local-repo\",\n  \"plugins\": [\n    {\"name\":\"codex-demo\",\"source\":{\"source\":\"local\",\"path\":\"./plugins/codex-demo\"},\"policy\":{\"installation\":\"AVAILABLE\",\"authentication\":\"ON_INSTALL\"},\"category\":\"Productivity\"}\n  ]\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pluginRoot := filepath.Join(workspaceA, ".agents", "plugins", "plugins", "codex-demo")
+	if err := os.MkdirAll(pluginRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	adapter := Adapter{UserHome: home}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope: "project",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "codex-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallActivationPending {
+		t.Fatalf("state = %s, want activation_pending", inspect.State)
+	}
+	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != catalogPath {
+		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, catalogPath)
+	}
+}
+
+func TestInspectTreatsExistingCatalogWithoutOwnedEntryAsRemoved(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace-a")
+	if err := os.MkdirAll(filepath.Join(workspace, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	catalogPath := filepath.Join(workspace, ".agents", "plugins", "marketplace.json")
+	if err := os.MkdirAll(filepath.Dir(catalogPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalogPath, []byte("{\n  \"name\": \"local-repo\",\n  \"plugins\": [\n    {\"name\":\"alpha\",\"source\":{\"source\":\"local\",\"path\":\"./plugins/alpha\"},\"policy\":{\"installation\":\"AVAILABLE\",\"authentication\":\"ON_INSTALL\"},\"category\":\"Productivity\"}\n  ]\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	adapter := Adapter{UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope: "project",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "codex-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspace,
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallRemoved {
+		t.Fatalf("state = %s, want removed", inspect.State)
+	}
+}
+
 func TestApplyRemovePrunesOwnedEntryAndPluginRoot(t *testing.T) {
 	home := t.TempDir()
 	project := filepath.Join(t.TempDir(), "repo")

@@ -13,6 +13,8 @@ const { containerRef } = useParallaxSections();
     <SectionDivider :flip="true" />
     <LazyScreenshotsSection />
     <SectionDivider />
+    <LazyCustomLogicSection />
+    <SectionDivider :flip="true" />
     <LazyDownloadSection />
     <SectionDivider :flip="true" />
     <LazyComparisonSection />

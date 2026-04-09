@@ -153,9 +153,16 @@ func assertConfigTargetRenderedOutputs(t *testing.T, root, platform string) {
 			t.Fatalf("opencode package.json missing helper dependency:\n%s", packageBody)
 		}
 	case "cursor":
-		body, err := os.ReadFile(filepath.Join(root, ".cursor", "mcp.json"))
+		manifestBody, err := os.ReadFile(filepath.Join(root, ".cursor-plugin", "plugin.json"))
 		if err != nil {
-			t.Fatalf("read .cursor/mcp.json: %v", err)
+			t.Fatalf("read .cursor-plugin/plugin.json: %v", err)
+		}
+		if !strings.Contains(string(manifestBody), `"mcpServers": "./.mcp.json"`) {
+			t.Fatalf("cursor manifest missing managed MCP ref:\n%s", manifestBody)
+		}
+		body, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
+		if err != nil {
+			t.Fatalf("read .mcp.json: %v", err)
 		}
 		for _, want := range []string{`"https://example.com/mcp"`, `"type": "http"`} {
 			if !strings.Contains(string(body), want) {

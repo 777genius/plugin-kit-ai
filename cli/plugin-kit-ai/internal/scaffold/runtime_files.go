@@ -34,7 +34,7 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 		{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl", Extra: false},
 		{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl", Extra: false},
 	}
-	if platform != "gemini" && platform != "codex-package" && platform != "opencode" && platform != "cursor" {
+	if platform != "gemini" && platform != "codex-package" && platform != "opencode" && platform != "cursor" && platform != "cursor-workspace" {
 		files = append(files, TemplateFile{Path: "src/launcher.yaml", Template: "launcher.yaml.tmpl", Extra: false})
 	}
 
@@ -107,7 +107,18 @@ func filesFor(platform, runtime string, extras, typescript, sharedRuntimePackage
 	case "cursor":
 		files = append(files,
 			TemplateFile{Path: "src/README.md", Template: "cursor.README.md.tmpl", Extra: false},
-			TemplateFile{Path: "src/targets/cursor/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
+		)
+		if extras {
+			files = append(files,
+				TemplateFile{Path: "src/mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
+				TemplateFile{Path: "src/skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+			)
+		}
+		return files
+	case "cursor-workspace":
+		files = append(files,
+			TemplateFile{Path: "src/README.md", Template: "cursor-workspace.README.md.tmpl", Extra: false},
+			TemplateFile{Path: "src/targets/cursor-workspace/rules/project.mdc", Template: "cursor.rule.mdc.tmpl", Extra: false},
 		)
 		if extras {
 			files = append(files,

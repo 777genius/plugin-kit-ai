@@ -22,6 +22,7 @@ outline: false
 
 - [Choose What You Are Building](/en/guide/choose-what-you-are-building)
 - [Quickstart](/en/guide/quickstart)
+- [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic)
 - [Build Your First Plugin](/en/guide/first-plugin)
 - [What You Can Build](/en/guide/what-you-can-build)
 - [Choose A Target](/en/guide/choose-a-target)
@@ -37,9 +38,13 @@ outline: false
     <h2>Quickstart</h2>
     <p>Turn that job-first choice into a working repo and a clean first validation loop.</p>
   </a>
+  <a class="docs-card" href="./build-custom-plugin-logic">
+    <h2>Build Custom Plugin Logic</h2>
+    <p>Use the advanced guided path when the plugin's value lives in runtime code, hooks, or orchestration.</p>
+  </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Build Your First Plugin</h2>
-    <p>See what lives in the repo, what you edit, and what happens when you regenerate and validate.</p>
+    <p>Follow the narrow legacy-compatible Codex runtime tutorial when that exact path is what you need.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>What You Can Build</h2>

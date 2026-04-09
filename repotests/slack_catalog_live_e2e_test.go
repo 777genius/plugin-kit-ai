@@ -143,12 +143,12 @@ func assertSlackCatalogRenderedAndValid(t *testing.T, pluginKitAIBin, pluginDir 
 		t.Fatalf("generated slack .mcp.json url = %q want https://mcp.slack.com/mcp:\n%v", got, server)
 	}
 
-	cursorBody, err := os.ReadFile(filepath.Join(pluginDir, ".cursor", "mcp.json"))
+	cursorBody, err := os.ReadFile(filepath.Join(pluginDir, ".mcp.json"))
 	if err != nil {
 		t.Fatalf("read generated cursor slack config: %v", err)
 	}
 	if !strings.Contains(string(cursorBody), `"CLIENT_ID": "`+slackCursorClientID+`"`) {
-		t.Fatalf("generated .cursor/mcp.json missing exact Slack CLIENT_ID auth block:\n%s", cursorBody)
+		t.Fatalf("generated .mcp.json missing exact Slack CLIENT_ID auth block:\n%s", cursorBody)
 	}
 }
 

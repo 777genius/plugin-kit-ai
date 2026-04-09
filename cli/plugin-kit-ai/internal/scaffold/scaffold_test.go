@@ -27,7 +27,7 @@ func TestValidateProjectName(t *testing.T) {
 
 func TestLookupPlatform(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"claude", "codex-package", "codex-runtime", "gemini", "opencode", "cursor"} {
+	for _, name := range []string{"claude", "codex-package", "codex-runtime", "gemini", "opencode", "cursor", "cursor-workspace"} {
 		if _, ok := LookupPlatform(name); !ok {
 			t.Fatalf("LookupPlatform(%q) = missing", name)
 		}
@@ -121,6 +121,65 @@ func TestRenderTemplate_JobReadmesKeepGeneratedRootFilesOutOfEditableSource(t *t
 	}
 }
 
+func TestRenderTemplate_CustomLogicReadmesLeadWithAdvancedIntro(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		templateName string
+		data         Data
+	}{
+		{
+			templateName: "codex-runtime.README.md.tmpl",
+			data: Data{
+				ProjectName: "demo",
+				JobTemplate: InitTemplateCustomLogic,
+			},
+		},
+		{
+			templateName: "codex-runtime.README.executable.md.tmpl",
+			data: Data{
+				ProjectName: "demo",
+				JobTemplate: InitTemplateCustomLogic,
+				Runtime:     RuntimePython,
+			},
+		},
+		{
+			templateName: "README.md.tmpl",
+			data: Data{
+				ProjectName: "demo",
+				JobTemplate: InitTemplateCustomLogic,
+			},
+		},
+		{
+			templateName: "gemini.README.go.md.tmpl",
+			data: Data{
+				ProjectName: "demo",
+				JobTemplate: InitTemplateCustomLogic,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.templateName, func(t *testing.T) {
+			body, _, err := RenderTemplate(tc.templateName, tc.data)
+			if err != nil {
+				t.Fatalf("%s: %v", tc.templateName, err)
+			}
+			rendered := string(body)
+			for _, want := range []string{
+				"This is the advanced custom-logic path.",
+				"## What You Edit First",
+				"## What Gets Generated",
+				"plugin-kit-ai inspect . --authoring",
+			} {
+				if !strings.Contains(rendered, want) {
+					t.Fatalf("%s missing %q:\n%s", tc.templateName, want, rendered)
+				}
+			}
+		})
+	}
+}
+
 func TestPaths_Gemini(t *testing.T) {
 	t.Parallel()
 	got := Paths("gemini", "my-plugin", true)
@@ -169,7 +228,8 @@ func TestPaths_Cursor(t *testing.T) {
 	for _, want := range []string{
 		"plugin.yaml",
 		"README.md",
-		filepath.Join("targets", "cursor", "rules", "project.mdc"),
+		filepath.Join("mcp", "servers.yaml"),
+		filepath.Join("skills", "my-plugin", "SKILL.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -385,7 +445,8 @@ func TestPathsForRuntime_CursorIgnoresExecutableScaffolding(t *testing.T) {
 	for _, want := range []string{
 		"plugin.yaml",
 		"README.md",
-		filepath.Join("targets", "cursor", "rules", "project.mdc"),
+		filepath.Join("mcp", "servers.yaml"),
+		filepath.Join("skills", "my-plugin", "SKILL.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -541,7 +602,7 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 }
 
-func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
+func TestWrite_CursorCreatesMinimalPackagedLane(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	err := Write(root, Data{
@@ -556,7 +617,6 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 	for _, rel := range []string{
 		filepath.Join("src", "plugin.yaml"),
 		filepath.Join("src", "README.md"),
-		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -567,6 +627,9 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 	for _, rel := range []string{
 		"launcher.yaml",
 		"go.mod",
+		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
+		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+		filepath.Join("src", "mcp", "servers.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
@@ -574,7 +637,7 @@ func TestWrite_CursorCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 }
 
-func TestWrite_CursorExtrasKeepsBoundaryDocsOnly(t *testing.T) {
+func TestWrite_CursorExtrasCreatePortableSkillAndMCPStarters(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	err := Write(root, Data{
@@ -587,7 +650,12 @@ func TestWrite_CursorExtrasKeepsBoundaryDocsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, rel := range []string{"CLAUDE.md", "AGENTS.md"} {
+	for _, rel := range []string{
+		"CLAUDE.md",
+		"AGENTS.md",
+		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
@@ -1411,14 +1479,28 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 			template: "cursor.README.md.tmpl",
 			wants: []string{
 				"Target lane: `cursor`",
-				"Platform family: `code_plugin`",
+				"Platform family: `ide_plugin`",
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
 				"`src/mcp/servers.yaml`",
-				"`src/targets/cursor/rules/`",
+				"`src/skills/`",
+				"`.cursor-plugin/plugin.json`",
+				"`.mcp.json`",
+			},
+		},
+		{
+			name:     "cursor-workspace-go",
+			template: "cursor-workspace.README.md.tmpl",
+			wants: []string{
+				"Target lane: `cursor-workspace`",
+				"Platform family: `code_plugin`",
+				"Launcher: not used",
+				"plugin-kit-ai generate --check .",
+				"plugin-kit-ai validate . --platform cursor-workspace --strict",
+				"`src/targets/cursor-workspace/rules/`",
 				"`.cursor/mcp.json`",
-				"Root `AGENTS.md`",
+				"root `AGENTS.md`",
 			},
 		},
 	}

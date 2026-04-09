@@ -34,8 +34,11 @@ Foundation lifecycle commands for multi-agent integration management
 
 * plugin-kit-ai	 - CLI plugin-kit-ai для создания проектов и служебных операций вокруг AI-плагинов.
 * plugin-kit-ai integrations add	 - Plan installation of an integration across supported agent targets
+* plugin-kit-ai integrations disable	 - Disable a managed integration target where the native agent supports toggling
 * plugin-kit-ai integrations doctor	 - Inspect integration state and open lifecycle journals
+* plugin-kit-ai integrations enable	 - Enable a managed integration target where the native agent supports toggling
 * plugin-kit-ai integrations list	 - List managed integrations from local state
 * plugin-kit-ai integrations remove	 - Plan or remove managed integration targets
 * plugin-kit-ai integrations repair	 - Plan or repair managed integration drift
+* plugin-kit-ai integrations sync	 - Reconcile workspace desired integrations from .plugin-kit-ai.lock
 * plugin-kit-ai integrations update	 - Plan or apply an update for a managed integration

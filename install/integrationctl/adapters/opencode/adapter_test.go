@@ -156,32 +156,6 @@ func TestApplyRemoveDeletesOnlyOwnedEntries(t *testing.T) {
 	}
 }
 
-func TestInspectDetectsVolatileOpenCodeOverrides(t *testing.T) {
-	projectRoot := t.TempDir()
-	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: projectRoot, UserHome: t.TempDir()}
-	t.Setenv("OPENCODE_CONFIG", filepath.Join(projectRoot, "custom.json"))
-	t.Setenv("OPENCODE_CONFIG_DIR", filepath.Join(projectRoot, "custom-dir"))
-	t.Setenv("OPENCODE_CONFIG_CONTENT", `{"plugin":["@volatile/demo"]}`)
-
-	result, err := adapter.Inspect(context.Background(), ports.InspectInput{Scope: "project"})
-	if err != nil {
-		t.Fatalf("inspect: %v", err)
-	}
-	if !result.VolatileOverrideDetected {
-		t.Fatal("expected volatile override detection")
-	}
-	found := false
-	for _, restriction := range result.EnvironmentRestrictions {
-		if restriction == domain.RestrictionVolatileOverride {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected volatile override restriction, got %v", result.EnvironmentRestrictions)
-	}
-}
-
 func TestProjectScopeUsesNearestGitRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -189,10 +163,55 @@ func TestProjectScopeUsesNearestGitRoot(t *testing.T) {
 	mustWriteOpenCodeFile(t, filepath.Join(root, "repo", ".git"), "")
 	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: projectRoot, UserHome: t.TempDir()}
 
-	got := adapter.configPath("project")
+	got := adapter.configPath("project", "")
 	want := filepath.Join(root, "repo", "opencode.json")
 	if got != want {
 		t.Fatalf("config path = %s, want %s", got, want)
+	}
+}
+
+func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	configPath := filepath.Join(workspaceA, "opencode.json")
+	mustWriteOpenCodeFile(t, configPath, "{\n  \"plugin\": [\"@acme/opencode-demo-plugin\"]\n}\n")
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetOpenCode: {
+					TargetID:           domain.TargetOpenCode,
+					OwnedNativeObjects: ownedObjects(configPath, nil, []string{"@acme/opencode-demo-plugin"}, nil, nil, domain.ProtectionWorkspace),
+				},
+			},
+		},
+		Scope: "project",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed", inspect.State)
+	}
+	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != configPath {
+		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, configPath)
 	}
 }
 

@@ -153,7 +153,7 @@ func (d Data) IsCustomLogicTemplate() bool {
 
 // Paths lists relative paths created by Write (for tests and docs).
 func Paths(platform, name string, extras bool) []string {
-	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" {
+	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" || platform == "cursor-workspace" {
 		return PathsForRuntime(platform, "", name, extras)
 	}
 	return PathsForRuntime(platform, RuntimeGo, name, extras)
@@ -217,7 +217,7 @@ func BuildPlan(d Data) (ProjectPlan, error) {
 		return ProjectPlan{}, fmt.Errorf("unknown platform %q", d.Platform)
 	}
 	d.Platform = p.Name
-	if d.Platform == "codex-package" || d.Platform == "opencode" || d.Platform == "cursor" {
+	if d.Platform == "codex-package" || d.Platform == "opencode" || d.Platform == "cursor" || d.Platform == "cursor-workspace" {
 		if d.TypeScript {
 			return ProjectPlan{}, fmt.Errorf("--typescript is not supported with --platform %s", d.Platform)
 		}

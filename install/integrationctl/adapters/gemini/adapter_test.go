@@ -105,6 +105,17 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json")); err != nil {
 		t.Fatalf("stat projected extension config: %v", err)
 	}
+	installMetaBody, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".gemini-extension-install.json"))
+	if err != nil {
+		t.Fatalf("read projected install metadata: %v", err)
+	}
+	var installMeta map[string]any
+	if err := json.Unmarshal(installMetaBody, &installMeta); err != nil {
+		t.Fatalf("parse projected install metadata: %v", err)
+	}
+	if installMeta["type"] != "link" || installMeta["source"] != managedRoot {
+		t.Fatalf("install metadata = %#v", installMeta)
+	}
 	servers, _ := doc["mcpServers"].(map[string]any)
 	if docs, _ := servers["docs"].(map[string]any); docs["httpUrl"] != "https://example.com/mcp" {
 		t.Fatalf("docs projection = %#v", servers["docs"])
@@ -201,6 +212,17 @@ func TestApplyUpdateUsesGeminiUpdate(t *testing.T) {
 	if err != nil || !strings.Contains(string(projected), "Updated") {
 		t.Fatalf("projected extension dir not refreshed: %v %q", err, projected)
 	}
+	installMetaBody, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".gemini-extension-install.json"))
+	if err != nil {
+		t.Fatalf("read projected install metadata: %v", err)
+	}
+	var installMeta map[string]any
+	if err := json.Unmarshal(installMetaBody, &installMeta); err != nil {
+		t.Fatalf("parse projected install metadata: %v", err)
+	}
+	if installMeta["type"] != "link" || installMeta["source"] != filepath.Join(home, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo") {
+		t.Fatalf("install metadata = %#v", installMeta)
+	}
 	dotenv, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".env"))
 	if err != nil || !strings.Contains(string(dotenv), "RELEASE_PROFILE=prod") {
 		t.Fatalf("projected .env not preserved: %v %q", err, dotenv)
@@ -226,7 +248,7 @@ func TestApplyRemoveUsesGeminiLocalProjectionCleanup(t *testing.T) {
 				domain.TargetGemini: {
 					TargetID: domain.TargetGemini,
 					AdapterMetadata: map[string]any{
-						"install_mode":            "local_projection",
+						"install_mode":             "local_projection",
 						"materialized_source_root": managedRoot,
 					},
 				},
@@ -273,15 +295,99 @@ func TestInspectReturnsDisabledWhenSettingsDisableExtension(t *testing.T) {
 	}
 }
 
+func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json"), "{}\n")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "extension-enablement.json"), "{\n  \"gemini-demo\": {\n    \"overrides\": [\n      \"!"+strings.ReplaceAll(filepath.Clean(workspaceA), "\\", "\\\\")+"/*\"\n    ]\n  }\n}\n")
+	writeGeminiFile(t, filepath.Join(workspaceB, ".gemini", "settings.json"), "{\n  \"extensions\": {\n    \"disabled\": []\n  }\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(prevWD)
+	}()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+		Scope: "project",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallDisabled {
+		t.Fatalf("state = %s, want disabled from persisted workspace root", inspect.State)
+	}
+}
+
+func TestInspectProjectScopeEnablementOverridesWorkspaceSettingsFallback(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	workspace := filepath.Join(root, "workspace-a")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json"), "{}\n")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "extension-enablement.json"), "{\n  \"gemini-demo\": {\n    \"overrides\": [\n      \""+strings.ReplaceAll(filepath.Clean(workspace), "\\", "\\\\")+"/*\"\n    ]\n  }\n}\n")
+	writeGeminiFile(t, filepath.Join(workspace, ".gemini", "settings.json"), "{\n  \"extensions\": {\n    \"disabled\": [\"gemini-demo\"]\n  }\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspace,
+		},
+		Scope: "project",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed from enablement override", inspect.State)
+	}
+}
+
 func TestApplyDisableUsesNativeGeminiDisable(t *testing.T) {
 	t.Parallel()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(workspaceA, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-a: %v", err)
+	}
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, UserHome: t.TempDir()}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(prevWD)
+	}()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
 
 	result, err := adapter.ApplyDisable(context.Background(), ports.ApplyInput{
 		Record: &domain.InstallationRecord{
 			IntegrationID: "gemini-demo",
 			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
 			Targets: map[domain.TargetID]domain.TargetInstallation{
 				domain.TargetGemini: {TargetID: domain.TargetGemini},
 			},
@@ -293,6 +399,9 @@ func TestApplyDisableUsesNativeGeminiDisable(t *testing.T) {
 	want := []string{"gemini", "extensions", "disable", "gemini-demo", "--scope", "workspace"}
 	if got := runner.commands[0].Argv; !equalStrings(got, want) {
 		t.Fatalf("argv = %#v, want %#v", got, want)
+	}
+	if got := runner.commands[0].Dir; got != workspaceA {
+		t.Fatalf("dir = %q, want %q", got, workspaceA)
 	}
 	if result.State != domain.InstallDisabled {
 		t.Fatalf("result = %+v", result)

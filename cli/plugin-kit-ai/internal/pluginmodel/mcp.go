@@ -551,7 +551,7 @@ func portableMCPVariableReplacements(target string) map[string]string {
 	switch target {
 	case "gemini":
 		packageRoot = "${extensionPath}"
-	case "cursor":
+	case "cursor-workspace":
 		packageRoot = "${workspaceFolder}"
 	}
 	return map[string]string{

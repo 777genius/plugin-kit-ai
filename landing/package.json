@@ -2,6 +2,9 @@
   "name": "plugin-kit-ai-landing",
   "private": true,
   "type": "module",
+  "imports": {
+    "#internal/nuxt/paths": "./utils/nuxtInternalPaths.js"
+  },
   "packageManager": "pnpm@8.15.1",
   "scripts": {
     "dev": "nuxt dev",

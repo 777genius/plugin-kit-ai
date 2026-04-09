@@ -31,8 +31,9 @@ plugin-kit-ai integrations repair &lt;name&gt; [flags]
 ### Опции
 
 ```
-      --dry-run   plan only without mutating native targets (default true)
-  -h, --help      справка по repair
+      --dry-run          plan only without mutating native targets (default true)
+  -h, --help             справка по repair
+      --target strings   limit repair to one target
 ```
 
 ### См. также

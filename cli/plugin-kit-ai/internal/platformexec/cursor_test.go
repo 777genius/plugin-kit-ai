@@ -15,12 +15,12 @@ func TestCursorDetectNativeIgnoresStandaloneRootAgents(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte("# Shared agents\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if (cursorAdapter{}).DetectNative(root) {
+	if (cursorWorkspaceAdapter{}).DetectNative(root) {
 		t.Fatal("DetectNative unexpectedly matched standalone root AGENTS.md")
 	}
 }
 
-func TestCursorImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
+func TestCursorWorkspaceImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	root := t.TempDir()
@@ -30,8 +30,8 @@ func TestCursorImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, ".cursor", "mcp.json"), []byte(`{"global":{"command":"node"}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	imported, err := (cursorAdapter{}).Import(root, ImportSeed{
-		Manifest:         pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo", Targets: []string{"cursor"}},
+	imported, err := (cursorWorkspaceAdapter{}).Import(root, ImportSeed{
+		Manifest:         pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo", Targets: []string{"cursor-workspace"}},
 		IncludeUserScope: true,
 	})
 	if err != nil {
@@ -45,21 +45,21 @@ func TestCursorImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
 	}
 }
 
-func TestCursorValidateRejectsNonMdcRules(t *testing.T) {
+func TestCursorWorkspaceValidateRejectsNonMdcRules(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "targets", "cursor", "rules"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "targets", "cursor-workspace", "rules"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "targets", "cursor", "rules", "project.md"), []byte("# bad\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "targets", "cursor-workspace", "rules", "project.md"), []byte("# bad\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+	diagnostics, err := (cursorWorkspaceAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Portable: pluginmodel.NewPortableComponents(),
 	}, pluginmodel.TargetState{
-		Target: "cursor",
+		Target: "cursor-workspace",
 		Components: map[string][]string{
-			"rules": {filepath.ToSlash(filepath.Join("targets", "cursor", "rules", "project.md"))},
+			"rules": {filepath.ToSlash(filepath.Join("targets", "cursor-workspace", "rules", "project.md"))},
 		},
 		Docs: map[string]string{},
 	})
@@ -80,10 +80,10 @@ func TestCursorValidateRejectsNonMdcRules(t *testing.T) {
 	}
 }
 
-func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
+func TestCursorWorkspaceValidateRejectsTraversalOrSymlink(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	rulesDir := filepath.Join(root, "targets", "cursor", "rules")
+	rulesDir := filepath.Join(root, "targets", "cursor-workspace", "rules")
 	if err := os.MkdirAll(rulesDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -93,14 +93,14 @@ func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
 	if err := os.Symlink("real.mdc", filepath.Join(rulesDir, "linked.mdc")); err != nil {
 		t.Fatal(err)
 	}
-	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+	diagnostics, err := (cursorWorkspaceAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Portable: pluginmodel.NewPortableComponents(),
 	}, pluginmodel.TargetState{
-		Target: "cursor",
+		Target: "cursor-workspace",
 		Components: map[string][]string{
 			"rules": {
-				"targets/cursor/rules/../escape.mdc",
-				filepath.ToSlash(filepath.Join("targets", "cursor", "rules", "linked.mdc")),
+				"targets/cursor-workspace/rules/../escape.mdc",
+				filepath.ToSlash(filepath.Join("targets", "cursor-workspace", "rules", "linked.mdc")),
 			},
 		},
 		Docs: map[string]string{},
@@ -122,7 +122,7 @@ func TestCursorValidateRejectsTraversalOrSymlink(t *testing.T) {
 	}
 }
 
-func TestCursorMCPPreservesInterpolationStrings(t *testing.T) {
+func TestCursorWorkspaceMCPPreservesInterpolationStrings(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	parsed, err := pluginmodel.ParsePortableMCP("mcp/servers.yaml", []byte(`api_version: v1
@@ -146,7 +146,7 @@ servers:
 			MCP:   &pluginmodel.PortableMCP{Path: "mcp/servers.yaml", Servers: parsed.Servers, File: parsed.File},
 		},
 	}
-	artifacts, err := (cursorAdapter{}).Generate(root, graph, pluginmodel.NewTargetState("cursor"))
+	artifacts, err := (cursorWorkspaceAdapter{}).Generate(root, graph, pluginmodel.NewTargetState("cursor-workspace"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,5 +167,62 @@ servers:
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated mcp missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestCursorPackagedGenerateWritesManagedPluginArtifacts(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	skillPath := filepath.Join(root, "src", "skills", "release-checks")
+	if err := os.MkdirAll(skillPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: release-checks\ndescription: release checks\n---\n\nUse this skill.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph := pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+		Portable: pluginmodel.PortableComponents{
+			Items: map[string][]string{
+				"skills": {filepath.ToSlash(filepath.Join("src", "skills", "release-checks", "SKILL.md"))},
+			},
+			MCP: &pluginmodel.PortableMCP{Path: filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")), Servers: parsed.Servers, File: parsed.File},
+		},
+	}
+	artifacts, err := (cursorAdapter{}).Generate(root, graph, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawManifest, sawMCP, sawSkill bool
+	for _, artifact := range artifacts {
+		switch artifact.RelPath {
+		case cursorPluginManifestPath:
+			sawManifest = true
+			if !strings.Contains(string(artifact.Content), `"mcpServers": "./.mcp.json"`) {
+				t.Fatalf("plugin manifest missing managed MCP ref:\n%s", artifact.Content)
+			}
+		case ".mcp.json":
+			sawMCP = true
+			if !strings.Contains(string(artifact.Content), `"docs"`) || strings.Contains(string(artifact.Content), `"mcpServers"`) {
+				t.Fatalf("packaged Cursor MCP sidecar should be the shared direct-object shape:\n%s", artifact.Content)
+			}
+		case filepath.ToSlash(filepath.Join("skills", "release-checks", "SKILL.md")):
+			sawSkill = true
+		}
+	}
+	if !sawManifest || !sawMCP || !sawSkill {
+		t.Fatalf("artifacts = %+v", artifacts)
 	}
 }

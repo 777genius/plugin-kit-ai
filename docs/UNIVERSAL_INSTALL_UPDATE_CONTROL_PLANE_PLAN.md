@@ -158,7 +158,7 @@ Confirmed vendor facts show the ecosystems are similar at the lifecycle level bu
 
 - Claude has plugin marketplaces, scopes, and first-class plugin auto-update behavior
 - Codex has plugin bundles and marketplaces, but its local update story is closer to refresh and restart semantics
-- Gemini has the strongest extension update contract, including `install`, `update`, `update --all`, `--auto-update`, and `migratedTo`
+- Gemini has the strongest extension update contract, including `install`, `update`, `update --all`, `--auto-update`, and native redirect metadata
 - Cursor supports installable MCP integrations through config, one-click flows, and CLI management
 - OpenCode supports local and npm plugin loading with startup-driven dependency install
 
@@ -316,8 +316,8 @@ Confirmed vendor facts:
 - update commands exist for one extension and for all extensions
 - extension management operations take effect after restarting the CLI session
 - `gemini extensions link` exists for local development workflows
-- `gemini-extension.json` supports `migratedTo`
-- if `migratedTo` is present, Gemini CLI checks the new source for updates and migrates automatically when an update is found
+- `gemini-extension.json` supports native redirect metadata
+- if redirect metadata is present, Gemini CLI checks the new source for updates and migrates automatically when an update is found
 - enable and disable operations support user and workspace scopes
 - extension management commands are intended for terminal use rather than interactive CLI mode
 - Gemini loads extensions from `<home>/.gemini/extensions`
@@ -415,10 +415,10 @@ Confirmed vendor facts:
 - duplicate npm packages with the same name and version are loaded once
 - OpenCode config supports JSON and JSONC
 - OpenCode config files are merged together rather than replaced
-- OpenCode supports a custom config file path through `OPENCODE_CONFIG`
-- a custom config file from `OPENCODE_CONFIG` is loaded between global config and project config
-- OpenCode supports a custom config directory through `OPENCODE_CONFIG_DIR`
-- the custom config directory is loaded after the global config and `.opencode` directories and can override their settings
+- OpenCode resolves effective config from documented remote, global, project, `.opencode`, and managed layers
+- project config is loaded between global config and `.opencode` directories
+- managed configuration stays above standard user-managed layers
+- upward discovery still stops at the nearest Git directory for project-scoped resolution
 - when OpenCode starts, it searches for project config in the current directory and traverses upward to the nearest Git directory
 - OpenCode also supports remote configuration from `.well-known/opencode` and managed configuration from system-managed paths
 - OpenCode file-based managed settings are admin-controlled and loaded above standard config sources, while macOS managed preferences sit above them as the highest non-user-overridable tier
@@ -439,7 +439,7 @@ Project policy:
 - OpenCode adapter must preserve JSONC-compatible user config when patching plugin declarations
 - OpenCode adapter inspect logic must account for custom config roots and upward project-config discovery
 - OpenCode adapter must treat remote and managed config layers as non-owned unless the architecture explicitly adds enterprise administration support
-- OpenCode adapter must model `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` as different overlay classes because the docs give them different precedence behavior
+- OpenCode adapter must model file-config precedence and directory overlay precedence as separate mechanisms
 - OpenCode repair should try owned-plugin isolation and declaration cleanup before cache clearing, because the official troubleshooting flow treats cache clearing as a later step
 - OpenCode adapter should normalize singular and plural legacy subdirectory forms during inspection, but emit canonical plural paths in new writes
 
@@ -1217,7 +1217,7 @@ Responsibilities:
 - `extensions update`
 - `extensions update --all` where useful
 - `--auto-update` policy mapping
-- `migratedTo` handling
+- native redirect metadata handling
 - inspect extension installation state
 
 Gemini-specific rule:
@@ -1333,7 +1333,6 @@ Examples:
 - Codex plugin-browser completion or new-thread guidance maps to `native_activation_required` or `new_thread_required`
 - OpenCode remote or managed config layers map to `read_only_native_layer`
 - Gemini environment-variable and command-line overrides map to `volatile_override_layer`
-- OpenCode inline config from `OPENCODE_CONFIG_CONTENT` maps to `volatile_override_layer`
 
 ## Persistent state design
 
@@ -1704,7 +1703,7 @@ Per-target notes:
 
 - Claude: use native plugin or marketplace update semantics where documented
 - Codex: treat update as directory refresh plus restart for local installs, and do not assume bundled app teardown on plugin-only update or removal
-- Gemini: use native extension update semantics, support `migratedTo`, and preserve user-provided extension settings
+- Gemini: use native extension update semantics, preserve native redirect metadata, and preserve user-provided extension settings
 - Cursor: treat update as reconcile of MCP configuration or registered server definition
 - OpenCode: treat update as reconcile of file projection or npm package declaration, followed by normal startup loading behavior; if cache corruption is detected, surface cache-rebuild repair guidance explicitly
 
@@ -1865,11 +1864,11 @@ For config-driven targets, discovering the correct root is part of correctness, 
 Rules:
 
 - Cursor adapters must inspect effective configuration in documented precedence order and record which layer actually owns each managed entry
-- OpenCode adapters must respect `OPENCODE_CONFIG`, `OPENCODE_CONFIG_DIR`, `OPENCODE_CONFIG_CONTENT`, and upward discovery to the nearest Git directory before planning any mutation
+- OpenCode adapters must respect documented remote, global, project, `.opencode`, and managed layers, plus upward discovery to the nearest Git directory before planning any mutation
 - Claude project-scope mutations must target `.claude/settings.json`, not an invented control-plane side file
 - OpenCode adapters must treat file-config precedence and directory-overlay precedence as separate mechanisms:
-  - file precedence: remote, global, `OPENCODE_CONFIG`, project, inline config, managed files, macOS managed preferences
-  - directory overlays: standard `.opencode` plus optional `OPENCODE_CONFIG_DIR`, with the custom directory loaded after the global config and `.opencode` directories
+  - file precedence: remote, global, project, managed files, macOS managed preferences
+  - directory overlays: standard `.opencode` loaded after project config and before managed layers
 - Gemini adapters must inspect user settings, project settings, system defaults, system settings, and documented security settings before planning mutation, and must treat environment variables and CLI arguments as volatile overlays rather than persistent mutation targets
 - Gemini adapters must resolve trust state from the highest-priority documented source available:
   - IDE trust signal when IDE integration is active
@@ -1967,7 +1966,7 @@ Resolution rules:
 
 - if the user installed from a floating branch or default branch, persist both the requested ref and the resolved immutable ref
 - if the user installed from a GitHub Release or release asset, persist the exact release tag and asset identity
-- if the source exposes migration metadata such as Gemini `migratedTo`, preserve both old and new source lineage in state
+- if the source exposes Gemini redirect metadata, preserve both old and new source lineage in state
 - version comparison must operate on resolved artifacts, not only on user-entered source strings
 - for Claude, model marketplace pinning and plugin-source pinning independently because they are distinct documented axes
 

@@ -25,14 +25,14 @@
       "description": "plugin-kit-ai 明确说明了什么是生产就绪型、什么是公开测试版以及您不应该在哪些方面承诺虚假平价。"
     },
     {
-      "id": "releasePath",
-      "title": "明确安装和发布路径",
-      "description": "Homebrew、npm、发布时的 pipx、验证的安装脚本、GitHub 版本和文档都指向一个干净的启动流程。"
+      "id": "installAcrossAgents",
+      "title": "在多个代理上安装插件",
+      "description": "使用一条安装路径即可将同一个插件部署到 Claude、Codex、Gemini、OpenCode、Cursor 和其他受支持的目标。"
     },
     {
-      "id": "openSource",
-      "title": "从第一天起就开源",
-      "description": "立即使用该工具包，检查源代码，并在我们的第一方插件目录不断增长的同时遵循透明的工作流程。"
+      "id": "managedLifecycle",
+      "title": "安全地更新、修复和移除",
+      "description": "让托管安装保持最新，在目标失去同步时修复漂移，并在不再需要时干净地移除插件。"
     }
   ],
   "plugins": [

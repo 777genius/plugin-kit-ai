@@ -82,9 +82,9 @@ func TestInitRunner_onlineServiceTemplateDoesNotRequireGeminiNameByDefault(t *te
 		"README.md",
 		filepath.Join(".claude-plugin", "plugin.json"),
 		filepath.Join(".codex-plugin", "plugin.json"),
+		filepath.Join(".cursor-plugin", "plugin.json"),
 		".mcp.json",
 		"opencode.json",
-		filepath.Join(".cursor", "mcp.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -614,7 +614,7 @@ func TestInitRunner_opencodeRejectsRuntimeFlag(t *testing.T) {
 	}
 }
 
-func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
+func TestInitRunner_cursorStarter(t *testing.T) {
 	t.Parallel()
 	var r InitRunner
 	out := filepath.Join(t.TempDir(), "genplug")
@@ -628,10 +628,68 @@ func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
 	for _, rel := range []string{
 		filepath.Join("src", "plugin.yaml"),
 		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join("src", "skills", "genplug", "SKILL.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 		"README.md",
+		filepath.Join(".cursor-plugin", "plugin.json"),
+		".mcp.json",
+		filepath.Join("skills", "genplug", "SKILL.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "launcher.yaml"),
+		"go.mod",
 		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
+		filepath.Join(".cursor", "rules", "project.mdc"),
+		filepath.Join(".cursor", "mcp.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
+			t.Fatalf("unexpected cursor starter file %s", rel)
+		}
+	}
+	assertRuntimeTestAssetsAbsent(t, out)
+	mcpBody, err := os.ReadFile(filepath.Join(out, ".mcp.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]map[string]any
+	if err := json.Unmarshal(mcpBody, &doc); err != nil {
+		t.Fatalf("parse .mcp.json: %v\n%s", err, mcpBody)
+	}
+	server, ok := doc["docs"]
+	if !ok {
+		t.Fatalf(".mcp.json missing docs server:\n%s", mcpBody)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(server["type"])); got != "http" {
+		t.Fatalf("cursor example-http type = %q want http\n%s", got, mcpBody)
+	}
+	if got := strings.TrimSpace(fmt.Sprint(server["url"])); got != "https://example.com/mcp" {
+		t.Fatalf("cursor example-http url = %q want https://example.com/mcp\n%s", got, mcpBody)
+	}
+}
+
+func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
+	t.Parallel()
+	var r InitRunner
+	out := filepath.Join(t.TempDir(), "genplug")
+	got, err := r.Run(InitOptions{ProjectName: "genplug", Platform: "cursor-workspace", OutputDir: out, Extras: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != out {
+		t.Fatalf("out = %q, want %q", got, out)
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "mcp", "servers.yaml"),
+		"CLAUDE.md",
+		"AGENTS.md",
+		"README.md",
+		filepath.Join("src", "targets", "cursor-workspace", "rules", "project.mdc"),
 		filepath.Join(".cursor", "rules", "project.mdc"),
 		filepath.Join(".cursor", "mcp.json"),
 	} {
@@ -642,32 +700,13 @@ func TestInitRunner_cursorWorkspaceStarter(t *testing.T) {
 	for _, rel := range []string{
 		filepath.Join("src", "launcher.yaml"),
 		"go.mod",
+		filepath.Join(".cursor-plugin", "plugin.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(out, rel)); !os.IsNotExist(err) {
-			t.Fatalf("unexpected cursor starter file %s", rel)
+			t.Fatalf("unexpected cursor workspace starter file %s", rel)
 		}
 	}
 	assertRuntimeTestAssetsAbsent(t, out)
-	mcpBody, err := os.ReadFile(filepath.Join(out, ".cursor", "mcp.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc struct {
-		MCPServers map[string]map[string]any `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(mcpBody, &doc); err != nil {
-		t.Fatalf("parse .cursor/mcp.json: %v\n%s", err, mcpBody)
-	}
-	server, ok := doc.MCPServers["docs"]
-	if !ok {
-		t.Fatalf(".cursor/mcp.json missing wrapped docs server:\n%s", mcpBody)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(server["type"])); got != "http" {
-		t.Fatalf("cursor example-http type = %q want http\n%s", got, mcpBody)
-	}
-	if got := strings.TrimSpace(fmt.Sprint(server["url"])); got != "https://example.com/mcp" {
-		t.Fatalf("cursor example-http url = %q want https://example.com/mcp\n%s", got, mcpBody)
-	}
 }
 
 func TestInitRunner_cursorRejectsRuntimeFlag(t *testing.T) {

@@ -25,14 +25,14 @@
       "description": "plugin-kit-ai est explicite sur ce qui est prêt pour la production, ce qui est une version bêta publique et les endroits où vous ne devriez pas encore promettre une fausse parité."
     },
     {
-      "id": "releasePath",
-      "title": "Effacer le chemin d'installation et de publication",
-      "description": "Homebrew, npm, pipx une fois publiés, script d'installation vérifié, versions GitHub et documents pointent tous vers un flux de démarrage propre."
+      "id": "installAcrossAgents",
+      "title": "Installez des plugins sur plusieurs agents",
+      "description": "Utilisez un seul chemin d'installation pour déployer le même plugin dans Claude, Codex, Gemini, OpenCode, Cursor et les autres cibles prises en charge."
     },
     {
-      "id": "openSource",
-      "title": "Open source dès le premier jour",
-      "description": "Utilisez la boîte à outils dès aujourd'hui, inspectez la source et suivez un flux de travail transparent pendant que notre catalogue de plugins propriétaires s'agrandit."
+      "id": "managedLifecycle",
+      "title": "Mettez à jour, réparez et supprimez proprement",
+      "description": "Gardez les installations gérées à jour, réparez la dérive lorsqu'une cible sort de la synchronisation et supprimez les plugins proprement lorsque vous n'en avez plus besoin."
     }
   ],
   "plugins": [

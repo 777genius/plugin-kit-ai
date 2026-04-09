@@ -18,7 +18,7 @@ Under the hood they still map into the same target system, generation contracts,
 - Codex package: production-ready official plugin package lane
 - Gemini packaging: production-ready official Gemini CLI extension packaging lane through `generate|import|validate` and local `extensions link|config|disable|enable`
 - Gemini runtime: optional production-ready 9-hook Go runtime lane for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`, with dedicated deterministic runtime smoke and dedicated opt-in real CLI runtime smoke
-- Cursor: workspace-config-only target with repo-local `.cursor/mcp.json` and project-root `.cursor/rules/**`; root `AGENTS.md` is reserved for plugin boundary docs, not a Cursor-native target surface
+- Cursor: packaged plugin target with `.cursor-plugin/plugin.json`, root `skills/**`, and optional shared `.mcp.json`; `cursor-workspace` remains the secondary repo-local `.cursor/` subset when you explicitly need workspace files instead of a package bundle
 - OpenCode: workspace-config-only target with a stable repo-local local-plugin-loading subset for official-style plugin subtree ownership and shared package metadata, plus first-class beta standalone tools and permission-first passthrough config semantics; `custom_tools` remain beta
 
 Repo-local executable runtime boundary:
@@ -53,7 +53,7 @@ Then run the fixture-driven smoke:
 
 - Claude: run `plugin-kit-ai test . --platform claude --all`; generated launcher-based Claude projects already scaffold `fixtures/claude/{Stop,PreToolUse,UserPromptSubmit}.json` and matching `goldens/claude/*`, and `--update-golden` is only needed when you intentionally want to refresh that checked-in output contract
 - Codex: run `plugin-kit-ai test . --platform codex-runtime --event Notify`; generated launcher-based Codex runtime projects already scaffold `fixtures/codex-runtime/Notify.json` and matching `goldens/codex-runtime/*`, and `--update-golden` is only needed when you intentionally want to refresh that checked-in output contract
-- Cursor: treat `generate --check` plus `validate --strict` as the repo-local readiness gate for the documented workspace-config subset
+- Cursor: treat `generate --check` plus `validate --strict` as the packaged plugin readiness gate for `.cursor-plugin/plugin.json`, root `skills/**`, and optional shared `.mcp.json`
 - OpenCode: run `make test-opencode-e2e-live` for the full stable live lane, or run `make test-opencode-live` for the loader smoke, `make test-opencode-cli-live` for stable real-model local-plugin-loading evidence, `make test-opencode-tools-live` for standalone-tools beta evidence, and `make test-opencode-mcp-live` for the shared portable MCP init proof; all remain opt-in and require `opencode` in `PATH`
 
 For interpreted runtimes, add the bootstrap step before `validate --strict`:
@@ -135,12 +135,19 @@ Reference implementation:
 
 - [examples/plugins/opencode-basic](../examples/plugins/opencode-basic)
 
-## Cursor Workspace Path
+## Cursor Packaged Plugin Path
 
 - Start from `plugin-kit-ai init --platform cursor` or `plugin-kit-ai import --from cursor`
-- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, and `src/targets/cursor/...` as the authored source of truth
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, and optional `src/skills/**` as the authored source of truth
+- Commit generated `.cursor-plugin/plugin.json`, generated `skills/**` when portable skills are authored, and generated `.mcp.json` when portable MCP is authored
+- Treat this lane as the primary Cursor packaged-plugin path in the current contract; phase 1 intentionally keeps `agents/subagents/hooks/rules/commands` as target-native future work rather than pretending they are already part of the portable core
+
+## Cursor Workspace Secondary Path
+
+- Use `plugin-kit-ai init --platform cursor-workspace` or `plugin-kit-ai import --from cursor-workspace` only when you intentionally need the repo-local `.cursor/` subset
+- Keep `src/plugin.yaml`, optional `src/mcp/servers.yaml`, and `src/targets/cursor-workspace/...` as the authored source of truth
 - Commit generated `.cursor/mcp.json` and `.cursor/rules/**`
-- Treat this lane as the documented Cursor workspace-config subset only; root `CLAUDE.md` and `AGENTS.md` are plugin boundary docs, not Cursor-native authored surfaces. Do not assume support for global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or VS Code extension packaging through this target
+- Treat this lane as the documented Cursor workspace-config subset only. Do not assume support for global `~/.cursor/mcp.json`, nested non-root `.cursor/rules/**`, JSONC, or marketplace plugin packaging through this target
 
 Reference implementation:
 
@@ -155,7 +162,7 @@ Reference implementation:
 - OpenCode stable local plugin loading is evidenced through the deterministic marker-based `test-opencode-live` loader smoke path plus the real-model `test-opencode-cli-live` smoke path
 - OpenCode standalone tools beta evidence is recorded separately through the deterministic marker-based `test-opencode-tools-live` smoke path
 - OpenCode shared portable MCP initialization is evidenced through the deterministic `test-opencode-mcp-live` smoke path
-- Cursor workspace-config readiness is bounded to deterministic generate/import/validate behavior for the documented repo-local subset
+- Cursor packaged-plugin readiness is bounded to deterministic generate/import/validate behavior for `.cursor-plugin/plugin.json`, root `skills/**`, and optional shared `.mcp.json`
 
 ## Gemini Packaging Boundary
 
