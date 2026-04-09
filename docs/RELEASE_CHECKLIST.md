@@ -11,6 +11,9 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - `make test-install-compat` green
 - `make test-polyglot-smoke` green when stable Node/Python local-runtime, local bundle-install, remote bundle-fetch, or GitHub bundle-publish claims, shell beta claims, launcher logic, doctor/bootstrap/export behavior, or runtime bundle contract changed
 - `release-preflight` green for the planned stable tag and required downstream channels
+- `dependency-review` green on the candidate branch
+- `govulncheck` green on maintained Go modules
+- `codeql` green or explicitly triaged on the candidate branch
 - generated-config/runtime-contract drift evidence recorded when changes affect `generate`, scaffolded target files, target contracts, or runtime docs
 - generated artifacts in sync
 - root GitHub Release asset publish result recorded
@@ -43,6 +46,7 @@ Use this checklist for post-`v1.0.0` hardening releases and any beta surface tha
 - `live` workflow result recorded, or an explicit waiver is noted in release notes
 - `release-preflight` workflow result recorded
 - `release-assets` workflow result recorded
+- release artifact attestation result recorded
 - any skipped real-CLI smoke reason is written down
 - waiver justification explicitly states why the failure is outside plugin-kit-ai contract scope
 - release notes use the same evidence fields as the release playbook

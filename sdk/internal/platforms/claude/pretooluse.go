@@ -30,9 +30,9 @@ type preToolStdoutDTO struct {
 }
 
 func DecodePreToolUse(env runtime.Envelope) (any, string, error) {
-	var dto preToolInputDTO
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, "", fmt.Errorf("decode pretooluse input: %w", err)
+	dto, err := runtime.DecodeJSONPayload[preToolInputDTO](env.Stdin, "pretooluse input")
+	if err != nil {
+		return nil, "", err
 	}
 	if strings.TrimSpace(dto.ToolName) == "" {
 		return nil, "", fmt.Errorf("decode pretooluse input: tool_name required")

@@ -1,7 +1,9 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-opencode-mcp-live test-opencode-e2e-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-bindings-live test-cloudflare-docs-live test-cloudflare-observability-live test-cloudflare-radar-live test-heroku-live test-hubspot-crm-live test-hubspot-developer-live test-neon-live test-docker-hub-live test-notion-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-opencode-mcp-live test-opencode-e2e-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-bindings-live test-cloudflare-docs-live test-cloudflare-observability-live test-cloudflare-radar-live test-heroku-live test-hubspot-crm-live test-hubspot-developer-live test-neon-live test-docker-hub-live test-notion-live test-e2e-live test-govulncheck-local test-security generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
+
+SECURITY_GOTOOLCHAIN ?= go1.25.9
 
 EXTENDED_TEST_ARGS ?=
 
@@ -139,6 +141,15 @@ test-slack-live:
 
 test-e2e-live: test-install-live
 
+test-govulncheck-local:
+	GOTOOLCHAIN=$(SECURITY_GOTOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	cd cli/plugin-kit-ai && GOTOOLCHAIN=$(SECURITY_GOTOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	cd install/plugininstall && GOTOOLCHAIN=$(SECURITY_GOTOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	cd install/integrationctl && GOTOOLCHAIN=$(SECURITY_GOTOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+	cd sdk && GOTOOLCHAIN=$(SECURITY_GOTOOLCHAIN) go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
+test-security: test-govulncheck-local
+
 # Root module is workspace-only; submodules are vetted explicitly.
 vet:
 	go vet ./...
@@ -165,7 +176,8 @@ release-gate:
 release-rehearsal: release-gate
 	$(MAKE) test-install-compat
 	$(MAKE) test-polyglot-smoke
-	@echo "Release rehearsal deterministic checks complete. Record extended/live evidence (including OpenCode smoke when refreshing that stable boundary), audit updates, release notes draft, and any waiver notes tied to the candidate commit SHA."
+	$(MAKE) test-security
+	@echo "Release rehearsal deterministic checks complete. Record dependency-review, CodeQL, extended/live evidence (including OpenCode smoke when refreshing that stable boundary), audit updates, release notes draft, artifact attestations, and any waiver notes tied to the candidate commit SHA."
 
 build-plugin-kit-ai:
 	go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai

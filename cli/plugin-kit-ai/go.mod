@@ -2,6 +2,8 @@ module github.com/777genius/plugin-kit-ai/cli
 
 go 1.23
 
+toolchain go1.25.9
+
 replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk
 
 replace github.com/777genius/plugin-kit-ai/install/integrationctl => ../../install/integrationctl

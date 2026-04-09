@@ -9,6 +9,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/sdk/claude"
 	"github.com/777genius/plugin-kit-ai/sdk/codex"
 	"github.com/777genius/plugin-kit-ai/sdk/gemini"
+	"github.com/777genius/plugin-kit-ai/sdk/internal/runtime"
 )
 
 type testIO struct {
@@ -79,6 +80,47 @@ func TestApp_CodexNotify(t *testing.T) {
 	}
 	if iox.out.Len() != 0 {
 		t.Fatalf("stdout should be empty, got %q", iox.out.String())
+	}
+}
+
+func TestApp_RejectsOversizedClaudePayload(t *testing.T) {
+	iox := &testIO{in: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"Stop","last_assistant_message":"` + strings.Repeat("a", runtime.MaxPayloadBytes) + `"}`)}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "Stop"},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Claude().OnStop(func(*claude.StopEvent) *claude.Response {
+		t.Fatal("handler should not run for oversized payload")
+		return claude.Allow()
+	})
+	if c := app.Run(); c != 1 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.err.String(); !strings.Contains(got, "exceeds max payload size") {
+		t.Fatalf("stderr = %q", got)
+	}
+}
+
+func TestApp_RejectsOversizedCodexPayload(t *testing.T) {
+	raw := `{"client":"` + strings.Repeat("a", runtime.MaxPayloadBytes) + `"}`
+	iox := &testIO{}
+	app := New(Config{
+		Name: "t",
+		Args: []string{"plugin-kit-ai", "notify", raw},
+		IO:   iox,
+		Env:  testEnv{},
+	})
+	app.Codex().OnNotify(func(*codex.NotifyEvent) *codex.Response {
+		t.Fatal("handler should not run for oversized payload")
+		return codex.Continue()
+	})
+	if c := app.Run(); c != 1 {
+		t.Fatalf("exit %d stderr=%q", c, iox.err.String())
+	}
+	if got := iox.err.String(); !strings.Contains(got, "exceeds max payload size") {
+		t.Fatalf("stderr = %q", got)
 	}
 }
 

@@ -148,6 +148,14 @@ func TestDecodeBeforeToolMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestDecodeBeforeToolRejectsOversizedPayload(t *testing.T) {
+	body := `{"session_id":"s","cwd":"/","hook_event_name":"BeforeTool","tool_name":"read_file","tool_input":{"value":"` + strings.Repeat("a", runtime.MaxPayloadBytes) + `"}}`
+	_, _, err := DecodeBeforeTool(runtime.Envelope{Stdin: []byte(body)})
+	if err == nil || !strings.Contains(err.Error(), "exceeds max payload size") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestDecodeAfterTool(t *testing.T) {
 	v, name, err := DecodeAfterTool(runtime.Envelope{
 		Stdin: []byte(`{"session_id":"s","cwd":"/","hook_event_name":"AfterTool","tool_name":"read_file","tool_input":{"file_path":"README.md"},"tool_response":{"llmContent":"ok","returnDisplay":"ok"},"mcp_context":{"server":"filesystem"},"original_request_name":"tail.read_file"}`),

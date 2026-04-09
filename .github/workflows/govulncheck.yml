@@ -1,0 +1,42 @@
+name: Govulncheck
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  govulncheck:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: root
+            dir: .
+          - name: cli
+            dir: cli/plugin-kit-ai
+          - name: plugininstall
+            dir: install/plugininstall
+          - name: integrationctl
+            dir: install/integrationctl
+          - name: sdk
+            dir: sdk
+
+    name: govulncheck (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.9"
+          cache: false
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...

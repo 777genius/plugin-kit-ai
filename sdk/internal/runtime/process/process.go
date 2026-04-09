@@ -12,12 +12,20 @@ import (
 type IO struct{}
 
 func (IO) ReadStdin(ctx context.Context) ([]byte, error) {
+	return readAllLimited(ctx, os.Stdin, runtime.MaxPayloadBytes, "stdin payload")
+}
+
+func readAllLimited(ctx context.Context, r io.Reader, limit int, label string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	b, err := io.ReadAll(os.Stdin)
+	limited := io.LimitReader(r, int64(limit)+1)
+	b, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, fmt.Errorf("read stdin: %w", err)
+	}
+	if len(b) > limit {
+		return nil, fmt.Errorf("read stdin: %s exceeds max payload size of %d bytes", label, limit)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

@@ -27,6 +27,9 @@ func DecodeNotify(env runtime.Envelope) (any, string, error) {
 	if len(strings.TrimSpace(string(raw))) == 0 {
 		return nil, "", fmt.Errorf("decode codex notify input: empty JSON payload argument")
 	}
+	if err := runtime.ValidatePayloadSize(raw, "codex notify input"); err != nil {
+		return nil, "", err
+	}
 	var dto notifyDTO
 	if err := json.Unmarshal(raw, &dto); err != nil {
 		return nil, "", fmt.Errorf("decode codex notify input: %w", err)

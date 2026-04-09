@@ -23,9 +23,9 @@ type stopOutputDTO struct {
 }
 
 func DecodeStop(env runtime.Envelope) (any, string, error) {
-	var dto stopInputDTO
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, "", fmt.Errorf("decode stop input: %w", err)
+	dto, err := runtime.DecodeJSONPayload[stopInputDTO](env.Stdin, "stop input")
+	if err != nil {
+		return nil, "", err
 	}
 	return &StopInput{
 		SessionID:            dto.SessionID,

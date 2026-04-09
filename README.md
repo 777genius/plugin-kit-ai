@@ -21,6 +21,13 @@ Docs site:
 - delivery model guide: [Choose A Target](https://777genius.github.io/plugin-kit-ai/docs/en/guide/choose-a-target.html)
 - honest caveat: [Support Boundary](https://777genius.github.io/plugin-kit-ai/docs/en/reference/support-boundary.html)
 
+Project policies:
+
+- support boundary: [docs/SUPPORT.md](docs/SUPPORT.md)
+- contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+- security: [SECURITY.md](SECURITY.md)
+- code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+
 ## Default Start
 
 If you want the clearest production story today, start here:
@@ -258,7 +265,7 @@ For Codex lane selection, use [docs/CODEX_TARGET_BOUNDARY.md](docs/CODEX_TARGET_
 
 Requirements:
 
-- Go `1.23.x` for this monorepo workspace and its CI lanes
+- Go `1.25.9` for this monorepo workspace and its CI lanes
 - generated Go plugin projects created by `plugin-kit-ai init` remain on Go `1.22+`
 
 Common commands from repo root:

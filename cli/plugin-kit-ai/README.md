@@ -84,7 +84,7 @@ go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai
 
 Choose the lane that matches the delivery model you need today. Expand later from the same repo when the product needs more outputs.
 
-Maintainer note: building the checked-in monorepo workspace currently requires Go `1.23.x` for the CLI module and CI lanes. Generated Go plugin projects stay on the public Go SDK path with Go `1.22+`.
+Maintainer note: building the checked-in monorepo workspace currently requires Go `1.25.9` for the CLI module and CI lanes. Generated Go plugin projects stay on the public Go SDK path with Go `1.22+`.
 ## Fast Local Plugin
 
 For repo-local plugins where fast iteration matters more than packaged distribution:

@@ -1,5 +1,7 @@
 go 1.23
 
+toolchain go1.25.9
+
 use (
 	.
 	./cli/plugin-kit-ai

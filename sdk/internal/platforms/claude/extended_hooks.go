@@ -201,11 +201,7 @@ type permissionHookSpecificDTO struct {
 }
 
 func decodeJSONInput[T any](env runtime.Envelope, label string) (*T, error) {
-	var dto T
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, fmt.Errorf("decode %s input: %w", label, err)
-	}
-	return &dto, nil
+	return runtime.DecodeJSONPayload[T](env.Stdin, label+" input")
 }
 
 func encodeSync(label string, out CommonOutcome, hookSpecific any) runtime.Result {

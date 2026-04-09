@@ -2431,6 +2431,72 @@ nonsense: true
 	}
 }
 
+func TestAnalyze_RejectsDuplicateFields(t *testing.T) {
+	body := []byte(`
+api_version: v1
+name: "demo"
+name: "demo-again"
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	_, _, err := Analyze(body)
+	if err == nil || !strings.Contains(err.Error(), `mapping key "name" already defined`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAnalyze_RejectsNonStringManifestField(t *testing.T) {
+	body := []byte(`
+api_version: v1
+name: true
+version: "0.1.0"
+description: "demo"
+targets: ["claude"]
+`)
+	_, _, err := Analyze(body)
+	if err == nil || !strings.Contains(err.Error(), "invalid plugin.yaml.name: expected string") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAnalyze_RejectsNonSequenceTargetsField(t *testing.T) {
+	body := []byte(`
+api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets: claude
+`)
+	_, _, err := Analyze(body)
+	if err == nil || !strings.Contains(err.Error(), "invalid plugin.yaml.targets: expected a YAML sequence") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAnalyzeLauncher_RejectsUnknownField(t *testing.T) {
+	body := []byte(`
+runtime: go
+entrypoint: ./bin/demo
+extra: true
+`)
+	_, _, err := AnalyzeLauncher(body)
+	if err == nil || !strings.Contains(err.Error(), `invalid launcher.yaml: unknown field "extra"`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestAnalyzeLauncher_RejectsNonStringEntrypoint(t *testing.T) {
+	body := []byte(`
+runtime: go
+entrypoint: true
+`)
+	_, _, err := AnalyzeLauncher(body)
+	if err == nil || !strings.Contains(err.Error(), "invalid launcher.yaml.entrypoint: expected string") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestAnalyze_RejectsLegacyComponentsInventory(t *testing.T) {
 	body := []byte(`
 api_version: v1

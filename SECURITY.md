@@ -12,5 +12,7 @@ Security-sensitive release checks before publishing:
 
 - verify release assets are built from the intended candidate SHA
 - keep `checksums.txt` attached to the root GitHub release
+- verify release attestations for published artifacts with `gh attestation verify`
 - verify Homebrew, npm, and PyPI channels consume the same release assets
+- keep `dependency-review`, `govulncheck`, and `CodeQL` green on the candidate branch
 - record any waived live failures in the release notes with scope and reason

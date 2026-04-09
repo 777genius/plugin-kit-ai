@@ -263,11 +263,11 @@ func EncodeAfterTool(v any) runtime.Result {
 }
 
 func decodeJSONInput[T any](env runtime.Envelope, label, eventName string) (any, string, error) {
-	var dto T
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, "", fmt.Errorf("decode Gemini %s input: %w", label, err)
+	dto, err := runtime.DecodeJSONPayload[T](env.Stdin, "Gemini "+label+" input")
+	if err != nil {
+		return nil, "", err
 	}
-	return &dto, eventName, nil
+	return dto, eventName, nil
 }
 
 func encodeSync(label string, out CommonOutcome, hookSpecific any) runtime.Result {

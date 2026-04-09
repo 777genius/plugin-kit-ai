@@ -17,7 +17,7 @@ Post-`v1.0.0` hardening on `main` lands here. The initial stable release was tag
 - Windows launcher validation now accepts extensionless configured entrypoints such as `./bin/x` when the generated launcher file is `./bin/x.cmd`
 - documentation now reflects post-`v1.0.0` contract status, the executable-ABI beta boundary, Windows runtime resolution rules, and the TypeScript-over-Node supported path
 - Go SDK module root moved from `sdk/plugin-kit-ai/` to `sdk/`, making `github.com/777genius/plugin-kit-ai/sdk@v1.0.4` the first truthful normal-module release; `v1.0.3` remains published but is known-bad for Go SDK consumption
-- maintainer-facing docs now distinguish monorepo Go `1.23.x` requirements from generated Go plugin projects that remain on Go `1.22+`, and the repository now ships root `LICENSE` and `SECURITY.md`
+- maintainer-facing docs now distinguish monorepo Go `1.25.9` requirements from generated Go plugin projects that remain on Go `1.22+`, and the repository now ships root `LICENSE` and `SECURITY.md`
 
 ## [1.0.0] - 2026-03-26
 

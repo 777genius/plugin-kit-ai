@@ -123,11 +123,11 @@ func (r *Registrar) registerCustomJSON(eventName string, decode func(runtime.Env
 }
 
 func decodeCustomJSON[T any](env runtime.Envelope, eventName string) (any, string, error) {
-	var dto T
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, "", fmt.Errorf("decode %s input: %w", runtime.NormalizeHookName(eventName), err)
+	dto, err := runtime.DecodeJSONPayload[T](env.Stdin, runtime.NormalizeHookName(eventName)+" input")
+	if err != nil {
+		return nil, "", err
 	}
-	return &dto, eventName, nil
+	return dto, eventName, nil
 }
 
 func encodeCustomCommon(label string, out internalclaude.CommonOutcome, hookSpecific any) runtime.Result {

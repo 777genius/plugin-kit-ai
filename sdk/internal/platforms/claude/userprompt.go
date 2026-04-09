@@ -24,9 +24,9 @@ type userPromptOutDTO struct {
 }
 
 func DecodeUserPromptSubmit(env runtime.Envelope) (any, string, error) {
-	var dto userPromptInputDTO
-	if err := json.Unmarshal(env.Stdin, &dto); err != nil {
-		return nil, "", fmt.Errorf("decode userpromptsubmit input: %w", err)
+	dto, err := runtime.DecodeJSONPayload[userPromptInputDTO](env.Stdin, "userpromptsubmit input")
+	if err != nil {
+		return nil, "", err
 	}
 	return &UserPromptSubmitInput{
 		SessionID:      dto.SessionID,
