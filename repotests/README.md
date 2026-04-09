@@ -91,6 +91,8 @@
 | `PLUGIN_KIT_AI_E2E_ATLASSIAN_DIR` | Опционально переопределить путь к реальному plugin catalog `atlassian`. |
 | `PLUGIN_KIT_AI_RUN_CLOUDFLARE_LIVE=1` | Включить real cloudflare catalog live suite поверх установленных CLI. |
 | `PLUGIN_KIT_AI_E2E_CLOUDFLARE_DIR` | Опционально переопределить путь к реальному plugin catalog `cloudflare`. |
+| `PLUGIN_KIT_AI_RUN_NOTION_LIVE=1` | Включить real notion catalog live suite поверх установленных CLI. |
+| `PLUGIN_KIT_AI_E2E_NOTION_DIR` | Опционально переопределить путь к реальному plugin catalog `notion`. |
 | `PLUGIN_KIT_AI_RUN_VERCEL_LIVE=1` | Включить real vercel catalog live suite поверх установленных CLI. |
 | `PLUGIN_KIT_AI_E2E_VERCEL_DIR` | Опционально переопределить путь к реальному plugin catalog `vercel`. |
 | `PLUGIN_KIT_AI_RUN_SENTRY_LIVE=1` | Включить real sentry catalog live suite поверх установленных CLI. |
@@ -127,6 +129,7 @@ make test-context7-live
 make test-chrome-devtools-live
 make test-atlassian-live
 make test-cloudflare-live
+make test-notion-live
 make test-vercel-live
 make test-sentry-live
 make test-stripe-live
