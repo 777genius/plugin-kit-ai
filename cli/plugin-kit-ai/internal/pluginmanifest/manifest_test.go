@@ -23,14 +23,15 @@ func TestRender_RendersVersionIntoEveryNativeManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Artifacts) != 7 {
-		t.Fatalf("artifacts = %d, want 7", len(result.Artifacts))
+	if len(result.Artifacts) != 8 {
+		t.Fatalf("artifacts = %d, want 8", len(result.Artifacts))
 	}
 	if err := WriteArtifacts(root, result.Artifacts); err != nil {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
 		filepath.Join(".claude-plugin", "plugin.json"),
+		"CLAUDE.md",
 		filepath.Join("hooks", "hooks.json"),
 		filepath.Join(".codex", "config.toml"),
 		filepath.Join(".codex-plugin", "plugin.json"),
@@ -46,7 +47,7 @@ func TestRender_RendersVersionIntoEveryNativeManifest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rel == filepath.Join("hooks", "hooks.json") || rel == filepath.Join(".codex", "config.toml") || rel == "opencode.json" || rel == "GENERATED.md" {
+		if rel == "CLAUDE.md" || rel == filepath.Join("hooks", "hooks.json") || rel == filepath.Join(".codex", "config.toml") || rel == "opencode.json" || rel == "GENERATED.md" {
 			continue
 		}
 		if !strings.Contains(string(body), `"version": "1.2.3"`) {
@@ -388,6 +389,20 @@ servers:
 	}
 	if _, err := os.Stat(filepath.Join(root, ".cursor", "mcp.json")); err != nil {
 		t.Fatalf("stat .cursor/mcp.json: %v", err)
+	}
+	claudeBody, err := os.ReadFile(filepath.Join(root, "CLAUDE.md"))
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+	for _, want := range []string{
+		"# Claude Boundary",
+		"[`AGENTS.md`](./AGENTS.md)",
+		"[`src/README.md`](./src/README.md)",
+		"[`GENERATED.md`](./GENERATED.md)",
+	} {
+		if !strings.Contains(string(claudeBody), want) {
+			t.Fatalf("CLAUDE.md missing %q:\n%s", want, claudeBody)
+		}
 	}
 }
 

@@ -630,6 +630,11 @@ func Generate(root string, target string) (RenderResult, error) {
 		artifactMap[relPath] = artifact.Content
 	}
 	if layout.IsCanonical() {
+		if claudeBoundary, err := buildRootClaudeBoundaryArtifact(layout); err != nil {
+			return RenderResult{}, err
+		} else if claudeBoundary != nil {
+			artifactMap[claudeBoundary.RelPath] = claudeBoundary.Content
+		}
 		if readme, err := buildRootReadmeArtifact(root, layout, graph.Manifest); err != nil {
 			return RenderResult{}, err
 		} else if readme != nil {
@@ -1775,6 +1780,20 @@ func buildRootReadmeArtifact(root string, layout authoredLayout, manifest Manife
 	body.WriteString("This plugin root is the native/generated output surface for the supported targets.\n")
 	artifact := Artifact{RelPath: "README.md", Content: []byte(body.String())}
 	return &artifact, nil
+}
+
+func buildRootClaudeBoundaryArtifact(layout authoredLayout) (*Artifact, error) {
+	if !layout.IsCanonical() {
+		return nil, nil
+	}
+	body, _, err := scaffold.RenderTemplate("ROOT.CLAUDE.md.tmpl", scaffold.Data{})
+	if err != nil {
+		return nil, err
+	}
+	return &Artifact{
+		RelPath: "CLAUDE.md",
+		Content: body,
+	}, nil
 }
 
 func stripLeadingMarkdownTitle(body string) string {
