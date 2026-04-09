@@ -137,6 +137,43 @@ servers:
 	}
 }
 
+func TestRender_OpenCodeRendersFirstClassConfigDocs(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "opencode", "", "demo plugin", false)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n  - name: \"@acme/advanced-opencode\"\n    options:\n      enabled: true\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "default_agent.txt"), "reviewer\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "instructions.yaml"), "- AGENTS.md\n- docs/extra.md\n")
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "permission.json"), `{"bash":"ask","edit":"allow"}`)
+	mustWritePluginFile(t, root, filepath.Join("src", "targets", "opencode", "config.extra.json"), `{"watcher":{"ignore":["dist/**"]}}`)
+
+	result, err := Generate(root, "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteArtifacts(root, result.Artifacts); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "opencode.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		`"default_agent": "reviewer"`,
+		`"instructions": [`,
+		`"AGENTS.md"`,
+		`"permission": {`,
+		`"watcher": {`,
+		`"@acme/advanced-opencode"`,
+		`"enabled": true`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("opencode.json missing %q:\n%s", want, text)
+		}
+	}
+}
+
 func TestDrift_IgnoresCRLFDifferencesForTextArtifacts(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "codex-runtime", "go", "demo plugin", false)
@@ -321,8 +358,14 @@ servers:
 			t.Fatalf("unexpected root README, missing %q:\n%s", want, readmeBody)
 		}
 	}
-	if strings.Contains(string(readmeBody), "Edit only `src/`.") {
-		t.Fatalf("unexpected root README:\n%s", readmeBody)
+	for _, unwanted := range []string{
+		"## Source Guide",
+		"The authored guide below is copied from `src/README.md` and stays the source of truth for this plugin.",
+		"Edit only `src/`.",
+	} {
+		if strings.Contains(string(readmeBody), unwanted) {
+			t.Fatalf("unexpected long-form content %q in root README:\n%s", unwanted, readmeBody)
+		}
 	}
 	generatedBody, err := os.ReadFile(filepath.Join(root, "GENERATED.md"))
 	if err != nil {
@@ -335,11 +378,13 @@ servers:
 		"- `GENERATED.md`",
 		"- `.cursor/mcp.json`",
 		"- `CLAUDE.md`",
-		"- `AGENTS.md`",
 	} {
 		if !strings.Contains(string(generatedBody), want) {
 			t.Fatalf("GENERATED.md missing %q:\n%s", want, generatedBody)
 		}
+	}
+	if strings.Contains(string(generatedBody), "## Managed Generated Outputs\n\n`README.md` is a generated root entrypoint that points readers to `src/README.md`.\n\n- `.claude-plugin/plugin.json`\n- `.codex-plugin/plugin.json`\n- `.cursor/mcp.json`\n- `.mcp.json`\n- `AGENTS.md`") {
+		t.Fatalf("GENERATED.md should not list AGENTS.md as a managed generated output:\n%s", generatedBody)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".cursor", "mcp.json")); err != nil {
 		t.Fatalf("stat .cursor/mcp.json: %v", err)
@@ -510,6 +555,81 @@ func TestImport_OpenCodeIncludeUserScope(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %v, want none", warnings)
+	}
+}
+
+func TestImport_OpenCodePromotesFirstClassDocsAndModeAlias(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "opencode.json", `{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    "@acme/demo-opencode",
+    ["@acme/advanced-opencode", {"enabled": true}]
+  ],
+  "default_agent": "reviewer",
+  "instructions": ["AGENTS.md", "docs/extra.md"],
+  "permission": {"bash": "allow"},
+  "mode": {
+    "planner": {
+      "description": "planner",
+      "prompt": "Plan carefully.",
+      "maxSteps": 7
+    }
+  },
+  "agent": {
+    "reviewer": {
+      "description": "reviewer",
+      "top_p": 0.8,
+      "hidden": true,
+      "prompt": "Review carefully."
+    }
+  }
+}`)
+
+	imported, warnings, err := Import(root, "opencode", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "opencode" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "targets", "opencode", "package.yaml"),
+		filepath.Join("src", "targets", "opencode", "default_agent.txt"),
+		filepath.Join("src", "targets", "opencode", "instructions.yaml"),
+		filepath.Join("src", "targets", "opencode", "permission.json"),
+		filepath.Join("src", "targets", "opencode", "agents", "planner.md"),
+		filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+	}
+	packageBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(packageBody), "name: '@acme/advanced-opencode'") || !strings.Contains(string(packageBody), "enabled: true") {
+		t.Fatalf("package.yaml missing structured plugin tuple import:\n%s", packageBody)
+	}
+	plannerBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "agents", "planner.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(plannerBody), "steps: 7") || strings.Contains(string(plannerBody), "maxSteps") {
+		t.Fatalf("planner agent import did not normalize deprecated maxSteps:\n%s", plannerBody)
+	}
+	reviewerBody, err := os.ReadFile(filepath.Join(root, "src", "targets", "opencode", "agents", "reviewer.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"top_p: 0.8", "hidden: true"} {
+		if !strings.Contains(string(reviewerBody), want) {
+			t.Fatalf("reviewer agent missing %q:\n%s", want, reviewerBody)
+		}
 	}
 }
 
@@ -920,12 +1040,26 @@ func TestImport_CursorNativeLayout(t *testing.T) {
 	}
 }
 
-func TestImport_CursorRejectsBoundaryDocsOnly(t *testing.T) {
+func TestImport_CursorImportsRootAgentsMarkdown(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, "AGENTS.md", "# Shared agents\n")
 
-	if _, _, err := Import(root, "cursor", false, false); err == nil || !strings.Contains(err.Error(), "Cursor import requires .cursor/mcp.json or .cursor/rules/**") {
-		t.Fatalf("Import error = %v", err)
+	imported, warnings, err := Import(root, "cursor", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Targets) != 1 || imported.Targets[0] != "cursor" {
+		t.Fatalf("targets = %v", imported.Targets)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "cursor", "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "# Shared agents") {
+		t.Fatalf("imported Cursor AGENTS missing markdown:\n%s", body)
 	}
 }
 
@@ -943,16 +1077,18 @@ func TestInspect_CursorExposesWorkspaceSurfaceTiers(t *testing.T) {
 		t.Fatalf("targets = %+v", inspection.Targets)
 	}
 	target := inspection.Targets[0]
-	var foundMCP, foundRules bool
+	var foundMCP, foundRules, foundAgents bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
 		case surface.Kind == "mcp" && surface.Tier == "stable":
 			foundMCP = true
 		case surface.Kind == "rules" && surface.Tier == "stable":
 			foundRules = true
+		case surface.Kind == "agents_markdown" && surface.Tier == "stable":
+			foundAgents = true
 		}
 	}
-	if !foundMCP || !foundRules {
+	if !foundMCP || !foundRules || !foundAgents {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }
@@ -2474,16 +2610,18 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 	if got := target.NativeSurfaceTiers["tools"]; got != "beta" {
 		t.Fatalf("native_surface_tiers[tools] = %q", got)
 	}
-	var foundAgentConfig, foundPermissionConfig, foundInstructionsConfig bool
+	var foundAgentConfig, foundDefaultAgent, foundPermissionConfig, foundInstructionsConfig bool
 	var foundCommands, foundAgents, foundThemes, foundTools, foundModes bool
 	var foundLocalPluginCode, foundCustomTools, foundLocalPluginDependencies bool
 	for _, surface := range target.NativeSurfaces {
 		switch {
-		case surface.Kind == "agent_config" && surface.Tier == "passthrough_only":
+		case surface.Kind == "agent_config" && surface.Tier == "stable":
 			foundAgentConfig = true
-		case surface.Kind == "permission_config" && surface.Tier == "passthrough_only":
+		case surface.Kind == "default_agent" && surface.Tier == "stable":
+			foundDefaultAgent = true
+		case surface.Kind == "permission_config" && surface.Tier == "stable":
 			foundPermissionConfig = true
-		case surface.Kind == "instructions_config" && surface.Tier == "passthrough_only":
+		case surface.Kind == "instructions_config" && surface.Tier == "stable":
 			foundInstructionsConfig = true
 		case surface.Kind == "commands" && surface.Tier == "stable":
 			foundCommands = true
@@ -2503,7 +2641,7 @@ func TestInspect_OpenCodeExposesWorkspaceSurfaceTiers(t *testing.T) {
 			foundLocalPluginDependencies = true
 		}
 	}
-	if !foundAgentConfig || !foundPermissionConfig || !foundInstructionsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
+	if !foundAgentConfig || !foundDefaultAgent || !foundPermissionConfig || !foundInstructionsConfig || !foundCommands || !foundAgents || !foundThemes || !foundTools || !foundModes || !foundLocalPluginCode || !foundCustomTools || !foundLocalPluginDependencies {
 		t.Fatalf("native_surfaces = %+v", target.NativeSurfaces)
 	}
 }

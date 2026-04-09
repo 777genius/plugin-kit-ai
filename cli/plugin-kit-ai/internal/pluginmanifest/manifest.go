@@ -1751,7 +1751,8 @@ func buildRootReadmeArtifact(root string, layout authoredLayout, manifest Manife
 		return nil, nil
 	}
 	authoredReadme := layout.Path("README.md")
-	if _, err := os.Stat(filepath.Join(root, authoredReadme)); err != nil {
+	authoredReadmePath := filepath.Join(root, authoredReadme)
+	if _, err := os.Stat(authoredReadmePath); err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
@@ -1774,6 +1775,18 @@ func buildRootReadmeArtifact(root string, layout authoredLayout, manifest Manife
 	body.WriteString("This plugin root is the native/generated output surface for the supported targets.\n")
 	artifact := Artifact{RelPath: "README.md", Content: []byte(body.String())}
 	return &artifact, nil
+}
+
+func stripLeadingMarkdownTitle(body string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	lines := strings.Split(body, "\n")
+	if len(lines) == 0 {
+		return body
+	}
+	if strings.HasPrefix(strings.TrimSpace(lines[0]), "# ") {
+		return strings.TrimLeft(strings.Join(lines[1:], "\n"), "\n")
+	}
+	return body
 }
 
 func buildRootGeneratedGuideArtifact(root string, layout authoredLayout, graph PackageGraph) (*Artifact, error) {
@@ -1817,13 +1830,21 @@ func buildRootGeneratedGuideArtifact(root string, layout authoredLayout, graph P
 
 func generatedArtifactInventory(root string, layout authoredLayout, graph PackageGraph, selected []string) ([]string, error) {
 	artifactMap := map[string]struct{}{}
+	boundarySet := map[string]struct{}{}
+	for _, rel := range boundaryDocsForLayout(layout) {
+		boundarySet[filepath.ToSlash(filepath.Clean(rel))] = struct{}{}
+	}
 	for _, target := range selected {
 		generated, err := renderTargetArtifacts(root, graph, target)
 		if err != nil {
 			return nil, err
 		}
 		for _, artifact := range generated {
-			artifactMap[filepath.ToSlash(filepath.Clean(artifact.RelPath))] = struct{}{}
+			rel := filepath.ToSlash(filepath.Clean(artifact.RelPath))
+			if _, skip := boundarySet[rel]; skip {
+				continue
+			}
+			artifactMap[rel] = struct{}{}
 		}
 	}
 	publicationArtifacts, err := publicationexec.Generate(graph, mustDiscoverPublication(root), selected)
