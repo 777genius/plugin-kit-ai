@@ -65,37 +65,34 @@ const defaultTargetOrder: PluginInstallTargetId[] = [
 
 const defaultSupportedTargets = defaultTargetOrder.map((targetId) => targetDefinitions[targetId]);
 
-const catalogPluginSources = {
-  context7: 'github:777genius/universal-plugins-for-ai-agents//plugins/context7',
-  gitlab: 'github:777genius/universal-plugins-for-ai-agents//plugins/gitlab',
-  github: 'github:777genius/universal-plugins-for-ai-agents//plugins/github',
-  firebase: 'github:777genius/universal-plugins-for-ai-agents//plugins/firebase',
-  linear: 'github:777genius/universal-plugins-for-ai-agents//plugins/linear',
-  cloudflare: 'github:777genius/universal-plugins-for-ai-agents//plugins/cloudflare',
-  'cloudflare-docs': 'github:777genius/universal-plugins-for-ai-agents//plugins/cloudflare-docs',
-  'cloudflare-observability':
-    'github:777genius/universal-plugins-for-ai-agents//plugins/cloudflare-observability',
-  'cloudflare-bindings':
-    'github:777genius/universal-plugins-for-ai-agents//plugins/cloudflare-bindings',
-  'cloudflare-radar': 'github:777genius/universal-plugins-for-ai-agents//plugins/cloudflare-radar',
-  'hubspot-crm': 'github:777genius/universal-plugins-for-ai-agents//plugins/hubspot-crm',
-  'hubspot-developer':
-    'github:777genius/universal-plugins-for-ai-agents//plugins/hubspot-developer',
-  heroku: 'github:777genius/universal-plugins-for-ai-agents//plugins/heroku',
-  neon: 'github:777genius/universal-plugins-for-ai-agents//plugins/neon',
-  'docker-hub': 'github:777genius/universal-plugins-for-ai-agents//plugins/docker-hub',
-  atlassian: 'github:777genius/universal-plugins-for-ai-agents//plugins/atlassian',
-  notion: 'github:777genius/universal-plugins-for-ai-agents//plugins/notion',
-  stripe: 'github:777genius/universal-plugins-for-ai-agents//plugins/stripe',
-  slack: 'github:777genius/universal-plugins-for-ai-agents//plugins/slack',
-  vercel: 'github:777genius/universal-plugins-for-ai-agents//plugins/vercel',
-  sentry: 'github:777genius/universal-plugins-for-ai-agents//plugins/sentry',
-  supabase: 'github:777genius/universal-plugins-for-ai-agents//plugins/supabase',
-  greptile: 'github:777genius/universal-plugins-for-ai-agents//plugins/greptile',
+const catalogPluginAliases = {
+  context7: 'context7',
+  gitlab: 'gitlab',
+  github: 'github',
+  firebase: 'firebase',
+  linear: 'linear',
+  cloudflare: 'cloudflare',
+  'cloudflare-docs': 'cloudflare-docs',
+  'cloudflare-observability': 'cloudflare-observability',
+  'cloudflare-bindings': 'cloudflare-bindings',
+  'cloudflare-radar': 'cloudflare-radar',
+  'hubspot-crm': 'hubspot-crm',
+  'hubspot-developer': 'hubspot-developer',
+  heroku: 'heroku',
+  neon: 'neon',
+  'docker-hub': 'docker-hub',
+  atlassian: 'atlassian',
+  notion: 'notion',
+  stripe: 'stripe',
+  slack: 'slack',
+  vercel: 'vercel',
+  sentry: 'sentry',
+  supabase: 'supabase',
+  greptile: 'greptile',
 } satisfies Record<string, string>;
 
 const catalogPluginSpecs = Object.fromEntries(
-  Object.entries(catalogPluginSources).map(([slug, cliSource]) => [
+  Object.entries(catalogPluginAliases).map(([slug, cliSource]) => [
     slug,
     {
       slug,
@@ -125,14 +122,13 @@ const buildInstallCommand = (
     args.push('--scope', 'project');
   }
 
-  args.push('--dry-run=false');
   return args.join(' ');
 };
 
 const buildManageCommands = (integrationName: string): PluginManageCommands => ({
-  update: `plugin-kit-ai update ${integrationName} --dry-run=false`,
-  repair: `plugin-kit-ai repair ${integrationName} --dry-run=false`,
-  remove: `plugin-kit-ai remove ${integrationName} --dry-run=false`,
+  update: `plugin-kit-ai update ${integrationName}`,
+  repair: `plugin-kit-ai repair ${integrationName}`,
+  remove: `plugin-kit-ai remove ${integrationName}`,
 });
 
 const buildCommandSet = (
@@ -141,9 +137,9 @@ const buildCommandSet = (
   lane: PluginTargetInstallLane,
 ): PluginInstallCommandSet => ({
   install: buildInstallCommand(cliSource, [lane.targetId], lane.scope, true),
-  update: `plugin-kit-ai update ${integrationName} --dry-run=false`,
-  repair: `plugin-kit-ai repair ${integrationName} --target ${lane.targetId} --dry-run=false`,
-  remove: `plugin-kit-ai remove ${integrationName} --dry-run=false`,
+  update: `plugin-kit-ai update ${integrationName}`,
+  repair: `plugin-kit-ai repair ${integrationName} --target ${lane.targetId}`,
+  remove: `plugin-kit-ai remove ${integrationName}`,
 });
 
 const resolveSupportedTargets = (spec: PluginInstallSpec): PluginResolvedInstallLane[] =>

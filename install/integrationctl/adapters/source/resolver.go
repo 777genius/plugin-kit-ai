@@ -40,8 +40,11 @@ func (r Resolver) Resolve(ctx context.Context, ref domain.IntegrationRef) (ports
 			ImportRoots:  []string{p},
 		}, nil
 	}
-	if ownerRepo, subdir, ok := parseGitHubRef(raw); ok {
-		tmp, commit, err := r.cloneGitHub(ctx, ownerRepo, subdir)
+	if resolvedAlias, ok := resolveFirstPartySourceAlias(raw); ok {
+		raw = resolvedAlias
+	}
+	if ownerRepo, gitRef, subdir, ok := parseGitHubRef(raw); ok {
+		tmp, commit, err := r.cloneGitHub(ctx, ownerRepo, subdir, gitRef)
 		if err != nil {
 			return ports.ResolvedSource{}, domain.NewError(domain.ErrSourceResolve, "resolve github source", err)
 		}
@@ -60,8 +63,8 @@ func (r Resolver) Resolve(ctx context.Context, ref domain.IntegrationRef) (ports
 			ImportRoots:  []string{tmp},
 		}, nil
 	}
-	if isGitURL(raw) {
-		tmp, commit, err := r.cloneURL(ctx, raw)
+	if repoURL, gitRef, ok := parseGitURLRef(raw); ok {
+		tmp, commit, err := r.cloneURL(ctx, repoURL, gitRef)
 		if err != nil {
 			return ports.ResolvedSource{}, domain.NewError(domain.ErrSourceResolve, "resolve git url", err)
 		}
@@ -98,17 +101,42 @@ func resolveLocal(raw string) (string, bool) {
 	return "", false
 }
 
-func parseGitHubRef(raw string) (ownerRepo, subdir string, ok bool) {
+func parseGitHubRef(raw string) (ownerRepo, gitRef, subdir string, ok bool) {
 	value := strings.TrimPrefix(raw, "github:")
 	parts := strings.SplitN(value, "//", 2)
 	ownerRepo = strings.TrimSpace(parts[0])
+	if ownerRepo == "" {
+		return "", "", "", false
+	}
+	if idx := strings.LastIndex(ownerRepo, "@"); idx > 0 {
+		gitRef = strings.TrimSpace(ownerRepo[idx+1:])
+		ownerRepo = strings.TrimSpace(ownerRepo[:idx])
+	}
 	if ownerRepo == "" || strings.Count(ownerRepo, "/") != 1 {
-		return "", "", false
+		return "", "", "", false
 	}
 	if len(parts) == 2 {
 		subdir = strings.Trim(parts[1], "/")
 	}
-	return ownerRepo, subdir, true
+	return ownerRepo, gitRef, subdir, true
+}
+
+func parseGitURLRef(raw string) (repoURL, gitRef string, ok bool) {
+	repoURL = strings.TrimSpace(raw)
+	if idx := strings.LastIndex(repoURL, "#"); idx >= 0 {
+		gitRef = normalizeGitRef(repoURL[idx+1:])
+		repoURL = strings.TrimSpace(repoURL[:idx])
+	}
+	if !isGitURL(repoURL) {
+		return "", "", false
+	}
+	return repoURL, gitRef, true
+}
+
+func normalizeGitRef(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.TrimPrefix(raw, "ref=")
+	return strings.TrimSpace(raw)
 }
 
 func isGitURL(raw string) bool {
@@ -126,15 +154,15 @@ func (r Resolver) runner() ports.ProcessRunner {
 	return process.OS{}
 }
 
-func (r Resolver) cloneGitHub(ctx context.Context, ownerRepo, subdir string) (string, string, error) {
-	return r.clone(ctx, "https://github.com/"+ownerRepo+".git", subdir)
+func (r Resolver) cloneGitHub(ctx context.Context, ownerRepo, subdir, gitRef string) (string, string, error) {
+	return r.clone(ctx, "https://github.com/"+ownerRepo+".git", subdir, gitRef)
 }
 
-func (r Resolver) cloneURL(ctx context.Context, raw string) (string, string, error) {
-	return r.clone(ctx, raw, "")
+func (r Resolver) cloneURL(ctx context.Context, raw string, gitRef string) (string, string, error) {
+	return r.clone(ctx, raw, "", gitRef)
 }
 
-func (r Resolver) clone(ctx context.Context, repoURL, subdir string) (string, string, error) {
+func (r Resolver) clone(ctx context.Context, repoURL, subdir, gitRef string) (string, string, error) {
 	tmp, err := os.MkdirTemp("", "integrationctl-source-*")
 	if err != nil {
 		return "", "", err
@@ -152,6 +180,12 @@ func (r Resolver) clone(ctx context.Context, repoURL, subdir string) (string, st
 	if cloneResult.ExitCode != 0 {
 		_ = os.RemoveAll(tmp)
 		return "", "", fmt.Errorf("git clone failed: %s", commandOutput(cloneResult))
+	}
+	if strings.TrimSpace(gitRef) != "" {
+		if err := r.checkoutRef(ctx, tmp, gitRef); err != nil {
+			_ = os.RemoveAll(tmp)
+			return "", "", err
+		}
 	}
 	revResult, err := r.runner().Run(ctx, ports.Command{
 		Argv: []string{"git", "-C", tmp, "rev-parse", "HEAD"},
@@ -176,6 +210,34 @@ func (r Resolver) clone(ctx context.Context, repoURL, subdir string) (string, st
 		return "", "", fmt.Errorf("source subdir not found: %s", subdir)
 	}
 	return root, strings.TrimSpace(string(revResult.Stdout)), nil
+}
+
+func (r Resolver) checkoutRef(ctx context.Context, repoRoot, gitRef string) error {
+	fetchResult, err := r.runner().Run(ctx, ports.Command{
+		Argv: []string{"git", "-C", repoRoot, "fetch", "--depth", "1", "origin", gitRef},
+	})
+	if err != nil {
+		if isCommandNotFound(err) {
+			return fmt.Errorf("git not found")
+		}
+		return err
+	}
+	if fetchResult.ExitCode != 0 {
+		return fmt.Errorf("git fetch %q failed: %s", gitRef, commandOutput(fetchResult))
+	}
+	checkoutResult, err := r.runner().Run(ctx, ports.Command{
+		Argv: []string{"git", "-C", repoRoot, "checkout", "FETCH_HEAD"},
+	})
+	if err != nil {
+		if isCommandNotFound(err) {
+			return fmt.Errorf("git not found")
+		}
+		return err
+	}
+	if checkoutResult.ExitCode != 0 {
+		return fmt.Errorf("git checkout %q failed: %s", gitRef, commandOutput(checkoutResult))
+	}
+	return nil
 }
 
 func cleanupRoot(localPath, subdir string) string {

@@ -87,11 +87,16 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 			Message: "normalized Claude plugin identity into canonical package-standard plugin.yaml",
 		})
 	}
+	if copied, warnings, err := importClaudePortableSkills(root, pluginManifest); err != nil {
+		return ImportResult{}, err
+	} else {
+		result.Artifacts = append(result.Artifacts, copied...)
+		result.Warnings = append(result.Warnings, warnings...)
+	}
 
 	if hookArtifacts, hookBody, warnings, err := importClaudeHooks(root, pluginManifest); err != nil {
 		return ImportResult{}, err
 	} else {
-		result.Artifacts = append(result.Artifacts, hookArtifacts...)
 		result.Warnings = append(result.Warnings, warnings...)
 		if len(hookBody) > 0 {
 			if entrypoint, ok := inferClaudeEntrypoint(hookBody); ok && result.Launcher == nil {
@@ -101,8 +106,17 @@ func (claudeAdapter) Import(root string, seed ImportSeed) (ImportResult, error) 
 				}
 			} else if ok {
 				result.Launcher.Entrypoint = entrypoint
+			} else {
+				result.DroppedKinds = append(result.DroppedKinds, "hooks")
+				result.Warnings = append(result.Warnings, pluginmodel.Warning{
+					Kind:    pluginmodel.WarningFidelity,
+					Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
+					Message: "Claude hooks were omitted from canonical package-standard import because their commands do not map to launcher.yaml entrypoint semantics",
+				})
+				hookArtifacts = nil
 			}
 		}
+		result.Artifacts = append(result.Artifacts, hookArtifacts...)
 	}
 
 	if copied, warnings, err := importClaudeComponentRefs(root, "commands", filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "commands"), pluginManifest.CommandsOverride, pluginManifest.CommandsRefs); err != nil {
@@ -427,6 +441,31 @@ func importClaudeComponentRefs(root, kind, dstRoot string, overridden bool, refs
 		Kind:    pluginmodel.WarningFidelity,
 		Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
 		Message: fmt.Sprintf("custom Claude %s paths were normalized into canonical package-standard layout", kind),
+	}}, nil
+}
+
+func importClaudePortableSkills(root string, manifest importedClaudePluginManifest) ([]pluginmodel.Artifact, []pluginmodel.Warning, error) {
+	if !manifest.SkillsOverride {
+		if !fileExists(filepath.Join(root, "skills")) {
+			return nil, nil, nil
+		}
+		artifacts, err := copyArtifactsFromRefs(root, []string{"skills"}, "skills")
+		if err != nil {
+			return nil, nil, err
+		}
+		return artifacts, nil, nil
+	}
+	if len(manifest.SkillsRefs) == 0 {
+		return nil, nil, nil
+	}
+	artifacts, err := copyArtifactsFromRefs(root, manifest.SkillsRefs, "skills")
+	if err != nil {
+		return nil, nil, err
+	}
+	return artifacts, []pluginmodel.Warning{{
+		Kind:    pluginmodel.WarningFidelity,
+		Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
+		Message: "custom Claude skills paths were normalized into canonical package-standard layout",
 	}}, nil
 }
 

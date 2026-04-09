@@ -41,10 +41,11 @@ type ImportSeed struct {
 }
 
 type ImportResult struct {
-	Manifest  pluginmodel.Manifest
-	Launcher  *pluginmodel.Launcher
-	Artifacts []pluginmodel.Artifact
-	Warnings  []pluginmodel.Warning
+	Manifest     pluginmodel.Manifest
+	Launcher     *pluginmodel.Launcher
+	Artifacts    []pluginmodel.Artifact
+	Warnings     []pluginmodel.Warning
+	DroppedKinds []string
 }
 
 type Adapter interface {

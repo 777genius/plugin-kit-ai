@@ -729,6 +729,8 @@ type importedClaudePluginManifest struct {
 	Name               string
 	Version            string
 	Description        string
+	SkillsRefs         []string
+	SkillsOverride     bool
 	CommandsRefs       []string
 	CommandsOverride   bool
 	AgentsRefs         []string
@@ -801,6 +803,16 @@ func readImportedClaudePluginManifest(root string) (importedClaudePluginManifest
 	}
 	if value, ok := raw["description"].(string); ok {
 		out.Description = strings.TrimSpace(value)
+	}
+	if value, ok := raw["skills"]; ok {
+		out.SkillsOverride = true
+		refs, _, handled, warning := decodeClaudePathField(value)
+		if handled {
+			out.SkillsRefs = refs
+		} else if warning != "" {
+			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "skills", warning))
+		}
+		delete(raw, "skills")
 	}
 	if value, ok := raw["commands"]; ok {
 		out.CommandsOverride = true

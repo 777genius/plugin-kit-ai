@@ -12,6 +12,8 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
 )
 
+// Render workflow characterization.
+
 func TestRender_RendersVersionIntoEveryNativeManifest(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "codex-runtime", "go", "demo plugin", true)
@@ -442,6 +444,8 @@ func TestRender_CanonicalSrcLayoutWithLauncherKeepsRootReadmeShort(t *testing.T)
 	}
 }
 
+// Layout and discovery workflow characterization.
+
 func TestDiscover_RejectsMixedAuthoredLayout(t *testing.T) {
 	root := t.TempDir()
 	mustWritePluginFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
@@ -462,6 +466,58 @@ targets:
 		t.Fatalf("expected mixed authored layout error, got %v", err)
 	}
 }
+
+func TestLoad_RejectsRootAuthoredLayout(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, "plugin.yaml", `api_version: v1
+name: "demo"
+version: "0.1.0"
+description: "demo"
+targets:
+  - "cursor"
+`)
+
+	_, err := Load(root)
+	if err == nil || !strings.Contains(err.Error(), "unsupported authored layout: move manual plugin sources into src/") {
+		t.Fatalf("Load error = %v", err)
+	}
+}
+
+func TestSave_ReportsFacadePluginPathOnOverwrite(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "cursor", "", "demo plugin", false)
+	if err := Save(root, manifest, false); err != nil {
+		t.Fatal(err)
+	}
+	err := Save(root, manifest, false)
+	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite existing file plugin.yaml") {
+		t.Fatalf("Save error = %v", err)
+	}
+	if strings.Contains(err.Error(), "src/plugin.yaml") {
+		t.Fatalf("Save error leaked internal layout path: %v", err)
+	}
+}
+
+func TestSaveLauncher_ReportsFacadeLauncherPathOnOverwrite(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo", "claude", "go", "demo plugin", true)
+	if err := Save(root, manifest, false); err != nil {
+		t.Fatal(err)
+	}
+	launcher := DefaultLauncher("demo", "go")
+	if err := SaveLauncher(root, launcher, false); err != nil {
+		t.Fatal(err)
+	}
+	err := SaveLauncher(root, launcher, false)
+	if err == nil || !strings.Contains(err.Error(), "refusing to overwrite existing file launcher.yaml") {
+		t.Fatalf("SaveLauncher error = %v", err)
+	}
+	if strings.Contains(err.Error(), "src/launcher.yaml") {
+		t.Fatalf("SaveLauncher error leaked internal layout path: %v", err)
+	}
+}
+
+// Import workflow characterization.
 
 func TestImport_OpenCodeNativeLayout(t *testing.T) {
 	root := t.TempDir()
@@ -2368,6 +2424,8 @@ func TestImport_RejectsLegacyInternalProjectManifest(t *testing.T) {
 	}
 }
 
+// Analyze and parse workflow characterization.
+
 func TestAnalyze_RejectsRemovedSchemaVersionField(t *testing.T) {
 	body := []byte(`
 schema_version: 1
@@ -2551,6 +2609,8 @@ components:
 		t.Fatalf("error = %q", err)
 	}
 }
+
+// Inspect workflow characterization.
 
 func TestInspect_ReturnsTargetCoverage(t *testing.T) {
 	root := t.TempDir()
@@ -2826,6 +2886,153 @@ func TestImport_RejectsLegacyCodexSource(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `unsupported import source "codex"`) {
 		t.Fatalf("Import error = %v", err)
 	}
+}
+
+func TestInspectSource_LocalClaudePluginReportsDegradedCrossTargetCompatibility(t *testing.T) {
+	root := t.TempDir()
+	mustWritePluginFile(t, root, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"beads","version":"1.0.0","description":"demo","skills":"./skills/"}`)
+	mustWritePluginFile(t, root, filepath.Join("skills", "beads", "SKILL.md"), "---\nname: beads\ndescription: demo\n---\n# Beads\n")
+	mustWritePluginFile(t, root, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"./bin/demo SessionStart"}]}]}}`)
+	mustWritePluginFile(t, root, filepath.Join("commands", "sync.md"), "# sync\n")
+	mustWritePluginFile(t, root, filepath.Join("agents", "task-agent.md"), "# task agent\n")
+
+	report, warnings, err := InspectSourceRef(root, "claude", "all", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) < 1 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if report.ImportSource != "claude" {
+		t.Fatalf("import source = %q", report.ImportSource)
+	}
+	if got := compatStatusForTarget(report.Compatibility, "claude"); got != CompatibilityFull {
+		t.Fatalf("claude compatibility = %s", got)
+	}
+	if got := compatStatusForTarget(report.Compatibility, "codex-package"); got != CompatibilityPartial {
+		t.Fatalf("codex-package compatibility = %s", got)
+	}
+	if got := compatStatusForTarget(report.Compatibility, "cursor"); got != CompatibilityPartial {
+		t.Fatalf("cursor compatibility = %s", got)
+	}
+	codex := compatForTarget(report.Compatibility, "codex-package")
+	if !slices.Contains(codex.SupportedKinds, "skills") {
+		t.Fatalf("codex supported kinds = %+v", codex.SupportedKinds)
+	}
+	for _, want := range []string{"agents", "commands", "hooks"} {
+		if !slices.Contains(codex.UnsupportedKinds, want) {
+			t.Fatalf("codex unsupported kinds = %+v, want %s", codex.UnsupportedKinds, want)
+		}
+	}
+}
+
+func TestImportFromSource_LocalClaudePluginWritesPackageStandardLayout(t *testing.T) {
+	sourceRoot := t.TempDir()
+	destRoot := t.TempDir()
+	mustWritePluginFile(t, sourceRoot, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"beads","version":"1.0.0","description":"demo","skills":"./skills/"}`)
+	mustWritePluginFile(t, sourceRoot, filepath.Join("skills", "beads", "SKILL.md"), "---\nname: beads\ndescription: demo\n---\n# Beads\n")
+	mustWritePluginFile(t, sourceRoot, filepath.Join("hooks", "hooks.json"), `{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"./bin/demo Stop"}]}]}}`)
+
+	manifest, warnings, err := ImportFromSource(destRoot, sourceRoot, "claude", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) < 1 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if manifest.Name != "beads" {
+		t.Fatalf("manifest name = %q", manifest.Name)
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "launcher.yaml"),
+		filepath.Join("src", "skills", "beads", "SKILL.md"),
+		filepath.Join("src", "targets", "claude", "hooks", "hooks.json"),
+	} {
+		if _, err := os.Stat(filepath.Join(destRoot, rel)); err != nil {
+			t.Fatalf("expected %s: %v", rel, err)
+		}
+	}
+}
+
+func TestInspectSource_LocalClaudePluginWithInlineUnmappableHooksReportsPartialClaudeCompatibility(t *testing.T) {
+	sourceRoot := t.TempDir()
+	mustWritePluginFile(t, sourceRoot, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"beads","version":"1.0.0","description":"demo","hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bd prime"}]}]}}`)
+	mustWritePluginFile(t, sourceRoot, filepath.Join("skills", "beads", "SKILL.md"), "---\nname: beads\ndescription: demo\n---\n# Beads\n")
+	mustWritePluginFile(t, sourceRoot, filepath.Join("commands", "sync.md"), "# sync\n")
+	mustWritePluginFile(t, sourceRoot, filepath.Join("agents", "task-agent.md"), "# task agent\n")
+
+	report, warnings, err := InspectSourceRef(sourceRoot, "claude", "all", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) < 1 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	if !slices.Contains(report.DroppedKinds, "hooks") {
+		t.Fatalf("dropped kinds = %+v", report.DroppedKinds)
+	}
+	claude := compatForTarget(report.Compatibility, "claude")
+	if claude.Status != CompatibilityPartial {
+		t.Fatalf("claude compatibility = %+v", claude)
+	}
+	for _, want := range []string{"skills", "commands", "agents"} {
+		if !slices.Contains(claude.SupportedKinds, want) {
+			t.Fatalf("claude supported kinds = %+v, want %s", claude.SupportedKinds, want)
+		}
+	}
+	if !slices.Contains(claude.UnsupportedKinds, "hooks") {
+		t.Fatalf("claude unsupported kinds = %+v", claude.UnsupportedKinds)
+	}
+}
+
+func TestImportFromSource_LocalClaudePluginWithInlineUnmappableHooksKeepsPackageOnlySurfaces(t *testing.T) {
+	sourceRoot := t.TempDir()
+	destRoot := t.TempDir()
+	mustWritePluginFile(t, sourceRoot, filepath.Join(".claude-plugin", "plugin.json"), `{"name":"beads","version":"1.0.0","description":"demo","hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"bd prime"}]}]}}`)
+	mustWritePluginFile(t, sourceRoot, filepath.Join("skills", "beads", "SKILL.md"), "---\nname: beads\ndescription: demo\n---\n# Beads\n")
+	mustWritePluginFile(t, sourceRoot, filepath.Join("commands", "sync.md"), "# sync\n")
+	mustWritePluginFile(t, sourceRoot, filepath.Join("agents", "task-agent.md"), "# task agent\n")
+
+	manifest, warnings, err := ImportFromSource(destRoot, sourceRoot, "claude", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Name != "beads" {
+		t.Fatalf("manifest name = %q", manifest.Name)
+	}
+	if len(warnings) < 1 {
+		t.Fatalf("warnings = %+v", warnings)
+	}
+	for _, rel := range []string{
+		filepath.Join("src", "plugin.yaml"),
+		filepath.Join("src", "skills", "beads", "SKILL.md"),
+		filepath.Join("src", "targets", "claude", "commands", "sync.md"),
+		filepath.Join("src", "targets", "claude", "agents", "task-agent.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(destRoot, rel)); err != nil {
+			t.Fatalf("expected %s: %v", rel, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(destRoot, "src", "targets", "claude", "hooks", "hooks.json")); !os.IsNotExist(err) {
+		t.Fatalf("hooks import err = %v, want not exists", err)
+	}
+	if _, err := os.Stat(filepath.Join(destRoot, "src", "launcher.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("launcher import err = %v, want not exists", err)
+	}
+}
+
+func compatStatusForTarget(items []SourceCompatibility, target string) CompatibilityStatus {
+	return compatForTarget(items, target).Status
+}
+
+func compatForTarget(items []SourceCompatibility, target string) SourceCompatibility {
+	for _, item := range items {
+		if item.Target == target {
+			return item
+		}
+	}
+	return SourceCompatibility{}
 }
 
 func containsWarning(warnings []Warning, needle string) bool {

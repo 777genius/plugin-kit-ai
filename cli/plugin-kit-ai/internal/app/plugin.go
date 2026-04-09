@@ -1,6 +1,10 @@
 package app
 
-import "github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+import (
+	"strings"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+)
 
 type PluginGenerateOptions struct {
 	Root   string
@@ -10,6 +14,7 @@ type PluginGenerateOptions struct {
 
 type PluginImportOptions struct {
 	Root             string
+	Source           string
 	From             string
 	Force            bool
 	IncludeUserScope bool
@@ -23,6 +28,13 @@ type PluginNormalizeOptions struct {
 type PluginInspectOptions struct {
 	Root   string
 	Target string
+}
+
+type PluginCompatOptions struct {
+	Source           string
+	From             string
+	Target           string
+	IncludeUserScope bool
 }
 
 type PluginService struct{}
@@ -49,6 +61,13 @@ func (PluginService) Generate(opts PluginGenerateOptions) ([]string, error) {
 }
 
 func (PluginService) Import(opts PluginImportOptions) ([]pluginmanifest.Warning, error) {
+	if strings.TrimSpace(opts.Source) != "" {
+		_, warnings, err := pluginmanifest.ImportFromSource(opts.Root, opts.Source, opts.From, opts.Force, opts.IncludeUserScope)
+		if err != nil {
+			return warnings, err
+		}
+		return warnings, nil
+	}
 	_, warnings, err := pluginmanifest.Import(opts.Root, opts.From, opts.Force, opts.IncludeUserScope)
 	if err != nil {
 		return warnings, err
@@ -62,4 +81,8 @@ func (PluginService) Normalize(opts PluginNormalizeOptions) ([]pluginmanifest.Wa
 
 func (PluginService) Inspect(opts PluginInspectOptions) (pluginmanifest.Inspection, []pluginmanifest.Warning, error) {
 	return pluginmanifest.Inspect(opts.Root, opts.Target)
+}
+
+func (PluginService) Compat(opts PluginCompatOptions) (pluginmanifest.SourceInspection, []pluginmanifest.Warning, error) {
+	return pluginmanifest.InspectSourceRef(opts.Source, opts.From, opts.Target, opts.IncludeUserScope)
 }
