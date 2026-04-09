@@ -14,6 +14,8 @@ import (
 
 const atlassianCatalogLiveEnvVar = "PLUGIN_KIT_AI_RUN_ATLASSIAN_LIVE"
 const atlassianCatalogDirEnvVar = "PLUGIN_KIT_AI_E2E_ATLASSIAN_DIR"
+const atlassianCatalogServerName = "atlassian"
+const atlassianCatalogServerURL = "https://mcp.atlassian.com/v1/mcp"
 
 func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	if strings.TrimSpace(os.Getenv(atlassianCatalogLiveEnvVar)) != "1" {
@@ -23,6 +25,9 @@ func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 	pluginDir := resolveAtlassianCatalogPluginDir(t)
 	pluginKitAIBin := buildPluginKitAI(t)
 	assertAtlassianCatalogRenderedAndValid(t, pluginKitAIBin, pluginDir)
+
+	server := readRenderedSharedMCPServer(t, pluginDir, atlassianCatalogServerName)
+	assertAtlassianRenderedServer(t, server)
 
 	t.Run("Claude_plugin_dir_list_and_mcp_status", func(t *testing.T) {
 		claudeBin := installedClaudeBinaryOrSkip(t)
@@ -53,18 +58,13 @@ func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 			}
 			t.Fatalf("claude mcp list with --plugin-dir: %v\n%s", err, mcpListOut)
 		}
-		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:atlassian:atlassian:", "mcp.atlassian.com")
+		assertClaudeRemoteCatalogStatus(t, string(mcpListOut), "plugin:atlassian:atlassian:", atlassianCatalogServerURL)
 	})
 
 	t.Run("Codex_get_and_list_rendered_remote_server", func(t *testing.T) {
 		codexBin := installedCodexBinaryOrSkip(t)
-		server := readRenderedSharedMCPServer(t, pluginDir, "atlassian")
-		url := strings.TrimSpace(fmt.Sprint(server["url"]))
-		if url == "" {
-			t.Fatalf("generated atlassian server missing url: %#v", server)
-		}
 
-		getCmd := exec.Command(codexBin, "mcp", "get", "atlassian", "--json", "-c", fmt.Sprintf("mcp_servers.atlassian.url=%q", url))
+		getCmd := exec.Command(codexBin, "mcp", "get", atlassianCatalogServerName, "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", atlassianCatalogServerName, atlassianCatalogServerURL))
 		getOut, err := getCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp get atlassian: %v\n%s", err, getOut)
@@ -79,11 +79,11 @@ func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(getOut, &getDoc); err != nil {
 			t.Fatalf("parse codex mcp get atlassian: %v\n%s", err, getOut)
 		}
-		if getDoc.Name != "atlassian" || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != url {
+		if getDoc.Name != atlassianCatalogServerName || getDoc.Transport.Type != "streamable_http" || strings.TrimSpace(getDoc.Transport.URL) != atlassianCatalogServerURL {
 			t.Fatalf("unexpected codex mcp get atlassian output:\n%s", getOut)
 		}
 
-		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.atlassian.url=%q", url))
+		listCmd := exec.Command(codexBin, "mcp", "list", "--json", "-c", fmt.Sprintf("mcp_servers.%s.url=%q", atlassianCatalogServerName, atlassianCatalogServerURL))
 		listOut, err := listCmd.CombinedOutput()
 		if err != nil {
 			t.Fatalf("codex mcp list atlassian: %v\n%s", err, listOut)
@@ -99,7 +99,7 @@ func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 		if err := json.Unmarshal(listOut, &listDoc); err != nil {
 			t.Fatalf("parse codex mcp list atlassian: %v\n%s", err, listOut)
 		}
-		assertCodexRemoteCatalogEntry(t, listDoc, "atlassian", url)
+		assertCodexRemoteCatalogEntry(t, listDoc, atlassianCatalogServerName, atlassianCatalogServerURL)
 	})
 
 	t.Run("Gemini_extension_validate_link_and_list", func(t *testing.T) {
@@ -190,6 +190,19 @@ func TestAtlassianCatalogLiveAcrossInstalledAgents(t *testing.T) {
 			<-waitCh
 		}
 	})
+}
+
+func assertAtlassianRenderedServer(t *testing.T, server map[string]any) {
+	t.Helper()
+	if got := anyString(server["type"]); got != "http" {
+		t.Fatalf("generated atlassian .mcp.json type = %q want http:\n%v", got, server)
+	}
+	if got := anyString(server["url"]); got != atlassianCatalogServerURL {
+		t.Fatalf("generated atlassian .mcp.json url = %q want %s:\n%v", got, atlassianCatalogServerURL, server)
+	}
+	if _, ok := server["headers"]; ok {
+		t.Fatalf("generated atlassian .mcp.json should not embed headers:\n%v", server)
+	}
 }
 
 func resolveAtlassianCatalogPluginDir(t *testing.T) string {
