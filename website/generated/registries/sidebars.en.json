@@ -88,7 +88,7 @@
           "link": "/en/guide/bundle-handoff"
         },
         {
-          "text": "Packages And Integration Setup",
+          "text": "Package And Workspace Targets",
           "link": "/en/guide/package-and-workspace-targets"
         },
         {
@@ -124,11 +124,11 @@
           "link": "/en/concepts/why-plugin-kit-ai"
         },
         {
-          "text": "How plugin-kit-ai Works",
+          "text": "Managed Project Model",
           "link": "/en/concepts/managed-project-model"
         },
         {
-          "text": "Project Source And Outputs",
+          "text": "Authoring Architecture",
           "link": "/en/concepts/authoring-architecture"
         }
       ]

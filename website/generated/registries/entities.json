@@ -1637,8 +1637,8 @@
     "kind": "page",
     "surface": "concepts",
     "localeStrategy": "mirrored",
-    "title": "Project Source And Outputs",
-    "summary": "How authored files, generated outputs, strict validation, and handoff fit together in plugin-kit-ai.",
+    "title": "Authoring Architecture",
+    "summary": "How the project source, generate, validation, targets, and handoff fit together in plugin-kit-ai.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1648,7 +1648,7 @@
     "pathRu": "/ru/concepts/authoring-architecture",
     "relatedIds": [],
     "searchTerms": [
-      "Project Source And Outputs"
+      "Authoring Architecture"
     ]
   },
   {
@@ -1676,7 +1676,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Concepts",
-    "summary": "The mental model behind plugin-kit-ai: why it exists, how one repo works, how targets differ, and where policy starts to matter.",
+    "summary": "Core concepts behind plugin-kit-ai.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1694,8 +1694,8 @@
     "kind": "page",
     "surface": "concepts",
     "localeStrategy": "mirrored",
-    "title": "How plugin-kit-ai Works",
-    "summary": "How one repo stays the source of truth while you generate outputs, validate strictly, and hand off a clean result.",
+    "title": "Managed Project Model",
+    "summary": "The core product model behind plugin-kit-ai: one authored repo, generated outputs, strict validation, and honest path boundaries.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1705,7 +1705,7 @@
     "pathRu": "/ru/concepts/managed-project-model",
     "relatedIds": [],
     "searchTerms": [
-      "How plugin-kit-ai Works"
+      "Managed Project Model"
     ]
   },
   {
@@ -1733,7 +1733,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Target Model",
-    "summary": "How runtime, package, extension, and repo-owned integration outputs differ, and how to choose the right path.",
+    "summary": "How plugin-kit-ai divides runtime, package, extension, and repo-managed integration lanes.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1752,7 +1752,7 @@
     "surface": "concepts",
     "localeStrategy": "mirrored",
     "title": "Why plugin-kit-ai",
-    "summary": "What problem plugin-kit-ai solves, who it fits, and when it is the wrong tool.",
+    "summary": "What problem plugin-kit-ai solves, who it is for, and when it is the wrong tool.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1941,8 +1941,8 @@
     "kind": "page",
     "surface": "guide",
     "localeStrategy": "mirrored",
-    "title": "Guides",
-    "summary": "Start fast, then expand carefully: quickstart, first plugin, target choice, and how one repo grows over time.",
+    "title": "Guide",
+    "summary": "Start here for public plugin-kit-ai guides.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -1952,7 +1952,7 @@
     "pathRu": "/ru/guide/",
     "relatedIds": [],
     "searchTerms": [
-      "Guides"
+      "Guide"
     ]
   },
   {
@@ -1999,7 +1999,7 @@
     "surface": "guide",
     "localeStrategy": "mirrored",
     "title": "One Project, Multiple Targets",
-    "summary": "How to decide when one repo should grow to more outputs, when it should stay narrow, and when it is time to split.",
+    "summary": "How one plugin repo can grow into more supported outputs without splitting into separate setups.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2017,8 +2017,8 @@
     "kind": "page",
     "surface": "guide",
     "localeStrategy": "mirrored",
-    "title": "Packages And Integration Setup",
-    "summary": "When packaging or checked-in integration setup is the right answer instead of an executable runtime plugin.",
+    "title": "Package And Workspace Targets",
+    "summary": "How to use package, extension, and repo-owned integration setup without confusing them with executable runtime paths.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2028,7 +2028,7 @@
     "pathRu": "/ru/guide/package-and-workspace-targets",
     "relatedIds": [],
     "searchTerms": [
-      "Packages And Integration Setup"
+      "Package And Workspace Targets"
     ]
   },
   {
@@ -2132,7 +2132,7 @@
     "surface": "guide",
     "localeStrategy": "mirrored",
     "title": "What You Can Build",
-    "summary": "Use this page as the product map: what outputs exist, what the default start looks like, and how one repo can expand later.",
+    "summary": "A broad public overview of how one plugin repo can grow into multiple delivery lanes.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2189,7 +2189,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "FAQ",
-    "summary": "Short answers to the questions teams ask most often when starting and scaling plugin-kit-ai repos.",
+    "summary": "Common questions about choosing paths, wrappers, targets, and authoring flows.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2208,7 +2208,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Glossary",
-    "summary": "Short definitions for the public terms used across plugin-kit-ai docs.",
+    "summary": "Canonical terms used across the public plugin-kit-ai documentation.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2227,7 +2227,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Reference",
-    "summary": "Exact answers about installation, support, compatibility, and healthy repo expectations.",
+    "summary": "Reference material for install channels, contracts, and support maps.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2303,7 +2303,7 @@
     "surface": "reference",
     "localeStrategy": "mirrored",
     "title": "Troubleshooting",
-    "summary": "Fast recovery steps for the most common install, generate, validate, and bootstrap problems.",
+    "summary": "The most common failure modes when installing, generating, validating, or bootstrapping plugin-kit-ai projects.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
@@ -2341,7 +2341,7 @@
     "surface": "releases",
     "localeStrategy": "mirrored",
     "title": "Releases",
-    "summary": "What changed for users in each public release, why it matters, and what to update next.",
+    "summary": "Public release history for plugin-kit-ai.",
     "stability": "public-stable",
     "maturity": "stable",
     "publicVisibility": "public",
