@@ -151,10 +151,12 @@ type NativeObjectRef struct {
 type TargetInstallation struct {
 	TargetID                TargetID                     `json:"target_id"`
 	DeliveryKind            DeliveryKind                 `json:"delivery_kind"`
+	CapabilitySurface       []string                     `json:"capability_surface,omitempty"`
 	State                   InstallState                 `json:"state"`
 	NativeRef               string                       `json:"native_ref,omitempty"`
 	ActivationState         ActivationState              `json:"activation_state,omitempty"`
 	InteractiveAuthState    string                       `json:"interactive_auth_state,omitempty"`
+	CatalogPolicy           *CatalogPolicySnapshot       `json:"catalog_policy,omitempty"`
 	EnvironmentRestrictions []EnvironmentRestrictionCode `json:"environment_restrictions,omitempty"`
 	SourceAccessState       string                       `json:"source_access_state,omitempty"`
 	OwnedNativeObjects      []NativeObjectRef            `json:"owned_native_objects,omitempty"`
@@ -199,6 +201,7 @@ type Report struct {
 type TargetReport struct {
 	TargetID                 string   `json:"target"`
 	DeliveryKind             string   `json:"delivery_kind,omitempty"`
+	CapabilitySurface        []string `json:"capability_surface,omitempty"`
 	ActionClass              string   `json:"action_class,omitempty"`
 	State                    string   `json:"state,omitempty"`
 	ActivationState          string   `json:"activation_state,omitempty"`
@@ -206,6 +209,7 @@ type TargetReport struct {
 	RestartRequired          bool     `json:"restart_required,omitempty"`
 	ReloadRequired           bool     `json:"reload_required,omitempty"`
 	NewThreadRequired        bool     `json:"new_thread_required,omitempty"`
+	CatalogPolicy            *CatalogPolicySnapshot `json:"catalog_policy,omitempty"`
 	EnvironmentRestrictions  []string `json:"environment_restrictions,omitempty"`
 	VolatileOverrideDetected bool     `json:"volatile_override_detected,omitempty"`
 	TrustResolutionSource    string   `json:"trust_resolution_source,omitempty"`

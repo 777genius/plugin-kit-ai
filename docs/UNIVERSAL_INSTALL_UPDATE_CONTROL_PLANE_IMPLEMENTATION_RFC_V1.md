@@ -950,7 +950,7 @@ V1 should implement:
 - config and plugin-directory projection
 - precedence-aware inspect
 - JSONC-safe patching
-- managed and remote layer blocking
+- managed-layer blocking and remote-layer non-ownership
 
 ## Report Contract
 

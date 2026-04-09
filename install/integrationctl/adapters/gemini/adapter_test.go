@@ -63,16 +63,9 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply install: %v", err)
 	}
-	if len(runner.commands) != 1 {
-		t.Fatalf("commands = %+v", runner.commands)
-	}
-	got := runner.commands[0].Argv
-	if len(got) != 4 || !equalStrings(got[:3], []string{"gemini", "extensions", "install"}) {
-		t.Fatalf("argv = %#v", got)
-	}
 	managedRoot := filepath.Join(home, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo")
-	if got[3] != managedRoot {
-		t.Fatalf("install path = %q, want %q", got[3], managedRoot)
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for local projection install", runner.commands)
 	}
 	manifestBody, err := os.ReadFile(filepath.Join(managedRoot, "gemini-extension.json"))
 	if err != nil {
@@ -109,6 +102,9 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(managedRoot, "agents", "reviewer.md")); err != nil {
 		t.Fatalf("stat agents: %v", err)
 	}
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json")); err != nil {
+		t.Fatalf("stat projected extension config: %v", err)
+	}
 	servers, _ := doc["mcpServers"].(map[string]any)
 	if docs, _ := servers["docs"].(map[string]any); docs["httpUrl"] != "https://example.com/mcp" {
 		t.Fatalf("docs projection = %#v", servers["docs"])
@@ -126,6 +122,9 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	}
 	if got := result.AdapterMetadata["materialized_source_root"]; got != managedRoot {
 		t.Fatalf("materialized_source_root = %#v, want %q", got, managedRoot)
+	}
+	if got := result.AdapterMetadata["install_mode"]; got != "local_projection" {
+		t.Fatalf("install_mode = %#v, want %q", got, "local_projection")
 	}
 }
 
@@ -165,6 +164,7 @@ func TestApplyUpdateUsesGeminiUpdate(t *testing.T) {
 	writeGeminiFile(t, filepath.Join(sourceRoot, "src", "targets", "gemini", "package.yaml"), "context_file_name: \"GEMINI.md\"\n")
 	writeGeminiFile(t, filepath.Join(sourceRoot, "src", "targets", "gemini", "contexts", "GEMINI.md"), "# Updated\n")
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".env"), "RELEASE_PROFILE=prod\n")
 
 	result, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{
 		Manifest: domain.IntegrationManifest{
@@ -190,25 +190,33 @@ func TestApplyUpdateUsesGeminiUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply update: %v", err)
 	}
-	want := []string{"gemini", "extensions", "update", "gemini-demo"}
-	if got := runner.commands[0].Argv; !equalStrings(got, want) {
-		t.Fatalf("argv = %#v, want %#v", got, want)
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for local projection update", runner.commands)
 	}
 	body, err := os.ReadFile(filepath.Join(home, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo", "GEMINI.md"))
 	if err != nil || !strings.Contains(string(body), "Updated") {
 		t.Fatalf("materialized root not refreshed: %v %q", err, body)
+	}
+	projected, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "GEMINI.md"))
+	if err != nil || !strings.Contains(string(projected), "Updated") {
+		t.Fatalf("projected extension dir not refreshed: %v %q", err, projected)
+	}
+	dotenv, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".env"))
+	if err != nil || !strings.Contains(string(dotenv), "RELEASE_PROFILE=prod") {
+		t.Fatalf("projected .env not preserved: %v %q", err, dotenv)
 	}
 	if result.State != domain.InstallInstalled {
 		t.Fatalf("result = %+v", result)
 	}
 }
 
-func TestApplyRemoveUsesGeminiUninstall(t *testing.T) {
+func TestApplyRemoveUsesGeminiLocalProjectionCleanup(t *testing.T) {
 	t.Parallel()
 	runner := &stubRunner{}
 	root := t.TempDir()
 	managedRoot := filepath.Join(root, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo")
 	writeGeminiFile(t, filepath.Join(managedRoot, "gemini-extension.json"), "{}\n")
+	writeGeminiFile(t, filepath.Join(root, ".gemini", "extensions", "gemini-demo", "gemini-extension.json"), "{}\n")
 	adapter := Adapter{Runner: runner, UserHome: root}
 
 	result, err := adapter.ApplyRemove(context.Background(), ports.ApplyInput{
@@ -218,6 +226,7 @@ func TestApplyRemoveUsesGeminiUninstall(t *testing.T) {
 				domain.TargetGemini: {
 					TargetID: domain.TargetGemini,
 					AdapterMetadata: map[string]any{
+						"install_mode":            "local_projection",
 						"materialized_source_root": managedRoot,
 					},
 				},
@@ -227,15 +236,113 @@ func TestApplyRemoveUsesGeminiUninstall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply remove: %v", err)
 	}
-	want := []string{"gemini", "extensions", "uninstall", "gemini-demo"}
-	if got := runner.commands[0].Argv; !equalStrings(got, want) {
-		t.Fatalf("argv = %#v, want %#v", got, want)
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for local projection remove", runner.commands)
 	}
 	if result.State != domain.InstallRemoved {
 		t.Fatalf("result = %+v", result)
 	}
 	if _, err := os.Stat(managedRoot); !os.IsNotExist(err) {
 		t.Fatalf("managed root still exists: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".gemini", "extensions", "gemini-demo")); !os.IsNotExist(err) {
+		t.Fatalf("extension dir still exists: %v", err)
+	}
+}
+
+func TestInspectReturnsDisabledWhenSettingsDisableExtension(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json"), "{}\n")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "settings.json"), "{\n  \"extensions\": {\n    \"disabled\": [\"gemini-demo\"]\n  }\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+		},
+		Scope: "user",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallDisabled {
+		t.Fatalf("state = %s, want disabled", inspect.State)
+	}
+}
+
+func TestApplyDisableUsesNativeGeminiDisable(t *testing.T) {
+	t.Parallel()
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, UserHome: t.TempDir()}
+
+	result, err := adapter.ApplyDisable(context.Background(), ports.ApplyInput{
+		Record: &domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetGemini: {TargetID: domain.TargetGemini},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply disable: %v", err)
+	}
+	want := []string{"gemini", "extensions", "disable", "gemini-demo", "--scope", "workspace"}
+	if got := runner.commands[0].Argv; !equalStrings(got, want) {
+		t.Fatalf("argv = %#v, want %#v", got, want)
+	}
+	if result.State != domain.InstallDisabled {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestPlanInstallBlocksGitSourceWhenSecurityBlocksGitExtensions(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "settings.json"), "{\n  \"security\": {\n    \"blockGitExtensions\": true\n  }\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	plan, err := adapter.PlanInstall(context.Background(), ports.PlanInstallInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "gemini-demo",
+			RequestedRef:  domain.RequestedSourceRef{Kind: "git_url", Value: "https://github.com/acme/demo.git"},
+		},
+		Policy: domain.InstallPolicy{Scope: "user"},
+	})
+	if err != nil {
+		t.Fatalf("plan install: %v", err)
+	}
+	if !plan.Blocking {
+		t.Fatal("expected blocking plan")
+	}
+	if !strings.Contains(strings.Join(plan.ManualSteps, "\n"), "blockGitExtensions") {
+		t.Fatalf("manual steps = %#v", plan.ManualSteps)
+	}
+}
+
+func TestPlanInstallAllowedExtensionsOverridesBlockGitExtensions(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "settings.json"), "{\n  \"security\": {\n    \"blockGitExtensions\": true,\n    \"allowedExtensions\": [\"^https://github\\\\.com/acme/demo\\\\.git$\"]\n  }\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	plan, err := adapter.PlanInstall(context.Background(), ports.PlanInstallInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "gemini-demo",
+			RequestedRef:  domain.RequestedSourceRef{Kind: "git_url", Value: "https://github.com/acme/demo.git"},
+		},
+		Policy: domain.InstallPolicy{Scope: "user"},
+	})
+	if err != nil {
+		t.Fatalf("plan install: %v", err)
+	}
+	if plan.Blocking {
+		t.Fatalf("plan unexpectedly blocking: %#v", plan.ManualSteps)
 	}
 }
 
@@ -287,11 +394,14 @@ func TestApplyInstallLocalBuildsFromGeneratedGeminiRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("apply install: %v", err)
 	}
-	if got := runner.commands[0].Argv; len(got) != 4 || got[2] != "install" {
-		t.Fatalf("argv = %#v", got)
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for local projection install", runner.commands)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo", "GEMINI.md")); err != nil {
 		t.Fatalf("stat copied root context: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json")); err != nil {
+		t.Fatalf("stat projected extension config: %v", err)
 	}
 }
 
@@ -303,17 +413,16 @@ func TestRunGeminiReturnsMutationErrorOnFailure(t *testing.T) {
 		},
 	}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: t.TempDir()}
-	root := t.TempDir()
-	writeGeminiFile(t, filepath.Join(root, "gemini-extension.json"), "{\"name\":\"gemini-demo\",\"version\":\"0.1.0\",\"description\":\"demo\"}\n")
 
 	_, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
 		Manifest: domain.IntegrationManifest{
 			IntegrationID: "gemini-demo",
 			Version:       "0.1.0",
 			Description:   "demo",
-			RequestedRef:  domain.RequestedSourceRef{Kind: "local_path", Value: root},
+			RequestedRef:  domain.RequestedSourceRef{Kind: "git_url", Value: "https://github.com/acme/demo.git"},
+			ResolvedRef:   domain.ResolvedSourceRef{Kind: "git_commit", Value: "https://github.com/acme/demo.git@abc123"},
 		},
-		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: root},
+		ResolvedSource: &ports.ResolvedSource{Kind: "git_url", LocalPath: t.TempDir()},
 	})
 	var de *domain.Error
 	if !errors.As(err, &de) || de.Code != domain.ErrMutationApply {

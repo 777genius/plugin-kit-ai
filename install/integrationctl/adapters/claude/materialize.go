@@ -32,7 +32,11 @@ func (a Adapter) syncManagedMarketplace(ctx context.Context, manifest domain.Int
 	}()
 	marketplaceName := managedMarketplaceName(manifest.IntegrationID)
 	pluginDir := filepath.Join(tmpRoot, "plugins", manifest.IntegrationID)
-	if fileExists(filepath.Join(root, ".claude-plugin", "plugin.json")) {
+	if fileExists(filepath.Join(root, "src", "plugin.yaml")) {
+		if err := a.materializeAuthoredClaudeSource(ctx, manifest, root, pluginDir); err != nil {
+			return "", "", "", err
+		}
+	} else if fileExists(filepath.Join(root, ".claude-plugin", "plugin.json")) {
 		if err := copyNativeClaudePackage(root, pluginDir); err != nil {
 			return "", "", "", err
 		}

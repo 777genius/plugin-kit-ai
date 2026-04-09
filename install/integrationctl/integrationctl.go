@@ -18,6 +18,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/manifest"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/opencode"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/safemutate"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/source"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/workspacelock"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
@@ -48,6 +49,13 @@ type RemoveParams struct {
 
 type RepairParams struct {
 	Name   string
+	Target string
+	DryRun bool
+}
+
+type ToggleParams struct {
+	Name   string
+	Target string
 	DryRun bool
 }
 
@@ -117,7 +125,31 @@ func Repair(ctx context.Context, p RepairParams) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	report, err := svc.Repair(ctx, usecase.NamedDryRunInput{Name: p.Name, DryRun: p.DryRun})
+	report, err := svc.Repair(ctx, usecase.NamedDryRunInput{Name: p.Name, Target: p.Target, DryRun: p.DryRun})
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{OperationID: report.OperationID, Summary: report.Summary, Report: report}, nil
+}
+
+func Enable(ctx context.Context, p ToggleParams) (Result, error) {
+	svc, err := newService()
+	if err != nil {
+		return Result{}, err
+	}
+	report, err := svc.Enable(ctx, usecase.NamedDryRunInput{Name: p.Name, Target: p.Target, DryRun: p.DryRun})
+	if err != nil {
+		return Result{}, err
+	}
+	return Result{OperationID: report.OperationID, Summary: report.Summary, Report: report}, nil
+}
+
+func Disable(ctx context.Context, p ToggleParams) (Result, error) {
+	svc, err := newService()
+	if err != nil {
+		return Result{}, err
+	}
+	report, err := svc.Disable(ctx, usecase.NamedDryRunInput{Name: p.Name, Target: p.Target, DryRun: p.DryRun})
 	if err != nil {
 		return Result{}, err
 	}
@@ -167,6 +199,7 @@ func newService() (usecase.Service, error) {
 	}
 	repoRoot := discoverRepoRoot(cwd)
 	fs := fsadapter.OS{}
+	mutator := safemutate.OS{}
 	service := usecase.Service{
 		SourceResolver: source.Resolver{Runner: process.OS{}},
 		ManifestLoader: manifest.Loader{},
@@ -193,8 +226,8 @@ func newService() (usecase.Service, error) {
 			domain.TargetClaude:   claude.Adapter{Runner: process.OS{}, FS: fs, ProjectRoot: cwd, UserHome: home},
 			domain.TargetCodex:    codex.Adapter{FS: fs, ProjectRoot: cwd, UserHome: home},
 			domain.TargetGemini:   gemini.Adapter{Runner: process.OS{}, FS: fs, UserHome: home},
-			domain.TargetCursor:   cursor.Adapter{FS: fs, ProjectRoot: cwd, UserHome: home},
-			domain.TargetOpenCode: opencode.Adapter{},
+			domain.TargetCursor:   cursor.Adapter{FS: fs, SafeMutator: mutator, ProjectRoot: cwd, UserHome: home},
+			domain.TargetOpenCode: opencode.Adapter{FS: fs, SafeMutator: mutator, ProjectRoot: cwd, UserHome: home},
 		},
 	}
 	return service, nil

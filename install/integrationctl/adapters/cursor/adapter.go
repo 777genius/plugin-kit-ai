@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/portablemcp"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/safemutate"
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -19,6 +20,7 @@ import (
 
 type Adapter struct {
 	FS          ports.FileSystem
+	SafeMutator ports.SafeFileMutator
 	ProjectRoot string
 	UserHome    string
 }
@@ -39,8 +41,9 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 	}, nil
 }
 
-func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.InspectResult, error) {
+func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
 	config := a.targetConfigPath(in.Scope)
+	observed := []domain.NativeObjectRef{}
 	if in.Record != nil {
 		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
 			config = configPathFromTarget(target, config)
@@ -53,6 +56,40 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	if cmdErr != nil && statErr != nil {
 		restrictions = append(restrictions, domain.RestrictionSourceToolMissing)
 	}
+	if in.Record != nil {
+		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
+			aliases := ownedAliases(target.OwnedNativeObjects)
+			if len(aliases) > 0 && statErr == nil {
+				doc, _, _, err := a.readDocument(ctx, config)
+				if err != nil {
+					return ports.InspectResult{}, err
+				}
+				present := false
+				for _, alias := range aliases {
+					if _, ok := doc[alias]; ok {
+						present = true
+						observed = append(observed, domain.NativeObjectRef{Kind: "cursor_mcp_server", Name: alias, Path: config})
+					}
+				}
+				if present {
+					state = domain.InstallInstalled
+				} else {
+					state = domain.InstallRemoved
+				}
+				return ports.InspectResult{
+					TargetID:                a.ID(),
+					Installed:               present,
+					State:                   state,
+					ActivationState:         domain.ActivationNotRequired,
+					ConfigPrecedenceContext: []string{"project", "global", "parent_discovery"},
+					EnvironmentRestrictions: restrictions,
+					ObservedNativeObjects:   observed,
+					SettingsFiles:           []string{config},
+					EvidenceClass:           domain.EvidenceConfirmed,
+				}, nil
+			}
+		}
+	}
 	if statErr == nil || cmdErr == nil {
 		state = domain.InstallInstalled
 	}
@@ -63,6 +100,7 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 		ActivationState:         domain.ActivationNotRequired,
 		ConfigPrecedenceContext: []string{"project", "global", "parent_discovery"},
 		EnvironmentRestrictions: restrictions,
+		ObservedNativeObjects:   observed,
 		SettingsFiles:           []string{config},
 		EvidenceClass:           domain.EvidenceConfirmed,
 	}, nil
@@ -105,10 +143,20 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	if err != nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "marshal Cursor MCP config", err)
 	}
-	if err := a.fs().WriteFileAtomic(ctx, docPath, body, 0o644); err != nil {
-		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "write Cursor MCP config", err)
-	}
-	if err := a.verifyAliases(ctx, docPath, aliases); err != nil {
+	if _, err := a.mutator().MutateFile(ctx, ports.SafeFileMutationInput{
+		Path: docPath,
+		Mode: 0o644,
+		Build: func(_ []byte, _ bool) ([]byte, error) {
+			return body, nil
+		},
+		ValidateBefore: func(next []byte) error {
+			_, _, err := a.readDocumentBytes(next)
+			return err
+		},
+		ValidateAfter: func(ctx context.Context, path string, _ []byte) error {
+			return a.verifyAliases(ctx, path, aliases)
+		},
+	}); err != nil {
 		if len(originalBody) > 0 {
 			_ = a.fs().WriteFileAtomic(ctx, docPath, originalBody, 0o644)
 		}
@@ -190,10 +238,20 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if err != nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "marshal Cursor MCP config", err)
 	}
-	if err := a.fs().WriteFileAtomic(ctx, docPath, body, 0o644); err != nil {
-		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "write Cursor MCP config", err)
-	}
-	if err := a.verifyMissingAliases(ctx, docPath, aliases); err != nil {
+	if _, err := a.mutator().MutateFile(ctx, ports.SafeFileMutationInput{
+		Path: docPath,
+		Mode: 0o644,
+		Build: func(_ []byte, _ bool) ([]byte, error) {
+			return body, nil
+		},
+		ValidateBefore: func(next []byte) error {
+			_, _, err := a.readDocumentBytes(next)
+			return err
+		},
+		ValidateAfter: func(ctx context.Context, path string, _ []byte) error {
+			return a.verifyMissingAliases(ctx, path, aliases)
+		},
+	}); err != nil {
 		if len(originalBody) > 0 {
 			_ = a.fs().WriteFileAtomic(ctx, docPath, originalBody, 0o644)
 		}
@@ -238,6 +296,13 @@ func (a Adapter) fs() ports.FileSystem {
 		return a.FS
 	}
 	return fsadapter.OS{}
+}
+
+func (a Adapter) mutator() ports.SafeFileMutator {
+	if a.SafeMutator != nil {
+		return a.SafeMutator
+	}
+	return safemutate.OS{}
 }
 
 func (a Adapter) targetConfigPath(scope string) string {
@@ -346,18 +411,26 @@ func (a Adapter) readDocument(ctx context.Context, path string) (map[string]any,
 		}
 		return nil, false, nil, domain.NewError(domain.ErrMutationApply, "read Cursor MCP config", err)
 	}
+	doc, wrapped, err := a.readDocumentBytes(body)
+	if err != nil {
+		return nil, false, nil, err
+	}
+	return doc, wrapped, body, nil
+}
+
+func (a Adapter) readDocumentBytes(body []byte) (map[string]any, bool, error) {
 	doc := map[string]any{}
 	if err := json.Unmarshal(body, &doc); err != nil {
-		return nil, false, nil, domain.NewError(domain.ErrMutationApply, "parse Cursor MCP config", err)
+		return nil, false, domain.NewError(domain.ErrMutationApply, "parse Cursor MCP config", err)
 	}
 	if raw, ok := doc["mcpServers"]; ok {
 		servers, ok := raw.(map[string]any)
 		if !ok {
-			return nil, false, nil, domain.NewError(domain.ErrMutationApply, "Cursor mcpServers must be a JSON object", nil)
+			return nil, false, domain.NewError(domain.ErrMutationApply, "Cursor mcpServers must be a JSON object", nil)
 		}
-		return servers, true, body, nil
+		return servers, true, nil
 	}
-	return doc, false, body, nil
+	return doc, false, nil
 }
 
 func (a Adapter) verifyAliases(ctx context.Context, path string, aliases []string) error {

@@ -88,15 +88,15 @@ func readPluginYAML(root string) (string, []byte, error) {
 func mapTarget(target, name string) (domain.Delivery, error) {
 	switch target {
 	case "claude":
-		return domain.Delivery{TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, Name: name, NativeRefHint: name}, nil
+		return domain.Delivery{TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, Name: name, NativeRefHint: name, CapabilitySurface: []string{"skills", "commands", "agents", "hooks", "mcp"}}, nil
 	case "codex-package":
-		return domain.Delivery{TargetID: domain.TargetCodex, DeliveryKind: domain.DeliveryCodexMarketplace, Name: name, NativeRefHint: name}, nil
+		return domain.Delivery{TargetID: domain.TargetCodex, DeliveryKind: domain.DeliveryCodexMarketplace, Name: name, NativeRefHint: name, CapabilitySurface: []string{"plugin_bundle", "skills", "mcp", "app"}}, nil
 	case "gemini":
-		return domain.Delivery{TargetID: domain.TargetGemini, DeliveryKind: domain.DeliveryGeminiExtension, Name: name, NativeRefHint: name}, nil
+		return domain.Delivery{TargetID: domain.TargetGemini, DeliveryKind: domain.DeliveryGeminiExtension, Name: name, NativeRefHint: name, CapabilitySurface: []string{"contexts", "settings", "themes", "commands", "policies", "hooks", "agents", "skills", "mcp"}}, nil
 	case "cursor":
-		return domain.Delivery{TargetID: domain.TargetCursor, DeliveryKind: domain.DeliveryCursorMCP, Name: name, NativeRefHint: name}, nil
+		return domain.Delivery{TargetID: domain.TargetCursor, DeliveryKind: domain.DeliveryCursorMCP, Name: name, NativeRefHint: name, CapabilitySurface: []string{"mcp"}}, nil
 	case "opencode":
-		return domain.Delivery{TargetID: domain.TargetOpenCode, DeliveryKind: domain.DeliveryOpenCodePlugin, Name: name, NativeRefHint: name}, nil
+		return domain.Delivery{TargetID: domain.TargetOpenCode, DeliveryKind: domain.DeliveryOpenCodePlugin, Name: name, NativeRefHint: name, CapabilitySurface: []string{"plugin", "mcp", "skills", "commands", "agents", "themes", "tools"}}, nil
 	default:
 		return domain.Delivery{}, domain.NewError(domain.ErrUnsupportedTarget, fmt.Sprintf("unsupported integrationctl target: %s", target), nil)
 	}

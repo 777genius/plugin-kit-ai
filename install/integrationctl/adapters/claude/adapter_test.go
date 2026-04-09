@@ -142,6 +142,101 @@ func TestApplyInstallRollbackRemovesMarketplaceWhenPluginInstallFails(t *testing
 	}
 }
 
+func TestPlanInstallBlocksWhenManagedSettingsDisallowMarketplaceAdd(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	writeClaudeFile(t, filepath.Join(home, ".claude", "managed-settings.json"), "{\n  \"strictKnownMarketplaces\": []\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{Scope: "user"})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !containsRestriction(inspect.EnvironmentRestrictions, domain.RestrictionManagedPolicyBlock) {
+		t.Fatalf("expected managed policy block, got %#v", inspect.EnvironmentRestrictions)
+	}
+	plan, err := adapter.PlanInstall(context.Background(), ports.PlanInstallInput{
+		Manifest: domain.IntegrationManifest{IntegrationID: "claude-demo"},
+		Policy:   domain.InstallPolicy{Scope: "user"},
+		Inspect:  inspect,
+	})
+	if err != nil {
+		t.Fatalf("plan install: %v", err)
+	}
+	if !plan.Blocking {
+		t.Fatal("expected plan to be blocking")
+	}
+	if len(plan.ManualSteps) == 0 || !strings.Contains(strings.Join(plan.ManualSteps, " "), "strictKnownMarketplaces") {
+		t.Fatalf("manual steps = %#v", plan.ManualSteps)
+	}
+}
+
+func TestInspectFlagsManagedPolicyBlockWhenPathPatternDisallowsMarketplace(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	writeClaudeFile(t, filepath.Join(home, ".claude", "managed-settings.json"), "{\n  \"strictKnownMarketplaces\": [\n    {\"source\": \"pathPattern\", \"pathPattern\": \"^/tmp/other$\"}\n  ]\n}\n")
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{Scope: "user", IntegrationID: "claude-demo"})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !containsRestriction(inspect.EnvironmentRestrictions, domain.RestrictionManagedPolicyBlock) {
+		t.Fatalf("expected managed policy block, got %#v", inspect.EnvironmentRestrictions)
+	}
+}
+
+func TestPlanUpdateBlocksWhenMarketplaceIsSeedManaged(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	seed := filepath.Join(root, "seed")
+	writeClaudeFile(t, filepath.Join(seed, "marketplaces", "integrationctl-claude-demo", ".claude-plugin", "marketplace.json"), "{\n  \"name\": \"integrationctl-claude-demo\"\n}\n")
+	t.Setenv("CLAUDE_CODE_PLUGIN_SEED_DIR", seed)
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope:         "user",
+		IntegrationID: "claude-demo",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"marketplace_name": "integrationctl-claude-demo",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !containsRestriction(inspect.EnvironmentRestrictions, domain.RestrictionReadOnlyNativeLayer) {
+		t.Fatalf("expected read-only restriction, got %#v", inspect.EnvironmentRestrictions)
+	}
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+		},
+		NextManifest: domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0"},
+		Inspect:      inspect,
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	if !plan.Blocking {
+		t.Fatal("expected seed-managed update to be blocking")
+	}
+	if len(plan.ManualSteps) == 0 || !strings.Contains(strings.Join(plan.ManualSteps, " "), "seed-managed") {
+		t.Fatalf("manual steps = %#v", plan.ManualSteps)
+	}
+}
+
 func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -242,7 +337,7 @@ func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
 	}
 }
 
-func TestRepairUsesUpdateSemantics(t *testing.T) {
+func TestRepairUsesMarketplaceRefreshAndBestEffortUninstall(t *testing.T) {
 	t.Parallel()
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: t.TempDir()}
@@ -273,6 +368,57 @@ func TestRepairUsesUpdateSemantics(t *testing.T) {
 	}
 }
 
+func TestRepairFallsBackToMarketplaceAddWhenUpdateFails(t *testing.T) {
+	t.Parallel()
+	runner := &stubRunner{
+		run: func(cmd ports.Command) (ports.CommandResult, error) {
+			if equalStrings(cmd.Argv, []string{"claude", "plugin", "marketplace", "update", "integrationctl-claude-demo"}) {
+				return ports.CommandResult{ExitCode: 1, Stderr: []byte("missing marketplace")}, nil
+			}
+			return ports.CommandResult{ExitCode: 0}, nil
+		},
+	}
+	home := t.TempDir()
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+	root := t.TempDir()
+	writeClaudeFile(t, filepath.Join(root, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+
+	_, err := adapter.Repair(context.Background(), ports.RepairInput{
+		Record: domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "user"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {
+					TargetID: domain.TargetClaude,
+					AdapterMetadata: map[string]any{
+						"marketplace_name": "integrationctl-claude-demo",
+						"plugin_ref":       "claude-demo@integrationctl-claude-demo",
+					},
+				},
+			},
+		},
+		Manifest:       &domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0", Description: "Claude demo plugin"},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: root},
+	})
+	if err != nil {
+		t.Fatalf("repair: %v", err)
+	}
+	want := [][]string{
+		{"claude", "plugin", "marketplace", "update", "integrationctl-claude-demo"},
+		{"claude", "plugin", "marketplace", "add", filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", "claude-demo")},
+		{"claude", "plugin", "uninstall", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
+		{"claude", "plugin", "install", "claude-demo@integrationctl-claude-demo", "--scope", "user"},
+	}
+	if len(runner.commands) != len(want) {
+		t.Fatalf("commands = %#v", runner.commands)
+	}
+	for i := range want {
+		if !equalStrings(runner.commands[i].Argv, want[i]) {
+			t.Fatalf("command %d = %#v want %#v", i, runner.commands[i].Argv, want[i])
+		}
+	}
+}
+
 func writeClaudeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -293,4 +439,13 @@ func equalStrings(got, want []string) bool {
 		}
 	}
 	return true
+}
+
+func containsRestriction(items []domain.EnvironmentRestrictionCode, want domain.EnvironmentRestrictionCode) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }

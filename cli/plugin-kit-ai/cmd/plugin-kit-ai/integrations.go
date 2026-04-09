@@ -164,6 +164,47 @@ var integrationsRepairCmd = &cobra.Command{
 		defer stop()
 		result, err := integrationsRunner.Controller.Repair(ctx, integrationctl.RepairParams{
 			Name:   args[0],
+			Target: firstNormalizedTarget(integrationTargets),
+			DryRun: integrationDryRun,
+		})
+		if err != nil {
+			return exitx.Wrap(err, integrationctl.ExitCodeFromErr(err))
+		}
+		printIntegrationReport(cmd, result.Report)
+		return nil
+	},
+}
+
+var integrationsEnableCmd = &cobra.Command{
+	Use:   "enable <name>",
+	Short: "Enable a managed integration target where the native agent supports toggling",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+		defer stop()
+		result, err := integrationsRunner.Controller.Enable(ctx, integrationctl.ToggleParams{
+			Name:   args[0],
+			Target: firstNormalizedTarget(integrationTargets),
+			DryRun: integrationDryRun,
+		})
+		if err != nil {
+			return exitx.Wrap(err, integrationctl.ExitCodeFromErr(err))
+		}
+		printIntegrationReport(cmd, result.Report)
+		return nil
+	},
+}
+
+var integrationsDisableCmd = &cobra.Command{
+	Use:   "disable <name>",
+	Short: "Disable a managed integration target where the native agent supports toggling",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+		defer stop()
+		result, err := integrationsRunner.Controller.Disable(ctx, integrationctl.ToggleParams{
+			Name:   args[0],
+			Target: firstNormalizedTarget(integrationTargets),
 			DryRun: integrationDryRun,
 		})
 		if err != nil {
@@ -185,6 +226,11 @@ func init() {
 	integrationsUpdateCmd.Flags().BoolVar(&integrationUpdateAll, "all", false, "update all managed integrations")
 	integrationsRemoveCmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
 	integrationsRepairCmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
+	integrationsRepairCmd.Flags().StringSliceVar(&integrationTargets, "target", nil, "limit repair to one target")
+	integrationsEnableCmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
+	integrationsEnableCmd.Flags().StringSliceVar(&integrationTargets, "target", nil, "limit enable to one target")
+	integrationsDisableCmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
+	integrationsDisableCmd.Flags().StringSliceVar(&integrationTargets, "target", nil, "limit disable to one target")
 	integrationsSyncCmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
 
 	integrationsCmd.AddCommand(integrationsListCmd)
@@ -193,6 +239,8 @@ func init() {
 	integrationsCmd.AddCommand(integrationsUpdateCmd)
 	integrationsCmd.AddCommand(integrationsRemoveCmd)
 	integrationsCmd.AddCommand(integrationsRepairCmd)
+	integrationsCmd.AddCommand(integrationsEnableCmd)
+	integrationsCmd.AddCommand(integrationsDisableCmd)
 	integrationsCmd.AddCommand(integrationsSyncCmd)
 }
 
@@ -223,3 +271,11 @@ func printIntegrationReport(cmd *cobra.Command, report integrationctl.Report) {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+func firstNormalizedTarget(values []string) string {
+	normalized := integrationctl.NormalizeTargets(values)
+	if len(normalized) == 0 {
+		return ""
+	}
+	return normalized[0]
+}

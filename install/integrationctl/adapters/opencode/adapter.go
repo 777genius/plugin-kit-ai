@@ -8,12 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/portablemcp"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/safemutate"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 	"github.com/tailscale/hujson"
@@ -22,6 +24,7 @@ import (
 
 type Adapter struct {
 	FS          ports.FileSystem
+	SafeMutator ports.SafeFileMutator
 	ProjectRoot string
 	UserHome    string
 }
@@ -136,9 +139,10 @@ func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 	}, nil
 }
 
-func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.InspectResult, error) {
+func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.InspectResult, error) {
 	surface := a.inspectSurface(in.Scope)
 	config := surface.ConfigPath
+	observed := []domain.NativeObjectRef{}
 	if in.Record != nil {
 		if target, ok := in.Record.Targets[domain.TargetOpenCode]; ok {
 			config = configPathFromTarget(target, config)
@@ -151,6 +155,63 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 	if cmdErr != nil && statErr != nil {
 		restrictions = append(restrictions, domain.RestrictionSourceToolMissing)
 	}
+	if in.Record != nil {
+		if target, ok := in.Record.Targets[domain.TargetOpenCode]; ok && statErr == nil {
+			body, err := a.fs().ReadFile(ctx, config)
+			if err != nil {
+				return ports.InspectResult{}, domain.NewError(domain.ErrMutationApply, "read OpenCode config during inspect", err)
+			}
+			doc, err := decodeConfigMap(body)
+			if err != nil {
+				return ports.InspectResult{}, domain.NewError(domain.ErrMutationApply, "parse OpenCode config during inspect", err)
+			}
+			present := false
+			plugins, err := existingPluginRefs(doc["plugin"])
+			if err != nil {
+				return ports.InspectResult{}, domain.NewError(domain.ErrMutationApply, "parse OpenCode plugin refs during inspect", err)
+			}
+			for _, ref := range ownedPluginRefs(target) {
+				if _, ok := plugins[ref]; ok {
+					present = true
+					observed = append(observed, domain.NativeObjectRef{Kind: "opencode_plugin_ref", Name: ref, Path: config})
+				}
+			}
+			mcp, err := existingObjectMap(doc["mcp"], "mcp")
+			if err != nil {
+				return ports.InspectResult{}, domain.NewError(domain.ErrMutationApply, "parse OpenCode MCP config during inspect", err)
+			}
+			for _, alias := range ownedMCPAliases(target) {
+				if _, ok := mcp[alias]; ok {
+					present = true
+					observed = append(observed, domain.NativeObjectRef{Kind: "opencode_mcp_server", Name: alias, Path: config})
+				}
+			}
+			for _, key := range ownedConfigKeys(target) {
+				if _, ok := doc[key]; ok {
+					present = true
+					observed = append(observed, domain.NativeObjectRef{Kind: "opencode_config_key", Name: key, Path: config})
+				}
+			}
+			if present {
+				state = domain.InstallInstalled
+			} else {
+				state = domain.InstallRemoved
+			}
+			return ports.InspectResult{
+				TargetID:                 a.ID(),
+				Installed:                present,
+				State:                    state,
+				ActivationState:          domain.ActivationRestartPending,
+				ConfigPrecedenceContext:  surface.ConfigPrecedenceContext,
+				EnvironmentRestrictions:  restrictions,
+				VolatileOverrideDetected: surface.VolatileOverride,
+				ObservedNativeObjects:    observed,
+				SourceAccessState:        surface.SourceAccessState,
+				SettingsFiles:            append([]string(nil), surface.SettingsFiles...),
+				EvidenceClass:            domain.EvidenceConfirmed,
+			}, nil
+		}
+	}
 	if statErr == nil || cmdErr == nil {
 		state = domain.InstallInstalled
 	}
@@ -162,6 +223,7 @@ func (a Adapter) Inspect(_ context.Context, in ports.InspectInput) (ports.Inspec
 		ConfigPrecedenceContext:  surface.ConfigPrecedenceContext,
 		EnvironmentRestrictions:  restrictions,
 		VolatileOverrideDetected: surface.VolatileOverride,
+		ObservedNativeObjects:    observed,
 		SourceAccessState:        surface.SourceAccessState,
 		SettingsFiles:            append([]string(nil), surface.SettingsFiles...),
 		EvidenceClass:            domain.EvidenceConfirmed,
@@ -377,6 +439,13 @@ func (a Adapter) fs() ports.FileSystem {
 		return a.FS
 	}
 	return fsadapter.OS{}
+}
+
+func (a Adapter) mutator() ports.SafeFileMutator {
+	if a.SafeMutator != nil {
+		return a.SafeMutator
+	}
+	return safemutate.OS{}
 }
 
 func (a Adapter) configPath(scope string) string {
@@ -602,7 +671,25 @@ func (a Adapter) patchConfig(ctx context.Context, path string, mutation configMu
 		}, nil
 	}
 	rendered := ast.Pack()
-	if err := a.fs().WriteFileAtomic(ctx, path, rendered, 0o644); err != nil {
+	if _, err := a.mutator().MutateFile(ctx, ports.SafeFileMutationInput{
+		Path: path,
+		Mode: 0o644,
+		Build: func(_ []byte, _ bool) ([]byte, error) {
+			return rendered, nil
+		},
+		ValidateBefore: func(next []byte) error {
+			_, err := hujson.Parse(next)
+			return err
+		},
+		ValidateAfter: func(_ context.Context, path string, _ []byte) error {
+			body, err := a.fs().ReadFile(ctx, path)
+			if err != nil {
+				return err
+			}
+			_, err = hujson.Parse(body)
+			return err
+		},
+	}); err != nil {
 		return configPatchResult{}, domain.NewError(domain.ErrMutationApply, "write OpenCode config", err)
 	}
 	return configPatchResult{
@@ -1143,6 +1230,16 @@ func (a Adapter) inspectSurface(scope string) inspectSurface {
 	}
 
 	settings = dedupeStrings(settings)
+	managedPaths := a.managedConfigPaths()
+	for _, path := range managedPaths {
+		if fileExists(path) {
+			restrictions = append(restrictions, domain.RestrictionReadOnlyNativeLayer)
+			settings = append(settings, path)
+			if sourceAccess == "" {
+				sourceAccess = "managed_config_layer"
+			}
+		}
+	}
 	return inspectSurface{
 		ConfigPath:              configPath,
 		SettingsFiles:           settings,
@@ -1154,14 +1251,26 @@ func (a Adapter) inspectSurface(scope string) inspectSurface {
 }
 
 func planBlockingManualSteps(inspect ports.InspectResult) ([]string, bool) {
-	if !inspect.VolatileOverrideDetected {
-		return nil, false
+	steps := []string{}
+	blocking := false
+	if inspect.VolatileOverrideDetected {
+		steps = append(steps,
+			"unset OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, and OPENCODE_CONFIG_CONTENT before mutating managed OpenCode state",
+			"run the same command again after the volatile OpenCode override layer is removed",
+		)
+		blocking = true
 	}
-	steps := []string{
-		"unset OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, and OPENCODE_CONFIG_CONTENT before mutating managed OpenCode state",
-		"run the same command again after the volatile OpenCode override layer is removed",
+	for _, restriction := range inspect.EnvironmentRestrictions {
+		if restriction == domain.RestrictionReadOnlyNativeLayer {
+			steps = append(steps,
+				"OpenCode managed config is active at a higher-precedence system layer",
+				"ask an administrator to update or remove the managed OpenCode config before mutating this integration",
+			)
+			blocking = true
+			break
+		}
 	}
-	return steps, true
+	return dedupeStrings(steps), blocking
 }
 
 func (a Adapter) requireMutableEnvironment() error {
@@ -1171,6 +1280,38 @@ func (a Adapter) requireMutableEnvironment() error {
 		return nil
 	}
 	return domain.NewError(domain.ErrMutationApply, "OpenCode mutation is blocked while OPENCODE_CONFIG, OPENCODE_CONFIG_DIR, or OPENCODE_CONFIG_CONTENT is set", nil)
+}
+
+func (a Adapter) managedConfigPaths() []string {
+	switch runtime.GOOS {
+	case "darwin":
+		userName := strings.TrimSpace(filepath.Base(a.userHome()))
+		return dedupeStrings([]string{
+			"/Library/Application Support/opencode/opencode.json",
+			"/Library/Application Support/opencode/opencode.jsonc",
+			filepath.Join("/Library/Managed Preferences", userName, "ai.opencode.managed.plist"),
+			"/Library/Managed Preferences/ai.opencode.managed.plist",
+		})
+	case "linux":
+		return []string{
+			"/etc/opencode/opencode.json",
+			"/etc/opencode/opencode.jsonc",
+		}
+	case "windows":
+		base := strings.TrimSpace(os.Getenv("ProgramData"))
+		if base == "" {
+			base = strings.TrimSpace(os.Getenv("ALLUSERSPROFILE"))
+		}
+		if base == "" {
+			return nil
+		}
+		return []string{
+			filepath.Join(base, "opencode", "opencode.json"),
+			filepath.Join(base, "opencode", "opencode.jsonc"),
+		}
+	default:
+		return nil
+	}
 }
 
 func preferredExistingPaths(candidates ...string) []string {

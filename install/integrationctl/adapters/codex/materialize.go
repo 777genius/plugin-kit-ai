@@ -44,7 +44,11 @@ func (a Adapter) syncManagedPlugin(ctx context.Context, manifest domain.Integrat
 			_ = os.RemoveAll(tmpRoot)
 		}
 	}()
-	if fileExists(filepath.Join(root, ".codex-plugin", "plugin.json")) {
+	if fileExists(filepath.Join(root, "src", "plugin.yaml")) {
+		if err := a.materializeAuthoredCodexSource(ctx, manifest, root, tmpRoot); err != nil {
+			return err
+		}
+	} else if fileExists(filepath.Join(root, ".codex-plugin", "plugin.json")) {
 		if err := copyNativeCodexPackage(root, tmpRoot); err != nil {
 			return err
 		}

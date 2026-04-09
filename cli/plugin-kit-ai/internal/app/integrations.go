@@ -11,6 +11,8 @@ type IntegrationController interface {
 	Update(context.Context, integrationctl.UpdateParams) (integrationctl.Result, error)
 	Remove(context.Context, integrationctl.RemoveParams) (integrationctl.Result, error)
 	Repair(context.Context, integrationctl.RepairParams) (integrationctl.Result, error)
+	Enable(context.Context, integrationctl.ToggleParams) (integrationctl.Result, error)
+	Disable(context.Context, integrationctl.ToggleParams) (integrationctl.Result, error)
 	Sync(context.Context, integrationctl.SyncParams) (integrationctl.Result, error)
 	List(context.Context) (integrationctl.Report, error)
 	Doctor(context.Context) (integrationctl.Report, error)
@@ -32,6 +34,14 @@ func (integrationctlFacade) Remove(ctx context.Context, p integrationctl.RemoveP
 
 func (integrationctlFacade) Repair(ctx context.Context, p integrationctl.RepairParams) (integrationctl.Result, error) {
 	return integrationctl.Repair(ctx, p)
+}
+
+func (integrationctlFacade) Enable(ctx context.Context, p integrationctl.ToggleParams) (integrationctl.Result, error) {
+	return integrationctl.Enable(ctx, p)
+}
+
+func (integrationctlFacade) Disable(ctx context.Context, p integrationctl.ToggleParams) (integrationctl.Result, error) {
+	return integrationctl.Disable(ctx, p)
 }
 
 func (integrationctlFacade) Sync(ctx context.Context, p integrationctl.SyncParams) (integrationctl.Result, error) {

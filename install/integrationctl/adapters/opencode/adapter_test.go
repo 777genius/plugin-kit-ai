@@ -196,6 +196,19 @@ func TestProjectScopeUsesNearestGitRoot(t *testing.T) {
 	}
 }
 
+func TestPlanBlockingManualStepsIncludesManagedLayerGuidance(t *testing.T) {
+	t.Parallel()
+	steps, blocking := planBlockingManualSteps(ports.InspectResult{
+		EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{domain.RestrictionReadOnlyNativeLayer},
+	})
+	if !blocking {
+		t.Fatal("expected blocking for read-only native layer")
+	}
+	if len(steps) == 0 || !strings.Contains(strings.Join(steps, "\n"), "administrator") {
+		t.Fatalf("steps = %#v", steps)
+	}
+}
+
 func mustWriteOpenCodeFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

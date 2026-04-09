@@ -26,6 +26,7 @@ type Capabilities struct {
 }
 
 type InspectInput struct {
+	IntegrationID string
 	Record *domain.InstallationRecord
 	Scope  string
 }
@@ -62,6 +63,11 @@ type PlanUpdateInput struct {
 }
 
 type PlanRemoveInput struct {
+	Record  domain.InstallationRecord
+	Inspect InspectResult
+}
+
+type PlanToggleInput struct {
 	Record  domain.InstallationRecord
 	Inspect InspectResult
 }
@@ -126,6 +132,13 @@ type TargetAdapter interface {
 	PlanRemove(context.Context, PlanRemoveInput) (AdapterPlan, error)
 	ApplyRemove(context.Context, ApplyInput) (ApplyResult, error)
 	Repair(context.Context, RepairInput) (ApplyResult, error)
+}
+
+type ToggleTargetAdapter interface {
+	PlanEnable(context.Context, PlanToggleInput) (AdapterPlan, error)
+	ApplyEnable(context.Context, ApplyInput) (ApplyResult, error)
+	PlanDisable(context.Context, PlanToggleInput) (AdapterPlan, error)
+	ApplyDisable(context.Context, ApplyInput) (ApplyResult, error)
 }
 
 type ResolvedSource struct {
@@ -199,6 +212,24 @@ type FileSystem interface {
 	MkdirAll(context.Context, string, uint32) error
 	Stat(context.Context, string) (PathInfo, error)
 	Remove(context.Context, string) error
+}
+
+type SafeFileMutationInput struct {
+	Path           string
+	Mode           uint32
+	Build          func(original []byte, exists bool) ([]byte, error)
+	ValidateBefore func(next []byte) error
+	ValidateAfter  func(context.Context, string, []byte) error
+}
+
+type SafeFileMutationResult struct {
+	Path        string
+	BackupPath  string
+	HadOriginal bool
+}
+
+type SafeFileMutator interface {
+	MutateFile(context.Context, SafeFileMutationInput) (SafeFileMutationResult, error)
 }
 
 type Command struct {

@@ -55,6 +55,10 @@ type stubTargetAdapter struct {
 	applyUpdate  func(ports.ApplyInput) (ports.ApplyResult, error)
 	planRemove   func(ports.PlanRemoveInput) (ports.AdapterPlan, error)
 	applyRemove  func(ports.ApplyInput) (ports.ApplyResult, error)
+	planEnable   func(ports.PlanToggleInput) (ports.AdapterPlan, error)
+	applyEnable  func(ports.ApplyInput) (ports.ApplyResult, error)
+	planDisable  func(ports.PlanToggleInput) (ports.AdapterPlan, error)
+	applyDisable func(ports.ApplyInput) (ports.ApplyResult, error)
 	repair       func(ports.RepairInput) (ports.ApplyResult, error)
 }
 
@@ -103,6 +107,30 @@ func (s stubTargetAdapter) ApplyRemove(_ context.Context, in ports.ApplyInput) (
 		return s.applyRemove(in)
 	}
 	return ports.ApplyResult{TargetID: s.id, State: domain.InstallRemoved}, nil
+}
+func (s stubTargetAdapter) PlanEnable(_ context.Context, in ports.PlanToggleInput) (ports.AdapterPlan, error) {
+	if s.planEnable != nil {
+		return s.planEnable(in)
+	}
+	return ports.AdapterPlan{TargetID: s.id, ActionClass: "enable_target", EvidenceKey: "test." + string(s.id)}, nil
+}
+func (s stubTargetAdapter) ApplyEnable(_ context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
+	if s.applyEnable != nil {
+		return s.applyEnable(in)
+	}
+	return ports.ApplyResult{TargetID: s.id, State: domain.InstallInstalled, ActivationState: domain.ActivationRestartPending}, nil
+}
+func (s stubTargetAdapter) PlanDisable(_ context.Context, in ports.PlanToggleInput) (ports.AdapterPlan, error) {
+	if s.planDisable != nil {
+		return s.planDisable(in)
+	}
+	return ports.AdapterPlan{TargetID: s.id, ActionClass: "disable_target", EvidenceKey: "test." + string(s.id)}, nil
+}
+func (s stubTargetAdapter) ApplyDisable(_ context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
+	if s.applyDisable != nil {
+		return s.applyDisable(in)
+	}
+	return ports.ApplyResult{TargetID: s.id, State: domain.InstallDisabled, ActivationState: domain.ActivationRestartPending}, nil
 }
 func (s stubTargetAdapter) Repair(_ context.Context, in ports.RepairInput) (ports.ApplyResult, error) {
 	if s.repair != nil {
@@ -157,6 +185,70 @@ func TestAddDryRunBuildsPlan(t *testing.T) {
 	}
 	if report.OperationID == "" {
 		t.Fatal("expected operation id")
+	}
+}
+
+func TestDisableNonDryRunUsesToggleAdapterAndPersistsDisabledState(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.gemini","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "gemini-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedVersion:    "0.1.0",
+		SourceDigest:       "sha256:test",
+		ManifestDigest:     "sha256:test-manifest",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"},
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetGemini: {TargetID: domain.TargetGemini, DeliveryKind: domain.DeliveryGeminiExtension, State: domain.InstallInstalled},
+		},
+	}
+	if err := store.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	inspectCalls := 0
+	svc := Service{
+		StateStore:  store,
+		LockManager: locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:     journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:    evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetGemini: stubTargetAdapter{
+				id: domain.TargetGemini,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					inspectCalls++
+					if inspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallInstalled}, nil
+					}
+					return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallDisabled, ActivationState: domain.ActivationRestartPending}, nil
+				},
+				planDisable: func(in ports.PlanToggleInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetGemini, ActionClass: "disable_target", EvidenceKey: "test.gemini"}, nil
+				},
+				applyDisable: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetGemini, State: domain.InstallDisabled, ActivationState: domain.ActivationRestartPending}, nil
+				},
+			},
+		},
+	}
+
+	report, err := svc.Disable(context.Background(), NamedDryRunInput{Name: "gemini-demo", DryRun: false})
+	if err != nil {
+		t.Fatalf("disable: %v", err)
+	}
+	if len(report.Targets) != 1 || report.Targets[0].State != string(domain.InstallDisabled) {
+		t.Fatalf("report = %+v", report)
+	}
+	state, err := svc.StateStore.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if got := state.Installations[0].Targets[domain.TargetGemini].State; got != domain.InstallDisabled {
+		t.Fatalf("state = %s, want disabled", got)
 	}
 }
 
@@ -1145,6 +1237,11 @@ func TestRepairNonDryRunPersistsPartialProgressWhenLaterTargetFails(t *testing.T
 			domain.TargetCursor: stubTargetAdapter{
 				id: domain.TargetCursor,
 				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					if in.Record != nil {
+						if target, ok := in.Record.Targets[domain.TargetCursor]; ok && target.State == domain.InstallDegraded {
+							return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete, SourceAccessState: "ok"}, nil
+						}
+					}
 					return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallDegraded, SourceAccessState: "ok"}, nil
 				},
 				repair: func(in ports.RepairInput) (ports.ApplyResult, error) {
@@ -1428,6 +1525,394 @@ func TestAddDryRunSurfacesOpenCodeVolatileOverrideBlocking(t *testing.T) {
 	}
 	if len(report.Targets[0].ManualSteps) == 0 {
 		t.Fatalf("expected blocking manual steps, got %+v", report.Targets[0])
+	}
+}
+
+func TestUpdateNonDryRunAdoptsNewTargetWhenPolicyAuto(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	sourceRoot := filepath.Join(root, "plugin")
+	writeFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), "api_version: v1\nname: adoption-demo\nversion: 0.2.0\ndescription: test\ntargets:\n  - cursor\n  - opencode\n")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.cursor","claim":"x","evidence_class":"project_policy","urls":["https://example.com"]},{"key":"test.opencode","claim":"x","evidence_class":"project_policy","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "adoption-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedVersion:    "0.1.0",
+		SourceDigest:       "sha256:old",
+		ManifestDigest:     "sha256:old-manifest",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "auto"},
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCursor: {
+				TargetID:          domain.TargetCursor,
+				DeliveryKind:      domain.DeliveryCursorMCP,
+				CapabilitySurface: []string{"mcp"},
+				State:             domain.InstallInstalled,
+			},
+		},
+	}
+	if err := store.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	var opencodeInstalled bool
+	opencodeInspectCalls := 0
+	svc := Service{
+		SourceResolver: source.Resolver{},
+		ManifestLoader: manifest.Loader{},
+		StateStore:     store,
+		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetCursor: stubTargetAdapter{
+				id: domain.TargetCursor,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, SourceAccessState: "ok"}, nil
+				},
+				planUpdate: func(in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetCursor, ActionClass: "update_version", EvidenceKey: "test.cursor"}, nil
+				},
+				applyUpdate: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete}, nil
+				},
+			},
+			domain.TargetOpenCode: stubTargetAdapter{
+				id: domain.TargetOpenCode,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					opencodeInspectCalls++
+					if in.IntegrationID != "adoption-demo" {
+						t.Fatalf("inspect integration_id = %q, want adoption-demo", in.IntegrationID)
+					}
+					if opencodeInspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetOpenCode, State: domain.InstallRemoved, SourceAccessState: "ok"}, nil
+					}
+					return ports.InspectResult{TargetID: domain.TargetOpenCode, State: domain.InstallInstalled, SourceAccessState: "ok"}, nil
+				},
+				planInstall: func(in ports.PlanInstallInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetOpenCode, ActionClass: "install_missing", EvidenceKey: "test.opencode"}, nil
+				},
+				applyInstall: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					opencodeInstalled = true
+					return ports.ApplyResult{TargetID: domain.TargetOpenCode, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete}, nil
+				},
+			},
+		},
+	}
+
+	report, err := svc.Update(context.Background(), NamedDryRunInput{Name: "adoption-demo", DryRun: false})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if !opencodeInstalled {
+		t.Fatal("expected adopted target to use ApplyInstall")
+	}
+	if len(report.Targets) != 2 {
+		t.Fatalf("report targets = %+v", report.Targets)
+	}
+	var adopted domain.TargetReport
+	for _, target := range report.Targets {
+		if target.TargetID == string(domain.TargetOpenCode) {
+			adopted = target
+			break
+		}
+	}
+	if adopted.ActionClass != "adopt_new_target" || adopted.State != string(domain.InstallInstalled) {
+		t.Fatalf("adopted target report = %+v", adopted)
+	}
+	if len(adopted.CapabilitySurface) == 0 {
+		t.Fatalf("expected capability surface in adopted target report: %+v", adopted)
+	}
+	state, err := svc.StateStore.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	got := state.Installations[0]
+	if got.ResolvedVersion != "0.2.0" {
+		t.Fatalf("resolved version = %s, want 0.2.0", got.ResolvedVersion)
+	}
+	if got.Targets[domain.TargetOpenCode].State != domain.InstallInstalled {
+		t.Fatalf("opencode state = %s, want installed", got.Targets[domain.TargetOpenCode].State)
+	}
+	if len(got.Targets[domain.TargetOpenCode].CapabilitySurface) == 0 {
+		t.Fatalf("expected persisted capability surface for adopted target: %+v", got.Targets[domain.TargetOpenCode])
+	}
+}
+
+func TestDoctorReportsRecoveryWarningsAndAttentionTargets(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "doctor-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedVersion:    "0.1.0",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"},
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCursor: {
+				TargetID:                domain.TargetCursor,
+				DeliveryKind:            domain.DeliveryCursorMCP,
+				CapabilitySurface:       []string{"mcp"},
+				State:                   domain.InstallDegraded,
+				ActivationState:         domain.ActivationComplete,
+				EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{domain.RestrictionRestartRequired},
+			},
+			domain.TargetCodex: {
+				TargetID:                domain.TargetCodex,
+				DeliveryKind:            domain.DeliveryCodexMarketplace,
+				CapabilitySurface:       []string{"plugin_bundle"},
+				State:                   domain.InstallActivationPending,
+				ActivationState:         domain.ActivationNewThreadPending,
+				CatalogPolicy:           &domain.CatalogPolicySnapshot{Installation: "manual", Authentication: "oauth"},
+				EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{domain.RestrictionNewThreadRequired},
+			},
+			domain.TargetGemini: {
+				TargetID:             domain.TargetGemini,
+				DeliveryKind:         domain.DeliveryGeminiExtension,
+				CapabilitySurface:    []string{"contexts", "mcp"},
+				State:                domain.InstallAuthPending,
+				ActivationState:      domain.ActivationNativePending,
+				InteractiveAuthState: "pending",
+				EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{
+					domain.RestrictionNativeAuthRequired,
+				},
+			},
+		},
+	}
+	if err := store.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	j := journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")}
+	if err := j.Start(context.Background(), domain.OperationRecord{OperationID: "op-in-progress", Type: "update", IntegrationID: "doctor-demo", Status: "in_progress"}); err != nil {
+		t.Fatalf("start journal: %v", err)
+	}
+	if err := j.Start(context.Background(), domain.OperationRecord{OperationID: "op-degraded", Type: "repair", IntegrationID: "doctor-demo", Status: "degraded"}); err != nil {
+		t.Fatalf("start journal: %v", err)
+	}
+	if err := j.Start(context.Background(), domain.OperationRecord{OperationID: "op-failed", Type: "remove", IntegrationID: "doctor-demo", Status: "failed"}); err != nil {
+		t.Fatalf("start journal: %v", err)
+	}
+	svc := Service{StateStore: store, Journal: j}
+
+	report, err := svc.Doctor(context.Background())
+	if err != nil {
+		t.Fatalf("doctor: %v", err)
+	}
+	if !strings.Contains(report.Summary, "1 degraded target(s)") || !strings.Contains(report.Summary, "1 activation-pending target(s)") || !strings.Contains(report.Summary, "1 auth-pending target(s)") {
+		t.Fatalf("summary = %q", report.Summary)
+	}
+	if len(report.Targets) != 3 {
+		t.Fatalf("doctor targets = %+v", report.Targets)
+	}
+	joinedWarnings := strings.Join(report.Warnings, "\n")
+	if !strings.Contains(joinedWarnings, "run plugin-kit-ai integrations repair doctor-demo") {
+		t.Fatalf("warnings missing degraded recovery guidance: %v", report.Warnings)
+	}
+	if !strings.Contains(joinedWarnings, "still marked in_progress") || !strings.Contains(joinedWarnings, "failed before commit") {
+		t.Fatalf("warnings missing journal classification: %v", report.Warnings)
+	}
+	var codexTarget domain.TargetReport
+	for _, target := range report.Targets {
+		if target.TargetID == string(domain.TargetCodex) {
+			codexTarget = target
+			break
+		}
+	}
+	if codexTarget.CatalogPolicy == nil || codexTarget.CatalogPolicy.Installation != "manual" {
+		t.Fatalf("codex target missing catalog policy: %+v", codexTarget)
+	}
+	if !strings.Contains(strings.Join(codexTarget.ManualSteps, " "), "new agent thread") {
+		t.Fatalf("codex target manual steps = %+v", codexTarget.ManualSteps)
+	}
+}
+
+func TestListIncludesCapabilitySurfaceAndCatalogPolicy(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "codex-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+		ResolvedVersion:    "0.1.0",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"},
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCodex: {
+				TargetID:          domain.TargetCodex,
+				DeliveryKind:      domain.DeliveryCodexMarketplace,
+				CapabilitySurface: []string{"plugin_bundle", "mcp"},
+				State:             domain.InstallActivationPending,
+				ActivationState:   domain.ActivationNewThreadPending,
+				CatalogPolicy:     &domain.CatalogPolicySnapshot{Installation: "manual", Authentication: "oauth", Category: "developer_tools"},
+			},
+		},
+	}
+	if err := store.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	svc := Service{StateStore: store}
+
+	report, err := svc.List(context.Background())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(report.Targets) != 1 {
+		t.Fatalf("list targets = %+v", report.Targets)
+	}
+	target := report.Targets[0]
+	if len(target.CapabilitySurface) != 2 || target.CapabilitySurface[0] != "plugin_bundle" {
+		t.Fatalf("capability surface = %+v", target.CapabilitySurface)
+	}
+	if target.CatalogPolicy == nil || target.CatalogPolicy.Authentication != "oauth" || target.CatalogPolicy.Category != "developer_tools" {
+		t.Fatalf("catalog policy = %+v", target.CatalogPolicy)
+	}
+}
+
+func TestAddNonDryRunFailsWhenPostApplyVerifyDoesNotObserveInstalledState(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	sourceRoot := filepath.Join(root, "plugin")
+	writeFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), "api_version: v1\nname: verify-demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - cursor\n")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.cursor","claim":"x","evidence_class":"project_policy","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	stateStore := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	inspectCalls := 0
+	svc := Service{
+		SourceResolver: source.Resolver{},
+		ManifestLoader: manifest.Loader{},
+		StateStore:     stateStore,
+		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetCursor: stubTargetAdapter{
+				id: domain.TargetCursor,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					inspectCalls++
+					if inspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallRemoved, SourceAccessState: "ok"}, nil
+					}
+					return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallRemoved, SourceAccessState: "ok"}, nil
+				},
+				planInstall: func(in ports.PlanInstallInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetCursor, ActionClass: "install_missing", EvidenceKey: "test.cursor"}, nil
+				},
+				applyInstall: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete}, nil
+				},
+				planRemove: func(in ports.PlanRemoveInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetCursor, ActionClass: "remove_orphaned_target", EvidenceKey: "test.cursor"}, nil
+				},
+				applyRemove: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetCursor, State: domain.InstallRemoved}, nil
+				},
+			},
+		},
+	}
+
+	if _, err := svc.Add(context.Background(), AddInput{Source: sourceRoot, Scope: "project", DryRun: false}); err == nil {
+		t.Fatal("expected add to fail when verify still observes removed state")
+	}
+	state, err := stateStore.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("installations = %+v, want none after verify rollback", state.Installations)
+	}
+}
+
+func TestUpdateNonDryRunPersistsVerifiedStateInsteadOfRawApplyState(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	sourceRoot := filepath.Join(root, "plugin")
+	writeFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), "api_version: v1\nname: verify-update-demo\nversion: 0.2.0\ndescription: test\ntargets:\n  - cursor\n")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.cursor","claim":"x","evidence_class":"project_policy","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	stateStore := jsonstate.Store{FS: fs, Path: filepath.Join(root, "state.json")}
+	record := domain.InstallationRecord{
+		IntegrationID:      "verify-update-demo",
+		RequestedSourceRef: domain.RequestedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedSourceRef:  domain.ResolvedSourceRef{Kind: "local_path", Value: sourceRoot},
+		ResolvedVersion:    "0.1.0",
+		Policy:             domain.InstallPolicy{Scope: "project", AutoUpdate: true, AdoptNewTargets: "manual"},
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCursor: {
+				TargetID:          domain.TargetCursor,
+				DeliveryKind:      domain.DeliveryCursorMCP,
+				CapabilitySurface: []string{"mcp"},
+				State:             domain.InstallInstalled,
+			},
+		},
+	}
+	if err := stateStore.Save(context.Background(), ports.StateFile{SchemaVersion: 1, Installations: []domain.InstallationRecord{record}}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+	inspectCalls := 0
+	svc := Service{
+		SourceResolver: source.Resolver{},
+		ManifestLoader: manifest.Loader{},
+		StateStore:     stateStore,
+		LockManager:    locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:        journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:       evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetCursor: stubTargetAdapter{
+				id: domain.TargetCursor,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					inspectCalls++
+					if inspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, SourceAccessState: "ok"}, nil
+					}
+					return ports.InspectResult{
+						TargetID:                domain.TargetCursor,
+						State:                   domain.InstallActivationPending,
+						ActivationState:         domain.ActivationReloadPending,
+						CatalogPolicy:           &domain.CatalogPolicySnapshot{Installation: "manual"},
+						EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{domain.RestrictionReloadRequired},
+						SourceAccessState:       "verified",
+					}, nil
+				},
+				planUpdate: func(in ports.PlanUpdateInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetCursor, ActionClass: "update_version", EvidenceKey: "test.cursor"}, nil
+				},
+				applyUpdate: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetCursor, State: domain.InstallInstalled, ActivationState: domain.ActivationComplete, SourceAccessState: "apply"}, nil
+				},
+			},
+		},
+	}
+
+	report, err := svc.Update(context.Background(), NamedDryRunInput{Name: "verify-update-demo", DryRun: false})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if len(report.Targets) != 1 {
+		t.Fatalf("report targets = %+v", report.Targets)
+	}
+	if report.Targets[0].State != string(domain.InstallActivationPending) || report.Targets[0].ActivationState != string(domain.ActivationReloadPending) {
+		t.Fatalf("report target = %+v", report.Targets[0])
+	}
+	state, err := stateStore.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	target := state.Installations[0].Targets[domain.TargetCursor]
+	if target.State != domain.InstallActivationPending || target.ActivationState != domain.ActivationReloadPending {
+		t.Fatalf("persisted target = %+v", target)
+	}
+	if target.SourceAccessState != "verified" {
+		t.Fatalf("source access state = %q, want verified", target.SourceAccessState)
+	}
+	if len(target.EnvironmentRestrictions) != 1 || target.EnvironmentRestrictions[0] != domain.RestrictionReloadRequired {
+		t.Fatalf("restrictions = %+v", target.EnvironmentRestrictions)
 	}
 }
 
