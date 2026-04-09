@@ -231,6 +231,9 @@ func assertDockerHubRenderedServer(t *testing.T, server map[string]any) {
 	if got := anyString(env["HUB_PAT_TOKEN"]); got != "${env:HUB_PAT_TOKEN}" {
 		t.Fatalf("generated docker-hub env HUB_PAT_TOKEN = %q want ${env:HUB_PAT_TOKEN}:\n%v", got, server)
 	}
+	if got := anyString(env["HUB_USERNAME"]); got != "${env:HUB_USERNAME}" {
+		t.Fatalf("generated docker-hub env HUB_USERNAME = %q want ${env:HUB_USERNAME}:\n%v", got, server)
+	}
 }
 
 func assertDockerHubCodexGet(t *testing.T, doc struct {
@@ -254,6 +257,9 @@ func assertDockerHubCodexGet(t *testing.T, doc struct {
 		t.Fatalf("codex get returned unexpected args %#v want %#v", doc.Transport.Args, wantArgs)
 	}
 	if doc.Transport.Env["HUB_PAT_TOKEN"] != "${env:HUB_PAT_TOKEN}" {
+		t.Fatalf("codex get returned unexpected env %#v", doc.Transport.Env)
+	}
+	if doc.Transport.Env["HUB_USERNAME"] != "${env:HUB_USERNAME}" {
 		t.Fatalf("codex get returned unexpected env %#v", doc.Transport.Env)
 	}
 }
