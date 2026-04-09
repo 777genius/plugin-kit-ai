@@ -6,8 +6,10 @@ import githubLogo from '~/assets/images/plugin-logos/github.svg';
 import gitlabLogo from '~/assets/images/plugin-logos/gitlab.svg';
 import greptileLogo from '~/assets/images/plugin-logos/greptile.svg';
 import herokuLogo from '~/assets/images/plugin-logos/heroku.svg';
+import dockerLogo from '~/assets/images/plugin-logos/docker.svg';
 import hubspotLogo from '~/assets/images/plugin-logos/hubspot.svg';
 import linearLogo from '~/assets/images/plugin-logos/linear.svg';
+import neonLogo from '~/assets/images/plugin-logos/neon.svg';
 import notionLogo from '~/assets/images/plugin-logos/notion.png';
 import sentryLogo from '~/assets/images/plugin-logos/sentry.svg';
 import slackLogo from '~/assets/images/plugin-logos/slack.svg';
@@ -25,6 +27,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'atlassian.svg': { src: atlassianLogo },
   'cloudflare.svg': { src: cloudflareLogo },
   'context7.svg': { src: context7Logo },
+  'docker.svg': { src: dockerLogo },
   'firebase.svg': { src: firebaseLogo },
   'github.svg': { src: githubLogo, surface: 'light' },
   'gitlab.svg': { src: gitlabLogo },
@@ -32,6 +35,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'heroku.svg': { src: herokuLogo },
   'hubspot.svg': { src: hubspotLogo },
   'linear.svg': { src: linearLogo },
+  'neon.svg': { src: neonLogo },
   'notion.svg': { src: notionLogo },
   'sentry.svg': { src: sentryLogo },
   'slack.svg': { src: slackLogo },

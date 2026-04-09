@@ -343,6 +343,40 @@
       ]
     },
     {
+      "id": "cloudflare-radar",
+      "slug": "cloudflare-radar",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Cloudflare Radar",
+      "tagline": "Hosted-доступ к Cloudflare Radar для интернет-телеметрии, трендов трафика и сетевого intelligence.",
+      "description": "Реальный Cloudflare Radar MCP-плагин для hosted-доступа к интернет-телеметрии, трендам трафика, сетевому intelligence и outage-контексту через официальный Radar MCP endpoint от Cloudflare.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-radar",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Логотип Cloudflare",
+      "categories": [
+        "observability",
+        "research",
+        "cloud"
+      ],
+      "highlights": [
+        "Хороший узкий вариант для команд, которым нужна интернет- и network-аналитика, а не весь Cloudflare API control surface.",
+        "Подтягивает traffic, ASN, geography и outage-контекст в тот же workflow, где уже идут debugging и planning.",
+        "Держит Radar отдельно от write-heavy инфраструктурного туллинга, поэтому каталог понятнее и людям, и агентам."
+      ],
+      "useCases": [
+        "Разбирать интернет-трафик и outage trends во время incident review.",
+        "Подтягивать ASN, network и geography-контекст в тот же workflow, где идет platform debugging.",
+        "Использовать Cloudflare Radar как узкий research-first plugin вместо широкого Cloudflare API server."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "hubspot-crm",
       "slug": "hubspot-crm",
       "eyebrow": "Реальный плагин каталога",
@@ -435,6 +469,74 @@
         "Смотреть apps, dynos, config vars, release и pipelines, не выходя из agent workspace.",
         "Проверять operational state и логи при разборе production behavior.",
         "Держать routine platform operations в том же workflow, где идут code changes и follow-up."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "neon",
+      "slug": "neon",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Neon",
+      "tagline": "Hosted-доступ к Neon для баз данных, branches и project workflows через официальный MCP server.",
+      "description": "Реальный Neon MCP-плагин для hosted-доступа к базам данных, branches и project context через официальный remote MCP endpoint от Neon.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/neon",
+      "logoSrc": "neon.svg",
+      "logoAlt": "Логотип Neon",
+      "categories": [
+        "backend",
+        "developerTools",
+        "cloud"
+      ],
+      "highlights": [
+        "Сильный вариант для команд, которым нужен database и environment context прямо внутри того же agent workflow, где идет реализация.",
+        "Оставляет community default на hosted Neon MCP path, а не тащит local variants в базовый сценарий.",
+        "Полезен, когда branch, database и project context должны быть рядом с migrations, debugging и schema work."
+      ],
+      "useCases": [
+        "Смотреть Neon projects, databases и branches, не выходя из agent workspace.",
+        "Подтягивать Postgres и environment context в implementation и debugging workflows.",
+        "Держать hosted Neon context рядом со schema, migration и dev database reasoning."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "docker-hub",
+      "slug": "docker-hub",
+      "eyebrow": "Реальный плагин каталога",
+      "title": "Docker Hub",
+      "tagline": "Официальный Docker image-backed MCP-доступ к репозиториям Docker Hub и image workflows.",
+      "description": "Реальный Docker Hub MCP-плагин, который запускает официальный образ `mcp/dockerhub` как portable stdio server для repository, image и registry workflows.",
+      "status": "Уже доступен",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/docker-hub",
+      "logoSrc": "docker.svg",
+      "logoAlt": "Логотип Docker",
+      "categories": [
+        "developerTools",
+        "devops",
+        "backend"
+      ],
+      "highlights": [
+        "Использует официальный image-backed MCP server от Docker, а не притворяется hosted default, которого у Docker Hub здесь нет.",
+        "Auth-first default делает плагин реально полезным для repository workflows, а не только для анонимного lookup.",
+        "Хорошо ложится туда, где image, registry и release context должны быть рядом с code changes."
+      ],
+      "useCases": [
+        "Смотреть repositories и image metadata в том же workflow, где идет release и platform work.",
+        "Держать Docker Hub context рядом с dependency, container и deployment flows.",
+        "Переиспользовать один официальный Docker-backed MCP setup во всех поддерживаемых агентах."
       ],
       "badges": [
         "Claude",

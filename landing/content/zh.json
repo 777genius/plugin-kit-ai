@@ -343,6 +343,40 @@
       ]
     },
     {
+      "id": "cloudflare-radar",
+      "slug": "cloudflare-radar",
+      "eyebrow": "真实目录插件",
+      "title": "Cloudflare Radar",
+      "tagline": "通过官方 MCP 端点提供 Cloudflare Radar 的互联网遥测、流量趋势与网络情报能力。",
+      "description": "一个真实的 Cloudflare Radar MCP 插件，通过 Cloudflare 官方 Radar MCP 端点提供互联网遥测、流量趋势、网络情报与故障上下文的 hosted 访问。",
+      "status": "现已可用",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-radar",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare 标志",
+      "categories": [
+        "observability",
+        "research",
+        "cloud"
+      ],
+      "highlights": [
+        "适合需要互联网与网络情报，而不是完整 Cloudflare API 控制面的团队。",
+        "把流量、ASN、地域与故障上下文带到同一个调试与分析工作流中。",
+        "将 Radar 与高变更风险的基础设施工具分开，让目录更清晰。"
+      ],
+      "useCases": [
+        "在事故排查中分析互联网流量与故障趋势。",
+        "在平台调试时引入 ASN、网络与地域上下文。",
+        "把 Cloudflare Radar 作为一个偏研究型的窄插件，而不是宽泛的 Cloudflare API 服务器。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "hubspot-crm",
       "slug": "hubspot-crm",
       "eyebrow": "真实目录插件",
@@ -435,6 +469,74 @@
         "在不离开代理工作空间的情况下查看 apps、dynos、config vars、releases 和 pipelines。",
         "在调试生产行为时查看运行状态和日志。",
         "让日常平台操作与代码变更和后续处理保持在同一工作流中。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "neon",
+      "slug": "neon",
+      "eyebrow": "真实目录插件",
+      "title": "Neon",
+      "tagline": "通过官方 MCP 服务提供 Neon 数据库、branch 与项目工作流的 hosted 访问。",
+      "description": "一个真实的 Neon MCP 插件，通过 Neon 官方远程 MCP 端点提供数据库、branch 与项目上下文的 hosted 访问。",
+      "status": "现已可用",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/neon",
+      "logoSrc": "neon.svg",
+      "logoAlt": "Neon 标志",
+      "categories": [
+        "backend",
+        "developerTools",
+        "cloud"
+      ],
+      "highlights": [
+        "适合希望在同一个 agent 工作流中获取数据库与环境上下文的团队。",
+        "将默认路径保持在 hosted Neon MCP，而不是一开始就推本地变体。",
+        "当 branch、数据库与项目上下文需要贴近迁移、调试与 schema 工作时很有价值。"
+      ],
+      "useCases": [
+        "在不离开 agent 工作区的情况下查看 Neon 项目、数据库与 branch。",
+        "把 Postgres 与环境上下文带入实现与调试工作流。",
+        "让 hosted Neon 上下文靠近 schema、migration 与开发库推理。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "docker-hub",
+      "slug": "docker-hub",
+      "eyebrow": "真实目录插件",
+      "title": "Docker Hub",
+      "tagline": "通过 Docker 官方镜像驱动的 MCP 方式访问 Docker Hub 仓库与镜像工作流。",
+      "description": "一个真实的 Docker Hub MCP 插件，通过运行官方 `mcp/dockerhub` 镜像，以可移植的 stdio 服务器形式支持仓库、镜像与 registry 工作流。",
+      "status": "现已可用",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/docker-hub",
+      "logoSrc": "docker.svg",
+      "logoAlt": "Docker 标志",
+      "categories": [
+        "developerTools",
+        "devops",
+        "backend"
+      ],
+      "highlights": [
+        "直接使用 Docker 官方的镜像式 MCP 服务器，而不是伪造一个并不存在的 hosted 默认方案。",
+        "auth-first 默认值让插件对真实仓库工作流有用，而不只是匿名查询。",
+        "当镜像、registry 与发布上下文需要贴近代码工作流时非常合适。"
+      ],
+      "useCases": [
+        "在同一个发布与平台工作流中查看仓库和镜像元数据。",
+        "让 Docker Hub 上下文靠近依赖、容器与部署流程。",
+        "在所有支持的 agents 之间复用一套官方 Docker MCP 配置。"
       ],
       "badges": [
         "Claude",

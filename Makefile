@@ -1,4 +1,4 @@
-.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-opencode-mcp-live test-opencode-e2e-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-bindings-live test-cloudflare-docs-live test-cloudflare-observability-live test-heroku-live test-hubspot-crm-live test-hubspot-developer-live test-notion-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
+.PHONY: test test-required test-plugin-manifest-workflow test-install-compat test-extended test-polyglot-smoke test-live test-live-cli test-install-live test-gemini-live test-gemini-runtime test-gemini-runtime-live test-opencode-live test-opencode-cli-live test-opencode-tools-live test-opencode-mcp-live test-opencode-e2e-live test-cursor-live test-portable-mcp-live test-context7-live test-chrome-devtools-live test-atlassian-live test-cloudflare-live test-cloudflare-bindings-live test-cloudflare-docs-live test-cloudflare-observability-live test-cloudflare-radar-live test-heroku-live test-hubspot-crm-live test-hubspot-developer-live test-neon-live test-docker-hub-live test-notion-live test-e2e-live generated-check version-sync-check removed-contract-boundary-check release-gate release-rehearsal build-plugin-kit-ai vet
 
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
@@ -104,6 +104,9 @@ test-cloudflare-docs-live:
 test-cloudflare-observability-live:
 	PLUGIN_KIT_AI_RUN_CLOUDFLARE_OBSERVABILITY_LIVE=1 go test -count=1 -run '^TestCloudflareObservabilityCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
+test-cloudflare-radar-live:
+	PLUGIN_KIT_AI_RUN_CLOUDFLARE_RADAR_LIVE=1 go test -count=1 -run '^TestCloudflareRadarCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
 test-heroku-live:
 	PLUGIN_KIT_AI_RUN_HEROKU_LIVE=1 go test -count=1 -run '^TestHerokuCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
@@ -112,6 +115,12 @@ test-hubspot-crm-live:
 
 test-hubspot-developer-live:
 	PLUGIN_KIT_AI_RUN_HUBSPOT_DEVELOPER_LIVE=1 go test -count=1 -run '^TestHubSpotDeveloperCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-neon-live:
+	PLUGIN_KIT_AI_RUN_NEON_LIVE=1 go test -count=1 -run '^TestNeonCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
+
+test-docker-hub-live:
+	PLUGIN_KIT_AI_RUN_DOCKER_HUB_LIVE=1 go test -count=1 -run '^TestDockerHubCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)
 
 test-notion-live:
 	PLUGIN_KIT_AI_RUN_NOTION_LIVE=1 go test -count=1 -run '^TestNotionCatalogLiveAcrossInstalledAgents$$' ./repotests $(EXTENDED_TEST_ARGS)

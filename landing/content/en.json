@@ -343,6 +343,40 @@
       ]
     },
     {
+      "id": "cloudflare-radar",
+      "slug": "cloudflare-radar",
+      "eyebrow": "Real catalog plugin",
+      "title": "Cloudflare Radar",
+      "tagline": "Hosted Cloudflare Radar access for internet telemetry, traffic trends, and network intelligence.",
+      "description": "A real Cloudflare Radar MCP plugin for hosted access to internet telemetry, traffic trends, network intelligence, and outage context through Cloudflare's official Radar MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare-radar",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare logo",
+      "categories": [
+        "observability",
+        "research",
+        "cloud"
+      ],
+      "highlights": [
+        "Focused option for teams that need internet and network intelligence, not the broader Cloudflare API control surface.",
+        "Brings traffic, ASN, geography, and outage context into the same workflow as debugging and planning work.",
+        "Keeps Radar lookup separate from write-heavy infrastructure tooling, which makes the catalog clearer."
+      ],
+      "useCases": [
+        "Investigate internet traffic and outage trends during incident review.",
+        "Pull ASN, network, and geography context into the same workflow as platform debugging.",
+        "Use Cloudflare Radar as a narrow research-first plugin instead of the broad Cloudflare API server."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "hubspot-crm",
       "slug": "hubspot-crm",
       "eyebrow": "Real catalog plugin",
@@ -435,6 +469,74 @@
         "Inspect apps, dynos, config vars, releases, and pipelines without leaving the agent workspace.",
         "Review operational state and logs while debugging production behavior.",
         "Keep routine platform operations in the same workflow as code changes and follow-up."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "neon",
+      "slug": "neon",
+      "eyebrow": "Real catalog plugin",
+      "title": "Neon",
+      "tagline": "Hosted Neon access for databases, branches, and project workflows through the official MCP server.",
+      "description": "A real Neon MCP plugin for hosted access to Neon databases, branches, and project context through Neon's official remote MCP endpoint.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/neon",
+      "logoSrc": "neon.svg",
+      "logoAlt": "Neon logo",
+      "categories": [
+        "backend",
+        "developerTools",
+        "cloud"
+      ],
+      "highlights": [
+        "Strong fit for teams that want database and environment context inside the same agent workflow as implementation work.",
+        "Keeps the default install story on the hosted Neon MCP path instead of pushing local variants by default.",
+        "Useful when branch, database, and project context should stay close to migrations, debugging, and schema work."
+      ],
+      "useCases": [
+        "Inspect Neon projects, databases, and branches without leaving the agent workspace.",
+        "Pull Postgres and environment context into implementation and debugging workflows.",
+        "Keep hosted Neon context close to schema, migration, and dev database reasoning."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "docker-hub",
+      "slug": "docker-hub",
+      "eyebrow": "Real catalog plugin",
+      "title": "Docker Hub",
+      "tagline": "Official Docker image-backed MCP access to Docker Hub repositories and image workflows.",
+      "description": "A real Docker Hub MCP plugin that runs Docker's official `mcp/dockerhub` image as a portable stdio server for repository, image, and registry workflows.",
+      "status": "Available now",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/docker-hub",
+      "logoSrc": "docker.svg",
+      "logoAlt": "Docker logo",
+      "categories": [
+        "developerTools",
+        "devops",
+        "backend"
+      ],
+      "highlights": [
+        "Uses Docker's official image-backed MCP server instead of inventing a fake hosted default.",
+        "Auth-first default keeps the plugin useful for real repository workflows, not only anonymous lookups.",
+        "Good fit when image, registry, and release context should stay close to the same agent workflow as code changes."
+      ],
+      "useCases": [
+        "Inspect repositories and image metadata from the same workflow as release and platform work.",
+        "Keep Docker Hub context close to dependency, container, and deployment flows.",
+        "Reuse one official Docker-backed MCP setup across all supported agents."
       ],
       "badges": [
         "Claude",
