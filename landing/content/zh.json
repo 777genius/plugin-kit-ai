@@ -207,6 +207,40 @@
       ]
     },
     {
+      "id": "cloudflare",
+      "slug": "cloudflare",
+      "eyebrow": "真实目录插件",
+      "title": "Cloudflare",
+      "tagline": "通过 Cloudflare 面向低 token 成本的 Code Mode MCP 服务器，以 OAuth-first 方式托管访问 Cloudflare API。",
+      "description": "一个真正的 Cloudflare MCP 插件，用于通过 Cloudflare 官方托管 API MCP 端点处理广泛的 Cloudflare API 工作流，让社区默认路径保持在 Code Mode 服务器上，而不是暴露成千上万个 endpoint 工具。",
+      "status": "现已上市",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Cloudflare 徽标",
+      "categories": [
+        "cloud",
+        "backend",
+        "devops"
+      ],
+      "highlights": [
+        "适合需要一个宽入口 Cloudflare 插件，而不是一组更窄产品插件的团队。",
+        "使用 Cloudflare 官方 API MCP 与 Code Mode，相比暴露数千个原生工具能显著降低 token 成本。",
+        "把 OAuth 保持为干净的社区默认路径，同时把 bearer token 自动化明确留在高级路径。"
+      ],
+      "useCases": [
+        "在同一个代理工作流中检查和管理 Workers、KV、R2、D1、DNS 以及其他 Cloudflare 产品。",
+        "让代理搜索 Cloudflare API 面并执行真实操作，而不必把完整 OpenAPI schema 塞进上下文。",
+        "支持基础设施和平台变更，而无需在默认插件中额外维护本地 bridge。"
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "atlassian",
       "slug": "atlassian",
       "eyebrow": "真实目录插件",

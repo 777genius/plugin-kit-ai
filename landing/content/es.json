@@ -207,6 +207,40 @@
       ]
     },
     {
+      "id": "cloudflare",
+      "slug": "cloudflare",
+      "eyebrow": "Complemento de catálogo real",
+      "title": "Cloudflare",
+      "tagline": "Acceso alojado con prioridad OAuth a la API de Cloudflare a través del servidor MCP Code Mode eficiente en tokens de Cloudflare.",
+      "description": "Un complemento real de Cloudflare MCP para flujos de trabajo amplios sobre la API de Cloudflare a través del endpoint oficial MCP alojado de Cloudflare, manteniendo el valor predeterminado de la comunidad en el servidor Code Mode en lugar de miles de herramientas por endpoint.",
+      "status": "Disponible ahora",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Logotipo de Cloudflare",
+      "categories": [
+        "cloud",
+        "backend",
+        "devops"
+      ],
+      "highlights": [
+        "Buen valor predeterminado para equipos que necesitan un único punto de entrada amplio de Cloudflare en lugar de muchos complementos de producto más estrechos.",
+        "Usa el servidor oficial API MCP de Cloudflare con Code Mode, lo que reduce de forma drástica el coste de tokens frente a exponer miles de herramientas nativas.",
+        "Mantiene OAuth como opción limpia por defecto para la comunidad y deja la automatización con bearer token como una ruta avanzada."
+      ],
+      "useCases": [
+        "Inspeccionar y gestionar Workers, KV, R2, D1, DNS y otros productos de Cloudflare desde el mismo flujo de trabajo del agente.",
+        "Permitir que los agentes exploren la superficie de la API de Cloudflare y ejecuten operaciones reales sin meter todo el esquema OpenAPI en el contexto.",
+        "Dar soporte a cambios de plataforma e infraestructura sin crear un bridge local separado en el complemento por defecto."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "notion",
       "slug": "notion",
       "eyebrow": "Complemento de catálogo real",

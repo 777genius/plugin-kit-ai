@@ -207,6 +207,74 @@
       ]
     },
     {
+      "id": "cloudflare",
+      "slug": "cloudflare",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Cloudflare",
+      "tagline": "Accès hébergé OAuth-first à l'API Cloudflare via le serveur MCP Code Mode de Cloudflare, pensé pour rester efficace en tokens.",
+      "description": "Un véritable plugin Cloudflare MCP pour des workflows API Cloudflare larges via le point d'accès hébergé officiel de Cloudflare, en gardant le défaut communautaire sur le serveur Code Mode plutôt que sur des milliers d'outils par endpoint.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/cloudflare",
+      "logoSrc": "cloudflare.svg",
+      "logoAlt": "Logo Cloudflare",
+      "categories": [
+        "cloud",
+        "backend",
+        "devops"
+      ],
+      "highlights": [
+        "Bon choix par défaut pour les équipes qui ont besoin d'une seule entrée Cloudflare large au lieu d'une collection de plugins produit plus étroits.",
+        "Utilise le serveur API MCP officiel de Cloudflare avec Code Mode, ce qui réduit fortement le coût en tokens par rapport à des milliers d'outils natifs.",
+        "Garde OAuth comme défaut propre pour la communauté et laisse l'automatisation par bearer token dans un chemin avancé."
+      ],
+      "useCases": [
+        "Inspecter et gérer Workers, KV, R2, D1, DNS et d'autres produits Cloudflare depuis le même workflow agent.",
+        "Permettre aux agents d'explorer la surface API Cloudflare et d'exécuter de vraies opérations sans injecter tout le schéma OpenAPI dans le contexte.",
+        "Accompagner les changements d'infrastructure et de plateforme sans créer de bridge local séparé dans le plugin par défaut."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
+      "id": "atlassian",
+      "slug": "atlassian",
+      "eyebrow": "Véritable plugin de catalogue",
+      "title": "Atlassian",
+      "tagline": "Accès Atlassian Rovo MCP hébergé à Jira, Confluence et Compass via une seule intégration distante OAuth-first.",
+      "description": "Un véritable plugin Atlassian MCP pour un accès hébergé aux workflows Jira, Confluence et Compass via le point de terminaison MCP distant officiel d'Atlassian.",
+      "status": "Disponible maintenant",
+      "href": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/atlassian",
+      "logoSrc": "atlassian.svg",
+      "logoAlt": "Logo Atlassian",
+      "categories": [
+        "planning",
+        "collaboration",
+        "review"
+      ],
+      "highlights": [
+        "Rassemble les tickets Jira, les documents Confluence et le contexte de service Compass dans le même workflow agent.",
+        "Garde le défaut communautaire propre avec une seule connexion OAuth hébergée au lieu de mélanger tokens et proxies par défaut.",
+        "Très bon choix pour les équipes produit et ingénierie qui vivent déjà dans Atlassian Cloud."
+      ],
+      "useCases": [
+        "Rechercher et mettre à jour le travail Jira pendant l'implémentation ou la revue.",
+        "Ramener les specs Confluence et les documents opératoires dans le même flux que le travail de code actif.",
+        "Utiliser le contexte Compass pour raisonner sur la propriété, les dépendances et l'impact des changements."
+      ],
+      "badges": [
+        "Claude",
+        "Codex",
+        "Gemini",
+        "OpenCode",
+        "Cursor"
+      ]
+    },
+    {
       "id": "notion",
       "slug": "notion",
       "eyebrow": "Véritable plugin de catalogue",
