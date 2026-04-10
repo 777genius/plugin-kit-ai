@@ -150,6 +150,32 @@ func TestGeminiImportCreatesLauncherWhenHooksExposeEntrypoint(t *testing.T) {
 	}
 }
 
+func TestRefineGeminiHooksLayoutRejectsUnexpectedPath(t *testing.T) {
+	t.Parallel()
+
+	state := pluginmodel.NewTargetState("gemini")
+	state.AddComponent("hooks", filepath.Join("targets", "gemini", "hooks", "extra.json"))
+
+	err := refineGeminiHooksLayout(&state)
+	if err == nil || !strings.Contains(err.Error(), "unsupported Gemini hooks layout") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestImportedGeminiPrimaryContextNameFallsBackToRootGeminiDoc(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "GEMINI.md"), []byte("# Gemini\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := importedGeminiPrimaryContextName(root, geminiPackageMeta{})
+	if got != "GEMINI.md" {
+		t.Fatalf("context name = %q", got)
+	}
+}
+
 func TestGeminiRenderGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
