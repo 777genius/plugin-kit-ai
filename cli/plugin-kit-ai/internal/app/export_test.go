@@ -140,6 +140,37 @@ func TestPluginServiceExportShellBundlePreservesScripts(t *testing.T) {
 	}
 }
 
+func TestPluginServiceExportExcludesExistingBundleOutputInsideRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell export assertions are unix-oriented")
+	}
+	dir := t.TempDir()
+	outputPath := filepath.Join(dir, "src", "existing-bundle.tar.gz")
+	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: shell\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec \"$ROOT/scripts/main.sh\" \"$@\"\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("src", "existing-bundle.tar.gz"), "stale tar content")
+	mustChmodBootstrapExecutable(t, filepath.Join(dir, "bin", "demo"))
+	mustChmodBootstrapExecutable(t, filepath.Join(dir, "scripts", "main.sh"))
+	renderExportTarget(t, dir, "codex-runtime")
+
+	var svc PluginService
+	if _, err := svc.Export(PluginExportOptions{
+		Root:     dir,
+		Platform: "codex-runtime",
+		Output:   outputPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := readExportArchive(t, outputPath)
+	if _, ok := entries["src/existing-bundle.tar.gz"]; ok {
+		t.Fatal("bundle unexpectedly included its own output path")
+	}
+}
+
 func renderExportTarget(t *testing.T, root, target string) {
 	t.Helper()
 	result, err := pluginmanifest.Generate(root, target)
