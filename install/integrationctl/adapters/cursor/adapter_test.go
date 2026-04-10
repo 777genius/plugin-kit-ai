@@ -179,6 +179,47 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestPlanUpdateUsesPersistedWorkspaceRootConfigPath(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	configPath := filepath.Join(workspaceA, ".cursor", "mcp.json")
+
+	adapter := Adapter{UserHome: t.TempDir()}
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	for _, dir := range []string{workspaceA, workspaceB} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %q: %v", dir, err)
+		}
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetCursor: {
+					TargetID: domain.TargetCursor,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	if len(plan.PathsTouched) != 1 || plan.PathsTouched[0] != configPath {
+		t.Fatalf("paths touched = %#v, want %q", plan.PathsTouched, configPath)
+	}
+}
+
 func mustWriteFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
