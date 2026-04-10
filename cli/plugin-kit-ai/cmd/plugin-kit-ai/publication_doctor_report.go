@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
 	"github.com/777genius/plugin-kit-ai/cli/internal/exitx"
@@ -48,69 +47,4 @@ func renderPublicationDoctorJSON(cmd *cobra.Command, report pluginmanifest.Inspe
 		return nil
 	}
 	return exitx.Wrap(errors.New("publication doctor found issues"), 1)
-}
-
-func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONReport {
-	warningMessages := warningMessages(warnings)
-	publication := normalizePublicationModel(report.Publication)
-	return publicationDoctorJSONReport{
-		Format:                "plugin-kit-ai/publication-doctor-report",
-		SchemaVersion:         1,
-		RequestedTarget:       strings.TrimSpace(requestedTarget),
-		Ready:                 diagnosis.Ready,
-		Status:                diagnosis.Status,
-		WarningCount:          len(warningMessages),
-		Warnings:              warningMessages,
-		IssueCount:            len(diagnosis.Issues),
-		Issues:                append([]publicationIssue{}, diagnosis.Issues...),
-		NextSteps:             append([]string(nil), diagnosis.NextSteps...),
-		MissingPackageTargets: append([]string(nil), diagnosis.MissingPackageTargets...),
-		LocalRoot:             normalizePublicationLocalRoot(localRoot),
-		Publication:           publication,
-	}
-}
-
-func buildPublicationJSONReport(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string) publicationJSONReport {
-	return publicationJSONReport{
-		Format:          "plugin-kit-ai/publication-report",
-		SchemaVersion:   1,
-		RequestedTarget: strings.TrimSpace(requestedTarget),
-		WarningCount:    len(warnings),
-		Warnings:        warningMessages(warnings),
-		Publication:     normalizePublicationModel(report.Publication),
-	}
-}
-
-func warningMessages(warnings []pluginmanifest.Warning) []string {
-	out := make([]string, 0, len(warnings))
-	for _, warning := range warnings {
-		out = append(out, warning.Message)
-	}
-	return out
-}
-
-func normalizePublicationModel(model publicationmodel.Model) publicationmodel.Model {
-	if model.Packages == nil {
-		model.Packages = []publicationmodel.Package{}
-	}
-	if model.Channels == nil {
-		model.Channels = []publicationmodel.Channel{}
-	}
-	for i := range model.Packages {
-		if model.Packages[i].ChannelFamilies == nil {
-			model.Packages[i].ChannelFamilies = []string{}
-		}
-		if model.Packages[i].AuthoredInputs == nil {
-			model.Packages[i].AuthoredInputs = []string{}
-		}
-		if model.Packages[i].ManagedArtifacts == nil {
-			model.Packages[i].ManagedArtifacts = []string{}
-		}
-	}
-	for i := range model.Channels {
-		if model.Channels[i].PackageTargets == nil {
-			model.Channels[i].PackageTargets = []string{}
-		}
-	}
-	return model
 }
