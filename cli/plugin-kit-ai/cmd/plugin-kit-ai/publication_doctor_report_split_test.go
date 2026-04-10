@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
 	"github.com/777genius/plugin-kit-ai/cli/internal/exitx"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
+	"github.com/spf13/cobra"
 )
 
 func TestNormalizePublicationModelInitializesNilSlices(t *testing.T) {
@@ -77,5 +79,32 @@ func TestNewPublicationDoctorJSONReportCopiesSlices(t *testing.T) {
 	missing[0] = "changed"
 	if report.Issues[0].Code != "demo" || report.NextSteps[0] != "step" || report.MissingPackageTargets[0] != "gemini" {
 		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestPublicationDoctorJSONIssueErrUsesDiagnosisReadyFlag(t *testing.T) {
+	t.Parallel()
+
+	if err := publicationDoctorJSONIssueErr(publicationDiagnosis{Ready: true}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	err := publicationDoctorJSONIssueErr(publicationDiagnosis{Ready: false})
+	if code := exitx.Code(err); code != 1 {
+		t.Fatalf("exit code = %d", code)
+	}
+}
+
+func TestWritePublicationDoctorJSONReportEmitsJSONEnvelope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	err := writePublicationDoctorJSONReport(cmd, pluginmanifest.Inspection{}, nil, "gemini", publicationDiagnosis{Ready: true, Status: "ready"}, &app.PluginPublicationVerifyRootResult{Ready: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got == "" || got[0] != '{' {
+		t.Fatalf("output = %q", got)
 	}
 }
