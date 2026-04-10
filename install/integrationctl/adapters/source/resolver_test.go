@@ -193,3 +193,18 @@ func TestResolveGitHubRefFetchesPinnedRevision(t *testing.T) {
 		t.Fatalf("resolved ref = %s", resolved.Resolved.Value)
 	}
 }
+
+func TestParseGitURLRefNormalizesRefFragment(t *testing.T) {
+	t.Parallel()
+
+	repoURL, gitRef, ok := parseGitURLRef("https://example.com/acme/demo.git#ref=v1.2.3")
+	if !ok {
+		t.Fatal("expected git url to parse")
+	}
+	if repoURL != "https://example.com/acme/demo.git" {
+		t.Fatalf("repo url = %q", repoURL)
+	}
+	if gitRef != "v1.2.3" {
+		t.Fatalf("git ref = %q", gitRef)
+	}
+}
