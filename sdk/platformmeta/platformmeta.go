@@ -263,40 +263,6 @@ type PlatformProfile struct {
 	Validate ValidateMeta
 }
 
-// All returns the full set of public platform profiles.
-func All() []PlatformProfile {
-	return []PlatformProfile{
-		claudeProfile(),
-		codexPackageProfile(),
-		codexRuntimeProfile(),
-		geminiProfile(),
-		cursorProfile(),
-		cursorWorkspaceProfile(),
-		opencodeProfile(),
-	}
-}
-
-// Lookup resolves a platform profile by normalized platform name.
-func Lookup(name string) (PlatformProfile, bool) {
-	name = normalizeName(name)
-	for _, profile := range All() {
-		if profile.ID == name {
-			return profile, true
-		}
-	}
-	return PlatformProfile{}, false
-}
-
-// IDs returns the normalized identifiers for every known platform profile.
-func IDs() []string {
-	profiles := All()
-	out := make([]string, 0, len(profiles))
-	for _, profile := range profiles {
-		out = append(out, profile.ID)
-	}
-	return out
-}
-
 func normalizeName(name string) string {
 	return strings.ToLower(strings.TrimSpace(name))
 }
