@@ -4,5 +4,5 @@ set "ROOT=%~dp0.."
 {{- if .TypeScript }}
 node "%ROOT%\dist\main.js" %*
 {{- else }}
-node "%ROOT%\src\main.mjs" %*
+node "%ROOT%\plugin\main.mjs" %*
 {{- end }}

@@ -76,6 +76,8 @@ func buildInitScaffoldData(name string, opts InitOptions, config resolvedInitCon
 		ClaudeExtendedHooks:   opts.ClaudeExtendedHooks,
 		JobTemplate:           config.TemplateName,
 		Targets:               config.Targets,
+		AuthoredRoot:          pluginmodel.SourceDirName,
+		AuthoredReadmePath:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "README.md")),
 	}
 	if config.Platform == "codex-runtime" {
 		data.CodexModel = scaffold.DefaultCodexModel
@@ -88,16 +90,10 @@ func writeInitProject(out string, data scaffold.Data, force bool) error {
 }
 
 func generateInitArtifacts(out string) error {
-	if _, err := os.Stat(filepath.Join(out, pluginmanifest.FileName)); err != nil {
-		if _, srcErr := os.Stat(filepath.Join(out, pluginmodel.SourceDirName, pluginmanifest.FileName)); srcErr != nil {
-			if os.IsNotExist(err) && os.IsNotExist(srcErr) {
-				return nil
-			}
-			if !os.IsNotExist(err) {
-				return err
-			}
-			return srcErr
-		}
+	if !fileExists(filepath.Join(out, pluginmanifest.FileName)) &&
+		!fileExists(filepath.Join(out, pluginmodel.SourceDirName, pluginmanifest.FileName)) &&
+		!fileExists(filepath.Join(out, pluginmodel.LegacySourceDirName, pluginmanifest.FileName)) {
+		return nil
 	}
 	generated, err := pluginmanifest.Generate(out, "all")
 	if err != nil {

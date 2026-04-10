@@ -127,7 +127,7 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "inline Claude mcpServers were normalized into src/mcp/servers.yaml",
+			Message: fmt.Sprintf("inline Claude mcpServers were normalized into %s/mcp/servers.yaml", pluginmodel.SourceDirName),
 		}}, nil
 	case len(manifest.MCPRefs) == 1:
 		ref := cleanRelativeRef(manifest.MCPRefs[0])
@@ -146,7 +146,7 @@ func importClaudeMCP(root string, manifest importedClaudePluginManifest) ([]plug
 		return []pluginmodel.Artifact{artifact}, []pluginmodel.Warning{{
 			Kind:    pluginmodel.WarningFidelity,
 			Path:    filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json")),
-			Message: "custom Claude mcpServers path was normalized into src/mcp/servers.yaml",
+			Message: fmt.Sprintf("custom Claude mcpServers path was normalized into %s/mcp/servers.yaml", pluginmodel.SourceDirName),
 		}}, nil
 	case len(manifest.MCPRefs) > 1:
 		body, err := mergeClaudeObjectRefs(root, manifest.MCPRefs, "Claude mcpServers")

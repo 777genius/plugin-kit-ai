@@ -129,7 +129,11 @@ func renderPortableSkills(root string, paths []string, outputRoot string) ([]plu
 		switch {
 		case strings.HasPrefix(normalizedRel, pluginmodel.SourceDirName+"/skills/"):
 			normalizedRel = strings.TrimPrefix(normalizedRel, pluginmodel.SourceDirName+"/")
+		case strings.HasPrefix(normalizedRel, pluginmodel.LegacySourceDirName+"/skills/"):
+			normalizedRel = strings.TrimPrefix(normalizedRel, pluginmodel.LegacySourceDirName+"/")
 		case normalizedRel == pluginmodel.SourceDirName+"/skills":
+			normalizedRel = "skills"
+		case normalizedRel == pluginmodel.LegacySourceDirName+"/skills":
 			normalizedRel = "skills"
 		}
 		child, err := filepath.Rel(filepath.FromSlash("skills"), filepath.FromSlash(normalizedRel))
@@ -156,6 +160,7 @@ func authoredOpenCodePluginDir(root string, state pluginmodel.TargetState) strin
 	}
 	for _, candidate := range []string{
 		filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"),
+		filepath.Join(pluginmodel.LegacySourceDirName, "targets", "opencode", "plugins"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
 			return filepath.ToSlash(candidate)

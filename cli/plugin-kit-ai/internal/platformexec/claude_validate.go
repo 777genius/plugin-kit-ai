@@ -11,6 +11,7 @@ import (
 
 func (claudeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
+	authoredRoot := authoredRootHint(state, graph.Portable)
 	if graph.Launcher == nil {
 		if rel := claudePrimaryHookPath(state); rel != "" {
 			diagnostics = append(diagnostics, Diagnostic{
@@ -18,15 +19,15 @@ func (claudeAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "claude",
-				Message:  fmt.Sprintf("Claude hooks require src/%s when src/targets/claude/hooks/** is authored", pluginmodel.LauncherFileName),
+				Message:  fmt.Sprintf("Claude hooks require %s/%s when %s/targets/claude/hooks/** is authored", authoredRoot, pluginmodel.LauncherFileName, authoredRoot),
 			})
 		} else if !claudeHasPackageOnlySurface(graph, state) {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
-				Path:     filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmodel.FileName)),
+				Path:     filepath.ToSlash(filepath.Join(authoredRoot, pluginmodel.FileName)),
 				Target:   "claude",
-				Message:  "target claude without src/launcher.yaml must author at least one package-only surface such as src/mcp/servers.yaml, src/skills/, src/targets/claude/settings.json, src/targets/claude/lsp.json, src/targets/claude/user-config.json, src/targets/claude/manifest.extra.json, or src/targets/claude/commands/** and src/targets/claude/agents/**",
+				Message:  fmt.Sprintf("target claude without %s/launcher.yaml must author at least one package-only surface such as %s/mcp/servers.yaml, %s/skills/, %s/targets/claude/settings.json, %s/targets/claude/lsp.json, %s/targets/claude/user-config.json, %s/targets/claude/manifest.extra.json, or %s/targets/claude/commands/** and %s/targets/claude/agents/**", authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot),
 			})
 		}
 	}

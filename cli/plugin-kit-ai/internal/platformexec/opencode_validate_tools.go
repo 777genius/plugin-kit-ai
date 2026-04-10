@@ -5,11 +5,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 func validateOpenCodeToolFiles(root string, rels []string, packageDoc map[string]any) []Diagnostic {
 	if len(rels) == 0 {
 		return nil
+	}
+	authoredRoot := pluginmodel.SourceDirName
+	for _, rel := range rels {
+		if candidate := authoredRootFromPath(rel); candidate != "" {
+			authoredRoot = candidate
+			break
+		}
 	}
 	var (
 		diagnostics      []Diagnostic
@@ -88,18 +97,18 @@ func validateOpenCodeToolFiles(root string, rels []string, packageDoc map[string
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "tools")),
+			Path:     filepath.ToSlash(filepath.Join(authoredRoot, "targets", "opencode", "tools")),
 			Target:   "opencode",
-			Message:  "OpenCode standalone tools require at least one JS/TS tool definition file under src/targets/opencode/tools",
+			Message:  fmt.Sprintf("OpenCode standalone tools require at least one JS/TS tool definition file under %s/targets/opencode/tools", authoredRoot),
 		})
 	}
 	if usesPluginHelper && !openCodePackageDeclaresDependency(packageDoc, "@opencode-ai/plugin") {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
-			Path:     filepath.ToSlash(filepath.Join("src", "targets", "opencode", "package.json")),
+			Path:     filepath.ToSlash(filepath.Join(authoredRoot, "targets", "opencode", "package.json")),
 			Target:   "opencode",
-			Message:  `OpenCode standalone tool files that import "@opencode-ai/plugin" must declare that dependency in src/targets/opencode/package.json`,
+			Message:  fmt.Sprintf(`OpenCode standalone tool files that import "@opencode-ai/plugin" must declare that dependency in %s/targets/opencode/package.json`, authoredRoot),
 		})
 	}
 	return diagnostics

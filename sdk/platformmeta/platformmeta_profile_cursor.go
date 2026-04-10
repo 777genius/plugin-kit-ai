@@ -38,28 +38,28 @@ func cursorProfile() PlatformProfile {
 		},
 		ManagedArtifacts: []ManagedArtifactSpec{
 			{Kind: ManagedArtifactStatic, Path: ".cursor-plugin/plugin.json"},
-			{Kind: ManagedArtifactPortableSkills, SourceRoot: "src/skills", OutputRoot: "skills"},
+			{Kind: ManagedArtifactPortableSkills, SourceRoot: authoredPath("skills"), OutputRoot: "skills"},
 			{Kind: ManagedArtifactPortableMCP, Path: ".mcp.json"},
 		},
 		Scaffold: ScaffoldMeta{
 			RequiredFiles: []string{
-				"src/plugin.yaml",
-				"src/README.md",
+				authoredPath("plugin.yaml"),
+				authoredPath("README.md"),
 				"CLAUDE.md",
 				"AGENTS.md",
 			},
 			OptionalFiles: []string{
-				"src/mcp/servers.yaml",
-				"src/skills/{{.ProjectName}}/SKILL.md",
+				authoredPath("mcp/servers.yaml"),
+				authoredPath("skills/{{.ProjectName}}/SKILL.md"),
 			},
 			ForbiddenFiles: []string{
 				"launcher.yaml",
 			},
 			TemplateFiles: []TemplateFile{
-				{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl"},
-				{Path: "src/README.md", Template: "cursor.README.md.tmpl"},
-				{Path: "src/mcp/servers.yaml", Template: "mcp.servers.yaml.tmpl", Extra: true},
-				{Path: "src/skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true},
+				{Path: authoredPath("plugin.yaml"), Template: "plugin.yaml.tmpl"},
+				{Path: authoredPath("README.md"), Template: "cursor.README.md.tmpl"},
+				{Path: authoredPath("mcp/servers.yaml"), Template: "mcp.servers.yaml.tmpl", Extra: true},
+				{Path: authoredPath("skills/{{.ProjectName}}/SKILL.md"), Template: "SKILL.md.tmpl", Extra: true},
 				{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl"},
 				{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl"},
 			},
@@ -106,7 +106,7 @@ func cursorWorkspaceProfile() PlatformProfile {
 		},
 		Launcher: LauncherMeta{Requirement: LauncherIgnored},
 		NativeDocs: []NativeDocSpec{
-			{Kind: "agents_markdown", Path: "src/targets/cursor-workspace/AGENTS.md", Format: NativeDocMarkdown, Role: NativeDocRoleStructured},
+			{Kind: "agents_markdown", Path: authoredPath("targets/cursor-workspace/AGENTS.md"), Format: NativeDocMarkdown, Role: NativeDocRoleStructured},
 		},
 		SurfaceTiers: []SurfaceSupport{
 			{Kind: "mcp", Tier: SurfaceTierStable},
@@ -115,27 +115,27 @@ func cursorWorkspaceProfile() PlatformProfile {
 		},
 		ManagedArtifacts: []ManagedArtifactSpec{
 			{Kind: ManagedArtifactPortableMCP, Path: ".cursor/mcp.json"},
-			{Kind: ManagedArtifactMirror, ComponentKind: "rules", SourceRoot: "src/targets/cursor-workspace/rules", OutputRoot: ".cursor/rules"},
+			{Kind: ManagedArtifactMirror, ComponentKind: "rules", SourceRoot: authoredPath("targets/cursor-workspace/rules"), OutputRoot: ".cursor/rules"},
 		},
 		Scaffold: ScaffoldMeta{
 			RequiredFiles: []string{
-				"src/plugin.yaml",
-				"src/README.md",
-				"src/targets/cursor-workspace/rules/project.mdc",
+				authoredPath("plugin.yaml"),
+				authoredPath("README.md"),
+				authoredPath("targets/cursor-workspace/rules/project.mdc"),
 				"CLAUDE.md",
 				"AGENTS.md",
 			},
 			OptionalFiles: []string{
-				"src/targets/cursor-workspace/AGENTS.md",
+				authoredPath("targets/cursor-workspace/AGENTS.md"),
 			},
 			ForbiddenFiles: []string{
 				"launcher.yaml",
 			},
 			TemplateFiles: []TemplateFile{
-				{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl"},
-				{Path: "src/README.md", Template: "cursor-workspace.README.md.tmpl"},
-				{Path: "src/targets/cursor-workspace/rules/project.mdc", Template: "cursor.rule.mdc.tmpl"},
-				{Path: "src/targets/cursor-workspace/AGENTS.md", Template: "cursor.AGENTS.md.tmpl", Extra: true},
+				{Path: authoredPath("plugin.yaml"), Template: "plugin.yaml.tmpl"},
+				{Path: authoredPath("README.md"), Template: "cursor-workspace.README.md.tmpl"},
+				{Path: authoredPath("targets/cursor-workspace/rules/project.mdc"), Template: "cursor.rule.mdc.tmpl"},
+				{Path: authoredPath("targets/cursor-workspace/AGENTS.md"), Template: "cursor.AGENTS.md.tmpl", Extra: true},
 				{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl"},
 				{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl"},
 			},

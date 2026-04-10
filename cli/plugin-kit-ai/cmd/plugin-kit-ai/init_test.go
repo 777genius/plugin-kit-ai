@@ -103,7 +103,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See src/README.md for SDK setup and first-run steps",
+				"See plugin/README.md for SDK setup and first-run steps",
 				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 		},
@@ -118,7 +118,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 			notWant: []string{
@@ -136,7 +136,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 				"Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.",
 			},
 			notWant: []string{
@@ -152,7 +152,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 			},
 		},
 		{
@@ -164,7 +164,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 			},
 		},
 		{
@@ -199,7 +199,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 			},
 		},
 		{
@@ -211,7 +211,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
-				"See src/README.md for the full first run",
+				"See plugin/README.md for the full first run",
 			},
 		},
 		{
@@ -220,7 +220,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 			wantRuntime:  "",
 			wantPlatform: "cursor",
 			want: []string{
-				"Portable MCP starter: src/mcp/servers.yaml",
+				"Portable MCP starter: plugin/mcp/servers.yaml",
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
@@ -269,8 +269,8 @@ func TestInitSuccessOutput_CustomLogicHighlightsAdvancedPath(t *testing.T) {
 	}
 	for _, want := range []string{
 		"plugin-kit-ai inspect . --authoring",
-		"See src/README.md for SDK setup and first-run steps",
-		"Advanced path: start with src/README.md, then grow into deeper runtime and hook details only when you need them.",
+		"See plugin/README.md for SDK setup and first-run steps",
+		"Advanced path: start with plugin/README.md, then grow into deeper runtime and hook details only when you need them.",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
@@ -343,7 +343,7 @@ func TestInitSuccessOutputForOnlineServiceTemplate(t *testing.T) {
 		"plugin-kit-ai generate .",
 		"plugin-kit-ai generate --check .",
 		"plugin-kit-ai validate . --platform claude --strict",
-		"See src/README.md for the first run",
+		"See plugin/README.md for the first run",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)

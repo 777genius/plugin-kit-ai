@@ -16,6 +16,10 @@ const (
 	cursorAgentsSectionEnd   = "<!-- plugin-kit-ai:cursor-agents:end -->"
 )
 
+func CursorAgentsSectionStart() string { return cursorAgentsSectionStart }
+
+func CursorAgentsSectionEnd() string { return cursorAgentsSectionEnd }
+
 func (cursorWorkspaceAdapter) ID() string { return "cursor-workspace" }
 
 func (cursorWorkspaceAdapter) DetectNative(root string) bool {

@@ -20,6 +20,10 @@ func (l authoredLayout) IsCanonical() bool {
 	return filepath.ToSlash(strings.TrimSpace(l.RootRel)) == pluginmodel.SourceDirName
 }
 
+func (l authoredLayout) IsLegacy() bool {
+	return filepath.ToSlash(strings.TrimSpace(l.RootRel)) == pluginmodel.LegacySourceDirName
+}
+
 func (l authoredLayout) Path(rel string) string {
 	rel = filepath.ToSlash(strings.TrimSpace(rel))
 	if rel == "" {
@@ -122,16 +126,24 @@ func authoredInputExists(root, rel string) bool {
 
 func detectAuthoredLayout(root string) (authoredLayout, error) {
 	canonical := authoredLayout{RootRel: pluginmodel.SourceDirName}
+	legacy := authoredLayout{RootRel: pluginmodel.LegacySourceDirName}
 	if legacyRel := rootLegacyPortableMCPPath(root); legacyRel != "" {
-		return authoredLayout{}, fmt.Errorf("unsupported portable MCP authored path %s: use src/mcp/servers.yaml", legacyRel)
+		return authoredLayout{}, fmt.Errorf("unsupported portable MCP authored path %s: use %s/mcp/servers.yaml", legacyRel, pluginmodel.SourceDirName)
 	}
 	canonicalPresent := authoredLayoutPresent(root, canonical)
+	legacyPresent := authoredLayoutPresent(root, legacy)
 	rootPresent := rootAuthoredLayoutPresent(root)
 	switch {
+	case canonicalPresent && legacyPresent:
+		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ or %s/, not both", pluginmodel.SourceDirName, pluginmodel.LegacySourceDirName)
 	case canonicalPresent && rootPresent:
 		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ and remove root-authored plugin files", pluginmodel.SourceDirName)
 	case canonicalPresent:
 		return canonical, nil
+	case legacyPresent && rootPresent:
+		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ and remove root-authored plugin files", pluginmodel.LegacySourceDirName)
+	case legacyPresent:
+		return legacy, nil
 	case rootPresent:
 		return authoredLayout{}, fmt.Errorf("unsupported authored layout: move manual plugin sources into %s/", pluginmodel.SourceDirName)
 	default:

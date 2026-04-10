@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 )
 
@@ -23,10 +24,10 @@ func TestValidate_ManifestMissing(t *testing.T) {
 	if got := re.Report.Failures[0].Kind; got != FailureManifestMissing {
 		t.Fatalf("failure kind = %q", got)
 	}
-	if got := re.Report.Failures[0].Path; got != filepath.Join("src", pluginmanifest.FileName) {
+	if got := re.Report.Failures[0].Path; got != filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName) {
 		t.Fatalf("failure path = %q", got)
 	}
-	if re.Error() != "required manifest missing: src/plugin.yaml" {
+	if re.Error() != "required manifest missing: plugin/plugin.yaml" {
 		t.Fatalf("error = %q", re.Error())
 	}
 }
@@ -34,7 +35,7 @@ func TestValidate_ManifestMissing(t *testing.T) {
 func TestValidate_MissingRequiredLauncherSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -52,7 +53,7 @@ targets: ["codex-runtime"]
 	if first.Kind != FailureManifestInvalid {
 		t.Fatalf("failure kind = %q", first.Kind)
 	}
-	if first.Path != filepath.Join("src", pluginmanifest.LauncherFileName) {
+	if first.Path != filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName) {
 		t.Fatalf("failure path = %q", first.Path)
 	}
 	if !strings.Contains(first.Message, "required launcher missing") {
@@ -84,7 +85,7 @@ func TestValidate_LegacyProjectManifestRejected(t *testing.T) {
 func TestValidate_TargetNotEnabledSetsPluginPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -98,7 +99,7 @@ targets: ["codex-package"]
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == filepath.Join("src", pluginmanifest.FileName) &&
+			failure.Path == filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName) &&
 			strings.Contains(failure.Message, `plugin.yaml does not enable target "codex-runtime"`) {
 			found = true
 		}
@@ -111,13 +112,13 @@ targets: ["codex-package"]
 func TestValidate_InvalidLauncherSetsLauncherPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\n")
 
 	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
@@ -126,7 +127,7 @@ targets: ["codex-runtime"]
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == filepath.Join("src", pluginmanifest.LauncherFileName) &&
+			failure.Path == filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName) &&
 			strings.Contains(failure.Message, "entrypoint required") {
 			found = true
 		}
@@ -139,7 +140,7 @@ targets: ["codex-runtime"]
 func TestValidate_LegacyPortableMCPPathSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -158,7 +159,7 @@ targets: ["codex-package"]
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureManifestInvalid &&
-			failure.Path == filepath.Join("src", "mcp", "servers.json") &&
+			failure.Path == filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.json") &&
 			strings.Contains(failure.Message, "unsupported portable MCP authored path") {
 			found = true
 		}
@@ -171,14 +172,14 @@ targets: ["codex-package"]
 func TestValidate_UnsupportedPortableMCPUsesAuthoredPath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -195,7 +196,7 @@ servers:
 	var found bool
 	for _, failure := range report.Failures {
 		if failure.Kind == FailureUnsupportedTargetKind &&
-			failure.Path == filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")) &&
+			failure.Path == filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml")) &&
 			strings.Contains(failure.Message, "does not support portable component kind mcp_servers") {
 			found = true
 		}
@@ -210,10 +211,10 @@ func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
 	t.Run("doc path", func(t *testing.T) {
 		t.Parallel()
 		tc := pluginmanifest.TargetComponents{
-			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join("src", "targets", "codex-package", "interface.json"))},
+			Docs:       map[string]string{"interface": filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"))},
 			Components: map[string][]string{},
 		}
-		want := filepath.ToSlash(filepath.Join("src", "targets", "codex-package", "interface.json"))
+		want := filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"))
 		if got := unsupportedTargetKindPath("codex-package", tc, "interface"); got != want {
 			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
 		}
@@ -224,10 +225,10 @@ func TestUnsupportedTargetKindPathUsesSurfaceLocation(t *testing.T) {
 		tc := pluginmanifest.TargetComponents{
 			Docs: map[string]string{},
 			Components: map[string][]string{
-				"commands": {filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "commands", "review.md"))},
+				"commands": {filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "commands", "review.md"))},
 			},
 		}
-		want := filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "commands"))
+		want := filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "commands"))
 		if got := unsupportedTargetKindPath("codex-runtime", tc, "commands"); got != want {
 			t.Fatalf("unsupportedTargetKindPath() = %q, want %q", got, want)
 		}
@@ -264,7 +265,7 @@ func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
 		{
 			name:    "nested parse error",
 			message: "runtime not found: python runtime inspection failed: parse targets/codex-runtime/package.yaml: yaml: line 1: did not find expected key",
-			want:    filepath.ToSlash(filepath.Join("src", "targets", "codex-runtime", "package.yaml")),
+			want:    filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "package.yaml")),
 		},
 	}
 
@@ -282,14 +283,14 @@ func TestExtractFailurePath_RuntimeNotFoundCases(t *testing.T) {
 func TestValidate_GeminiRejectsInvalidExtensionName(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "Demo_Extension"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", "{}\n")
 
 	_, err := Validate(dir, "gemini")
@@ -304,13 +305,13 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsTrustAndAmbiguousContexts(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-demo"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   demo:
@@ -321,8 +322,8 @@ servers:
       gemini:
         trust: true
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "FIRST.md"), "# First\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "SECOND.md"), "# Second\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "FIRST.md"), "# First\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "SECOND.md"), "# Second\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -354,14 +355,14 @@ servers:
 func TestValidate_GeminiWarnsOnIgnoredPolicyKeys(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-policy"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "policies", "review.toml"), "allow = true\nyolo = true\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "policies", "review.toml"), "allow = true\nyolo = true\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -384,14 +385,14 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidCommandTOML(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-command"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "commands", "bad.toml"), "description = [\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "commands", "bad.toml"), "description = [\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -411,14 +412,14 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsUnsupportedHooksLayout(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-hooks"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "extra.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "hooks", "extra.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -438,14 +439,14 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsHooksWithoutTopLevelHooksObject(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-hooks"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "hooks", "hooks.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -465,14 +466,14 @@ targets: ["gemini"]
 func TestValidate_OpenCodeRejectsInvalidPortableSkillForMirroring(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "skills", "demo", "SKILL.md"), "---\nname: wrong\ndescription: demo\n---\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "skills", "demo", "SKILL.md"), "---\nname: wrong\ndescription: demo\n---\n")
 	mustWriteValidateFile(t, dir, "opencode.json", `{
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
@@ -499,13 +500,13 @@ targets: ["opencode"]
 func TestValidate_OpenCodeWarnsWhenJSONCTakesLowerPrecedence(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
 	mustWriteValidateFile(t, dir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 	mustWriteValidateFile(t, dir, "opencode.jsonc", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/ignored"],}`)
 
@@ -527,14 +528,14 @@ targets: ["opencode"]
 func TestValidate_OpenCodeAllowsConfigExtra(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "opencode-demo"
 version: "0.1.0"
 description: "demo"
 targets: ["opencode"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/demo-opencode\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "config.extra.json"), `{"theme":"midnight"}`)
 	mustWriteValidateFile(t, dir, "opencode.json", `{"$schema":"https://opencode.ai/config.json","plugin":["@acme/demo-opencode"]}`)
 
 	report, err := Validate(dir, "opencode")
@@ -542,7 +543,7 @@ targets: ["opencode"]
 		t.Fatal(err)
 	}
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "opencode", "config.extra.json")) {
+		if failure.Path == filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "config.extra.json")) {
 			t.Fatalf("unexpected config.extra.json failure: %+v", failure)
 		}
 	}
@@ -551,14 +552,14 @@ targets: ["opencode"]
 func TestValidate_GeminiRejectsNonYAMLSettingsAndThemes(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "api-token.json"), "{}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", "api-token.json"), "{}\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -738,14 +739,14 @@ func TestValidate_ManifestProject_ShellRequiresBashOnWindows(t *testing.T) {
 	}
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: shell\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: shell\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
 	mustWriteValidateFile(t, dir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
@@ -773,13 +774,13 @@ func TestValidate_CodexRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json"), `{"name":"override"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
 	report, err := Validate(dir, "codex-package")
@@ -801,13 +802,13 @@ func TestValidate_CodexRejectsManifestExtraPackageAndInterfaceOverrides(t *testi
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json"), `{"homepage":"https://override.example.com"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), "{}\n")
 
 	report, err := Validate(dir, "codex-package")
@@ -824,7 +825,7 @@ targets: ["codex-package"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json"), `{"interface":{"defaultPrompt":["override"]}}`)
 	report, err = Validate(dir, "codex-package")
 	if err != nil {
 		t.Fatal(err)
@@ -844,13 +845,13 @@ func TestValidate_CodexRejectsMalformedStructuredDocs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":"override"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"), `{"defaultPrompt":"override"}`)
 
 	report, err := Validate(dir, "codex-package")
 	if err != nil {
@@ -858,7 +859,7 @@ targets: ["codex-package"]
 	}
 	var foundInterface bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.Join("src", "targets", "codex-package", "interface.json") &&
+		if failure.Path == filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json") &&
 			strings.Contains(failure.Message, "interface.defaultPrompt must be an array of strings") {
 			foundInterface = true
 		}
@@ -867,15 +868,15 @@ targets: ["codex-package"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["override"]}`)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `["demo-app"]`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"), `{"defaultPrompt":["override"]}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json"), `["demo-app"]`)
 	report, err = Validate(dir, "codex-package")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var foundApp bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.Join("src", "targets", "codex-package", "app.json") &&
+		if failure.Path == filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json") &&
 			strings.Contains(failure.Message, "Codex app manifest must be a JSON object") {
 			foundApp = true
 		}
@@ -889,7 +890,7 @@ func TestValidate_CodexRejectsMalformedGeneratedPluginManifest(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -917,7 +918,7 @@ func TestValidate_CodexRejectsUnexpectedPluginDirEntries(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -946,7 +947,7 @@ func TestValidate_CodexRejectsUnreferencedBundleSidecars(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
@@ -978,14 +979,14 @@ func TestValidate_CodexRejectsNonCanonicalGeneratedManifestRefs(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "skills", "x", "SKILL.md"), "---\nname: x\ndescription: x\n---\nDo x.\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "skills", "x", "SKILL.md"), "---\nname: x\ndescription: x\n---\nDo x.\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -996,7 +997,7 @@ servers:
     targets:
       - "codex-package"
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","skills":"./custom-skills/","mcpServers":"./custom.mcp.json","apps":"./custom.app.json"}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1023,13 +1024,13 @@ func TestValidate_CodexRejectsRefsOutsidePluginRoot(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json"), `{"name":"demo-app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","apps":"../outside.app.json"}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1052,19 +1053,19 @@ func TestValidate_CodexRejectsGeneratedMetadataMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "package.yaml"), `author:
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "package.yaml"), `author:
   name: Example Maintainer
 homepage: https://example.com/x
 keywords:
   - codex
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Help with x."]}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Help with x."]}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"other","version":"9.9.9","description":"other","author":{"name":"Different Maintainer"},"homepage":"https://example.com/other","keywords":["wrong"],"interface":{"defaultPrompt":["Different"]}}`)
 
 	report, err := Validate(dir, "codex-package")
@@ -1091,13 +1092,13 @@ func TestValidate_CodexRejectsGeneratedSidecarMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -1108,7 +1109,7 @@ servers:
     targets:
       - "codex-package"
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json"), `{"name":"demo-app","url":"https://example.com/app"}`)
 	mustWriteValidateFile(t, dir, filepath.Join(".codex-plugin", "plugin.json"), `{"name":"x","version":"0.1.0","description":"x","mcpServers":"./.mcp.json","apps":"./.app.json"}`)
 	mustWriteValidateFile(t, dir, ".mcp.json", `{"other":{"url":"https://example.com/other"}}`)
 	mustWriteValidateFile(t, dir, ".app.json", `{"name":"other-app","url":"https://example.com/other"}`)
@@ -1133,14 +1134,14 @@ servers:
 
 func TestValidate_CodexRejectsGeneratedMarketplaceMismatch(t *testing.T) {
 	root := t.TempDir()
-	mustWriteValidateFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo-codex-package"
 version: "0.1.0"
 description: "demo"
 targets: ["codex-package"]
 `)
-	mustWriteValidateFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWriteValidateFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 
 	result, err := pluginmanifest.Generate(root, "codex-package")
 	if err != nil {
@@ -1169,14 +1170,14 @@ targets: ["codex-package"]
 
 func TestValidate_ClaudeRejectsGeneratedMarketplaceMismatch(t *testing.T) {
 	root := t.TempDir()
-	mustWriteValidateFile(t, root, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo-claude"
 version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, root, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-claude\n")
-	mustWriteValidateFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo-claude\n")
+	mustWriteValidateFile(t, root, filepath.Join(pluginmodel.SourceDirName, "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
 
 	result, err := pluginmanifest.Generate(root, "claude")
 	if err != nil {
@@ -1207,17 +1208,17 @@ func TestValidate_CodexRejectsConfigExtraCanonicalOverrideAndModelDrift(t *testi
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "config.extra.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-4.1\"\nnotify = [\"./bin/other\", \"notify\"]\n")
 
 	report, err := Validate(dir, "codex-runtime")
@@ -1245,13 +1246,13 @@ func TestValidate_CodexRejectsMalformedGeneratedConfigShapeAndExtraMismatch(t *t
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/x\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/x\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "x", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = [\"bad\"]\nnotify = [\"./bin/x\", \"notify\"]\n")
@@ -1271,7 +1272,7 @@ targets: ["codex-runtime"]
 		t.Fatalf("failures = %+v", report.Failures)
 	}
 
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"never\"\n[ui]\nverbose = true\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/x\", \"notify\"]\napproval_policy = \"on-request\"\n[ui]\nverbose = false\n")
 	report, err = Validate(dir, "codex-runtime")
 	if err != nil {
@@ -1292,14 +1293,14 @@ targets: ["codex-runtime"]
 func TestValidate_GeminiRejectsManifestExtraCanonicalOverride(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-demo"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "manifest.extra.json"), `{"plan":{"directory":".gemini/other"}}`)
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1319,14 +1320,14 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidMCPTransportShape(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-transport"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   stdio-and-sse:
@@ -1379,16 +1380,16 @@ servers:
 func TestValidate_GeminiRejectsMalformedSettingsThemesAndExcludeTools(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: maybe\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "empty.yaml"), "name: release-dawn\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml"), "exclude_tools:\n  - \"\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", "api-token.yaml"), "name: api-token\ndescription: token\nenv_var: API_TOKEN\nsensitive: maybe\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "empty.yaml"), "name: release-dawn\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1413,16 +1414,16 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsInvalidThemeShapeAndDuplicateSettings(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", "first.yaml"), "name: release-profile\ndescription: one\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", "second.yaml"), "name: duplicate\ndescription: two\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "broken.yaml"), "name: release-dawn\nbackground: \"#fff9f2\"\n")
 
 	report, err := Validate(dir, "gemini")
 	if err != nil {
@@ -1445,13 +1446,13 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsMalformedGeneratedExtensionManifest(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","settings":{}}`)
 
 	report, err := Validate(dir, "gemini")
@@ -1473,13 +1474,13 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsGeneratedContextMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"OTHER.md"}`)
 
 	report, err := Validate(dir, "gemini")
@@ -1501,22 +1502,22 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsGeneratedMetadataMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml"), `context_file_name: GEMINI.md
 exclude_tools:
   - run_shell_command(rm -rf)
 migrated_to: https://example.com/new-home
 plan_directory: .gemini/plans
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: Release profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "settings", "release-profile.yaml"), "name: release-profile\ndescription: Release profile\nenv_var: RELEASE_PROFILE\nsensitive: false\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "release-dawn.yaml"), "name: release-dawn\nbackground:\n  primary: \"#fff9f2\"\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -1556,14 +1557,14 @@ servers:
 func TestValidate_GeminiRejectsGeneratedHooksMismatch(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-assets"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"./bin/demo GeminiSessionStart"}]}]}}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"*","hooks":[{"type":"command","command":"./bin/demo GeminiSessionStart"}]}]}}`)
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-assets","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
 	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
 
@@ -1586,16 +1587,16 @@ targets: ["gemini"]
 func TestValidate_GeminiRejectsManagedGeneratedHooksDrift(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "gemini-managed"
 version: "0.1.0"
 description: "demo"
 targets: ["gemini"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/gemini-managed\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
 	mustWriteValidateFile(t, dir, "gemini-extension.json", `{"name":"gemini-managed","version":"0.1.0","description":"demo","contextFileName":"GEMINI.md"}`)
 	mustWriteValidateFile(t, dir, filepath.Join("hooks", "hooks.json"), `{"hooks":{"SessionStart":[{"matcher":"resume","hooks":[{"type":"command","command":"./bin/other GeminiSessionStart"}]}]}}`)
 
@@ -1618,13 +1619,13 @@ targets: ["gemini"]
 func TestValidate_RejectsRemovedPortableAgents(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
 	mustWriteValidateFile(t, dir, filepath.Join("agents", "reviewer.md"), "# reviewer\n")
@@ -1647,17 +1648,17 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsUnsupportedContextsSurface(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "contexts", "context.md"), "# context\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "contexts", "context.md"), "# context\n")
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1677,19 +1678,19 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsInvalidSettingsLSPAndUserConfig(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: go\nentrypoint: ./bin/demo\n")
 	mustWriteValidateFile(t, dir, "go.mod", "module example.com/demo\n\ngo 1.22\n")
 	mustWriteValidateFile(t, dir, filepath.Join("cmd", "demo", "main.go"), "package main\nfunc main() {}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "settings.json"), `{"agent":42}`)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "lsp.json"), `{"servers":true}`)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "user-config.json"), `{"api_token":"not-an-object"}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "hooks", "hooks.json"), "{\"hooks\":{}}\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "settings.json"), `{"agent":42}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "lsp.json"), `{"servers":true}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "user-config.json"), `{"api_token":"not-an-object"}`)
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1712,13 +1713,13 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsHooksWithoutLauncher(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
 targets: ["claude"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "hooks", "hooks.json"), `{"hooks":{}}`)
 
 	report, err := Validate(dir, "claude")
 	if err != nil {
@@ -1726,8 +1727,8 @@ targets: ["claude"]
 	}
 	var found bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.ToSlash(filepath.Join("src", "targets", "claude", "hooks", "hooks.json")) &&
-			strings.Contains(failure.Message, "require src/launcher.yaml") {
+		if failure.Path == filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "hooks", "hooks.json")) &&
+			strings.Contains(failure.Message, "require plugin/launcher.yaml") {
 			found = true
 		}
 	}
@@ -1739,7 +1740,7 @@ targets: ["claude"]
 func TestValidate_ClaudeRejectsLauncherlessEmptyTarget(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -1752,7 +1753,7 @@ targets: ["claude"]
 	}
 	var found bool
 	for _, failure := range report.Failures {
-		if failure.Path == filepath.Join("src", pluginmanifest.FileName) &&
+		if failure.Path == filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName) &&
 			strings.Contains(failure.Message, "package-only surface") {
 			found = true
 		}
@@ -1769,17 +1770,17 @@ func TestValidate_ManifestProject_WindowsCmdLauncherAccepted(t *testing.T) {
 	}
 	dir := t.TempDir()
 	mustWriteValidateFile(t, dir, "README.md", "# x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "plugin.yaml"), `api_version: v1
 name: "x"
 version: "0.1.0"
 description: "x"
 targets: ["codex-runtime"]
 `)
-	mustWriteValidateFile(t, dir, filepath.Join("src", pluginmanifest.LauncherFileName), "runtime: python\nentrypoint: ./bin/x\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName), "runtime: python\nentrypoint: ./bin/x\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	mustWriteValidateFile(t, dir, filepath.Join(".codex", "config.toml"), "notify = [\"./bin/x\", \"notify\"]\n")
 	mustWriteValidateFile(t, dir, filepath.Join("bin", "x.cmd"), "@echo off\r\n")
-	mustWriteValidateFile(t, dir, filepath.Join("src", "main.py"), "print('ok')\n")
+	mustWriteValidateFile(t, dir, filepath.Join(pluginmodel.SourceDirName, "main.py"), "print('ok')\n")
 
 	report, err := Validate(dir, "codex-runtime")
 	if err != nil {
@@ -1961,12 +1962,25 @@ func TestShellLauncherPassthrough(t *testing.T) {
 
 func mustWriteValidateFile(t *testing.T, root, rel, body string) {
 	t.Helper()
+	rel = testValidateAuthoredRel(rel)
 	full := filepath.Join(root, rel)
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func testValidateAuthoredRel(rel string) string {
+	rel = filepath.ToSlash(strings.TrimSpace(rel))
+	switch {
+	case rel == pluginmodel.LegacySourceDirName:
+		return pluginmodel.SourceDirName
+	case strings.HasPrefix(rel, pluginmodel.LegacySourceDirName+"/"):
+		return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, strings.TrimPrefix(rel, pluginmodel.LegacySourceDirName+"/")))
+	default:
+		return rel
 	}
 }
 

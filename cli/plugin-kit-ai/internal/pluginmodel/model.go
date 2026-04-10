@@ -4,13 +4,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
 const (
-	FileName         = "plugin.yaml"
-	LauncherFileName = "launcher.yaml"
-	SourceDirName    = "src"
-	APIVersionV1     = "v1"
+	FileName            = "plugin.yaml"
+	LauncherFileName    = "launcher.yaml"
+	SourceDirName       = platformmeta.CanonicalAuthoredRoot
+	LegacySourceDirName = platformmeta.LegacyAuthoredRoot
+	APIVersionV1        = "v1"
 )
 
 type WarningKind string
@@ -153,4 +156,44 @@ func (tc *TargetState) AddComponent(kind string, paths ...string) {
 
 func (tc TargetState) ComponentPaths(kind string) []string {
 	return append([]string(nil), tc.Components[kind]...)
+}
+
+func IsAuthoredRoot(path string) bool {
+	path = filepath.ToSlash(strings.TrimSpace(path))
+	return path == SourceDirName || path == LegacySourceDirName
+}
+
+func CanonicalAuthoredPath(path string) string {
+	path = filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	if path == "." || path == "" {
+		return ""
+	}
+	if IsAuthoredRoot(path) {
+		return path
+	}
+	if strings.HasPrefix(path, SourceDirName+"/") || strings.HasPrefix(path, LegacySourceDirName+"/") {
+		return path
+	}
+	return filepath.ToSlash(filepath.Join(SourceDirName, path))
+}
+
+func RebaseAuthoredPath(path string, authoredRoot string) string {
+	path = filepath.ToSlash(filepath.Clean(strings.TrimSpace(path)))
+	authoredRoot = filepath.ToSlash(filepath.Clean(strings.TrimSpace(authoredRoot)))
+	if path == "." || path == "" {
+		return ""
+	}
+	if authoredRoot == "." || authoredRoot == "" {
+		authoredRoot = SourceDirName
+	}
+	switch {
+	case path == SourceDirName, path == LegacySourceDirName:
+		return authoredRoot
+	case strings.HasPrefix(path, SourceDirName+"/"):
+		return filepath.ToSlash(filepath.Join(authoredRoot, strings.TrimPrefix(path, SourceDirName+"/")))
+	case strings.HasPrefix(path, LegacySourceDirName+"/"):
+		return filepath.ToSlash(filepath.Join(authoredRoot, strings.TrimPrefix(path, LegacySourceDirName+"/")))
+	default:
+		return path
+	}
 }

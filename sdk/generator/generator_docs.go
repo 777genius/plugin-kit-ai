@@ -134,10 +134,16 @@ func authoringDocPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if path == "src" || strings.HasPrefix(path, "src/") {
+	if path == platformmeta.CanonicalAuthoredRoot || strings.HasPrefix(path, platformmeta.CanonicalAuthoredRoot+"/") {
 		return path
 	}
-	return filepath.ToSlash(filepath.Join("src", path))
+	if path == platformmeta.LegacyAuthoredRoot {
+		return platformmeta.CanonicalAuthoredRoot
+	}
+	if strings.HasPrefix(path, platformmeta.LegacyAuthoredRoot+"/") {
+		return filepath.ToSlash(filepath.Join(platformmeta.CanonicalAuthoredRoot, strings.TrimPrefix(path, platformmeta.LegacyAuthoredRoot+"/")))
+	}
+	return filepath.ToSlash(filepath.Join(platformmeta.CanonicalAuthoredRoot, path))
 }
 
 func joinManagedArtifacts(profile platformmeta.PlatformProfile) string {

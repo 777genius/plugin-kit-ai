@@ -12,5 +12,5 @@ NODE="$(command -v node)"
 {{- if .TypeScript }}
 exec "$NODE" "$ROOT/dist/main.js" "$@"
 {{- else }}
-exec "$NODE" "$ROOT/src/main.mjs" "$@"
+exec "$NODE" "$ROOT/plugin/main.mjs" "$@"
 {{- end }}

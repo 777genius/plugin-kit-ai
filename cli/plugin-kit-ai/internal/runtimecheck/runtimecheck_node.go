@@ -2,7 +2,7 @@ package runtimecheck
 
 import "regexp"
 
-const defaultNodeRuntimeTarget = "src/main.mjs"
+const defaultNodeRuntimeTarget = "plugin/main.mjs"
 
 var launcherTargetPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`\$ROOT/([^"\s]+\.(?:mjs|js|cjs))`),

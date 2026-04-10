@@ -78,7 +78,7 @@ func canonicalAuthoredPath(path string) string {
 	if path == "." || path == "" {
 		return ""
 	}
-	if strings.HasPrefix(path, pluginmodel.SourceDirName+"/") {
+	if strings.HasPrefix(path, pluginmodel.SourceDirName+"/") || strings.HasPrefix(path, pluginmodel.LegacySourceDirName+"/") || pluginmodel.IsAuthoredRoot(path) {
 		return path
 	}
 	switch {

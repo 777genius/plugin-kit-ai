@@ -3,6 +3,7 @@ package platformexec
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	skillfs "github.com/777genius/plugin-kit-ai/cli/internal/skills/adapters/filesystem"
@@ -52,7 +53,17 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 	}
 	diagnostics = append(diagnostics, configDiagnostics...)
 	if len(graph.Portable.Paths("skills")) > 0 {
-		authoredRoot := filepath.Join(root, pluginmodel.SourceDirName)
+		authoredRootRel := pluginmodel.SourceDirName
+		for _, rel := range graph.Portable.Paths("skills") {
+			rel = filepath.ToSlash(rel)
+			switch {
+			case strings.HasPrefix(rel, pluginmodel.LegacySourceDirName+"/"), rel == pluginmodel.LegacySourceDirName:
+				authoredRootRel = pluginmodel.LegacySourceDirName
+			case strings.HasPrefix(rel, pluginmodel.SourceDirName+"/"), rel == pluginmodel.SourceDirName:
+				authoredRootRel = pluginmodel.SourceDirName
+			}
+		}
+		authoredRoot := filepath.Join(root, authoredRootRel)
 		report, err := (skillsapp.Service{Repo: skillfs.Repository{}}).Validate(skillsapp.ValidateOptions{Root: authoredRoot})
 		if err != nil {
 			return nil, err
@@ -61,7 +72,7 @@ func (opencodeAdapter) Validate(root string, graph pluginmodel.PackageGraph, sta
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
-				Path:     filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, failure.Path)),
+				Path:     filepath.ToSlash(filepath.Join(authoredRootRel, failure.Path)),
 				Target:   "opencode",
 				Message:  "OpenCode mirrored skill is incompatible with the shared SKILL.md contract: " + failure.Message,
 			})

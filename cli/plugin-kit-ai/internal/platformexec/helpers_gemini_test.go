@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 func TestLoadGeminiSettingsRejectsDuplicateEnvVar(t *testing.T) {
@@ -32,13 +34,13 @@ func TestImportedGeminiThemeArtifactsUsesCollisionSafeSlugs(t *testing.T) {
 	if len(artifacts) != 3 {
 		t.Fatalf("artifact count = %d", len(artifacts))
 	}
-	if got := filepath.ToSlash(artifacts[0].RelPath); got != "src/targets/gemini/themes/aurora.yaml" {
+	if got := filepath.ToSlash(artifacts[0].RelPath); got != filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "aurora.yaml")) {
 		t.Fatalf("artifact[0].RelPath = %q", got)
 	}
-	if got := filepath.ToSlash(artifacts[1].RelPath); got != "src/targets/gemini/themes/aurora-2.yaml" {
+	if got := filepath.ToSlash(artifacts[1].RelPath); got != filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "aurora-2.yaml")) {
 		t.Fatalf("artifact[1].RelPath = %q", got)
 	}
-	if got := filepath.ToSlash(artifacts[2].RelPath); got != "src/targets/gemini/themes/item.yaml" {
+	if got := filepath.ToSlash(artifacts[2].RelPath); got != filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "themes", "item.yaml")) {
 		t.Fatalf("artifact[2].RelPath = %q", got)
 	}
 }

@@ -10,17 +10,17 @@ This is the advanced custom-logic path. Choose it when the plugin's value lives 
 
 ## What You Edit First
 
-- `src/plugin.yaml`: shared plugin identity and target scope
-- `src/launcher.yaml`: runtime and entrypoint metadata
-- `src/main.{{if eq .Runtime "python"}}py{{else if eq .Runtime "node"}}{{if .TypeScript}}ts{{else}}mjs{{end}}{{else}}sh{{end}}` or `scripts/main.sh`: the runtime entrypoint you own
-- `src/targets/claude/...`: authored Claude hook and packaging state
+- `plugin/plugin.yaml`: shared plugin identity and target scope
+- `plugin/launcher.yaml`: runtime and entrypoint metadata
+- `plugin/main.{{if eq .Runtime "python"}}py{{else if eq .Runtime "node"}}{{if .TypeScript}}ts{{else}}mjs{{end}}{{else}}sh{{end}}` or `scripts/main.sh`: the runtime entrypoint you own
+- `plugin/targets/claude/...`: authored Claude hook and packaging state
 
 ## What Gets Generated
 
 - managed guidance files at the repo root such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native Claude output such as `hooks/hooks.json`
 
-Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
+Start with this `plugin/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
 {{- end }}
 
 ## Runtime
@@ -45,7 +45,7 @@ Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` 
 - Main entry imports the helper API from `plugin_kit_ai_runtime`
 - Pinned runtime package version: `{{.RuntimePackageVersion}}`
 {{- else }}
-- Generated helper layer: `src/plugin_runtime.py`
+- Generated helper layer: `plugin/plugin_runtime.py`
 - Generated dependency stub: `requirements.txt`
 - Shared helper package: `plugin-kit-ai-runtime` on PyPI when you later want a reusable dependency instead of the vendored helper file
 {{- end }}
@@ -56,18 +56,18 @@ Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` 
 {{- if .SharedRuntimePackage }}
 - Shared helper delivery: `plugin-kit-ai-runtime` on npm
 - `package.json` already declares `plugin-kit-ai-runtime`
-- Main entry imports the helper API from the shared package instead of `src/plugin-runtime.*`
+- Main entry imports the helper API from the shared package instead of `plugin/plugin-runtime.*`
 - Pinned runtime package version: `{{.RuntimePackageVersion}}`
 {{- else }}
-- Generated helper layer: `src/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`
+- Generated helper layer: `plugin/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`
 - Shared helper package: `plugin-kit-ai-runtime` on npm when you later want a reusable dependency instead of the vendored helper file
 {{- end }}
 - Commit `package-lock.json` or an equivalent deterministic lockfile for production repos
 {{- if .TypeScript }}
-- Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`
+- Generated TypeScript scaffold: `plugin/main.ts`, `tsconfig.json`, and built output under `dist/main.js`
 - `plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`
 {{- else }}
-- Minimal JavaScript runtime scaffold using `src/main.mjs`
+- Minimal JavaScript runtime scaffold using `plugin/main.mjs`
 - Use `plugin-kit-ai init <name> --platform claude --runtime node --typescript` when you want the built TypeScript scaffold
 {{- end }}
 {{- else if eq .Runtime "shell" }}
@@ -118,8 +118,8 @@ Use `plugin-kit-ai init <name> --platform claude --runtime {{.Runtime}} --claude
 
 ## Target Files
 
-- `src/launcher.yaml`: runtime and entrypoint metadata for the Claude runtime lane
-- `src/targets/claude/hooks/hooks.json`: authored Claude hook routing
+- `plugin/launcher.yaml`: runtime and entrypoint metadata for the Claude runtime lane
+- `plugin/targets/claude/hooks/hooks.json`: authored Claude hook routing
 - `hooks/hooks.json`: generated managed Claude hook file
 - `fixtures/claude/*.json`: pre-generated stable Claude smoke payloads owned by this project
 - `goldens/claude/*`: pre-generated stable stdout/stderr/exit contract owned by this project
@@ -127,19 +127,19 @@ Use `plugin-kit-ai init <name> --platform claude --runtime {{.Runtime}} --claude
 {{- if .SharedRuntimePackage }}
 - `requirements.txt`: shared-helper dependency manifest for the `plugin_kit_ai_runtime` import path
 {{- else }}
-- `src/plugin_runtime.py`: official helper API for `on_stop`, `on_pre_tool_use`, and `on_user_prompt_submit`
+- `plugin/plugin_runtime.py`: official helper API for `on_stop`, `on_pre_tool_use`, and `on_user_prompt_submit`
 {{- end }}
 {{- else if eq .Runtime "node" }}
 {{- if .SharedRuntimePackage }}
 - `package.json`: shared-helper dependency manifest for the `plugin-kit-ai-runtime` import path
 {{- else }}
-- `src/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`: official helper API for `onStop`, `onPreToolUse`, and `onUserPromptSubmit`
+- `plugin/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`: official helper API for `onStop`, `onPreToolUse`, and `onUserPromptSubmit`
 {{- end }}
 {{- end }}
 - Optional first-class Claude breadth via `--extras`:
-  - `src/targets/claude/settings.json` -> generated `settings.json`
-  - `src/targets/claude/lsp.json` -> generated `.lsp.json`
-  - `src/targets/claude/user-config.json` -> generated `plugin.json.userConfig`
-  - `src/targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
+  - `plugin/targets/claude/settings.json` -> generated `settings.json`
+  - `plugin/targets/claude/lsp.json` -> generated `.lsp.json`
+  - `plugin/targets/claude/user-config.json` -> generated `plugin.json.userConfig`
+  - `plugin/targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
 
 Keep stdout reserved for Claude responses and write diagnostics to stderr only.

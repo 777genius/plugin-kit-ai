@@ -45,7 +45,7 @@ func TestValidateWritesGeminiRuntimeRecoveryHints(t *testing.T) {
 	output := stderr.String()
 	for _, want := range []string{
 		`Failure: Gemini hook "SessionStart" command`,
-		"Hint: rerun plugin-kit-ai generate . to regenerate Gemini hooks/hooks.json from src/launcher.yaml",
+		"Hint: rerun plugin-kit-ai generate . to regenerate Gemini hooks/hooks.json from plugin/launcher.yaml",
 		"Hint: after validate is green, run make test-gemini-runtime, relink the extension with gemini extensions link .",
 		"make test-gemini-runtime-live",
 	} {
@@ -88,10 +88,10 @@ func TestValidateWritesGeminiWarningHints(t *testing.T) {
 func TestValidateWritesGeminiSuccessHintsForRuntimeLane(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "launcher.yaml"), []byte("runtime: go\nentrypoint: ./bin/demo\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "launcher.yaml"), []byte("runtime: go\nentrypoint: ./bin/demo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cmd := newValidateCmd(func(gotRoot, platform string) (validate.Report, error) {
@@ -128,7 +128,7 @@ func TestValidateWritesJSONOutput(t *testing.T) {
 			Checks:   []string{"plugin_manifest"},
 			Warnings: []validate.Warning{{
 				Kind:    validate.WarningManifestUnknownField,
-				Path:    "src/plugin.yaml",
+				Path:    "plugin/plugin.yaml",
 				Message: "unknown plugin.yaml field: extra_field",
 			}},
 		},
@@ -155,7 +155,7 @@ func TestValidateWritesJSONOutput(t *testing.T) {
 		`"checks": [`,
 		`"warnings": [`,
 		`"failures": []`,
-		`"path": "src/plugin.yaml"`,
+		`"path": "plugin/plugin.yaml"`,
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("json output missing %q:\n%s", want, output)
@@ -166,31 +166,31 @@ func TestValidateWritesJSONOutput(t *testing.T) {
 func TestValidateJSONIncludesPublicationSummaryWhenDiscoverable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "targets", "codex-package"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "targets", "codex-package"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "publish", "codex"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "publish", "codex"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "plugin.yaml"), []byte("api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "plugin.yaml"), []byte("api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "src", "targets", "codex-package"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "targets", "codex-package"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "targets", "codex-package", "package.yaml"), []byte("homepage: https://example.com/demo\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "targets", "codex-package", "package.yaml"), []byte("homepage: https://example.com/demo\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "targets", "codex-package", "interface.json"), []byte(`{"defaultPrompt":["Inspect"]}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "targets", "codex-package", "interface.json"), []byte(`{"defaultPrompt":["Inspect"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "src", "publish", "codex"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "publish", "codex"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "publish", "codex", "marketplace.yaml"), []byte("api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "publish", "codex", "marketplace.yaml"), []byte("api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -230,8 +230,8 @@ func TestValidateJSONPrintsReportOnFailure(t *testing.T) {
 		Checks: []string{},
 		Failures: []validate.Failure{{
 			Kind:    validate.FailureManifestMissing,
-			Path:    "src/plugin.yaml",
-			Message: "required manifest missing: src/plugin.yaml",
+			Path:    "plugin/plugin.yaml",
+			Message: "required manifest missing: plugin/plugin.yaml",
 		}},
 	}
 	cmd := newValidateCmd(fakeValidateRunner{
@@ -306,8 +306,8 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 		}},
 		Failures: []validate.Failure{{
 			Kind:    validate.FailureManifestMissing,
-			Path:    "src/plugin.yaml",
-			Message: "required manifest missing: src/plugin.yaml",
+			Path:    "plugin/plugin.yaml",
+			Message: "required manifest missing: plugin/plugin.yaml",
 		}},
 	}
 	cmd := newValidateCmd(fakeValidateRunner{
@@ -324,7 +324,7 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"Warning: unknown plugin.yaml field: extra_field",
-		"Failure: required manifest missing: src/plugin.yaml",
+		"Failure: required manifest missing: plugin/plugin.yaml",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("text output missing %q:\n%s", want, output)
@@ -335,25 +335,25 @@ func TestValidateTextPrintsFailuresForReportErrors(t *testing.T) {
 func TestValidateTextPrintsPublicationSummaryWhenDiscoverable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, "src", "targets", "gemini", "contexts"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "targets", "gemini", "contexts"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "src", "publish", "gemini"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "publish", "gemini"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "src"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, "plugin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "plugin.yaml"), []byte("api_version: v1\nname: \"gemini-publish\"\nversion: \"0.1.0\"\ndescription: \"gemini publish\"\ntargets: [\"gemini\"]\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "plugin.yaml"), []byte("api_version: v1\nname: \"gemini-publish\"\nversion: \"0.1.0\"\ndescription: \"gemini publish\"\ntargets: [\"gemini\"]\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "targets", "gemini", "package.yaml"), []byte("homepage: https://example.com/gemini\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "targets", "gemini", "package.yaml"), []byte("homepage: https://example.com/gemini\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "targets", "gemini", "contexts", "GEMINI.md"), []byte("# Gemini\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "targets", "gemini", "contexts", "GEMINI.md"), []byte("# Gemini\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "src", "publish", "gemini", "gallery.yaml"), []byte("api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "plugin", "publish", "gemini", "gallery.yaml"), []byte("api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -374,7 +374,7 @@ func TestValidateTextPrintsPublicationSummaryWhenDiscoverable(t *testing.T) {
 	for _, want := range []string{
 		"Validated " + root,
 		"Publication: api_version=v1 packages=1 channels=1",
-		"Publication channel: gemini-gallery path=src/publish/gemini/gallery.yaml targets=gemini",
+		"Publication channel: gemini-gallery path=plugin/publish/gemini/gallery.yaml targets=gemini",
 		"details=distribution=github_release,github_topic=gemini-cli-extension,manifest_root=release_archive_root,repository_visibility=public",
 	} {
 		if !strings.Contains(output, want) {

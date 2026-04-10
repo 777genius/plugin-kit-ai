@@ -7,15 +7,14 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 func validatePluginLauncher(root string, launcher *pluginmanifest.Launcher, report *Report) {
 	if launcher == nil {
 		report.Failures = append(report.Failures, Failure{
 			Kind:    FailureLauncherInvalid,
-			Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName),
-			Message: "launcher invalid: missing " + filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName)),
+			Path:    authoredProjectPath(root, pluginmanifest.LauncherFileName),
+			Message: "launcher invalid: missing " + authoredProjectPath(root, pluginmanifest.LauncherFileName),
 		})
 		return
 	}

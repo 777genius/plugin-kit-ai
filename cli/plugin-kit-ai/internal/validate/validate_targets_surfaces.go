@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
@@ -64,8 +65,9 @@ func unsupportedSurfacePaths(root, target, kind string, profile platformmeta.Pla
 		if doc.Kind != kind {
 			continue
 		}
-		if fileExists(filepath.Join(root, doc.Path)) {
-			seen[doc.Path] = struct{}{}
+		authoredPath := pluginmodel.RebaseAuthoredPath(doc.Path, authoredProjectRoot(root))
+		if fileExists(filepath.Join(root, authoredPath)) {
+			seen[authoredPath] = struct{}{}
 		}
 	}
 	dir := canonicalAuthoredPath(filepath.Join("targets", target, kind))

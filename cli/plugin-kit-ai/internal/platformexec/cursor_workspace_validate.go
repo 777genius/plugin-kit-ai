@@ -11,21 +11,22 @@ import (
 
 func (cursorWorkspaceAdapter) Validate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
+	authoredRoot := authoredRootHint(state, graph.Portable)
 	if graph.Portable.MCP == nil && len(state.ComponentPaths("rules")) == 0 && strings.TrimSpace(state.DocPath("agents_markdown")) == "" {
 		diagnostics = append(diagnostics, Diagnostic{
 			Severity: SeverityFailure,
 			Code:     CodeManifestInvalid,
 			Path:     filepath.ToSlash(filepath.Join("targets", "cursor-workspace")),
 			Target:   "cursor-workspace",
-			Message:  "Cursor workspace target requires at least one of src/mcp/servers.yaml, src/targets/cursor-workspace/rules/**, or src/targets/cursor-workspace/AGENTS.md",
+			Message:  fmt.Sprintf("Cursor workspace target requires at least one of %s/mcp/servers.yaml, %s/targets/cursor-workspace/rules/**, or %s/targets/cursor-workspace/AGENTS.md", authoredRoot, authoredRoot, authoredRoot),
 		})
 	}
-	diagnostics = append(diagnostics, validateCursorRuleFiles(root, state.ComponentPaths("rules"))...)
+	diagnostics = append(diagnostics, validateCursorRuleFiles(root, authoredRoot, state.ComponentPaths("rules"))...)
 	diagnostics = append(diagnostics, validateCursorAgentsMarkdown(root, state.DocPath("agents_markdown"))...)
 	return diagnostics, nil
 }
 
-func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
+func validateCursorRuleFiles(root, authoredRoot string, rels []string) []Diagnostic {
 	if len(rels) == 0 {
 		return nil
 	}
@@ -39,7 +40,7 @@ func validateCursorRuleFiles(root string, rels []string) []Diagnostic {
 				Code:     CodeManifestInvalid,
 				Path:     rel,
 				Target:   "cursor-workspace",
-				Message:  fmt.Sprintf("Cursor workspace rule file %s must stay within src/targets/cursor-workspace/rules without path traversal", rel),
+				Message:  fmt.Sprintf("Cursor workspace rule file %s must stay within %s/targets/cursor-workspace/rules without path traversal", rel, authoredRoot),
 			})
 			continue
 		}

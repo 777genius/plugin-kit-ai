@@ -19,7 +19,7 @@ func loadPublicationContextForMaterialize(opts PluginPublicationMaterializeOptio
 		return publicationContext{}, err
 	}
 
-	publicationState, err := publishschema.DiscoverInLayout(ctx.root, pluginmodel.SourceDirName)
+	publicationState, err := publishschema.DiscoverInLayout(ctx.root, ctx.inspection.Layout.AuthoredRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}
@@ -29,7 +29,11 @@ func loadPublicationContextForMaterialize(opts PluginPublicationMaterializeOptio
 	}
 	channel, ok := publicationChannelForTarget(publication, ctx.target)
 	if !ok {
-		return publicationContext{}, fmt.Errorf("target %s requires authored publication channel metadata under src/publish/...", ctx.target)
+		authoredRoot := ctx.inspection.Layout.AuthoredRoot
+		if authoredRoot == "" {
+			authoredRoot = pluginmodel.SourceDirName
+		}
+		return publicationContext{}, fmt.Errorf("target %s requires authored publication channel metadata under %s/publish/...", ctx.target, authoredRoot)
 	}
 	packageRoot, err := normalizePackageRoot(opts.PackageRoot, ctx.graph.Manifest.Name)
 	if err != nil {

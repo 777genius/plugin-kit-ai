@@ -96,7 +96,7 @@ func prepareImportFromRoot(root string, from string, includeUserScope bool) (pre
 		imported.Warnings = append(imported.Warnings, Warning{
 			Kind:    WarningFidelity,
 			Path:    ".mcp.json",
-			Message: "portable MCP will be preserved under src/mcp/servers.yaml",
+			Message: "portable MCP will be preserved under plugin/mcp/servers.yaml",
 		})
 	}
 	return preparedImport{

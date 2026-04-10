@@ -66,7 +66,7 @@ func diagnosePublication(root, requestedTarget string, report pluginmanifest.Ins
 	case len(missing) == 0 && len(artifactIssues) == 0 && len(repositoryIssues) == 0:
 		return readyPublicationDiagnosis(lines, report.Publication)
 	case len(missing) > 0:
-		return missingChannelPublicationDiagnosis(lines, missing)
+		return missingChannelPublicationDiagnosis(lines, report.Layout.AuthoredRoot, missing)
 	case len(repositoryIssues) > 0:
 		return repositoryPublicationDiagnosis(lines, repositoryIssues, repositoryNext)
 	default:

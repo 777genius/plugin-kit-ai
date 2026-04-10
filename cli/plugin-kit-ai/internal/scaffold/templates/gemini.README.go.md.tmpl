@@ -7,17 +7,17 @@ This is the advanced custom-logic path. Choose it when the plugin's value lives 
 
 ## What You Edit First
 
-- `src/plugin.yaml`: shared plugin identity and target scope
-- `src/launcher.yaml`: runtime and entrypoint metadata
+- `plugin/plugin.yaml`: shared plugin identity and target scope
+- `plugin/launcher.yaml`: runtime and entrypoint metadata
 - `cmd/{{.ProjectName}}/main.go`: the Go runtime logic that defines Gemini behavior
-- `src/targets/gemini/...`: authored Gemini packaging, context, and hook state
+- `plugin/targets/gemini/...`: authored Gemini packaging, context, and hook state
 
 ## What Gets Generated
 
 - managed guidance files at the repo root such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native Gemini output such as `gemini-extension.json`
 
-Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
+Start with this `plugin/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
 {{- end }}
 
 - Target lane: `gemini`
@@ -42,11 +42,11 @@ gemini extensions link .
 
 ## Files
 
-- `src/launcher.yaml`: Go entrypoint metadata for the Gemini runtime lane
+- `plugin/launcher.yaml`: Go entrypoint metadata for the Gemini runtime lane
 - `cmd/{{.ProjectName}}/main.go`: typed Go hook registrar starter
-- `src/targets/gemini/package.yaml`: Gemini extension metadata
-- `src/targets/gemini/contexts/GEMINI.md`: primary authored Gemini context
-- `src/targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
+- `plugin/targets/gemini/package.yaml`: Gemini extension metadata
+- `plugin/targets/gemini/contexts/GEMINI.md`: primary authored Gemini context
+- `plugin/targets/gemini/hooks/hooks.json`: managed Gemini hook wiring for `SessionStart`, `SessionEnd`, `BeforeModel`, `AfterModel`, `BeforeToolSelection`, `BeforeAgent`, `AfterAgent`, `BeforeTool`, and `AfterTool`
 - `gemini-extension.json`: generated native extension manifest
 
 ## Notes
@@ -65,5 +65,5 @@ gemini extensions link .
 - `plugin-kit-ai test` and `plugin-kit-ai dev` stay focused on the stable Claude/Codex runtime fixture lanes. For Gemini, use `go test ./...`, `plugin-kit-ai generate --check .`, `plugin-kit-ai validate . --platform gemini --strict`, `plugin-kit-ai inspect . --target gemini`, `plugin-kit-ai capabilities --mode runtime --platform gemini`, then exercise the extension through `gemini extensions link .` and a real Gemini CLI session.
 - Use `make test-gemini-runtime` for the deterministic repo-local Gemini runtime gate before you bother with a real CLI session.
 - Use `make test-gemini-runtime-live` when you need the dedicated opt-in real CLI runtime smoke.
-- Keep Gemini-specific authored assets inside `src/targets/gemini/...`.
+- Keep Gemini-specific authored assets inside `plugin/targets/gemini/...`.
 - Keep stdout reserved for Gemini hook JSON responses and write diagnostics to stderr only.

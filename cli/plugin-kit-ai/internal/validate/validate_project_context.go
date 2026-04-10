@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 func (ctx *validationContext) addWarning(warning Warning) {
@@ -34,7 +33,7 @@ func (ctx *validationContext) validateRequestedPlatform() {
 	}
 	ctx.addFailure(Failure{
 		Kind:    FailureManifestInvalid,
-		Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName),
+		Path:    authoredProjectPath(ctx.root, pluginmanifest.FileName),
 		Message: fmt.Sprintf("plugin.yaml does not enable target %q", ctx.rawRequestedPlatform),
 	})
 }

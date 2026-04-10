@@ -2,22 +2,28 @@ package main
 
 import (
 	"slices"
+	"strings"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 )
 
-func publicationNextStepsForMissing(missing []publicationmodel.Package) []string {
+func publicationNextStepsForMissing(authoredRoot string, missing []publicationmodel.Package) []string {
+	authoredRoot = strings.TrimSpace(authoredRoot)
+	if authoredRoot == "" {
+		authoredRoot = pluginmodel.SourceDirName
+	}
 	stepSet := map[string]struct{}{}
 	var steps []string
 	for _, pkg := range missing {
 		var step string
 		switch pkg.Target {
 		case "codex-package":
-			step = "add src/publish/codex/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
+			step = "add " + authoredRoot + "/publish/codex/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
 		case "claude":
-			step = "add src/publish/claude/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
+			step = "add " + authoredRoot + "/publish/claude/marketplace.yaml, then rerun plugin-kit-ai generate . and plugin-kit-ai validate . --strict"
 		case "gemini":
-			step = "add src/publish/gemini/gallery.yaml, keep gemini-extension.json in the repository or release root, then rerun plugin-kit-ai validate . --strict"
+			step = "add " + authoredRoot + "/publish/gemini/gallery.yaml, keep gemini-extension.json in the repository or release root, then rerun plugin-kit-ai validate . --strict"
 		default:
 			continue
 		}
@@ -75,14 +81,18 @@ func expectedGeminiPublicationChannel(model publicationmodel.Model) (publication
 	return publicationmodel.Channel{}, false
 }
 
-func expectedPublicationChannel(target string) (family string, path string) {
+func expectedPublicationChannel(authoredRoot, target string) (family string, path string) {
+	authoredRoot = strings.TrimSpace(authoredRoot)
+	if authoredRoot == "" {
+		authoredRoot = pluginmodel.SourceDirName
+	}
 	switch target {
 	case "codex-package":
-		return "codex-marketplace", "src/publish/codex/marketplace.yaml"
+		return "codex-marketplace", authoredRoot + "/publish/codex/marketplace.yaml"
 	case "claude":
-		return "claude-marketplace", "src/publish/claude/marketplace.yaml"
+		return "claude-marketplace", authoredRoot + "/publish/claude/marketplace.yaml"
 	case "gemini":
-		return "gemini-gallery", "src/publish/gemini/gallery.yaml"
+		return "gemini-gallery", authoredRoot + "/publish/gemini/gallery.yaml"
 	default:
 		return "", ""
 	}

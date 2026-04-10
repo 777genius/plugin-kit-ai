@@ -10,17 +10,17 @@ This is the advanced custom-logic path. Choose it when the plugin's value lives 
 
 ## What You Edit First
 
-- `src/plugin.yaml`: shared plugin identity and target scope
-- `src/launcher.yaml`: runtime and entrypoint metadata
-- `src/main.{{if eq .Runtime "python"}}py{{else if eq .Runtime "node"}}{{if .TypeScript}}ts{{else}}mjs{{end}}{{else}}sh{{end}}` or `scripts/main.sh`: the runtime entrypoint you own
-- `src/targets/codex-runtime/...`: authored Codex runtime metadata
+- `plugin/plugin.yaml`: shared plugin identity and target scope
+- `plugin/launcher.yaml`: runtime and entrypoint metadata
+- `plugin/main.{{if eq .Runtime "python"}}py{{else if eq .Runtime "node"}}{{if .TypeScript}}ts{{else}}mjs{{end}}{{else}}sh{{end}}` or `scripts/main.sh`: the runtime entrypoint you own
+- `plugin/targets/codex-runtime/...`: authored Codex runtime metadata
 
 ## What Gets Generated
 
 - managed guidance files at the repo root such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native Codex output such as `.codex/config.toml`
 
-Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
+Start with this `plugin/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
 {{- end }}
 
 ## Runtime
@@ -46,7 +46,7 @@ Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` 
 - Main entry imports the helper API from `plugin_kit_ai_runtime`
 - Pinned runtime package version: `{{.RuntimePackageVersion}}`
 {{- else }}
-- Generated helper layer: `src/plugin_runtime.py`
+- Generated helper layer: `plugin/plugin_runtime.py`
 - Generated dependency stub: `requirements.txt`
 - Shared helper package: `plugin-kit-ai-runtime` on PyPI when you later want a reusable dependency instead of the vendored helper file
 {{- end }}
@@ -57,18 +57,18 @@ Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` 
 {{- if .SharedRuntimePackage }}
 - Shared helper delivery: `plugin-kit-ai-runtime` on npm
 - `package.json` already declares `plugin-kit-ai-runtime`
-- Main entry imports the helper API from the shared package instead of `src/plugin-runtime.*`
+- Main entry imports the helper API from the shared package instead of `plugin/plugin-runtime.*`
 - Pinned runtime package version: `{{.RuntimePackageVersion}}`
 {{- else }}
-- Generated helper layer: `src/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`
+- Generated helper layer: `plugin/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`
 - Shared helper package: `plugin-kit-ai-runtime` on npm when you later want a reusable dependency instead of the vendored helper file
 {{- end }}
 - Commit `package-lock.json` or an equivalent deterministic lockfile for production repos
 {{- if .TypeScript }}
-- Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`
+- Generated TypeScript scaffold: `plugin/main.ts`, `tsconfig.json`, and built output under `dist/main.js`
 - `plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`
 {{- else }}
-- Minimal JavaScript runtime scaffold using `src/main.mjs`
+- Minimal JavaScript runtime scaffold using `plugin/main.mjs`
 - Use `plugin-kit-ai init <name> --platform codex-runtime --runtime node --typescript` when you want the built TypeScript scaffold
 {{- end }}
 {{- else if eq .Runtime "shell" }}
@@ -114,9 +114,9 @@ Choose the Go lane instead when you want downstream users to avoid installing `{
 
 ## Target Files
 
-- `src/launcher.yaml`: runtime and entrypoint for local notify integration
-- `src/targets/codex-runtime/package.yaml`: authored Codex runtime metadata
-- `src/targets/codex-runtime/config.extra.toml`: optional passthrough for supported repo-local Codex config fields beyond managed `model` and `notify`
+- `plugin/launcher.yaml`: runtime and entrypoint for local notify integration
+- `plugin/targets/codex-runtime/package.yaml`: authored Codex runtime metadata
+- `plugin/targets/codex-runtime/config.extra.toml`: optional passthrough for supported repo-local Codex config fields beyond managed `model` and `notify`
 - `.codex/config.toml`: generated managed Codex config
 - `fixtures/codex-runtime/Notify.json`: pre-generated stable Codex notify smoke payload owned by this project
 - `goldens/codex-runtime/*`: pre-generated stable stdout/stderr/exit contract owned by this project
@@ -124,12 +124,12 @@ Choose the Go lane instead when you want downstream users to avoid installing `{
 {{- if .SharedRuntimePackage }}
 - `requirements.txt`: shared-helper dependency manifest for the `plugin_kit_ai_runtime` import path
 {{- else }}
-- `src/plugin_runtime.py`: official helper API for `on_notify` authoring on the Python lane
+- `plugin/plugin_runtime.py`: official helper API for `on_notify` authoring on the Python lane
 {{- end }}
 {{- else if eq .Runtime "node" }}
 {{- if .SharedRuntimePackage }}
 - `package.json`: shared-helper dependency manifest for the `plugin-kit-ai-runtime` import path
 {{- else }}
-- `src/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`: official helper API for `onNotify` authoring on the Node lane
+- `plugin/plugin-runtime.{{if .TypeScript}}ts{{else}}mjs{{end}}`: official helper API for `onNotify` authoring on the Node lane
 {{- end }}
 {{- end }}

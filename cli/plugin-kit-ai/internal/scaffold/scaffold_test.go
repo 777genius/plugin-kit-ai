@@ -48,9 +48,9 @@ func TestBuildPlan_OnlineServiceTemplate(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "mcp", "servers.yaml"),
-		filepath.Join("src", "README.md"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "mcp", "servers.yaml"),
+		filepath.Join(authoredRootDir, "README.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -58,7 +58,7 @@ func TestBuildPlan_OnlineServiceTemplate(t *testing.T) {
 			t.Fatalf("missing %q in %+v", want, plan.Files)
 		}
 	}
-	if containsPlannedFile(plan.Files, filepath.Join("src", "launcher.yaml")) {
+	if containsPlannedFile(plan.Files, filepath.Join(authoredRootDir, "launcher.yaml")) {
 		t.Fatalf("unexpected launcher in %+v", plan.Files)
 	}
 }
@@ -115,7 +115,7 @@ func TestRenderTemplate_JobReadmesKeepGeneratedRootFilesOutOfEditableSource(t *t
 		if strings.Contains(editableSection, "CLAUDE.md") || strings.Contains(editableSection, "AGENTS.md") || strings.Contains(editableSection, "GENERATED.md") {
 			t.Fatalf("%s still lists generated root files as editable source:\n%s", templateName, rendered)
 		}
-		if !strings.Contains(rendered, "root `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`") {
+		if !strings.Contains(rendered, "root `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`") || !strings.Contains(rendered, "root `README.md`: managed root pointer while it keeps the tool-owned sentinel") {
 			t.Fatalf("%s missing generated boundary guidance:\n%s", templateName, rendered)
 		}
 	}
@@ -272,7 +272,7 @@ func TestPaths_CodexPackage(t *testing.T) {
 		filepath.Join("targets", "codex-package", "interface.json"),
 		filepath.Join("targets", "codex-package", "manifest.extra.json"),
 		filepath.Join("targets", "codex-package", "app.json"),
-		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join(authoredRootDir, "mcp", "servers.yaml"),
 		"README.md",
 		filepath.Join("skills", "my-plugin", "SKILL.md"),
 	} {
@@ -300,8 +300,8 @@ func TestPathsForRuntime_CodexRuntimePython(t *testing.T) {
 		"requirements.txt",
 		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("targets", "codex-runtime", "config.extra.toml"),
-		filepath.Join("src", "plugin_runtime.py"),
-		filepath.Join("src", "main.py"),
+		filepath.Join(authoredRootDir, "plugin_runtime.py"),
+		filepath.Join(authoredRootDir, "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 		filepath.Join(".github", "workflows", "bundle-release.yml"),
@@ -323,7 +323,7 @@ func TestPathsForRuntimeSharedPackage_CodexRuntimePython(t *testing.T) {
 		"requirements.txt",
 		filepath.Join("targets", "codex-runtime", "package.yaml"),
 		filepath.Join("targets", "codex-runtime", "config.extra.toml"),
-		filepath.Join("src", "main.py"),
+		filepath.Join(authoredRootDir, "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 		"README.md",
@@ -333,7 +333,7 @@ func TestPathsForRuntimeSharedPackage_CodexRuntimePython(t *testing.T) {
 		}
 	}
 	assertRuntimeTestScaffoldPaths(t, got, "codex-runtime")
-	if contains(got, filepath.Join("src", "plugin_runtime.py")) {
+	if contains(got, filepath.Join(authoredRootDir, "plugin_runtime.py")) {
 		t.Fatalf("unexpected vendored helper in %v", got)
 	}
 }
@@ -379,7 +379,7 @@ func TestPathsForRuntime_GeminiIgnoresExecutableScaffolding(t *testing.T) {
 	}
 	for _, unwanted := range []string{
 		"launcher.yaml",
-		filepath.Join("src", "main.py"),
+		filepath.Join(authoredRootDir, "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 	} {
@@ -429,7 +429,7 @@ func TestPathsForRuntime_OpenCodeIgnoresExecutableScaffolding(t *testing.T) {
 	}
 	for _, unwanted := range []string{
 		"launcher.yaml",
-		filepath.Join("src", "main.py"),
+		filepath.Join(authoredRootDir, "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 	} {
@@ -515,8 +515,8 @@ func TestWrite_CodexRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "launcher.yaml"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "launcher.yaml"),
 		"CLAUDE.md",
 		"AGENTS.md",
 		filepath.Join("cmd", "my-plugin", "main.go"),
@@ -541,7 +541,7 @@ func TestWrite_ClaudeCreatesPluginManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	body, err := os.ReadFile(filepath.Join(root, "src", "plugin.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, authoredRootDir, "plugin.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -582,9 +582,9 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "targets", "opencode", "package.yaml"),
-		filepath.Join("src", "README.md"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "package.yaml"),
+		filepath.Join(authoredRootDir, "README.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -594,7 +594,7 @@ func TestWrite_OpenCodeCreatesMinimalWorkspaceLane(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"launcher.yaml",
-		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+		filepath.Join(authoredRootDir, "skills", "my-plugin", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
@@ -615,8 +615,8 @@ func TestWrite_CursorCreatesMinimalPackagedLane(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "README.md"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "README.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -627,9 +627,9 @@ func TestWrite_CursorCreatesMinimalPackagedLane(t *testing.T) {
 	for _, rel := range []string{
 		"launcher.yaml",
 		"go.mod",
-		filepath.Join("src", "targets", "cursor", "rules", "project.mdc"),
-		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
-		filepath.Join("src", "mcp", "servers.yaml"),
+		filepath.Join(authoredRootDir, "targets", "cursor", "rules", "project.mdc"),
+		filepath.Join(authoredRootDir, "skills", "my-plugin", "SKILL.md"),
+		filepath.Join(authoredRootDir, "mcp", "servers.yaml"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); !os.IsNotExist(err) {
 			t.Fatalf("expected %s to stay absent, err=%v", rel, err)
@@ -653,15 +653,15 @@ func TestWrite_CursorExtrasCreatePortableSkillAndMCPStarters(t *testing.T) {
 	for _, rel := range []string{
 		"CLAUDE.md",
 		"AGENTS.md",
-		filepath.Join("src", "mcp", "servers.yaml"),
-		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+		filepath.Join(authoredRootDir, "mcp", "servers.yaml"),
+		filepath.Join(authoredRootDir, "skills", "my-plugin", "SKILL.md"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(root, "src", "targets", "cursor", "AGENTS.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected src/targets/cursor/AGENTS.md to stay absent, err=%v", err)
+	if _, err := os.Stat(filepath.Join(root, authoredRootDir, "targets", "cursor", "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected plugin/targets/cursor/AGENTS.md to stay absent, err=%v", err)
 	}
 }
 
@@ -678,7 +678,7 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "src", "skills", "my-plugin", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(root, authoredRootDir, "skills", "my-plugin", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -695,12 +695,12 @@ func TestWrite_OpenCodeExtrasCreateCompatibleSkillStub(t *testing.T) {
 		}
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "targets", "opencode", "commands", "my-plugin.md"),
-		filepath.Join("src", "targets", "opencode", "agents", "my-plugin.md"),
-		filepath.Join("src", "targets", "opencode", "themes", "my-plugin.json"),
-		filepath.Join("src", "targets", "opencode", "tools", "my-plugin.ts"),
-		filepath.Join("src", "targets", "opencode", "plugins", "example.js"),
-		filepath.Join("src", "targets", "opencode", "package.json"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "commands", "my-plugin.md"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "agents", "my-plugin.md"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "themes", "my-plugin.json"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "tools", "my-plugin.ts"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "plugins", "example.js"),
+		filepath.Join(authoredRootDir, "targets", "opencode", "package.json"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
 			t.Fatalf("stat %s: %v", rel, err)
@@ -737,10 +737,10 @@ func TestWrite_ClaudeExtrasCreateOptionalJSONDocs(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "targets", "claude", "settings.json"),
-		filepath.Join("src", "targets", "claude", "lsp.json"),
-		filepath.Join("src", "targets", "claude", "user-config.json"),
-		filepath.Join("src", "targets", "claude", "manifest.extra.json"),
+		filepath.Join(authoredRootDir, "targets", "claude", "settings.json"),
+		filepath.Join(authoredRootDir, "targets", "claude", "lsp.json"),
+		filepath.Join(authoredRootDir, "targets", "claude", "user-config.json"),
+		filepath.Join(authoredRootDir, "targets", "claude", "manifest.extra.json"),
 	} {
 		body, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -766,11 +766,11 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "targets", "gemini", "package.yaml"),
-		filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"),
-		filepath.Join("src", "README.md"),
-		filepath.Join("src", "skills", "my-plugin", "SKILL.md"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "targets", "gemini", "package.yaml"),
+		filepath.Join(authoredRootDir, "targets", "gemini", "contexts", "GEMINI.md"),
+		filepath.Join(authoredRootDir, "README.md"),
+		filepath.Join(authoredRootDir, "skills", "my-plugin", "SKILL.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -778,7 +778,7 @@ func TestWrite_GeminiCreatesPackagingStarter(t *testing.T) {
 			t.Fatalf("stat %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(root, "src", "targets", "gemini", "package.yaml"))
+	body, err := os.ReadFile(filepath.Join(root, authoredRootDir, "targets", "gemini", "package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -813,13 +813,13 @@ func TestWrite_GeminiGoCreatesRuntimeStarter(t *testing.T) {
 	}
 	for _, rel := range []string{
 		"go.mod",
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "launcher.yaml"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "launcher.yaml"),
 		filepath.Join("cmd", "my-plugin", "main.go"),
-		filepath.Join("src", "targets", "gemini", "package.yaml"),
-		filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"),
-		filepath.Join("src", "targets", "gemini", "hooks", "hooks.json"),
-		filepath.Join("src", "README.md"),
+		filepath.Join(authoredRootDir, "targets", "gemini", "package.yaml"),
+		filepath.Join(authoredRootDir, "targets", "gemini", "contexts", "GEMINI.md"),
+		filepath.Join(authoredRootDir, "targets", "gemini", "hooks", "hooks.json"),
+		filepath.Join(authoredRootDir, "README.md"),
 		"CLAUDE.md",
 		"AGENTS.md",
 	} {
@@ -843,11 +843,11 @@ func TestWrite_CodexRuntimePythonIncludesLauncher(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "launcher.yaml"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "launcher.yaml"),
 		"requirements.txt",
-		filepath.Join("src", "plugin_runtime.py"),
-		filepath.Join("src", "main.py"),
+		filepath.Join(authoredRootDir, "plugin_runtime.py"),
+		filepath.Join(authoredRootDir, "main.py"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 		filepath.Join(".github", "workflows", "bundle-release.yml"),
@@ -890,12 +890,12 @@ func TestWrite_CodexRuntimeNodeTypeScriptIncludesBuiltOutputShape(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, rel := range []string{
-		filepath.Join("src", "plugin.yaml"),
-		filepath.Join("src", "launcher.yaml"),
+		filepath.Join(authoredRootDir, "plugin.yaml"),
+		filepath.Join(authoredRootDir, "launcher.yaml"),
 		"package.json",
 		"tsconfig.json",
-		filepath.Join("src", "plugin-runtime.ts"),
-		filepath.Join("src", "main.ts"),
+		filepath.Join(authoredRootDir, "plugin-runtime.ts"),
+		filepath.Join(authoredRootDir, "main.ts"),
 		filepath.Join("bin", "my-plugin"),
 		filepath.Join("bin", "my-plugin.cmd"),
 		filepath.Join(".github", "workflows", "bundle-release.yml"),
@@ -945,10 +945,10 @@ func TestWrite_CodexRuntimeNodeTypeScriptRuntimePackageUsesSharedDependency(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "src", "plugin-runtime.ts")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, authoredRootDir, "plugin-runtime.ts")); !os.IsNotExist(err) {
 		t.Fatalf("vendored helper should stay absent, stat err=%v", err)
 	}
-	body, err := os.ReadFile(filepath.Join(root, "src", "main.ts"))
+	body, err := os.ReadFile(filepath.Join(root, authoredRootDir, "main.ts"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1041,7 +1041,7 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"generated by [plugin-kit-ai](https://github.com/777genius/plugin-kit-ai) `init`",
 				"Status: `public-stable`, repo-local interpreted subset",
 				"Python `3.10+` installed on the machine running the plugin",
-				"`src/plugin_runtime.py`",
+				"`plugin/plugin_runtime.py`",
 				"`requirements.txt`",
 				"plugin-kit-ai doctor .",
 				"recreate it",
@@ -1063,8 +1063,8 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"Status: `public-stable`, repo-local interpreted subset",
 				"system Node.js `20+` installed on the machine running the plugin",
 				"package-lock.json",
-				"`src/plugin-runtime.mjs`",
-				"Minimal JavaScript runtime scaffold using `src/main.mjs`",
+				"`plugin/plugin-runtime.mjs`",
+				"Minimal JavaScript runtime scaffold using `plugin/main.mjs`",
 				"plugin-kit-ai doctor .",
 				"--runtime node --typescript",
 				"plugin-kit-ai bootstrap .",
@@ -1072,7 +1072,7 @@ func TestRenderTemplate_ExecutableReadmesIncludeBootstrapGuidance(t *testing.T) 
 				"CI-grade readiness gate",
 				"local notify integration",
 				"avoid installing `Node.js`",
-				"`src/targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
+				"`plugin/targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
 			},
 		},
 		{
@@ -1126,7 +1126,7 @@ func TestRenderTemplate_ExecutableReadmesExplainSharedRuntimePackageMode(t *test
 				"Main entry imports the helper API from `plugin_kit_ai_runtime`",
 				"Pinned runtime package version: `" + DefaultRuntimePackageVersion + "`",
 			},
-			notWants: []string{"Generated helper layer: `src/plugin_runtime.py`"},
+			notWants: []string{"Generated helper layer: `plugin/plugin_runtime.py`"},
 		},
 		{
 			name:     "codex-node-shared",
@@ -1137,7 +1137,7 @@ func TestRenderTemplate_ExecutableReadmesExplainSharedRuntimePackageMode(t *test
 				"`package.json` already declares `plugin-kit-ai-runtime`",
 				"Pinned runtime package version: `" + DefaultRuntimePackageVersion + "`",
 			},
-			notWants: []string{"Generated helper layer: `src/plugin-runtime.ts`"},
+			notWants: []string{"Generated helper layer: `plugin/plugin-runtime.ts`"},
 		},
 	}
 	for _, tc := range cases {
@@ -1323,16 +1323,16 @@ func TestRenderTemplate_NodeTypeScriptScaffoldTemplates(t *testing.T) {
 		{
 			template: "codex-runtime.README.executable.md.tmpl",
 			wants: []string{
-				"Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
-				"`src/plugin-runtime.ts`",
+				"Generated TypeScript scaffold: `plugin/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
+				"`plugin/plugin-runtime.ts`",
 				"`plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`",
 			},
 		},
 		{
 			template: "README.executable.md.tmpl",
 			wants: []string{
-				"Generated TypeScript scaffold: `src/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
-				"`src/plugin-runtime.ts`",
+				"Generated TypeScript scaffold: `plugin/main.ts`, `tsconfig.json`, and built output under `dist/main.js`",
+				"`plugin/plugin-runtime.ts`",
 				"`plugin-kit-ai bootstrap .` runs `npm install` and `npm run build`",
 			},
 		},
@@ -1410,10 +1410,10 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform codex-package --strict",
-				"`src/mcp/servers.yaml`",
-				"`src/targets/codex-package/interface.json`: optional structured Codex `interface` doc generated into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape",
-				"`src/targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter stays ignored until you replace the empty placeholder with a real app manifest",
-				"`src/targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed",
+				"`plugin/mcp/servers.yaml`",
+				"`plugin/targets/codex-package/interface.json`: optional structured Codex `interface` doc generated into `.codex-plugin/plugin.json`; the starter uses the documented `defaultPrompt` array shape",
+				"`plugin/targets/codex-package/app.json`: optional Codex app manifest copied to `.app.json`; the starter stays ignored until you replace the empty placeholder with a real app manifest",
+				"`plugin/targets/codex-package/manifest.extra.json`: passthrough only for unsupported future Codex manifest fields; canonical package/interface fields stay managed",
 				"`.codex-plugin/plugin.json`: generated managed Codex plugin manifest; `.codex-plugin/` must not contain any other files",
 				"`.app.json` and `.mcp.json`: managed sidecars at the plugin root only when `.codex-plugin/plugin.json` references them",
 			},
@@ -1430,8 +1430,8 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
 				"## Stable Default",
 				"`Notify`",
-				"`src/targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
-				"`src/targets/codex-runtime/config.extra.toml`: optional passthrough for supported repo-local Codex config fields beyond managed `model` and `notify`",
+				"`plugin/targets/codex-runtime/package.yaml`: authored Codex runtime metadata",
+				"`plugin/targets/codex-runtime/config.extra.toml`: optional passthrough for supported repo-local Codex config fields beyond managed `model` and `notify`",
 				"`fixtures/codex-runtime/Notify.json`",
 				"`goldens/codex-runtime/*`",
 				"Keep stdout reserved for Codex responses and write diagnostics to stderr only.",
@@ -1447,9 +1447,9 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"plugin-kit-ai generate .",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform gemini --strict",
-				"`src/mcp/servers.yaml`",
-				"no `src/launcher.yaml`",
-				"`src/targets/gemini/package.yaml`",
+				"`plugin/mcp/servers.yaml`",
+				"no `plugin/launcher.yaml`",
+				"`plugin/targets/gemini/package.yaml`",
 			},
 		},
 		{
@@ -1461,14 +1461,14 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform opencode --strict",
-				"`src/mcp/servers.yaml`",
-				"`src/targets/opencode/package.yaml`",
-				"`src/targets/opencode/commands/`",
-				"`src/targets/opencode/agents/`",
-				"`src/targets/opencode/themes/`",
-				"`src/targets/opencode/tools/`",
-				"`src/targets/opencode/plugins/`",
-				"`src/targets/opencode/package.json`",
+				"`plugin/mcp/servers.yaml`",
+				"`plugin/targets/opencode/package.yaml`",
+				"`plugin/targets/opencode/commands/`",
+				"`plugin/targets/opencode/agents/`",
+				"`plugin/targets/opencode/themes/`",
+				"`plugin/targets/opencode/tools/`",
+				"`plugin/targets/opencode/plugins/`",
+				"`plugin/targets/opencode/package.json`",
 				"`opencode.json`",
 				"official-style named async plugin exports",
 				"`@opencode-ai/plugin`",
@@ -1483,8 +1483,8 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor --strict",
-				"`src/mcp/servers.yaml`",
-				"`src/skills/`",
+				"`plugin/mcp/servers.yaml`",
+				"`plugin/skills/`",
 				"`.cursor-plugin/plugin.json`",
 				"`.mcp.json`",
 			},
@@ -1498,7 +1498,7 @@ func TestRenderTemplate_GoReadmesIncludeStableContractGuidance(t *testing.T) {
 				"Launcher: not used",
 				"plugin-kit-ai generate --check .",
 				"plugin-kit-ai validate . --platform cursor-workspace --strict",
-				"`src/targets/cursor-workspace/rules/`",
+				"`plugin/targets/cursor-workspace/rules/`",
 				"`.cursor/mcp.json`",
 				"root `AGENTS.md`",
 			},
@@ -1837,11 +1837,17 @@ func canonicalTestPath(path string) string {
 	case path == "plugin.yaml",
 		path == "launcher.yaml",
 		path == "README.md",
+		path == "main.py",
+		path == "main.mjs",
+		path == "main.ts",
+		path == "plugin_runtime.py",
+		path == "plugin-runtime.mjs",
+		path == "plugin-runtime.ts",
 		strings.HasPrefix(path, "targets/"),
 		strings.HasPrefix(path, "mcp/"),
 		strings.HasPrefix(path, "skills/"),
 		strings.HasPrefix(path, "publish/"):
-		return filepath.ToSlash(filepath.Join("src", path))
+		return authoredPath(path)
 	default:
 		return path
 	}

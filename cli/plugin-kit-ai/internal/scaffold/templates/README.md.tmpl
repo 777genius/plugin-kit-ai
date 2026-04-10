@@ -7,17 +7,17 @@ This is the advanced custom-logic path. Choose it when the plugin's value lives 
 
 ## What You Edit First
 
-- `src/plugin.yaml`: shared plugin identity and target scope
-- `src/launcher.yaml`: runtime and entrypoint metadata
+- `plugin/plugin.yaml`: shared plugin identity and target scope
+- `plugin/launcher.yaml`: runtime and entrypoint metadata
 - `cmd/{{.ProjectName}}/main.go`: the Go runtime logic that defines the plugin behavior
-- `src/targets/claude/...`: authored Claude hook and packaging state
+- `plugin/targets/claude/...`: authored Claude hook and packaging state
 
 ## What Gets Generated
 
 - managed guidance files at the repo root such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native Claude output such as `hooks/hooks.json`
 
-Start with this `src/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
+Start with this `plugin/README.md`, then run `plugin-kit-ai inspect . --authoring` before you expand the repo into more outputs.
 {{- end }}
 
 ## Status
@@ -52,16 +52,16 @@ Use `plugin-kit-ai init <name> --platform claude --claude-extended-hooks` when y
 
 ## Target Files
 
-- `src/launcher.yaml`: runtime and entrypoint metadata for the Claude runtime lane
-- `src/targets/claude/hooks/hooks.json`: authored Claude hook routing
+- `plugin/launcher.yaml`: runtime and entrypoint metadata for the Claude runtime lane
+- `plugin/targets/claude/hooks/hooks.json`: authored Claude hook routing
 - `hooks/hooks.json`: generated managed Claude hook file
 - `fixtures/claude/*.json`: pre-generated stable Claude smoke payloads owned by this project
 - `goldens/claude/*`: pre-generated stable stdout/stderr/exit contract owned by this project
 - Optional first-class Claude breadth via `--extras`:
-  - `src/targets/claude/settings.json` -> generated `settings.json`
-  - `src/targets/claude/lsp.json` -> generated `.lsp.json`
-  - `src/targets/claude/user-config.json` -> generated `plugin.json.userConfig`
-  - `src/targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
+  - `plugin/targets/claude/settings.json` -> generated `settings.json`
+  - `plugin/targets/claude/lsp.json` -> generated `.lsp.json`
+  - `plugin/targets/claude/user-config.json` -> generated `plugin.json.userConfig`
+  - `plugin/targets/claude/manifest.extra.json` -> manifest passthrough for non-managed keys only
 
 If you move the project, update the authored hook command paths so they still point at `{{.Entrypoint}}`.
 Keep stdout reserved for Claude responses and write diagnostics to stderr only.

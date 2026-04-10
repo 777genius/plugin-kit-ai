@@ -2,6 +2,7 @@ package scaffold
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -64,6 +65,12 @@ func applyPlanDefaults(d Data) Data {
 	}
 	if strings.TrimSpace(d.GoSDKVersion) == "" {
 		d.GoSDKVersion = DefaultGoSDKVersion
+	}
+	if strings.TrimSpace(d.AuthoredRoot) == "" {
+		d.AuthoredRoot = "plugin"
+	}
+	if strings.TrimSpace(d.AuthoredReadmePath) == "" {
+		d.AuthoredReadmePath = filepath.ToSlash(filepath.Join(d.AuthoredRoot, "README.md"))
 	}
 	return d
 }

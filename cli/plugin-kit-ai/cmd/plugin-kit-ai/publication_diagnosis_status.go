@@ -36,13 +36,13 @@ func readyPublicationDiagnosis(lines []string, model publicationmodel.Model) pub
 	return publicationDiagnosis{Ready: true, Status: "ready", Lines: lines, NextSteps: next}
 }
 
-func missingChannelPublicationDiagnosis(lines []string, missing []publicationmodel.Package) publicationDiagnosis {
-	next := publicationNextStepsForMissing(missing)
+func missingChannelPublicationDiagnosis(lines []string, authoredRoot string, missing []publicationmodel.Package) publicationDiagnosis {
+	next := publicationNextStepsForMissing(authoredRoot, missing)
 	missingTargets := make([]string, 0, len(missing))
 	issues := make([]publicationIssue, 0, len(missing))
 	for _, pkg := range missing {
 		missingTargets = append(missingTargets, pkg.Target)
-		channelFamily, channelPath := expectedPublicationChannel(pkg.Target)
+		channelFamily, channelPath := expectedPublicationChannel(authoredRoot, pkg.Target)
 		message := fmt.Sprintf("target %s requires authored %s at %s", pkg.Target, channelFamily, channelPath)
 		issues = append(issues, publicationIssue{
 			Code:          "missing_channel",

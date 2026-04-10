@@ -12,10 +12,10 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	if !ok {
 		t.Fatal("missing codex-package entry")
 	}
-	if got := packageEntry.NativeDocPaths["interface"]; got != filepath.Join("src", "targets", "codex-package", "interface.json") {
+	if got := packageEntry.NativeDocPaths["interface"]; got != filepath.Join("plugin", "targets", "codex-package", "interface.json") {
 		t.Fatalf("codex-package native_doc_paths[interface] = %q", got)
 	}
-	if got := packageEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("src", "targets", "codex-package", "package.yaml") {
+	if got := packageEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("plugin", "targets", "codex-package", "package.yaml") {
 		t.Fatalf("codex-package native_doc_paths[package_metadata] = %q", got)
 	}
 	if got := packageEntry.NativeSurfaceTiers["interface"]; got != "stable" {
@@ -41,10 +41,10 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	if !ok {
 		t.Fatal("missing codex-runtime entry")
 	}
-	if got := runtimeEntry.NativeDocPaths["config_extra"]; got != filepath.Join("src", "targets", "codex-runtime", "config.extra.toml") {
+	if got := runtimeEntry.NativeDocPaths["config_extra"]; got != filepath.Join("plugin", "targets", "codex-runtime", "config.extra.toml") {
 		t.Fatalf("codex-runtime native_doc_paths[config_extra] = %q", got)
 	}
-	if got := runtimeEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("src", "targets", "codex-runtime", "package.yaml") {
+	if got := runtimeEntry.NativeDocPaths["package_metadata"]; got != filepath.Join("plugin", "targets", "codex-runtime", "package.yaml") {
 		t.Fatalf("codex-runtime native_doc_paths[package_metadata] = %q", got)
 	}
 	if got := runtimeEntry.NativeSurfaceTiers["config_extra"]; got != "stable" {

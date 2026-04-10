@@ -4,11 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
@@ -18,8 +16,8 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		if requireLauncher {
 			report.Failures = append(report.Failures, Failure{
 				Kind:    FailureLauncherInvalid,
-				Path:    filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName),
-				Message: "launcher invalid: missing " + filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, pluginmanifest.LauncherFileName)),
+				Path:    authoredProjectPath(root, pluginmanifest.LauncherFileName),
+				Message: "launcher invalid: missing " + authoredProjectPath(root, pluginmanifest.LauncherFileName),
 			})
 		}
 		return
@@ -65,7 +63,7 @@ func validateGoRuntimeFiles(root string, report *Report) {
 
 func validatePythonRuntimeFiles(root string, targets []string, launcher *pluginmanifest.Launcher, report *Report) {
 	validatePluginLauncher(root, launcher, report)
-	validateRuntimeFileExists(root, "src/main.py", report)
+	validateRuntimeFileExists(root, authoredRuntimeTargetPath(root, "main.py"), report)
 	if err := validatePythonRuntime(root, targets, launcher); err != nil {
 		appendRuntimeNotFound(report, err)
 	}

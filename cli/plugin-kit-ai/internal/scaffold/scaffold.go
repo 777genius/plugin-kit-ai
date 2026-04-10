@@ -39,6 +39,8 @@ type Data struct {
 	WithExtras            bool
 	JobTemplate           string
 	Targets               []string
+	AuthoredRoot          string
+	AuthoredReadmePath    string
 }
 
 type TemplateFile struct {

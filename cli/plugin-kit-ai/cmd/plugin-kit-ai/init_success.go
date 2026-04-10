@@ -37,7 +37,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		} else {
 			lines = append(lines, "  plugin-kit-ai validate . --platform claude --strict")
 		}
-		lines = append(lines, "  See src/README.md for the first run")
+		lines = append(lines, "  See plugin/README.md for the first run")
 		return strings.Join(lines, "\n") + "\n"
 	}
 
@@ -49,7 +49,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 
 	if platform == "gemini" && strings.TrimSpace(opts.Runtime) == "go" {
 		if opts.Extras {
-			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
+			lines = append(lines, "  Portable MCP starter: plugin/mcp/servers.yaml")
 		}
 		lines = append(lines,
 			"  go test ./...",
@@ -68,13 +68,13 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 
 	if platform == "gemini" || platform == "codex-package" || platform == "opencode" || platform == "cursor" || platform == "cursor-workspace" {
 		if opts.Extras {
-			lines = append(lines, "  Portable MCP starter: src/mcp/servers.yaml")
+			lines = append(lines, "  Portable MCP starter: plugin/mcp/servers.yaml")
 		}
 		lines = append(lines,
 			"  plugin-kit-ai generate .",
 			"  plugin-kit-ai generate --check .",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
-			"  See src/README.md for the full first run",
+			"  See plugin/README.md for the full first run",
 		)
 		return strings.Join(lines, "\n") + "\n"
 	}
@@ -90,7 +90,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See src/README.md for the full first run",
+			"  See plugin/README.md for the full first run",
 		)
 	case "node":
 		if opts.RuntimePackage && strings.TrimSpace(opts.RuntimePackageVersion) != "" {
@@ -102,7 +102,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See src/README.md for the full first run",
+			"  See plugin/README.md for the full first run",
 		)
 	case "shell":
 		lines = append(lines,
@@ -111,19 +111,19 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See src/README.md for the full first run",
+			"  See plugin/README.md for the full first run",
 		)
 	default:
 		lines = append(lines,
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
-			"  See src/README.md for SDK setup and first-run steps",
+			"  See plugin/README.md for SDK setup and first-run steps",
 		)
 	}
 
 	if templateName == scaffold.InitTemplateCustomLogic {
-		lines = append(lines, "  Advanced path: start with src/README.md, then grow into deeper runtime and hook details only when you need them.")
+		lines = append(lines, "  Advanced path: start with plugin/README.md, then grow into deeper runtime and hook details only when you need them.")
 	} else if templateName == "" {
 		lines = append(lines, "  Legacy compatibility path. For a new online service or local tool repo, start with --template online-service or --template local-tool instead.")
 	}

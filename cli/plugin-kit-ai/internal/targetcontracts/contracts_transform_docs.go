@@ -41,10 +41,7 @@ func authoringDocPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if path == pluginmodel.SourceDirName || strings.HasPrefix(path, pluginmodel.SourceDirName+"/") {
-		return path
-	}
-	return filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, path))
+	return pluginmodel.CanonicalAuthoredPath(path)
 }
 
 func fromSurfaceSupport(items []platformmeta.SurfaceSupport) []Surface {

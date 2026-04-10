@@ -32,11 +32,11 @@ Start with the job you want to solve:
 
 Connect an online service:
   Use --template online-service for hosted integrations like Notion, Stripe, Cloudflare, or Vercel.
-  This starter creates an MCP-first repo with shared authored source under src/ and no launcher code.
+  This starter creates an MCP-first repo with shared authored source under plugin/ and no launcher code.
 
 Connect a local tool:
   Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
-  This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
+  This starter creates an MCP-first repo with local command wiring under plugin/ and no launcher code.
 
 Build custom plugin logic - Advanced:
   Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
@@ -53,7 +53,7 @@ Public flags:
   --runtime    Supported: "go" (default), "python", "node", "shell" for launcher-based targets only.
   --typescript Generate a TypeScript scaffold on top of the node runtime lane (requires --runtime node).
   --runtime-package
-               For --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file into src/.
+               For --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file into plugin/.
   --runtime-package-version
                Pin the generated plugin-kit-ai-runtime dependency version. Required on development builds; released CLIs default to their own stable tag.
   -o, --output Target directory (default: ./<project-name>).

@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
 func TestByTargetNormalizesInput(t *testing.T) {
@@ -18,11 +20,11 @@ func TestByTargetNormalizesInput(t *testing.T) {
 }
 
 func TestAuthoringDocPathPrefixesSourceDirOnce(t *testing.T) {
-	want := filepath.Join("src", "targets", "gemini", "package.yaml")
+	want := filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml")
 	if got := authoringDocPath(filepath.Join("targets", "gemini", "package.yaml")); got != want {
 		t.Fatalf("authoringDocPath without src = %q", got)
 	}
-	if got := authoringDocPath(filepath.Join("src", "targets", "gemini", "package.yaml")); got != want {
+	if got := authoringDocPath(filepath.Join(pluginmodel.LegacySourceDirName, "targets", "gemini", "package.yaml")); got != filepath.Join(pluginmodel.LegacySourceDirName, "targets", "gemini", "package.yaml") {
 		t.Fatalf("authoringDocPath with src = %q", got)
 	}
 }

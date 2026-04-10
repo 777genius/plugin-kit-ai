@@ -11,7 +11,7 @@ import (
 func discoverMCP(root string, layout authoredLayout) (*PortableMCP, bool, error) {
 	for _, legacyRel := range []string{"mcp/servers.json", "mcp/servers.yml"} {
 		if fileExists(filepath.Join(root, layout.Path(legacyRel))) {
-			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use src/mcp/servers.yaml", legacyRel)
+			return nil, false, fmt.Errorf("unsupported portable MCP authored path %s: use %s/mcp/servers.yaml", legacyRel, pluginmodel.SourceDirName)
 		}
 	}
 	for _, rel := range []string{"mcp/servers.yaml"} {

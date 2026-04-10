@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
@@ -23,7 +24,7 @@ func discoverTarget(root string, layout authoredLayout, target string) (TargetCo
 	}
 	for _, spec := range profile.NativeDocs {
 		docKinds[spec.Kind] = struct{}{}
-		path := filepath.ToSlash(spec.Path)
+		path := pluginmodel.RebaseAuthoredPath(spec.Path, layout.Path(""))
 		if fileExists(filepath.Join(root, path)) {
 			state.SetDoc(spec.Kind, path)
 			if _, ok := mirrorKinds[spec.Kind]; ok {

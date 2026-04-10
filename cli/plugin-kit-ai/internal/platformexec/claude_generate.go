@@ -9,6 +9,7 @@ import (
 )
 
 func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]pluginmodel.Artifact, error) {
+	authoredRoot := authoredRootHint(state, graph.Portable)
 	entrypoint := ""
 	if graph.Launcher != nil {
 		entrypoint = graph.Launcher.Entrypoint
@@ -17,7 +18,7 @@ func (claudeAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		return nil, fmt.Errorf("required launcher missing: %s", pluginmodel.LauncherFileName)
 	}
 	if graph.Launcher == nil && !claudePackageOnlyMode(graph, state) {
-		return nil, fmt.Errorf("invalid %s: target claude without src/launcher.yaml must author at least one package-only surface such as src/mcp/servers.yaml, src/skills/, src/targets/claude/settings.json, src/targets/claude/lsp.json, src/targets/claude/user-config.json, src/targets/claude/manifest.extra.json, src/targets/claude/commands/**, or src/targets/claude/agents/**", pluginmodel.FileName)
+		return nil, fmt.Errorf("invalid %s: target claude without %s/launcher.yaml must author at least one package-only surface such as %s/mcp/servers.yaml, %s/skills/, %s/targets/claude/settings.json, %s/targets/claude/lsp.json, %s/targets/claude/user-config.json, %s/targets/claude/manifest.extra.json, %s/targets/claude/commands/**, or %s/targets/claude/agents/**", pluginmodel.FileName, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot, authoredRoot)
 	}
 	_, settingsBody, settingsPresent, err := loadClaudeJSONDoc(root, state.DocPath("settings"), "Claude settings")
 	if err != nil {

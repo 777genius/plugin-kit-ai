@@ -50,9 +50,9 @@ func normalizeJobTemplateTargets(templateName string, targets []string) ([]strin
 
 func jobTemplateFilesFor(templateName string, extras bool) []TemplateFile {
 	files := []TemplateFile{
-		{Path: "src/plugin.yaml", Template: "plugin.yaml.tmpl", Extra: false},
-		{Path: "src/mcp/servers.yaml", Template: "job.online-service.mcp.servers.yaml.tmpl", Extra: false},
-		{Path: "src/README.md", Template: "job.online-service.README.md.tmpl", Extra: false},
+		{Path: authoredPath("plugin.yaml"), Template: "plugin.yaml.tmpl", Extra: false},
+		{Path: authoredPath("mcp/servers.yaml"), Template: "job.online-service.mcp.servers.yaml.tmpl", Extra: false},
+		{Path: authoredPath("README.md"), Template: "job.online-service.README.md.tmpl", Extra: false},
 		{Path: "CLAUDE.md", Template: "ROOT.CLAUDE.md.tmpl", Extra: false},
 		{Path: "AGENTS.md", Template: "ROOT.AGENTS.md.tmpl", Extra: false},
 	}
@@ -62,7 +62,7 @@ func jobTemplateFilesFor(templateName string, extras bool) []TemplateFile {
 		files[2].Template = "job.local-tool.README.md.tmpl"
 	}
 	if extras {
-		files = append(files, TemplateFile{Path: "src/skills/{{.ProjectName}}/SKILL.md", Template: "SKILL.md.tmpl", Extra: true})
+		files = append(files, TemplateFile{Path: authoredPath("skills/{{.ProjectName}}/SKILL.md"), Template: "SKILL.md.tmpl", Extra: true})
 	}
 	return files
 }

@@ -22,7 +22,8 @@ func (cursorAdapter) DetectNative(root string) bool {
 }
 
 func (cursorAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState) error {
-	targetDir := filepath.Join(root, pluginmodel.SourceDirName, "targets", "cursor")
+	authoredRoot := authoredRootHint(*state, pluginmodel.NewPortableComponents())
+	targetDir := filepath.Join(root, authoredRoot, "targets", "cursor")
 	entries, err := os.ReadDir(targetDir)
 	switch {
 	case os.IsNotExist(err):
@@ -32,7 +33,7 @@ func (cursorAdapter) RefineDiscovery(root string, state *pluginmodel.TargetState
 	case len(entries) == 0:
 		return nil
 	default:
-		return fmt.Errorf("target cursor does not support src/targets/cursor/... in phase 1: use src/skills/** and src/mcp/servers.yaml, or move repo-local Cursor config to src/targets/cursor-workspace/...")
+		return fmt.Errorf("target cursor does not support %s/targets/cursor/... in phase 1: use %s/skills/** and %s/mcp/servers.yaml, or move repo-local Cursor config to %s/targets/cursor-workspace/...", authoredRoot, authoredRoot, authoredRoot, authoredRoot)
 	}
 }
 

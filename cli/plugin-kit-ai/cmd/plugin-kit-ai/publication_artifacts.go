@@ -35,7 +35,8 @@ func diagnosePublicationArtifacts(root, requestedTarget string, model publicatio
 			})
 		}
 	}
-	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) {
+	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) ||
+		fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, pluginmanifest.FileName)) {
 		generated, err := pluginmanifest.Generate(root, normalizePublicationRequestedTarget(requestedTarget))
 		if err != nil {
 			issues = append(issues, publicationIssue{

@@ -99,7 +99,9 @@ func importCursorAgentsArtifact(root string) (pluginmodel.Artifact, bool, error)
 		return pluginmodel.Artifact{}, false, err
 	}
 	content := extractCursorManagedAgentsSection(string(body))
-	if strings.TrimSpace(content) == "" {
+	if strings.TrimSpace(content) == "" &&
+		!strings.Contains(string(body), "<!-- plugin-kit-ai:begin managed-guidance -->") &&
+		!strings.Contains(string(body), "<!-- plugin-kit-ai:end managed-guidance -->") {
 		content = strings.TrimSpace(string(body))
 	}
 	if strings.TrimSpace(content) == "" {

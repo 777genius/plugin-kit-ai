@@ -98,20 +98,21 @@ func Run(root, platform string) error {
 }
 
 func Validate(root, platform string) (Report, error) {
-	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) {
+	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) ||
+		fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, pluginmanifest.FileName)) {
 		return validatePluginProject(root, platform)
 	}
 	if fileExists(filepath.Join(root, ".plugin-kit-ai", "project.toml")) {
 		return Report{}, invalidProjectReport(
 			FailureManifestInvalid,
 			filepath.Join(".plugin-kit-ai", "project.toml"),
-			"unsupported project format: .plugin-kit-ai/project.toml is not supported; use src/plugin.yaml and src/targets/<platform>/...",
+			"unsupported project format: .plugin-kit-ai/project.toml is not supported; use plugin/plugin.yaml and plugin/targets/<platform>/... (legacy src/ remains supported)",
 		)
 	}
 	return Report{}, invalidProjectReport(
 		FailureManifestMissing,
 		filepath.Join(pluginmodel.SourceDirName, pluginmanifest.FileName),
-		"required manifest missing: src/plugin.yaml",
+		"required manifest missing: plugin/plugin.yaml",
 	)
 }
 

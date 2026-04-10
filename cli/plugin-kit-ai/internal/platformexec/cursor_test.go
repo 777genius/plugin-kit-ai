@@ -176,7 +176,7 @@ servers:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(artifacts) != 2 {
+	if len(artifacts) != 1 {
 		t.Fatalf("artifacts = %v", artifacts)
 	}
 	var got string

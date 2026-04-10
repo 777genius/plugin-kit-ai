@@ -1,7 +1,6 @@
 package app
 
 import (
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 )
 
@@ -17,7 +16,7 @@ func loadPublicationContextForVerify(opts PluginPublicationVerifyRootOptions) (p
 		return publicationContext{}, err
 	}
 
-	publicationState, err := publishschema.DiscoverInLayout(ctx.root, pluginmodel.SourceDirName)
+	publicationState, err := publishschema.DiscoverInLayout(ctx.root, ctx.inspection.Layout.AuthoredRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}

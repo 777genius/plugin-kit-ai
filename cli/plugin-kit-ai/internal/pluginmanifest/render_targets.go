@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/platformexec"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationexec"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 	"github.com/777genius/plugin-kit-ai/cli/internal/targetcontracts"
@@ -39,9 +40,9 @@ func expectedManagedPaths(root string, layout authoredLayout, graph PackageGraph
 					seen[spec.Path] = struct{}{}
 				}
 			case platformmeta.ManagedArtifactPortableSkills:
-				sourceRoot := filepath.ToSlash(strings.TrimSpace(spec.SourceRoot))
+				sourceRoot := pluginmodel.RebaseAuthoredPath(spec.SourceRoot, layout.Path(""))
 				if sourceRoot == "" {
-					sourceRoot = "skills"
+					sourceRoot = layout.Path("skills")
 				}
 				addManagedCopies(seen, graph.Portable.Paths("skills"), sourceRoot, spec.OutputRoot)
 			case platformmeta.ManagedArtifactMirror:
@@ -50,14 +51,14 @@ func expectedManagedPaths(root string, layout authoredLayout, graph PackageGraph
 					if rel == "" {
 						continue
 					}
-					relPath, err := filepath.Rel(filepath.ToSlash(spec.SourceRoot), rel)
+					relPath, err := filepath.Rel(pluginmodel.RebaseAuthoredPath(spec.SourceRoot, layout.Path("")), rel)
 					if err != nil {
 						continue
 					}
 					seen[filepath.ToSlash(filepath.Join(spec.OutputRoot, relPath))] = struct{}{}
 					continue
 				}
-				addManagedCopies(seen, tc.ComponentPaths(spec.ComponentKind), spec.SourceRoot, spec.OutputRoot)
+				addManagedCopies(seen, tc.ComponentPaths(spec.ComponentKind), pluginmodel.RebaseAuthoredPath(spec.SourceRoot, layout.Path("")), spec.OutputRoot)
 			case platformmeta.ManagedArtifactSelectedContext:
 				continue
 			}
@@ -74,9 +75,11 @@ func expectedManagedPaths(root string, layout authoredLayout, graph PackageGraph
 	for _, path := range publicationexec.ManagedPaths(publication, selected) {
 		seen[path] = struct{}{}
 	}
-	if layout.IsCanonical() {
+	if strings.TrimSpace(layout.Path("")) != "" {
+		seen["CLAUDE.md"] = struct{}{}
+		seen["AGENTS.md"] = struct{}{}
 		seen["GENERATED.md"] = struct{}{}
-		if fileExists(filepath.Join(root, layout.Path("README.md"))) {
+		if managesReadme, err := shouldManageRootReadme(root); err == nil && managesReadme && fileExists(filepath.Join(root, layout.Path("README.md"))) {
 			seen["README.md"] = struct{}{}
 		}
 	}

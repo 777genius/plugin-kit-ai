@@ -48,10 +48,15 @@ func generatePackage(root string, target string) (RenderResult, error) {
 		artifactMap[relPath] = artifact.Content
 	}
 	if ctx.layout.IsCanonical() {
-		if claudeBoundary, err := buildRootClaudeBoundaryArtifact(ctx.layout); err != nil {
+		if claudeBoundary, err := buildRootClaudeBoundaryArtifact(root, ctx.layout); err != nil {
 			return RenderResult{}, err
 		} else if claudeBoundary != nil {
 			artifactMap[claudeBoundary.RelPath] = claudeBoundary.Content
+		}
+		if agentsBoundary, err := buildRootAgentsBoundaryArtifact(root, ctx.layout, ctx.graph); err != nil {
+			return RenderResult{}, err
+		} else if agentsBoundary != nil {
+			artifactMap[agentsBoundary.RelPath] = agentsBoundary.Content
 		}
 		if readme, err := buildRootReadmeArtifact(root, ctx.layout, ctx.graph.Manifest); err != nil {
 			return RenderResult{}, err
