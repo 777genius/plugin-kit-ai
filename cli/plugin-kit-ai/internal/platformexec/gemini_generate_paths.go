@@ -1,7 +1,6 @@
 package platformexec
 
 import (
-	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -10,18 +9,28 @@ import (
 )
 
 func (geminiAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
-	meta, _, err := readYAMLDoc[geminiPackageMeta](root, state.DocPath("package_metadata"))
+	meta, err := loadGeminiRenderMeta(root, state)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
+		return nil, err
 	}
-	seen := map[string]struct{}{}
-	if geminiUsesGeneratedHooks(graph, state) {
-		seen[filepath.ToSlash(filepath.Join("hooks", "hooks.json"))] = struct{}{}
-	}
+	seen := initialGeminiManagedPathSet(graph, state)
 	selected, ok, err := selectGeminiPrimaryContext(graph, state, meta)
 	if err != nil || !ok {
 		return sortedKeys(seen), err
 	}
+	addGeminiManagedContextPaths(seen, state, selected)
+	return sortedGeminiManagedPaths(seen), nil
+}
+
+func initialGeminiManagedPathSet(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) map[string]struct{} {
+	seen := map[string]struct{}{}
+	if geminiUsesGeneratedHooks(graph, state) {
+		seen[filepath.ToSlash(filepath.Join("hooks", "hooks.json"))] = struct{}{}
+	}
+	return seen
+}
+
+func addGeminiManagedContextPaths(seen map[string]struct{}, state pluginmodel.TargetState, selected geminiContextSelection) {
 	seen[selected.ArtifactName] = struct{}{}
 	for _, rel := range state.ComponentPaths("contexts") {
 		if rel == selected.SourcePath {
@@ -29,12 +38,15 @@ func (geminiAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, s
 		}
 		seen[geminiExtraContextArtifactPath(rel)] = struct{}{}
 	}
+}
+
+func sortedGeminiManagedPaths(seen map[string]struct{}) []string {
 	var out []string
 	for path := range seen {
 		out = append(out, path)
 	}
 	slices.Sort(out)
-	return out, nil
+	return out
 }
 
 func geminiUsesGeneratedHooks(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
