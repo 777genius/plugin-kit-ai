@@ -170,6 +170,45 @@ func TestProjectScopeUsesNearestGitRoot(t *testing.T) {
 	}
 }
 
+func TestPlanUpdateUsesMetadataConfigPathAndPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceRoot := filepath.Join(root, "repo", "nested", "pkg")
+	metadataConfig := filepath.Join(root, "repo", "configs", "opencode.custom.jsonc")
+	mustWriteOpenCodeFile(t, filepath.Join(root, "repo", ".git"), "")
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceRoot,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetOpenCode: {
+					TargetID: domain.TargetOpenCode,
+					AdapterMetadata: map[string]any{
+						"config_path": metadataConfig,
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	wantPaths := []string{
+		metadataConfig,
+		filepath.Join(root, "repo", ".opencode"),
+	}
+	if len(plan.PathsTouched) != len(wantPaths) {
+		t.Fatalf("paths touched len = %d, want %d: %#v", len(plan.PathsTouched), len(wantPaths), plan.PathsTouched)
+	}
+	for i, want := range wantPaths {
+		if plan.PathsTouched[i] != want {
+			t.Fatalf("paths touched[%d] = %s, want %s", i, plan.PathsTouched[i], want)
+		}
+	}
+}
+
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -212,6 +251,44 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	}
 	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != configPath {
 		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, configPath)
+	}
+}
+
+func TestInspectUsesMetadataConfigPathFallback(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	workspaceRoot := filepath.Join(root, "workspace")
+	configPath := filepath.Join(root, "custom", "opencode.jsonc")
+	mustWriteOpenCodeFile(t, configPath, "{\n  \"plugin\": [\"@acme/opencode-demo-plugin\"]\n}\n")
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceRoot,
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetOpenCode: {
+					TargetID: domain.TargetOpenCode,
+					AdapterMetadata: map[string]any{
+						"config_path":       configPath,
+						"owned_plugin_refs": []string{"@acme/opencode-demo-plugin"},
+					},
+				},
+			},
+		},
+		Scope: "project",
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed", inspect.State)
+	}
+	if len(inspect.ObservedNativeObjects) == 0 {
+		t.Fatalf("observed objects = %#v, want managed plugin ref", inspect.ObservedNativeObjects)
+	}
+	if inspect.ObservedNativeObjects[0].Path != configPath {
+		t.Fatalf("observed path = %s, want %s", inspect.ObservedNativeObjects[0].Path, configPath)
 	}
 }
 
