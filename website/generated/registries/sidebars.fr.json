@@ -487,6 +487,10 @@
           "link": "/fr/api/go-sdk/codex"
         },
         {
+          "text": "gemini",
+          "link": "/fr/api/go-sdk/gemini"
+        },
+        {
           "text": "platformmeta",
           "link": "/fr/api/go-sdk/platformmeta"
         },

@@ -47,7 +47,14 @@ export async function extractGoSDK() {
         sourceRef: pkg.relativePath,
         pathEn: `/en/api/go-sdk/${slug}`,
         pathRu: `/ru/api/go-sdk/${slug}`,
-        relatedIds: pkg.id === "claude" ? ["event-platform:claude"] : pkg.id === "codex" ? ["event-platform:codex"] : [],
+        relatedIds:
+          pkg.id === "claude"
+            ? ["event-platform:claude"]
+            : pkg.id === "codex"
+              ? ["event-platform:codex"]
+              : pkg.id === "gemini"
+                ? ["event-platform:gemini"]
+                : [],
         searchTerms: [pkg.importPath, slug]
       })
     );
@@ -99,6 +106,10 @@ export async function extractGoSDK() {
                 ? locale === "ru"
                   ? "Публичные обработчики Codex и runtime-интеграция."
                   : "Public Codex-oriented handlers and runtime integration."
+                : pkg.id === "gemini"
+                  ? locale === "ru"
+                    ? "Публичные обработчики Gemini и runtime-интеграция."
+                    : "Public Gemini-oriented handlers and runtime integration."
                 : locale === "ru"
                   ? "Метаданные платформ и служебные хелперы поддержки."
                   : "Platform metadata and support-oriented helpers.";
@@ -148,10 +159,14 @@ function localizeGoSDKBody(locale, pkgId, body) {
     .replace(/^## Index$/gm, "## Оглавление")
     .replace("Package pluginkitai exposes the public root SDK for building plugin-kit-ai runtime binaries with typed Claude and Codex registrars.", "Пакет `pluginkitai` публикует корневой SDK для сборки runtime-бинарников plugin-kit-ai с типизированными регистраторами Claude и Codex.")
     .replace("Package pluginkitai exposes the public root SDK for building plugin\\-kit\\-ai runtime binaries with typed Claude and Codex registrars.", "Пакет `pluginkitai` публикует корневой SDK для сборки runtime-бинарников plugin-kit-ai с типизированными регистраторами Claude и Codex.")
+    .replace("Package pluginkitai exposes the public root SDK for building plugin-kit-ai runtime binaries with typed Claude, Codex, and Gemini registrars.", "Пакет `pluginkitai` публикует корневой SDK для сборки runtime-бинарников plugin-kit-ai с типизированными регистраторами Claude, Codex и Gemini.")
+    .replace("Package pluginkitai exposes the public root SDK for building plugin\\-kit\\-ai runtime binaries with typed Claude, Codex, and Gemini registrars.", "Пакет `pluginkitai` публикует корневой SDK для сборки runtime-бинарников plugin-kit-ai с типизированными регистраторами Claude, Codex и Gemini.")
     .replace("Package codex exposes typed public event inputs, responses, and registrars for Codex runtime integrations.", "Пакет `codex` публикует типизированные входные события, ответы и регистраторы для runtime-интеграций Codex.")
     .replace("Package codex exposes typed public event inputs, responses, and registrars for Codex plugin runtime integrations.", "Пакет `codex` публикует типизированные входные события, ответы и регистраторы для runtime-интеграций Codex.")
     .replace("Package claude exposes typed public hook inputs, responses, and registrars for Claude runtime integrations.", "Пакет `claude` публикует типизированные входные hooks, ответы и регистраторы для runtime-интеграций Claude.")
     .replace("Package claude exposes typed public hook inputs, responses, and registrars for Claude plugin runtime integrations.", "Пакет `claude` публикует типизированные входные hooks, ответы и регистраторы для runtime-интеграций Claude.")
+    .replace("Package gemini exposes typed public Gemini hook inputs, responses, and registrars for the production-ready Gemini Go runtime lane, including the current 9-hook runtime surface.", "Пакет `gemini` публикует типизированные входные Gemini hooks, ответы и регистраторы для production-ready Go runtime-пути Gemini, включая текущую стабильную 9-hook surface.")
+    .replace("Package gemini exposes typed public Gemini hook inputs, responses, and registrars for the production\\-ready Gemini Go runtime lane, including the current 9\\-hook runtime surface.", "Пакет `gemini` публикует типизированные входные Gemini hooks, ответы и регистраторы для production-ready Go runtime-пути Gemini, включая текущую стабильную 9-hook surface.")
     .replace("Package platformmeta exposes generated public metadata about supported target platforms, scaffolds, validation rules, and managed surfaces.", "Пакет `platformmeta` публикует сгенерированные публичные метаданные о поддерживаемых целевых платформах, scaffold-шаблонах, правилах валидации и управляемых поверхностях.")
     .replace("contains filtered or unexported fields", "содержит скрытые или неэкспортируемые поля")
     .replace("App owns middleware, handler registration, and invocation dispatch.", "App управляет middleware, регистрацией обработчиков и диспетчеризацией вызовов.")
@@ -160,6 +175,8 @@ function localizeGoSDKBody(locale, pkgId, body) {
     .replace("Claude returns a registrar for Claude\\-specific hook handlers.", "Claude возвращает регистратор для Claude-специфичных hook-обработчиков.")
     .replace("Codex returns a registrar for Codex-specific event handlers.", "Codex возвращает регистратор для Codex-специфичных обработчиков событий.")
     .replace("Codex returns a registrar for Codex\\-specific event handlers.", "Codex возвращает регистратор для Codex-специфичных обработчиков событий.")
+    .replace("Gemini returns a registrar for Gemini-specific hook handlers.", "Gemini возвращает регистратор для Gemini-специфичных hook-обработчиков.")
+    .replace("Gemini returns a registrar for Gemini\\-specific hook handlers.", "Gemini возвращает регистратор для Gemini-специфичных hook-обработчиков.")
     .replace("Run dispatches the current process invocation with context.Background().", "Run обрабатывает текущий запуск процесса с `context.Background()`.")
     .replace("RunContext dispatches the current process invocation using the supplied context.", "RunContext обрабатывает текущий запуск процесса с переданным `context.Context`.");
 }

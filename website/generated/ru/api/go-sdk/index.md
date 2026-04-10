@@ -25,4 +25,5 @@ Go SDK — рекомендуемый путь по умолчанию, когд
 | [`sdk`](/ru/api/go-sdk/sdk) | Корневой пакет композиции и runtime-входа. |
 | [`claude`](/ru/api/go-sdk/claude) | Публичные обработчики Claude и подключение событий. |
 | [`codex`](/ru/api/go-sdk/codex) | Публичные обработчики Codex и runtime-интеграция. |
+| [`gemini`](/ru/api/go-sdk/gemini) | Публичные обработчики Gemini и runtime-интеграция. |
 | [`platformmeta`](/ru/api/go-sdk/platformmeta) | Метаданные платформ и служебные хелперы поддержки. |

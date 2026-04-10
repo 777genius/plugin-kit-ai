@@ -24,7 +24,7 @@ translationRequired: false
 import "github.com/777genius/plugin-kit-ai/sdk"
 ```
 
-Package pluginkitai exposes the public root SDK for building plugin\-kit\-ai runtime binaries with typed Claude, Codex, and Gemini registrars.
+Пакет `pluginkitai` публикует корневой SDK для сборки runtime-бинарников plugin-kit-ai с типизированными регистраторами Claude, Codex и Gemini.
 
 ## Оглавление
 
@@ -136,7 +136,7 @@ func main() {
 func (a *App) Gemini() *gemini.Registrar
 ```
 
-Gemini returns a registrar for Gemini\-specific hook handlers.
+Gemini возвращает регистратор для Gemini-специфичных hook-обработчиков.
 
 
 **Example**

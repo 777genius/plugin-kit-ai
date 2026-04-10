@@ -23,6 +23,7 @@ export const publicGoPackages = [
   { id: "root", importPath: "github.com/777genius/plugin-kit-ai/sdk", relativePath: "sdk" },
   { id: "claude", importPath: "github.com/777genius/plugin-kit-ai/sdk/claude", relativePath: "sdk/claude" },
   { id: "codex", importPath: "github.com/777genius/plugin-kit-ai/sdk/codex", relativePath: "sdk/codex" },
+  { id: "gemini", importPath: "github.com/777genius/plugin-kit-ai/sdk/gemini", relativePath: "sdk/gemini" },
   { id: "platformmeta", importPath: "github.com/777genius/plugin-kit-ai/sdk/platformmeta", relativePath: "sdk/platformmeta" }
 ];
 

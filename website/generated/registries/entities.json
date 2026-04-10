@@ -1613,6 +1613,28 @@
     "pathRu": "/ru/api/go-sdk/platformmeta"
   },
   {
+    "relatedIds": [
+      "event-platform:gemini"
+    ],
+    "searchTerms": [
+      "github.com/777genius/plugin-kit-ai/sdk/gemini",
+      "gemini"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "go-package:github.com/777genius/plugin-kit-ai/sdk/gemini",
+    "kind": "package",
+    "surface": "go-sdk",
+    "localeStrategy": "mirrored",
+    "title": "gemini",
+    "summary": "Public Go package github.com/777genius/plugin-kit-ai/sdk/gemini",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "gomarkdoc",
+    "sourceRef": "sdk/gemini",
+    "pathEn": "/en/api/go-sdk/gemini",
+    "pathRu": "/ru/api/go-sdk/gemini"
+  },
+  {
     "relatedIds": [],
     "searchTerms": [
       "allow",

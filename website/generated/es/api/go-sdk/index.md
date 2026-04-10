@@ -25,4 +25,5 @@ The Go SDK is the recommended default path when you want the strongest productio
 | [`sdk`](/es/api/go-sdk/sdk) | Root composition and runtime entry package. |
 | [`claude`](/es/api/go-sdk/claude) | Public Claude-oriented handlers and event wiring. |
 | [`codex`](/es/api/go-sdk/codex) | Public Codex-oriented handlers and runtime integration. |
+| [`gemini`](/es/api/go-sdk/gemini) | Public Gemini-oriented handlers and runtime integration. |
 | [`platformmeta`](/es/api/go-sdk/platformmeta) | Platform metadata and support-oriented helpers. |
