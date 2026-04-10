@@ -9,13 +9,13 @@ import (
 )
 
 func (s Service) applyToggleExisting(ctx context.Context, record domain.InstallationRecord, action string, planned []plannedExistingTarget) (domain.Report, error) {
-	if len(planned) != 1 {
-		return domain.Report{}, domain.NewError(domain.ErrMutationApply, "non-dry-run existing lifecycle currently supports one target at a time until rollback is implemented", nil)
+	target, err := validateSingleExistingToggleTarget(planned)
+	if err != nil {
+		return domain.Report{}, err
 	}
-	target := planned[0]
 	defer cleanupPlannedExisting(planned)
-	if target.Plan.Blocking {
-		return domain.Report{}, domain.NewError(domain.ErrMutationApply, "planned mutation is blocked for target "+string(target.TargetID)+"; rerun with --dry-run to inspect manual steps", nil)
+	if err := ensureExistingTogglePlanAllowed(target); err != nil {
+		return domain.Report{}, err
 	}
 
 	operationID := operationID(actionNamePrefix(action), record.IntegrationID, s.now())
@@ -86,6 +86,20 @@ func (s Service) applyToggleExisting(ctx context.Context, record domain.Installa
 	}, nil
 }
 
+func validateSingleExistingToggleTarget(planned []plannedExistingTarget) (plannedExistingTarget, error) {
+	if len(planned) != 1 {
+		return plannedExistingTarget{}, domain.NewError(domain.ErrMutationApply, "non-dry-run existing lifecycle currently supports one target at a time until rollback is implemented", nil)
+	}
+	return planned[0], nil
+}
+
+func ensureExistingTogglePlanAllowed(target plannedExistingTarget) error {
+	if target.Plan.Blocking {
+		return domain.NewError(domain.ErrMutationApply, "planned mutation is blocked for target "+string(target.TargetID)+"; rerun with --dry-run to inspect manual steps", nil)
+	}
+	return nil
+}
+
 func (s Service) appendExistingPlanJournal(ctx context.Context, operationID string, target plannedExistingTarget) error {
 	if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "inspect", Status: "ok"}); err != nil {
 		return err
@@ -98,19 +112,31 @@ func (s Service) appendExistingPlanJournal(ctx context.Context, operationID stri
 
 func (s Service) applyExistingToggleMutation(ctx context.Context, action string, record domain.InstallationRecord, target plannedExistingTarget) (ports.ApplyResult, error) {
 	toggle := target.Adapter.(ports.ToggleTargetAdapter)
-	input := ports.ApplyInput{
+	input := buildExistingToggleApplyInput(record, target)
+	apply, err := existingToggleMutationApply(toggle, action)
+	if err != nil {
+		return ports.ApplyResult{}, err
+	}
+	return apply(ctx, input)
+}
+
+func buildExistingToggleApplyInput(record domain.InstallationRecord, target plannedExistingTarget) ports.ApplyInput {
+	return ports.ApplyInput{
 		Plan:    target.Plan,
 		Policy:  record.Policy,
 		Inspect: target.Inspect,
 		Record:  &record,
 	}
+}
+
+func existingToggleMutationApply(toggle ports.ToggleTargetAdapter, action string) (func(context.Context, ports.ApplyInput) (ports.ApplyResult, error), error) {
 	switch action {
 	case "enable_target":
-		return toggle.ApplyEnable(ctx, input)
+		return toggle.ApplyEnable, nil
 	case "disable_target":
-		return toggle.ApplyDisable(ctx, input)
+		return toggle.ApplyDisable, nil
 	default:
-		return ports.ApplyResult{}, domain.NewError(domain.ErrUsage, "unsupported existing lifecycle action "+action, nil)
+		return nil, domain.NewError(domain.ErrUsage, "unsupported existing lifecycle action "+action, nil)
 	}
 }
 
