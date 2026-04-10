@@ -51,6 +51,19 @@ func TestOpenCodeValidateRejectsLegacyPluginScaffoldShape(t *testing.T) {
 	}
 }
 
+func TestValidateOpenCodeAgentFilesRejectsDeprecatedToolsField(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	rel := filepath.ToSlash(filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"))
+	writeOpenCodeValidateFile(t, filepath.Join(root, rel), "---\ndescription: Review code\ntools:\n  - read\n---\nPrompt body\n")
+
+	diagnostics := validateOpenCodeAgentFiles(root, []string{rel})
+	joined := diagnosticsText(diagnostics)
+	if !strings.Contains(joined, `frontmatter field "tools" is deprecated; use "permission" instead`) {
+		t.Fatalf("diagnostics missing deprecated tools failure:\n%s", joined)
+	}
+}
+
 func writeOpenCodeValidateFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
