@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
@@ -60,34 +59,15 @@ func (s Service) applyRemoveExisting(ctx context.Context, record domain.Installa
 		})
 		if err != nil {
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "failed"})
-			rollbackFailed, rollbackWarnings := s.rollbackRemovedExisting(ctx, operationID, record, removed)
-			if len(rollbackFailed) > 0 {
-				state.Installations = upsertInstallation(state.Installations, degradedRecordForRemoveFailure(record, startedAt, target.TargetID, rollbackFailed))
-				if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
-					return domain.Report{}, saveErr
-				}
-				if stepErr := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_degraded_state", Status: "ok"}); stepErr != nil {
-					return domain.Report{}, stepErr
-				}
-				if finishErr := s.Journal.Finish(ctx, operationID, "degraded"); finishErr != nil {
-					return domain.Report{}, finishErr
-				}
-				committed = true
-				msg := "remove failed and rollback was incomplete; degraded state persisted"
-				if len(rollbackWarnings) > 0 {
-					msg += ": " + strings.Join(rollbackWarnings, "; ")
-				}
-				return domain.Report{}, domain.NewError(domain.ErrMutationApply, msg, err)
-			}
-			if finishErr := s.Journal.Finish(ctx, operationID, "rolled_back"); finishErr != nil {
+			failureErr, done, failureState, finishErr := s.finishRemoveExistingFailure(ctx, operationID, state, record, startedAt, target.TargetID, removed, err, "remove failed and removed targets were rolled back", "remove failed and rollback was incomplete; degraded state persisted")
+			if finishErr != nil {
 				return domain.Report{}, finishErr
 			}
-			committed = true
-			msg := "remove failed and removed targets were rolled back"
-			if len(rollbackWarnings) > 0 {
-				msg += ": " + strings.Join(rollbackWarnings, "; ")
+			if done {
+				state = failureState
+				committed = true
+				return domain.Report{}, failureErr
 			}
-			return domain.Report{}, domain.NewError(domain.ErrMutationApply, msg, err)
 		}
 		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "ok"}); err != nil {
 			return domain.Report{}, err
@@ -95,39 +75,21 @@ func (s Service) applyRemoveExisting(ctx context.Context, record domain.Installa
 		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &record, target.Adapter, "remove_orphaned_target")
 		if err != nil {
 			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
-			rollbackFailed, rollbackWarnings := s.rollbackRemovedExisting(ctx, operationID, record, append(removed, removedExistingTarget{Planned: target, Result: applyResult}))
-			if len(rollbackFailed) > 0 {
-				state.Installations = upsertInstallation(state.Installations, degradedRecordForRemoveFailure(record, startedAt, target.TargetID, rollbackFailed))
-				if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
-					return domain.Report{}, saveErr
-				}
-				if stepErr := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_degraded_state", Status: "ok"}); stepErr != nil {
-					return domain.Report{}, stepErr
-				}
-				if finishErr := s.Journal.Finish(ctx, operationID, "degraded"); finishErr != nil {
-					return domain.Report{}, finishErr
-				}
-				committed = true
-				msg := "remove verification failed and rollback was incomplete; degraded state persisted"
-				if len(rollbackWarnings) > 0 {
-					msg += ": " + strings.Join(rollbackWarnings, "; ")
-				}
-				return domain.Report{}, domain.NewError(domain.ErrMutationApply, msg, err)
-			}
-			if finishErr := s.Journal.Finish(ctx, operationID, "rolled_back"); finishErr != nil {
+			failureRemoved := appendRemovedExisting(removed, target, applyResult)
+			failureErr, done, failureState, finishErr := s.finishRemoveExistingFailure(ctx, operationID, state, record, startedAt, target.TargetID, failureRemoved, err, "remove verification failed and removed targets were rolled back", "remove verification failed and rollback was incomplete; degraded state persisted")
+			if finishErr != nil {
 				return domain.Report{}, finishErr
 			}
-			committed = true
-			msg := "remove verification failed and removed targets were rolled back"
-			if len(rollbackWarnings) > 0 {
-				msg += ": " + strings.Join(rollbackWarnings, "; ")
+			if done {
+				state = failureState
+				committed = true
+				return domain.Report{}, failureErr
 			}
-			return domain.Report{}, domain.NewError(domain.ErrMutationApply, msg, err)
 		}
 		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "ok"}); err != nil {
 			return domain.Report{}, err
 		}
-		removed = append(removed, removedExistingTarget{Planned: target, Result: applyResult})
+		removed = appendRemovedExisting(removed, target, applyResult)
 		reportTargets = append(reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	}
 
@@ -162,25 +124,4 @@ func (s Service) applyRemoveExisting(ctx context.Context, record domain.Installa
 		Summary:     summaryForExisting("remove_orphaned_target", record.IntegrationID),
 		Targets:     reportTargets,
 	}, nil
-}
-
-func degradedRecordForRemoveFailure(record domain.InstallationRecord, startedAt string, failedTarget domain.TargetID, rollbackFailed []domain.TargetID) domain.InstallationRecord {
-	next := cloneInstallationRecord(record)
-	next.LastCheckedAt = startedAt
-	next.LastUpdatedAt = startedAt
-
-	if len(rollbackFailed) > 0 {
-		for targetID, target := range next.Targets {
-			target.State = domain.InstallDegraded
-			next.Targets[targetID] = target
-		}
-		return next
-	}
-
-	target, ok := next.Targets[failedTarget]
-	if ok {
-		target.State = domain.InstallDegraded
-		next.Targets[failedTarget] = target
-	}
-	return next
 }
