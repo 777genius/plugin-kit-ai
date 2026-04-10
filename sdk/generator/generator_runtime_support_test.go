@@ -5,6 +5,21 @@ import (
 	"testing"
 )
 
+func TestRenderSupportIndexIncludesAllPlatforms(t *testing.T) {
+	t.Parallel()
+
+	body := renderSupportIndex()
+	for _, want := range []string{
+		"claudeSupportEntries",
+		"geminiSupportEntries",
+		"codexSupportEntries",
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("renderSupportIndex() missing %q:\n%s", want, body)
+		}
+	}
+}
+
 func TestSupportBucketFuncName(t *testing.T) {
 	t.Parallel()
 
