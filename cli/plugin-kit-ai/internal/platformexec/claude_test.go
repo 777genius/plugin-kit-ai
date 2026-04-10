@@ -1,0 +1,132 @@
+package platformexec
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+)
+
+func TestClaudeImportNormalizesCustomPathsAndInfersLauncher(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), `{
+  "name": "claude-demo",
+  "version": "0.1.0",
+  "description": "claude demo",
+  "skills": "./custom/skills/",
+  "commands": "./custom/commands/",
+  "agents": "./custom/agents/",
+  "hooks": "./custom/hooks.json"
+}`)
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "skills", "release-checks", "SKILL.md"), "# Skill\n")
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "commands", "deploy.md"), "# Deploy\n")
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "agents", "reviewer.md"), "# Reviewer\n")
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "hooks.json"), "{\n  \"hooks\": {\n    \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/demo Stop\"}]}]\n  }\n}\n")
+
+	imported, err := (claudeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{
+			Name:        "seed-name",
+			Version:     "0.0.1",
+			Description: "seed-description",
+			Targets:     []string{"claude"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	if imported.Launcher == nil || imported.Launcher.Entrypoint != "./bin/demo" {
+		t.Fatalf("launcher = %+v", imported.Launcher)
+	}
+	for _, want := range []string{
+		filepath.ToSlash(filepath.Join("skills", "release-checks", "SKILL.md")),
+		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "commands", "deploy.md")),
+		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "agents", "reviewer.md")),
+		filepath.ToSlash(filepath.Join("targets", "claude", "hooks", "hooks.json")),
+	} {
+		if !hasArtifactPath(imported.Artifacts, want) {
+			t.Fatalf("artifacts missing %s: %+v", want, imported.Artifacts)
+		}
+	}
+	warnings := warningsText(imported.Warnings)
+	for _, want := range []string{
+		"custom Claude skills paths were normalized into canonical package-standard layout",
+		"custom Claude commands paths were normalized into canonical package-standard layout",
+		"custom Claude agents paths were normalized into canonical package-standard layout",
+		"custom Claude hooks path was normalized into targets/claude/hooks/hooks.json",
+		"normalized Claude plugin identity into canonical package-standard plugin.yaml",
+	} {
+		if !strings.Contains(warnings, want) {
+			t.Fatalf("warnings missing %q:\n%s", want, warnings)
+		}
+	}
+}
+
+func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
+
+	state := pluginmodel.NewTargetState("claude")
+	state.SetDoc("settings", filepath.Join("src", "targets", "claude", "settings.json"))
+	artifacts, err := (claudeAdapter{}).Generate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{
+			Name:        "claude-demo",
+			Version:     "0.1.0",
+			Description: "claude demo",
+			Targets:     []string{"claude"},
+		},
+		Portable: pluginmodel.NewPortableComponents(),
+	}, state)
+	if err != nil {
+		t.Fatalf("Generate error = %v", err)
+	}
+	if !hasArtifactPath(artifacts, filepath.ToSlash(filepath.Join(".claude-plugin", "plugin.json"))) {
+		t.Fatalf("artifacts missing plugin manifest: %+v", artifacts)
+	}
+	if !hasArtifactPath(artifacts, "settings.json") {
+		t.Fatalf("artifacts missing settings.json: %+v", artifacts)
+	}
+	if hasArtifactPath(artifacts, filepath.ToSlash(filepath.Join("hooks", "hooks.json"))) {
+		t.Fatalf("unexpected generated hooks in package-only mode: %+v", artifacts)
+	}
+}
+
+func TestClaudeValidateReportsHookEntrypointMismatchAndUserConfigShape(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "hooks", "hooks.json"), "{\n  \"hooks\": {\n    \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/other Stop\"}]}]\n  }\n}\n")
+	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "user-config.json"), "{\n  \"bad\": true\n}\n")
+
+	state := pluginmodel.NewTargetState("claude")
+	state.AddComponent("hooks", filepath.Join("src", "targets", "claude", "hooks", "hooks.json"))
+	state.SetDoc("user_config", filepath.Join("src", "targets", "claude", "user-config.json"))
+
+	diagnostics, err := (claudeAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Launcher: &pluginmodel.Launcher{Entrypoint: "./bin/demo"},
+	}, state)
+	if err != nil {
+		t.Fatalf("Validate error = %v", err)
+	}
+	joined := diagnosticsText(diagnostics)
+	for _, want := range []string{
+		"entrypoint mismatch: Claude hook",
+		"must be a JSON object",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("diagnostics missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func writeClaudeTestFile(t *testing.T, path string, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
