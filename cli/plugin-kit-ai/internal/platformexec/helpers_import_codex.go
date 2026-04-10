@@ -10,6 +10,7 @@ type codexRuntimeMeta struct {
 }
 
 type codexPackageMeta = codexmanifest.PackageMeta
+type importedCodexPluginManifest = codexmanifest.ImportedPluginManifest
 
 type importedCodexNativeConfig = codexconfig.ImportedConfig
 
