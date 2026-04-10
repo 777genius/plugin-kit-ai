@@ -68,33 +68,70 @@ func adoptedUpdateBlockedWarning(record domain.InstallationRecord, targetID doma
 }
 
 func (s Service) planAutomaticAdoptedUpdateTarget(ctx context.Context, record domain.InstallationRecord, manifest domain.IntegrationManifest, resolved ports.ResolvedSource, delivery domain.Delivery) (plannedExistingTarget, string, error) {
-	adapter, ok := s.Adapters[delivery.TargetID]
+	adapter, ok := s.adoptedUpdateAdapter(delivery.TargetID)
 	if !ok {
 		return plannedExistingTarget{}, adoptedUpdateMissingAdapterWarning(record, delivery.TargetID), nil
 	}
-	inspect, err := adapter.Inspect(ctx, ports.InspectInput{IntegrationID: record.IntegrationID, Record: &record, Scope: record.Policy.Scope})
+	inspect, err := inspectAdoptedUpdateTarget(ctx, adapter, record)
 	if err != nil {
 		return plannedExistingTarget{}, "", err
 	}
+	plan, err := s.planAdoptedInstall(ctx, adapter, record, manifest, inspect, delivery.TargetID)
+	if err != nil {
+		return plannedExistingTarget{}, "", err
+	}
+	if adoptedUpdateShouldWarnBlocked(plan) {
+		return plannedExistingTarget{}, adoptedUpdateBlockedWarning(record, delivery.TargetID), nil
+	}
+	return finalizeAdoptedExistingTarget(delivery, adapter, inspect, plan, manifest, resolved), "", nil
+}
+
+func (s Service) adoptedUpdateAdapter(targetID domain.TargetID) (ports.TargetAdapter, bool) {
+	adapter, ok := s.Adapters[targetID]
+	return adapter, ok
+}
+
+func inspectAdoptedUpdateTarget(ctx context.Context, adapter ports.TargetAdapter, record domain.InstallationRecord) (ports.InspectResult, error) {
+	return adapter.Inspect(ctx, ports.InspectInput{IntegrationID: record.IntegrationID, Record: &record, Scope: record.Policy.Scope})
+}
+
+func (s Service) planAdoptedInstall(
+	ctx context.Context,
+	adapter ports.TargetAdapter,
+	record domain.InstallationRecord,
+	manifest domain.IntegrationManifest,
+	inspect ports.InspectResult,
+	targetID domain.TargetID,
+) (ports.AdapterPlan, error) {
 	plan, err := adapter.PlanInstall(ctx, ports.PlanInstallInput{
 		Manifest: manifest,
 		Policy:   record.Policy,
 		Inspect:  inspect,
 	})
 	if err != nil {
-		return plannedExistingTarget{}, "", err
+		return ports.AdapterPlan{}, err
 	}
+	plan = normalizeAdoptedInstallPlan(plan, targetID)
+	if _, err := s.validateEvidence(ctx, targetID, plan.EvidenceKey); err != nil {
+		return ports.AdapterPlan{}, err
+	}
+	return plan, nil
+}
+
+func normalizeAdoptedInstallPlan(plan ports.AdapterPlan, targetID domain.TargetID) ports.AdapterPlan {
 	plan.ActionClass = "adopt_new_target"
-	plan.Summary = "Adopt newly supported target " + string(delivery.TargetID)
-	if _, err := s.validateEvidence(ctx, delivery.TargetID, plan.EvidenceKey); err != nil {
-		return plannedExistingTarget{}, "", err
-	}
-	if plan.Blocking {
-		return plannedExistingTarget{}, adoptedUpdateBlockedWarning(record, delivery.TargetID), nil
-	}
+	plan.Summary = "Adopt newly supported target " + string(targetID)
+	return plan
+}
+
+func adoptedUpdateShouldWarnBlocked(plan ports.AdapterPlan) bool {
+	return plan.Blocking
+}
+
+func finalizeAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest domain.IntegrationManifest, resolved ports.ResolvedSource) plannedExistingTarget {
 	resolvedCopy := resolved
 	manifestCopy := manifest
-	return newAdoptedExistingTarget(delivery, adapter, inspect, plan, &manifestCopy, &resolvedCopy), "", nil
+	return newAdoptedExistingTarget(delivery, adapter, inspect, plan, &manifestCopy, &resolvedCopy)
 }
 
 func newAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest *domain.IntegrationManifest, resolved *ports.ResolvedSource) plannedExistingTarget {

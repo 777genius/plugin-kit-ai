@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func TestAutoAdoptNewTargetsTreatsTrimmedAutoAsEnabled(t *testing.T) {
@@ -60,5 +61,36 @@ func TestAdoptedUpdateBlockedWarningPreservesTargetMessage(t *testing.T) {
 	want := "Automatic adoption skipped for demo on gemini: native environment blocks installation."
 	if got != want {
 		t.Fatalf("warning = %q, want %q", got, want)
+	}
+}
+
+func TestAdoptedUpdateMissingAdapterWarningPreservesTargetMessage(t *testing.T) {
+	t.Parallel()
+
+	record := domain.InstallationRecord{IntegrationID: "demo"}
+	got := adoptedUpdateMissingAdapterWarning(record, domain.TargetCodex)
+	want := "Automatic adoption skipped for demo on codex: no adapter is registered."
+	if got != want {
+		t.Fatalf("warning = %q, want %q", got, want)
+	}
+}
+
+func TestNormalizeAdoptedInstallPlanProjectsActionAndSummary(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeAdoptedInstallPlan(ports.AdapterPlan{}, domain.TargetGemini)
+	if got.ActionClass != "adopt_new_target" || got.Summary != "Adopt newly supported target gemini" {
+		t.Fatalf("plan = %+v", got)
+	}
+}
+
+func TestAdoptedUpdateShouldWarnBlockedMatchesPlanState(t *testing.T) {
+	t.Parallel()
+
+	if !adoptedUpdateShouldWarnBlocked(ports.AdapterPlan{Blocking: true}) {
+		t.Fatal("expected blocking plan to warn")
+	}
+	if adoptedUpdateShouldWarnBlocked(ports.AdapterPlan{Blocking: false}) {
+		t.Fatal("expected non-blocking plan to skip warning")
 	}
 }
