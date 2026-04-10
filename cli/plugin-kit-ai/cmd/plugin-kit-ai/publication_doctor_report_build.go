@@ -19,6 +19,13 @@ func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings
 }
 
 func newPublicationDoctorJSONReport(requestedTarget string, warnings []string, publication publicationmodel.Model, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONReport {
+	report := publicationDoctorJSONReportMetadata(requestedTarget, warnings, diagnosis)
+	report.LocalRoot = localRoot
+	report.Publication = publication
+	return report
+}
+
+func publicationDoctorJSONReportMetadata(requestedTarget string, warnings []string, diagnosis publicationDiagnosis) publicationDoctorJSONReport {
 	return publicationDoctorJSONReport{
 		Format:                "plugin-kit-ai/publication-doctor-report",
 		SchemaVersion:         1,
@@ -26,13 +33,11 @@ func newPublicationDoctorJSONReport(requestedTarget string, warnings []string, p
 		Ready:                 diagnosis.Ready,
 		Status:                diagnosis.Status,
 		WarningCount:          len(warnings),
-		Warnings:              warnings,
+		Warnings:              append([]string(nil), warnings...),
 		IssueCount:            len(diagnosis.Issues),
 		Issues:                publicationDoctorIssues(diagnosis.Issues),
 		NextSteps:             publicationDoctorNextSteps(diagnosis.NextSteps),
 		MissingPackageTargets: publicationDoctorMissingTargets(diagnosis.MissingPackageTargets),
-		LocalRoot:             localRoot,
-		Publication:           publication,
 	}
 }
 
@@ -45,13 +50,18 @@ func buildPublicationJSONReport(report pluginmanifest.Inspection, warnings []plu
 }
 
 func newPublicationJSONReport(requestedTarget string, warnings []string, publication publicationmodel.Model) publicationJSONReport {
+	report := publicationJSONReportMetadata(requestedTarget, warnings)
+	report.Publication = publication
+	return report
+}
+
+func publicationJSONReportMetadata(requestedTarget string, warnings []string) publicationJSONReport {
 	return publicationJSONReport{
 		Format:          "plugin-kit-ai/publication-report",
 		SchemaVersion:   1,
 		RequestedTarget: requestedTarget,
 		WarningCount:    len(warnings),
 		Warnings:        append([]string(nil), warnings...),
-		Publication:     publication,
 	}
 }
 

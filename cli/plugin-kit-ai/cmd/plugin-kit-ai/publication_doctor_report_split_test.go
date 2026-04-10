@@ -185,6 +185,38 @@ func TestNormalizePublicationChannelInitializesPackageTargets(t *testing.T) {
 	}
 }
 
+func TestPublicationDoctorJSONReportMetadataCopiesCollections(t *testing.T) {
+	t.Parallel()
+
+	warnings := []string{"warn"}
+	diagnosis := publicationDiagnosis{
+		Ready:                 true,
+		Status:                "ready",
+		Issues:                []publicationIssue{{Code: "demo"}},
+		NextSteps:             []string{"step"},
+		MissingPackageTargets: []string{"gemini"},
+	}
+	report := publicationDoctorJSONReportMetadata("gemini", warnings, diagnosis)
+	warnings[0] = "changed"
+	diagnosis.Issues[0].Code = "changed"
+	diagnosis.NextSteps[0] = "changed"
+	diagnosis.MissingPackageTargets[0] = "changed"
+	if report.WarningCount != 1 || report.Warnings[0] != "warn" || report.Issues[0].Code != "demo" || report.NextSteps[0] != "step" || report.MissingPackageTargets[0] != "gemini" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestPublicationJSONReportMetadataCopiesWarnings(t *testing.T) {
+	t.Parallel()
+
+	warnings := []string{"warn"}
+	report := publicationJSONReportMetadata("gemini", warnings)
+	warnings[0] = "changed"
+	if report.RequestedTarget != "gemini" || report.WarningCount != 1 || report.Warnings[0] != "warn" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
 func TestMarshalPublicationDoctorJSONProducesIndentedEnvelope(t *testing.T) {
 	t.Parallel()
 
