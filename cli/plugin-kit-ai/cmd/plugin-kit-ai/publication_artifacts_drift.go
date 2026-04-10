@@ -19,21 +19,29 @@ func diagnoseGeneratedPublicationArtifacts(root, requestedTarget string, model p
 			Message: fmt.Sprintf("publication doctor could not probe generated publication artifacts: %v", err),
 		}}
 	}
+	issues := diagnosePublicationArtifactBodies(root, model, expectedPublicationArtifactBodies(generated.Artifacts))
+	return append(issues, diagnosePublicationStaleArtifacts(generated.StalePaths)...)
+}
 
-	expectedBodies := make(map[string][]byte, len(generated.Artifacts))
-	for _, artifact := range generated.Artifacts {
+func expectedPublicationArtifactBodies(artifacts []pluginmanifest.Artifact) map[string][]byte {
+	expectedBodies := make(map[string][]byte, len(artifacts))
+	for _, artifact := range artifacts {
 		expectedBodies[artifact.RelPath] = artifact.Content
 	}
+	return expectedBodies
+}
 
-	issues := diagnosePublicationArtifactBodies(root, model, expectedBodies)
-	for _, path := range generated.StalePaths {
-		if isPublicationRelevantPath(path) {
-			issues = append(issues, publicationIssue{
-				Code:    "stale_generated_artifact",
-				Path:    path,
-				Message: fmt.Sprintf("generated publication artifact %s is stale and should be removed by generate", path),
-			})
+func diagnosePublicationStaleArtifacts(paths []string) []publicationIssue {
+	var issues []publicationIssue
+	for _, path := range paths {
+		if !isPublicationRelevantPath(path) {
+			continue
 		}
+		issues = append(issues, publicationIssue{
+			Code:    "stale_generated_artifact",
+			Path:    path,
+			Message: fmt.Sprintf("generated publication artifact %s is stale and should be removed by generate", path),
+		})
 	}
 	return issues
 }
