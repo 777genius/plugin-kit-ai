@@ -66,13 +66,30 @@ func renderResolvers(m model) string {
 	return b.String()
 }
 
-func renderSupport(m model) string {
+func renderSupportIndex() string {
 	var b strings.Builder
 	b.WriteString("package gen\n\n")
 	b.WriteString("import \"github.com/777genius/plugin-kit-ai/sdk/internal/runtime\"\n\n")
 	b.WriteString("func AllSupportEntries() []runtime.SupportEntry {\n")
+	b.WriteString("\tentries := make([]runtime.SupportEntry, 0, len(claudeSupportEntries())+len(geminiSupportEntries())+len(codexSupportEntries()))\n")
+	b.WriteString("\tentries = append(entries, claudeSupportEntries()...)\n")
+	b.WriteString("\tentries = append(entries, geminiSupportEntries()...)\n")
+	b.WriteString("\tentries = append(entries, codexSupportEntries()...)\n")
+	b.WriteString("\treturn entries\n")
+	b.WriteString("}\n")
+	return b.String()
+}
+
+func renderSupportBucket(m model, platform string) string {
+	var b strings.Builder
+	b.WriteString("package gen\n\n")
+	b.WriteString("import \"github.com/777genius/plugin-kit-ai/sdk/internal/runtime\"\n\n")
+	b.WriteString(fmt.Sprintf("func %s() []runtime.SupportEntry {\n", supportBucketFuncName(platform)))
 	b.WriteString("\treturn []runtime.SupportEntry{\n")
 	for _, e := range m.events {
+		if string(e.Platform) != platform {
+			continue
+		}
 		p := m.profiles[e.Platform]
 		b.WriteString("\t\t{\n")
 		b.WriteString(fmt.Sprintf("\t\t\tPlatform: %q,\n", e.Platform))
@@ -103,12 +120,25 @@ func renderSupport(m model) string {
 	return b.String()
 }
 
+func supportBucketFuncName(platform string) string {
+	switch platform {
+	case "claude":
+		return "claudeSupportEntries"
+	case "gemini":
+		return "geminiSupportEntries"
+	case "codex":
+		return "codexSupportEntries"
+	default:
+		panic(fmt.Sprintf("unsupported support bucket %q", platform))
+	}
+}
+
 func renderCompletenessTest(m model) string {
 	var b strings.Builder
 	b.WriteString("package gen\n\n")
 	b.WriteString("import (\n")
-	b.WriteString("\t\"testing\"\n")
 	b.WriteString("\t\"github.com/777genius/plugin-kit-ai/sdk/internal/descriptors/defs\"\n")
+	b.WriteString("\t\"testing\"\n")
 	b.WriteString(")\n\n")
 	b.WriteString("func TestGeneratedRegistryCompleteness(t *testing.T) {\n")
 	b.WriteString("\tprofiles := defs.Profiles()\n")
@@ -130,6 +160,19 @@ func renderCompletenessTest(m model) string {
 	b.WriteString("\t\tif profile.Status != \"deferred\" {\n")
 	b.WriteString("\t\t\tif len(profile.Scaffold.RequiredFiles) == 0 || len(profile.Scaffold.TemplateFiles) == 0 { t.Fatalf(\"missing scaffold metadata for %s\", profile.Platform) }\n")
 	b.WriteString("\t\t\tif len(profile.Validate.RequiredFiles) == 0 { t.Fatalf(\"missing validate metadata for %s\", profile.Platform) }\n")
+	b.WriteString("\t\t}\n")
+	b.WriteString("\t}\n")
+	b.WriteString("}\n")
+	b.WriteString("\n")
+	b.WriteString("func TestSupportEntriesPreserveEventOrder(t *testing.T) {\n")
+	b.WriteString("\tt.Parallel()\n\n")
+	b.WriteString("\tentries := AllSupportEntries()\n")
+	b.WriteString("\tevents := defs.Events()\n")
+	b.WriteString("\tif len(entries) != len(events) { t.Fatalf(\"support entries = %d want %d\", len(entries), len(events)) }\n")
+	b.WriteString("\tfor i, event := range events {\n")
+	b.WriteString("\t\tentry := entries[i]\n")
+	b.WriteString("\t\tif entry.Platform != event.Platform || entry.Event != event.Event {\n")
+	b.WriteString("\t\t\tt.Fatalf(\"entry[%d] = %s/%s want %s/%s\", i, entry.Platform, entry.Event, event.Platform, event.Event)\n")
 	b.WriteString("\t\t}\n")
 	b.WriteString("\t}\n")
 	b.WriteString("}\n")

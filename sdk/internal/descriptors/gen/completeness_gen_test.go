@@ -52,3 +52,19 @@ func TestGeneratedRegistryCompleteness(t *testing.T) {
 		}
 	}
 }
+
+func TestSupportEntriesPreserveEventOrder(t *testing.T) {
+	t.Parallel()
+
+	entries := AllSupportEntries()
+	events := defs.Events()
+	if len(entries) != len(events) {
+		t.Fatalf("support entries = %d want %d", len(entries), len(events))
+	}
+	for i, event := range events {
+		entry := entries[i]
+		if entry.Platform != event.Platform || entry.Event != event.Event {
+			t.Fatalf("entry[%d] = %s/%s want %s/%s", i, entry.Platform, entry.Event, event.Platform, event.Event)
+		}
+	}
+}
