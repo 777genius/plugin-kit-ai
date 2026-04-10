@@ -159,6 +159,33 @@ func TestCodexRuntimeValidateUsesModelHintAndConfigExtra(t *testing.T) {
 	}
 }
 
+func TestCodexPackageValidateRequiresManagedAppsRef(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeCodexTestFile(t, filepath.Join(root, ".codex-plugin", "plugin.json"), "{\n  \"name\": \"codex-demo\",\n  \"version\": \"0.1.0\",\n  \"description\": \"codex demo\",\n  \"apps\": \"./custom/app.json\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "custom", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
+
+	state := pluginmodel.NewTargetState("codex-package")
+	state.SetDoc("app_manifest", filepath.Join("src", "targets", "codex-package", "app.json"))
+
+	diagnostics, err := (codexPackageAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{
+			Name:        "codex-demo",
+			Version:     "0.1.0",
+			Description: "codex demo",
+			Targets:     []string{"codex-package"},
+		},
+	}, state)
+	if err != nil {
+		t.Fatalf("Validate error = %v", err)
+	}
+	joined := diagnosticsText(diagnostics)
+	if !strings.Contains(joined, `must use "./.app.json" for apps when present`) {
+		t.Fatalf("diagnostics missing managed apps ref guidance:\n%s", joined)
+	}
+}
+
 func writeCodexTestFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
