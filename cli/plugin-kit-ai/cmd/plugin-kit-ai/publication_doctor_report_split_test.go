@@ -108,3 +108,32 @@ func TestWritePublicationDoctorJSONReportEmitsJSONEnvelope(t *testing.T) {
 		t.Fatalf("output = %q", got)
 	}
 }
+
+func TestMarshalPublicationDoctorJSONProducesIndentedEnvelope(t *testing.T) {
+	t.Parallel()
+
+	body, err := marshalPublicationDoctorJSON(publicationDoctorJSONReport{
+		Format:        "plugin-kit-ai/publication-doctor-report",
+		SchemaVersion: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(body) == 0 || body[0] != '{' {
+		t.Fatalf("body = %q", body)
+	}
+}
+
+func TestWritePublicationDoctorJSONBodyAddsTrailingNewline(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	if err := writePublicationDoctorJSONBody(cmd, []byte(`{"ok":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "{\"ok\":true}\n" {
+		t.Fatalf("output = %q", got)
+	}
+}
