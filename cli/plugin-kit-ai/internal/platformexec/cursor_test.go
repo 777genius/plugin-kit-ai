@@ -45,6 +45,32 @@ func TestCursorWorkspaceImportIncludeUserScopeMergesGlobalMCP(t *testing.T) {
 	}
 }
 
+func TestCursorWorkspaceImportExtractsManagedAgentsSection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	body := "# Shared root\n\n" + cursorAgentsSectionStart + "\n# Managed agents\nUse managed content.\n" + cursorAgentsSectionEnd + "\n"
+	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	imported, err := (cursorWorkspaceAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo", Targets: []string{"cursor-workspace"}},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	if len(imported.Artifacts) != 1 {
+		t.Fatalf("artifacts = %+v", imported.Artifacts)
+	}
+	if imported.Artifacts[0].RelPath != filepath.ToSlash(filepath.Join("targets", "cursor-workspace", "AGENTS.md")) {
+		t.Fatalf("artifact path = %q", imported.Artifacts[0].RelPath)
+	}
+	got := string(imported.Artifacts[0].Content)
+	if strings.Contains(got, "Shared root") || !strings.Contains(got, "Managed agents") {
+		t.Fatalf("managed agents content = %q", got)
+	}
+}
+
 func TestCursorWorkspaceValidateRejectsNonMdcRules(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
