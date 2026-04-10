@@ -100,6 +100,23 @@ func TestOpenCodeImportCarriesWorkspacePackageJSON(t *testing.T) {
 	}
 }
 
+func TestOpenCodeImportRejectsCompatSkillDirectory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeOpenCodeImportFile(t, filepath.Join(root, "opencode.json"), `{"$schema":"https://opencode.ai/config.json"}`)
+	writeOpenCodeImportFile(t, filepath.Join(root, ".agents", "skills", "legacy", "SKILL.md"), "# Legacy\n")
+
+	_, err := (opencodeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo"},
+	})
+	if err == nil {
+		t.Fatal("expected compat skills rejection")
+	}
+	if !strings.Contains(err.Error(), "unsupported OpenCode native skill path .agents/skills: use skills/**") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func writeOpenCodeImportFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
