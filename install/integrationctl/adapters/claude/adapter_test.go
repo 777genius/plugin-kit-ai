@@ -142,6 +142,32 @@ func TestApplyInstallRollbackRemovesMarketplaceWhenPluginInstallFails(t *testing
 	}
 }
 
+func TestApplyInstallRejectsManagedManifestExtraOverride(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	source := filepath.Join(root, "source")
+	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "manifest.extra.json"), "{\n  \"name\": \"override\"\n}\n")
+
+	adapter := Adapter{Runner: &stubRunner{}, FS: fsadapter.OS{}, ProjectRoot: filepath.Join(root, "project"), UserHome: home}
+	_, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "claude-demo",
+			Version:       "0.1.0",
+			Description:   "Claude demo plugin",
+		},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: source},
+		Policy:         domain.InstallPolicy{Scope: "project"},
+	})
+	if err == nil {
+		t.Fatal("expected manifest.extra override error")
+	}
+	if !strings.Contains(err.Error(), "Claude manifest.extra.json may not override managed key name") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestPlanInstallBlocksWhenManagedSettingsDisallowMarketplaceAdd(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
