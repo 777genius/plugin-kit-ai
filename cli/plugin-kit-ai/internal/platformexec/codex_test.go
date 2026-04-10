@@ -63,6 +63,32 @@ func TestCodexPackageImportNormalizesManagedRefsAndPreservesExtras(t *testing.T)
 	}
 }
 
+func TestCodexPackageImportWarnsOnIgnoredAgentsDirectory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeCodexTestFile(t, filepath.Join(root, ".codex-plugin", "plugin.json"), `{
+  "name": "codex-demo",
+  "version": "0.1.0",
+  "description": "codex demo"
+}`)
+	writeCodexTestFile(t, filepath.Join(root, "agents", "legacy.md"), "# legacy\n")
+
+	imported, err := (codexPackageAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{
+			Name:        "seed-name",
+			Version:     "0.0.1",
+			Description: "seed-description",
+			Targets:     []string{"codex-package"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	if text := warningsText(imported.Warnings); !strings.Contains(text, "ignored unsupported import asset: agents") {
+		t.Fatalf("warnings = %s", text)
+	}
+}
+
 func TestCodexPackageGenerateWritesManagedBundleArtifacts(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
