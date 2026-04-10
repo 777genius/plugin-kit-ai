@@ -1,14 +1,9 @@
 package app
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
-	"path/filepath"
-	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 )
@@ -60,70 +55,4 @@ func runRuntimeTestCase(ctx context.Context, root string, project runtimecheck.P
 		tc.Passed = failure == "" && len(mismatches) == 0
 	}
 	return tc
-}
-
-func resolveFixturePath(root, requested, platform, event string) string {
-	if strings.TrimSpace(requested) == "" {
-		return filepath.Join(root, "fixtures", platform, event+".json")
-	}
-	return resolvePath(root, requested)
-}
-
-func resolveGoldenDir(root, requested, platform string) string {
-	if strings.TrimSpace(requested) == "" {
-		return filepath.Join(root, "goldens", platform)
-	}
-	return resolvePath(root, requested)
-}
-
-func resolvePath(root, path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" || filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(root, path)
-}
-
-func runtimeTestInvocation(entrypoint string, event, carrier string, payload []byte, platform string) ([]string, []byte, error) {
-	invocation := runtimeTestInvocationName(platform, event)
-	switch carrier {
-	case "stdin_json":
-		return []string{entrypoint, invocation}, append([]byte(nil), payload...), nil
-	case "argv_json":
-		return []string{entrypoint, invocation, string(payload)}, nil, nil
-	default:
-		return nil, nil, fmt.Errorf("unsupported carrier %q for %s/%s", carrier, platform, event)
-	}
-}
-
-func runtimeTestInvocationName(platform, event string) string {
-	if platform == "codex-runtime" {
-		return strings.ToLower(strings.TrimSpace(event))
-	}
-	return strings.TrimSpace(event)
-}
-
-func executeRuntimeTestCommand(ctx context.Context, root string, args []string, stdin []byte) (string, string, int, error) {
-	if len(args) == 0 {
-		return "", "", 0, fmt.Errorf("missing command")
-	}
-	cmd := testCommandContext(ctx, args[0], args[1:]...)
-	cmd.Dir = root
-	if len(stdin) > 0 {
-		cmd.Stdin = bytes.NewReader(stdin)
-	}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	exitCode := 0
-	if err != nil {
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) {
-			return "", "", 0, fmt.Errorf("execute %s: %w", strings.Join(args, " "), err)
-		}
-		exitCode = exitErr.ExitCode()
-	}
-	return stdout.String(), stderr.String(), exitCode, nil
 }
