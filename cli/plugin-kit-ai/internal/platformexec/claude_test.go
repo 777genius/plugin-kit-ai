@@ -131,6 +131,36 @@ func TestClaudeImportWarnsOnUnsupportedMixedHookArray(t *testing.T) {
 	}
 }
 
+func TestClaudeImportPreservesUnsupportedManifestFields(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), `{
+  "name": "claude-demo",
+  "version": "0.1.0",
+  "description": "claude demo",
+  "customFlag": true
+}`)
+
+	imported, err := (claudeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{
+			Name:        "claude-demo",
+			Version:     "0.1.0",
+			Description: "claude demo",
+			Targets:     []string{"claude"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	extraPath := filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "claude", "manifest.extra.json"))
+	if !hasArtifactPath(imported.Artifacts, extraPath) {
+		t.Fatalf("artifacts missing %s: %+v", extraPath, imported.Artifacts)
+	}
+	if text := warningsText(imported.Warnings); !strings.Contains(text, "preserved unsupported Claude manifest fields under targets/claude/manifest.extra.json") {
+		t.Fatalf("warnings = %s", text)
+	}
+}
+
 func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
