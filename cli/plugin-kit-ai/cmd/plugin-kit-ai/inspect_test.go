@@ -11,6 +11,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
+	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 )
 
 type fakeInspectRunner struct {
@@ -200,6 +201,48 @@ func TestInspectTextIncludesNativeDocPathsForCodexLanes(t *testing.T) {
 	for _, want := range []string{
 		"docs=interface=plugin/targets/codex-package/interface.json,package_metadata=plugin/targets/codex-package/package.yaml",
 		"docs=config_extra=plugin/targets/codex-runtime/config.extra.toml,package_metadata=plugin/targets/codex-runtime/package.yaml",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("inspect output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestInspectTextOrdersChannelDetailsAndRemainingDocsDeterministically(t *testing.T) {
+	t.Parallel()
+	output := renderInspectText(pluginmanifest.Inspection{
+		Manifest: pluginmanifest.Manifest{
+			Name:    "demo",
+			Version: "0.1.0",
+			Targets: []string{"codex-package"},
+		},
+		Publication: publicationmodel.Model{
+			Channels: []publicationmodel.Channel{{
+				Family:         "codex-marketplace",
+				Path:           "plugin/publish/codex/marketplace.yaml",
+				PackageTargets: []string{"codex-package"},
+				Details: map[string]string{
+					"zeta":  "last",
+					"alpha": "first",
+				},
+			}},
+		},
+		Targets: []pluginmanifest.InspectTarget{{
+			Target:            "codex-package",
+			TargetClass:       "package",
+			ProductionClass:   "bundle",
+			RuntimeContract:   "package only",
+			ManagedArtifacts:  []string{"plugin.json"},
+			TargetNativeKinds: []string{"package_metadata"},
+			NativeDocPaths: map[string]string{
+				"interface":        "plugin/targets/codex-package/interface.json",
+				"package_metadata": "plugin/targets/codex-package/package.yaml",
+			},
+		}},
+	})
+	for _, want := range []string{
+		"details=alpha=first,zeta=last",
+		"docs=package_metadata=plugin/targets/codex-package/package.yaml,interface=plugin/targets/codex-package/interface.json",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("inspect output missing %q:\n%s", want, output)
