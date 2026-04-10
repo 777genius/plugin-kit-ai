@@ -85,3 +85,23 @@ func TestValidateGeminiExpectedContextArtifactDelegatesReadableDiagnostics(t *te
 		t.Fatalf("diagnostics missing readability failure:\n%s", text)
 	}
 }
+
+func TestUnexpectedGeminiContextFileNameTrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
+	got := unexpectedGeminiContextFileName(importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: " GEMINI.md "},
+	})
+	if got != "GEMINI.md" {
+		t.Fatalf("file name = %q", got)
+	}
+}
+
+func TestUnexpectedGeminiContextDiagnosticBuildsFailure(t *testing.T) {
+	t.Parallel()
+
+	diagnostic := unexpectedGeminiContextDiagnostic("GEMINI.md")
+	if diagnostic.Target != "gemini" || !strings.Contains(diagnostic.Message, `sets contextFileName "GEMINI.md" without an authored primary context`) {
+		t.Fatalf("diagnostic = %+v", diagnostic)
+	}
+}
