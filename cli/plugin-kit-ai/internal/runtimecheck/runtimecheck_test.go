@@ -20,8 +20,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "uv",
 			files: map[string]string{
-				"src/plugin.yaml":       minimalManifest("demo"),
-				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":   minimalManifest("demo"),
+				"src/launcher.yaml": "runtime: python\nentrypoint: ./bin/demo\n",
 				"uv.lock":           "version = 1\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -32,8 +32,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "poetry",
 			files: map[string]string{
-				"src/plugin.yaml":       minimalManifest("demo"),
-				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":   minimalManifest("demo"),
+				"src/launcher.yaml": "runtime: python\nentrypoint: ./bin/demo\n",
 				"pyproject.toml":    "[tool.poetry]\nname='demo'\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -44,8 +44,8 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "pipenv",
 			files: map[string]string{
-				"src/plugin.yaml":       minimalManifest("demo"),
-				"src/launcher.yaml":     "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":   minimalManifest("demo"),
+				"src/launcher.yaml": "runtime: python\nentrypoint: ./bin/demo\n",
 				"Pipfile.lock":      "{}\n",
 				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 				".venv/bin/python3": "ok",
@@ -56,10 +56,10 @@ func TestInspectPythonManagerDetection(t *testing.T) {
 		{
 			name: "requirements",
 			files: map[string]string{
-				"src/plugin.yaml":      minimalManifest("demo"),
-				"src/launcher.yaml":    "runtime: python\nentrypoint: ./bin/demo\n",
-				"requirements.txt": "requests==2.32.0\n",
-				"bin/demo":         "#!/usr/bin/env bash\nexit 0\n",
+				"src/plugin.yaml":   minimalManifest("demo"),
+				"src/launcher.yaml": "runtime: python\nentrypoint: ./bin/demo\n",
+				"requirements.txt":  "requests==2.32.0\n",
+				"bin/demo":          "#!/usr/bin/env bash\nexit 0\n",
 			},
 			manager: PythonManagerRequirements,
 			binary:  "python3",
@@ -152,8 +152,8 @@ func TestInspectPythonManagerOwnedEnvDetection(t *testing.T) {
 		{
 			name: "poetry external env",
 			files: map[string]string{
-				"src/plugin.yaml":              minimalManifest("demo"),
-				"src/launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":          minimalManifest("demo"),
+				"src/launcher.yaml":        "runtime: python\nentrypoint: ./bin/demo\n",
 				"pyproject.toml":           "[tool.poetry]\nname='demo'\n",
 				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
 				"external-env/bin/python3": "ok",
@@ -163,8 +163,8 @@ func TestInspectPythonManagerOwnedEnvDetection(t *testing.T) {
 		{
 			name: "pipenv external env",
 			files: map[string]string{
-				"src/plugin.yaml":              minimalManifest("demo"),
-				"src/launcher.yaml":            "runtime: python\nentrypoint: ./bin/demo\n",
+				"src/plugin.yaml":          minimalManifest("demo"),
+				"src/launcher.yaml":        "runtime: python\nentrypoint: ./bin/demo\n",
 				"Pipfile.lock":             "{}\n",
 				"bin/demo":                 "#!/usr/bin/env bash\nexit 0\n",
 				"external-env/bin/python3": "ok",
@@ -314,6 +314,55 @@ func TestInspectNodeOutDirMismatch(t *testing.T) {
 	}
 	if !strings.Contains(project.Node.StructuralIssue, "outside tsconfig outDir dist") {
 		t.Fatalf("structural issue = %q", project.Node.StructuralIssue)
+	}
+}
+
+func TestDiagnosePythonReady(t *testing.T) {
+	t.Parallel()
+	diagnosis := Diagnose(Project{
+		Targets:        []string{"codex-runtime"},
+		Runtime:        "python",
+		Entrypoint:     "./bin/demo",
+		LauncherExists: true,
+		Python: PythonShape{
+			Manager:       PythonManagerUV,
+			ReadySource:   PythonEnvSourceRepoLocal,
+			ManagerBinary: "uv",
+		},
+	})
+	if diagnosis.Status != StatusReady {
+		t.Fatalf("status = %q", diagnosis.Status)
+	}
+	if !strings.Contains(diagnosis.Reason, "Python runtime is ready") {
+		t.Fatalf("reason = %q", diagnosis.Reason)
+	}
+}
+
+func TestDiagnoseNodeNeedsBuildWhenBuiltTargetMissing(t *testing.T) {
+	t.Parallel()
+	diagnosis := Diagnose(Project{
+		Targets:        []string{"codex-runtime"},
+		Runtime:        "node",
+		Entrypoint:     "./bin/demo",
+		LauncherExists: true,
+		Node: NodeShape{
+			Manager:          NodeManagerPNPM,
+			ManagerBinary:    "pnpm",
+			ManagerAvailable: true,
+			Installed:        true,
+			IsTypeScript:     true,
+			RuntimeTarget:    "build/main.js",
+			RuntimeTargetOK:  false,
+		},
+	})
+	if diagnosis.Status != StatusNeedsBuild {
+		t.Fatalf("status = %q", diagnosis.Status)
+	}
+	if !strings.Contains(diagnosis.Reason, "built output build/main.js is missing") {
+		t.Fatalf("reason = %q", diagnosis.Reason)
+	}
+	if len(diagnosis.Next) == 0 || diagnosis.Next[0] != "plugin-kit-ai bootstrap ." {
+		t.Fatalf("next = %v", diagnosis.Next)
 	}
 }
 
