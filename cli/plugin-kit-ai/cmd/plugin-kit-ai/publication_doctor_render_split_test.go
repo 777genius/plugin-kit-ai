@@ -18,3 +18,20 @@ func TestPublicationDoctorTextLinesAppendsLocalRootLines(t *testing.T) {
 		t.Fatalf("lines = %+v", got)
 	}
 }
+
+func TestAppendPublicationDoctorLocalRootLinesSkipsNilRoot(t *testing.T) {
+	t.Parallel()
+
+	got := appendPublicationDoctorLocalRootLines([]string{"status"}, nil)
+	if len(got) != 1 || got[0] != "status" {
+		t.Fatalf("lines = %+v", got)
+	}
+}
+
+func TestPublicationDoctorRendererForFormatRejectsUnknownValues(t *testing.T) {
+	t.Parallel()
+
+	if _, err := publicationDoctorRendererForFormat("yaml"); err == nil {
+		t.Fatal("expected unsupported format error")
+	}
+}

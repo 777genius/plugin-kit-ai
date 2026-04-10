@@ -1,12 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
-	"github.com/777genius/plugin-kit-ai/cli/internal/exitx"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/spf13/cobra"
 )
@@ -20,6 +18,8 @@ type publicationDoctorRenderInput struct {
 	localRoot *app.PluginPublicationVerifyRootResult
 }
 
+type publicationDoctorRenderer func(*cobra.Command, publicationDoctorRenderInput) error
+
 func bindPublicationDoctorFlags(cmd *cobra.Command, flags *publicationDoctorFlags) {
 	cmd.Flags().StringVar(&flags.target, "target", "all", `publication target ("all", "claude", "codex-package", or "gemini")`)
 	cmd.Flags().StringVar(&flags.format, "format", "text", "output format: text or json")
@@ -28,14 +28,11 @@ func bindPublicationDoctorFlags(cmd *cobra.Command, flags *publicationDoctorFlag
 }
 
 func renderPublicationDoctor(cmd *cobra.Command, in publicationDoctorRenderInput) error {
-	switch normalizedPublicationDoctorFormat(in.format) {
-	case "text":
-		return renderPublicationDoctorText(cmd, in.warnings, in.diagnosis, in.localRoot)
-	case "json":
-		return renderPublicationDoctorJSON(cmd, in.report, in.warnings, in.target, in.diagnosis, in.localRoot)
-	default:
-		return fmt.Errorf("unsupported format %q (use text or json)", in.format)
+	renderer, err := publicationDoctorRendererForFormat(in.format)
+	if err != nil {
+		return err
 	}
+	return renderer(cmd, in)
 }
 
 func normalizedPublicationDoctorFormat(format string) string {
@@ -49,21 +46,41 @@ func normalizedPublicationDoctorFormat(format string) string {
 	}
 }
 
+func publicationDoctorRendererForFormat(format string) (publicationDoctorRenderer, error) {
+	switch normalizedPublicationDoctorFormat(format) {
+	case "text":
+		return renderPublicationDoctorTextInput, nil
+	case "json":
+		return renderPublicationDoctorJSONInput, nil
+	default:
+		return nil, fmt.Errorf("unsupported format %q (use text or json)", format)
+	}
+}
+
+func renderPublicationDoctorTextInput(cmd *cobra.Command, in publicationDoctorRenderInput) error {
+	return renderPublicationDoctorText(cmd, in.warnings, in.diagnosis, in.localRoot)
+}
+
+func renderPublicationDoctorJSONInput(cmd *cobra.Command, in publicationDoctorRenderInput) error {
+	return renderPublicationDoctorJSON(cmd, in.report, in.warnings, in.target, in.diagnosis, in.localRoot)
+}
+
 func renderPublicationDoctorText(cmd *cobra.Command, warnings []pluginmanifest.Warning, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
 	writePublicationDoctorWarnings(cmd, warnings)
 	writePublicationDoctorLines(cmd, publicationDoctorTextLines(diagnosis, localRoot))
-	if diagnosis.Ready {
-		return nil
-	}
-	return exitx.Wrap(errors.New("publication doctor found issues"), 1)
+	return publicationDoctorIssueErr(diagnosis.Ready)
 }
 
 func publicationDoctorTextLines(diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) []string {
 	lines := append([]string(nil), diagnosis.Lines...)
-	if localRoot != nil {
-		lines = append(lines, localRoot.Lines...)
+	return appendPublicationDoctorLocalRootLines(lines, localRoot)
+}
+
+func appendPublicationDoctorLocalRootLines(lines []string, localRoot *app.PluginPublicationVerifyRootResult) []string {
+	if localRoot == nil {
+		return lines
 	}
-	return lines
+	return append(lines, localRoot.Lines...)
 }
 
 func writePublicationDoctorWarnings(cmd *cobra.Command, warnings []pluginmanifest.Warning) {
