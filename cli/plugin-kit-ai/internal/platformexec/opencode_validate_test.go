@@ -51,6 +51,29 @@ func TestOpenCodeValidateRejectsLegacyPluginScaffoldShape(t *testing.T) {
 	}
 }
 
+func TestOpenCodeValidateRejectsCaseInsensitiveToolCollisions(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeOpenCodeValidateFile(t, filepath.Join(root, "opencode.json"), "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "tools", "Demo.ts"), "export default {}\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "tools", "demo.ts"), "export default {}\n")
+
+	state := pluginmodel.NewTargetState("opencode")
+	state.AddComponent("tools", filepath.Join("src", "targets", "opencode", "tools", "Demo.ts"))
+	state.AddComponent("tools", filepath.Join("src", "targets", "opencode", "tools", "demo.ts"))
+
+	diagnostics, err := (opencodeAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Portable: pluginmodel.NewPortableComponents(),
+	}, state)
+	if err != nil {
+		t.Fatalf("Validate error = %v", err)
+	}
+	joined := diagnosticsText(diagnostics)
+	if !strings.Contains(joined, "collide on case-insensitive filesystems") {
+		t.Fatalf("diagnostics missing collision failure:\n%s", joined)
+	}
+}
+
 func TestValidateOpenCodeAgentFilesRejectsDeprecatedToolsField(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
