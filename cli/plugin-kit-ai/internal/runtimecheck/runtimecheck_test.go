@@ -366,6 +366,26 @@ func TestDiagnoseNodeNeedsBuildWhenBuiltTargetMissing(t *testing.T) {
 	}
 }
 
+func TestInspectNodeRejectsBuiltTargetOutsideOutDir(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeRuntimeCheckFile(t, root, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
+	writeRuntimeCheckFile(t, root, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
+	writeRuntimeCheckFile(t, root, "bin/demo", `"$ROOT/build/main.js"`+"\n")
+
+	shape := inspectNode(root, "./bin/demo")
+	if shape.StructuralIssue == "" || !strings.Contains(shape.StructuralIssue, "outside tsconfig outDir dist") {
+		t.Fatalf("shape = %+v", shape)
+	}
+}
+
+func TestYarnBerryDetectsVersionedPackageManager(t *testing.T) {
+	t.Parallel()
+	if !YarnBerry(t.TempDir(), "yarn@4.1.0") {
+		t.Fatal("expected YarnBerry to detect yarn@4 package manager")
+	}
+}
+
 func minimalManifest(name string) string {
 	return "api_version: v1\nname: \"" + name + "\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-runtime\"]\n"
 }
