@@ -182,7 +182,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				"make test-gemini-runtime",
 				"gemini extensions link .",
 				"make test-gemini-runtime-live",
-				"See src/README.md for Gemini runtime steps",
+				"See README.md for Gemini runtime steps",
 			},
 			notWant: []string{
 				"plugin-kit-ai test .",
