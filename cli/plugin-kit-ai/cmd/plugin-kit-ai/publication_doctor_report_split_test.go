@@ -139,6 +139,26 @@ func TestWritePublicationDoctorJSONEnvelopeEmitsJSONEnvelope(t *testing.T) {
 	}
 }
 
+func TestNewPublicationJSONReportCopiesWarnings(t *testing.T) {
+	t.Parallel()
+
+	warnings := []string{"warn"}
+	report := newPublicationJSONReport("gemini", warnings, publicationmodel.Model{})
+	warnings[0] = "changed"
+	if report.RequestedTarget != "gemini" || report.WarningCount != 1 || report.Warnings[0] != "warn" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestBuildPublicationJSONReportBuildsTrimmedTarget(t *testing.T) {
+	t.Parallel()
+
+	report := buildPublicationJSONReport(pluginmanifest.Inspection{}, []pluginmanifest.Warning{{Message: "warn"}}, " gemini ")
+	if report.RequestedTarget != "gemini" || report.WarningCount != 1 || report.Warnings[0] != "warn" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
 func TestMarshalPublicationDoctorJSONProducesIndentedEnvelope(t *testing.T) {
 	t.Parallel()
 

@@ -12,9 +12,9 @@ func buildPublicationDoctorJSONReport(report pluginmanifest.Inspection, warnings
 	return newPublicationDoctorJSONReport(
 		publicationDoctorRequestedTarget(requestedTarget),
 		publicationDoctorWarnings(warnings),
-		normalizePublicationModel(report.Publication),
+		publicationDoctorReportPublication(report),
 		diagnosis,
-		normalizePublicationLocalRoot(localRoot),
+		publicationDoctorReportLocalRoot(localRoot),
 	)
 }
 
@@ -37,13 +37,21 @@ func newPublicationDoctorJSONReport(requestedTarget string, warnings []string, p
 }
 
 func buildPublicationJSONReport(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string) publicationJSONReport {
+	return newPublicationJSONReport(
+		publicationDoctorRequestedTarget(requestedTarget),
+		publicationDoctorWarnings(warnings),
+		publicationDoctorReportPublication(report),
+	)
+}
+
+func newPublicationJSONReport(requestedTarget string, warnings []string, publication publicationmodel.Model) publicationJSONReport {
 	return publicationJSONReport{
 		Format:          "plugin-kit-ai/publication-report",
 		SchemaVersion:   1,
-		RequestedTarget: publicationDoctorRequestedTarget(requestedTarget),
+		RequestedTarget: requestedTarget,
 		WarningCount:    len(warnings),
-		Warnings:        publicationDoctorWarnings(warnings),
-		Publication:     normalizePublicationModel(report.Publication),
+		Warnings:        append([]string(nil), warnings...),
+		Publication:     publication,
 	}
 }
 
@@ -65,4 +73,12 @@ func publicationDoctorNextSteps(nextSteps []string) []string {
 
 func publicationDoctorMissingTargets(targets []string) []string {
 	return append([]string(nil), targets...)
+}
+
+func publicationDoctorReportPublication(report pluginmanifest.Inspection) publicationmodel.Model {
+	return normalizePublicationModel(report.Publication)
+}
+
+func publicationDoctorReportLocalRoot(localRoot *app.PluginPublicationVerifyRootResult) *app.PluginPublicationVerifyRootResult {
+	return normalizePublicationLocalRoot(localRoot)
 }
