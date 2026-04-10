@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func (s Service) applyUpdateExisting(ctx context.Context, record domain.InstallationRecord, planned []plannedExistingTarget) (domain.Report, error) {
@@ -52,82 +51,23 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	if !found {
 		return domain.Report{}, domain.NewError(domain.ErrStateConflict, "integration disappeared from state during apply: "+record.IntegrationID, nil)
 	}
-	nextRecord := cloneInstallationRecord(items)
-	reportTargets := make([]domain.TargetReport, 0, len(planned))
+	runtime := existingUpdateRuntime{
+		operationID:   operationID,
+		startedAt:     startedAt,
+		state:         state,
+		nextRecord:    cloneInstallationRecord(items),
+		reportTargets: make([]domain.TargetReport, 0, len(planned)),
+	}
 	for _, target := range planned {
-		if err := s.appendExistingInspectPlanSteps(ctx, operationID, target.TargetID); err != nil {
-			return domain.Report{}, err
-		}
-		var applyResult ports.ApplyResult
-		var err error
-		if target.Adopted {
-			applyResult, err = target.Adapter.ApplyInstall(ctx, ports.ApplyInput{
-				Plan:           target.Plan,
-				Manifest:       *target.Manifest,
-				ResolvedSource: target.Resolved,
-				Policy:         record.Policy,
-				Inspect:        target.Inspect,
-				Record:         &record,
-			})
-		} else {
-			applyResult, err = target.Adapter.ApplyUpdate(ctx, ports.ApplyInput{
-				Plan:           target.Plan,
-				Manifest:       *target.Manifest,
-				ResolvedSource: target.Resolved,
-				Policy:         record.Policy,
-				Inspect:        target.Inspect,
-				Record:         &record,
-			})
-		}
+		persisted, err := s.applyUpdatedExistingTarget(ctx, record, target, &runtime)
 		if err != nil {
-			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "failed"})
-			markPlannedTargetDegraded(&nextRecord, target)
-			applyManifestMetadata(&nextRecord, *target.Manifest, startedAt)
-			state.Installations = upsertInstallation(state.Installations, nextRecord)
-			if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
-				return domain.Report{}, saveErr
-			}
-			if stepErr := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_degraded_state", Status: "ok"}); stepErr != nil {
-				return domain.Report{}, stepErr
-			}
-			if finishErr := s.Journal.Finish(ctx, operationID, "degraded"); finishErr != nil {
-				return domain.Report{}, finishErr
-			}
-			committed = true
-			return domain.Report{}, domain.NewError(domain.ErrMutationApply, "update failed after partial progress; degraded state persisted", err)
-		}
-		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "apply", Status: "ok"}); err != nil {
+			committed = persisted
 			return domain.Report{}, err
 		}
-		verifyRecord := provisionalRecordForExisting(record, target, applyResult)
-		verified, err := s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &verifyRecord, target.Adapter, "update_version")
-		if err != nil {
-			_ = s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "failed"})
-			markPlannedTargetDegraded(&nextRecord, target)
-			applyManifestMetadata(&nextRecord, *target.Manifest, startedAt)
-			state.Installations = upsertInstallation(state.Installations, nextRecord)
-			if saveErr := s.StateStore.Save(ctx, state); saveErr != nil {
-				return domain.Report{}, saveErr
-			}
-			if stepErr := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_degraded_state", Status: "ok"}); stepErr != nil {
-				return domain.Report{}, stepErr
-			}
-			if finishErr := s.Journal.Finish(ctx, operationID, "degraded"); finishErr != nil {
-				return domain.Report{}, finishErr
-			}
-			committed = true
-			return domain.Report{}, domain.NewError(domain.ErrMutationApply, "update verification failed after partial progress; degraded state persisted", err)
-		}
-		if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "ok"}); err != nil {
-			return domain.Report{}, err
-		}
-		nextRecord.Targets[target.TargetID] = targetInstallationFromExisting(target, applyResult, verified)
-		applyManifestMetadata(&nextRecord, *target.Manifest, startedAt)
-		reportTargets = append(reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	}
 
-	state.Installations = upsertInstallation(state.Installations, nextRecord)
-	if err := s.StateStore.Save(ctx, state); err != nil {
+	runtime.state.Installations = upsertInstallation(runtime.state.Installations, runtime.nextRecord)
+	if err := s.StateStore.Save(ctx, runtime.state); err != nil {
 		return domain.Report{}, err
 	}
 	if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_state", Status: "ok"}); err != nil {
@@ -137,10 +77,10 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 		return domain.Report{}, err
 	}
 	committed = true
-	sort.Slice(reportTargets, func(i, j int) bool { return reportTargets[i].TargetID < reportTargets[j].TargetID })
+	sort.Slice(runtime.reportTargets, func(i, j int) bool { return runtime.reportTargets[i].TargetID < runtime.reportTargets[j].TargetID })
 	return domain.Report{
 		OperationID: operationID,
 		Summary:     summaryForExisting("update_version", record.IntegrationID),
-		Targets:     reportTargets,
+		Targets:     runtime.reportTargets,
 	}, nil
 }
