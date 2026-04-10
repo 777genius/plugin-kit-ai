@@ -37,7 +37,7 @@ func validateGeminiSettings(root string, rels []string) []Diagnostic {
 			})
 			continue
 		}
-		if message := validateGeminiSettingMap(rel, raw, setting); message != "" {
+		if message := validateGeminiSettingMap(raw, setting); message != "" {
 			diagnostics = append(diagnostics, Diagnostic{
 				Severity: SeverityFailure,
 				Code:     CodeManifestInvalid,
