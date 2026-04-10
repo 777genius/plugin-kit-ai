@@ -36,18 +36,8 @@ func validateGeminiMCPServer(path, serverName string, server map[string]any) []D
 		})
 	}
 
-	command, hasCommand := geminiOptionalString(server["command"])
-	_, hasURL := geminiOptionalString(server["url"])
-	_, hasHTTPURL := geminiOptionalString(server["httpUrl"])
-	if countTruthy(hasCommand, hasURL, hasHTTPURL) != 1 {
-		diagnostics = append(diagnostics, Diagnostic{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q must define exactly one transport via command, url, or httpUrl", serverName),
-		})
-	}
+	command, hasCommand, transportDiagnostics := validateGeminiMCPTransport(path, serverName, server)
+	diagnostics = append(diagnostics, transportDiagnostics...)
 
 	diagnostics = append(diagnostics, validateGeminiMCPCommandFields(path, serverName, server, hasCommand)...)
 	diagnostics = append(diagnostics, validateGeminiMCPArgs(path, serverName, server["args"])...)
@@ -64,104 +54,4 @@ func validateGeminiMCPServer(path, serverName string, server map[string]any) []D
 		})
 	}
 	return diagnostics
-}
-
-func validateGeminiMCPCommandFields(path, serverName string, server map[string]any, hasCommand bool) []Diagnostic {
-	var diagnostics []Diagnostic
-	if server["args"] != nil && !hasCommand {
-		diagnostics = append(diagnostics, Diagnostic{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q may only use args with command-based stdio transport", serverName),
-		})
-	}
-	if server["env"] != nil && !hasCommand {
-		diagnostics = append(diagnostics, Diagnostic{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q may only use env with command-based stdio transport", serverName),
-		})
-	}
-	if server["cwd"] != nil && !hasCommand {
-		diagnostics = append(diagnostics, Diagnostic{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q may only use cwd with command-based stdio transport", serverName),
-		})
-	}
-	return diagnostics
-}
-
-func validateGeminiMCPArgs(path, serverName string, value any) []Diagnostic {
-	if value == nil {
-		return nil
-	}
-	items, valid := geminiStringSlice(value)
-	if !valid {
-		return []Diagnostic{{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q args must be an array of strings", serverName),
-		}}
-	}
-	if len(items) == 0 {
-		return []Diagnostic{{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q args may not be empty when provided", serverName),
-		}}
-	}
-	return nil
-}
-
-func validateGeminiMCPEnv(path, serverName string, value any) []Diagnostic {
-	if value == nil {
-		return nil
-	}
-	if _, valid := geminiStringMap(value); !valid {
-		return []Diagnostic{{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q env must be an object of string values", serverName),
-		}}
-	}
-	return nil
-}
-
-func validateGeminiMCPCwd(path, serverName string, value any) []Diagnostic {
-	if value == nil {
-		return nil
-	}
-	if cwd, ok := value.(string); !ok || strings.TrimSpace(cwd) == "" {
-		return []Diagnostic{{
-			Severity: SeverityFailure,
-			Code:     CodeManifestInvalid,
-			Path:     path,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension MCP server %q cwd must be a non-empty string", serverName),
-		}}
-	}
-	return nil
-}
-
-func countTruthy(values ...bool) int {
-	total := 0
-	for _, value := range values {
-		if value {
-			total++
-		}
-	}
-	return total
 }

@@ -315,3 +315,45 @@ func TestValidateGeminiMCPServersRejectsMultipleTransports(t *testing.T) {
 		t.Fatalf("diagnostics = %#v, want transport conflict", diagnostics)
 	}
 }
+
+func TestValidateGeminiMCPServersRejectsArgsWithoutCommand(t *testing.T) {
+	t.Parallel()
+	diagnostics := validateGeminiMCPServers("gemini-extension.json", map[string]any{
+		"context7": map[string]any{
+			"url":  "https://example.com/mcp",
+			"args": []any{"--stdio"},
+		},
+	})
+	if len(diagnostics) == 0 {
+		t.Fatal("expected diagnostics")
+	}
+	var found bool
+	for _, diagnostic := range diagnostics {
+		if strings.Contains(diagnostic.Message, "may only use args with command-based stdio transport") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want args transport contract", diagnostics)
+	}
+}
+
+func TestValidateGeminiMCPServersWarnsOnSpaceDelimitedCommand(t *testing.T) {
+	t.Parallel()
+	diagnostics := validateGeminiMCPServers("gemini-extension.json", map[string]any{
+		"context7": map[string]any{
+			"command": "npx -y @upstash/context7-mcp",
+		},
+	})
+	var found bool
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Code == CodeGeminiMCPCommandStyle {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want command style warning", diagnostics)
+	}
+}
