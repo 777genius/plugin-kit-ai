@@ -103,6 +103,40 @@ func TestPluginServiceTestCodexNotifyReportsGoldenMismatch(t *testing.T) {
 	}
 }
 
+func TestProcessGoldenAssertionsRejectsPartialGoldenConfig(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	writeBootstrapProjectFile(t, dir, filepath.Join("Notify.stdout"), "ok\n")
+
+	status, _, mismatches, info, failure := processGoldenAssertions(dir, "Notify", "ok\n", "", 0, false)
+	if status != "mismatch" {
+		t.Fatalf("status = %q", status)
+	}
+	if failure != "golden files are partially configured" {
+		t.Fatalf("failure = %q", failure)
+	}
+	if len(mismatches) != 1 || mismatches[0] != "golden_files" {
+		t.Fatalf("mismatches = %#v", mismatches)
+	}
+	if len(info) != 1 || info[0].Field != "golden_files" {
+		t.Fatalf("mismatch info = %#v", info)
+	}
+}
+
+func TestRuntimeTestInvocationCodexLowercasesEvent(t *testing.T) {
+	t.Parallel()
+	args, stdin, err := runtimeTestInvocation("./bin/demo", "Notify", "argv_json", []byte(`{"ok":true}`), "codex-runtime")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stdin) != 0 {
+		t.Fatalf("stdin = %q", stdin)
+	}
+	if len(args) != 3 || args[1] != "notify" {
+		t.Fatalf("args = %#v", args)
+	}
+}
+
 func TestResolveRuntimeTestPlatformGeminiRequestedReturnsRuntimeGuidance(t *testing.T) {
 	t.Parallel()
 	_, err := resolveRuntimeTestPlatform([]string{"gemini"}, "gemini")
