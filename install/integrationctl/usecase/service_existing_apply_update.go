@@ -9,26 +9,30 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
+type existingUpdateOperation struct {
+	operationID string
+	startedAt   string
+}
+
 func (s Service) applyUpdateExisting(ctx context.Context, record domain.InstallationRecord, planned []plannedExistingTarget) (domain.Report, error) {
 	if err := validateExistingUpdateTargets(planned); err != nil {
 		return domain.Report{}, err
 	}
 	defer cleanupPlannedExisting(planned)
-	operationID := operationID(actionNamePrefix("update_version"), record.IntegrationID, s.now())
+	operation := newExistingUpdateOperation(record.IntegrationID, s.now())
 	unlock, err := s.LockManager.Acquire(ctx, "state")
 	if err != nil {
 		return domain.Report{}, domain.NewError(domain.ErrLockAcquire, "acquire integrationctl state lock", err)
 	}
 	defer func() { _ = unlock() }()
 
-	startedAt := s.now().UTC().Format(time.RFC3339)
-	if err := s.Journal.Start(ctx, newExistingUpdateOperationRecord(operationID, record.IntegrationID, startedAt)); err != nil {
+	if err := s.Journal.Start(ctx, operation.record(record.IntegrationID)); err != nil {
 		return domain.Report{}, err
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_ = s.Journal.Finish(ctx, operationID, "failed")
+			_ = s.Journal.Finish(ctx, operation.operationID, "failed")
 		}
 	}()
 
@@ -36,7 +40,7 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	if err != nil {
 		return domain.Report{}, err
 	}
-	runtime, err := loadExistingUpdateRuntime(state, record.IntegrationID, operationID, startedAt, len(planned))
+	runtime, err := loadExistingUpdateRuntime(state, record.IntegrationID, operation.operationID, operation.startedAt, len(planned))
 	if err != nil {
 		return domain.Report{}, err
 	}
@@ -49,11 +53,23 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	}
 
 	runtime.state = finalizeExistingUpdateState(runtime.state, runtime.nextRecord)
-	if err := s.persistExistingUpdateCommittedState(ctx, operationID, runtime.state); err != nil {
+	if err := s.persistExistingUpdateCommittedState(ctx, operation.operationID, runtime.state); err != nil {
 		return domain.Report{}, err
 	}
 	committed = true
-	return existingUpdateReport(operationID, record.IntegrationID, runtime.reportTargets), nil
+	return existingUpdateReport(operation.operationID, record.IntegrationID, runtime.reportTargets), nil
+}
+
+func newExistingUpdateOperation(integrationID string, now time.Time) existingUpdateOperation {
+	startedAt := now.UTC().Format(time.RFC3339)
+	return existingUpdateOperation{
+		operationID: operationID(actionNamePrefix("update_version"), integrationID, now),
+		startedAt:   startedAt,
+	}
+}
+
+func (op existingUpdateOperation) record(integrationID string) domain.OperationRecord {
+	return newExistingUpdateOperationRecord(op.operationID, integrationID, op.startedAt)
 }
 
 func newExistingUpdateOperationRecord(operationID, integrationID, startedAt string) domain.OperationRecord {

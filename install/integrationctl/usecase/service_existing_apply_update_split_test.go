@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -135,5 +136,19 @@ func TestLoadExistingUpdateRuntimeBuildsRuntime(t *testing.T) {
 	}
 	if runtime.operationID != "op" || runtime.startedAt != "2026-04-10T20:00:00Z" || cap(runtime.reportTargets) != 2 || runtime.nextRecord.IntegrationID != "demo" {
 		t.Fatalf("runtime = %+v", runtime)
+	}
+}
+
+func TestNewExistingUpdateOperationBuildsOperationAndRecord(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 10, 20, 0, 0, 0, time.FixedZone("EEST", 3*60*60))
+	op := newExistingUpdateOperation("demo", now)
+	record := op.record("demo")
+	if op.operationID == "" || op.startedAt != "2026-04-10T17:00:00Z" {
+		t.Fatalf("operation = %+v", op)
+	}
+	if record.OperationID != op.operationID || record.Type != "update" || record.IntegrationID != "demo" || record.StartedAt != op.startedAt {
+		t.Fatalf("record = %+v", record)
 	}
 }
