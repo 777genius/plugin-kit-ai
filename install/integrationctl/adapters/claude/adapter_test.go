@@ -258,7 +258,6 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 }
 
 func TestPlanUpdateUsesPersistedWorkspaceRootSettingsPath(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	workspaceA := filepath.Join(root, "workspace-a")
@@ -399,7 +398,6 @@ func TestPlanUpdateBlocksWhenMarketplaceIsSeedManaged(t *testing.T) {
 }
 
 func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	source := filepath.Join(root, "source")
@@ -472,7 +470,6 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 }
 
 func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")
@@ -539,7 +536,6 @@ func TestApplyRemoveUsesUninstallThenMarketplaceRemove(t *testing.T) {
 }
 
 func TestRepairUsesMarketplaceRefreshAndBestEffortUninstall(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")
