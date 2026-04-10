@@ -231,6 +231,48 @@ func TestGeminiRenderGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	}
 }
 
+func TestGeminiRenderProjectsPackageMetaSettingsThemesAndContext(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeGeminiValidateFile(t, filepath.Join(root, "targets", "gemini", "package.yaml"), "exclude_tools:\n  - Shell(tool)\nplan_directory: plans\ncontext_file_name: GEMINI.md\n")
+	writeGeminiValidateFile(t, filepath.Join(root, "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	writeGeminiValidateFile(t, filepath.Join(root, "targets", "gemini", "settings", "api-key.yaml"), "name: API key\ndescription: Demo key\nenv_var: GEMINI_API_KEY\nsensitive: true\n")
+	writeGeminiValidateFile(t, filepath.Join(root, "targets", "gemini", "themes", "sunrise.yaml"), "name: Sunrise\naccent: orange\n")
+
+	graph := pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "demo-gemini", Version: "0.1.0", Description: "demo", Targets: []string{"gemini"}},
+	}
+	state := pluginmodel.NewTargetState("gemini")
+	state.SetDoc("package_metadata", filepath.Join("targets", "gemini", "package.yaml"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "GEMINI.md"))
+	state.AddComponent("settings", filepath.Join("targets", "gemini", "settings", "api-key.yaml"))
+	state.AddComponent("themes", filepath.Join("targets", "gemini", "themes", "sunrise.yaml"))
+
+	artifacts, err := (geminiAdapter{}).Generate(root, graph, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestJSON, ok := artifactBody(artifacts, "gemini-extension.json")
+	if !ok {
+		t.Fatalf("artifacts missing gemini-extension.json: %+v", artifacts)
+	}
+	for _, want := range []string{
+		`"excludeTools": [`,
+		`"Shell(tool)"`,
+		`"plan": {`,
+		`"directory": "plans"`,
+		`"contextFileName": "GEMINI.md"`,
+		`"settings": [`,
+		`"envVar": "GEMINI_API_KEY"`,
+		`"themes": [`,
+		`"accent": "orange"`,
+	} {
+		if !strings.Contains(manifestJSON, want) {
+			t.Fatalf("manifest missing %q:\n%s", want, manifestJSON)
+		}
+	}
+}
+
 func TestGeminiManagedPathsIncludesGeneratedHooksForDedicatedRuntimeRepo(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
