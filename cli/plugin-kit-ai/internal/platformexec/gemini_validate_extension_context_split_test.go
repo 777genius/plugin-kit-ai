@@ -43,3 +43,25 @@ func TestAppendGeminiContextDiagnosticsConcatenatesParts(t *testing.T) {
 		t.Fatalf("diagnostics = %+v", got)
 	}
 }
+
+func TestValidateGeminiExpectedContextContractDelegatesExpectedDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	diagnostics := validateGeminiExpectedContextContract(t.TempDir(), geminiContextSelection{ArtifactName: "GEMINI.md"}, importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: "ALT.md"},
+	})
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "ALT.md"; expected "GEMINI.md"`) {
+		t.Fatalf("diagnostics missing expected-context failure:\n%s", text)
+	}
+}
+
+func TestValidateGeminiUnexpectedContextContractDelegatesUnexpectedDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	diagnostics := validateGeminiUnexpectedContextContract(importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: "GEMINI.md"},
+	})
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "GEMINI.md" without an authored primary context`) {
+		t.Fatalf("diagnostics missing unexpected-context failure:\n%s", text)
+	}
+}

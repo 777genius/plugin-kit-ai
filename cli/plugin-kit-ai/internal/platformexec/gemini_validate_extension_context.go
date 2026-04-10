@@ -10,7 +10,15 @@ func validateGeminiExtensionContextContract(root string, graph pluginmodel.Packa
 		return nil, err
 	}
 	if ok {
-		return validateGeminiExpectedContext(root, expected, extension), nil
+		return validateGeminiExpectedContextContract(root, expected, extension), nil
 	}
-	return validateGeminiUnexpectedContext(extension), nil
+	return validateGeminiUnexpectedContextContract(extension), nil
+}
+
+func validateGeminiExpectedContextContract(root string, expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
+	return validateGeminiExpectedContext(root, expected, extension)
+}
+
+func validateGeminiUnexpectedContextContract(extension importedGeminiExtension) []Diagnostic {
+	return validateGeminiUnexpectedContext(extension)
 }
