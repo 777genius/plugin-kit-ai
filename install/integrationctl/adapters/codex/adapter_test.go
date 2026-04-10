@@ -139,6 +139,37 @@ func TestApplyUpdateRefreshesBundleAndPreservesOtherMarketplaceEntries(t *testin
 	}
 }
 
+func TestApplyInstallRejectsManagedManifestExtraOverride(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(filepath.Join(project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source := writeAuthoredCodexSource(t, "0.1.0", "original")
+	writeCodexFile(t, filepath.Join(source, "src", "targets", "codex-package", "manifest.extra.json"), "{\n  \"mcpServers\": \"./override.json\"\n}\n")
+	adapter := Adapter{ProjectRoot: project, UserHome: home}
+	manifest := domain.IntegrationManifest{
+		IntegrationID: "codex-smoke",
+		Version:       "0.1.0",
+		Description:   "codex smoke",
+	}
+
+	_, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest: manifest,
+		ResolvedSource: &ports.ResolvedSource{
+			Kind:      "local_path",
+			LocalPath: source,
+		},
+		Policy: domain.InstallPolicy{Scope: "project"},
+	})
+	if err == nil {
+		t.Fatal("expected managed manifest.extra override error")
+	}
+	if !strings.Contains(err.Error(), "Codex manifest.extra.json may not override managed key mcpServers") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
