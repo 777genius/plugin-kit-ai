@@ -78,6 +78,15 @@ func TestMergeCatalogArtifact_RejectsMarketplaceIdentityMismatch(t *testing.T) {
 	}
 }
 
+func TestMergeCatalogArtifact_ClaudeRejectsOwnerMismatch(t *testing.T) {
+	existing := []byte(`{"name":"local-repo","owner":"acme","plugins":[]}`)
+	generated := []byte(`{"name":"local-repo","owner":"other","plugins":[{"name":"demo","source":{"source":"local","path":"./plugins/demo"},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"}]}`)
+	_, err := MergeCatalogArtifact("claude", existing, generated)
+	if err == nil || !strings.Contains(err.Error(), "existing marketplace artifact sets owner differently") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestRemoveCatalogArtifact_RemovesNamedPluginAndPreservesOthers(t *testing.T) {
 	existing := []byte(`{
   "name": "local-repo",
