@@ -73,6 +73,24 @@ func TestValidateTargets_RejectsMissingPublicationTarget(t *testing.T) {
 	}
 }
 
+func TestDiscoverInLayoutPrefixesPublicationPaths(t *testing.T) {
+	root := t.TempDir()
+	authoredRoot := "src"
+	mustWritePublishFile(t, root, filepath.Join(authoredRoot, CodexMarketplaceRel), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
+	mustWritePublishFile(t, root, filepath.Join(authoredRoot, ClaudeMarketplaceRel), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
+
+	state, err := DiscoverInLayout(root, authoredRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Codex == nil || state.Codex.Path != filepath.ToSlash(filepath.Join(authoredRoot, CodexMarketplaceRel)) {
+		t.Fatalf("codex path = %+v", state.Codex)
+	}
+	if state.Claude == nil || state.Claude.Path != filepath.ToSlash(filepath.Join(authoredRoot, ClaudeMarketplaceRel)) {
+		t.Fatalf("claude path = %+v", state.Claude)
+	}
+}
+
 func mustWritePublishFile(t *testing.T, root, rel, body string) {
 	t.Helper()
 	full := filepath.Join(root, rel)
