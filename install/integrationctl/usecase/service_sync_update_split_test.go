@@ -25,3 +25,20 @@ func TestLessSyncTargetReportOrdersByTargetThenDelivery(t *testing.T) {
 		t.Fatal("expected delivery-kind ordering for same target")
 	}
 }
+
+func TestAppendBatchUpdateTargetsPreservesExistingTargets(t *testing.T) {
+	t.Parallel()
+
+	report := domain.Report{
+		Targets: []domain.TargetReport{{TargetID: "claude"}},
+	}
+	appendBatchUpdateTargets(&report, domain.Report{
+		Targets: []domain.TargetReport{{TargetID: "gemini"}, {TargetID: "cursor"}},
+	})
+	if len(report.Targets) != 3 {
+		t.Fatalf("targets = %+v", report.Targets)
+	}
+	if report.Targets[0].TargetID != "claude" || report.Targets[1].TargetID != "gemini" || report.Targets[2].TargetID != "cursor" {
+		t.Fatalf("targets = %+v", report.Targets)
+	}
+}
