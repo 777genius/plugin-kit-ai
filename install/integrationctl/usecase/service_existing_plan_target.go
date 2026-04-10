@@ -8,6 +8,14 @@ import (
 )
 
 func (s Service) planExistingTarget(ctx context.Context, record domain.InstallationRecord, targetID domain.TargetID, action string, sharedResolved *ports.ResolvedSource, sharedManifest *domain.IntegrationManifest) (plannedExistingTarget, error) {
+	base, err := s.loadExistingTargetBase(ctx, record, targetID)
+	if err != nil {
+		return plannedExistingTarget{}, err
+	}
+	return s.dispatchExistingTargetPlan(ctx, record, action, base, sharedResolved, sharedManifest)
+}
+
+func (s Service) loadExistingTargetBase(ctx context.Context, record domain.InstallationRecord, targetID domain.TargetID) (plannedExistingTarget, error) {
 	target, ok := record.Targets[targetID]
 	if !ok {
 		return plannedExistingTarget{}, domain.NewError(domain.ErrStateConflict, "target missing from installation record: "+string(targetID), nil)
@@ -32,6 +40,17 @@ func (s Service) planExistingTarget(ctx context.Context, record domain.Installat
 		Adapter:  adapter,
 		Inspect:  inspect,
 	}
+	return base, nil
+}
+
+func (s Service) dispatchExistingTargetPlan(
+	ctx context.Context,
+	record domain.InstallationRecord,
+	action string,
+	base plannedExistingTarget,
+	sharedResolved *ports.ResolvedSource,
+	sharedManifest *domain.IntegrationManifest,
+) (plannedExistingTarget, error) {
 	switch action {
 	case "remove_orphaned_target":
 		return s.planExistingRemoval(ctx, record, base, sharedResolved, sharedManifest)
