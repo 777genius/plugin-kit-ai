@@ -31,7 +31,7 @@ Si vous savez déjà que plusieurs dépôts doivent partager une dépendance d'a
 ## Les deux modes
 
 - `vendored helper` : l'échafaudage par défaut écrit les fichiers d'assistance dans le dépôt lui-même
-- `shared runtime package` : `--runtime-package` importe `plugin-kit-ai-runtime` en tant que dépendance au lieu d'écrire l'assistant dans `src/`
+- `shared runtime package` : `--runtime-package` importe `plugin-kit-ai-runtime` en tant que dépendance au lieu d'écrire l'assistant dans `plugin/`
 
 ## Le même projet dans les deux modes
 

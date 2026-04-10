@@ -31,7 +31,7 @@ Si ya sabe que varios repositorios deben compartir una dependencia auxiliar, com
 ## Los dos modos
 
 - `vendored helper`: el andamio predeterminado escribe archivos auxiliares en el propio repositorio
-- `shared runtime package`: `--runtime-package` importa `plugin-kit-ai-runtime` como una dependencia en lugar de escribir el ayudante en `src/`
+- `shared runtime package`: `--runtime-package` importa `plugin-kit-ai-runtime` como una dependencia en lugar de escribir el ayudante en `plugin/`
 
 ## El mismo proyecto en ambos modos
 

@@ -134,7 +134,7 @@ Stable event surfaces:
 Current production-ready target boundary:
 
 - Claude: production-ready within the stable `Stop`, `PreToolUse`, and `UserPromptSubmit` event set
-- Claude package authoring also supports first-class `src/targets/claude/settings.json`, `src/targets/claude/lsp.json`, `src/targets/claude/user-config.json`, and `src/targets/claude/manifest.extra.json`
+- Claude package authoring also supports first-class `plugin/targets/claude/settings.json`, `plugin/targets/claude/lsp.json`, `plugin/targets/claude/user-config.json`, and `plugin/targets/claude/manifest.extra.json`
 - Codex runtime: production-ready within the stable `Notify` path
 - Codex package: production-ready official plugin package lane
 - Codex package bundle contract: `.codex-plugin/` contains only `plugin.json`, while optional `.app.json` and `.mcp.json` stay at plugin root and must match manifest refs
@@ -187,16 +187,16 @@ The release-layout compatibility boundary for `plugin-kit-ai install` is documen
 
 Stable generated scaffold contract:
 
-- Codex runtime required authored files: `go.mod`, `src/README.md`, `src/plugin.yaml`, `src/launcher.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
-- Codex package required authored files: `src/README.md`, `src/plugin.yaml`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
-- Codex runtime optional authored docs: `src/targets/codex-runtime/config.extra.toml` for supported repo-local config passthrough beyond managed `model` and `notify`
-- Codex package optional authored docs: `src/targets/codex-package/package.yaml` for overrides, `src/targets/codex-package/interface.json`, `src/targets/codex-package/app.json`, and `src/targets/codex-package/manifest.extra.json`; shared package metadata now defaults from `src/plugin.yaml`
-- Claude required authored files: `go.mod`, `src/README.md`, `src/plugin.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
+- Codex runtime required authored files: `go.mod`, `plugin/README.md`, `plugin/plugin.yaml`, `plugin/launcher.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
+- Codex package required authored files: `plugin/README.md`, `plugin/plugin.yaml`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
+- Codex runtime optional authored docs: `plugin/targets/codex-runtime/config.extra.toml` for supported repo-local config passthrough beyond managed `model` and `notify`
+- Codex package optional authored docs: `plugin/targets/codex-package/package.yaml` for overrides, `plugin/targets/codex-package/interface.json`, `plugin/targets/codex-package/app.json`, and `plugin/targets/codex-package/manifest.extra.json`; shared package metadata now defaults from `plugin/plugin.yaml`
+- Claude required authored files: `go.mod`, `plugin/README.md`, `plugin/plugin.yaml`, generated `cmd/<project>/main.go`, plus root boundary docs `CLAUDE.md` and `AGENTS.md`
 - stable launcher-based local-runtime scaffold subset on `codex-runtime` and `claude`:
-  - `python`: `src/plugin.yaml`, `src/launcher.yaml`, `src/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin_runtime.py`, while `init ... --runtime-package` imports `plugin_kit_ai_runtime`; official shared helper package: `plugin-kit-ai-runtime`
-  - `node`: `src/plugin.yaml`, `src/launcher.yaml`, `src/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `src/plugin-runtime.{mjs,ts}`, while `init ... --runtime-package` imports `plugin-kit-ai-runtime`; TypeScript is the stable authoring mode via `--runtime node --typescript`; official shared helper package: `plugin-kit-ai-runtime`
+  - `python`: `plugin/plugin.yaml`, `plugin/launcher.yaml`, `plugin/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `plugin/plugin_runtime.py`, while `init ... --runtime-package` imports `plugin_kit_ai_runtime`; official shared helper package: `plugin-kit-ai-runtime`
+  - `node`: `plugin/plugin.yaml`, `plugin/launcher.yaml`, `plugin/README.md`, launcher under `bin/`, plus supported manager manifests; default helper delivery vendors `plugin/plugin-runtime.{mjs,ts}`, while `init ... --runtime-package` imports `plugin-kit-ai-runtime`; TypeScript is the stable authoring mode via `--runtime node --typescript`; official shared helper package: `plugin-kit-ai-runtime`
   - `init --extras` for the stable interpreted `python`/`node` subset also emits `.github/workflows/bundle-release.yml`, an opt-in GitHub Actions workflow that uses `setup-plugin-kit-ai@v1` and runs `doctor -> bootstrap -> validate --strict -> bundle publish`
-- native vendor files generated from `src/plugin.yaml` remain part of the scaffolded project contract
+- native vendor files generated from `plugin/plugin.yaml` remain part of the scaffolded project contract
 
 Runtime recommendation contract:
 
@@ -212,7 +212,7 @@ Runtime recommendation contract:
 
 Current beta surfaces that remain intentionally outside the stable set:
 - OpenCode workspace-config lane through `plugin-kit-ai generate|import|validate`, covering official-style `opencode.json` and `opencode.jsonc`, package refs including tuple-form plugin options, inline `mcp`, validated portable skills mirrored into `.opencode/skills/`, first-class workspace commands/agents/themes, first-class `default_agent`, `instructions`, `permission`, first-class beta standalone tools mirrored into `.opencode/tools/`, stable official-style local JS/TS plugin code mirrored into `.opencode/plugins/`, stable shared dependency metadata mirrored into `.opencode/package.json` for tools and plugins, explicit `--include-user-scope` import from `~/.config/opencode`, and sanctioned `config.extra.json` for broader product config; `custom_tools` remain beta across standalone tools and plugin code
-- Cursor workspace secondary lane through `plugin-kit-ai generate|import|validate`, covering repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, authored `src/targets/cursor-workspace/AGENTS.md` merged into root `AGENTS.md`, and `--include-user-scope` import from `~/.cursor/mcp.json`; nested non-root `.cursor/rules/**`, JSONC, GUI-only/global rule authoring, and marketplace plugin packaging remain outside scope; not a production-ready runtime target
+- Cursor workspace secondary lane through `plugin-kit-ai generate|import|validate`, covering repo-local `.cursor/mcp.json`, project-root `.cursor/rules/**`, authored `plugin/targets/cursor-workspace/AGENTS.md` merged into root `AGENTS.md`, and `--include-user-scope` import from `~/.cursor/mcp.json`; nested non-root `.cursor/rules/**`, JSONC, GUI-only/global rule authoring, and marketplace plugin packaging remain outside scope; not a production-ready runtime target
 - optional extras generated by `plugin-kit-ai init --extras`
 - `plugin-kit-ai init --platform claude --claude-extended-hooks` for the wider runtime-supported Claude hook scaffold beyond the stable default subset
 - `plugin-kit-ai generate`, `plugin-kit-ai import`, and `plugin-kit-ai normalize`
@@ -240,16 +240,16 @@ Current beta surfaces that remain intentionally outside the stable set:
 
 Config contract:
 
-- canonical new projects author under `src/`, with `src/plugin.yaml` as the canonical authoring manifest and root `CLAUDE.md` / `AGENTS.md` as boundary docs
+- canonical new projects author under `plugin/`, with `plugin/plugin.yaml` as the canonical authoring manifest and root `CLAUDE.md` / `AGENTS.md` as boundary docs; legacy `src/` remains supported
 - the package-standard `plugin.yaml` schema is intentionally limited to package/build intent; unknown keys warn in `plugin-kit-ai validate`
 - `plugin-kit-ai normalize` is the canonical cleanup path for rewriting unknown manifest content into the package-standard shape
 - `plugin-kit-ai import` is the supported bridge from current native Claude/Codex/Gemini/OpenCode layouts back into the authored package-standard layout
 - Codex runtime project-local config generated by `plugin-kit-ai generate` or `plugin-kit-ai init --platform codex-runtime`
-- Codex runtime passthrough config lives in `src/targets/codex-runtime/config.extra.toml`; managed `model` and `notify` stay owned by `src/launcher.yaml` plus `src/targets/codex-runtime/package.yaml`
+- Codex runtime passthrough config lives in `plugin/targets/codex-runtime/config.extra.toml`; managed `model` and `notify` stay owned by `plugin/launcher.yaml` plus `plugin/targets/codex-runtime/package.yaml`
 - live Codex CLI evidence currently splits into two buckets:
   - confirmed working paths: real `codex exec` with explicit `-c notify=...` override still reaches the repository-owned notify hook harness, the checked-in `examples/plugins/codex-basic-prod` runtime also passes that real `codex exec` path after rebuild, the same checked-in runtime example now also passes real `codex mcp get --json` and `codex mcp list --json` when its generated runtime MCP config is projected back through documented `-c mcp_servers...` overrides, real `codex mcp get --json` and `codex mcp list --json` with explicit `-c mcp_servers...` overrides still expose the projected MCP server contract, real `codex mcp add|get|list|remove` also work through an isolated temporary home for both stdio and streamable HTTP servers, those same mutable CLI config-management commands also pass when seeded from the checked-in runtime and package production examples, their auth-seeded variants also pass for those checked-in runtime and package production examples, a generated `codex-package` `.mcp.json` sidecar can be projected into those documented overrides for real `mcp get`, `mcp list`, plus `exec` MCP smoke, that same generated stdio sidecar now also passes real `codex mcp add|get|list|remove` through both isolated and auth-seeded config homes, a synthetic generated HTTP `codex-package` sidecar now also passes that same real `codex mcp add|get|list|remove` path in both isolated and auth-seeded config homes, auth-seeded live `codex mcp login|logout` also now prove the current CLI rejects stdio servers with stable OAuth-only diagnostics while preserving subsequent `get|list|remove`, and auth-seeded live `codex mcp get` plus `codex mcp remove` now also prove the current missing-server behavior after removal: `get` fails, while `remove` stays idempotent
   - evidence-only project-config probes: on the current live Codex CLI build (`v0.117.0` in repo evidence), `codex exec`, `codex mcp get`, and `codex mcp list` do not reliably honor project-local `.codex/config.toml`; this now holds both for a synthetic generated runtime workspace and for the checked-in `examples/plugins/codex-basic-prod` runtime example, across `exec`, `mcp get`, and `mcp list`. Separately, an isolated `CODEX_HOME` can successfully drive `codex mcp add|get|list|remove`, but a follow-up `codex exec` on that same isolated config currently loses live auth and therefore remains evidence-only. A stronger auth-seeded variant now also proves that copied live auth keeps `codex login status` plus documented stdio and HTTP `mcp add|get|list|remove` flows working inside a temporary `CODEX_HOME`, while the subsequent `codex exec` probe can still skip because the persisted MCP tool is not exposed in that session. The corresponding opt-in live tests record `skip` with captured output instead of claiming support that the vendor CLI did not prove
-- Codex package manifest generated by `plugin-kit-ai generate` or `plugin-kit-ai init --platform codex-package`; first-class package metadata and `interface` live under `src/targets/codex-package/`, while `manifest.extra.json` remains passthrough-only for unsupported future fields
+- Codex package manifest generated by `plugin-kit-ai generate` or `plugin-kit-ai init --platform codex-package`; first-class package metadata and `interface` live under `plugin/targets/codex-package/`, while `manifest.extra.json` remains passthrough-only for unsupported future fields
 - Claude plugin metadata and hook routing files generated by `plugin-kit-ai generate` or `plugin-kit-ai init --platform claude`
 - Gemini CLI extension manifest generated by `plugin-kit-ai generate --target gemini`, with optional Go launcher-based runtime support in the current production-ready 9-hook runtime contract
 - OpenCode workspace config generated by `plugin-kit-ai generate --target opencode`, with workspace-config-only status in the current contract
@@ -258,10 +258,10 @@ Config contract:
 - OpenCode local plugin loading stable subset is guarded by `generate --check`, strict validation, the production example canary, the documented `test-opencode-live` loader smoke path, and the documented `test-opencode-cli-live` real-model smoke path
 - OpenCode standalone tools beta subset is guarded by `generate --check`, strict validation, the production example canary, and the documented `test-opencode-tools-live` smoke path
 - OpenCode shared portable MCP initialization evidence is guarded by the documented `test-opencode-mcp-live` smoke path
-- package-standard authored projects are defined by `src/plugin.yaml`, optional `src/mcp/servers.yaml`, optional `src/launcher.yaml`, optional `src/skills/**`, optional `src/publish/**`, and `src/targets/<platform>/...`
+- package-standard authored projects are defined by `plugin/plugin.yaml`, optional `plugin/mcp/servers.yaml`, optional `plugin/launcher.yaml`, optional `plugin/skills/**`, optional `plugin/publish/**`, and `plugin/targets/<platform>/...`
 - generated native target files remain managed artifacts, not authored source-of-truth files
 - generated Claude/Codex config wiring is a repo-owned contract surface guarded by `generate --check`, deterministic generated-project canaries, and the `polyglot-smoke` lane
-- Claude authored hook routing must stay aligned with `src/launcher.yaml.entrypoint`; `validate --strict` is the enforcing gate for that consistency
+- Claude authored hook routing must stay aligned with `plugin/launcher.yaml.entrypoint`; `validate --strict` is the enforcing gate for that consistency
 - executable-runtime hardening currently includes generated launcher smoke for `go`, `python`, `node`, and `shell`, plus Windows `.cmd` validation coverage and ABI passthrough e2e
 - stable local-runtime interpreted subset:
   - targets: `codex-runtime`, `claude`

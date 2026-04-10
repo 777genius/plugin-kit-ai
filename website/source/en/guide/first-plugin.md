@@ -55,7 +55,7 @@ Use this as the main CI-grade gate for a local plugin project.
 ## What You Have Now
 
 - one plugin repo
-- authored files under `src/`
+- authored files under `plugin/` for new repos
 - generated Codex runtime output
 - a clear readiness gate through `validate --strict`
 

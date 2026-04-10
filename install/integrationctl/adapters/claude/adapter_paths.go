@@ -1,11 +1,11 @@
 package claude
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -26,11 +26,7 @@ func (a Adapter) fs() ports.FileSystem {
 }
 
 func (a Adapter) userHome() string {
-	if strings.TrimSpace(a.UserHome) != "" {
-		return a.UserHome
-	}
-	home, _ := os.UserHomeDir()
-	return home
+	return pathpolicy.UserHome(a.UserHome)
 }
 
 func (a Adapter) settingsPath(scope string, workspaceRoot string) string {
@@ -60,10 +56,7 @@ func (a Adapter) ownedObjects(integrationID, scope, workspaceRoot, materializedR
 }
 
 func protectionForScope(scope string) domain.ProtectionClass {
-	if strings.EqualFold(strings.TrimSpace(scope), "project") {
-		return domain.ProtectionWorkspace
-	}
-	return domain.ProtectionUserMutable
+	return pathpolicy.ProtectionForScope(scope)
 }
 
 func managedMarketplaceRoot(home, integrationID string) string {
@@ -113,37 +106,19 @@ func materializedRootFromRecord(record domain.InstallationRecord) string {
 }
 
 func workspaceRootFromInspectInput(in ports.InspectInput) string {
-	if in.Record != nil {
-		return workspaceRootFromRecord(*in.Record)
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromInspect(in)
 }
 
 func workspaceRootFromApplyInput(in ports.ApplyInput) string {
-	if in.Record != nil {
-		return workspaceRootFromRecord(*in.Record)
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromApply(in)
 }
 
 func workspaceRootFromRecord(record domain.InstallationRecord) string {
-	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
-		return strings.TrimSpace(record.WorkspaceRoot)
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromRecord(record)
 }
 
 func effectiveWorkspaceRoot(workspaceRoot string, projectRoot string) string {
-	if root := strings.TrimSpace(workspaceRoot); root != "" {
-		return filepath.Clean(root)
-	}
-	if root := strings.TrimSpace(projectRoot); root != "" {
-		return filepath.Clean(root)
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return filepath.Clean(cwd)
-	}
-	return ""
+	return pathpolicy.ProjectRoot(workspaceRoot, projectRoot)
 }
 
 func (a Adapter) commandDirForScope(scope string, workspaceRoot string) string {

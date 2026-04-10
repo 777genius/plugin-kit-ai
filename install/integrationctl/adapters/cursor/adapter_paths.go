@@ -1,12 +1,12 @@
 package cursor
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/safemutate"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -35,56 +35,27 @@ func (a Adapter) targetConfigPath(scope string, workspaceRoot string) string {
 }
 
 func (a Adapter) projectRoot(workspaceRoot string) string {
-	if root := strings.TrimSpace(workspaceRoot); root != "" {
-		return filepath.Clean(root)
-	}
-	if strings.TrimSpace(a.ProjectRoot) != "" {
-		return a.ProjectRoot
-	}
-	cwd, _ := os.Getwd()
-	return cwd
+	return pathpolicy.ProjectRoot(workspaceRoot, a.ProjectRoot)
 }
 
 func workspaceRootFromInspectInput(in ports.InspectInput) string {
-	if in.Record != nil {
-		return workspaceRootFromRecord(*in.Record)
-	}
-	if strings.EqualFold(strings.TrimSpace(in.Scope), "project") {
-		return ""
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromInspect(in)
 }
 
 func workspaceRootFromApplyInput(in ports.ApplyInput) string {
-	if in.Record != nil {
-		return workspaceRootFromRecord(*in.Record)
-	}
-	if strings.EqualFold(strings.TrimSpace(in.Policy.Scope), "project") {
-		return ""
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromApply(in)
 }
 
 func workspaceRootFromRecord(record domain.InstallationRecord) string {
-	if strings.EqualFold(strings.TrimSpace(record.Policy.Scope), "project") {
-		return strings.TrimSpace(record.WorkspaceRoot)
-	}
-	return ""
+	return pathpolicy.WorkspaceRootFromRecord(record)
 }
 
 func (a Adapter) userHome() string {
-	if strings.TrimSpace(a.UserHome) != "" {
-		return a.UserHome
-	}
-	home, _ := os.UserHomeDir()
-	return home
+	return pathpolicy.UserHome(a.UserHome)
 }
 
 func protectionForScope(scope string) domain.ProtectionClass {
-	if strings.EqualFold(strings.TrimSpace(scope), "project") {
-		return domain.ProtectionWorkspace
-	}
-	return domain.ProtectionUserMutable
+	return pathpolicy.ProtectionForScope(scope)
 }
 
 func ownedObjectsForConfig(path string, aliases []string, protection domain.ProtectionClass) []domain.NativeObjectRef {

@@ -7,8 +7,8 @@ They expose the same supported handler-oriented helper API through different ope
 
 ## The Two Modes
 
-- `vendored helper`: the default `plugin-kit-ai init` path writes helper files into the plugin repo itself, such as `src/plugin_runtime.py` or `src/plugin-runtime.ts`
-- `shared runtime package`: `plugin-kit-ai init ... --runtime-package` keeps the helper API in `plugin-kit-ai-runtime` on PyPI or npm and imports it as a dependency instead of writing the helper file into `src/`
+- `vendored helper`: the default `plugin-kit-ai init` path writes helper files into the plugin repo itself, such as `plugin/plugin_runtime.py` or `plugin/plugin-runtime.ts`
+- `shared runtime package`: `plugin-kit-ai init ... --runtime-package` keeps the helper API in `plugin-kit-ai-runtime` on PyPI or npm and imports it as a dependency instead of writing the helper file into `plugin/`
 
 ## Choose Vendored Helper When
 

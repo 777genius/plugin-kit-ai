@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
@@ -26,10 +27,7 @@ func scopeFromRecord(record domain.InstallationRecord) string {
 }
 
 func defaultScope(scope string) string {
-	if strings.EqualFold(strings.TrimSpace(scope), "project") {
-		return "project"
-	}
-	return "user"
+	return pathpolicy.NormalizeScope(scope)
 }
 
 func geminiToggleScope(scope string) string {
@@ -95,13 +93,7 @@ func workspaceRootForScope(scope string, workspaceRoot string) string {
 }
 
 func effectiveWorkspaceRoot(workspaceRoot string) string {
-	if root := strings.TrimSpace(workspaceRoot); root != "" {
-		return filepath.Clean(root)
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return filepath.Clean(cwd)
-	}
-	return ""
+	return pathpolicy.ProjectRoot(workspaceRoot, "")
 }
 
 func workspaceSettingsPath(workspaceRoot string) string {

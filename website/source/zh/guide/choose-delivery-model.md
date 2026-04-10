@@ -31,7 +31,7 @@ flowchart TD
 ## 两种模式
 
 - `vendored helper`：默认脚手架将帮助程序文件写入存储库本身
-- `shared runtime package`：`--runtime-package` 导入 `plugin-kit-ai-runtime` 作为依赖项，而不是将帮助程序写入 `src/`
+- `shared runtime package`：`--runtime-package` 导入 `plugin-kit-ai-runtime` 作为依赖项，而不是将帮助程序写入 `plugin/`
 
 ## 两种模式下的同一个项目
 

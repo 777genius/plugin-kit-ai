@@ -106,7 +106,7 @@ plugin-kit-ai validate . --platform claude --strict
 
 ## 5. Add Your Python Logic
 
-The default scaffold keeps the helper local in `src/plugin_runtime.py`, so the first version stays self-contained.
+The default scaffold keeps the helper local in `plugin/plugin_runtime.py`, so the first version stays self-contained.
 
 Typical Codex starter shape:
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     raise SystemExit(app.run())
 ```
 
-Edit `src/main.py` for your plugin logic. Keep stdout reserved for tool responses and write diagnostics to stderr only.
+Edit `plugin/main.py` for your plugin logic. Keep stdout reserved for tool responses and write diagnostics to stderr only.
 
 ## 6. Run A Smoke Test
 
@@ -158,7 +158,7 @@ Use the shared dependency path when you want the same helper package across mult
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package
 ```
 
-That path imports [`plugin_kit_ai_runtime`](/en/api/runtime-python/plugin-kit-ai-runtime) from the published [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) package instead of generating `src/plugin_runtime.py`.
+That path imports [`plugin_kit_ai_runtime`](/en/api/runtime-python/plugin-kit-ai-runtime) from the published [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) package instead of generating `plugin/plugin_runtime.py`.
 
 If you are using a local development build of the CLI from this source tree, pass `--runtime-package-version` explicitly during `init`.
 Released stable CLIs infer the matching helper version automatically.

@@ -53,7 +53,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ## Что у вас теперь есть
 
 - один plugin repo
-- authored files под `src/`
+- authored files под `plugin/` для новых репозиториев
 - generated output для Codex runtime
 - понятная проверка готовности через `validate --strict`
 

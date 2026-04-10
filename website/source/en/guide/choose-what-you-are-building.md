@@ -22,8 +22,8 @@ plugin-kit-ai init my-plugin --template online-service
 
 This creates:
 
-- one editable source under `src/`
-- shared hosted-service wiring under `src/mcp/servers.yaml`
+- one editable source under `plugin/`
+- shared hosted-service wiring under `plugin/mcp/servers.yaml`
 - generated app-specific output files for the supported package and workspace targets
 - no runtime code or launcher contract by default
 
@@ -37,8 +37,8 @@ plugin-kit-ai init my-plugin --template local-tool
 
 This creates:
 
-- one editable source under `src/`
-- local command, container, or tool wiring under `src/mcp/servers.yaml`
+- one editable source under `plugin/`
+- local command, container, or tool wiring under `plugin/mcp/servers.yaml`
 - generated app-specific output files for the supported package and workspace targets
 - no runtime code or launcher contract by default
 
@@ -52,7 +52,7 @@ plugin-kit-ai init my-plugin --template custom-logic
 
 This path gives you more control and more responsibility than the first two starters:
 
-- you edit runtime-facing files under `src/`
+- you edit runtime-facing files under `plugin/`
 - you keep one repo even as generated target outputs appear at the root
 - you own the runtime entrypoint, test flow, and behavior that define the plugin
 

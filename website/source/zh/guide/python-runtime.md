@@ -105,7 +105,7 @@ plugin-kit-ai validate . --platform claude --strict
 
 ## 5. 添加您的 Python 逻辑
 
-默认脚手架将帮助程序保留在 `src/plugin_runtime.py` 中，因此第一个版本保持独立。
+默认脚手架将帮助程序保留在 `plugin/plugin_runtime.py` 中，因此第一个版本保持独立。
 
 典型的 Codex 起始形状：
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     raise SystemExit(app.run())
 ```
 
-编辑 `src/main.py` 作为您的插件逻辑。保留标准输出用于工具响应，并仅将诊断写入标准错误。
+编辑 `plugin/main.py` 作为您的插件逻辑。保留标准输出用于工具响应，并仅将诊断写入标准错误。
 
 ## 6. 运行冒烟测试
 
@@ -157,7 +157,7 @@ plugin-kit-ai test . --platform claude --all
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package
 ```
 
-该路径从已发布的 [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) 包导入 [`plugin_kit_ai_runtime`](/zh/api/runtime-python/plugin-kit-ai-runtime)，而不是生成 `src/plugin_runtime.py`。
+该路径从已发布的 [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) 包导入 [`plugin_kit_ai_runtime`](/zh/api/runtime-python/plugin-kit-ai-runtime)，而不是生成 `plugin/plugin_runtime.py`。
 
 如果您使用此源树中的 CLI 的本地开发版本，请在 `init` 期间显式传递 `--runtime-package-version`。
 已发布稳定的 CLIs 自动推断匹配的帮助程序版本。

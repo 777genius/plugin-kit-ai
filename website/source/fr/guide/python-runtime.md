@@ -105,7 +105,7 @@ plugin-kit-ai validate . --platform claude --strict
 
 ## 5. Ajoutez votre logique Python
 
-L'échafaudage par défaut conserve l'assistant local dans `src/plugin_runtime.py`, de sorte que la première version reste autonome.
+L'échafaudage par défaut conserve l'assistant local dans `plugin/plugin_runtime.py`, de sorte que la première version reste autonome.
 
 Forme typique du démarreur Codex :
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     raise SystemExit(app.run())
 ```
 
-Modifiez `src/main.py` pour la logique de votre plugin. Gardez stdout réservé aux réponses de l'outil et écrivez les diagnostics uniquement sur stderr.
+Modifiez `plugin/main.py` pour la logique de votre plugin. Gardez stdout réservé aux réponses de l'outil et écrivez les diagnostics uniquement sur stderr.
 
 ## 6. Exécutez un test de fumée
 
@@ -157,7 +157,7 @@ Utilisez le chemin de dépendance partagé lorsque vous souhaitez le même packa
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package
 ```
 
-Ce chemin importe [`plugin_kit_ai_runtime`](/fr/api/runtime-python/plugin-kit-ai-runtime) du package [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) publié au lieu de générer `src/plugin_runtime.py`.
+Ce chemin importe [`plugin_kit_ai_runtime`](/fr/api/runtime-python/plugin-kit-ai-runtime) du package [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) publié au lieu de générer `plugin/plugin_runtime.py`.
 
 Si vous utilisez une version de développement local du CLI à partir de cette arborescence source, transmettez `--runtime-package-version` explicitement pendant `init`.
 Les CLI stables publiés déduisent automatiquement la version d'assistance correspondante.

@@ -43,7 +43,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ## 你得到什么
 
 - 从第一天起就有一个插件仓库
-- 在 `src/` 下创作的文件
+- 新仓库在 `plugin/` 下创作文件，同时继续兼容遗留的 `src/`
 - 从同一存储库生成 Codex 运行时输出
 - 通过 `validate --strict` 进行干净的准备检查
 
@@ -80,7 +80,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## 接下来做什么
 
-- 编辑 `src/` 下的插件
+- 编辑 `plugin/` 下的插件，除非您在维护遗留的 `src/` 仓库
 - 更改后再次运行 `plugin-kit-ai generate ./my-plugin`
 - 再次运行 `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict`
 - 只有在产品需要时才添加另一种运输方式

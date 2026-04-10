@@ -43,7 +43,7 @@ Eso le brinda la ruta predeterminada más sólida en la actualidad: un repositor
 ## Lo que obtienes
 
 - un repositorio de complementos desde el primer día
-- archivos creados bajo `src/`
+- archivos creados bajo `plugin/` para repos nuevos, con compatibilidad heredada para `src/`
 - generó Codex salida de tiempo de ejecución desde el mismo repositorio
 - una verificación de preparación limpia a través de `validate --strict`
 
@@ -80,7 +80,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## Qué hacer a continuación
 
-- edite el complemento en `src/`
+- edite el complemento en `plugin/` salvo que mantenga intencionalmente un repo heredado con `src/`
 - ejecute `plugin-kit-ai generate ./my-plugin` nuevamente después de los cambios
 - ejecute `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict` nuevamente
 - solo entonces agregue otra forma de enviarlo si el producto lo necesita

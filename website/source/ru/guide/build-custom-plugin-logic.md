@@ -34,14 +34,14 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 ## Что вы редактируете
 
-Authored source of truth по-прежнему живёт под `src/`.
+Authored source of truth в новых репозиториях живёт под `plugin/`, при этом legacy `src/` остаётся поддержанным.
 
 Обычно важны такие файлы:
 
-- `src/plugin.yaml`
-- `src/launcher.yaml`
-- `src/targets/...`
-- ваш runtime entrypoint вроде `cmd/<name>/main.go` или `src/main.*`
+- `plugin/plugin.yaml`
+- `plugin/launcher.yaml`
+- `plugin/targets/...`
+- ваш runtime entrypoint вроде `cmd/<name>/main.go` или `plugin/main.*`
 
 Используйте `plugin-kit-ai inspect . --authoring`, когда нужно точно увидеть границу между editable source, managed guidance files и generated target outputs.
 
@@ -54,7 +54,7 @@ Authored source of truth по-прежнему живёт под `src/`.
 - root guidance files вроде `README.md`, `CLAUDE.md`, `AGENTS.md` и `GENERATED.md`
 - native output для target'а, который вы ship'ите, например `.codex/config.toml`, `hooks/hooks.json` или `gemini-extension.json`
 
-Редактируйте source под `src/`.
+Редактируйте source под `plugin/`, если только вы не поддерживаете legacy `src/` репозиторий.
 Root outputs воспринимайте как managed outputs.
 
 ## Почему этот путь более advanced

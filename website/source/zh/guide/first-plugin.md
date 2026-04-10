@@ -54,7 +54,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 ## 你现在拥有的
 
 - 一个插件存储库
-- 在 `src/` 下创作的文件
+- 新仓库在 `plugin/` 下创作的文件
 - 生成 Codex 运行时输出
 - 通过 `validate --strict` 的明确准备门
 

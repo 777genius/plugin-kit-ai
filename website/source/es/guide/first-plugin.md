@@ -54,7 +54,7 @@ Utilice esto como puerta principal de grado CI para un proyecto de complemento l
 ## Lo que tienes ahora
 
 - un repositorio de complementos
-- archivos creados bajo `src/`
+- archivos creados bajo `plugin/` para repos nuevos
 - generó Codex salida de tiempo de ejecución
 - una puerta de preparación clara a través de `validate --strict`
 

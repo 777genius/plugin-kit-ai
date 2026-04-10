@@ -106,7 +106,7 @@ plugin-kit-ai validate . --platform claude --strict
 
 ## 5. Добавьте свою Python-логику
 
-Скаффолд по умолчанию хранит helper локально в `src/plugin_runtime.py`, поэтому первый проект остаётся самодостаточным.
+Скаффолд по умолчанию хранит helper локально в `plugin/plugin_runtime.py`, поэтому первый проект остаётся самодостаточным.
 
 Типовая форма Codex starter:
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     raise SystemExit(app.run())
 ```
 
-Основную логику редактируйте в `src/main.py`. Оставляйте stdout только для ответов инструмента, а диагностику пишите в stderr.
+Основную логику редактируйте в `plugin/main.py`. Оставляйте stdout только для ответов инструмента, а диагностику пишите в stderr.
 
 ## 6. Запустите smoke test
 
@@ -158,7 +158,7 @@ plugin-kit-ai test . --platform claude --all
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package
 ```
 
-В этом режиме проект импортирует [`plugin_kit_ai_runtime`](/ru/api/runtime-python/plugin-kit-ai-runtime) из опубликованного пакета [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime), а не генерирует локальный `src/plugin_runtime.py`.
+В этом режиме проект импортирует [`plugin_kit_ai_runtime`](/ru/api/runtime-python/plugin-kit-ai-runtime) из опубликованного пакета [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime), а не генерирует локальный `plugin/plugin_runtime.py`.
 
 Если вы используете локальную development-сборку CLI из этого исходного дерева, передавайте `--runtime-package-version` явно во время `init`.
 Стабильные released CLI подбирают подходящую версию helper package автоматически.

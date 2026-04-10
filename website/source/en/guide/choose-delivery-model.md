@@ -32,7 +32,7 @@ If you already know that several repos should share one helper dependency, start
 ## The Two Modes
 
 - `vendored helper`: the default scaffold writes helper files into the repo itself
-- `shared runtime package`: `--runtime-package` imports `plugin-kit-ai-runtime` as a dependency instead of writing the helper into `src/`
+- `shared runtime package`: `--runtime-package` imports `plugin-kit-ai-runtime` as a dependency instead of writing the helper into `plugin/`
 
 ## The Same Project In Both Modes
 

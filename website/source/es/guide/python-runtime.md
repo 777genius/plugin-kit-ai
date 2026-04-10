@@ -105,7 +105,7 @@ plugin-kit-ai validate . --platform claude --strict
 
 ## 5. Agregue su lógica Python
 
-El andamio predeterminado mantiene el asistente local en `src/plugin_runtime.py`, por lo que la primera versión permanece autónoma.
+El andamio predeterminado mantiene el asistente local en `plugin/plugin_runtime.py`, por lo que la primera versión permanece autónoma.
 
 Forma típica de arranque Codex:
 
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     raise SystemExit(app.run())
 ```
 
-Edite `src/main.py` para la lógica de su complemento. Mantenga stdout reservado para respuestas de herramientas y escriba diagnósticos solo en stderr.
+Edite `plugin/main.py` para la lógica de su complemento. Mantenga stdout reservado para respuestas de herramientas y escriba diagnósticos solo en stderr.
 
 ## 6. Realice una prueba de humo
 
@@ -157,7 +157,7 @@ Utilice la ruta de dependencia compartida cuando desee el mismo paquete auxiliar
 plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime-package
 ```
 
-Esa ruta importa [`plugin_kit_ai_runtime`](/es/api/runtime-python/plugin-kit-ai-runtime) del paquete publicado [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) en lugar de generar `src/plugin_runtime.py`.
+Esa ruta importa [`plugin_kit_ai_runtime`](/es/api/runtime-python/plugin-kit-ai-runtime) del paquete publicado [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) en lugar de generar `plugin/plugin_runtime.py`.
 
 Si está utilizando una compilación de desarrollo local de CLI de este árbol de fuentes, pase `--runtime-package-version` explícitamente durante `init`.
 Los CLIs estables publicados infieren automáticamente la versión auxiliar correspondiente.

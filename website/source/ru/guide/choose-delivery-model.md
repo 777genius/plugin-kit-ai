@@ -32,7 +32,7 @@ flowchart TD
 ## Два режима
 
 - `vendored helper`: scaffold записывает helper-файлы прямо в репозиторий
-- `shared runtime package`: `--runtime-package` подключает `plugin-kit-ai-runtime` как dependency вместо записи helper в `src/`
+- `shared runtime package`: `--runtime-package` подключает `plugin-kit-ai-runtime` как dependency вместо записи helper в `plugin/`
 
 ## Один и тот же проект в двух режимах
 

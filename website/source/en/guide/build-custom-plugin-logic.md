@@ -34,14 +34,14 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 ## What You Edit
 
-The authored source of truth still lives under `src/`.
+The authored source of truth lives under `plugin/` in new repos, while legacy `src/` repos remain supported.
 
 The important files are usually:
 
-- `src/plugin.yaml`
-- `src/launcher.yaml`
-- `src/targets/...`
-- your runtime entrypoint such as `cmd/<name>/main.go` or `src/main.*`
+- `plugin/plugin.yaml`
+- `plugin/launcher.yaml`
+- `plugin/targets/...`
+- your runtime entrypoint such as `cmd/<name>/main.go` or `plugin/main.*`
 
 Use `plugin-kit-ai inspect . --authoring` when you want the exact split between editable source, managed guidance files, and generated target outputs.
 
@@ -54,7 +54,7 @@ That usually includes:
 - root guidance files such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native output for the target you are shipping, such as `.codex/config.toml`, `hooks/hooks.json`, or `gemini-extension.json`
 
-Edit the source under `src/`.
+Edit the source under `plugin/` unless you are intentionally maintaining a legacy `src/` repo.
 Treat the root outputs as managed outputs.
 
 ## Why This Path Is More Advanced

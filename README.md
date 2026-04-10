@@ -2,7 +2,7 @@
 
 Build one plugin repo and ship it to many AI agents.
 
-`plugin-kit-ai` keeps authored source under `src/`, generates the supported outputs you need, and helps you validate the repo before handoff.
+`plugin-kit-ai` keeps authored source under `plugin/`, still supports legacy `src/` repos, generates the supported outputs you need, and helps you validate the repo before handoff.
 The honest promise is `one repo / many supported outputs`, not fake parity everywhere.
 
 Docs site:
@@ -116,7 +116,7 @@ Use one of the three job-first templates above unless you are intentionally main
 ## What You Get
 
 - one plugin repo that stays the source of truth
-- authored files under `src/`
+- authored files under `plugin/` for new repos, with legacy `src/` still supported
 - generated root files that stay managed
 - supported outputs for Claude, Codex, Gemini, Cursor, and OpenCode where the repo shape allows it
 - a clean readiness check through `generate`, `generate --check`, and `validate --strict`
@@ -135,7 +135,7 @@ That depth stays available, but you do not need to understand the whole target m
 ## What To Do Next
 
 - run `plugin-kit-ai inspect . --authoring`
-- edit the repo under `src/`
+- edit the repo under `plugin/` unless you are intentionally maintaining a legacy `src/` repo
 - regenerate after changes
 - validate the supported output you actually plan to ship first
 - only then add more outputs when the product really needs them
@@ -150,7 +150,7 @@ Other supported CLI install methods:
 ## Keep This Rule In Mind
 
 - start with the job you need today
-- keep authored source under `src/`
+- keep authored source under `plugin/` for new repos
 - let generated root files stay managed
 - add deeper target-specific behavior only when you need it
 - use advanced docs when you need exact target and support details

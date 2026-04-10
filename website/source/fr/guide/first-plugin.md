@@ -54,7 +54,7 @@ Utilisez-le comme porte principale de qualité CI pour un projet de plugin local
 ## Ce que vous avez maintenant
 
 - un dépôt de plugin
-- fichiers créés sous `src/`
+- fichiers créés sous `plugin/` pour les nouveaux dépôts
 - sortie d'exécution générée Codex
 - une porte de préparation claire via `validate --strict`
 

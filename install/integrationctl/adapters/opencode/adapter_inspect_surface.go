@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
@@ -50,14 +51,14 @@ func (a Adapter) inspectSurfacePaths(scope string, workspaceRoot string) (string
 			filepath.Join(root, "opencode.json"),
 			filepath.Join(root, "opencode.jsonc"),
 		}
-		return preferredConfigPath(candidates...), candidates
+		return pathpolicy.PreferredExistingPath(candidates...), candidates
 	}
 	candidates := []string{
 		filepath.Join(a.userHome(), ".config", "opencode", "opencode.json"),
 		filepath.Join(a.userHome(), ".config", "opencode", "opencode.jsonc"),
 		filepath.Join(a.userHome(), ".local", "share", "opencode", "opencode.jsonc"),
 	}
-	return preferredConfigPath(candidates...), candidates
+	return pathpolicy.PreferredExistingPath(candidates...), candidates
 }
 
 func planBlockingManualSteps(inspect ports.InspectResult) ([]string, bool) {

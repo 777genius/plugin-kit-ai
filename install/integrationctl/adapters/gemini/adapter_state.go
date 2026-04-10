@@ -1,11 +1,11 @@
 package gemini
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -26,16 +26,11 @@ func (a Adapter) fs() ports.FileSystem {
 }
 
 func (a Adapter) userHome() string {
-	if strings.TrimSpace(a.UserHome) != "" {
-		return a.UserHome
-	}
-	home, _ := os.UserHomeDir()
-	return home
+	return pathpolicy.UserHome(a.UserHome)
 }
 
 func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	return pathpolicy.FileExists(path)
 }
 
 func installModeForKind(kind string) string {

@@ -22,8 +22,8 @@ plugin-kit-ai init my-plugin --template online-service
 
 Это создаёт:
 
-- один редактируемый source под `src/`
-- общий hosted-service wiring под `src/mcp/servers.yaml`
+- один редактируемый source под `plugin/`
+- общий hosted-service wiring под `plugin/mcp/servers.yaml`
 - generated app-specific output files для поддерживаемых package и workspace targets
 - без runtime-кода и launcher-контракта по умолчанию
 
@@ -37,8 +37,8 @@ plugin-kit-ai init my-plugin --template local-tool
 
 Это создаёт:
 
-- один редактируемый source под `src/`
-- wiring для локальной команды, контейнера или инструмента под `src/mcp/servers.yaml`
+- один редактируемый source под `plugin/`
+- wiring для локальной команды, контейнера или инструмента под `plugin/mcp/servers.yaml`
 - generated app-specific output files для поддерживаемых package и workspace targets
 - без runtime-кода и launcher-контракта по умолчанию
 
@@ -52,7 +52,7 @@ plugin-kit-ai init my-plugin --template custom-logic
 
 Этот путь даёт больше контроля и больше ответственности, чем первые два starter'а:
 
-- вы редактируете runtime-facing files под `src/`
+- вы редактируете runtime-facing files под `plugin/`
 - вы сохраняете один repo, даже когда generated target outputs появляются в корне
 - вы сами владеете runtime entrypoint, test flow и поведением, которые определяют плагин
 

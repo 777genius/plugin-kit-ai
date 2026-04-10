@@ -10,17 +10,17 @@ Use this guide when choosing between `codex-runtime`, `codex-package`, or both i
 
 ## Choose `codex-runtime` When
 
-- your plugin runs from the repo through `src/launcher.yaml`
+- your plugin runs from the repo through `plugin/launcher.yaml`
 - you need the stable `Notify` runtime path
-- your source of truth is repo-local runtime wiring plus authored metadata under `src/targets/codex-runtime/...`
+- your source of truth is repo-local runtime wiring plus authored metadata under `plugin/targets/codex-runtime/...`
 - you want managed `.codex/config.toml`
 
 Canonical authored inputs:
 
-- `src/plugin.yaml`
-- `src/launcher.yaml`
-- `src/targets/codex-runtime/package.yaml`
-- optional `src/targets/codex-runtime/config.extra.toml`
+- `plugin/plugin.yaml`
+- `plugin/launcher.yaml`
+- `plugin/targets/codex-runtime/package.yaml`
+- optional `plugin/targets/codex-runtime/config.extra.toml`
 
 Managed output:
 
@@ -34,12 +34,12 @@ Managed output:
 
 Canonical authored inputs:
 
-- `src/plugin.yaml`
-- optional `src/mcp/servers.yaml`
-- `src/targets/codex-package/package.yaml`
-- optional `src/targets/codex-package/interface.json`
-- optional `src/targets/codex-package/app.json`
-- optional `src/targets/codex-package/manifest.extra.json`
+- `plugin/plugin.yaml`
+- optional `plugin/mcp/servers.yaml`
+- `plugin/targets/codex-package/package.yaml`
+- optional `plugin/targets/codex-package/interface.json`
+- optional `plugin/targets/codex-package/app.json`
+- optional `plugin/targets/codex-package/manifest.extra.json`
 
 Managed outputs:
 
