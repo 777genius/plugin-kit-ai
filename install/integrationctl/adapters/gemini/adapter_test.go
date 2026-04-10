@@ -359,6 +359,50 @@ func TestInspectProjectScopeEnablementOverridesWorkspaceSettingsFallback(t *test
 	}
 }
 
+func TestPlanEnableProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	if err := os.MkdirAll(workspaceA, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-a: %v", err)
+	}
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	adapter := Adapter{UserHome: home}
+
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(prevWD)
+	}()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	plan, err := adapter.PlanEnable(context.Background(), ports.PlanToggleInput{
+		Record: domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+	})
+	if err != nil {
+		t.Fatalf("plan enable: %v", err)
+	}
+	want := []string{
+		filepath.Join(workspaceA, ".gemini", "settings.json"),
+		filepath.Join(home, ".gemini", "extensions", "extension-enablement.json"),
+	}
+	if got := plan.PathsTouched; !equalStrings(got, want) {
+		t.Fatalf("paths touched = %#v, want %#v", got, want)
+	}
+}
+
 func TestApplyDisableUsesNativeGeminiDisable(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -452,6 +496,51 @@ func TestPlanInstallAllowedExtensionsOverridesBlockGitExtensions(t *testing.T) {
 	}
 	if plan.Blocking {
 		t.Fatalf("plan unexpectedly blocking: %#v", plan.ManualSteps)
+	}
+}
+
+func TestPlanUpdateProjectScopeReadsPersistedWorkspaceSettingsForSecurity(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	writeGeminiFile(t, filepath.Join(workspaceA, ".gemini", "settings.json"), "{\n  \"security\": {\n    \"blockGitExtensions\": true\n  }\n}\n")
+	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
+		t.Fatalf("mkdir workspace-b: %v", err)
+	}
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(prevWD)
+	}()
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: domain.InstallationRecord{
+			IntegrationID: "gemini-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+		NextManifest: domain.IntegrationManifest{
+			IntegrationID: "gemini-demo",
+			RequestedRef:  domain.RequestedSourceRef{Kind: "git_url", Value: "https://github.com/acme/demo.git"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	if !plan.Blocking {
+		t.Fatal("expected blocking plan")
+	}
+	if !strings.Contains(strings.Join(plan.ManualSteps, "\n"), "blockGitExtensions") {
+		t.Fatalf("manual steps = %#v", plan.ManualSteps)
 	}
 }
 
