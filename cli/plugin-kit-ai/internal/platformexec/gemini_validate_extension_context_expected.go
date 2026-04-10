@@ -13,14 +13,22 @@ func resolveGeminiExpectedContext(graph pluginmodel.PackageGraph, state pluginmo
 }
 
 func validateGeminiExpectedContext(root string, expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
+	return appendGeminiContextDiagnostics(
+		validateGeminiContextFileNameProjection(expected, extension),
+		validateGeminiContextFileReadable(root, expected),
+	)
+}
+
+func appendGeminiContextDiagnostics(parts ...[]Diagnostic) []Diagnostic {
 	var diagnostics []Diagnostic
-	diagnostics = append(diagnostics, validateGeminiContextFileNameProjection(expected, extension)...)
-	diagnostics = append(diagnostics, validateGeminiContextFileReadable(root, expected)...)
+	for _, part := range parts {
+		diagnostics = append(diagnostics, part...)
+	}
 	return diagnostics
 }
 
 func validateGeminiContextFileNameProjection(expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
-	if strings.TrimSpace(extension.Meta.ContextFileName) == expected.ArtifactName {
+	if geminiContextFileNameMatchesExpected(expected, extension) {
 		return nil
 	}
 	return []Diagnostic{{
@@ -32,8 +40,12 @@ func validateGeminiContextFileNameProjection(expected geminiContextSelection, ex
 	}}
 }
 
+func geminiContextFileNameMatchesExpected(expected geminiContextSelection, extension importedGeminiExtension) bool {
+	return strings.TrimSpace(extension.Meta.ContextFileName) == expected.ArtifactName
+}
+
 func validateGeminiContextFileReadable(root string, expected geminiContextSelection) []Diagnostic {
-	if fileExists(filepath.Join(root, expected.ArtifactName)) {
+	if geminiContextFileExists(root, expected) {
 		return nil
 	}
 	return []Diagnostic{{
@@ -43,4 +55,8 @@ func validateGeminiContextFileReadable(root string, expected geminiContextSelect
 		Target:   "gemini",
 		Message:  fmt.Sprintf("Gemini primary context file %s is not readable", expected.ArtifactName),
 	}}
+}
+
+func geminiContextFileExists(root string, expected geminiContextSelection) bool {
+	return fileExists(filepath.Join(root, expected.ArtifactName))
 }

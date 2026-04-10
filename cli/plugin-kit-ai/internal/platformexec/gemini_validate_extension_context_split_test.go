@@ -24,3 +24,22 @@ func TestValidateGeminiContextFileReadableRejectsMissingPrimaryContext(t *testin
 		t.Fatalf("diagnostics missing missing-context failure:\n%s", text)
 	}
 }
+
+func TestGeminiContextFileNameMatchesExpectedTrimsExtensionValue(t *testing.T) {
+	t.Parallel()
+
+	if !geminiContextFileNameMatchesExpected(geminiContextSelection{ArtifactName: "GEMINI.md"}, importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: " GEMINI.md "},
+	}) {
+		t.Fatal("expected trimmed context file name match")
+	}
+}
+
+func TestAppendGeminiContextDiagnosticsConcatenatesParts(t *testing.T) {
+	t.Parallel()
+
+	got := appendGeminiContextDiagnostics([]Diagnostic{{Code: "a"}}, []Diagnostic{{Code: "b"}})
+	if len(got) != 2 || got[0].Code != "a" || got[1].Code != "b" {
+		t.Fatalf("diagnostics = %+v", got)
+	}
+}
