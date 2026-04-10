@@ -159,6 +159,32 @@ func TestBuildPublicationJSONReportBuildsTrimmedTarget(t *testing.T) {
 	}
 }
 
+func TestWarningMessageProjectsSingleWarningBody(t *testing.T) {
+	t.Parallel()
+
+	if got := warningMessage(pluginmanifest.Warning{Message: "warn"}); got != "warn" {
+		t.Fatalf("warning message = %q", got)
+	}
+}
+
+func TestNormalizePublicationPackageInitializesNilSlices(t *testing.T) {
+	t.Parallel()
+
+	pkg := normalizePublicationPackage(publicationmodel.Package{})
+	if pkg.ChannelFamilies == nil || pkg.AuthoredInputs == nil || pkg.ManagedArtifacts == nil {
+		t.Fatalf("package = %+v", pkg)
+	}
+}
+
+func TestNormalizePublicationChannelInitializesPackageTargets(t *testing.T) {
+	t.Parallel()
+
+	channel := normalizePublicationChannel(publicationmodel.Channel{})
+	if channel.PackageTargets == nil {
+		t.Fatalf("channel = %+v", channel)
+	}
+}
+
 func TestMarshalPublicationDoctorJSONProducesIndentedEnvelope(t *testing.T) {
 	t.Parallel()
 
