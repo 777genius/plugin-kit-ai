@@ -38,3 +38,15 @@ func TestValidateUpdateArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestNewRootUpdateCommandValidatesAllWithoutName(t *testing.T) {
+	t.Parallel()
+
+	cmd := newRootUpdateCommand()
+	if err := cmd.Flags().Set("all", "true"); err != nil {
+		t.Fatalf("set --all: %v", err)
+	}
+	if err := cmd.Args(cmd, []string{"demo"}); err == nil || !strings.Contains(err.Error(), "update --all does not accept a name") {
+		t.Fatalf("root update args error = %v", err)
+	}
+}
