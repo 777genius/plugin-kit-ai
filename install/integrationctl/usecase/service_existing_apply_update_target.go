@@ -35,14 +35,20 @@ func (s Service) applyUpdatedExistingTarget(ctx context.Context, record domain.I
 	if err := s.Journal.AppendStep(ctx, runtime.operationID, domain.JournalStep{Target: string(target.TargetID), Action: "verify", Status: "ok"}); err != nil {
 		return false, err
 	}
-	runtime.nextRecord.Targets[target.TargetID] = targetInstallationFromExisting(target, applyResult, verified)
-	applyManifestMetadata(&runtime.nextRecord, *target.Manifest, runtime.startedAt)
-	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
+	appendExistingUpdateTargetResult(runtime, target, applyResult, verified)
 	return false, nil
 }
 
 func applyExistingUpdateMutation(ctx context.Context, record domain.InstallationRecord, target plannedExistingTarget) (ports.ApplyResult, error) {
-	input := ports.ApplyInput{
+	apply, err := existingUpdateMutationApply(target)
+	if err != nil {
+		return ports.ApplyResult{}, err
+	}
+	return apply(ctx, buildExistingUpdateApplyInput(record, target))
+}
+
+func buildExistingUpdateApplyInput(record domain.InstallationRecord, target plannedExistingTarget) ports.ApplyInput {
+	return ports.ApplyInput{
 		Plan:           target.Plan,
 		Manifest:       *target.Manifest,
 		ResolvedSource: target.Resolved,
@@ -50,13 +56,26 @@ func applyExistingUpdateMutation(ctx context.Context, record domain.Installation
 		Inspect:        target.Inspect,
 		Record:         &record,
 	}
+}
+
+func existingUpdateMutationApply(target plannedExistingTarget) (func(context.Context, ports.ApplyInput) (ports.ApplyResult, error), error) {
 	if target.Adopted {
-		return target.Adapter.ApplyInstall(ctx, input)
+		return target.Adapter.ApplyInstall, nil
 	}
-	return target.Adapter.ApplyUpdate(ctx, input)
+	return target.Adapter.ApplyUpdate, nil
 }
 
 func (s Service) verifyUpdatedExistingTarget(ctx context.Context, record domain.InstallationRecord, target plannedExistingTarget, applyResult ports.ApplyResult) (ports.InspectResult, error) {
-	verifyRecord := provisionalRecordForExisting(record, target, applyResult)
+	verifyRecord := existingUpdateVerifyRecord(record, target, applyResult)
 	return s.verifyPostApply(ctx, record.IntegrationID, record.Policy, &verifyRecord, target.Adapter, "update_version")
+}
+
+func existingUpdateVerifyRecord(record domain.InstallationRecord, target plannedExistingTarget, applyResult ports.ApplyResult) domain.InstallationRecord {
+	return provisionalRecordForExisting(record, target, applyResult)
+}
+
+func appendExistingUpdateTargetResult(runtime *existingUpdateRuntime, target plannedExistingTarget, applyResult ports.ApplyResult, verified ports.InspectResult) {
+	runtime.nextRecord.Targets[target.TargetID] = targetInstallationFromExisting(target, applyResult, verified)
+	applyManifestMetadata(&runtime.nextRecord, *target.Manifest, runtime.startedAt)
+	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 }

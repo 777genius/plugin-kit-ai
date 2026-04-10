@@ -65,3 +65,23 @@ func TestValidateGeminiUnexpectedContextContractDelegatesUnexpectedDiagnostics(t
 		t.Fatalf("diagnostics missing unexpected-context failure:\n%s", text)
 	}
 }
+
+func TestValidateGeminiExpectedContextProjectionDelegatesProjectionDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	diagnostics := validateGeminiExpectedContextProjection(geminiContextSelection{ArtifactName: "GEMINI.md"}, importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: "ALT.md"},
+	})
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "ALT.md"; expected "GEMINI.md"`) {
+		t.Fatalf("diagnostics missing projection failure:\n%s", text)
+	}
+}
+
+func TestValidateGeminiExpectedContextArtifactDelegatesReadableDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	diagnostics := validateGeminiExpectedContextArtifact(t.TempDir(), geminiContextSelection{ArtifactName: "GEMINI.md"})
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, "Gemini primary context file GEMINI.md is not readable") {
+		t.Fatalf("diagnostics missing readability failure:\n%s", text)
+	}
+}

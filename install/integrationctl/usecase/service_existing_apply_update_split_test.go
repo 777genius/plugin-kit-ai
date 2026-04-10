@@ -37,3 +37,40 @@ func TestExistingUpdateReportSortsTargets(t *testing.T) {
 		t.Fatalf("targets = %+v", report.Targets)
 	}
 }
+
+func TestBuildExistingUpdateApplyInputCarriesMutationInputs(t *testing.T) {
+	t.Parallel()
+
+	input := buildExistingUpdateApplyInput(domain.InstallationRecord{IntegrationID: "demo"}, plannedExistingTarget{
+		Plan: ports.AdapterPlan{ActionClass: "update"},
+		Manifest: &domain.IntegrationManifest{
+			Version: "1.2.3",
+		},
+		Resolved: &ports.ResolvedSource{Kind: "bundle"},
+	})
+	if input.Plan.ActionClass != "update" || input.Manifest.Version != "1.2.3" || input.ResolvedSource == nil || input.ResolvedSource.Kind != "bundle" || input.Record == nil || input.Record.IntegrationID != "demo" {
+		t.Fatalf("input = %+v", input)
+	}
+}
+
+func TestExistingUpdateVerifyRecordDelegatesProvisionalRecord(t *testing.T) {
+	t.Parallel()
+
+	record := domain.InstallationRecord{
+		IntegrationID: "demo",
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			"gemini": {TargetID: "gemini"},
+		},
+	}
+	target := plannedExistingTarget{
+		TargetID: "gemini",
+		Manifest: &domain.IntegrationManifest{
+			Version: "2.0.0",
+		},
+		Resolved: &ports.ResolvedSource{Resolved: domain.ResolvedSourceRef{Value: "registry.example/demo@2.0.0"}},
+	}
+	got := existingUpdateVerifyRecord(record, target, ports.ApplyResult{})
+	if got.ResolvedVersion != "2.0.0" || got.Targets["gemini"].TargetID != "gemini" {
+		t.Fatalf("record = %+v", got)
+	}
+}

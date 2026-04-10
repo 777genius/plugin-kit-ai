@@ -14,9 +14,17 @@ func resolveGeminiExpectedContext(graph pluginmodel.PackageGraph, state pluginmo
 
 func validateGeminiExpectedContext(root string, expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
 	return appendGeminiContextDiagnostics(
-		validateGeminiContextFileNameProjection(expected, extension),
-		validateGeminiContextFileReadable(root, expected),
+		validateGeminiExpectedContextProjection(expected, extension),
+		validateGeminiExpectedContextArtifact(root, expected),
 	)
+}
+
+func validateGeminiExpectedContextProjection(expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
+	return validateGeminiContextFileNameProjection(expected, extension)
+}
+
+func validateGeminiExpectedContextArtifact(root string, expected geminiContextSelection) []Diagnostic {
+	return validateGeminiContextFileReadable(root, expected)
 }
 
 func appendGeminiContextDiagnostics(parts ...[]Diagnostic) []Diagnostic {
