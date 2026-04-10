@@ -32,7 +32,6 @@ func (s Service) planExisting(ctx context.Context, in NamedDryRunInput, action s
 	if err != nil {
 		return domain.Report{}, err
 	}
-	planned := make([]plannedExistingTarget, 0, len(record.Targets))
 	report := newExistingPlanReport(action, record.IntegrationID, s.now())
 	sharedResolved, sharedManifest, cleanupShared, err := s.resolveExistingSharedSource(ctx, record, action, in.DryRun)
 	if err != nil {
@@ -43,33 +42,73 @@ func (s Service) planExisting(ctx context.Context, in NamedDryRunInput, action s
 	if err != nil {
 		return domain.Report{}, err
 	}
-	for _, targetID := range selectedTargetIDs {
-		item, err := s.planExistingTarget(ctx, record, targetID, action, sharedResolved, sharedManifest)
-		if err != nil {
-			cleanupPlannedExisting(planned)
-			return domain.Report{}, err
-		}
-		planned = append(planned, item)
-		report.Targets = append(report.Targets, item.Report)
+	planned, err := s.planSelectedExistingTargets(ctx, record, selectedTargetIDs, action, sharedResolved, sharedManifest)
+	if err != nil {
+		return domain.Report{}, err
 	}
-	if action == "update_version" && sharedResolved != nil && sharedManifest != nil {
-		adopted, warnings, err := s.planAdoptedUpdateTargets(ctx, record, *sharedManifest, *sharedResolved)
-		if err != nil {
-			cleanupPlannedExisting(planned)
-			return domain.Report{}, err
-		}
-		planned = append(planned, adopted...)
-		for _, item := range adopted {
-			report.Targets = append(report.Targets, item.Report)
-		}
-		report.Warnings = append(report.Warnings, warnings...)
+	appendExistingTargetReports(&report, planned)
+	adopted, warnings, err := s.planAdoptedExistingTargets(ctx, record, action, sharedResolved, sharedManifest)
+	if err != nil {
+		cleanupPlannedExisting(planned)
+		return domain.Report{}, err
 	}
-	sort.Slice(report.Targets, func(i, j int) bool { return report.Targets[i].TargetID < report.Targets[j].TargetID })
+	planned = append(planned, adopted...)
+	appendExistingTargetReports(&report, adopted)
+	report.Warnings = append(report.Warnings, warnings...)
+	report = finalizeExistingPlanReport(report)
 	if in.DryRun {
 		cleanupPlannedExisting(planned)
 		return report, nil
 	}
 	return s.applyExisting(ctx, record, action, planned)
+}
+
+func (s Service) planSelectedExistingTargets(
+	ctx context.Context,
+	record domain.InstallationRecord,
+	targetIDs []domain.TargetID,
+	action string,
+	sharedResolved *ports.ResolvedSource,
+	sharedManifest *domain.IntegrationManifest,
+) ([]plannedExistingTarget, error) {
+	planned := make([]plannedExistingTarget, 0, len(targetIDs))
+	for _, targetID := range targetIDs {
+		item, err := s.planExistingTarget(ctx, record, targetID, action, sharedResolved, sharedManifest)
+		if err != nil {
+			cleanupPlannedExisting(planned)
+			return nil, err
+		}
+		planned = append(planned, item)
+	}
+	return planned, nil
+}
+
+func appendExistingTargetReports(report *domain.Report, planned []plannedExistingTarget) {
+	for _, item := range planned {
+		report.Targets = append(report.Targets, item.Report)
+	}
+}
+
+func shouldPlanExistingAdoptedTargets(action string, sharedResolved *ports.ResolvedSource, sharedManifest *domain.IntegrationManifest) bool {
+	return action == "update_version" && sharedResolved != nil && sharedManifest != nil
+}
+
+func (s Service) planAdoptedExistingTargets(
+	ctx context.Context,
+	record domain.InstallationRecord,
+	action string,
+	sharedResolved *ports.ResolvedSource,
+	sharedManifest *domain.IntegrationManifest,
+) ([]plannedExistingTarget, []string, error) {
+	if !shouldPlanExistingAdoptedTargets(action, sharedResolved, sharedManifest) {
+		return nil, nil, nil
+	}
+	return s.planAdoptedUpdateTargets(ctx, record, *sharedManifest, *sharedResolved)
+}
+
+func finalizeExistingPlanReport(report domain.Report) domain.Report {
+	sort.Slice(report.Targets, func(i, j int) bool { return report.Targets[i].TargetID < report.Targets[j].TargetID })
+	return report
 }
 
 func (s Service) loadExistingPlanRecord(ctx context.Context, name string) (domain.InstallationRecord, error) {

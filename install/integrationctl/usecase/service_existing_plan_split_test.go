@@ -58,6 +58,36 @@ func TestLoadExistingPlanRecordRejectsUnknownIntegration(t *testing.T) {
 	}
 }
 
+func TestShouldPlanExistingAdoptedTargetsRequiresUpdateAndSharedSource(t *testing.T) {
+	t.Parallel()
+
+	resolved := &ports.ResolvedSource{}
+	manifest := &domain.IntegrationManifest{}
+	if !shouldPlanExistingAdoptedTargets("update_version", resolved, manifest) {
+		t.Fatal("expected adopted update planning for update_version with shared source")
+	}
+	if shouldPlanExistingAdoptedTargets("repair_drift", resolved, manifest) {
+		t.Fatal("did not expect adopted update planning for repair_drift")
+	}
+	if shouldPlanExistingAdoptedTargets("update_version", nil, manifest) {
+		t.Fatal("did not expect adopted update planning without resolved source")
+	}
+}
+
+func TestFinalizeExistingPlanReportSortsTargetReports(t *testing.T) {
+	t.Parallel()
+
+	report := finalizeExistingPlanReport(domain.Report{
+		Targets: []domain.TargetReport{
+			{TargetID: "gemini"},
+			{TargetID: "claude"},
+		},
+	})
+	if report.Targets[0].TargetID != "claude" || report.Targets[1].TargetID != "gemini" {
+		t.Fatalf("targets = %+v", report.Targets)
+	}
+}
+
 type existingPlanTestStateStore struct {
 	load func() (ports.StateFile, error)
 }
