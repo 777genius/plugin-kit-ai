@@ -1,11 +1,6 @@
 package platformexec
 
-import (
-	"fmt"
-	"strings"
-
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
-)
+import "github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 
 func validateGeminiAuthoredSurfaces(
 	root string,
@@ -15,53 +10,16 @@ func validateGeminiAuthoredSurfaces(
 	hookPaths []string,
 ) ([]Diagnostic, error) {
 	var diagnostics []Diagnostic
-	diagnostics = append(diagnostics, validateGeminiDirName(root, graph.Manifest.Name)...)
-
-	portablediagnostics, err := validateGeminiPortableMCPProjection(graph)
+	coreDiagnostics, err := validateGeminiAuthoredCore(root, graph, state, meta)
 	if err != nil {
 		return nil, err
 	}
-	diagnostics = append(diagnostics, portablediagnostics...)
+	diagnostics = append(diagnostics, coreDiagnostics...)
 
-	diagnostics = append(diagnostics, validateGeminiExcludeTools(state.DocPath("package_metadata"), meta.ExcludeTools)...)
-	diagnostics = append(diagnostics, validateGeminiContext(graph, state, meta)...)
-	diagnostics = append(diagnostics, validateGeminiSettings(root, state.ComponentPaths("settings"))...)
-	diagnostics = append(diagnostics, validateGeminiThemes(root, state.ComponentPaths("themes"))...)
-	diagnostics = append(diagnostics, validateGeminiPolicies(root, state.ComponentPaths("policies"))...)
-	diagnostics = append(diagnostics, validateGeminiCommands(root, state.ComponentPaths("commands"))...)
-	diagnostics = append(diagnostics, validateGeminiHookFiles(root, hookPaths)...)
-	diagnostics = append(diagnostics, validateGeminiHookEntrypointContract(root, graph, hookPaths)...)
-	diagnostics = append(diagnostics, validateGeminiGeneratedHooks(root, graph, hookPaths)...)
+	assetDiagnostics := validateGeminiAuthoredAssetContracts(root, graph, state, meta)
+	diagnostics = append(diagnostics, assetDiagnostics...)
+
+	hookDiagnostics := validateGeminiAuthoredHookContracts(root, graph, hookPaths)
+	diagnostics = append(diagnostics, hookDiagnostics...)
 	return diagnostics, nil
-}
-
-func validateGeminiDirName(root, extensionName string) []Diagnostic {
-	if base := geminiExtensionDirBase(root); base != extensionName {
-		return []Diagnostic{{
-			Severity: SeverityWarning,
-			Code:     CodeGeminiDirNameMismatch,
-			Path:     root,
-			Target:   "gemini",
-			Message:  fmt.Sprintf("Gemini extension directory basename %q does not match extension name %q", base, extensionName),
-		}}
-	}
-	return nil
-}
-
-func validateGeminiPortableMCPProjection(graph pluginmodel.PackageGraph) ([]Diagnostic, error) {
-	if graph.Portable.MCP == nil {
-		return nil, nil
-	}
-	projected, err := renderPortableMCPForTarget(graph.Portable.MCP, "gemini")
-	if err != nil {
-		return nil, err
-	}
-	return validateGeminiMCPServers(graph.Portable.MCP.Path, projected), nil
-}
-
-func validateGeminiHookEntrypointContract(root string, graph pluginmodel.PackageGraph, hookPaths []string) []Diagnostic {
-	if graph.Launcher == nil {
-		return nil
-	}
-	return validateGeminiHookEntrypointConsistency(root, hookPaths, strings.TrimSpace(graph.Launcher.Entrypoint))
 }
