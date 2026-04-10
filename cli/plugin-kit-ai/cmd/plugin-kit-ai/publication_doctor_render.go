@@ -51,14 +51,19 @@ func normalizedPublicationDoctorFormat(format string) string {
 
 func renderPublicationDoctorText(cmd *cobra.Command, warnings []pluginmanifest.Warning, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
 	writePublicationDoctorWarnings(cmd, warnings)
-	writePublicationDoctorLines(cmd, diagnosis.Lines)
-	if localRoot != nil {
-		writePublicationDoctorLines(cmd, localRoot.Lines)
-	}
+	writePublicationDoctorLines(cmd, publicationDoctorTextLines(diagnosis, localRoot))
 	if diagnosis.Ready {
 		return nil
 	}
 	return exitx.Wrap(errors.New("publication doctor found issues"), 1)
+}
+
+func publicationDoctorTextLines(diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) []string {
+	lines := append([]string(nil), diagnosis.Lines...)
+	if localRoot != nil {
+		lines = append(lines, localRoot.Lines...)
+	}
+	return lines
 }
 
 func writePublicationDoctorWarnings(cmd *cobra.Command, warnings []pluginmanifest.Warning) {
