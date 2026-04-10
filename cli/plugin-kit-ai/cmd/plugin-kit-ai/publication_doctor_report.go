@@ -7,17 +7,21 @@ import (
 )
 
 func renderPublicationDoctorJSON(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	if err := writePublicationDoctorJSONReport(cmd, report, warnings, requestedTarget, diagnosis, localRoot); err != nil {
+	if err := writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot)); err != nil {
 		return err
 	}
 	return publicationDoctorJSONIssueErr(diagnosis)
 }
 
 func writePublicationDoctorJSONReport(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	return writePublicationDoctorJSON(cmd, publicationDoctorJSONReportForOutput(report, warnings, requestedTarget, diagnosis, localRoot))
+	return writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot))
 }
 
-func publicationDoctorJSONReportForOutput(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONReport {
+func writePublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDoctorJSONReport) error {
+	return writePublicationDoctorJSON(cmd, report)
+}
+
+func publicationDoctorJSONEnvelope(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONReport {
 	return buildPublicationDoctorJSONReport(report, warnings, requestedTarget, diagnosis, localRoot)
 }
 

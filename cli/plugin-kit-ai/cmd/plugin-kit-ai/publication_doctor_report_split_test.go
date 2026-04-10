@@ -94,6 +94,18 @@ func TestPublicationDoctorJSONIssueErrUsesDiagnosisReadyFlag(t *testing.T) {
 	}
 }
 
+func TestPublicationDoctorJSONEnvelopeBuildsRequestedTarget(t *testing.T) {
+	t.Parallel()
+
+	report := publicationDoctorJSONEnvelope(pluginmanifest.Inspection{}, []pluginmanifest.Warning{{Message: "warn"}}, " gemini ", publicationDiagnosis{
+		Ready:  true,
+		Status: "ready",
+	}, &app.PluginPublicationVerifyRootResult{Ready: true})
+	if report.RequestedTarget != "gemini" || report.WarningCount != 1 || report.Status != "ready" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
 func TestWritePublicationDoctorJSONReportEmitsJSONEnvelope(t *testing.T) {
 	t.Parallel()
 
@@ -101,6 +113,24 @@ func TestWritePublicationDoctorJSONReportEmitsJSONEnvelope(t *testing.T) {
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	err := writePublicationDoctorJSONReport(cmd, pluginmanifest.Inspection{}, nil, "gemini", publicationDiagnosis{Ready: true, Status: "ready"}, &app.PluginPublicationVerifyRootResult{Ready: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got == "" || got[0] != '{' {
+		t.Fatalf("output = %q", got)
+	}
+}
+
+func TestWritePublicationDoctorJSONEnvelopeEmitsJSONEnvelope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	err := writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONReport{
+		Format:        "plugin-kit-ai/publication-doctor-report",
+		SchemaVersion: 1,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
