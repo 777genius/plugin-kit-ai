@@ -30,3 +30,24 @@ func TestMergeGeminiManifestMetaSkipsBlankFields(t *testing.T) {
 		t.Fatalf("manifest = %+v", manifest)
 	}
 }
+
+func TestMergeGeminiManifestPlanProjectsDirectory(t *testing.T) {
+	t.Parallel()
+
+	manifest := map[string]any{}
+	mergeGeminiManifestPlan(manifest, geminiPackageMeta{PlanDirectory: "plans"})
+	plan, ok := manifest["plan"].(map[string]any)
+	if !ok || plan["directory"] != "plans" {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+}
+
+func TestMergeGeminiManifestMigratedToSkipsBlankValues(t *testing.T) {
+	t.Parallel()
+
+	manifest := map[string]any{}
+	mergeGeminiManifestMigratedTo(manifest, geminiPackageMeta{MigratedTo: "   "})
+	if len(manifest) != 0 {
+		t.Fatalf("manifest = %+v", manifest)
+	}
+}

@@ -8,18 +8,15 @@ import (
 
 func renderGeminiManifest(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (map[string]any, []pluginmodel.Artifact, error) {
 	manifest := buildGeminiManifestBase(graph)
-	if err := mergeGeminiManifestPortableMCP(manifest, graph); err != nil {
+	if err := mergeGeminiManifestPortableSections(manifest, graph); err != nil {
 		return nil, nil, err
 	}
 	mergeGeminiManifestMeta(manifest, meta)
-	if err := mergeGeminiManifestAssets(root, state, manifest); err != nil {
-		return nil, nil, err
-	}
-	contextArtifacts, err := mergeGeminiManifestContexts(root, graph, state, meta, manifest)
+	contextArtifacts, err := mergeGeminiManifestRuntimeSections(root, graph, state, meta, manifest)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := mergeGeminiManifestExtraDoc(root, state, manifest); err != nil {
+	if err := mergeGeminiManifestNativeDocs(root, state, manifest); err != nil {
 		return nil, nil, err
 	}
 	return manifest, contextArtifacts, nil
@@ -31,6 +28,10 @@ func buildGeminiManifestBase(graph pluginmodel.PackageGraph) map[string]any {
 		"version":     graph.Manifest.Version,
 		"description": graph.Manifest.Description,
 	}
+}
+
+func mergeGeminiManifestPortableSections(manifest map[string]any, graph pluginmodel.PackageGraph) error {
+	return mergeGeminiManifestPortableMCP(manifest, graph)
 }
 
 func mergeGeminiManifestPortableMCP(manifest map[string]any, graph pluginmodel.PackageGraph) error {
@@ -46,15 +47,41 @@ func mergeGeminiManifestPortableMCP(manifest map[string]any, graph pluginmodel.P
 }
 
 func mergeGeminiManifestMeta(manifest map[string]any, meta geminiPackageMeta) {
-	if len(meta.ExcludeTools) > 0 {
-		manifest["excludeTools"] = append([]string(nil), normalizeGeminiExcludeTools(meta.ExcludeTools)...)
+	mergeGeminiManifestExcludeTools(manifest, meta)
+	mergeGeminiManifestMigratedTo(manifest, meta)
+	mergeGeminiManifestPlan(manifest, meta)
+}
+
+func mergeGeminiManifestExcludeTools(manifest map[string]any, meta geminiPackageMeta) {
+	if len(meta.ExcludeTools) == 0 {
+		return
 	}
-	if strings.TrimSpace(meta.MigratedTo) != "" {
-		manifest["migratedTo"] = meta.MigratedTo
+	manifest["excludeTools"] = append([]string(nil), normalizeGeminiExcludeTools(meta.ExcludeTools)...)
+}
+
+func mergeGeminiManifestMigratedTo(manifest map[string]any, meta geminiPackageMeta) {
+	if strings.TrimSpace(meta.MigratedTo) == "" {
+		return
 	}
-	if strings.TrimSpace(meta.PlanDirectory) != "" {
-		manifest["plan"] = map[string]any{"directory": meta.PlanDirectory}
+	manifest["migratedTo"] = meta.MigratedTo
+}
+
+func mergeGeminiManifestPlan(manifest map[string]any, meta geminiPackageMeta) {
+	if strings.TrimSpace(meta.PlanDirectory) == "" {
+		return
 	}
+	manifest["plan"] = map[string]any{"directory": meta.PlanDirectory}
+}
+
+func mergeGeminiManifestRuntimeSections(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta, manifest map[string]any) ([]pluginmodel.Artifact, error) {
+	if err := mergeGeminiManifestAssets(root, state, manifest); err != nil {
+		return nil, err
+	}
+	return mergeGeminiManifestContexts(root, graph, state, meta, manifest)
+}
+
+func mergeGeminiManifestNativeDocs(root string, state pluginmodel.TargetState, manifest map[string]any) error {
+	return mergeGeminiManifestExtraDoc(root, state, manifest)
 }
 
 func mergeGeminiManifestExtraDoc(root string, state pluginmodel.TargetState, manifest map[string]any) error {
