@@ -8,6 +8,18 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
+func (s Service) finishRemoveExistingTargetFailure(ctx context.Context, runtime *existingRemoveRuntime, record domain.InstallationRecord, failedTarget domain.TargetID, removed []removedExistingTarget, cause error, rolledBackMessage string, degradedMessage string) (bool, error) {
+	failureErr, done, failureState, finishErr := s.finishRemoveExistingFailure(ctx, runtime.operationID, runtime.state, record, runtime.startedAt, failedTarget, removed, cause, rolledBackMessage, degradedMessage)
+	if finishErr != nil {
+		return false, finishErr
+	}
+	if done {
+		runtime.state = failureState
+		return true, failureErr
+	}
+	return false, nil
+}
+
 func (s Service) finishRemoveExistingFailure(ctx context.Context, operationID string, state ports.StateFile, record domain.InstallationRecord, startedAt string, failedTarget domain.TargetID, removed []removedExistingTarget, cause error, rolledBackMessage string, degradedMessage string) (error, bool, ports.StateFile, error) {
 	rollbackFailed, rollbackWarnings := s.rollbackRemovedExisting(ctx, operationID, record, removed)
 	if len(rollbackFailed) > 0 {
