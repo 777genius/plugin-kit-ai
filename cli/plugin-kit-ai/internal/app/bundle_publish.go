@@ -2,10 +2,7 @@ package app
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"os"
 	"strings"
 
 	gh "github.com/777genius/plugin-kit-ai/plugininstall/adapters/github"
@@ -86,116 +83,41 @@ func bundlePublish(ctx context.Context, opts PluginBundlePublishOptions, deps bu
 		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish %w", err)
 	}
 
-	tmpFile, err := os.CreateTemp("", ".plugin-kit-ai-publish-*.tar.gz")
+	artifact, err := prepareBundlePublishArtifact(root, platform, deps)
 	if err != nil {
 		return PluginBundlePublishResult{}, err
 	}
-	exportPath := tmpFile.Name()
-	_ = tmpFile.Close()
-	defer os.Remove(exportPath)
-
-	exportResult, err := deps.Export(PluginExportOptions{
-		Root:     root,
-		Platform: platform,
-		Output:   exportPath,
-	})
-	if err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-	_ = exportResult
-
-	metadata, err := inspectBundleArchive(exportPath)
-	if err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-	if err := validateBundleMetadata(metadata); err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-
-	body, err := os.ReadFile(exportPath)
-	if err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-	bundleName := fmt.Sprintf("%s_%s_%s_bundle.tar.gz", metadata.PluginName, metadata.Platform, metadata.Runtime)
-	sum := sha256.Sum256(body)
-	sumBody := []byte(hex.EncodeToString(sum[:]) + "  " + bundleName + "\n")
-	sidecarName := bundleName + ".sha256"
 
 	release, state, err := ensurePublishRelease(ctx, deps.GitHub, owner, repo, tag, opts.Draft)
 	if err != nil {
 		return PluginBundlePublishResult{}, err
 	}
 
-	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, bundleName, opts.Force); err != nil {
+	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, artifact.BundleName, opts.Force); err != nil {
 		return PluginBundlePublishResult{}, err
 	}
-	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, sidecarName, opts.Force); err != nil {
+	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, artifact.SidecarName, opts.Force); err != nil {
 		return PluginBundlePublishResult{}, err
 	}
 
-	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, bundleName, body, "application/gzip"); err != nil {
+	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, artifact.BundleName, artifact.Body, "application/gzip"); err != nil {
 		return PluginBundlePublishResult{}, err
 	}
-	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, sidecarName, sumBody, "text/plain; charset=utf-8"); err != nil {
+	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, artifact.SidecarName, artifact.SidecarBody, "text/plain; charset=utf-8"); err != nil {
 		return PluginBundlePublishResult{}, err
 	}
 
 	releaseLabel := owner + "/" + repo + "@" + tag
 	lines := []string{
-		fmt.Sprintf("Bundle: plugin=%s platform=%s runtime=%s manager=%s", metadata.PluginName, metadata.Platform, metadata.Runtime, displayBundleManager(metadata.Manager)),
+		fmt.Sprintf("Bundle: plugin=%s platform=%s runtime=%s manager=%s", artifact.Metadata.PluginName, artifact.Metadata.Platform, artifact.Metadata.Runtime, displayBundleManager(artifact.Metadata.Manager)),
 		"Release: " + releaseLabel,
 		"Release state: " + state,
 		"Uploaded assets:",
-		"  " + bundleName,
-		"  " + sidecarName,
+		"  " + artifact.BundleName,
+		"  " + artifact.SidecarName,
 		"Next:",
-		fmt.Sprintf("  plugin-kit-ai bundle fetch %s --tag %s --platform %s --runtime %s --dest <path>", ref, tag, metadata.Platform, metadata.Runtime),
-		fmt.Sprintf("  plugin-kit-ai bundle install ./%s --dest <path>", bundleName),
+		fmt.Sprintf("  plugin-kit-ai bundle fetch %s --tag %s --platform %s --runtime %s --dest <path>", ref, tag, artifact.Metadata.Platform, artifact.Metadata.Runtime),
+		fmt.Sprintf("  plugin-kit-ai bundle install ./%s --dest <path>", artifact.BundleName),
 	}
 	return PluginBundlePublishResult{Lines: lines}, nil
-}
-
-func ensurePublishRelease(ctx context.Context, client bundleGitHubPublisher, owner, repo, tag string, wantDraft bool) (*domain.Release, string, error) {
-	release, err := client.FindReleaseByTag(ctx, owner, repo, tag)
-	if err == nil {
-		if !wantDraft && release.Draft {
-			if release.ID == 0 {
-				return nil, "", fmt.Errorf("bundle publish cannot promote draft release %q because GitHub release id is missing", tag)
-			}
-			release, err = client.UpdateReleaseDraftState(ctx, owner, repo, release.ID, false)
-			if err != nil {
-				return nil, "", err
-			}
-			return release, "promoted draft release to published", nil
-		}
-		if release.Draft {
-			return release, "reused existing draft release", nil
-		}
-		return release, "reused existing published release", nil
-	}
-	if de, ok := err.(*domain.Error); ok && de.Code == domain.ExitRelease {
-		release, err = client.CreateRelease(ctx, owner, repo, tag, wantDraft)
-		if err != nil {
-			return nil, "", err
-		}
-		if wantDraft {
-			return release, "created draft release", nil
-		}
-		return release, "created published release", nil
-	}
-	return nil, "", err
-}
-
-func maybeDeleteReleaseAsset(ctx context.Context, client bundleGitHubPublisher, owner, repo string, release *domain.Release, name string, force bool) error {
-	asset := findReleaseAsset(release.Assets, name)
-	if asset == nil {
-		return nil
-	}
-	if !force {
-		return fmt.Errorf("bundle publish release already has asset %q; use --force to replace", name)
-	}
-	if asset.ID == 0 {
-		return fmt.Errorf("bundle publish cannot replace existing asset %q because GitHub asset id is missing", name)
-	}
-	return client.DeleteReleaseAsset(ctx, owner, repo, asset.ID)
 }
