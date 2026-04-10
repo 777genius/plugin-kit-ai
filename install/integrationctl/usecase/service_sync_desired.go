@@ -14,29 +14,13 @@ func (s Service) syncDesiredIntegration(
 	desiredIDs map[string]struct{},
 	report *domain.Report,
 ) {
-	source, manifest, err := s.resolveDesiredSyncManifest(ctx, item)
+	plan, err := s.prepareDesiredSyncPlan(ctx, item, current)
 	if err != nil {
-		report.Warnings = append(report.Warnings, syncDesiredSourceWarning(item.Source, err))
+		report.Warnings = append(report.Warnings, desiredSyncWarning(item, err))
 		return
 	}
-	desiredIDs[manifest.IntegrationID] = struct{}{}
-	desiredPolicy, targets, err := resolveDesiredSyncTargets(manifest, item)
-	if err != nil {
-		report.Warnings = append(report.Warnings, syncDesiredManifestWarning(manifest.IntegrationID, err))
-		return
-	}
-
-	record, exists := current[manifest.IntegrationID]
-	switch classifyDesiredSyncAction(record, exists, source, desiredPolicy, targets, item.Version) {
-	case desiredSyncActionAdd:
-		s.syncDesiredAdd(ctx, dryRun, manifest.IntegrationID, source, desiredPolicy, targets, report)
-	case desiredSyncActionReplace:
-		s.syncDesiredReplace(ctx, dryRun, record, manifest.IntegrationID, source, desiredPolicy, targets, report)
-	case desiredSyncActionUpdate:
-		s.syncDesiredUpdate(ctx, dryRun, manifest.IntegrationID, report)
-	default:
-		report.Warnings = append(report.Warnings, syncDesiredNoopWarning(manifest.IntegrationID))
-	}
+	desiredIDs[plan.IntegrationID] = struct{}{}
+	s.applyDesiredSyncPlan(ctx, dryRun, plan, report)
 }
 
 func (s Service) syncDesiredAdd(ctx context.Context, dryRun bool, integrationID, source string, desiredPolicy domain.InstallPolicy, targets []domain.TargetID, report *domain.Report) {

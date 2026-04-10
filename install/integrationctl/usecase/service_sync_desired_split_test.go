@@ -67,3 +67,15 @@ func TestCanReplaceDesiredSyncRequiresProjectScopeOnBothSides(t *testing.T) {
 		t.Fatal("expected project scopes to allow replace")
 	}
 }
+
+func TestDesiredSyncWarningPrefersManifestScopeWhenIntegrationIDKnown(t *testing.T) {
+	t.Parallel()
+
+	got := desiredSyncWarning(domain.WorkspaceLockIntegration{Source: "./plugins/demo"}, desiredSyncManifestErr{
+		integrationID: "demo",
+		err:           errors.New("boom"),
+	})
+	if got != "Sync skipped for demo: boom" {
+		t.Fatalf("warning = %q", got)
+	}
+}
