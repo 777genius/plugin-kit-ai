@@ -248,3 +248,44 @@ func TestGeminiManagedPathsIncludesGeneratedHooksForDedicatedRuntimeRepo(t *test
 		t.Fatalf("managed paths = %v, want GEMINI.md", paths)
 	}
 }
+
+func TestSelectGeminiPrimaryContextRejectsAmbiguousCandidates(t *testing.T) {
+	t.Parallel()
+	state := pluginmodel.NewTargetState("gemini")
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "alpha.md"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "beta.md"))
+
+	_, ok, err := selectGeminiPrimaryContext(pluginmodel.PackageGraph{}, state, geminiPackageMeta{})
+	if err == nil {
+		t.Fatal("expected ambiguous context selection error")
+	}
+	if ok {
+		t.Fatal("expected no selected context on ambiguity")
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("error = %q, want ambiguity message", err.Error())
+	}
+}
+
+func TestValidateGeminiMCPServersRejectsMultipleTransports(t *testing.T) {
+	t.Parallel()
+	diagnostics := validateGeminiMCPServers("gemini-extension.json", map[string]any{
+		"context7": map[string]any{
+			"command": "npx -y @upstash/context7-mcp",
+			"url":     "https://example.com/mcp",
+		},
+	})
+	if len(diagnostics) == 0 {
+		t.Fatal("expected diagnostics")
+	}
+	var found bool
+	for _, diagnostic := range diagnostics {
+		if strings.Contains(diagnostic.Message, "exactly one transport") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want transport conflict", diagnostics)
+	}
+}
