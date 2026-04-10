@@ -253,6 +253,20 @@ func TestClaudeValidateReportsHookEntrypointMismatchAndUserConfigShape(t *testin
 	}
 }
 
+func TestClaudeValidateRequiresLauncherWhenHooksAreAuthored(t *testing.T) {
+	t.Parallel()
+	state := pluginmodel.NewTargetState("claude")
+	state.AddComponent("hooks", filepath.Join("plugin", "targets", "claude", "hooks", "hooks.json"))
+
+	diagnostics, err := (claudeAdapter{}).Validate(t.TempDir(), pluginmodel.PackageGraph{}, state)
+	if err != nil {
+		t.Fatalf("Validate error = %v", err)
+	}
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, "Claude hooks require plugin/launcher.yaml") {
+		t.Fatalf("diagnostics = %s", text)
+	}
+}
+
 func writeClaudeTestFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
