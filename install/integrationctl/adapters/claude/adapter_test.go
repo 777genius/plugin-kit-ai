@@ -215,10 +215,10 @@ func TestInspectFlagsManagedPolicyBlockWhenPathPatternDisallowsMarketplace(t *te
 }
 
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")
+	binDir := filepath.Join(root, "bin")
 	settingsPath := filepath.Join(workspaceA, ".claude", "settings.json")
 	writeClaudeFile(t, settingsPath, "{\n  \"plugins\": []\n}\n")
 	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
@@ -228,9 +228,12 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 		t.Fatalf("getwd: %v", err)
 	}
 	defer func() { _ = os.Chdir(prevWD) }()
-	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
-		t.Fatalf("mkdir workspace-b: %v", err)
+	for _, dir := range []string{workspaceB, binDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %q: %v", dir, err)
+		}
 	}
+	t.Setenv("PATH", binDir)
 	if err := os.Chdir(workspaceB); err != nil {
 		t.Fatalf("chdir workspace-b: %v", err)
 	}
