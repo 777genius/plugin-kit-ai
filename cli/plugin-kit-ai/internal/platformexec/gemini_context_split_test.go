@@ -42,3 +42,33 @@ func TestValidateDefaultGeminiContextSelectionAllowsSingleCandidate(t *testing.T
 		t.Fatalf("diagnostics = %+v", diagnostics)
 	}
 }
+
+func TestSelectNamedGeminiPrimaryContextReturnsUniqueMatch(t *testing.T) {
+	t.Parallel()
+
+	got, ok, err := selectNamedGeminiPrimaryContext([]geminiContextSelection{{
+		ArtifactName: "GEMINI.md",
+		SourcePath:   "targets/gemini/contexts/GEMINI.md",
+	}}, "GEMINI.md")
+	if err != nil || !ok {
+		t.Fatalf("selection err = %v ok = %v", err, ok)
+	}
+	if got.ArtifactName != "GEMINI.md" {
+		t.Fatalf("selection = %+v", got)
+	}
+}
+
+func TestSelectOnlyGeminiPrimaryContextCandidateRejectsMultipleCandidates(t *testing.T) {
+	t.Parallel()
+
+	_, ok, err := selectOnlyGeminiPrimaryContextCandidate([]geminiContextSelection{
+		{ArtifactName: "alpha.md", SourcePath: "alpha.md"},
+		{ArtifactName: "beta.md", SourcePath: "beta.md"},
+	})
+	if err == nil || ok {
+		t.Fatalf("selection err = %v ok = %v", err, ok)
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("error = %v", err)
+	}
+}
