@@ -11,17 +11,10 @@ import (
 )
 
 func (s Service) planAdoptedUpdateTargets(ctx context.Context, record domain.InstallationRecord, manifest domain.IntegrationManifest, resolved ports.ResolvedSource) ([]plannedExistingTarget, []string, error) {
-	existing := make(map[domain.TargetID]struct{}, len(record.Targets))
-	for targetID := range record.Targets {
-		existing[targetID] = struct{}{}
-	}
-	autoAdopt := strings.EqualFold(strings.TrimSpace(record.Policy.AdoptNewTargets), "auto")
+	autoAdopt := autoAdoptNewTargets(record)
 	out := []plannedExistingTarget{}
 	warnings := []string{}
-	for _, delivery := range manifest.Deliveries {
-		if _, ok := existing[delivery.TargetID]; ok {
-			continue
-		}
+	for _, delivery := range missingAdoptedDeliveries(record, manifest) {
 		item, warning, err := s.planAdoptedUpdateTarget(ctx, record, manifest, resolved, delivery, autoAdopt)
 		if err != nil {
 			return nil, nil, err
@@ -36,13 +29,48 @@ func (s Service) planAdoptedUpdateTargets(ctx context.Context, record domain.Ins
 	return out, warnings, nil
 }
 
+func missingAdoptedDeliveries(record domain.InstallationRecord, manifest domain.IntegrationManifest) []domain.Delivery {
+	existing := make(map[domain.TargetID]struct{}, len(record.Targets))
+	for targetID := range record.Targets {
+		existing[targetID] = struct{}{}
+	}
+	var out []domain.Delivery
+	for _, delivery := range manifest.Deliveries {
+		if _, ok := existing[delivery.TargetID]; ok {
+			continue
+		}
+		out = append(out, delivery)
+	}
+	return out
+}
+
+func autoAdoptNewTargets(record domain.InstallationRecord) bool {
+	return strings.EqualFold(strings.TrimSpace(record.Policy.AdoptNewTargets), "auto")
+}
+
 func (s Service) planAdoptedUpdateTarget(ctx context.Context, record domain.InstallationRecord, manifest domain.IntegrationManifest, resolved ports.ResolvedSource, delivery domain.Delivery, autoAdopt bool) (plannedExistingTarget, string, error) {
 	if !autoAdopt {
-		return plannedExistingTarget{}, fmt.Sprintf("New target support is available for %s on %s, but adopt_new_targets=%s.", record.IntegrationID, delivery.TargetID, defaultString(record.Policy.AdoptNewTargets, "manual")), nil
+		return plannedExistingTarget{}, adoptedUpdateManualWarning(record, delivery), nil
 	}
+	return s.planAutomaticAdoptedUpdateTarget(ctx, record, manifest, resolved, delivery)
+}
+
+func adoptedUpdateManualWarning(record domain.InstallationRecord, delivery domain.Delivery) string {
+	return fmt.Sprintf("New target support is available for %s on %s, but adopt_new_targets=%s.", record.IntegrationID, delivery.TargetID, defaultString(record.Policy.AdoptNewTargets, "manual"))
+}
+
+func adoptedUpdateMissingAdapterWarning(record domain.InstallationRecord, targetID domain.TargetID) string {
+	return fmt.Sprintf("Automatic adoption skipped for %s on %s: no adapter is registered.", record.IntegrationID, targetID)
+}
+
+func adoptedUpdateBlockedWarning(record domain.InstallationRecord, targetID domain.TargetID) string {
+	return fmt.Sprintf("Automatic adoption skipped for %s on %s: native environment blocks installation.", record.IntegrationID, targetID)
+}
+
+func (s Service) planAutomaticAdoptedUpdateTarget(ctx context.Context, record domain.InstallationRecord, manifest domain.IntegrationManifest, resolved ports.ResolvedSource, delivery domain.Delivery) (plannedExistingTarget, string, error) {
 	adapter, ok := s.Adapters[delivery.TargetID]
 	if !ok {
-		return plannedExistingTarget{}, fmt.Sprintf("Automatic adoption skipped for %s on %s: no adapter is registered.", record.IntegrationID, delivery.TargetID), nil
+		return plannedExistingTarget{}, adoptedUpdateMissingAdapterWarning(record, delivery.TargetID), nil
 	}
 	inspect, err := adapter.Inspect(ctx, ports.InspectInput{IntegrationID: record.IntegrationID, Record: &record, Scope: record.Policy.Scope})
 	if err != nil {
@@ -62,19 +90,23 @@ func (s Service) planAdoptedUpdateTarget(ctx context.Context, record domain.Inst
 		return plannedExistingTarget{}, "", err
 	}
 	if plan.Blocking {
-		return plannedExistingTarget{}, fmt.Sprintf("Automatic adoption skipped for %s on %s: native environment blocks installation.", record.IntegrationID, delivery.TargetID), nil
+		return plannedExistingTarget{}, adoptedUpdateBlockedWarning(record, delivery.TargetID), nil
 	}
 	resolvedCopy := resolved
 	manifestCopy := manifest
+	return newAdoptedExistingTarget(delivery, adapter, inspect, plan, &manifestCopy, &resolvedCopy), "", nil
+}
+
+func newAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest *domain.IntegrationManifest, resolved *ports.ResolvedSource) plannedExistingTarget {
 	return plannedExistingTarget{
 		TargetID: delivery.TargetID,
 		Delivery: delivery,
 		Adapter:  adapter,
 		Inspect:  inspect,
 		Plan:     plan,
-		Manifest: &manifestCopy,
-		Resolved: &resolvedCopy,
+		Manifest: manifest,
+		Resolved: resolved,
 		Report:   toTargetReport(delivery, inspect, plan),
 		Adopted:  true,
-	}, "", nil
+	}
 }
