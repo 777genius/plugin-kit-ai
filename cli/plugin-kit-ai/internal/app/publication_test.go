@@ -274,6 +274,39 @@ func TestPluginServicePublicationVerifyRootReportsDriftedCatalogEntry(t *testing
 	}
 }
 
+func TestLoadPublicationContextPreservesChannelMetadataHints(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	dest := t.TempDir()
+	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+
+	t.Run("materialize", func(t *testing.T) {
+		t.Parallel()
+		_, err := loadPublicationContextForMaterialize(PluginPublicationMaterializeOptions{
+			Root:   root,
+			Target: "claude",
+			Dest:   dest,
+		})
+		if err == nil || !strings.Contains(err.Error(), "target claude requires authored publication channel metadata under src/publish/...") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("remove", func(t *testing.T) {
+		t.Parallel()
+		_, err := loadPublicationContextForRemove(PluginPublicationRemoveOptions{
+			Root:   root,
+			Target: "claude",
+			Dest:   dest,
+		})
+		if err == nil || !strings.Contains(err.Error(), "target claude requires authored publication channel metadata under publish/...") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}
+
 func TestPluginServicePublishDelegatesToLocalCodexMaterialize(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
