@@ -67,6 +67,36 @@ func TestDecodeImportedPluginManifestRejectsLegacyShapes(t *testing.T) {
 	}
 }
 
+func TestDecodeImportedPluginManifestNormalizesMetadataAndPreservesExtra(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{
+		"name":"demo",
+		"version":"0.1.0",
+		"description":"demo",
+		"author":{"name":" Example Maintainer ","email":" maintainer@example.com "},
+		"homepage":" https://example.com ",
+		"keywords":[" codex ",""," plugin "],
+		"extraConfig":{"enabled":true}
+	}`)
+
+	got, err := DecodeImportedPluginManifest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PackageMeta.Author == nil || got.PackageMeta.Author.Name != "Example Maintainer" || got.PackageMeta.Author.Email != "maintainer@example.com" {
+		t.Fatalf("author = %#v", got.PackageMeta.Author)
+	}
+	if got.PackageMeta.Homepage != "https://example.com" {
+		t.Fatalf("homepage = %q", got.PackageMeta.Homepage)
+	}
+	if len(got.PackageMeta.Keywords) != 2 || got.PackageMeta.Keywords[0] != "codex" || got.PackageMeta.Keywords[1] != "plugin" {
+		t.Fatalf("keywords = %#v", got.PackageMeta.Keywords)
+	}
+	if got.Extra["extraConfig"] == nil {
+		t.Fatalf("extra = %#v", got.Extra)
+	}
+}
+
 func TestParseAppManifestDocRejectsNonObjectJSON(t *testing.T) {
 	t.Parallel()
 	if _, err := ParseAppManifestDoc([]byte(`["demo"]`)); err == nil || !strings.Contains(err.Error(), "Codex app manifest must be a JSON object") {
