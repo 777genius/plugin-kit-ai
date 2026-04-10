@@ -1,6 +1,9 @@
 package pluginmodel
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParsePortableMCPStandardProjectsAcrossTargets(t *testing.T) {
 	t.Parallel()
@@ -301,5 +304,52 @@ servers:
 `))
 	if err == nil {
 		t.Fatal("expected mixed schema marker error")
+	}
+}
+
+func TestPortableMCPFileFromNativeOpenCodeLocalPreservesPassthrough(t *testing.T) {
+	t.Parallel()
+	file, err := PortableMCPFileFromNative("opencode", map[string]any{
+		"docs": map[string]any{
+			"type":        "local",
+			"command":     []any{"node", "server.mjs"},
+			"environment": map[string]any{"TOKEN": "${env.DOCS_TOKEN}"},
+			"cwd":         "./tools",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := file.Servers["docs"]
+	if server.Type != "stdio" || server.Stdio == nil {
+		t.Fatalf("server = %#v", server)
+	}
+	if len(server.Targets) != 1 || server.Targets[0] != "opencode" {
+		t.Fatalf("targets = %#v", server.Targets)
+	}
+	if got := server.Passthrough["opencode"]["cwd"]; got != "./tools" {
+		t.Fatalf("passthrough cwd = %#v", got)
+	}
+}
+
+func TestImportedPortableMCPYAMLCanonicalizesAPIVersionV1(t *testing.T) {
+	t.Parallel()
+	body, err := ImportedPortableMCPYAML("gemini", map[string]any{
+		"docs": map[string]any{
+			"url": "https://example.com/mcp",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := string(body)
+	if !strings.Contains(rendered, "api_version: v1") {
+		t.Fatalf("missing api_version in rendered YAML:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "format:") || strings.Contains(rendered, "version: 1") {
+		t.Fatalf("rendered YAML still contains legacy markers:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "protocol: sse") {
+		t.Fatalf("gemini import did not normalize protocol:\n%s", rendered)
 	}
 }
