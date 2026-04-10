@@ -14,31 +14,28 @@ func (s Service) syncDesiredIntegration(
 	desiredIDs map[string]struct{},
 	report *domain.Report,
 ) {
-	source := resolveWorkspaceLockSource(s.WorkspaceLock.Path(), item.Source)
-	resolved, manifest, err := s.resolveDesiredSourceManifest(ctx, source)
+	source, manifest, err := s.resolveDesiredSyncManifest(ctx, item)
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync skipped for source "+item.Source+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredSourceWarning(item.Source, err))
 		return
 	}
-	cleanupResolvedSource(resolved)
 	desiredIDs[manifest.IntegrationID] = struct{}{}
-	desiredPolicy := desiredPolicyFromLock(item.Policy)
-	targets, err := resolveRequestedTargets(manifest, item.Targets)
+	desiredPolicy, targets, err := resolveDesiredSyncTargets(manifest, item)
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync skipped for "+manifest.IntegrationID+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredManifestWarning(manifest.IntegrationID, err))
 		return
 	}
 
 	record, exists := current[manifest.IntegrationID]
-	switch {
-	case !exists:
+	switch classifyDesiredSyncAction(record, exists, source, desiredPolicy, targets, item.Version) {
+	case desiredSyncActionAdd:
 		s.syncDesiredAdd(ctx, dryRun, manifest.IntegrationID, source, desiredPolicy, targets, report)
-	case syncNeedsReplace(record, source, desiredPolicy, targets, item.Version):
+	case desiredSyncActionReplace:
 		s.syncDesiredReplace(ctx, dryRun, record, manifest.IntegrationID, source, desiredPolicy, targets, report)
-	case syncNeedsUpdate(record, source, item.Version):
+	case desiredSyncActionUpdate:
 		s.syncDesiredUpdate(ctx, dryRun, manifest.IntegrationID, report)
 	default:
-		report.Warnings = append(report.Warnings, "Sync no-op for "+manifest.IntegrationID+": desired state already matches workspace intent")
+		report.Warnings = append(report.Warnings, syncDesiredNoopWarning(manifest.IntegrationID))
 	}
 }
 
@@ -94,4 +91,57 @@ func (s Service) syncDesiredUpdate(ctx context.Context, dryRun bool, integration
 		return
 	}
 	report.Targets = append(report.Targets, itemReport.Targets...)
+}
+
+type desiredSyncAction string
+
+const (
+	desiredSyncActionAdd     desiredSyncAction = "add"
+	desiredSyncActionReplace desiredSyncAction = "replace"
+	desiredSyncActionUpdate  desiredSyncAction = "update"
+	desiredSyncActionNoop    desiredSyncAction = "noop"
+)
+
+func (s Service) resolveDesiredSyncManifest(ctx context.Context, item domain.WorkspaceLockIntegration) (string, domain.IntegrationManifest, error) {
+	source := resolveWorkspaceLockSource(s.WorkspaceLock.Path(), item.Source)
+	resolved, manifest, err := s.resolveDesiredSourceManifest(ctx, source)
+	if err != nil {
+		return source, domain.IntegrationManifest{}, err
+	}
+	cleanupResolvedSource(resolved)
+	return source, manifest, nil
+}
+
+func resolveDesiredSyncTargets(manifest domain.IntegrationManifest, item domain.WorkspaceLockIntegration) (domain.InstallPolicy, []domain.TargetID, error) {
+	desiredPolicy := desiredPolicyFromLock(item.Policy)
+	targets, err := resolveRequestedTargets(manifest, item.Targets)
+	if err != nil {
+		return domain.InstallPolicy{}, nil, err
+	}
+	return desiredPolicy, targets, nil
+}
+
+func classifyDesiredSyncAction(record domain.InstallationRecord, exists bool, source string, desiredPolicy domain.InstallPolicy, targets []domain.TargetID, desiredVersion string) desiredSyncAction {
+	switch {
+	case !exists:
+		return desiredSyncActionAdd
+	case syncNeedsReplace(record, source, desiredPolicy, targets, desiredVersion):
+		return desiredSyncActionReplace
+	case syncNeedsUpdate(record, source, desiredVersion):
+		return desiredSyncActionUpdate
+	default:
+		return desiredSyncActionNoop
+	}
+}
+
+func syncDesiredSourceWarning(source string, err error) string {
+	return "Sync skipped for source " + source + ": " + err.Error()
+}
+
+func syncDesiredManifestWarning(integrationID string, err error) string {
+	return "Sync skipped for " + integrationID + ": " + err.Error()
+}
+
+func syncDesiredNoopWarning(integrationID string) string {
+	return "Sync no-op for " + integrationID + ": desired state already matches workspace intent"
 }
