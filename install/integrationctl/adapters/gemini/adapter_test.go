@@ -359,6 +359,31 @@ func TestInspectProjectScopeEnablementOverridesWorkspaceSettingsFallback(t *test
 	}
 }
 
+func TestDisabledByScopeOverrideUserScopeWildcardDisable(t *testing.T) {
+	t.Parallel()
+
+	disabled, handled, err := disabledByScopeOverride("user", "", []string{"!*"})
+	if err != nil {
+		t.Fatalf("disabledByScopeOverride: %v", err)
+	}
+	if !handled || !disabled {
+		t.Fatalf("handled=%t disabled=%t, want true/true", handled, disabled)
+	}
+}
+
+func TestDisabledByScopeOverrideProjectScopeMatchesWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	disabled, handled, err := disabledByScopeOverride("project", workspace, []string{filepath.Clean(workspace) + string(os.PathSeparator) + "*"})
+	if err != nil {
+		t.Fatalf("disabledByScopeOverride: %v", err)
+	}
+	if !handled || disabled {
+		t.Fatalf("handled=%t disabled=%t, want true/false", handled, disabled)
+	}
+}
+
 func TestPlanEnableProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
