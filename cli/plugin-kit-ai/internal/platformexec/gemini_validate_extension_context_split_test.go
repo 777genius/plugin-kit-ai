@@ -109,7 +109,10 @@ func TestUnexpectedGeminiContextDiagnosticBuildsFailure(t *testing.T) {
 func TestValidateGeminiExtensionContextDiagnosticsUsesExpectedBranch(t *testing.T) {
 	t.Parallel()
 
-	diagnostics := validateGeminiExtensionContextDiagnostics(t.TempDir(), geminiContextSelection{ArtifactName: "GEMINI.md"}, true, importedGeminiExtension{
+	diagnostics := validateGeminiExtensionContextDiagnostics(t.TempDir(), geminiExtensionContextSelection{
+		expected: geminiContextSelection{ArtifactName: "GEMINI.md"},
+		ok:       true,
+	}, importedGeminiExtension{
 		Meta: geminiPackageMeta{ContextFileName: "ALT.md"},
 	})
 	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "ALT.md"; expected "GEMINI.md"`) {
@@ -120,7 +123,7 @@ func TestValidateGeminiExtensionContextDiagnosticsUsesExpectedBranch(t *testing.
 func TestValidateGeminiExtensionContextDiagnosticsUsesUnexpectedBranch(t *testing.T) {
 	t.Parallel()
 
-	diagnostics := validateGeminiExtensionContextDiagnostics(t.TempDir(), geminiContextSelection{}, false, importedGeminiExtension{
+	diagnostics := validateGeminiExtensionContextDiagnostics(t.TempDir(), geminiExtensionContextSelection{}, importedGeminiExtension{
 		Meta: geminiPackageMeta{ContextFileName: "GEMINI.md"},
 	})
 	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "GEMINI.md" without an authored primary context`) {

@@ -4,21 +4,30 @@ import (
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
 
+type geminiExtensionContextSelection struct {
+	expected geminiContextSelection
+	ok       bool
+}
+
 func validateGeminiExtensionContextContract(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta, extension importedGeminiExtension) ([]Diagnostic, error) {
-	expected, ok, err := validateGeminiExtensionContextSelection(graph, state, meta)
+	selection, err := validateGeminiExtensionContextSelection(graph, state, meta)
 	if err != nil {
 		return nil, err
 	}
-	return validateGeminiExtensionContextDiagnostics(root, expected, ok, extension), nil
+	return validateGeminiExtensionContextDiagnostics(root, selection, extension), nil
 }
 
-func validateGeminiExtensionContextSelection(graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (geminiContextSelection, bool, error) {
-	return resolveGeminiExpectedContext(graph, state, meta)
+func validateGeminiExtensionContextSelection(graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (geminiExtensionContextSelection, error) {
+	expected, ok, err := resolveGeminiExpectedContext(graph, state, meta)
+	if err != nil {
+		return geminiExtensionContextSelection{}, err
+	}
+	return geminiExtensionContextSelection{expected: expected, ok: ok}, nil
 }
 
-func validateGeminiExtensionContextDiagnostics(root string, expected geminiContextSelection, ok bool, extension importedGeminiExtension) []Diagnostic {
-	if ok {
-		return validateGeminiExpectedContextContract(root, expected, extension)
+func validateGeminiExtensionContextDiagnostics(root string, selection geminiExtensionContextSelection, extension importedGeminiExtension) []Diagnostic {
+	if selection.ok {
+		return validateGeminiExpectedContextContract(root, selection.expected, extension)
 	}
 	return validateGeminiUnexpectedContextContract(extension)
 }
