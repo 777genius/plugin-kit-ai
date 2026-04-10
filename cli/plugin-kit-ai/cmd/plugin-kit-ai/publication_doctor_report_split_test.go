@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/exitx"
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
 )
@@ -26,5 +27,25 @@ func TestWarningMessagesProjectsWarningBodies(t *testing.T) {
 	got := warningMessages([]pluginmanifest.Warning{{Message: "first"}, {Message: "second"}})
 	if len(got) != 2 || got[0] != "first" || got[1] != "second" {
 		t.Fatalf("warnings = %+v", got)
+	}
+}
+
+func TestPublicationDoctorIssueErrWrapsExitCodeOne(t *testing.T) {
+	t.Parallel()
+
+	err := publicationDoctorIssueErr(false)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if code := exitx.Code(err); code != 1 {
+		t.Fatalf("exit code = %d", code)
+	}
+}
+
+func TestPublicationDoctorIssueErrSkipsReadyReports(t *testing.T) {
+	t.Parallel()
+
+	if err := publicationDoctorIssueErr(true); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
 	}
 }
