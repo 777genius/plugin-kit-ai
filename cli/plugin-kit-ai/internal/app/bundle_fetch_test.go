@@ -90,8 +90,8 @@ func TestPluginServiceBundleFetchURLInstallsPythonBundleWithExplicitChecksum(t *
 	}, map[string]bundleEntry{
 		"src/plugin.yaml":   {mode: 0o644, body: []byte("name: demo\n")},
 		"src/launcher.yaml": {mode: 0o644, body: []byte("runtime: python\nentrypoint: ./bin/demo\n")},
-		"bin/demo":      {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
-		"src/main.py":   {mode: 0o644, body: []byte("print('ok')\n")},
+		"bin/demo":          {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
+		"src/main.py":       {mode: 0o644, body: []byte("print('ok')\n")},
 	})
 	sum := sha256.Sum256(bundle)
 	result, err := bundleFetch(context.Background(), PluginBundleFetchOptions{
@@ -201,8 +201,8 @@ func TestPluginServiceBundleFetchGitHubInstallsNodeBundleFromChecksumsTxt(t *tes
 		BundleFormat:   "tar.gz",
 		GeneratedBy:    "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml":                {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml":              {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
+		"src/plugin.yaml":            {mode: 0o644, body: []byte("name: demo\n")},
+		"src/launcher.yaml":          {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
 		"package.json":               {mode: 0o644, body: []byte(`{"name":"demo","scripts":{"build":"tsc"}}`)},
 		"dist/main.js":               {mode: 0o644, body: []byte("console.log('ok')\n")},
 		"bin/demo":                   {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
@@ -298,8 +298,8 @@ func TestPluginServiceBundleFetchGitHubUsesLatestRelease(t *testing.T) {
 		BundleFormat:   "tar.gz",
 		GeneratedBy:    "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml":                {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml":              {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
+		"src/plugin.yaml":            {mode: 0o644, body: []byte("name: demo\n")},
+		"src/launcher.yaml":          {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
 		"package.json":               {mode: 0o644, body: []byte(`{"name":"demo"}`)},
 		"dist/main.js":               {mode: 0o644, body: []byte("console.log('ok')\n")},
 		"bin/demo":                   {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
@@ -419,6 +419,33 @@ func TestPluginServiceBundleFetchGitHubRejectsMetadataMismatch(t *testing.T) {
 		},
 	})
 	if err == nil || !strings.Contains(err.Error(), `does not match requested platform "claude"`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestParseBundleChecksumSelectsNamedEntry(t *testing.T) {
+	body := []byte(strings.Join([]string{
+		strings.Repeat("a", 64) + "  first_bundle.tar.gz",
+		strings.Repeat("b", 64) + "  wanted_bundle.tar.gz",
+	}, "\n"))
+
+	sum, err := parseBundleChecksum(body, "wanted_bundle.tar.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := hex.EncodeToString(sum); got != strings.Repeat("b", 64) {
+		t.Fatalf("checksum = %q", got)
+	}
+}
+
+func TestValidateBundleFetchModeRequiresPlatformAndRuntimeTogether(t *testing.T) {
+	err := validateBundleFetchMode(PluginBundleFetchOptions{
+		Ref:      "demo/demo",
+		Tag:      "v1.0.0",
+		Dest:     "/tmp/demo",
+		Platform: "claude",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--platform and --runtime together") {
 		t.Fatalf("error = %v", err)
 	}
 }
