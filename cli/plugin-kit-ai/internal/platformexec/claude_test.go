@@ -105,6 +105,32 @@ func TestClaudeImportMergesMultipleHookRefs(t *testing.T) {
 	}
 }
 
+func TestClaudeImportWarnsOnUnsupportedMixedHookArray(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), `{
+  "name": "claude-demo",
+  "version": "0.1.0",
+  "description": "claude demo",
+  "hooks": ["./custom/stop.json", {"inline": true}]
+}`)
+
+	imported, err := (claudeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{
+			Name:        "claude-demo",
+			Version:     "0.1.0",
+			Description: "claude demo",
+			Targets:     []string{"claude"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	if text := warningsText(imported.Warnings); !strings.Contains(text, `Claude manifest field "hooks" uses an unsupported mixed array shape; skipped during import normalization`) {
+		t.Fatalf("warnings = %s", text)
+	}
+}
+
 func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

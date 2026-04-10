@@ -2,7 +2,6 @@ package platformexec
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,36 +36,6 @@ type importedClaudePluginManifest struct {
 	Warnings           []string
 }
 
-func decodeClaudePathField(value any) ([]string, map[string]any, bool, string) {
-	switch typed := value.(type) {
-	case string:
-		text := strings.TrimSpace(typed)
-		if text == "" {
-			return nil, nil, true, ""
-		}
-		return []string{text}, nil, true, ""
-	case []any:
-		refs := jsonStringArray(typed)
-		if len(refs) == len(typed) {
-			return refs, nil, true, ""
-		}
-		return nil, nil, false, "uses an unsupported mixed array shape"
-	case map[string]any:
-		return nil, typed, true, ""
-	default:
-		return nil, nil, false, "uses an unsupported value shape"
-	}
-}
-
-func decodeClaudeUserConfig(value any) (map[string]any, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		return typed, true
-	default:
-		return nil, false
-	}
-}
-
 func readImportedClaudePluginManifest(root string) (importedClaudePluginManifest, []byte, bool, error) {
 	body, err := os.ReadFile(filepath.Join(root, ".claude-plugin", "plugin.json"))
 	if err != nil {
@@ -89,87 +58,14 @@ func readImportedClaudePluginManifest(root string) (importedClaudePluginManifest
 	if value, ok := raw["description"].(string); ok {
 		out.Description = strings.TrimSpace(value)
 	}
-	if value, ok := raw["skills"]; ok {
-		out.SkillsOverride = true
-		refs, _, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.SkillsRefs = refs
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "skills", warning))
-		}
-		delete(raw, "skills")
-	}
-	if value, ok := raw["commands"]; ok {
-		out.CommandsOverride = true
-		refs, _, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.CommandsRefs = refs
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "commands", warning))
-		}
-		delete(raw, "commands")
-	}
-	if value, ok := raw["agents"]; ok {
-		out.AgentsOverride = true
-		refs, _, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.AgentsRefs = refs
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "agents", warning))
-		}
-		delete(raw, "agents")
-	}
-	if value, ok := raw["hooks"]; ok {
-		out.HooksOverride = true
-		refs, inline, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.HookRefs = refs
-			out.InlineHooks = inline
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "hooks", warning))
-		}
-		delete(raw, "hooks")
-	}
-	if value, ok := raw["lspServers"]; ok {
-		out.LSPOverride = true
-		refs, inline, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.LSPRefs = refs
-			out.InlineLSP = inline
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "lspServers", warning))
-		}
-		delete(raw, "lspServers")
-	}
-	if value, ok := raw["mcpServers"]; ok {
-		out.MCPOverride = true
-		refs, inline, handled, warning := decodeClaudePathField(value)
-		if handled {
-			out.MCPRefs = refs
-			out.InlineMCP = inline
-		} else if warning != "" {
-			out.Warnings = append(out.Warnings, fmt.Sprintf("Claude manifest field %q %s; skipped during import normalization", "mcpServers", warning))
-		}
-		delete(raw, "mcpServers")
-	}
-	if value, ok := raw["settings"]; ok {
-		if settings, ok := decodeClaudeUserConfig(value); ok {
-			out.Settings = settings
-			out.SettingsProvided = true
-		} else {
-			out.Warnings = append(out.Warnings, `Claude manifest field "settings" must be a JSON object for package-standard normalization; skipped during import normalization`)
-		}
-		delete(raw, "settings")
-	}
-	if value, ok := raw["userConfig"]; ok {
-		if userConfig, ok := decodeClaudeUserConfig(value); ok {
-			out.UserConfig = userConfig
-			out.UserConfigProvided = true
-		} else {
-			out.Warnings = append(out.Warnings, `Claude manifest field "userConfig" must be a JSON object for package-standard normalization; skipped during import normalization`)
-		}
-		delete(raw, "userConfig")
-	}
+	consumeClaudePathField(raw, "skills", &out.SkillsOverride, &out.SkillsRefs, nil, &out.Warnings)
+	consumeClaudePathField(raw, "commands", &out.CommandsOverride, &out.CommandsRefs, nil, &out.Warnings)
+	consumeClaudePathField(raw, "agents", &out.AgentsOverride, &out.AgentsRefs, nil, &out.Warnings)
+	consumeClaudePathField(raw, "hooks", &out.HooksOverride, &out.HookRefs, &out.InlineHooks, &out.Warnings)
+	consumeClaudePathField(raw, "lspServers", &out.LSPOverride, &out.LSPRefs, &out.InlineLSP, &out.Warnings)
+	consumeClaudePathField(raw, "mcpServers", &out.MCPOverride, &out.MCPRefs, &out.InlineMCP, &out.Warnings)
+	consumeClaudeObjectField(raw, "settings", &out.SettingsProvided, &out.Settings, &out.Warnings)
+	consumeClaudeObjectField(raw, "userConfig", &out.UserConfigProvided, &out.UserConfig, &out.Warnings)
 	delete(raw, "name")
 	delete(raw, "version")
 	delete(raw, "description")
