@@ -658,6 +658,35 @@ func TestInspectReadsCatalogPolicyAndObservedCache(t *testing.T) {
 	}
 }
 
+func TestPathsForRecordPrefersOwnedNativePaths(t *testing.T) {
+	t.Parallel()
+	adapter := Adapter{ProjectRoot: "/repo", UserHome: "/home/demo"}
+	record := domain.InstallationRecord{
+		IntegrationID: "codex-demo",
+		Policy:        domain.InstallPolicy{Scope: "project"},
+		WorkspaceRoot: "/repo/worktree",
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCodex: {
+				OwnedNativeObjects: []domain.NativeObjectRef{
+					{Kind: "marketplace_catalog", Path: "/managed/catalog.json"},
+					{Kind: "plugin_root", Path: "/managed/plugin-root"},
+				},
+			},
+		},
+	}
+
+	paths := adapter.pathsForRecord(record)
+	if paths.CatalogPath != "/managed/catalog.json" {
+		t.Fatalf("catalog path = %q", paths.CatalogPath)
+	}
+	if paths.PluginRoot != "/managed/plugin-root" {
+		t.Fatalf("plugin root = %q", paths.PluginRoot)
+	}
+	if paths.ConfigPath != "/home/demo/.codex/config.toml" {
+		t.Fatalf("config path = %q", paths.ConfigPath)
+	}
+}
+
 func writeAuthoredCodexSource(t *testing.T, version, prompt string) string {
 	t.Helper()
 	root := t.TempDir()
