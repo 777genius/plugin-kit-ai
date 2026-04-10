@@ -50,20 +50,20 @@ func (s Service) syncDesiredAdd(ctx context.Context, dryRun bool, integrationID,
 		DryRun:          dryRun,
 	})
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync add failed for "+integrationID+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredAddFailedWarning(integrationID, err))
 		return
 	}
 	report.Targets = append(report.Targets, itemReport.Targets...)
 }
 
 func (s Service) syncDesiredReplace(ctx context.Context, dryRun bool, record domain.InstallationRecord, integrationID, source string, desiredPolicy domain.InstallPolicy, targets []domain.TargetID, report *domain.Report) {
-	if record.Policy.Scope != "project" || desiredPolicy.Scope != "project" {
-		report.Warnings = append(report.Warnings, "Sync skipped replace for "+integrationID+": replacing non-project scoped integrations is blocked")
+	if !canReplaceDesiredSync(record, desiredPolicy) {
+		report.Warnings = append(report.Warnings, syncDesiredReplaceBlockedWarning(integrationID))
 		return
 	}
 	removeReport, err := s.Remove(ctx, NamedDryRunInput{Name: record.IntegrationID, DryRun: dryRun})
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync remove-before-add failed for "+integrationID+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredRemoveBeforeAddWarning(integrationID, err))
 		return
 	}
 	addReport, err := s.Add(ctx, AddInput{
@@ -76,7 +76,7 @@ func (s Service) syncDesiredReplace(ctx context.Context, dryRun bool, record dom
 		DryRun:          dryRun,
 	})
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync re-add failed for "+integrationID+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredReAddFailedWarning(integrationID, err))
 		report.Targets = append(report.Targets, removeReport.Targets...)
 		return
 	}
@@ -87,7 +87,7 @@ func (s Service) syncDesiredReplace(ctx context.Context, dryRun bool, record dom
 func (s Service) syncDesiredUpdate(ctx context.Context, dryRun bool, integrationID string, report *domain.Report) {
 	itemReport, err := s.Update(ctx, NamedDryRunInput{Name: integrationID, DryRun: dryRun})
 	if err != nil {
-		report.Warnings = append(report.Warnings, "Sync update failed for "+integrationID+": "+err.Error())
+		report.Warnings = append(report.Warnings, syncDesiredUpdateFailedWarning(integrationID, err))
 		return
 	}
 	report.Targets = append(report.Targets, itemReport.Targets...)
