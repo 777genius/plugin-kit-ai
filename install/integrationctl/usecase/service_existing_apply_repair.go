@@ -6,19 +6,14 @@ import (
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func (s Service) applyRepairExisting(ctx context.Context, record domain.InstallationRecord, planned []plannedExistingTarget) (domain.Report, error) {
-	if len(planned) == 0 {
-		return domain.Report{}, domain.NewError(domain.ErrMutationApply, "repair requires at least one planned target", nil)
+	if err := validateExistingRepairTargets(planned); err != nil {
+		return domain.Report{}, err
 	}
 	defer cleanupPlannedExisting(planned)
-	if err := ensureExistingTargetsNotBlocking(planned); err != nil {
-		return domain.Report{}, err
-	}
-	if err := ensureExistingTargetsResolved(planned, "repair"); err != nil {
-		return domain.Report{}, err
-	}
 	operationID := operationID(actionNamePrefix("repair_drift"), record.IntegrationID, s.now())
 	unlock, err := s.LockManager.Acquire(ctx, "state")
 	if err != nil {
@@ -51,13 +46,7 @@ func (s Service) applyRepairExisting(ctx context.Context, record domain.Installa
 	if !found {
 		return domain.Report{}, domain.NewError(domain.ErrStateConflict, "integration disappeared from state during apply: "+record.IntegrationID, nil)
 	}
-	runtime := existingRepairRuntime{
-		operationID:   operationID,
-		startedAt:     startedAt,
-		state:         state,
-		nextRecord:    cloneInstallationRecord(items),
-		reportTargets: make([]domain.TargetReport, 0, len(planned)),
-	}
+	runtime := newExistingRepairRuntime(operationID, startedAt, state, items, len(planned))
 	for _, target := range planned {
 		persisted, err := s.applyRepairedExistingTarget(ctx, record, target, &runtime)
 		if err != nil {
@@ -66,7 +55,7 @@ func (s Service) applyRepairExisting(ctx context.Context, record domain.Installa
 		}
 	}
 
-	runtime.state.Installations = upsertInstallation(runtime.state.Installations, runtime.nextRecord)
+	runtime.state = finalizeExistingRepairState(runtime.state, runtime.nextRecord)
 	if err := s.StateStore.Save(ctx, runtime.state); err != nil {
 		return domain.Report{}, err
 	}
@@ -77,10 +66,39 @@ func (s Service) applyRepairExisting(ctx context.Context, record domain.Installa
 		return domain.Report{}, err
 	}
 	committed = true
-	sort.Slice(runtime.reportTargets, func(i, j int) bool { return runtime.reportTargets[i].TargetID < runtime.reportTargets[j].TargetID })
+	return existingRepairReport(operationID, record.IntegrationID, runtime.reportTargets), nil
+}
+
+func validateExistingRepairTargets(planned []plannedExistingTarget) error {
+	if len(planned) == 0 {
+		return domain.NewError(domain.ErrMutationApply, "repair requires at least one planned target", nil)
+	}
+	if err := ensureExistingTargetsNotBlocking(planned); err != nil {
+		return err
+	}
+	return ensureExistingTargetsResolved(planned, "repair")
+}
+
+func newExistingRepairRuntime(operationID, startedAt string, state ports.StateFile, items domain.InstallationRecord, plannedCount int) existingRepairRuntime {
+	return existingRepairRuntime{
+		operationID:   operationID,
+		startedAt:     startedAt,
+		state:         state,
+		nextRecord:    cloneInstallationRecord(items),
+		reportTargets: make([]domain.TargetReport, 0, plannedCount),
+	}
+}
+
+func finalizeExistingRepairState(state ports.StateFile, nextRecord domain.InstallationRecord) ports.StateFile {
+	state.Installations = upsertInstallation(state.Installations, nextRecord)
+	return state
+}
+
+func existingRepairReport(operationID, integrationID string, targets []domain.TargetReport) domain.Report {
+	sort.Slice(targets, func(i, j int) bool { return targets[i].TargetID < targets[j].TargetID })
 	return domain.Report{
 		OperationID: operationID,
-		Summary:     summaryForExisting("repair_drift", record.IntegrationID),
-		Targets:     runtime.reportTargets,
-	}, nil
+		Summary:     summaryForExisting("repair_drift", integrationID),
+		Targets:     targets,
+	}
 }
