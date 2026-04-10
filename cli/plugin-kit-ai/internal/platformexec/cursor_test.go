@@ -291,3 +291,24 @@ servers:
 		t.Fatalf("diagnostics = %+v", diagnostics)
 	}
 }
+
+func TestCursorPackagedValidateRejectsMCPServersWithoutPortableMCP(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo","mcpServers":"./.mcp.json"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+	}, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, "may not define mcpServers when portable MCP is absent") {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
