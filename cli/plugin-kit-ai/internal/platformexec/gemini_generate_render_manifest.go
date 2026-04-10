@@ -7,11 +7,7 @@ import (
 )
 
 func renderGeminiManifest(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (map[string]any, []pluginmodel.Artifact, error) {
-	manifest := map[string]any{
-		"name":        graph.Manifest.Name,
-		"version":     graph.Manifest.Version,
-		"description": graph.Manifest.Description,
-	}
+	manifest := buildGeminiManifestBase(graph)
 	if err := mergeGeminiManifestPortableMCP(manifest, graph); err != nil {
 		return nil, nil, err
 	}
@@ -23,12 +19,18 @@ func renderGeminiManifest(root string, graph pluginmodel.PackageGraph, state plu
 	if err != nil {
 		return nil, nil, err
 	}
-	if extra, err := loadNativeExtraDoc(root, state, "manifest_extra", pluginmodel.NativeDocFormatJSON); err != nil {
-		return nil, nil, err
-	} else if err := pluginmodel.MergeNativeExtraObject(manifest, extra, "gemini manifest.extra.json", geminiManifestManagedPaths()); err != nil {
+	if err := mergeGeminiManifestExtraDoc(root, state, manifest); err != nil {
 		return nil, nil, err
 	}
 	return manifest, contextArtifacts, nil
+}
+
+func buildGeminiManifestBase(graph pluginmodel.PackageGraph) map[string]any {
+	return map[string]any{
+		"name":        graph.Manifest.Name,
+		"version":     graph.Manifest.Version,
+		"description": graph.Manifest.Description,
+	}
 }
 
 func mergeGeminiManifestPortableMCP(manifest map[string]any, graph pluginmodel.PackageGraph) error {
@@ -55,3 +57,10 @@ func mergeGeminiManifestMeta(manifest map[string]any, meta geminiPackageMeta) {
 	}
 }
 
+func mergeGeminiManifestExtraDoc(root string, state pluginmodel.TargetState, manifest map[string]any) error {
+	extra, err := loadNativeExtraDoc(root, state, "manifest_extra", pluginmodel.NativeDocFormatJSON)
+	if err != nil {
+		return err
+	}
+	return pluginmodel.MergeNativeExtraObject(manifest, extra, "gemini manifest.extra.json", geminiManifestManagedPaths())
+}
