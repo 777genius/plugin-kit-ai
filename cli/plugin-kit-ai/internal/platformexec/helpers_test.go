@@ -89,6 +89,23 @@ func TestDecodeImportedOpenCodeConfigMergesLegacyModeWithoutOverwritingAgent(t *
 	}
 }
 
+func TestDecodeImportedOpenCodeConfigRejectsInvalidTuplePluginRef(t *testing.T) {
+	t.Parallel()
+	body := []byte(`{
+  "plugin": [
+    ["@acme/demo", "invalid"]
+  ]
+}`)
+
+	_, err := decodeImportedOpenCodeConfig(body)
+	if err == nil {
+		t.Fatal("expected invalid tuple plugin ref error")
+	}
+	if !strings.Contains(err.Error(), "tuple plugin ref options must be an object") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestParseMarkdownFrontmatterDocumentNormalizesBOMAndCRLF(t *testing.T) {
 	t.Parallel()
 	body := []byte("\ufeff---\r\ntitle: Demo\r\nkind: note\r\n---\r\n\r\nHello world\r\n")
