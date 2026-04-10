@@ -330,6 +330,37 @@ func TestRepairUsesUpdateSemantics(t *testing.T) {
 	}
 }
 
+func TestPlanUpdateUsesPersistedOwnedPaths(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "repo")
+	adapter := Adapter{ProjectRoot: project, UserHome: home}
+	record := domain.InstallationRecord{
+		IntegrationID: "codex-smoke",
+		Policy:        domain.InstallPolicy{Scope: "project"},
+		WorkspaceRoot: filepath.Join(project, "workspace"),
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCodex: {
+				OwnedNativeObjects: []domain.NativeObjectRef{
+					{Kind: "marketplace_catalog", Path: filepath.Join(project, ".managed", "marketplace.json")},
+					{Kind: "plugin_root", Path: filepath.Join(project, ".managed", "plugins", "codex-smoke")},
+				},
+			},
+		},
+	}
+
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{CurrentRecord: record})
+	if err != nil {
+		t.Fatalf("PlanUpdate: %v", err)
+	}
+	if got, want := plan.PathsTouched[0], filepath.Join(project, ".managed", "marketplace.json"); got != want {
+		t.Fatalf("catalog path = %q, want %q", got, want)
+	}
+	if got, want := plan.PathsTouched[1], filepath.Join(project, ".managed", "plugins", "codex-smoke"); got != want {
+		t.Fatalf("plugin root = %q, want %q", got, want)
+	}
+}
+
 func TestInspectDetectsInstalledStateFromCodexConfig(t *testing.T) {
 	withFakeCodexBinary(t)
 	home := t.TempDir()
@@ -447,6 +478,64 @@ func TestInspectDetectsDisabledStateFromCodexConfig(t *testing.T) {
 	}
 	if inspect.ActivationState != domain.ActivationComplete {
 		t.Fatalf("activation = %s", inspect.ActivationState)
+	}
+}
+
+func TestInspectWarnsOnInvalidCodexConfigToml(t *testing.T) {
+	t.Parallel()
+	withFakeCodexBinary(t)
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(filepath.Join(project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	catalogPath := filepath.Join(project, ".agents", "plugins", "marketplace.json")
+	pluginRoot := filepath.Join(project, ".agents", "plugins", "plugins", "codex-smoke")
+	if err := os.MkdirAll(pluginRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(catalogPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalogPath, []byte("{\n  \"name\": \"local-repo\",\n  \"plugins\": [\n    {\"name\":\"codex-smoke\",\"source\":{\"source\":\"local\",\"path\":\"./plugins/codex-smoke\"},\"policy\":{\"installation\":\"AVAILABLE\",\"authentication\":\"ON_INSTALL\"},\"category\":\"Productivity\"}\n  ]\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(home, ".codex", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(configPath, []byte("[plugins.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	adapter := Adapter{ProjectRoot: project, UserHome: home}
+	record := domain.InstallationRecord{
+		IntegrationID: "codex-smoke",
+		Policy:        domain.InstallPolicy{Scope: "project"},
+		WorkspaceRoot: project,
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCodex: {
+				OwnedNativeObjects: []domain.NativeObjectRef{
+					{Kind: "marketplace_catalog", Path: catalogPath},
+					{Kind: "plugin_root", Path: pluginRoot},
+				},
+				AdapterMetadata: map[string]any{"catalog_name": "local-repo"},
+			},
+		},
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{Record: &record, Scope: "project"})
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	found := false
+	for _, warning := range inspect.Warnings {
+		if strings.Contains(warning, "parse Codex config.toml:") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("warnings = %#v", inspect.Warnings)
 	}
 }
 

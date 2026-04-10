@@ -228,6 +228,48 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	}
 }
 
+func TestPlanUpdateUsesPersistedWorkspaceRootSettingsPath(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	workspaceA := filepath.Join(root, "workspace-a")
+	workspaceB := filepath.Join(root, "workspace-b")
+	settingsPath := filepath.Join(workspaceA, ".claude", "settings.json")
+	adapter := Adapter{UserHome: home}
+
+	prevWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	defer func() { _ = os.Chdir(prevWD) }()
+	for _, dir := range []string{workspaceA, workspaceB} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %q: %v", dir, err)
+		}
+	}
+	if err := os.Chdir(workspaceB); err != nil {
+		t.Fatalf("chdir workspace-b: %v", err)
+	}
+
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: domain.InstallationRecord{
+			IntegrationID: "claude-demo",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: workspaceA,
+		},
+		NextManifest: domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0"},
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	if len(plan.PathsTouched) != 2 {
+		t.Fatalf("paths touched = %#v", plan.PathsTouched)
+	}
+	if plan.PathsTouched[1] != settingsPath {
+		t.Fatalf("settings path = %q, want %q", plan.PathsTouched[1], settingsPath)
+	}
+}
+
 func TestInspectUsesNativePluginListForKnownPluginState(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace-a")
