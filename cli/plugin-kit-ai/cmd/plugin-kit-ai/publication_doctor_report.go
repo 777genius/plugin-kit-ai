@@ -7,14 +7,18 @@ import (
 )
 
 func renderPublicationDoctorJSON(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	if err := writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot)); err != nil {
-		return err
-	}
-	return publicationDoctorJSONIssueErr(diagnosis)
+	return renderPublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot), diagnosis)
 }
 
 func writePublicationDoctorJSONReport(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
 	return writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot))
+}
+
+func renderPublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDoctorJSONReport, diagnosis publicationDiagnosis) error {
+	if err := writePublicationDoctorJSONEnvelope(cmd, report); err != nil {
+		return err
+	}
+	return publicationDoctorJSONIssueErr(diagnosis)
 }
 
 func writePublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDoctorJSONReport) error {

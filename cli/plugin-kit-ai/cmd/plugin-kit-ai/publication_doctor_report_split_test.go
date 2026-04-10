@@ -139,6 +139,24 @@ func TestWritePublicationDoctorJSONEnvelopeEmitsJSONEnvelope(t *testing.T) {
 	}
 }
 
+func TestRenderPublicationDoctorJSONEnvelopeReturnsIssueExitAfterWrite(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	err := renderPublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONReport{
+		Format:        "plugin-kit-ai/publication-doctor-report",
+		SchemaVersion: 1,
+	}, publicationDiagnosis{Ready: false})
+	if code := exitx.Code(err); code != 1 {
+		t.Fatalf("exit code = %d", code)
+	}
+	if got := buf.String(); got == "" || got[0] != '{' {
+		t.Fatalf("output = %q", got)
+	}
+}
+
 func TestNewPublicationJSONReportCopiesWarnings(t *testing.T) {
 	t.Parallel()
 
