@@ -79,6 +79,27 @@ func TestOpenCodeImportNormalizesInlineAgentToolsToPermission(t *testing.T) {
 	}
 }
 
+func TestOpenCodeImportCarriesWorkspacePackageJSON(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeOpenCodeImportFile(t, filepath.Join(root, "opencode.json"), `{"$schema":"https://opencode.ai/config.json"}`)
+	writeOpenCodeImportFile(t, filepath.Join(root, ".opencode", "package.json"), `{"name":"demo-opencode","private":true}`)
+
+	imported, err := (opencodeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{Name: "demo", Version: "0.1.0", Description: "demo"},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+	packageBody, ok := artifactBody(imported.Artifacts, filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.json"))
+	if !ok {
+		t.Fatal("expected imported package.json artifact")
+	}
+	if !strings.Contains(packageBody, `"name":"demo-opencode"`) {
+		t.Fatalf("package.json artifact missing workspace payload:\n%s", packageBody)
+	}
+}
+
 func writeOpenCodeImportFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
