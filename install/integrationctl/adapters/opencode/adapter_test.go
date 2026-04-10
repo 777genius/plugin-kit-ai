@@ -292,6 +292,30 @@ func TestInspectUsesMetadataConfigPathFallback(t *testing.T) {
 	}
 }
 
+func TestInspectManagedSurfaceLayerMarksReadOnlySourceAccess(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	managedPath := filepath.Join(root, "managed-opencode.json")
+	mustWriteOpenCodeFile(t, managedPath, "{}\n")
+
+	prev := managedConfigPathsFunc
+	managedConfigPathsFunc = func(string) []string { return []string{managedPath} }
+	t.Cleanup(func() { managedConfigPathsFunc = prev })
+
+	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: t.TempDir(), UserHome: t.TempDir()}
+	restrictions, sourceAccess, managedPaths := adapter.inspectManagedSurfaceLayer()
+	if len(restrictions) != 1 || restrictions[0] != domain.RestrictionReadOnlyNativeLayer {
+		t.Fatalf("restrictions = %#v", restrictions)
+	}
+	if sourceAccess != "managed_config_layer" {
+		t.Fatalf("source access = %q", sourceAccess)
+	}
+	if len(managedPaths) != 1 || managedPaths[0] != managedPath {
+		t.Fatalf("managed paths = %#v", managedPaths)
+	}
+}
+
 func TestPlanBlockingManualStepsIncludesManagedLayerGuidance(t *testing.T) {
 	t.Parallel()
 	steps, blocking := planBlockingManualSteps(ports.InspectResult{

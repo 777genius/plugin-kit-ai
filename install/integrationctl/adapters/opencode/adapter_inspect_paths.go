@@ -9,6 +9,8 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 )
 
+var managedConfigPathsFunc = managedConfigPathsDefault
+
 func (a Adapter) inspectSurfacePaths(scope string, workspaceRoot string) (string, []string) {
 	if strings.EqualFold(strings.TrimSpace(scope), "project") {
 		root := a.effectiveProjectRoot(workspaceRoot)
@@ -27,9 +29,13 @@ func (a Adapter) inspectSurfacePaths(scope string, workspaceRoot string) (string
 }
 
 func (a Adapter) managedConfigPaths() []string {
+	return managedConfigPathsFunc(a.userHome())
+}
+
+func managedConfigPathsDefault(userHome string) []string {
 	switch runtime.GOOS {
 	case "darwin":
-		userName := strings.TrimSpace(filepath.Base(a.userHome()))
+		userName := strings.TrimSpace(filepath.Base(userHome))
 		return dedupeStrings([]string{
 			"/Library/Application Support/opencode/opencode.json",
 			"/Library/Application Support/opencode/opencode.jsonc",
