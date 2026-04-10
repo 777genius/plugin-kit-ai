@@ -348,6 +348,18 @@ func TestInspectUsesNativePluginListForKnownPluginState(t *testing.T) {
 	}
 }
 
+func TestResolveInspectIntegrationIDPrefersExplicitInput(t *testing.T) {
+	t.Parallel()
+
+	got := resolveInspectIntegrationID(ports.InspectInput{
+		IntegrationID: "explicit",
+		Record:        &domain.InstallationRecord{IntegrationID: "record"},
+	})
+	if got != "explicit" {
+		t.Fatalf("integration id = %q", got)
+	}
+}
+
 func TestPlanUpdateBlocksWhenMarketplaceIsSeedManaged(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
