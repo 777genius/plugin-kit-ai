@@ -12,22 +12,14 @@ func (geminiAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 	if err != nil {
 		return nil, err
 	}
-	meta, _, err := readYAMLDoc[geminiPackageMeta](root, state.DocPath("package_metadata"))
-	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", state.DocPath("package_metadata"), err)
-	}
-	if err := validateGeminiRenderReady(root, graph, state, meta); err != nil {
-		return nil, err
-	}
-	manifest, artifacts, err := renderGeminiManifest(root, graph, state, meta)
+	meta, err := loadGeminiRenderMeta(root, state)
 	if err != nil {
 		return nil, err
 	}
-	manifestJSON, err := marshalJSON(manifest)
+	artifacts, err := renderGeminiArtifacts(root, graph, state, meta)
 	if err != nil {
 		return nil, err
 	}
-	artifacts = append(artifacts, pluginmodel.Artifact{RelPath: "gemini-extension.json", Content: manifestJSON})
 	return appendGeminiGeneratedArtifacts(root, graph, state, entrypoint, artifacts)
 }
 
