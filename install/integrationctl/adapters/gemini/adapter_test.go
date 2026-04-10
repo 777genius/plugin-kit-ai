@@ -628,6 +628,21 @@ func TestRunGeminiReturnsMutationErrorOnFailure(t *testing.T) {
 	}
 }
 
+func TestSelectPrimaryContextRejectsAmbiguousConfiguredName(t *testing.T) {
+	t.Parallel()
+
+	_, ok, err := selectPrimaryContext([]string{
+		"release/GEMINI.md",
+		"handoff/GEMINI.md",
+	}, "GEMINI.md")
+	if ok {
+		t.Fatal("expected ambiguous configured context to be rejected")
+	}
+	if err == nil || !strings.Contains(err.Error(), `context_file_name "GEMINI.md" is ambiguous`) {
+		t.Fatalf("selectPrimaryContext error = %v", err)
+	}
+}
+
 func writeGeminiFile(t *testing.T, path string, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
