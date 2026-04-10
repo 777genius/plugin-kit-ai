@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -27,30 +28,17 @@ func (s Service) executeExisting(ctx context.Context, in NamedDryRunInput, actio
 }
 
 func (s Service) planExisting(ctx context.Context, in NamedDryRunInput, action string) (domain.Report, error) {
-	state, err := s.StateStore.Load(ctx)
+	record, err := s.loadExistingPlanRecord(ctx, in.Name)
 	if err != nil {
 		return domain.Report{}, err
 	}
-	record, ok := findInstallation(state.Installations, in.Name)
-	if !ok {
-		return domain.Report{}, domain.NewError(domain.ErrStateConflict, "integration not found in state: "+in.Name, nil)
-	}
 	planned := make([]plannedExistingTarget, 0, len(record.Targets))
-	report := domain.Report{
-		OperationID: operationID("plan_"+action, record.IntegrationID, s.now()),
-		Summary:     fmt.Sprintf("Dry-run %s plan for %q.", action, record.IntegrationID),
+	report := newExistingPlanReport(action, record.IntegrationID, s.now())
+	sharedResolved, sharedManifest, cleanupShared, err := s.resolveExistingSharedSource(ctx, record, action, in.DryRun)
+	if err != nil {
+		return domain.Report{}, err
 	}
-	var sharedResolved *ports.ResolvedSource
-	var sharedManifest *domain.IntegrationManifest
-	if action == "update_version" || ((action == "remove_orphaned_target" || action == "repair_drift") && !in.DryRun) {
-		resolved, manifest, err := s.resolveCurrentSourceManifest(ctx, record)
-		if err != nil {
-			return domain.Report{}, err
-		}
-		sharedResolved = &resolved
-		sharedManifest = &manifest
-		defer cleanupResolvedSource(resolved)
-	}
+	defer cleanupShared()
 	selectedTargetIDs, err := s.selectExistingTargets(record, in.Target, action)
 	if err != nil {
 		return domain.Report{}, err
@@ -82,4 +70,49 @@ func (s Service) planExisting(ctx context.Context, in NamedDryRunInput, action s
 		return report, nil
 	}
 	return s.applyExisting(ctx, record, action, planned)
+}
+
+func (s Service) loadExistingPlanRecord(ctx context.Context, name string) (domain.InstallationRecord, error) {
+	state, err := s.StateStore.Load(ctx)
+	if err != nil {
+		return domain.InstallationRecord{}, err
+	}
+	record, ok := findInstallation(state.Installations, name)
+	if !ok {
+		return domain.InstallationRecord{}, domain.NewError(domain.ErrStateConflict, "integration not found in state: "+name, nil)
+	}
+	return record, nil
+}
+
+func newExistingPlanReport(action, integrationID string, now time.Time) domain.Report {
+	return domain.Report{
+		OperationID: operationID("plan_"+action, integrationID, now),
+		Summary:     fmt.Sprintf("Dry-run %s plan for %q.", action, integrationID),
+	}
+}
+
+func shouldResolveExistingSharedSource(action string, dryRun bool) bool {
+	if action == "update_version" {
+		return true
+	}
+	if !dryRun && (action == "remove_orphaned_target" || action == "repair_drift") {
+		return true
+	}
+	return false
+}
+
+func (s Service) resolveExistingSharedSource(
+	ctx context.Context,
+	record domain.InstallationRecord,
+	action string,
+	dryRun bool,
+) (*ports.ResolvedSource, *domain.IntegrationManifest, func(), error) {
+	if !shouldResolveExistingSharedSource(action, dryRun) {
+		return nil, nil, func() {}, nil
+	}
+	resolved, manifest, err := s.resolveCurrentSourceManifest(ctx, record)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return &resolved, &manifest, func() { cleanupResolvedSource(resolved) }, nil
 }
