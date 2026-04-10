@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -72,5 +73,35 @@ func TestExistingUpdateVerifyRecordDelegatesProvisionalRecord(t *testing.T) {
 	got := existingUpdateVerifyRecord(record, target, ports.ApplyResult{})
 	if got.ResolvedVersion != "2.0.0" || got.Targets["gemini"].TargetID != "gemini" {
 		t.Fatalf("record = %+v", got)
+	}
+}
+
+func TestDegradedExistingUpdateStateMarksTargetAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	state := degradedExistingUpdateState(ports.StateFile{}, domain.InstallationRecord{
+		IntegrationID: "demo",
+		Targets:       map[domain.TargetID]domain.TargetInstallation{},
+	}, plannedExistingTarget{
+		TargetID: "gemini",
+		Delivery: domain.Delivery{TargetID: "gemini"},
+		Manifest: &domain.IntegrationManifest{
+			Version:        "1.2.3",
+			ResolvedRef:    domain.ResolvedSourceRef{Value: "registry.example/demo@1.2.3"},
+			SourceDigest:   "source",
+			ManifestDigest: "manifest",
+		},
+	}, "2026-04-10T20:00:00Z")
+	if len(state.Installations) != 1 || state.Installations[0].ResolvedVersion != "1.2.3" || state.Installations[0].Targets["gemini"].State != domain.InstallDegraded {
+		t.Fatalf("state = %+v", state)
+	}
+}
+
+func TestExistingUpdateFailureErrorWrapsMutationApply(t *testing.T) {
+	t.Parallel()
+
+	err := existingUpdateFailureError("update failed after partial progress; degraded state persisted", errors.New("cause"))
+	if err == nil || !strings.Contains(err.Error(), "update failed after partial progress; degraded state persisted") {
+		t.Fatalf("err = %v", err)
 	}
 }
