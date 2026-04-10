@@ -2722,6 +2722,18 @@ func TestDiscover_RejectsRemovedPortableContexts(t *testing.T) {
 	}
 }
 
+func TestDiscover_RejectsRemovedPortableAgents(t *testing.T) {
+	root := t.TempDir()
+	manifest := Default("demo-claude", "claude", "", "claude demo", true)
+	mustSavePackage(t, root, manifest, "")
+	mustWritePluginFile(t, root, filepath.Join(pluginmodel.SourceDirName, "agents", "reviewer.md"), "# Reviewer\n")
+
+	_, _, err := Discover(root)
+	if err == nil || !strings.Contains(err.Error(), "portable agents were removed") {
+		t.Fatalf("Discover error = %v", err)
+	}
+}
+
 func TestInspect_ExposesSurfaceTiers(t *testing.T) {
 	root := t.TempDir()
 	manifest := Default("demo", "claude", "go", "demo plugin", true)
