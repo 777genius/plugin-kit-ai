@@ -11,13 +11,22 @@ func (s Service) runSync(ctx context.Context, dryRun bool) (domain.Report, error
 	if err != nil {
 		return domain.Report{}, err
 	}
+	return s.runWorkspaceSyncPhases(ctx, dryRun, lock.Integrations, state.Installations, current), nil
+}
 
-	report := s.newWorkspaceSyncReport(len(lock.Integrations))
+func (s Service) runWorkspaceSyncPhases(
+	ctx context.Context,
+	dryRun bool,
+	items []domain.WorkspaceLockIntegration,
+	installations []domain.InstallationRecord,
+	current map[string]domain.InstallationRecord,
+) domain.Report {
+	report := s.newWorkspaceSyncReport(len(items))
 	desiredIDs := newSyncDesiredIDs()
-	s.syncDesiredIntegrations(ctx, dryRun, lock.Integrations, current, desiredIDs, &report)
-	s.syncUndesiredIntegrations(ctx, dryRun, state.Installations, desiredIDs, &report)
+	s.syncDesiredIntegrations(ctx, dryRun, items, current, desiredIDs, &report)
+	s.syncUndesiredIntegrations(ctx, dryRun, installations, desiredIDs, &report)
 	finalizeWorkspaceSyncReport(&report)
-	return report, nil
+	return report
 }
 
 func (s Service) syncDesiredIntegrations(
@@ -29,6 +38,17 @@ func (s Service) syncDesiredIntegrations(
 	report *domain.Report,
 ) {
 	for _, item := range items {
-		s.syncDesiredIntegration(ctx, dryRun, item, current, desiredIDs, report)
+		s.syncDesiredItem(ctx, dryRun, item, current, desiredIDs, report)
 	}
+}
+
+func (s Service) syncDesiredItem(
+	ctx context.Context,
+	dryRun bool,
+	item domain.WorkspaceLockIntegration,
+	current map[string]domain.InstallationRecord,
+	desiredIDs map[string]struct{},
+	report *domain.Report,
+) {
+	s.syncDesiredIntegration(ctx, dryRun, item, current, desiredIDs, report)
 }
