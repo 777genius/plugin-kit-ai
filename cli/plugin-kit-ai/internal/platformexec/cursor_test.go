@@ -252,3 +252,42 @@ servers:
 		t.Fatalf("artifacts = %+v", artifacts)
 	}
 }
+
+func TestCursorPackagedValidateRequiresManagedMCPRef(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo","mcpServers":"./config/mcp.json"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+
+servers:
+  docs:
+    type: remote
+    remote:
+      protocol: streamable_http
+      url: "https://example.com/mcp"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+		Portable: pluginmodel.PortableComponents{
+			MCP: &pluginmodel.PortableMCP{
+				Path:    filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")),
+				Servers: parsed.Servers,
+				File:    parsed.File,
+			},
+		},
+	}, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, `must use "./.mcp.json"`) {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
