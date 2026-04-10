@@ -5,14 +5,22 @@ import (
 )
 
 func validateGeminiExtensionContextContract(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta, extension importedGeminiExtension) ([]Diagnostic, error) {
-	expected, ok, err := resolveGeminiExpectedContext(graph, state, meta)
+	expected, ok, err := validateGeminiExtensionContextSelection(graph, state, meta)
 	if err != nil {
 		return nil, err
 	}
+	return validateGeminiExtensionContextDiagnostics(root, expected, ok, extension), nil
+}
+
+func validateGeminiExtensionContextSelection(graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (geminiContextSelection, bool, error) {
+	return resolveGeminiExpectedContext(graph, state, meta)
+}
+
+func validateGeminiExtensionContextDiagnostics(root string, expected geminiContextSelection, ok bool, extension importedGeminiExtension) []Diagnostic {
 	if ok {
-		return validateGeminiExpectedContextContract(root, expected, extension), nil
+		return validateGeminiExpectedContextContract(root, expected, extension)
 	}
-	return validateGeminiUnexpectedContextContract(extension), nil
+	return validateGeminiUnexpectedContextContract(extension)
 }
 
 func validateGeminiExpectedContextContract(root string, expected geminiContextSelection, extension importedGeminiExtension) []Diagnostic {
