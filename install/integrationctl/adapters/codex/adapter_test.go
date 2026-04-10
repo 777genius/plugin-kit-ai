@@ -622,6 +622,42 @@ func TestInspectPreparedWithoutCacheRemainsActivationPending(t *testing.T) {
 	}
 }
 
+func TestInspectReadsCatalogPolicyAndObservedCache(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	project := filepath.Join(t.TempDir(), "repo")
+	if err := os.MkdirAll(filepath.Join(project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	catalogPath := filepath.Join(project, ".agents", "plugins", "marketplace.json")
+	if err := os.MkdirAll(filepath.Dir(catalogPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalogPath, []byte("{\n  \"name\": \"local-repo\",\n  \"plugins\": [\n    {\"name\":\"codex-smoke\",\"source\":{\"source\":\"local\",\"path\":\"./plugins/codex-smoke\"},\"policy\":{\"installation\":\"AVAILABLE\",\"authentication\":\"ON_INSTALL\"},\"category\":\"Productivity\"}\n  ]\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	createCodexCacheBundle(t, home, "local-repo", "codex-smoke")
+
+	adapter := Adapter{ProjectRoot: project, UserHome: home}
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope: "project",
+		Record: &domain.InstallationRecord{
+			IntegrationID: "codex-smoke",
+			Policy:        domain.InstallPolicy{Scope: "project"},
+			WorkspaceRoot: project,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Inspect: %v", err)
+	}
+	if inspect.CatalogPolicy == nil || inspect.CatalogPolicy.Authentication != "ON_INSTALL" {
+		t.Fatalf("catalog policy = %+v", inspect.CatalogPolicy)
+	}
+	if !hasObservedKind(inspect.ObservedNativeObjects, "installed_cache_bundle") {
+		t.Fatalf("observed = %+v", inspect.ObservedNativeObjects)
+	}
+}
+
 func writeAuthoredCodexSource(t *testing.T, version, prompt string) string {
 	t.Helper()
 	root := t.TempDir()
