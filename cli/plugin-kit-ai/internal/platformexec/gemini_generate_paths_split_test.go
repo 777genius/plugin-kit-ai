@@ -30,3 +30,28 @@ func TestGeminiManagedPathsPreservesPackageMetadataParsePath(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestBuildGeminiManagedPathsAddsPrimaryAndExtraContexts(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]struct{}{}
+	state := pluginmodel.NewTargetState("gemini")
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "GEMINI.md"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "extra.md"))
+
+	got := buildGeminiManagedPaths(seen, state, geminiContextSelection{
+		ArtifactName: "GEMINI.md",
+		SourcePath:   filepath.Join("targets", "gemini", "contexts", "GEMINI.md"),
+	}, true)
+	if len(got) != 2 || got[0] != "GEMINI.md" || got[1] != filepath.ToSlash(filepath.Join("contexts", "extra.md")) {
+		t.Fatalf("paths = %+v", got)
+	}
+}
+
+func TestGeminiGeneratedHooksPathUsesCanonicalLocation(t *testing.T) {
+	t.Parallel()
+
+	if got := geminiGeneratedHooksPath(); got != filepath.ToSlash(filepath.Join("hooks", "hooks.json")) {
+		t.Fatalf("path = %q", got)
+	}
+}

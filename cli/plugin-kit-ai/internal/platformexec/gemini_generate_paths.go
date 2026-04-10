@@ -9,25 +9,36 @@ import (
 )
 
 func (geminiAdapter) ManagedPaths(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) ([]string, error) {
-	meta, err := loadGeminiRenderMeta(root, state)
-	if err != nil {
-		return nil, err
-	}
 	seen := initialGeminiManagedPathSet(graph, state)
-	selected, ok, err := selectGeminiPrimaryContext(graph, state, meta)
-	if err != nil || !ok {
+	selected, ok, err := resolveGeminiManagedContextSelection(root, graph, state)
+	if err != nil {
 		return sortedKeys(seen), err
 	}
-	addGeminiManagedContextPaths(seen, state, selected)
-	return sortedGeminiManagedPaths(seen), nil
+	return buildGeminiManagedPaths(seen, state, selected, ok), nil
 }
 
 func initialGeminiManagedPathSet(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) map[string]struct{} {
 	seen := map[string]struct{}{}
 	if geminiUsesGeneratedHooks(graph, state) {
-		seen[filepath.ToSlash(filepath.Join("hooks", "hooks.json"))] = struct{}{}
+		seen[geminiGeneratedHooksPath()] = struct{}{}
 	}
 	return seen
+}
+
+func resolveGeminiManagedContextSelection(root string, graph pluginmodel.PackageGraph, state pluginmodel.TargetState) (geminiContextSelection, bool, error) {
+	meta, err := loadGeminiRenderMeta(root, state)
+	if err != nil {
+		return geminiContextSelection{}, false, err
+	}
+	return selectGeminiPrimaryContext(graph, state, meta)
+}
+
+func buildGeminiManagedPaths(seen map[string]struct{}, state pluginmodel.TargetState, selected geminiContextSelection, ok bool) []string {
+	if !ok {
+		return sortedKeys(seen)
+	}
+	addGeminiManagedContextPaths(seen, state, selected)
+	return sortedGeminiManagedPaths(seen)
 }
 
 func addGeminiManagedContextPaths(seen map[string]struct{}, state pluginmodel.TargetState, selected geminiContextSelection) {
@@ -47,6 +58,10 @@ func sortedGeminiManagedPaths(seen map[string]struct{}) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+func geminiGeneratedHooksPath() string {
+	return filepath.ToSlash(filepath.Join("hooks", "hooks.json"))
 }
 
 func geminiUsesGeneratedHooks(graph pluginmodel.PackageGraph, state pluginmodel.TargetState) bool {
