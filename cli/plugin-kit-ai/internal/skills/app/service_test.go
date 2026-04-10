@@ -146,6 +146,15 @@ z
 	}
 }
 
+func TestServiceGenerateRejectsUnknownTarget(t *testing.T) {
+	t.Parallel()
+	svc := Service{}
+	_, err := svc.Generate(RenderOptions{Root: t.TempDir(), Target: "typo"})
+	if err == nil || !strings.Contains(err.Error(), `unknown generate target "typo"`) {
+		t.Fatalf("Generate unknown target error = %v", err)
+	}
+}
+
 func TestServiceRenderCommandDocQuotesArgs(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
