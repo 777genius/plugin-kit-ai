@@ -64,6 +64,47 @@ func TestClaudeImportNormalizesCustomPathsAndInfersLauncher(t *testing.T) {
 	}
 }
 
+func TestClaudeImportMergesMultipleHookRefs(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeClaudeTestFile(t, filepath.Join(root, ".claude-plugin", "plugin.json"), `{
+  "name": "claude-demo",
+  "version": "0.1.0",
+  "description": "claude demo",
+  "hooks": ["./custom/stop.json", "./custom/notify.json"]
+}`)
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "stop.json"), "{\n  \"hooks\": {\n    \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/demo Stop\"}]}]\n  }\n}\n")
+	writeClaudeTestFile(t, filepath.Join(root, "custom", "notify.json"), "{\n  \"hooks\": {\n    \"Notification\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/demo Notification\"}]}]\n  }\n}\n")
+
+	imported, err := (claudeAdapter{}).Import(root, ImportSeed{
+		Manifest: pluginmodel.Manifest{
+			Name:        "claude-demo",
+			Version:     "0.1.0",
+			Description: "claude demo",
+			Targets:     []string{"claude"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Import error = %v", err)
+	}
+
+	var hooksJSON string
+	for _, artifact := range imported.Artifacts {
+		if artifact.RelPath == filepath.ToSlash(filepath.Join("targets", "claude", "hooks", "hooks.json")) {
+			hooksJSON = string(artifact.Content)
+			break
+		}
+	}
+	if hooksJSON == "" {
+		t.Fatalf("hooks artifact missing: %+v", imported.Artifacts)
+	}
+	for _, want := range []string{`"Stop"`, `"Notification"`, `./bin/demo Stop`, `./bin/demo Notification`} {
+		if !strings.Contains(hooksJSON, want) {
+			t.Fatalf("hooks artifact missing %q:\n%s", want, hooksJSON)
+		}
+	}
+}
+
 func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
