@@ -10,11 +10,11 @@ import (
 func TestValidateGeminiExtensionMCPContractRejectsGeneratedServersWithoutPortableMCP(t *testing.T) {
 	t.Parallel()
 
-	diagnostics, err := validateGeminiExtensionMCPContract(pluginmodel.PackageGraph{}, importedGeminiExtension{
+	diagnostics, err := validateGeminiExtensionProjectedMCP(pluginmodel.PackageGraph{}, importedGeminiExtension{
 		MCPServers: map[string]any{"demo": map[string]any{"command": "node"}},
 	})
 	if err != nil {
-		t.Fatalf("validateGeminiExtensionMCPContract error = %v", err)
+		t.Fatalf("validateGeminiExtensionProjectedMCP error = %v", err)
 	}
 	if text := diagnosticsText(diagnostics); !strings.Contains(text, "may not define mcpServers when portable MCP is absent") {
 		t.Fatalf("diagnostics missing mcp contract failure:\n%s", text)
