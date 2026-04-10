@@ -22,13 +22,7 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	defer func() { _ = unlock() }()
 
 	startedAt := s.now().UTC().Format(time.RFC3339)
-	if err := s.Journal.Start(ctx, domain.OperationRecord{
-		OperationID:   operationID,
-		Type:          "update",
-		IntegrationID: record.IntegrationID,
-		Status:        "in_progress",
-		StartedAt:     startedAt,
-	}); err != nil {
+	if err := s.Journal.Start(ctx, newExistingUpdateOperationRecord(operationID, record.IntegrationID, startedAt)); err != nil {
 		return domain.Report{}, err
 	}
 	committed := false
@@ -42,11 +36,10 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	if err != nil {
 		return domain.Report{}, err
 	}
-	items, found := findInstallationMutable(state.Installations, record.IntegrationID)
-	if !found {
-		return domain.Report{}, domain.NewError(domain.ErrStateConflict, "integration disappeared from state during apply: "+record.IntegrationID, nil)
+	runtime, err := loadExistingUpdateRuntime(state, record.IntegrationID, operationID, startedAt, len(planned))
+	if err != nil {
+		return domain.Report{}, err
 	}
-	runtime := newExistingUpdateRuntime(operationID, startedAt, state, items, len(planned))
 	for _, target := range planned {
 		persisted, err := s.applyUpdatedExistingTarget(ctx, record, target, &runtime)
 		if err != nil {
@@ -56,17 +49,21 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	}
 
 	runtime.state = finalizeExistingUpdateState(runtime.state, runtime.nextRecord)
-	if err := s.StateStore.Save(ctx, runtime.state); err != nil {
-		return domain.Report{}, err
-	}
-	if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_state", Status: "ok"}); err != nil {
-		return domain.Report{}, err
-	}
-	if err := s.Journal.Finish(ctx, operationID, "committed"); err != nil {
+	if err := s.persistExistingUpdateCommittedState(ctx, operationID, runtime.state); err != nil {
 		return domain.Report{}, err
 	}
 	committed = true
 	return existingUpdateReport(operationID, record.IntegrationID, runtime.reportTargets), nil
+}
+
+func newExistingUpdateOperationRecord(operationID, integrationID, startedAt string) domain.OperationRecord {
+	return domain.OperationRecord{
+		OperationID:   operationID,
+		Type:          "update",
+		IntegrationID: integrationID,
+		Status:        "in_progress",
+		StartedAt:     startedAt,
+	}
 }
 
 func validateExistingUpdateTargets(planned []plannedExistingTarget) error {
@@ -89,9 +86,27 @@ func newExistingUpdateRuntime(operationID, startedAt string, state ports.StateFi
 	}
 }
 
+func loadExistingUpdateRuntime(state ports.StateFile, integrationID, operationID, startedAt string, plannedCount int) (existingUpdateRuntime, error) {
+	items, found := findInstallationMutable(state.Installations, integrationID)
+	if !found {
+		return existingUpdateRuntime{}, domain.NewError(domain.ErrStateConflict, "integration disappeared from state during apply: "+integrationID, nil)
+	}
+	return newExistingUpdateRuntime(operationID, startedAt, state, items, plannedCount), nil
+}
+
 func finalizeExistingUpdateState(state ports.StateFile, nextRecord domain.InstallationRecord) ports.StateFile {
 	state.Installations = upsertInstallation(state.Installations, nextRecord)
 	return state
+}
+
+func (s Service) persistExistingUpdateCommittedState(ctx context.Context, operationID string, state ports.StateFile) error {
+	if err := s.StateStore.Save(ctx, state); err != nil {
+		return err
+	}
+	if err := s.Journal.AppendStep(ctx, operationID, domain.JournalStep{Target: "state", Action: "persist_state", Status: "ok"}); err != nil {
+		return err
+	}
+	return s.Journal.Finish(ctx, operationID, "committed")
 }
 
 func existingUpdateReport(operationID, integrationID string, targets []domain.TargetReport) domain.Report {

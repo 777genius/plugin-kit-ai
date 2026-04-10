@@ -105,3 +105,35 @@ func TestExistingUpdateFailureErrorWrapsMutationApply(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestNewExistingUpdateOperationRecordBuildsInProgressRecord(t *testing.T) {
+	t.Parallel()
+
+	record := newExistingUpdateOperationRecord("op", "demo", "2026-04-10T20:00:00Z")
+	if record.OperationID != "op" || record.Type != "update" || record.IntegrationID != "demo" || record.Status != "in_progress" || record.StartedAt != "2026-04-10T20:00:00Z" {
+		t.Fatalf("record = %+v", record)
+	}
+}
+
+func TestLoadExistingUpdateRuntimeRejectsMissingInstallation(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadExistingUpdateRuntime(ports.StateFile{}, "demo", "op", "2026-04-10T20:00:00Z", 1)
+	if err == nil || !strings.Contains(err.Error(), "integration disappeared from state during apply: demo") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestLoadExistingUpdateRuntimeBuildsRuntime(t *testing.T) {
+	t.Parallel()
+
+	runtime, err := loadExistingUpdateRuntime(ports.StateFile{
+		Installations: []domain.InstallationRecord{{IntegrationID: "demo"}},
+	}, "demo", "op", "2026-04-10T20:00:00Z", 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.operationID != "op" || runtime.startedAt != "2026-04-10T20:00:00Z" || cap(runtime.reportTargets) != 2 || runtime.nextRecord.IntegrationID != "demo" {
+		t.Fatalf("runtime = %+v", runtime)
+	}
+}
