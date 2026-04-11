@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-
-	"github.com/777genius/plugin-kit-ai/plugininstall/domain"
 )
 
 func resolveBundleGitHubSource(ctx context.Context, opts PluginBundleFetchOptions, source bundleGitHubSource) (bundleRemoteSource, error) {
@@ -16,12 +14,7 @@ func resolveBundleGitHubSource(ctx context.Context, opts PluginBundleFetchOption
 	if err != nil {
 		return bundleRemoteSource{}, err
 	}
-	var rel *domain.Release
-	if opts.Latest {
-		rel, err = source.GetLatestRelease(ctx, owner, repo)
-	} else {
-		rel, err = source.FindReleaseByTag(ctx, owner, repo, strings.TrimSpace(opts.Tag))
-	}
+	rel, err := loadBundleGitHubRelease(ctx, source, owner, repo, opts)
 	if err != nil {
 		return bundleRemoteSource{}, err
 	}
@@ -29,36 +22,7 @@ func resolveBundleGitHubSource(ctx context.Context, opts PluginBundleFetchOption
 	if err != nil {
 		return bundleRemoteSource{}, err
 	}
-	body, _, err := source.DownloadAsset(ctx, asset.BrowserDownloadURL)
-	if err != nil {
-		return bundleRemoteSource{}, err
-	}
-	sum, checksumSource, err := resolveGitHubBundleChecksum(ctx, source, rel, *asset)
-	if err != nil {
-		return bundleRemoteSource{}, err
-	}
-	if err := verifyBundleChecksum(body, sum); err != nil {
-		return bundleRemoteSource{}, fmt.Errorf("bundle fetch checksum verification failed: %w", err)
-	}
-
-	releaseRef := strings.TrimSpace(rel.TagName)
-	if releaseRef == "" {
-		releaseRef = strings.TrimSpace(opts.Tag)
-	}
-	refLabel := owner + "/" + repo
-	if releaseRef != "" {
-		refLabel += "@" + releaseRef
-	}
-	if opts.Latest {
-		refLabel += " (latest)"
-	} else {
-		refLabel += " (tag)"
-	}
-	return bundleRemoteSource{
-		ArchiveBytes:   body,
-		BundleSource:   fmt.Sprintf("github release %s asset=%s", refLabel, asset.Name),
-		ChecksumSource: checksumSource,
-	}, nil
+	return buildBundleGitHubRemoteSource(ctx, source, rel, *asset, opts, owner, repo)
 }
 
 func splitOwnerRepo(ref string) (string, string, error) {
