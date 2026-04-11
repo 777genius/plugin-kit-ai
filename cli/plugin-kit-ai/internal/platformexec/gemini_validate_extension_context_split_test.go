@@ -137,7 +137,7 @@ func TestGeminiExtensionContextSelectionDiagnosticsUsesExpectedBranch(t *testing
 	diagnostics := (geminiExtensionContextSelection{
 		expected: geminiContextSelection{ArtifactName: "GEMINI.md"},
 		ok:       true,
-	}).diagnostics(t.TempDir(), importedGeminiExtension{
+	}).contractDiagnostics(t.TempDir(), importedGeminiExtension{
 		Meta: geminiPackageMeta{ContextFileName: "ALT.md"},
 	})
 	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "ALT.md"; expected "GEMINI.md"`) {
