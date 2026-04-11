@@ -4,7 +4,7 @@ import "testing"
 
 func TestBuildPublicationVerifyRootEnvelopePreservesStatusAndNextSteps(t *testing.T) {
 	t.Parallel()
-	result := buildPublicationVerifyRootEnvelope(
+	result := buildPublicationVerifyRootResultEnvelope(
 		publicationContext{dest: "/tmp/out", packageRoot: "plugins/demo"},
 		publicationVerifyPlan{catalogRel: ".claude-plugin/marketplace.json"},
 		publicationVerifyStatus{ready: false, label: "needs_sync", nextSteps: []string{"run sync"}},

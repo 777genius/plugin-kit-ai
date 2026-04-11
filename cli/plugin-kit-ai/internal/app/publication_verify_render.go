@@ -5,10 +5,10 @@ import "path/filepath"
 func buildPublicationVerifyRootResult(ctx publicationContext, plan publicationVerifyPlan) PluginPublicationVerifyRootResult {
 	status := buildPublicationVerifyRootStatus(ctx, plan)
 	lines := buildPublicationVerifyRootLines(ctx, plan, status)
-	return buildPublicationVerifyRootEnvelope(ctx, plan, status, lines)
+	return buildPublicationVerifyRootResultEnvelope(ctx, plan, status, lines)
 }
 
-func buildPublicationVerifyRootEnvelope(ctx publicationContext, plan publicationVerifyPlan, status publicationVerifyStatus, lines []string) PluginPublicationVerifyRootResult {
+func buildPublicationVerifyRootResultEnvelope(ctx publicationContext, plan publicationVerifyPlan, status publicationVerifyStatus, lines []string) PluginPublicationVerifyRootResult {
 	return PluginPublicationVerifyRootResult{
 		Ready:       status.ready,
 		Status:      status.label,
