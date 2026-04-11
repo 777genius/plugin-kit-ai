@@ -11,14 +11,9 @@ func loadPublicationContextForVerify(opts PluginPublicationVerifyRootOptions) (p
 	if err != nil {
 		return publicationContext{}, err
 	}
-
-	publicationState, err := discoverPublicationContextState(ctx)
+	input, err := resolveVerifyPublicationContextInput(ctx, opts.PackageRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}
-	packageRoot, err := resolvePublicationContextPackageRoot(ctx, opts.PackageRoot)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	return withPublicationContextVerify(ctx, packageRoot, publicationState), nil
+	return withPublicationContextVerify(ctx, input.packageRoot, input.publicationState), nil
 }
