@@ -2,57 +2,26 @@ package app
 
 import (
 	"archive/tar"
-	"compress/gzip"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-func writeExportArchive(root, output string, files []string, metadata exportMetadata) error {
-	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-		return err
-	}
-	f, err := os.Create(output)
+func writeExportArchive(root, output string, files []string, metadata exportMetadata) (err error) {
+	tw, closeArchive, err := openExportArchiveWriter(output)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	gz := gzip.NewWriter(f)
-	gz.Name = ""
-	gz.Comment = ""
-	gz.ModTime = time.Unix(0, 0)
-	defer gz.Close()
-
-	tw := tar.NewWriter(gz)
-	defer tw.Close()
-
-	body, err := json.MarshalIndent(metadata, "", "  ")
-	if err != nil {
+	defer func() {
+		if closeErr := closeArchive(); err == nil && closeErr != nil {
+			err = closeErr
+		}
+	}()
+	if err := writeExportArchiveMetadata(tw, metadata); err != nil {
 		return err
 	}
-	if err := writeArchiveEntry(tw, ".plugin-kit-ai-export.json", body, 0o644); err != nil {
-		return err
-	}
-	for _, rel := range files {
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		info, err := os.Stat(full)
-		if err != nil {
-			return err
-		}
-		body, err := os.ReadFile(full)
-		if err != nil {
-			return err
-		}
-		mode := int64(info.Mode().Perm())
-		if err := writeArchiveEntry(tw, rel, body, mode); err != nil {
-			return err
-		}
-	}
-	return nil
+	return writeExportArchiveFiles(tw, root, files)
 }
 
 func writeArchiveEntry(tw *tar.Writer, rel string, body []byte, mode int64) error {
