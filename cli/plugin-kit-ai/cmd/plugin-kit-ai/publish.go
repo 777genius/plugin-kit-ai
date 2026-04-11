@@ -1,9 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/777genius/plugin-kit-ai/cli/internal/app"
 	"github.com/spf13/cobra"
 )
@@ -15,12 +12,7 @@ type publishRunner interface {
 var publishCmd = newPublishCmd(pluginService)
 
 func newPublishCmd(runner publishRunner) *cobra.Command {
-	var channel string
-	var dest string
-	var packageRoot string
-	var dryRun bool
-	var all bool
-	var format string
+	flags := publishFlags{Format: "text"}
 	cmd := &cobra.Command{
 		Use:   "publish [path]",
 		Short: "Publish a package target through a bounded channel workflow",
@@ -33,57 +25,18 @@ This first-class publish entrypoint is intentionally bounded to documented chann
 - all authored channels (dry-run plan only)
 
 Codex and Claude materialize a safe local marketplace root.
-Gemini stays repository/release rooted, so publish only supports --dry-run planning there instead of a local marketplace materialization path.`,
+		Gemini stays repository/release rooted, so publish only supports --dry-run planning there instead of a local marketplace materialization path.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root := "."
-			if len(args) == 1 {
-				root = args[0]
-			}
-			if all && channel != "" {
-				return fmt.Errorf("publish --all cannot be combined with --channel")
-			}
-			if !all && channel == "" {
-				return fmt.Errorf("publish requires --channel unless --all is set")
-			}
-			if all && !dryRun {
-				return fmt.Errorf("publish --all currently supports only --dry-run planning")
-			}
-			result, err := runner.Publish(app.PluginPublishOptions{
-				Root:        root,
-				Channel:     channel,
-				Dest:        dest,
-				PackageRoot: packageRoot,
-				DryRun:      dryRun,
-				All:         all,
-			})
-			if err != nil {
-				return err
-			}
-			switch format {
-			case "json":
-				body, err := json.MarshalIndent(buildPublishJSONPayload(result), "", "  ")
-				if err != nil {
-					return err
-				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", body)
-				return nil
-			case "text":
-			default:
-				return fmt.Errorf("unsupported publish output format %q", format)
-			}
-			for _, line := range result.Lines {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), line)
-			}
-			return nil
+			return runPublishCommand(cmd, runner, flags, args)
 		},
 	}
-	cmd.Flags().StringVar(&channel, "channel", "", `publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")`)
-	cmd.Flags().BoolVar(&all, "all", false, "plan across all authored publication channels (dry-run only)")
-	cmd.Flags().StringVar(&dest, "dest", "", "destination marketplace root directory for local Codex/Claude marketplace flows")
-	cmd.Flags().StringVar(&packageRoot, "package-root", "", "relative package root inside the destination marketplace root (default: plugins/<name>)")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview the materialized publish result without writing changes")
-	cmd.Flags().StringVar(&format, "format", "text", `output format ("text" or "json")`)
+	cmd.Flags().StringVar(&flags.Channel, "channel", "", `publish channel ("codex-marketplace", "claude-marketplace", or "gemini-gallery")`)
+	cmd.Flags().BoolVar(&flags.All, "all", false, "plan across all authored publication channels (dry-run only)")
+	cmd.Flags().StringVar(&flags.Dest, "dest", "", "destination marketplace root directory for local Codex/Claude marketplace flows")
+	cmd.Flags().StringVar(&flags.PackageRoot, "package-root", "", "relative package root inside the destination marketplace root (default: plugins/<name>)")
+	cmd.Flags().BoolVar(&flags.DryRun, "dry-run", false, "preview the materialized publish result without writing changes")
+	cmd.Flags().StringVar(&flags.Format, "format", "text", `output format ("text" or "json")`)
 	return cmd
 }
 
@@ -143,12 +96,5 @@ func buildPublishJSONPayload(result app.PluginPublishResult) map[string]any {
 }
 
 func buildPublishJSONPayloads(results []app.PluginPublishResult) []map[string]any {
-	if len(results) == 0 {
-		return []map[string]any{}
-	}
-	out := make([]map[string]any, 0, len(results))
-	for _, result := range results {
-		out = append(out, buildPublishJSONPayload(result))
-	}
-	return out
+	return buildPublishJSONPayloadCollection(results)
 }

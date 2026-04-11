@@ -193,6 +193,24 @@ func TestPublishRejectsUnknownFormat(t *testing.T) {
 	}
 }
 
+func TestBuildPublishOptionsDefaultsRootAndCopiesFlags(t *testing.T) {
+	t.Parallel()
+
+	options, err := newPublishOptions(publishFlags{
+		Channel:     "codex-marketplace",
+		Dest:        "/tmp/market",
+		PackageRoot: "plugins/demo",
+		DryRun:      true,
+		Format:      "json",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Root != "." || options.Channel != "codex-marketplace" || options.Dest != "/tmp/market" || options.PackageRoot != "plugins/demo" || !options.DryRun {
+		t.Fatalf("options = %+v", options)
+	}
+}
+
 func TestPublishRejectsAllWithoutDryRun(t *testing.T) {
 	t.Parallel()
 	cmd := newPublishCmd(&fakePublishRunner{})
