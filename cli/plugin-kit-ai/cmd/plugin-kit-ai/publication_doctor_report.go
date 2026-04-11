@@ -15,12 +15,11 @@ type publicationDoctorJSONInput struct {
 }
 
 func renderPublicationDoctorJSON(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	input := newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot)
-	return renderPublicationDoctorJSONEnvelope(cmd, input.envelope(), input.diagnosis)
+	return newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot).render(cmd)
 }
 
 func writePublicationDoctorJSONReport(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	return writePublicationDoctorJSONEnvelope(cmd, newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot).envelope())
+	return newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot).write(cmd)
 }
 
 func renderPublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDoctorJSONReport, diagnosis publicationDiagnosis) error {
@@ -54,4 +53,12 @@ func newPublicationDoctorJSONInput(report pluginmanifest.Inspection, warnings []
 
 func (input publicationDoctorJSONInput) envelope() publicationDoctorJSONReport {
 	return buildPublicationDoctorJSONReport(input.report, input.warnings, input.requestedTarget, input.diagnosis, input.localRoot)
+}
+
+func (input publicationDoctorJSONInput) render(cmd *cobra.Command) error {
+	return renderPublicationDoctorJSONEnvelope(cmd, input.envelope(), input.diagnosis)
+}
+
+func (input publicationDoctorJSONInput) write(cmd *cobra.Command) error {
+	return writePublicationDoctorJSONEnvelope(cmd, input.envelope())
 }

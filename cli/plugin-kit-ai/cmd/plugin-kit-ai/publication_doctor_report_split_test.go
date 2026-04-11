@@ -169,6 +169,21 @@ func TestNewPublicationDoctorJSONInputEnvelopeBuildsRequestedTarget(t *testing.T
 	}
 }
 
+func TestPublicationDoctorJSONInputWriteEmitsJSONEnvelope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{}
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	err := newPublicationDoctorJSONInput(pluginmanifest.Inspection{}, nil, "", publicationDiagnosis{Ready: true}, nil).write(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got == "" || got[0] != '{' {
+		t.Fatalf("output = %q", got)
+	}
+}
+
 func TestNewPublicationJSONReportCopiesWarnings(t *testing.T) {
 	t.Parallel()
 
