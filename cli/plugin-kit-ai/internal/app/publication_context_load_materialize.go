@@ -12,21 +12,9 @@ func loadPublicationContextForMaterialize(opts PluginPublicationMaterializeOptio
 		return publicationContext{}, err
 	}
 
-	publicationState, err := discoverPublicationContextState(ctx)
+	input, err := resolveMaterializePublicationContextInput(ctx, opts.PackageRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}
-	publication, err := requirePublicationCapableTarget(ctx)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	channel, err := requireMaterializePublicationChannel(ctx, publication)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	packageRoot, err := resolvePublicationContextPackageRoot(ctx, opts.PackageRoot)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	return withPublicationContextMaterialize(ctx, packageRoot, publication, publicationState, channel), nil
+	return withPublicationContextMaterialize(ctx, input.packageRoot, input.publication, input.publicationState, input.channel), nil
 }
