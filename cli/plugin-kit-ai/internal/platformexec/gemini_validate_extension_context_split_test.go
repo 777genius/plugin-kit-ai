@@ -130,3 +130,17 @@ func TestValidateGeminiExtensionContextDiagnosticsUsesUnexpectedBranch(t *testin
 		t.Fatalf("diagnostics missing unexpected branch failure:\n%s", text)
 	}
 }
+
+func TestGeminiExtensionContextSelectionDiagnosticsUsesExpectedBranch(t *testing.T) {
+	t.Parallel()
+
+	diagnostics := (geminiExtensionContextSelection{
+		expected: geminiContextSelection{ArtifactName: "GEMINI.md"},
+		ok:       true,
+	}).diagnostics(t.TempDir(), importedGeminiExtension{
+		Meta: geminiPackageMeta{ContextFileName: "ALT.md"},
+	})
+	if text := diagnosticsText(diagnostics); !strings.Contains(text, `sets contextFileName "ALT.md"; expected "GEMINI.md"`) {
+		t.Fatalf("diagnostics missing expected branch failure:\n%s", text)
+	}
+}

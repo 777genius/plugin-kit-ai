@@ -14,7 +14,7 @@ func validateGeminiExtensionContextContract(root string, graph pluginmodel.Packa
 	if err != nil {
 		return nil, err
 	}
-	return validateGeminiExtensionContextDiagnostics(root, selection, extension), nil
+	return selection.diagnostics(root, extension), nil
 }
 
 func validateGeminiExtensionContextSelection(graph pluginmodel.PackageGraph, state pluginmodel.TargetState, meta geminiPackageMeta) (geminiExtensionContextSelection, error) {
@@ -26,6 +26,10 @@ func validateGeminiExtensionContextSelection(graph pluginmodel.PackageGraph, sta
 }
 
 func validateGeminiExtensionContextDiagnostics(root string, selection geminiExtensionContextSelection, extension importedGeminiExtension) []Diagnostic {
+	return selection.diagnostics(root, extension)
+}
+
+func (selection geminiExtensionContextSelection) diagnostics(root string, extension importedGeminiExtension) []Diagnostic {
 	if selection.ok {
 		return validateGeminiExpectedContextContract(root, selection.expected, extension)
 	}
