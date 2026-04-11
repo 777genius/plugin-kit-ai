@@ -67,3 +67,16 @@ func TestBuildBundleFetchBaseLinesIncludesBundleSource(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateBundleFetchWorkflowInputDelegatesModeValidation(t *testing.T) {
+	t.Parallel()
+
+	err := validateBundleFetchWorkflowInput(PluginBundleFetchOptions{
+		URL:      "https://example.com/demo.tar.gz",
+		Dest:     "/tmp/demo",
+		Platform: "claude",
+	})
+	if err == nil || !strings.Contains(err.Error(), "--asset-name, --platform, or --runtime") {
+		t.Fatalf("error = %v", err)
+	}
+}

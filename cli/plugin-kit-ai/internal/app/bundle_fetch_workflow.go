@@ -7,21 +7,10 @@ import (
 )
 
 func bundleFetch(ctx context.Context, opts PluginBundleFetchOptions, deps bundleFetchDeps) (PluginBundleFetchResult, error) {
-	if err := requireBundleFetchDest(opts); err != nil {
+	if err := validateBundleFetchWorkflowInput(opts); err != nil {
 		return PluginBundleFetchResult{}, err
 	}
-	if err := validateBundleFetchMode(opts); err != nil {
-		return PluginBundleFetchResult{}, err
-	}
-	source, err := resolveBundleRemoteSource(ctx, opts, deps)
-	if err != nil {
-		return PluginBundleFetchResult{}, err
-	}
-	metadata, installedPath, err := installFetchedBundleSource(source, opts)
-	if err != nil {
-		return PluginBundleFetchResult{}, err
-	}
-	return buildBundleFetchResult(metadata, source, installedPath), nil
+	return executeBundleFetchWorkflow(ctx, opts, deps)
 }
 
 func requireBundleFetchDest(opts PluginBundleFetchOptions) error {
