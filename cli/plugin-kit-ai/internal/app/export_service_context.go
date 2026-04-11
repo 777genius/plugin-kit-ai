@@ -17,18 +17,9 @@ func loadExportServiceContext(opts PluginExportOptions) (exportServiceContext, e
 	if err != nil {
 		return exportServiceContext{}, err
 	}
-	graph, err := loadExportServiceGraph(input.root, input.platform)
+	graph, project, err := loadExportServiceContextDeps(input)
 	if err != nil {
 		return exportServiceContext{}, err
 	}
-	project, err := loadReadyExportProject(input.root, input.platform, graph.Launcher)
-	if err != nil {
-		return exportServiceContext{}, err
-	}
-	return exportServiceContext{
-		root:     input.root,
-		platform: input.platform,
-		graph:    graph,
-		project:  project,
-	}, nil
+	return buildExportServiceContext(input, graph, project), nil
 }
