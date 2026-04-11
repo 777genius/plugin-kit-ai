@@ -2,6 +2,7 @@ package platformexec
 
 import (
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -70,5 +71,20 @@ func TestSelectOnlyGeminiPrimaryContextCandidateRejectsMultipleCandidates(t *tes
 	}
 	if !strings.Contains(err.Error(), "ambiguous") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestGeminiContextMatchesFiltersAndSortsByArtifactName(t *testing.T) {
+	t.Parallel()
+
+	state := pluginmodel.NewTargetState("gemini")
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "beta.md"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "alpha.md"))
+	state.AddComponent("contexts", filepath.Join("targets", "gemini", "contexts", "beta.md"))
+
+	got := geminiContextMatches(pluginmodel.PackageGraph{}, state, "beta.md")
+	want := []string{filepath.ToSlash(filepath.Join("targets", "gemini", "contexts", "beta.md"))}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("matches = %#v want %#v", got, want)
 	}
 }
