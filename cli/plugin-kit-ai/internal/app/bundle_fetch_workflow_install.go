@@ -1,24 +1,17 @@
 package app
 
 func installFetchedBundleSource(source bundleRemoteSource, opts PluginBundleFetchOptions) (exportMetadata, string, error) {
-	archivePath, cleanup, err := writeTempBundleArchive(source.ArchiveBytes)
+	archivePath, cleanup, err := prepareFetchedBundleArchive(source)
 	if err != nil {
 		return exportMetadata{}, "", err
 	}
 	defer cleanup()
 
-	metadata, err := inspectBundleArchive(archivePath)
+	metadata, err := loadFetchedBundleMetadata(archivePath, opts)
 	if err != nil {
 		return exportMetadata{}, "", err
 	}
-	if err := validateBundleMetadata(metadata); err != nil {
-		return exportMetadata{}, "", err
-	}
-	if err := validateFetchedBundleMatchesRequest(metadata, opts); err != nil {
-		return exportMetadata{}, "", err
-	}
-
-	installedPath, err := installBundleArchive(archivePath, opts.Dest, opts.Force)
+	installedPath, err := applyFetchedBundleInstall(archivePath, opts)
 	if err != nil {
 		return exportMetadata{}, "", err
 	}
