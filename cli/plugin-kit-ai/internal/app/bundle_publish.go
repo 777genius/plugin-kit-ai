@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	gh "github.com/777genius/plugin-kit-ai/plugininstall/adapters/github"
@@ -56,68 +55,13 @@ func defaultBundlePublishDeps(opts PluginBundlePublishOptions) bundlePublishDeps
 }
 
 func bundlePublish(ctx context.Context, opts PluginBundlePublishOptions, deps bundlePublishDeps) (PluginBundlePublishResult, error) {
-	root := strings.TrimSpace(opts.Root)
-	if root == "" {
-		root = "."
-	}
-	platform := strings.TrimSpace(opts.Platform)
-	if platform == "" {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish requires --platform")
-	}
-	ref := strings.TrimSpace(opts.Repo)
-	if ref == "" {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish requires --repo owner/repo")
-	}
-	tag := strings.TrimSpace(opts.Tag)
-	if tag == "" {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish requires --tag")
-	}
-	if deps.GitHub == nil {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish GitHub client is required")
-	}
-	if deps.Export == nil {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish export dependency is required")
-	}
-	owner, repo, err := splitOwnerRepo(ref)
-	if err != nil {
-		return PluginBundlePublishResult{}, fmt.Errorf("bundle publish %w", err)
-	}
-
-	artifact, err := prepareBundlePublishArtifact(root, platform, deps)
+	input, err := resolveBundlePublishInput(opts, deps)
 	if err != nil {
 		return PluginBundlePublishResult{}, err
 	}
-
-	release, state, err := ensurePublishRelease(ctx, deps.GitHub, owner, repo, tag, opts.Draft)
+	artifact, release, state, err := executeBundlePublish(ctx, input, deps)
 	if err != nil {
 		return PluginBundlePublishResult{}, err
 	}
-
-	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, artifact.BundleName, opts.Force); err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-	if err := maybeDeleteReleaseAsset(ctx, deps.GitHub, owner, repo, release, artifact.SidecarName, opts.Force); err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-
-	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, artifact.BundleName, artifact.Body, "application/gzip"); err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-	if _, err := deps.GitHub.UploadReleaseAsset(ctx, release.UploadURL, artifact.SidecarName, artifact.SidecarBody, "text/plain; charset=utf-8"); err != nil {
-		return PluginBundlePublishResult{}, err
-	}
-
-	releaseLabel := owner + "/" + repo + "@" + tag
-	lines := []string{
-		fmt.Sprintf("Bundle: plugin=%s platform=%s runtime=%s manager=%s", artifact.Metadata.PluginName, artifact.Metadata.Platform, artifact.Metadata.Runtime, displayBundleManager(artifact.Metadata.Manager)),
-		"Release: " + releaseLabel,
-		"Release state: " + state,
-		"Uploaded assets:",
-		"  " + artifact.BundleName,
-		"  " + artifact.SidecarName,
-		"Next:",
-		fmt.Sprintf("  plugin-kit-ai bundle fetch %s --tag %s --platform %s --runtime %s --dest <path>", ref, tag, artifact.Metadata.Platform, artifact.Metadata.Runtime),
-		fmt.Sprintf("  plugin-kit-ai bundle install ./%s --dest <path>", artifact.BundleName),
-	}
-	return PluginBundlePublishResult{Lines: lines}, nil
+	return buildBundlePublishResult(input, artifact, release, state), nil
 }
