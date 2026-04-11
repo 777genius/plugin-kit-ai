@@ -185,6 +185,31 @@ func TestCodexRuntimeValidateUsesModelHintAndConfigExtra(t *testing.T) {
 	}
 }
 
+func TestCodexRuntimeGenerateDefaultsModelHint(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-runtime", "commands", "announce.toml"), "description = \"announce\"\ncommand = \"echo\"\n")
+
+	state := pluginmodel.NewTargetState("codex-runtime")
+
+	artifacts, err := (codexRuntimeAdapter{}).Generate(root, pluginmodel.PackageGraph{
+		Launcher: &pluginmodel.Launcher{Entrypoint: "./bin/demo"},
+	}, state)
+	if err != nil {
+		t.Fatalf("Generate error = %v", err)
+	}
+	var config string
+	for _, artifact := range artifacts {
+		if artifact.RelPath == filepath.ToSlash(filepath.Join(".codex", "config.toml")) {
+			config = string(artifact.Content)
+			break
+		}
+	}
+	if !strings.Contains(config, `model = "gpt-5.4-mini"`) {
+		t.Fatalf("config missing default model hint:\n%s", config)
+	}
+}
+
 func TestCodexPackageValidateRequiresManagedAppsRef(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
