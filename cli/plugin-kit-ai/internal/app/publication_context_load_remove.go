@@ -11,18 +11,9 @@ func loadPublicationContextForRemove(opts PluginPublicationRemoveOptions) (publi
 	if err != nil {
 		return publicationContext{}, err
 	}
-
-	publication, err := requirePublicationCapableTarget(ctx)
+	input, err := resolveRemovePublicationContextInput(ctx, opts.PackageRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}
-	channel, err := requireRemovePublicationChannel(ctx, publication)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	packageRoot, err := resolvePublicationContextPackageRoot(ctx, opts.PackageRoot)
-	if err != nil {
-		return publicationContext{}, err
-	}
-	return withPublicationContextRemove(ctx, packageRoot, publication, channel), nil
+	return withPublicationContextRemove(ctx, input.packageRoot, input.publication, input.channel), nil
 }
