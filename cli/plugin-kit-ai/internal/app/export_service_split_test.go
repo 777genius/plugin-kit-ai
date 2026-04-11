@@ -11,14 +11,14 @@ import (
 func TestResolveExportServiceInputDefaultsRootAndRequiresPlatform(t *testing.T) {
 	t.Parallel()
 
-	root, platform, err := resolveExportServiceInput(PluginExportOptions{Platform: "claude"})
+	input, err := resolveExportServiceInput(PluginExportOptions{Platform: "claude"})
 	if err != nil {
 		t.Fatalf("resolveExportServiceInput: %v", err)
 	}
-	if root != "." || platform != "claude" {
-		t.Fatalf("root/platform = %q/%q", root, platform)
+	if input.root != "." || input.platform != "claude" {
+		t.Fatalf("input = %#v", input)
 	}
-	if _, _, err := resolveExportServiceInput(PluginExportOptions{}); err == nil {
+	if _, err := resolveExportServiceInput(PluginExportOptions{}); err == nil {
 		t.Fatal("expected missing platform error")
 	}
 }
@@ -66,5 +66,19 @@ func TestBuildExportMetadataIncludesStrictValidateStep(t *testing.T) {
 	}
 	if metadata.PluginName != "demo" || metadata.Runtime != "node" {
 		t.Fatalf("metadata = %#v", metadata)
+	}
+}
+
+func TestValidateExportServiceGraphRejectsMissingLauncher(t *testing.T) {
+	t.Parallel()
+
+	err := validateExportServiceGraph(pluginmanifest.PackageGraph{
+		Manifest: pluginmanifest.Manifest{
+			Name:    "demo",
+			Targets: []string{"claude"},
+		},
+	}, "claude")
+	if err == nil || !strings.Contains(err.Error(), "launcher.yaml") {
+		t.Fatalf("error = %v", err)
 	}
 }
