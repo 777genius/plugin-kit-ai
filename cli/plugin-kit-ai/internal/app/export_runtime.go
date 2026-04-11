@@ -7,7 +7,8 @@ import (
 )
 
 func exportRuntimeRequirement(runtime string) string {
-	switch strings.TrimSpace(runtime) {
+	runtime = normalizeExportRuntime(runtime)
+	switch runtime {
 	case "python":
 		return "Python 3.10+ installed on the machine running the plugin"
 	case "node":
@@ -20,7 +21,8 @@ func exportRuntimeRequirement(runtime string) string {
 }
 
 func exportRuntimeInstallHint(runtime string) string {
-	switch strings.TrimSpace(runtime) {
+	runtime = normalizeExportRuntime(runtime)
+	switch runtime {
 	case "python":
 		return "Go is the recommended path when you want users to avoid installing Python before running the plugin"
 	case "node":
@@ -31,7 +33,7 @@ func exportRuntimeInstallHint(runtime string) string {
 }
 
 func exportManager(project runtimecheck.Project) string {
-	switch project.Runtime {
+	switch normalizeExportRuntime(project.Runtime) {
 	case "python":
 		return project.Python.ManagerDisplay()
 	case "node":
@@ -42,7 +44,7 @@ func exportManager(project runtimecheck.Project) string {
 }
 
 func exportBootstrapModel(project runtimecheck.Project) string {
-	switch project.Runtime {
+	switch normalizeExportRuntime(project.Runtime) {
 	case "python":
 		return project.Python.CanonicalEnvSourceDisplay()
 	case "node":
@@ -55,4 +57,8 @@ func exportBootstrapModel(project runtimecheck.Project) string {
 	default:
 		return "n/a"
 	}
+}
+
+func normalizeExportRuntime(runtime string) string {
+	return strings.TrimSpace(runtime)
 }
