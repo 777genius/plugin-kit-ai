@@ -6,18 +6,7 @@ import (
 )
 
 func (PluginService) Export(opts PluginExportOptions) (PluginExportResult, error) {
-	ctx, err := loadExportServiceContext(opts)
-	if err != nil {
-		return PluginExportResult{}, err
-	}
-	plan, err := prepareExportArchivePlan(ctx, opts.Output)
-	if err != nil {
-		return PluginExportResult{}, err
-	}
-	if err := writeExportArchive(ctx.root, plan.outputPath, plan.files, plan.metadata); err != nil {
-		return PluginExportResult{}, err
-	}
-	return PluginExportResult{Lines: buildExportResultLines(ctx, plan)}, nil
+	return runExportService(opts)
 }
 
 func exportBlockingFailures(failures []validate.Failure) []validate.Failure {
