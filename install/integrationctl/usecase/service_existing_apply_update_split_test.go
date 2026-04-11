@@ -195,3 +195,40 @@ func (s *stubOperationJournal) Finish(_ context.Context, operationID string, sta
 func (s *stubOperationJournal) ListOpen(context.Context) ([]domain.OperationRecord, error) {
 	return nil, nil
 }
+
+func TestCommitExistingUpdatePersistsFinalizedState(t *testing.T) {
+	t.Parallel()
+
+	store := &stubUpdateStateStore{}
+	journal := &stubOperationJournal{}
+	svc := Service{
+		StateStore: store,
+		Journal:    journal,
+	}
+	err := svc.commitExistingUpdate(context.Background(), existingUpdateOperation{operationID: "op"}, existingUpdateRuntime{
+		state:      ports.StateFile{},
+		nextRecord: domain.InstallationRecord{IntegrationID: "demo"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store.saved) != 1 || len(store.saved[0].Installations) != 1 || store.saved[0].Installations[0].IntegrationID != "demo" {
+		t.Fatalf("saved = %+v", store.saved)
+	}
+	if len(journal.finished) != 1 || journal.finished[0] != "op:committed" {
+		t.Fatalf("finished = %+v", journal.finished)
+	}
+}
+
+type stubUpdateStateStore struct {
+	saved []ports.StateFile
+}
+
+func (s *stubUpdateStateStore) Load(context.Context) (ports.StateFile, error) {
+	return ports.StateFile{}, nil
+}
+
+func (s *stubUpdateStateStore) Save(_ context.Context, state ports.StateFile) error {
+	s.saved = append(s.saved, state)
+	return nil
+}

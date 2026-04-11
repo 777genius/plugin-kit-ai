@@ -48,8 +48,7 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 		}
 	}
 
-	runtime.state = finalizeExistingUpdateState(runtime.state, runtime.nextRecord)
-	if err := s.persistExistingUpdateCommittedState(ctx, operation.operationID, runtime.state); err != nil {
+	if err := s.commitExistingUpdate(ctx, operation, runtime); err != nil {
 		return domain.Report{}, err
 	}
 	committed = true
@@ -124,6 +123,10 @@ func loadExistingUpdateRuntime(state ports.StateFile, integrationID, operationID
 func finalizeExistingUpdateState(state ports.StateFile, nextRecord domain.InstallationRecord) ports.StateFile {
 	state.Installations = upsertInstallation(state.Installations, nextRecord)
 	return state
+}
+
+func (s Service) commitExistingUpdate(ctx context.Context, operation existingUpdateOperation, runtime existingUpdateRuntime) error {
+	return s.persistExistingUpdateCommittedState(ctx, operation.operationID, finalizeExistingUpdateState(runtime.state, runtime.nextRecord))
 }
 
 func (s Service) persistExistingUpdateCommittedState(ctx context.Context, operationID string, state ports.StateFile) error {
