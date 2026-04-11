@@ -17,34 +17,19 @@ type publicationMaterializePlan struct {
 }
 
 func preparePublicationMaterialize(ctx publicationContext) (publicationMaterializePlan, error) {
-	packageFiles, generated, err := ctx.expectedMaterializedPackageArtifacts()
+	packageFiles, generated, err := preparePublicationMaterializePackageArtifacts(ctx)
 	if err != nil {
 		return publicationMaterializePlan{}, err
 	}
-	catalogArtifact, err := ctx.renderLocalCatalogArtifact()
+	catalogArtifact, mergedCatalog, err := preparePublicationMaterializeCatalog(ctx)
 	if err != nil {
 		return publicationMaterializePlan{}, err
 	}
-	mergedCatalog, err := mergeCatalogAtDestination(ctx.dest, ctx.target, catalogArtifact)
+	packageRootAction, catalogAction, err := detectPublicationMaterializeActions(ctx, catalogArtifact)
 	if err != nil {
 		return publicationMaterializePlan{}, err
 	}
-	packageRootAction, err := detectMaterializePackageRootAction(ctx)
-	if err != nil {
-		return publicationMaterializePlan{}, err
-	}
-	catalogAction, err := detectMaterializeCatalogAction(ctx, catalogArtifact)
-	if err != nil {
-		return publicationMaterializePlan{}, err
-	}
-	return publicationMaterializePlan{
-		packageFiles:       packageFiles,
-		generated:          generated,
-		catalogArtifact:    catalogArtifact,
-		mergedCatalog:      mergedCatalog,
-		packageRootAction:  packageRootAction,
-		catalogArtifactAct: catalogAction,
-	}, nil
+	return buildPublicationMaterializePlan(packageFiles, generated, catalogArtifact, mergedCatalog, packageRootAction, catalogAction), nil
 }
 
 func detectMaterializePackageRootAction(ctx publicationContext) (string, error) {
