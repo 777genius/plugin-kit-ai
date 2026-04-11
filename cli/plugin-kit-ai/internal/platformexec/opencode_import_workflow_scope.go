@@ -15,35 +15,22 @@ func newOpenCodeImportedState() opencodeImportedState {
 }
 
 func importOpenCodeUserScope(state *opencodeImportedState, seed ImportSeed) error {
-	if !seed.IncludeUserScope {
-		return nil
-	}
-	home, err := os.UserHomeDir()
+	cfg, ok, err := resolveOpenCodeUserScopeConfig(seed)
 	if err != nil {
-		return fmt.Errorf("resolve user home for OpenCode import: %w", err)
-	}
-	if err := rejectOpenCodeCompatSkillRoots(openCodeUserCompatSkillRoots(home)); err != nil {
 		return err
 	}
-	globalRoot := filepath.Join(home, ".config", "opencode")
-	return importOpenCodeScope(state, opencodeScopeConfig{
-		root:              globalRoot,
-		displayConfigRoot: filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
-		workspaceRoot:     globalRoot,
-		workspaceDisplay:  filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
-	})
+	if !ok {
+		return nil
+	}
+	return importOpenCodeScope(state, cfg)
 }
 
 func importOpenCodeProjectScope(state *opencodeImportedState, root string) error {
-	if err := rejectOpenCodeCompatSkillRoots(openCodeProjectCompatSkillRoots(root)); err != nil {
+	cfg, err := resolveOpenCodeProjectScopeConfig(root)
+	if err != nil {
 		return err
 	}
-	return importOpenCodeScope(state, opencodeScopeConfig{
-		root:              root,
-		displayConfigRoot: "",
-		workspaceRoot:     filepath.Join(root, ".opencode"),
-		workspaceDisplay:  ".opencode",
-	})
+	return importOpenCodeScope(state, cfg)
 }
 
 func requireOpenCodeImportedInput(state opencodeImportedState) error {
@@ -56,6 +43,38 @@ func requireOpenCodeImportedInput(state opencodeImportedState) error {
 type openCodeCompatSkillRoot struct {
 	full    string
 	display string
+}
+
+func resolveOpenCodeUserScopeConfig(seed ImportSeed) (opencodeScopeConfig, bool, error) {
+	if !seed.IncludeUserScope {
+		return opencodeScopeConfig{}, false, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return opencodeScopeConfig{}, false, fmt.Errorf("resolve user home for OpenCode import: %w", err)
+	}
+	if err := rejectOpenCodeCompatSkillRoots(openCodeUserCompatSkillRoots(home)); err != nil {
+		return opencodeScopeConfig{}, false, err
+	}
+	globalRoot := filepath.Join(home, ".config", "opencode")
+	return opencodeScopeConfig{
+		root:              globalRoot,
+		displayConfigRoot: filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
+		workspaceRoot:     globalRoot,
+		workspaceDisplay:  filepath.ToSlash(filepath.Join("~", ".config", "opencode")),
+	}, true, nil
+}
+
+func resolveOpenCodeProjectScopeConfig(root string) (opencodeScopeConfig, error) {
+	if err := rejectOpenCodeCompatSkillRoots(openCodeProjectCompatSkillRoots(root)); err != nil {
+		return opencodeScopeConfig{}, err
+	}
+	return opencodeScopeConfig{
+		root:              root,
+		displayConfigRoot: "",
+		workspaceRoot:     filepath.Join(root, ".opencode"),
+		workspaceDisplay:  ".opencode",
+	}, nil
 }
 
 func openCodeUserCompatSkillRoots(home string) []openCodeCompatSkillRoot {
