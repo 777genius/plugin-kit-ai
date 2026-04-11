@@ -5,12 +5,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/publicationmodel"
-	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
 )
-
-func discoverPublicationContextState(ctx publicationContext) (publishschema.State, error) {
-	return publishschema.DiscoverInLayout(ctx.root, ctx.inspection.Layout.AuthoredRoot)
-}
 
 func requirePublicationCapableTarget(ctx publicationContext) (publicationmodel.Model, error) {
 	publication := ctx.inspection.Publication
@@ -38,8 +33,4 @@ func requireRemovePublicationChannel(ctx publicationContext, publication publica
 		return channel, nil
 	}
 	return publicationmodel.Channel{}, fmt.Errorf("target %s requires authored publication channel metadata under publish/...", ctx.target)
-}
-
-func resolvePublicationContextPackageRoot(ctx publicationContext, packageRootInput string) (string, error) {
-	return normalizePackageRoot(packageRootInput, ctx.graph.Manifest.Name)
 }
