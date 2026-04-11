@@ -1,26 +1,15 @@
 package platformexec
 
-import (
-	"os"
-	"path/filepath"
-
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
-)
-
 func importOpenCodeThemeArtifacts(state *opencodeImportedState, cfg opencodeScopeConfig) error {
 	return importOpenCodeWorkspaceDirectory(state, openCodeThemeDirectoryImport(cfg))
 }
 
 func importOpenCodeToolArtifactsIntoState(state *opencodeImportedState, cfg opencodeScopeConfig) error {
-	toolArtifacts, toolWarnings, err := importOpenCodeToolArtifacts(cfg.workspaceRoot, cfg.workspaceDisplay)
+	result, err := resolveOpenCodeToolArtifactsImport(cfg)
 	if err != nil {
 		return err
 	}
-	state.addArtifacts(toolArtifacts...)
-	state.warnings = append(state.warnings, toolWarnings...)
-	if len(toolArtifacts) > 0 {
-		state.hasInput = true
-	}
+	applyOpenCodeToolArtifactsImport(state, result)
 	return nil
 }
 
@@ -41,16 +30,13 @@ func importOpenCodePluginDirectory(state *opencodeImportedState, cfg opencodeSco
 }
 
 func importOpenCodePackageJSON(state *opencodeImportedState, cfg opencodeScopeConfig) error {
-	packageJSON := filepath.Join(cfg.workspaceRoot, "package.json")
-	if body, err := os.ReadFile(packageJSON); err == nil {
-		state.addArtifacts(pluginmodel.Artifact{
-			RelPath: filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "package.json")),
-			Content: body,
-		})
-		state.hasInput = true
-		return nil
-	} else if !os.IsNotExist(err) {
+	artifact, ok, err := resolveOpenCodePackageJSONArtifact(cfg)
+	if err != nil {
 		return err
+	}
+	if ok {
+		state.addArtifacts(artifact)
+		state.hasInput = true
 	}
 	return nil
 }
