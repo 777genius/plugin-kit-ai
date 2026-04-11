@@ -157,6 +157,18 @@ func TestRenderPublicationDoctorJSONEnvelopeReturnsIssueExitAfterWrite(t *testin
 	}
 }
 
+func TestNewPublicationDoctorJSONInputEnvelopeBuildsRequestedTarget(t *testing.T) {
+	t.Parallel()
+
+	report := newPublicationDoctorJSONInput(pluginmanifest.Inspection{}, []pluginmanifest.Warning{{Message: "warn"}}, " gemini ", publicationDiagnosis{
+		Ready:  true,
+		Status: "ready",
+	}, &app.PluginPublicationVerifyRootResult{Ready: true}).envelope()
+	if report.RequestedTarget != "gemini" || report.WarningCount != 1 || report.Status != "ready" {
+		t.Fatalf("report = %+v", report)
+	}
+}
+
 func TestNewPublicationJSONReportCopiesWarnings(t *testing.T) {
 	t.Parallel()
 

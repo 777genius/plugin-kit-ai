@@ -6,12 +6,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type publicationDoctorJSONInput struct {
+	report          pluginmanifest.Inspection
+	warnings        []pluginmanifest.Warning
+	requestedTarget string
+	diagnosis       publicationDiagnosis
+	localRoot       *app.PluginPublicationVerifyRootResult
+}
+
 func renderPublicationDoctorJSON(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	return renderPublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot), diagnosis)
+	input := newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot)
+	return renderPublicationDoctorJSONEnvelope(cmd, input.envelope(), input.diagnosis)
 }
 
 func writePublicationDoctorJSONReport(cmd *cobra.Command, report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) error {
-	return writePublicationDoctorJSONEnvelope(cmd, publicationDoctorJSONEnvelope(report, warnings, requestedTarget, diagnosis, localRoot))
+	return writePublicationDoctorJSONEnvelope(cmd, newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot).envelope())
 }
 
 func renderPublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDoctorJSONReport, diagnosis publicationDiagnosis) error {
@@ -26,9 +35,23 @@ func writePublicationDoctorJSONEnvelope(cmd *cobra.Command, report publicationDo
 }
 
 func publicationDoctorJSONEnvelope(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONReport {
-	return buildPublicationDoctorJSONReport(report, warnings, requestedTarget, diagnosis, localRoot)
+	return newPublicationDoctorJSONInput(report, warnings, requestedTarget, diagnosis, localRoot).envelope()
 }
 
 func publicationDoctorJSONIssueErr(diagnosis publicationDiagnosis) error {
 	return publicationDoctorIssueErr(diagnosis.Ready)
+}
+
+func newPublicationDoctorJSONInput(report pluginmanifest.Inspection, warnings []pluginmanifest.Warning, requestedTarget string, diagnosis publicationDiagnosis, localRoot *app.PluginPublicationVerifyRootResult) publicationDoctorJSONInput {
+	return publicationDoctorJSONInput{
+		report:          report,
+		warnings:        warnings,
+		requestedTarget: requestedTarget,
+		diagnosis:       diagnosis,
+		localRoot:       localRoot,
+	}
+}
+
+func (input publicationDoctorJSONInput) envelope() publicationDoctorJSONReport {
+	return buildPublicationDoctorJSONReport(input.report, input.warnings, input.requestedTarget, input.diagnosis, input.localRoot)
 }
