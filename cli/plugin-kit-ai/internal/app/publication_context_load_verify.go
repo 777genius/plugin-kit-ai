@@ -1,9 +1,5 @@
 package app
 
-import (
-	"github.com/777genius/plugin-kit-ai/cli/internal/publishschema"
-)
-
 func loadPublicationContextForVerify(opts PluginPublicationVerifyRootOptions) (publicationContext, error) {
 	ctx, err := resolvePublicationBaseContext(
 		opts.Root,
@@ -16,17 +12,13 @@ func loadPublicationContextForVerify(opts PluginPublicationVerifyRootOptions) (p
 		return publicationContext{}, err
 	}
 
-	publicationState, err := publishschema.DiscoverInLayout(ctx.root, ctx.inspection.Layout.AuthoredRoot)
+	publicationState, err := discoverPublicationContextState(ctx)
 	if err != nil {
 		return publicationContext{}, err
 	}
-	packageRoot, err := normalizePackageRoot(opts.PackageRoot, ctx.graph.Manifest.Name)
+	packageRoot, err := resolvePublicationContextPackageRoot(ctx, opts.PackageRoot)
 	if err != nil {
 		return publicationContext{}, err
 	}
-
-	ctx.packageRoot = packageRoot
-	ctx.publication = ctx.inspection.Publication
-	ctx.publicationState = publicationState
-	return ctx, nil
+	return withPublicationContextVerify(ctx, packageRoot, publicationState), nil
 }
