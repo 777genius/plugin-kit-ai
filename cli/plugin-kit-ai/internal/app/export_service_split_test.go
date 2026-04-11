@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 )
 
@@ -45,5 +46,25 @@ func TestBuildExportResultLinesIncludesRuntimeMetadata(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("lines missing %q:\n%s", want, text)
 		}
+	}
+}
+
+func TestBuildExportMetadataIncludesStrictValidateStep(t *testing.T) {
+	t.Parallel()
+
+	metadata := buildExportMetadata(exportServiceContext{
+		platform: "claude",
+		graph: pluginmanifest.PackageGraph{
+			Manifest: pluginmanifest.Manifest{Name: "demo"},
+			Launcher: &pluginmanifest.Launcher{Runtime: "node"},
+		},
+		project: runtimecheck.Project{Runtime: "node"},
+	})
+	text := strings.Join(metadata.Next, "\n")
+	if !strings.Contains(text, "plugin-kit-ai validate . --platform claude --strict") {
+		t.Fatalf("next steps = %#v", metadata.Next)
+	}
+	if metadata.PluginName != "demo" || metadata.Runtime != "node" {
+		t.Fatalf("metadata = %#v", metadata)
 	}
 }
