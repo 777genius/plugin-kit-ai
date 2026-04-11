@@ -34,15 +34,9 @@ type opencodeScopeConfig struct {
 }
 
 func importOpenCodePackage(root string, seed ImportSeed) (ImportResult, error) {
-	state := newOpenCodeImportedState()
-	if err := importOpenCodeUserScope(&state, seed); err != nil {
+	state := initializeOpenCodeImportState()
+	if err := runOpenCodeImportScopes(&state, root, seed); err != nil {
 		return ImportResult{}, err
 	}
-	if err := importOpenCodeProjectScope(&state, root); err != nil {
-		return ImportResult{}, err
-	}
-	if err := requireOpenCodeImportedInput(state); err != nil {
-		return ImportResult{}, err
-	}
-	return buildOpenCodeImportResult(state, seed)
+	return finalizeOpenCodeImport(state, seed)
 }
