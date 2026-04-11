@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 )
 
@@ -19,24 +18,11 @@ type PluginDoctorResult struct {
 
 func (PluginService) Doctor(opts PluginDoctorOptions) (PluginDoctorResult, error) {
 	root := normalizeDoctorRoot(opts.Root)
-	graph, _, err := pluginmanifest.Discover(root)
+	project, err := loadDoctorProject(root)
 	if err != nil {
 		return PluginDoctorResult{}, err
 	}
-	project, err := runtimecheck.Inspect(runtimecheck.Inputs{
-		Root:     root,
-		Targets:  graph.Manifest.EnabledTargets(),
-		Launcher: graph.Launcher,
-	})
-	if err != nil {
-		return PluginDoctorResult{}, err
-	}
-	diagnosis := runtimecheck.Diagnose(project)
-	lines := buildDoctorLines(root, project, diagnosis)
-	return PluginDoctorResult{
-		Ready: diagnosis.Status == runtimecheck.StatusReady,
-		Lines: lines,
-	}, nil
+	return buildDoctorResult(root, project), nil
 }
 
 func normalizeDoctorRoot(root string) string {
