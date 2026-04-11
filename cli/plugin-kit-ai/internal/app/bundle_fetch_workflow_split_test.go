@@ -42,3 +42,28 @@ func TestBuildBundleFetchResultIncludesRuntimeMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildBundleFetchBaseLinesIncludesBundleSource(t *testing.T) {
+	t.Parallel()
+
+	lines := buildBundleFetchBaseLines(exportMetadata{
+		PluginName: "demo",
+		Platform:   "claude",
+		Runtime:    "node",
+		Manager:    "npm",
+	}, bundleRemoteSource{
+		BundleSource:   "https://example.com/demo.tar.gz",
+		ChecksumSource: "flag --sha256",
+	}, "/tmp/demo")
+
+	text := strings.Join(lines, "\n")
+	for _, want := range []string{
+		"Bundle source: https://example.com/demo.tar.gz",
+		"Checksum source: flag --sha256",
+		"Installed path: /tmp/demo",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("lines missing %q:\n%s", want, text)
+		}
+	}
+}
