@@ -10,16 +10,28 @@ type publicationVerifyStatus struct {
 
 func buildPublicationVerifyRootStatus(ctx publicationContext, plan publicationVerifyPlan) publicationVerifyStatus {
 	if len(plan.issues) == 0 {
-		return publicationVerifyStatus{
-			ready: true,
-			label: "ready",
-		}
+		return buildReadyPublicationVerifyStatus()
 	}
+	return buildNeedsSyncPublicationVerifyStatus(ctx)
+}
+
+func buildReadyPublicationVerifyStatus() publicationVerifyStatus {
 	return publicationVerifyStatus{
-		ready: false,
-		label: "needs_sync",
-		nextSteps: []string{
-			fmt.Sprintf("run plugin-kit-ai publication materialize %s --target %s --dest %s", ctx.root, ctx.target, ctx.dest),
-		},
+		ready: true,
+		label: "ready",
+	}
+}
+
+func buildNeedsSyncPublicationVerifyStatus(ctx publicationContext) publicationVerifyStatus {
+	return publicationVerifyStatus{
+		ready:     false,
+		label:     "needs_sync",
+		nextSteps: buildPublicationVerifyNextSteps(ctx),
+	}
+}
+
+func buildPublicationVerifyNextSteps(ctx publicationContext) []string {
+	return []string{
+		fmt.Sprintf("run plugin-kit-ai publication materialize %s --target %s --dest %s", ctx.root, ctx.target, ctx.dest),
 	}
 }
