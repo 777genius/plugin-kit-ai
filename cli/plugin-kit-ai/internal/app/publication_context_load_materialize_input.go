@@ -13,15 +13,7 @@ type materializePublicationContextInput struct {
 }
 
 func resolveMaterializePublicationContextInput(ctx publicationContext, packageRootInput string) (materializePublicationContextInput, error) {
-	publicationState, err := discoverPublicationContextState(ctx)
-	if err != nil {
-		return materializePublicationContextInput{}, err
-	}
-	publication, err := requirePublicationCapableTarget(ctx)
-	if err != nil {
-		return materializePublicationContextInput{}, err
-	}
-	channel, err := requireMaterializePublicationChannel(ctx, publication)
+	policyInput, err := resolveMaterializePublicationPolicyInput(ctx)
 	if err != nil {
 		return materializePublicationContextInput{}, err
 	}
@@ -29,10 +21,40 @@ func resolveMaterializePublicationContextInput(ctx publicationContext, packageRo
 	if err != nil {
 		return materializePublicationContextInput{}, err
 	}
-	return materializePublicationContextInput{
+	return buildMaterializePublicationContextInput(policyInput, packageRoot), nil
+}
+
+type materializePublicationPolicyInput struct {
+	publication      publicationmodel.Model
+	publicationState publishschema.State
+	channel          publicationmodel.Channel
+}
+
+func resolveMaterializePublicationPolicyInput(ctx publicationContext) (materializePublicationPolicyInput, error) {
+	publicationState, err := discoverPublicationContextState(ctx)
+	if err != nil {
+		return materializePublicationPolicyInput{}, err
+	}
+	publication, err := requirePublicationCapableTarget(ctx)
+	if err != nil {
+		return materializePublicationPolicyInput{}, err
+	}
+	channel, err := requireMaterializePublicationChannel(ctx, publication)
+	if err != nil {
+		return materializePublicationPolicyInput{}, err
+	}
+	return materializePublicationPolicyInput{
 		publication:      publication,
 		publicationState: publicationState,
 		channel:          channel,
-		packageRoot:      packageRoot,
 	}, nil
+}
+
+func buildMaterializePublicationContextInput(policy materializePublicationPolicyInput, packageRoot string) materializePublicationContextInput {
+	return materializePublicationContextInput{
+		publication:      policy.publication,
+		publicationState: policy.publicationState,
+		channel:          policy.channel,
+		packageRoot:      packageRoot,
+	}
 }
