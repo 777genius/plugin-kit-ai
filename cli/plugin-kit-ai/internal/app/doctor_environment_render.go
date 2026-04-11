@@ -7,21 +7,8 @@ func buildDoctorEnvironmentLines(root string, specs []doctorToolSpec) []string {
 		return nil
 	}
 
-	lines := []string{"Environment:"}
-	missing := false
-	for _, spec := range specs {
-		line, found := renderDoctorEnvironmentLine(root, spec)
-		if !found {
-			lines = append(lines, "  "+doctorMissingLine(spec))
-			missing = true
-			continue
-		}
-		lines = append(lines, line)
-	}
-	if missing {
-		lines = append(lines, "  Hint: "+doctorPATHHint())
-	}
-	return lines
+	lines, missing := buildDoctorEnvironmentDetailLines(root, specs)
+	return appendDoctorEnvironmentHint(lines, missing)
 }
 
 func renderDoctorEnvironmentLine(root string, spec doctorToolSpec) (string, bool) {
@@ -33,6 +20,5 @@ func renderDoctorEnvironmentLine(root string, spec doctorToolSpec) (string, bool
 	if version := doctorVersion(root, path, spec.VersionArgs); version != "" {
 		line += "; " + version
 	}
-	line += ")"
-	return line, true
+	return finalizeDoctorEnvironmentLine(line), true
 }
