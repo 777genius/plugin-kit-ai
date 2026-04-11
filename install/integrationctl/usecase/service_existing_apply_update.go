@@ -26,15 +26,11 @@ func (s Service) applyUpdateExisting(ctx context.Context, record domain.Installa
 	}
 	defer func() { _ = unlock() }()
 
-	if err := s.Journal.Start(ctx, operation.record(record.IntegrationID)); err != nil {
+	if err := operation.start(ctx, s.Journal, record.IntegrationID); err != nil {
 		return domain.Report{}, err
 	}
 	committed := false
-	defer func() {
-		if !committed {
-			_ = s.Journal.Finish(ctx, operation.operationID, "failed")
-		}
-	}()
+	defer finishExistingUpdateOnFailure(ctx, s.Journal, operation, &committed)
 
 	state, err := s.StateStore.Load(ctx)
 	if err != nil {
@@ -70,6 +66,21 @@ func newExistingUpdateOperation(integrationID string, now time.Time) existingUpd
 
 func (op existingUpdateOperation) record(integrationID string) domain.OperationRecord {
 	return newExistingUpdateOperationRecord(op.operationID, integrationID, op.startedAt)
+}
+
+func (op existingUpdateOperation) start(ctx context.Context, journal ports.OperationJournal, integrationID string) error {
+	return journal.Start(ctx, op.record(integrationID))
+}
+
+func (op existingUpdateOperation) finishFailed(ctx context.Context, journal ports.OperationJournal) error {
+	return journal.Finish(ctx, op.operationID, "failed")
+}
+
+func finishExistingUpdateOnFailure(ctx context.Context, journal ports.OperationJournal, operation existingUpdateOperation, committed *bool) {
+	if *committed {
+		return
+	}
+	_ = operation.finishFailed(ctx, journal)
 }
 
 func newExistingUpdateOperationRecord(operationID, integrationID, startedAt string) domain.OperationRecord {

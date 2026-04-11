@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -151,4 +152,46 @@ func TestNewExistingUpdateOperationBuildsOperationAndRecord(t *testing.T) {
 	if record.OperationID != op.operationID || record.Type != "update" || record.IntegrationID != "demo" || record.StartedAt != op.startedAt {
 		t.Fatalf("record = %+v", record)
 	}
+}
+
+func TestExistingUpdateOperationStartAndFinishFailedUseJournal(t *testing.T) {
+	t.Parallel()
+
+	journal := &stubOperationJournal{}
+	op := existingUpdateOperation{operationID: "op", startedAt: "2026-04-10T17:00:00Z"}
+	if err := op.start(context.Background(), journal, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	if err := op.finishFailed(context.Background(), journal); err != nil {
+		t.Fatal(err)
+	}
+	if len(journal.started) != 1 || journal.started[0].OperationID != "op" || journal.started[0].IntegrationID != "demo" {
+		t.Fatalf("started = %+v", journal.started)
+	}
+	if len(journal.finished) != 1 || journal.finished[0] != "op:failed" {
+		t.Fatalf("finished = %+v", journal.finished)
+	}
+}
+
+type stubOperationJournal struct {
+	started  []domain.OperationRecord
+	finished []string
+}
+
+func (s *stubOperationJournal) Start(_ context.Context, record domain.OperationRecord) error {
+	s.started = append(s.started, record)
+	return nil
+}
+
+func (s *stubOperationJournal) AppendStep(context.Context, string, domain.JournalStep) error {
+	return nil
+}
+
+func (s *stubOperationJournal) Finish(_ context.Context, operationID string, status string) error {
+	s.finished = append(s.finished, operationID+":"+status)
+	return nil
+}
+
+func (s *stubOperationJournal) ListOpen(context.Context) ([]domain.OperationRecord, error) {
+	return nil, nil
 }
