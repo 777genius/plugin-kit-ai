@@ -22,8 +22,10 @@ The CLI covers project creation, generate, validation, testing, import, and inst
 
 ## Core Commands
 - [`plugin-kit-ai`](/en/api/cli/plugin-kit-ai)
+- [`plugin-kit-ai add`](/en/api/cli/plugin-kit-ai-add)
 - [`plugin-kit-ai bootstrap`](/en/api/cli/plugin-kit-ai-bootstrap)
 - [`plugin-kit-ai capabilities`](/en/api/cli/plugin-kit-ai-capabilities)
+- [`plugin-kit-ai compat`](/en/api/cli/plugin-kit-ai-compat)
 - [`plugin-kit-ai dev`](/en/api/cli/plugin-kit-ai-dev)
 - [`plugin-kit-ai doctor`](/en/api/cli/plugin-kit-ai-doctor)
 - [`plugin-kit-ai export`](/en/api/cli/plugin-kit-ai-export)
@@ -51,7 +53,10 @@ The CLI covers project creation, generate, validation, testing, import, and inst
 - [`plugin-kit-ai publication materialize`](/en/api/cli/plugin-kit-ai-publication-materialize)
 - [`plugin-kit-ai publication remove`](/en/api/cli/plugin-kit-ai-publication-remove)
 - [`plugin-kit-ai publish`](/en/api/cli/plugin-kit-ai-publish)
+- [`plugin-kit-ai remove`](/en/api/cli/plugin-kit-ai-remove)
+- [`plugin-kit-ai repair`](/en/api/cli/plugin-kit-ai-repair)
 - [`plugin-kit-ai test`](/en/api/cli/plugin-kit-ai-test)
+- [`plugin-kit-ai update`](/en/api/cli/plugin-kit-ai-update)
 - [`plugin-kit-ai validate`](/en/api/cli/plugin-kit-ai-validate)
 - [`plugin-kit-ai version`](/en/api/cli/plugin-kit-ai-version)
 ## Bundle

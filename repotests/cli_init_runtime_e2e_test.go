@@ -78,7 +78,7 @@ func TestPluginKitAIInitGeminiGoRuntimeLauncherFlow(t *testing.T) {
 	for _, want := range []string{
 		`Created plugin "genplug" at ` + plugRoot,
 		`cd ` + strconv.Quote(plugRoot),
-		"Portable MCP starter: src/mcp/servers.yaml",
+		"Portable MCP starter: " + authoredSlash("mcp", "servers.yaml"),
 		"go test ./...",
 		"plugin-kit-ai generate .",
 		"plugin-kit-ai generate --check .",
@@ -238,10 +238,10 @@ func TestPluginKitAIInitRuntimePackageModeWritesSharedHelperImports(t *testing.T
 		if out, err := run.CombinedOutput(); err != nil {
 			t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 		}
-		if _, err := os.Stat(filepath.Join(plugRoot, "src", "plugin_runtime.py")); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(plugRoot, authoredRel("plugin_runtime.py"))); !os.IsNotExist(err) {
 			t.Fatalf("vendored python helper should stay absent, stat err=%v", err)
 		}
-		mainBody, err := os.ReadFile(filepath.Join(plugRoot, "src", "main.py"))
+		mainBody, err := os.ReadFile(filepath.Join(plugRoot, authoredRel("main.py")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,10 +263,10 @@ func TestPluginKitAIInitRuntimePackageModeWritesSharedHelperImports(t *testing.T
 		if out, err := run.CombinedOutput(); err != nil {
 			t.Fatalf("plugin-kit-ai init: %v\n%s", err, out)
 		}
-		if _, err := os.Stat(filepath.Join(plugRoot, "src", "plugin-runtime.ts")); !os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(plugRoot, authoredRel("plugin-runtime.ts"))); !os.IsNotExist(err) {
 			t.Fatalf("vendored node helper should stay absent, stat err=%v", err)
 		}
-		mainBody, err := os.ReadFile(filepath.Join(plugRoot, "src", "main.ts"))
+		mainBody, err := os.ReadFile(filepath.Join(plugRoot, authoredRel("main.ts")))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -875,7 +875,7 @@ func TestPluginKitAIInitClaudeExtendedHooksRuntimeFlow(t *testing.T) {
 				t.Fatalf("plugin-kit-ai init extended Claude %s: %v\n%s", tc.runtime, err, out)
 			}
 
-			hooksBody, err := os.ReadFile(filepath.Join(plugRoot, "src", "targets", "claude", "hooks", "hooks.json"))
+			hooksBody, err := os.ReadFile(filepath.Join(plugRoot, authoredRel("targets", "claude", "hooks", "hooks.json")))
 			if err != nil {
 				t.Fatal(err)
 			}

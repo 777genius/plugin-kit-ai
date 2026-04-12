@@ -5,9 +5,9 @@ import firebaseLogo from '~/assets/images/plugin-logos/firebase.svg';
 import githubLogo from '~/assets/images/plugin-logos/github.svg';
 import gitlabLogo from '~/assets/images/plugin-logos/gitlab.svg';
 import greptileLogo from '~/assets/images/plugin-logos/greptile.svg';
-import herokuLogo from '~/assets/images/plugin-logos/heroku.svg';
+import herokuLogo from '~/assets/images/plugin-logos/heroku.png';
 import dockerLogo from '~/assets/images/plugin-logos/docker.svg';
-import hubspotLogo from '~/assets/images/plugin-logos/hubspot.svg';
+import hubspotLogo from '~/assets/images/plugin-logos/hubspot.png';
 import linearLogo from '~/assets/images/plugin-logos/linear.svg';
 import neonLogo from '~/assets/images/plugin-logos/neon.svg';
 import notionLogo from '~/assets/images/plugin-logos/notion.png';
@@ -15,7 +15,7 @@ import sentryLogo from '~/assets/images/plugin-logos/sentry.svg';
 import slackLogo from '~/assets/images/plugin-logos/slack.svg';
 import stripeLogo from '~/assets/images/plugin-logos/stripe.svg';
 import supabaseLogo from '~/assets/images/plugin-logos/supabase.svg';
-import vercelLogo from '~/assets/images/plugin-logos/vercel.svg';
+import vercelLogo from '~/assets/images/plugin-logos/vercel.png';
 import type { PluginLogoSurface } from '~/types/content';
 
 interface PluginLogoDefinition {
@@ -37,7 +37,7 @@ const pluginLogos: Record<string, PluginLogoDefinition> = {
   'linear.svg': { src: linearLogo },
   'neon.svg': { src: neonLogo },
   'notion.svg': { src: notionLogo },
-  'sentry.svg': { src: sentryLogo },
+  'sentry.svg': { src: sentryLogo, surface: 'light' },
   'slack.svg': { src: slackLogo },
   'stripe.svg': { src: stripeLogo },
   'supabase.svg': { src: supabaseLogo },

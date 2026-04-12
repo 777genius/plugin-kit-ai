@@ -28,11 +28,13 @@ translationRequired: false
 
 Import an existing native plugin into the package standard layout.
 
-Claude import maps native plugin artifacts into the package-standard layout under src/.
+Claude import maps native plugin artifacts into the package-standard layout under plugin/.
 Codex import materializes either the official package lane or the local runtime lane from current native artifacts. Use codex-package or codex-runtime explicitly for the lane you want to preserve.
 Gemini import backfills the extension package layout and may preserve an optional launcher-based Go runtime lane when that authored project already uses one. That runtime lane now exposes a production-ready 9-hook surface, but it still does not imply blanket Gemini runtime parity for future hooks beyond the promoted contract.
 OpenCode import is workspace-config-only in the current contract: it normalizes project-native JSON/JSONC config, commands, agents, themes, local plugin code, plugin-local package metadata, compatible skill roots, and optional user-scope OpenCode sources into the canonical package-standard layout.
-Cursor import is workspace-config-only in the current contract: it normalizes .cursor/mcp.json and .cursor/rules/** into the canonical src-authored layout.
+Cursor import defaults to the packaged plugin lane through .cursor-plugin/plugin.json, root skills/, and optional .mcp.json. Use --from cursor-workspace when you intentionally want the repo-local .cursor workspace subset instead.
+
+Use --source to import from a remote or external source reference such as github:owner/repo@ref//subdir into the destination path.
 
 ```
 plugin-kit-ai import [path] [flags]
@@ -41,10 +43,11 @@ plugin-kit-ai import [path] [flags]
 ### Опции
 
 ```
-  -f, --force                overwrite src/plugin.yaml if it already exists
-      --from string          source platform ("claude", "codex-package", "codex-runtime", "gemini", "opencode", or "cursor"; omit to auto-detect current native layouts)
+  -f, --force                overwrite plugin/plugin.yaml if it already exists
+      --from string          source platform ("claude", "codex-package", "codex-runtime", "gemini", "opencode", "cursor", or "cursor-workspace"; omit to auto-detect current native layouts)
   -h, --help                 справка по import
       --include-user-scope   include explicit user-scope native sources when supported by the import target
+      --source string        native source reference to import from (local path, github:owner/repo@ref//subdir, or git URL with optional #ref)
 ```
 
 ### См. также

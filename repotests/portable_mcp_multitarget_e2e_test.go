@@ -18,7 +18,7 @@ func TestPortableMCPOneConfigProjectsAcrossAgentTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteRepoFile(t, workDir, authoredRel("plugin.yaml"), `api_version: v1
 name: "portable-mcp-e2e"
 version: "0.1.0"
 description: "portable MCP multi-target e2e"
@@ -28,10 +28,10 @@ targets:
   - "opencode"
   - "cursor"
 `)
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteRepoFile(t, workDir, authoredRel("targets", "gemini", "package.yaml"), "context_file_name: GEMINI.md\n")
+	mustWriteRepoFile(t, workDir, authoredRel("targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteRepoFile(t, workDir, authoredRel("targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-e2e\"\n")
+	mustWriteRepoFile(t, workDir, authoredRel("mcp", "servers.yaml"), `api_version: v1
 
 servers:
   docs:
@@ -57,6 +57,7 @@ servers:
       args:
         - "${package.root}/bin/release-checks.mjs"
     targets:
+      - codex-package
       - gemini
       - opencode
       - cursor
@@ -87,8 +88,13 @@ servers:
 	if _, ok := sharedMCP["docs"]; !ok {
 		t.Fatalf("shared .mcp.json missing docs server:\n%s", sharedMCPBody)
 	}
-	if _, ok := sharedMCP["release-checks"]; ok {
-		t.Fatalf("shared .mcp.json should not include gemini/opencode/cursor-only release-checks server:\n%s", sharedMCPBody)
+	sharedChecks, ok := sharedMCP["release-checks"]
+	if !ok {
+		t.Fatalf("shared .mcp.json missing release-checks server:\n%s", sharedMCPBody)
+	}
+	sharedArgs, _ := sharedChecks["args"].([]any)
+	if len(sharedArgs) != 1 || sharedArgs[0] != "./bin/release-checks.mjs" {
+		t.Fatalf("shared .mcp.json release-checks args = %#v", sharedChecks["args"])
 	}
 
 	geminiBody, err := os.ReadFile(filepath.Join(workDir, "gemini-extension.json"))

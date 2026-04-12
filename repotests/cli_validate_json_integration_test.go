@@ -20,7 +20,7 @@ func TestPluginKitAIValidateJSONReportsWarningsAndFailures(t *testing.T) {
 		}
 		bootstrapGeneratedGoPlugin(t, plugRoot)
 
-		manifestPath := filepath.Join(plugRoot, "src", "plugin.yaml")
+		manifestPath := filepath.Join(plugRoot, authoredRel("plugin.yaml"))
 		body, err := os.ReadFile(manifestPath)
 		if err != nil {
 			t.Fatal(err)
@@ -127,7 +127,7 @@ func TestPluginKitAIValidateJSONReportsWarningsAndFailures(t *testing.T) {
 		if len(report.Failures) != 1 {
 			t.Fatalf("failures = %#v", report.Failures)
 		}
-		if report.Failures[0].Kind != "manifest_missing" || report.Failures[0].Path != "src/plugin.yaml" {
+		if report.Failures[0].Kind != "manifest_missing" || report.Failures[0].Path != authoredSlash("plugin.yaml") {
 			t.Fatalf("failure = %#v", report.Failures[0])
 		}
 	})
@@ -141,7 +141,7 @@ func TestPluginKitAIValidateJSONReportsWarningsAndFailures(t *testing.T) {
 		}
 		bootstrapGeneratedGoPlugin(t, plugRoot)
 
-		manifestPath := filepath.Join(plugRoot, "src", "plugin.yaml")
+		manifestPath := filepath.Join(plugRoot, authoredRel("plugin.yaml"))
 		body, err := os.ReadFile(manifestPath)
 		if err != nil {
 			t.Fatal(err)

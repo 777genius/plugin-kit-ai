@@ -168,7 +168,7 @@ func TestReleaseSurface_MakefileDocsAndWorkflowsStayAligned(t *testing.T) {
 	mustContain(t, releasePreflightWorkflow, "PYPI_TRUSTED_PUBLISHING_READY")
 	mustContain(t, releaseAssetsWorkflow, "name: Release Assets")
 	mustContain(t, releaseAssetsWorkflow, "workflow_dispatch:")
-	mustContain(t, releaseAssetsWorkflow, "goreleaser/goreleaser-action@v6")
+	mustContain(t, releaseAssetsWorkflow, "goreleaser/goreleaser-action@v7")
 	mustContain(t, releaseAssetsWorkflow, "args: release --clean")
 	mustContain(t, npmPublishWorkflow, "name: NPM Publish")
 	mustContain(t, npmPublishWorkflow, "workflow_run:")

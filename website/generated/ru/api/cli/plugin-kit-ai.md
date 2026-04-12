@@ -32,9 +32,11 @@ CLI plugin-kit-ai для создания проектов и служебных
 
 ### См. также
 
+* plugin-kit-ai add	 - Install an integration across supported agent targets
 * plugin-kit-ai bootstrap	 - Подготавливает зависимости локального интерпретируемого runtime в репозитории.
 * plugin-kit-ai bundle	 - Инструменты bundle-экспорта для переносимых архивов интерпретируемого runtime.
 * plugin-kit-ai capabilities	 - Показывает сгенерированные metadata по целям, пакетам и поддержке runtime.
+* plugin-kit-ai compat	 - Inspect a native source and report target compatibility
 * plugin-kit-ai completion	 - Генерирует скрипт автодополнения для указанной оболочки.
 * plugin-kit-ai dev	 - Следит за проектом, повторно рендерит, валидирует, пересобирает и перезапускает фикстуры при изменениях.
 * plugin-kit-ai doctor	 - Проверяет готовность локального runtime в репозитории без изменения файлов.
@@ -48,7 +50,10 @@ CLI plugin-kit-ai для создания проектов и служебных
 * plugin-kit-ai normalize	 - Нормализует `plugin.yaml` в package-standard проекте.
 * plugin-kit-ai publication	 - Show the publication-oriented package and channel view
 * plugin-kit-ai publish	 - Publish a package target through a bounded channel workflow
+* plugin-kit-ai remove	 - Remove a managed integration
+* plugin-kit-ai repair	 - Repair managed integration drift
 * plugin-kit-ai skills	 - Экспериментальные инструменты для авторинга skills.
 * plugin-kit-ai test	 - Запускает стабильные smoke-тесты на фикстурах против launcher entrypoint.
+* plugin-kit-ai update	 - Update a managed integration
 * plugin-kit-ai validate	 - Проверяет проект plugin-kit-ai в package-standard формате.
 * plugin-kit-ai version	 - Печатает версию модуля CLI plugin-kit-ai из build info.

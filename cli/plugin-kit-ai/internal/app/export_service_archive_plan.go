@@ -1,11 +1,5 @@
 package app
 
-import (
-	"slices"
-
-	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
-)
-
 func buildExportArchiveFiles(ctx exportServiceContext, output string) ([]string, string, error) {
 	generated, err := loadGeneratedExportArtifacts(ctx)
 	if err != nil {

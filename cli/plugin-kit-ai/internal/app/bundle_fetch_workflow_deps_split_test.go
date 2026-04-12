@@ -17,8 +17,10 @@ func TestAttachBundleFetchHTTPClientNoopsOnNilClient(t *testing.T) {
 	t.Parallel()
 
 	client := newBundleFetchGitHubClient(PluginBundleFetchOptions{})
+	apiClient := client.APIClient
+	dlClient := client.DLClient
 	attachBundleFetchHTTPClient(client, nil)
-	if client.APIClient != nil || client.DLClient != nil {
+	if client.APIClient != apiClient || client.DLClient != dlClient {
 		t.Fatalf("client = %#v", client)
 	}
 }

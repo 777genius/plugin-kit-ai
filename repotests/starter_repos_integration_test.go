@@ -291,28 +291,34 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			}
 
 			readme := readRepoFile(t, tc.dir, "README.md")
-			mustContain(t, readme, "## Who It Is For")
-			mustContain(t, readme, "## Prerequisites")
-			mustContain(t, readme, "## First Run")
-			mustContain(t, readme, "plugin-kit-ai validate . --platform "+tc.platform+" --strict")
-			mustContain(t, readme, "## Local Smoke")
-			mustContain(t, readme, "## Ship It")
+			mustContain(t, readme, "<!-- plugin-kit-ai:managed-root-readme -->")
+			mustContain(t, readme, "[`src/README.md`](./src/README.md)")
+			mustContain(t, readme, "[`AGENTS.md`](./AGENTS.md)")
+			mustContain(t, readme, "[`GENERATED.md`](./GENERATED.md)")
+
+			authoredReadme := readRepoFile(t, tc.dir, "src", "README.md")
+			mustContain(t, authoredReadme, "## Who It Is For")
+			mustContain(t, authoredReadme, "## Prerequisites")
+			mustContain(t, authoredReadme, "## First Run")
+			mustContain(t, authoredReadme, "plugin-kit-ai validate . --platform "+tc.platform+" --strict")
+			mustContain(t, authoredReadme, "## Local Smoke")
+			mustContain(t, authoredReadme, "## Ship It")
 			for _, needle := range tc.contains {
-				mustContain(t, readme, needle)
+				mustContain(t, authoredReadme, needle)
 			}
 
 			switch tc.runtime {
 			case "go":
-				mustContain(t, readme, "go test ./...")
-				mustContain(t, readme, "Production plugin examples")
-				mustNotContain(t, readme, "plugin-kit-ai bundle fetch")
-				mustNotContain(t, readme, "plugin-kit-ai bundle publish")
-				mustNotContain(t, readme, "plugin-kit-ai bootstrap .")
+				mustContain(t, authoredReadme, "go test ./...")
+				mustContain(t, authoredReadme, "Production plugin examples")
+				mustNotContain(t, authoredReadme, "plugin-kit-ai bundle fetch")
+				mustNotContain(t, authoredReadme, "plugin-kit-ai bundle publish")
+				mustNotContain(t, authoredReadme, "plugin-kit-ai bootstrap .")
 			case "python", "node":
-				mustContain(t, readme, "plugin-kit-ai doctor .")
-				mustContain(t, readme, "plugin-kit-ai bootstrap .")
-				mustContain(t, readme, "public-stable")
-				mustContain(t, readme, "plugin-kit-ai-runtime")
+				mustContain(t, authoredReadme, "plugin-kit-ai doctor .")
+				mustContain(t, authoredReadme, "plugin-kit-ai bootstrap .")
+				mustContain(t, authoredReadme, "public-stable")
+				mustContain(t, authoredReadme, "plugin-kit-ai-runtime")
 			}
 		})
 	}

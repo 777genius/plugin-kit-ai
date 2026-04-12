@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
+	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 	"github.com/777genius/plugin-kit-ai/cli/internal/runtimecheck"
 )
 
@@ -46,9 +47,10 @@ func exportFileList(root string, graph pluginmanifest.PackageGraph, project runt
 }
 
 func addRuntimeExportPaths(root string, set map[string]struct{}, project runtimecheck.Project) {
+	authoredRoot := exportAuthoredRoot(root)
 	switch project.Runtime {
 	case "python":
-		addDirIfExists(root, set, "src")
+		addDirIfExists(root, set, authoredRoot)
 		addIfExists(root, set, "requirements.txt")
 		addIfExists(root, set, "pyproject.toml")
 		addIfExists(root, set, "uv.lock")
@@ -56,7 +58,7 @@ func addRuntimeExportPaths(root string, set map[string]struct{}, project runtime
 		addIfExists(root, set, "Pipfile")
 		addIfExists(root, set, "Pipfile.lock")
 	case "node":
-		addDirIfExists(root, set, "src")
+		addDirIfExists(root, set, authoredRoot)
 		addIfExists(root, set, "package.json")
 		addIfExists(root, set, "tsconfig.json")
 		addIfExists(root, set, ".yarnrc.yml")
@@ -74,4 +76,14 @@ func addRuntimeExportPaths(root string, set map[string]struct{}, project runtime
 	case "shell":
 		addDirIfExists(root, set, "scripts")
 	}
+}
+
+func exportAuthoredRoot(root string) string {
+	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) {
+		return pluginmodel.SourceDirName
+	}
+	if fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, pluginmanifest.FileName)) {
+		return pluginmodel.LegacySourceDirName
+	}
+	return pluginmodel.SourceDirName
 }

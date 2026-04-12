@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
 const rootGoModModuleLine = "module github.com/777genius/plugin-kit-ai"
@@ -246,6 +248,14 @@ func wireGeneratedGoModuleToLocalSDK(t testing.TB, root string, env []string) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("go mod edit replace sdk: %v\n%s", err, out)
 	}
+}
+
+func authoredRel(parts ...string) string {
+	return filepath.Join(append([]string{platformmeta.CanonicalAuthoredRoot}, parts...)...)
+}
+
+func authoredSlash(parts ...string) string {
+	return filepath.ToSlash(authoredRel(parts...))
 }
 
 // buildPluginKitAIE2E builds sdk/cmd/plugin-kit-ai-e2e into a temp dir and returns the binary path.

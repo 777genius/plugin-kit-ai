@@ -18,7 +18,7 @@ func TestPluginKitAIValidateTextPrintsStructuredFailureForMissingManifest(t *tes
 		t.Fatal("expected validate failure")
 	}
 	text := string(out)
-	if !strings.Contains(text, "Failure: required manifest missing: src/plugin.yaml") {
+	if !strings.Contains(text, "Failure: required manifest missing: "+authoredSlash("plugin.yaml")) {
 		t.Fatalf("validate output missing structured failure line:\n%s", text)
 	}
 	if strings.Contains(text, "Usage:") {

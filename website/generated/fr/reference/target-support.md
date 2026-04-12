@@ -21,7 +21,8 @@ Use this page when you need the compact lane map across runtime, package, extens
 | claude | production-ready package+runtime lane | stable runtime subset | marketplace or local |
 | codex-package | recommended package lane | official package only | marketplace or local |
 | codex-runtime | recommended runtime lane | stable notify runtime | repo-local |
-| cursor | repo-managed integration lane | workspace-config lane | workspace config |
+| cursor | repo-managed integration lane | workspace-config lane | marketplace or local |
+| cursor-workspace | repo-managed integration lane | workspace-config lane with first-class MCP config and project rules | workspace config |
 | gemini | production-ready extension packaging lane | packaging, not runtime | copy install |
 | opencode | repo-managed integration lane | workspace-config lane | workspace config |
 

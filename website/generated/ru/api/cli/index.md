@@ -22,8 +22,10 @@ CLI покрывает создание проекта, генерацию, пр
 
 ## Основные команды
 - [`plugin-kit-ai`](/ru/api/cli/plugin-kit-ai)
+- [`plugin-kit-ai add`](/ru/api/cli/plugin-kit-ai-add)
 - [`plugin-kit-ai bootstrap`](/ru/api/cli/plugin-kit-ai-bootstrap)
 - [`plugin-kit-ai capabilities`](/ru/api/cli/plugin-kit-ai-capabilities)
+- [`plugin-kit-ai compat`](/ru/api/cli/plugin-kit-ai-compat)
 - [`plugin-kit-ai dev`](/ru/api/cli/plugin-kit-ai-dev)
 - [`plugin-kit-ai doctor`](/ru/api/cli/plugin-kit-ai-doctor)
 - [`plugin-kit-ai export`](/ru/api/cli/plugin-kit-ai-export)
@@ -51,7 +53,10 @@ CLI покрывает создание проекта, генерацию, пр
 - [`plugin-kit-ai publication materialize`](/ru/api/cli/plugin-kit-ai-publication-materialize)
 - [`plugin-kit-ai publication remove`](/ru/api/cli/plugin-kit-ai-publication-remove)
 - [`plugin-kit-ai publish`](/ru/api/cli/plugin-kit-ai-publish)
+- [`plugin-kit-ai remove`](/ru/api/cli/plugin-kit-ai-remove)
+- [`plugin-kit-ai repair`](/ru/api/cli/plugin-kit-ai-repair)
 - [`plugin-kit-ai test`](/ru/api/cli/plugin-kit-ai-test)
+- [`plugin-kit-ai update`](/ru/api/cli/plugin-kit-ai-update)
 - [`plugin-kit-ai validate`](/ru/api/cli/plugin-kit-ai-validate)
 - [`plugin-kit-ai version`](/ru/api/cli/plugin-kit-ai-version)
 ## Bundle

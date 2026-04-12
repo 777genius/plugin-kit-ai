@@ -32,15 +32,16 @@ Start with the job you want to solve:
 
 Connect an online service:
   Use --template online-service for hosted integrations like Notion, Stripe, Cloudflare, or Vercel.
-  This starter creates an MCP-first repo with shared authored source under src/ and no launcher code.
+  This starter creates an MCP-first repo with shared authored source under plugin/ and no launcher code.
 
 Connect a local tool:
   Use --template local-tool for local MCP-backed tools like Docker Hub, Chrome DevTools, or HubSpot Developer.
-  This starter creates an MCP-first repo with local command wiring under src/ and no launcher code.
+  This starter creates an MCP-first repo with local command wiring under plugin/ and no launcher code.
 
-Build custom plugin logic:
+Build custom plugin logic - Advanced:
   Use --template custom-logic when you need launcher-backed code, hooks, or your own runtime behavior.
-  Plain init stays backward-compatible here: codex-runtime plus --runtime go remains the default path.
+  This path is more powerful and more engineering-heavy than the first two starters.
+  Plain init remains as a legacy compatibility path for the older codex-runtime plus Go starter.
 
 Уже есть нативная конфигурация:
   Используйте `plugin-kit-ai import`, чтобы привести текущие нативные файлы Claude/Codex/Gemini/OpenCode/Cursor к authored layout package-standard проекта.
@@ -48,11 +49,11 @@ Build custom plugin logic:
 
 Публичные флаги:
   --template   Recommended start: "online-service", "local-tool", or "custom-logic".
-  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", or "cursor".
+  --platform   Advanced override: "codex-runtime" (default), "codex-package", "claude", "gemini", "opencode", "cursor", or "cursor-workspace".
   --runtime    Поддерживаются: `go` (по умолчанию), `python`, `node`, `shell`; `shell` доступен только для launcher-based targets.
   --typescript Генерирует TypeScript scaffold поверх node runtime lane (требует `--runtime node`).
   --runtime-package
-               Для `--runtime python` или `--runtime node` импортирует общий пакет `plugin-kit-ai-runtime` вместо вендоринга helper-файла в `src/`.
+               For --runtime python or --runtime node, import the shared plugin-kit-ai-runtime package instead of vendoring the helper file into plugin/.
   --runtime-package-version
                Фиксирует версию зависимости `plugin-kit-ai-runtime`. Обязательно для development build; выпущенные CLI по умолчанию используют собственный stable tag.
   -o, --output Целевой каталог (по умолчанию: `./&lt;project-name&gt;`).
@@ -73,7 +74,7 @@ plugin-kit-ai init [project-name] [flags]
   -f, --force                            перезаписывает сгенерированные файлы и разрешает непустой output-каталог
   -h, --help                             справка по init
   -o, --output string                    output directory (default: ./&lt;project-name&gt;)
-      --platform string                  целевой lane (`codex-runtime`, `codex-package`, `claude`, `gemini`, `opencode` или `cursor`) (по умолчанию `codex-runtime`)
+      --platform string                  target lane ("codex-runtime", "codex-package", "claude", "gemini", "opencode", "cursor", or "cursor-workspace") (default "codex-runtime")
       --runtime string                   runtime (`go`, `python`, `node` или `shell`) (по умолчанию `go`)
       --runtime-package                  для `--runtime python` или `--runtime node` импортирует общий пакет `plugin-kit-ai-runtime` вместо вендоринга helper-файла
       --runtime-package-version string   фиксирует версию сгенерированной зависимости `plugin-kit-ai-runtime`

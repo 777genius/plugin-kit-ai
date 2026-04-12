@@ -45,7 +45,6 @@ const selectedTargets = computed(() =>
     ? supportLanes.value
     : supportLanes.value.filter((lane) => selectedTargetIds.value.includes(lane.targetId)),
 );
-const primarySelectedTarget = computed(() => selectedTargets.value[0]);
 
 const installChannels = computed<InstallChannel[]>(() =>
   content.value.installChannels.filter(
@@ -72,6 +71,12 @@ const selectedInstallChannel = computed(
     installChannels.value.find((channel) => channel.id === selectedInstallChannelId.value) ??
     installChannels.value[0],
 );
+
+const skipCliStep = computed(() => selectedInstallChannel.value?.id === 'npm');
+const showCliStep = computed(() => Boolean(selectedInstallChannel.value) && !skipCliStep.value);
+const installStepIndex = computed(() => (skipCliStep.value ? '02' : '03'));
+const manualStepIndex = computed(() => (skipCliStep.value ? '03' : '04'));
+const manageStepIndex = computed(() => (skipCliStep.value ? '04' : '05'));
 
 const selectedCliInvocation = computed(() =>
   getCliInvocation(selectedInstallChannel.value?.invocation),
@@ -125,19 +130,6 @@ const nextStepSummary = computed(() => {
   return t('plugins.install.followUps.depends');
 });
 
-const targetInstallBody = computed(() => {
-  if (allSelected.value) {
-    return t('plugins.install.selectionBodies.all');
-  }
-
-  if (selectedTargets.value.length === 1) {
-    const lane = selectedTargets.value[0];
-    return lane ? t(`plugins.install.targets.${lane.targetId}.installBody`) : '';
-  }
-
-  return t('plugins.install.selectionBodies.multi', { agents: selectedTargetNames.value });
-});
-
 const projectRootHint = computed(() => {
   if (!selectedTargets.value.some((lane) => lane.projectRootRequired)) {
     return '';
@@ -179,24 +171,6 @@ const targetBoundaryNotes = computed(() => {
   }
 
   return notes;
-});
-
-const targetManualNote = computed(() => {
-  if (allSelected.value) {
-    return t('plugins.install.manualNotes.all');
-  }
-
-  if (selectedTargets.value.length > 1) {
-    return t('plugins.install.manualNotes.multi', { agents: selectedTargetNames.value });
-  }
-
-  const lane = primarySelectedTarget.value;
-  if (!lane) {
-    return '';
-  }
-
-  const key = `plugins.install.targets.${lane.targetId}.manualNote`;
-  return te(key) ? t(key) : '';
 });
 
 const selectedDocsTargets = computed(() =>
@@ -308,10 +282,35 @@ function toggleExpanded() {
                   </span>
                 </button>
               </div>
+
+              <hr class="plugin-install__section-divider">
+
+              <div
+                class="plugin-install__channel-tabs"
+                role="group"
+                :aria-label="t('plugins.install.getCliTitle')"
+              >
+                <button
+                  v-for="channel in installChannels"
+                  :key="channel.id"
+                  type="button"
+                  class="plugin-install__channel-tab"
+                  :class="{
+                    'plugin-install__channel-tab--active': channel.id === selectedInstallChannelId,
+                  }"
+                  :aria-pressed="channel.id === selectedInstallChannelId"
+                  @click="selectedInstallChannelId = channel.id"
+                >
+                  <span>{{ channel.title }}</span>
+                  <span v-if="channel.recommended" class="plugin-install__channel-tab-badge">
+                    {{ t('plugins.install.recommended') }}
+                  </span>
+                </button>
+              </div>
             </article>
 
             <div class="plugin-install__stack">
-              <article class="plugin-install__card plugin-install__card--onboard">
+              <article v-if="showCliStep" class="plugin-install__card plugin-install__card--onboard">
                 <div class="plugin-install__card-head">
                   <span class="plugin-install__step-index">02</span>
                   <div>
@@ -320,26 +319,10 @@ function toggleExpanded() {
                   </div>
                 </div>
 
-                <div class="plugin-install__channel-tabs">
-                  <button
-                    v-for="channel in installChannels"
-                    :key="channel.id"
-                    type="button"
-                    class="plugin-install__channel-tab"
-                    :class="{
-                      'plugin-install__channel-tab--active': channel.id === selectedInstallChannelId,
-                    }"
-                    :aria-pressed="channel.id === selectedInstallChannelId"
-                    @click="selectedInstallChannelId = channel.id"
-                  >
-                    <span>{{ channel.title }}</span>
-                    <span v-if="channel.recommended" class="plugin-install__channel-tab-badge">
-                      {{ t('plugins.install.recommended') }}
-                    </span>
-                  </button>
-                </div>
-
-                <p v-if="selectedInstallChannel" class="plugin-install__channel-description">
+                <p
+                  v-if="selectedInstallChannel && selectedInstallChannel.id !== 'npm'"
+                  class="plugin-install__channel-description"
+                >
                   {{ selectedInstallChannel.description }}
                 </p>
 
@@ -376,10 +359,9 @@ function toggleExpanded() {
 
               <article class="plugin-install__card plugin-install__card--install">
                 <div class="plugin-install__card-head">
-                  <span class="plugin-install__step-index">03</span>
+                  <span class="plugin-install__step-index">{{ installStepIndex }}</span>
                   <div>
                     <h3 class="plugin-install__card-title">{{ t('plugins.install.installTitle') }}</h3>
-                    <p class="plugin-install__card-copy">{{ t('plugins.install.installBody') }}</p>
                   </div>
                 </div>
 
@@ -390,8 +372,6 @@ function toggleExpanded() {
                   :copied-label="t('plugins.install.copied')"
                   :accent="accent"
                 />
-
-                <p class="plugin-install__muted-note">{{ targetInstallBody }}</p>
 
                 <div class="plugin-install__facts">
                   <div class="plugin-install__fact">
@@ -462,54 +442,56 @@ function toggleExpanded() {
             <div class="plugin-install__grid plugin-install__grid--secondary">
               <article class="plugin-install__card">
                 <div class="plugin-install__card-head">
-                  <span class="plugin-install__step-index">04</span>
+                  <span class="plugin-install__step-index">{{ manualStepIndex }}</span>
                   <div>
                     <h3 class="plugin-install__card-title">{{ t('plugins.install.manualTitle') }}</h3>
                     <p class="plugin-install__card-copy">{{ t('plugins.install.manualBody') }}</p>
                   </div>
                 </div>
 
-                <p class="plugin-install__muted-note">{{ targetManualNote }}</p>
-
-                <div class="plugin-install__cta-row plugin-install__cta-row--manual">
-                  <v-btn
+                <div class="plugin-install__manual-links">
+                  <a
                     :href="plugin.href"
                     target="_blank"
                     rel="noreferrer noopener"
-                    variant="outlined"
-                    class="plugin-install__tertiary-cta"
+                    class="plugin-install__manual-link plugin-install__manual-link--repo"
                   >
-                    {{ t('plugins.install.repositoryCta') }}
-                    <v-icon :icon="mdiOpenInNew" end size="18" />
-                  </v-btn>
-                  <v-btn
+                    <span class="plugin-install__manual-link-main">
+                      <span class="plugin-install__manual-link-label">{{
+                        t('plugins.install.repositoryCta')
+                      }}</span>
+                    </span>
+                    <v-icon :icon="mdiOpenInNew" size="18" />
+                  </a>
+                  <a
                     v-for="lane in selectedDocsTargets"
                     :key="lane.targetId"
                     :href="lane.vendorDocsHref"
                     target="_blank"
                     rel="noreferrer noopener"
-                    variant="text"
-                    class="plugin-install__docs-cta"
+                    class="plugin-install__manual-link"
                   >
-                    <span class="plugin-install__docs-cta-inner">
+                    <span class="plugin-install__manual-link-main">
                       <img
                         v-if="lane.iconSrc"
                         :src="lane.iconSrc"
                         :alt="`${lane.badgeLabel} icon`"
-                        class="plugin-install__docs-icon"
+                        class="plugin-install__manual-link-icon"
                         loading="lazy"
                         decoding="async"
                       >
-                      <span>{{ t('plugins.install.agentDocsCta', { agent: lane.badgeLabel }) }}</span>
+                      <span class="plugin-install__manual-link-label">{{
+                        t('plugins.install.agentDocsCta', { agent: lane.badgeLabel })
+                      }}</span>
                     </span>
-                    <v-icon :icon="mdiOpenInNew" end size="18" />
-                  </v-btn>
+                    <v-icon :icon="mdiOpenInNew" size="18" />
+                  </a>
                 </div>
               </article>
 
               <article class="plugin-install__card">
                 <div class="plugin-install__card-head">
-                  <span class="plugin-install__step-index">05</span>
+                  <span class="plugin-install__step-index">{{ manageStepIndex }}</span>
                   <div>
                     <h3 class="plugin-install__card-title">{{ t('plugins.install.manageTitle') }}</h3>
                     <p class="plugin-install__card-copy">{{ t('plugins.install.manageBody') }}</p>
@@ -633,6 +615,14 @@ function toggleExpanded() {
 .plugin-install__card--targets {
   display: grid;
   gap: 18px;
+}
+
+.plugin-install__section-divider {
+  width: 100%;
+  height: 1px;
+  margin: 0;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .plugin-install__card-head {
@@ -871,29 +861,63 @@ function toggleExpanded() {
   margin-top: 18px;
 }
 
-.plugin-install__cta-row--manual {
-  margin-top: 14px;
-}
-
 .plugin-install__secondary-cta {
   border-color: rgba(125, 211, 252, 0.2) !important;
   color: #dffaff !important;
 }
 
-.plugin-install__tertiary-cta,
-.plugin-install__docs-cta {
-  color: #dffaff !important;
+.plugin-install__manual-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
 }
 
-.plugin-install__docs-cta-inner {
+.plugin-install__manual-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  color: #dffaff;
+  text-decoration: none;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.plugin-install__manual-link:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--install-accent) 24%, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.plugin-install__manual-link--repo {
+  grid-column: 1 / -1;
+}
+
+.plugin-install__manual-link-main {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
-.plugin-install__docs-icon {
-  width: 16px;
-  height: 16px;
+.plugin-install__manual-link-label {
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: inherit;
+  letter-spacing: 0.01em;
+}
+
+.plugin-install__manual-link-icon {
+  width: 18px;
+  height: 18px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -943,9 +967,23 @@ function toggleExpanded() {
   background: rgba(15, 23, 42, 0.1);
 }
 
+.v-theme--light .plugin-install__section-divider {
+  background: rgba(15, 23, 42, 0.08);
+}
+
 .v-theme--light .plugin-install__fact {
   background: rgba(248, 250, 252, 0.88);
   border-color: rgba(15, 23, 42, 0.06);
+}
+
+.v-theme--light .plugin-install__manual-link {
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.v-theme--light .plugin-install__manual-link:hover {
+  background: rgba(241, 245, 249, 0.96);
 }
 
 .v-theme--light .plugin-install__fact-pill {
@@ -976,6 +1014,14 @@ function toggleExpanded() {
   .plugin-install__facts {
     grid-template-columns: 1fr;
   }
+
+  .plugin-install__manual-links {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-install__manual-link--repo {
+    grid-column: auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -999,8 +1045,7 @@ function toggleExpanded() {
   }
 
   .plugin-install__secondary-cta,
-  .plugin-install__tertiary-cta,
-  .plugin-install__docs-cta {
+  .plugin-install__manual-link {
     width: 100%;
   }
 

@@ -2,7 +2,6 @@ package pluginkitairepo_test
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"os/exec"
 	"strings"
 	"testing"
@@ -84,10 +83,10 @@ func TestPluginKitAICapabilities(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing native_doc_paths entry: %+v", target)
 	}
-	if nativeDocPaths["interface"] != filepath.Join("src", "targets", "codex-package", "interface.json") {
+	if nativeDocPaths["interface"] != authoredRel("targets", "codex-package", "interface.json") {
 		t.Fatalf("native_doc_paths[interface] = %v", nativeDocPaths["interface"])
 	}
-	if nativeDocPaths["package_metadata"] != filepath.Join("src", "targets", "codex-package", "package.yaml") {
+	if nativeDocPaths["package_metadata"] != authoredRel("targets", "codex-package", "package.yaml") {
 		t.Fatalf("native_doc_paths[package_metadata] = %v", nativeDocPaths["package_metadata"])
 	}
 	nativeSurfaceTiers, ok := target["native_surface_tiers"].(map[string]any)

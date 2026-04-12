@@ -28,6 +28,7 @@ import "github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 
 ## Оглавление
 
+- Constants
 - func IDs\(\) \[\]string
 - type ContextStrategy
 - type LauncherMeta
@@ -51,6 +52,15 @@ import "github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 - type TransportMode
 - type ValidateMeta
 
+
+## Constants
+
+```go
+const (
+    CanonicalAuthoredRoot = "plugin"
+    LegacyAuthoredRoot    = "src"
+)
+```
 
 ## func IDs
 

@@ -21,7 +21,8 @@ translationRequired: false
 | claude | production-ready package+runtime lane | стабильный поднабор runtime | marketplace или локально |
 | codex-package | рекомендуемый package lane | только официальный пакет | marketplace или локально |
 | codex-runtime | рекомендуемый runtime lane | стабильный notify-runtime | локально в репозитории |
-| cursor | repo-managed integration lane | workspace-config вариант | конфигурация workspace |
+| cursor | repo-managed integration lane | workspace-config вариант | marketplace или локально |
+| cursor-workspace | repo-managed integration lane | workspace-config lane with first-class MCP config and project rules | конфигурация workspace |
 | gemini | production-ready extension packaging lane | упаковка, не runtime | установка копированием |
 | opencode | repo-managed integration lane | workspace-config вариант | конфигурация workspace |
 

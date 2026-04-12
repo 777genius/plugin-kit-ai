@@ -42,7 +42,7 @@ plugin-kit-ai validate [path] [flags]
 ```
       --format string     output format ("text" or "json") (default "text")
   -h, --help              help for validate
-      --platform string   target override ("codex-package", "codex-runtime", "claude", "gemini", "opencode", or "cursor")
+      --platform string   target override ("codex-package", "codex-runtime", "claude", "gemini", "opencode", "cursor", or "cursor-workspace")
       --strict            treat validation warnings as errors
 ```
 

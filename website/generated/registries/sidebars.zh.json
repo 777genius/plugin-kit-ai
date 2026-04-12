@@ -261,12 +261,20 @@
           "link": "/zh/api/cli/plugin-kit-ai"
         },
         {
+          "text": "add",
+          "link": "/zh/api/cli/plugin-kit-ai-add"
+        },
+        {
           "text": "bootstrap",
           "link": "/zh/api/cli/plugin-kit-ai-bootstrap"
         },
         {
           "text": "capabilities",
           "link": "/zh/api/cli/plugin-kit-ai-capabilities"
+        },
+        {
+          "text": "compat",
+          "link": "/zh/api/cli/plugin-kit-ai-compat"
         },
         {
           "text": "dev",
@@ -377,8 +385,20 @@
           "link": "/zh/api/cli/plugin-kit-ai-publish"
         },
         {
+          "text": "remove",
+          "link": "/zh/api/cli/plugin-kit-ai-remove"
+        },
+        {
+          "text": "repair",
+          "link": "/zh/api/cli/plugin-kit-ai-repair"
+        },
+        {
           "text": "test",
           "link": "/zh/api/cli/plugin-kit-ai-test"
+        },
+        {
+          "text": "update",
+          "link": "/zh/api/cli/plugin-kit-ai-update"
         },
         {
           "text": "validate",

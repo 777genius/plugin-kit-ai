@@ -1,3 +1,4 @@
+<!-- plugin-kit-ai:begin managed-guidance -->
 # Plugin Boundary
 
 This plugin uses the canonical `src/` authoring layout.
@@ -18,3 +19,4 @@ plugin-kit-ai inspect . --format json
 ```
 
 Then run `plugin-kit-ai validate . --platform <enabled-target> --strict` for each enabled target listed in the inspection output.
+<!-- plugin-kit-ai:end managed-guidance -->

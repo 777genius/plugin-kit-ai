@@ -534,6 +534,25 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "plugin-kit-ai add"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:add",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai add",
+    "summary": "Install an integration across supported agent targets",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai add",
+    "pathEn": "/en/api/cli/plugin-kit-ai-add",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-add"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "plugin-kit-ai bootstrap"
     ],
     "publicVisibility": "public",
@@ -663,6 +682,25 @@
     "sourceRef": "cli:plugin-kit-ai capabilities",
     "pathEn": "/en/api/cli/plugin-kit-ai-capabilities",
     "pathRu": "/ru/api/cli/plugin-kit-ai-capabilities"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai compat"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:compat",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai compat",
+    "summary": "Inspect a native source and report target compatibility",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai compat",
+    "pathEn": "/en/api/cli/plugin-kit-ai-compat",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-compat"
   },
   {
     "relatedIds": [],
@@ -1294,6 +1332,44 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "plugin-kit-ai remove"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:remove",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai remove",
+    "summary": "Remove a managed integration",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai remove",
+    "pathEn": "/en/api/cli/plugin-kit-ai-remove",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-remove"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai repair"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:repair",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai repair",
+    "summary": "Repair managed integration drift",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai repair",
+    "pathEn": "/en/api/cli/plugin-kit-ai-repair",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-repair"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "plugin-kit-ai skills"
     ],
     "publicVisibility": "public",
@@ -1404,6 +1480,25 @@
     "sourceRef": "cli:plugin-kit-ai test",
     "pathEn": "/en/api/cli/plugin-kit-ai-test",
     "pathRu": "/ru/api/cli/plugin-kit-ai-test"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai update"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:update",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai update",
+    "summary": "Update a managed integration",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai update",
+    "pathEn": "/en/api/cli/plugin-kit-ai-update",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-update"
   },
   {
     "relatedIds": [],
@@ -1593,26 +1688,6 @@
     "pathRu": "/ru/api/go-sdk/codex"
   },
   {
-    "relatedIds": [],
-    "searchTerms": [
-      "github.com/777genius/plugin-kit-ai/sdk/platformmeta",
-      "platformmeta"
-    ],
-    "publicVisibility": "public",
-    "canonicalId": "go-package:github.com/777genius/plugin-kit-ai/sdk/platformmeta",
-    "kind": "package",
-    "surface": "go-sdk",
-    "localeStrategy": "mirrored",
-    "title": "platformmeta",
-    "summary": "Public Go package github.com/777genius/plugin-kit-ai/sdk/platformmeta",
-    "stability": "public-beta",
-    "maturity": "beta",
-    "sourceKind": "gomarkdoc",
-    "sourceRef": "sdk/platformmeta",
-    "pathEn": "/en/api/go-sdk/platformmeta",
-    "pathRu": "/ru/api/go-sdk/platformmeta"
-  },
-  {
     "relatedIds": [
       "event-platform:gemini"
     ],
@@ -1633,6 +1708,26 @@
     "sourceRef": "sdk/gemini",
     "pathEn": "/en/api/go-sdk/gemini",
     "pathRu": "/ru/api/go-sdk/gemini"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "github.com/777genius/plugin-kit-ai/sdk/platformmeta",
+      "platformmeta"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "go-package:github.com/777genius/plugin-kit-ai/sdk/platformmeta",
+    "kind": "package",
+    "surface": "go-sdk",
+    "localeStrategy": "mirrored",
+    "title": "platformmeta",
+    "summary": "Public Go package github.com/777genius/plugin-kit-ai/sdk/platformmeta",
+    "stability": "public-beta",
+    "maturity": "beta",
+    "sourceKind": "gomarkdoc",
+    "sourceRef": "sdk/platformmeta",
+    "pathEn": "/en/api/go-sdk/platformmeta",
+    "pathRu": "/ru/api/go-sdk/platformmeta"
   },
   {
     "relatedIds": [],
@@ -1994,6 +2089,25 @@
     "relatedIds": [],
     "searchTerms": [
       "Why plugin-kit-ai"
+    ]
+  },
+  {
+    "canonicalId": "page:guide:build-custom-plugin-logic",
+    "kind": "page",
+    "surface": "guide",
+    "localeStrategy": "mirrored",
+    "title": "Build Custom Plugin Logic",
+    "summary": "The advanced path for plugins whose value lives in runtime code, hooks, and orchestration.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "guide/build-custom-plugin-logic.md",
+    "pathEn": "/en/guide/build-custom-plugin-logic",
+    "pathRu": "/ru/guide/build-custom-plugin-logic",
+    "relatedIds": [],
+    "searchTerms": [
+      "Build Custom Plugin Logic"
     ]
   },
   {

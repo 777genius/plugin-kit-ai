@@ -7,7 +7,7 @@ This inventory covers the full plugin package across all enabled targets.
 
 ## Boundary Docs
 
-These committed root docs are guidance files and are not generated outputs:
+These committed root docs are guidance files with a managed block, not plain generated outputs:
 
 - `CLAUDE.md`
 - `AGENTS.md`

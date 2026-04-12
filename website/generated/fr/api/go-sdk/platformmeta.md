@@ -28,6 +28,7 @@ Package platformmeta exposes generated public metadata about supported target pl
 
 ## Index
 
+- Constants
 - func IDs\(\) \[\]string
 - type ContextStrategy
 - type LauncherMeta
@@ -51,6 +52,15 @@ Package platformmeta exposes generated public metadata about supported target pl
 - type TransportMode
 - type ValidateMeta
 
+
+## Constants
+
+```go
+const (
+    CanonicalAuthoredRoot = "plugin"
+    LegacyAuthoredRoot    = "src"
+)
+```
 
 ## func IDs
 

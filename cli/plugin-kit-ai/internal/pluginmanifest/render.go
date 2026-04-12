@@ -47,7 +47,7 @@ func generatePackage(root string, target string) (RenderResult, error) {
 		}
 		artifactMap[relPath] = artifact.Content
 	}
-	if ctx.layout.IsCanonical() {
+	if strings.TrimSpace(ctx.layout.Path("")) != "" {
 		if claudeBoundary, err := buildRootClaudeBoundaryArtifact(root, ctx.layout); err != nil {
 			return RenderResult{}, err
 		} else if claudeBoundary != nil {

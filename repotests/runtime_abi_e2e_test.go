@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
 func TestPluginKitAIRuntimeABIPassthrough(t *testing.T) {
@@ -131,7 +133,7 @@ func TestPluginKitAIPythonLauncherPrefersProjectVenvOnWindows(t *testing.T) {
 	if err := linkOrCopyFile(systemPython, venvPython); err != nil {
 		t.Fatalf("prepare project python runtime: %v", err)
 	}
-	writeRuntimeFile(t, plugRoot, filepath.Join("src", "main.py"), pythonExecutableProbeSource())
+	writeRuntimeFile(t, plugRoot, filepath.Join(platformmeta.CanonicalAuthoredRoot, "main.py"), pythonExecutableProbeSource())
 
 	validateGeneratedProject(t, pluginKitAIBin, plugRoot, "codex-runtime", nil, "plugin-kit-ai validate")
 
@@ -167,9 +169,9 @@ func overwriteRuntimeWithABIFixture(t *testing.T, root, runtimeName string) {
 	case "go":
 		writeRuntimeFile(t, root, filepath.Join("cmd", "genplug", "main.go"), abiGoSource())
 	case "python":
-		writeRuntimeFile(t, root, filepath.Join("src", "main.py"), abiPythonSource())
+		writeRuntimeFile(t, root, filepath.Join(platformmeta.CanonicalAuthoredRoot, "main.py"), abiPythonSource())
 	case "node":
-		writeRuntimeFile(t, root, filepath.Join("src", "main.mjs"), abiNodeSource())
+		writeRuntimeFile(t, root, filepath.Join(platformmeta.CanonicalAuthoredRoot, "main.mjs"), abiNodeSource())
 	case "shell":
 		writeRuntimeFile(t, root, filepath.Join("scripts", "main.sh"), abiShellSource())
 	default:
