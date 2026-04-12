@@ -18,6 +18,12 @@ outline: false
   </p>
 </div>
 
+## Default Start
+
+If you are new, start with the job-first path.
+
+That keeps the first decision small, gets one working repo into your hands quickly, and leaves room to expand the same repo later.
+
 ## Start By Job
 
 - [Connect an online service](/en/guide/choose-what-you-are-building#connect-an-online-service)
@@ -30,6 +36,15 @@ outline: false
 - choose the starting path that matches the job you need today
 - expand later from the same repo when the product needs more outputs
 - use `generate` and `validate --strict` as the shared readiness workflow
+
+## Supported Node And Python Paths
+
+Node/TypeScript and Python remain supported when the language choice is already real for the team or the product.
+
+- `codex-runtime --runtime node --typescript` stays the main supported non-Go path
+- `codex-runtime --runtime python` stays the supported Python-first path
+- both are repo-local interpreted runtime lanes, so the target machine still needs Node.js or Python installed
+- Go remains the default when you want the strongest general production story
 
 <div class="docs-grid">
   <a class="docs-card" href="./guide/choose-what-you-are-building">

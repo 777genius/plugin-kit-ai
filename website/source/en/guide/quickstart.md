@@ -14,6 +14,10 @@ This is the shortest recommended path when you want one plugin repo that can lat
 
 Start with one strong path first. Add packages, extensions, or repo-owned integration setup later when the product actually needs them.
 
+## Recommended Default
+
+The recommended default for new repos is the job-first path below.
+
 ## Start With The Job
 
 Pick the repo shape by what you are building:
