@@ -7,18 +7,15 @@ import (
 )
 
 func buildExportArchiveFiles(ctx exportServiceContext, output string) ([]string, string, error) {
-	generated, err := pluginmanifest.Generate(ctx.root, ctx.platform)
+	generated, err := loadGeneratedExportArtifacts(ctx)
 	if err != nil {
 		return nil, "", err
 	}
-
-	files, err := exportFileList(ctx.root, ctx.graph, ctx.project, generated.Artifacts)
+	files, err := buildExportArchiveFileSet(ctx, generated)
 	if err != nil {
 		return nil, "", err
 	}
-	outputPath := exportOutputPath(ctx.root, ctx.graph.Manifest.Name, ctx.platform, ctx.graph.Launcher.Runtime, output)
-	if rel, ok := relWithinRoot(ctx.root, outputPath); ok {
-		files = slices.DeleteFunc(files, func(path string) bool { return path == rel })
-	}
+	outputPath := resolveExportArchiveOutputPath(ctx, output)
+	files = dropExportArchiveOutput(files, ctx.root, outputPath)
 	return files, outputPath, nil
 }

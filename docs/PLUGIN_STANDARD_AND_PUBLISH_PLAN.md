@@ -123,7 +123,7 @@ Purpose:
 
 This layer must stay intentionally small.
 
-### 2. `src/targets/...`
+### 2. `plugin/targets/...`
 
 Vendor-specific authored adaptation layer.
 
@@ -134,12 +134,12 @@ Purpose:
 
 Examples:
 
-- `src/targets/codex-package/...`
-- `src/targets/codex-runtime/...`
-- `src/targets/claude/...`
-- `src/targets/gemini/...`
+- `plugin/targets/codex-package/...`
+- `plugin/targets/codex-runtime/...`
+- `plugin/targets/claude/...`
+- `plugin/targets/gemini/...`
 
-### 3. `src/publish/...`
+### 3. `plugin/publish/...`
 
 Marketplace, gallery, and catalog publication layer.
 
@@ -395,7 +395,7 @@ The intended author workflow becomes:
 
 1. Author the plugin core in `plugin.yaml`
 2. Author vendor-specific behavior under `targets/...`
-3. Author portable subsystems such as MCP in portable files like `src/mcp/servers.yaml`
+3. Author portable subsystems such as MCP in portable files like `plugin/mcp/servers.yaml`
 4. Optionally author publication metadata under `publish/...`
 5. Run generate to materialize vendor-visible manifests and artifacts
 6. Run validate to confirm authored and generated state match

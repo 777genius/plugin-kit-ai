@@ -11,14 +11,8 @@ func defaultBundleFetchDeps(opts PluginBundleFetchOptions) (bundleFetchDeps, err
 	if err != nil {
 		return bundleFetchDeps{}, err
 	}
-	client := gh.NewClient(strings.TrimSpace(opts.GitHubToken))
-	if base := strings.TrimSpace(opts.GitHubAPIBase); base != "" {
-		client.BaseURL = base
-	}
-	if customHTTPClient != nil {
-		client.APIClient = customHTTPClient
-		client.DLClient = customHTTPClient
-	}
+	client := newBundleFetchGitHubClient(opts)
+	attachBundleFetchHTTPClient(client, customHTTPClient)
 	return bundleFetchDeps{
 		URLDownloader: downloader,
 		GitHub:        client,
