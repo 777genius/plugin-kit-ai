@@ -14,7 +14,7 @@ outline: [2, 3]
 
 plugin-kit-ai exists for teams that want one maintained plugin project instead of a pile of disconnected target-specific repos, copies, or starter templates.
 
-## The Problem It Solves
+## What It Gives You
 
 Most agent integrations are easy to start and hard to maintain.
 
