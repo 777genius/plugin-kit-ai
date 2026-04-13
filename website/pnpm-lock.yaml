@@ -12,11 +12,11 @@ devDependencies:
     specifier: 1.59.1
     version: 1.59.1
   typedoc:
-    specifier: 0.28.18
-    version: 0.28.18(typescript@6.0.2)
+    specifier: 0.28.19
+    version: 0.28.19(typescript@6.0.2)
   typedoc-plugin-markdown:
     specifier: 4.11.0
-    version: 4.11.0(typedoc@0.28.18)
+    version: 4.11.0(typedoc@0.28.19)
   vitepress:
     specifier: 2.0.0-alpha.17
     version: 2.0.0-alpha.17(typescript@6.0.2)
@@ -1999,17 +1999,17 @@ packages:
     engines: {node: '>=6.10'}
     dev: true
 
-  /typedoc-plugin-markdown@4.11.0(typedoc@0.28.18):
+  /typedoc-plugin-markdown@4.11.0(typedoc@0.28.19):
     resolution: {integrity: sha512-2iunh2ALyfyh204OF7h2u0kuQ84xB3jFZtFyUr01nThJkLvR8oGGSSDlyt2gyO4kXhvUxDcVbO0y43+qX+wFbw==}
     engines: {node: '>= 18'}
     peerDependencies:
       typedoc: 0.28.x
     dependencies:
-      typedoc: 0.28.18(typescript@6.0.2)
+      typedoc: 0.28.19(typescript@6.0.2)
     dev: true
 
-  /typedoc@0.28.18(typescript@6.0.2):
-    resolution: {integrity: sha512-NTWTUOFRQ9+SGKKTuWKUioUkjxNwtS3JDRPVKZAXGHZy2wCA8bdv2iJiyeePn0xkmK+TCCqZFT0X7+2+FLjngA==}
+  /typedoc@0.28.19(typescript@6.0.2):
+    resolution: {integrity: sha512-wKh+lhdmMFivMlc6vRRcMGXeGEHGU2g8a2CkPTJjJlwRf1iXbimWIPcFolCqe4E0d/FRtGszpIrsp3WLpDB8Pw==}
     engines: {node: '>= 18', pnpm: '>= 10'}
     hasBin: true
     peerDependencies:
