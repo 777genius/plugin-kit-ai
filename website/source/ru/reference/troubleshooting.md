@@ -16,7 +16,7 @@ translationRequired: true
 
 Проверьте, что binary действительно находится в shell `PATH`.
 
-Если вы ставили CLI через npm или PyPI, убедитесь, что пакет реально скачал опубликованный binary. Не воспринимайте wrapper package как сам runtime.
+Если вы ставили CLI через npm или PyPI, убедитесь, что пакет реально скачал опубликованный binary. Не воспринимайте wrapper package как runtime.
 
 ## Python или Node runtime-repo падают слишком рано
 

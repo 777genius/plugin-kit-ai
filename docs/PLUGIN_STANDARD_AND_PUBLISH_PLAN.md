@@ -15,9 +15,9 @@ It combines:
 
 Related research:
 
-- [Codex, Claude, and Gemini publication research](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/research/plugin-marketplaces/README.md)
-- [Codex target boundary](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/CODEX_TARGET_BOUNDARY.md)
-- [Publish Layer Spec](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/PUBLISH_LAYER_SPEC.md)
+- [Codex, Claude, and Gemini publication research](./research/plugin-marketplaces/README.md)
+- [Codex target boundary](./CODEX_TARGET_BOUNDARY.md)
+- [Publish Layer Spec](./PUBLISH_LAYER_SPEC.md)
 
 ## Goal
 

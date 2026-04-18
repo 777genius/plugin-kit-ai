@@ -109,7 +109,7 @@ Un repositorio de complementos listo para el equipo debería indicar a las perso
 - [Preparación para la producción](/es/guide/production-readiness)
 - [Integración de CI](/es/guide/ci-integration)
 - [Estándar de repositorio](/es/reference/repository-standard)
-- la nota de publicación pública actual, ahora [v1.0.6](/es/releases/v1-0-6)
+- la nota de publicación pública actual, ahora [v1.1.0](/es/releases/v1-1-0)
 
 ## Regla final
 

@@ -2776,6 +2776,25 @@
     ]
   },
   {
+    "canonicalId": "page:releases:v1-1-0",
+    "kind": "page",
+    "surface": "releases",
+    "localeStrategy": "mirrored",
+    "title": "v1.1.0",
+    "summary": "User-facing release notes for the hardening release that strengthened repo-owned integration lifecycle confidence across agents.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "releases/v1-1-0.md",
+    "pathEn": "/en/releases/v1-1-0",
+    "pathRu": "/ru/releases/v1-1-0",
+    "relatedIds": [],
+    "searchTerms": [
+      "v1.1.0"
+    ]
+  },
+  {
     "relatedIds": [],
     "searchTerms": [
       "plugin_kit_ai_runtime",

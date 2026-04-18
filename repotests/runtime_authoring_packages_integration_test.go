@@ -150,9 +150,9 @@ func TestPythonRuntimePackageBuildInstallAndUpgradeSmoke(t *testing.T) {
 	requirePythonBuildBackend(t)
 
 	v1Root := copyPythonRuntimeAuthoringPackageToTemp(t)
-	rewritePythonRuntimeAuthoringPackageVersion(t, v1Root, "1.0.5")
+	rewritePythonRuntimeAuthoringPackageVersion(t, v1Root, "1.0.6")
 	v2Root := copyPythonRuntimeAuthoringPackageToTemp(t)
-	rewritePythonRuntimeAuthoringPackageVersion(t, v2Root, "1.0.6")
+	rewritePythonRuntimeAuthoringPackageVersion(t, v2Root, "1.1.0")
 
 	venvDir := filepath.Join(t.TempDir(), "venv")
 	mustRun(t, "", "python3", "-m", "venv", venvDir)
@@ -165,8 +165,8 @@ func TestPythonRuntimePackageBuildInstallAndUpgradeSmoke(t *testing.T) {
 	wheelV1 := firstMatch(t, filepath.Join(v1Root, "dist", "*.whl"))
 	mustRun(t, "", pythonBin, "-m", "pip", "install", wheelV1)
 	versionOut := mustRun(t, "", pythonBin, "-c", `import importlib.metadata; print(importlib.metadata.version("plugin-kit-ai-runtime"))`)
-	if strings.TrimSpace(versionOut) != "1.0.5" {
-		t.Fatalf("installed python runtime package version = %q, want 1.0.5", versionOut)
+	if strings.TrimSpace(versionOut) != "1.0.6" {
+		t.Fatalf("installed python runtime package version = %q, want 1.0.6", versionOut)
 	}
 	mustRun(t, "", pythonBin, "-c", `from plugin_kit_ai_runtime import CodexApp, continue_; app = CodexApp(); app.on_notify(lambda event: continue_()); print("python runtime consumer ok")`)
 
@@ -174,8 +174,8 @@ func TestPythonRuntimePackageBuildInstallAndUpgradeSmoke(t *testing.T) {
 	wheelV2 := firstMatch(t, filepath.Join(v2Root, "dist", "*.whl"))
 	mustRun(t, "", pythonBin, "-m", "pip", "install", "--upgrade", wheelV2)
 	versionOut = mustRun(t, "", pythonBin, "-c", `import importlib.metadata; print(importlib.metadata.version("plugin-kit-ai-runtime"))`)
-	if strings.TrimSpace(versionOut) != "1.0.6" {
-		t.Fatalf("upgraded python runtime package version = %q, want 1.0.6", versionOut)
+	if strings.TrimSpace(versionOut) != "1.1.0" {
+		t.Fatalf("upgraded python runtime package version = %q, want 1.1.0", versionOut)
 	}
 }
 
@@ -329,9 +329,9 @@ func TestNPMRuntimePackagePackInstallAndUpgradeSmoke(t *testing.T) {
 	requireNodeRuntime(t)
 
 	v1Root := copyNPMRuntimeAuthoringPackageToTemp(t)
-	rewriteNPMRuntimeAuthoringPackageVersion(t, v1Root, "1.0.5")
+	rewriteNPMRuntimeAuthoringPackageVersion(t, v1Root, "1.0.6")
 	v2Root := copyNPMRuntimeAuthoringPackageToTemp(t)
-	rewriteNPMRuntimeAuthoringPackageVersion(t, v2Root, "1.0.6")
+	rewriteNPMRuntimeAuthoringPackageVersion(t, v2Root, "1.1.0")
 
 	tgzV1 := strings.TrimSpace(mustRun(t, v1Root, "npm", "pack", "--silent"))
 	consumer := t.TempDir()
@@ -340,16 +340,16 @@ func TestNPMRuntimePackagePackInstallAndUpgradeSmoke(t *testing.T) {
 	}
 	mustRun(t, consumer, "npm", "install", filepath.Join(v1Root, tgzV1))
 	versionOut := mustRun(t, consumer, "node", "--input-type=module", "-e", `import fs from "node:fs"; const pkg = JSON.parse(fs.readFileSync("./node_modules/plugin-kit-ai-runtime/package.json", "utf8")); console.log(pkg.version);`)
-	if strings.TrimSpace(versionOut) != "1.0.5" {
-		t.Fatalf("installed npm runtime package version = %q, want 1.0.5", versionOut)
+	if strings.TrimSpace(versionOut) != "1.0.6" {
+		t.Fatalf("installed npm runtime package version = %q, want 1.0.6", versionOut)
 	}
 	mustRun(t, consumer, "node", "--input-type=module", "-e", `import { CodexApp, continue_ } from "plugin-kit-ai-runtime"; const app = new CodexApp().onNotify(() => continue_()); if (typeof app.run !== "function") throw new Error("missing run"); console.log("npm runtime consumer ok");`)
 
 	tgzV2 := strings.TrimSpace(mustRun(t, v2Root, "npm", "pack", "--silent"))
 	mustRun(t, consumer, "npm", "install", filepath.Join(v2Root, tgzV2))
 	versionOut = mustRun(t, consumer, "node", "--input-type=module", "-e", `import fs from "node:fs"; const pkg = JSON.parse(fs.readFileSync("./node_modules/plugin-kit-ai-runtime/package.json", "utf8")); console.log(pkg.version);`)
-	if strings.TrimSpace(versionOut) != "1.0.6" {
-		t.Fatalf("upgraded npm runtime package version = %q, want 1.0.6", versionOut)
+	if strings.TrimSpace(versionOut) != "1.1.0" {
+		t.Fatalf("upgraded npm runtime package version = %q, want 1.1.0", versionOut)
 	}
 }
 

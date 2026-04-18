@@ -70,7 +70,7 @@ plugin-kit-ai init my-plugin --platform codex-runtime --runtime python
 cd my-plugin
 ```
 
-Si los ganchos Claude son el primer requisito real, utilice el andamio Claude en su lugar:
+Si los ganchos de Claude son el requisito principal real, utilice el andamio de Claude en su lugar:
 
 ```bash
 plugin-kit-ai init my-plugin --platform claude --runtime python

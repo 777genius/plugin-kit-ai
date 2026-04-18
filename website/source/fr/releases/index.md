@@ -24,6 +24,10 @@ outline: false
 - quoi mettre à jour dans votre dépôt, votre flux de travail ou vos conseils d'installation
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-0">
+    <h2>v1.1.0</h2>
+    <p>Le cycle de vie des intégrations détenues par le dépôt est devenu plus fiable entre les agents et la surface de publication publique reste désormais alignée sur le contrat de version actif.</p>
+  </a>
   <a class="docs-card" href="./v1-0-6">
     <h2>v1.0.6</h2>
     <p>La livraison partagée du package d'exécution est devenue une option publique plus claire et la version a clarifié comment remplacer en toute sécurité le point d'entrée principal généré.</p>

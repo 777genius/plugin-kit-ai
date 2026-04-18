@@ -35,13 +35,13 @@ flowchart LR
 | `generate` | Generar artefactos de destino desde el origen del proyecto |
 | `validate --strict` | Ejecute la verificación de preparación principal |
 | `test` | Realice pruebas de humo estable cuando corresponda |
-| `export` / flujo de haz | Producir artefactos de transferencia para casos Python y Node compatibles |
+| `export` / flujo de empaquetado | Producir artefactos de entrega para casos compatibles con Python y Node |
 
 ## Reglas que mantienen saludable el repositorio
 
-- la fuente del proyecto se encuentra en el diseño del proyecto estándar del paquete
+- la fuente del proyecto vive en el diseño estándar del proyecto de paquete
 - Los archivos de destino generados son resultados, no la fuente de verdad a largo plazo.
-- la validación estricta es una verificación obligatoria, no un extra opcional
+- la validación estricta es una comprobación obligatoria, no un extra opcional
 
 Este flujo de trabajo es igualmente importante para repositorios de un solo objetivo y de múltiples objetivos.
 

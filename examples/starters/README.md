@@ -41,8 +41,8 @@ What stays true after that choice:
 
 Ignore this section unless you already know you want the shared dependency path instead of vendored helper files:
 
-- [codex-python-runtime-package-starter](./codex-python-runtime-package-starter): stable `codex-runtime` Notify starter for Python teams using `requirements.txt`, a repo-local `.venv`, and a pinned `plugin-kit-ai-runtime==1.0.6` dependency
-- [claude-node-typescript-runtime-package-starter](./claude-node-typescript-runtime-package-starter): stable Claude hook starter for Node/TypeScript teams using `npm`, built output under `dist/main.js`, and a pinned `plugin-kit-ai-runtime@1.0.6` dependency
+- [codex-python-runtime-package-starter](./codex-python-runtime-package-starter): stable `codex-runtime` Notify starter for Python teams using `requirements.txt`, a repo-local `.venv`, and a pinned `plugin-kit-ai-runtime==1.1.0` dependency
+- [claude-node-typescript-runtime-package-starter](./claude-node-typescript-runtime-package-starter): stable Claude hook starter for Node/TypeScript teams using `npm`, built output under `dist/main.js`, and a pinned `plugin-kit-ai-runtime@1.1.0` dependency
 
 If you are unsure, start with the normal starter first and move to the shared-package variant only when the reusable-dependency requirement is real.
 
@@ -94,7 +94,7 @@ plugin-kit-ai bundle publish . --platform <codex-runtime|claude> --repo owner/re
 plugin-kit-ai bundle fetch owner/repo --tag v1.0.0 --platform <codex-runtime|claude> --runtime <python|node> --dest ./handoff-plugin
 ```
 
-- Go starters stay on the SDK-first production path and consume `github.com/777genius/plugin-kit-ai/sdk@v1.0.6` as a normal module. Use `v1.0.6` or newer; `v1.0.3` was not a valid normal-module Go SDK release. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
+- Go starters stay on the SDK-first production path and consume `github.com/777genius/plugin-kit-ai/sdk@v1.1.0` as a normal module. Use `v1.1.0` or newer; `v1.0.3` was not a valid normal-module Go SDK release. Use the production guidance in [../plugins/README.md](../plugins/README.md) and [../../docs/PRODUCTION.md](../../docs/PRODUCTION.md) when you need the clearest long-term release story.
 
 ## Opinionated Defaults
 
@@ -103,7 +103,7 @@ plugin-kit-ai bundle fetch owner/repo --tag v1.0.0 --platform <codex-runtime|cla
 - Node starters keep one canonical package-manager story: `npm`
 - Python and Node starters include a helper layer so authors write handlers instead of hand-parsing launcher argv/stdin
 - That helper layer also exists as the shared `plugin-kit-ai-runtime` package on PyPI and npm when teams want a reusable dependency instead of per-repo helper files
-- Shared-package variants pin `plugin-kit-ai-runtime` to `1.0.6` so the reusable dependency path stays deterministic
+- Shared-package variants pin `plugin-kit-ai-runtime` to `1.1.0` so the reusable dependency path stays deterministic
 - TypeScript starters keep built output under `dist/main.js`
 
 Operational tradeoff:

@@ -6,9 +6,9 @@ This document defines the intended `publish/...` layer for `plugin-kit-ai`.
 
 It is the publication-channel companion to:
 
-- [Plugin Standard and Publish Plan](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/PLUGIN_STANDARD_AND_PUBLISH_PLAN.md)
-- [plugin.yaml V1 Spec](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/PLUGIN_YAML_V1_SPEC.md)
-- [Codex, Claude, and Gemini publication research](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/research/plugin-marketplaces/README.md)
+- [Plugin Standard and Publish Plan](./PLUGIN_STANDARD_AND_PUBLISH_PLAN.md)
+- [plugin.yaml V1 Spec](./PLUGIN_YAML_V1_SPEC.md)
+- [Codex, Claude, and Gemini publication research](./research/plugin-marketplaces/README.md)
 
 ## Purpose
 
@@ -219,8 +219,8 @@ This internal model should become the bridge between:
 - future authored `publish/...` metadata
 - generated publication artifacts
 
-The publication readiness contract is documented in [Publication Doctor JSON Contract](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/PUBLICATION_DOCTOR_JSON_CONTRACT.md).
-The publication summary contract is documented in [Publication JSON Contract](/Users/belief/dev/projects/claude/plugin-kit-ai/docs/PUBLICATION_JSON_CONTRACT.md).
+The publication readiness contract is documented in [Publication Doctor JSON Contract](./PUBLICATION_DOCTOR_JSON_CONTRACT.md).
+The publication summary contract is documented in [Publication JSON Contract](./PUBLICATION_JSON_CONTRACT.md).
 
 ## Planned rollout
 

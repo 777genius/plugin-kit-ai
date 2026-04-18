@@ -25,6 +25,10 @@ outline: false
 - что стоит обновить в repo, workflow или install guidance
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-0">
+    <h2>v1.1.0</h2>
+    <p>Repo-owned integration lifecycle для разных агентов стал надёжнее, а публичная release-витрина теперь остаётся синхронной с активным version contract.</p>
+  </a>
   <a class="docs-card" href="./v1-0-6">
     <h2>v1.0.6</h2>
     <p>Shared runtime-package delivery стал более понятным публичным вариантом, а релиз прояснил, как безопасно заменить главный generated entrypoint.</p>

@@ -13,7 +13,7 @@ Copy-first starter for Go teams that want the stable Claude default hook subset 
 - `plugin-kit-ai` installed
 - Go `1.22+`
 - Claude local plugin runtime lane
-- access to `github.com/777genius/plugin-kit-ai/sdk@v1.0.6`
+- access to `github.com/777genius/plugin-kit-ai/sdk@v1.1.0`
 
 ## Runtime
 
@@ -38,7 +38,7 @@ This starter keeps one canonical Go story:
 - `go build -o bin/claude-go-starter ./cmd/claude-go-starter`
 
 Unlike the interpreted Python/Node starters, this lane does not depend on the launcher bootstrap command or the Python/Node bundle handoff workflow.
-The public Go SDK now resolves as a normal module release through `github.com/777genius/plugin-kit-ai/sdk@v1.0.6`.
+The public Go SDK now resolves as a normal module release through `github.com/777genius/plugin-kit-ai/sdk@v1.1.0`.
 
 ## Local Smoke
 

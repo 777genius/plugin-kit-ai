@@ -106,8 +106,8 @@ If you are new, stop after those four pages. Everything else is deeper reference
 
 ## Current Repo Baseline
 
-- The current public baseline in this docs set is [`v1.0.6`](/en/releases/v1-0-6).
-- That release made shared runtime-package delivery for Python and Node a fully supported story.
+- The current public baseline in this docs set is [`v1.1.0`](/en/releases/v1-1-0).
+- That release hardened repo-owned integration lifecycle verification across agents and synced the public release surface around the current version contract.
 - Start there when you want the current recommended baseline.
 
 ## What This Site Helps You Do

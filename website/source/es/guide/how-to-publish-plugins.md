@@ -22,14 +22,14 @@ Utilice esta guía cuando su repositorio ya esté creado en `plugin-kit-ai` y de
 
 | Plataforma | Modelo de publicación | Real aplica en `plugin-kit-ai` | Comando principal | Lo que obtienes |
 |---|---|---:|---|---|
-| Codex | raíz del mercado local | si | `publish --channel codex-marketplace` | `.agents/plugins/marketplace.json` más `plugins/<name>/...` |
-| Claude | raíz del mercado local | si | `publish --channel claude-marketplace` | `.claude-plugin/marketplace.json` más `plugins/<name>/...` |
+| Codex | raíz del mercado local | sí | `publish --channel codex-marketplace` | `.agents/plugins/marketplace.json` más `plugins/<name>/...` |
+| Claude | raíz del mercado local | sí | `publish --channel claude-marketplace` | `.claude-plugin/marketplace.json` más `plugins/<name>/...` |
 | Gemini | preparación del repositorio/lanzamiento | no | `publish --channel gemini-gallery --dry-run` | un plan de publicación acotado y diagnóstico de preparación |
 
 ## La regla corta
 
 - utilice `publish` cuando desee un flujo de trabajo de publicación
-- use `publication` cuando desee una inspección o una vista del médico primero
+- use `publication` cuando quiera primero una vista de inspección o de diagnóstico
 - Codex y Claude admiten solicitudes locales reales hoy
 - Gemini utiliza la publicación de planificación y preparación en v1, no la aplicación local
 
@@ -128,7 +128,7 @@ Reglas importantes:
 
 - utiliza únicamente canales creados por `publish/...`
 - no infiere canales de `targets`
-- es sólo de planificación en v1
+- es solo de planificación en v1
 - `--dest` se requiere solo cuando los canales creados incluyen Codex o Claude flujos de mercado local.
 - La orquestación exclusiva Gemini no requiere `--dest`
 

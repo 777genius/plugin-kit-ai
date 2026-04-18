@@ -40,7 +40,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## npm и PyPI пакеты `plugin-kit-ai` - это runtime API?
 
-Нет. Они устанавливают CLI. Это не runtime APIs и не SDK.
+Нет. Они устанавливают CLI. Это не runtime API и не SDK.
 
 ## Когда использовать bundle-команды?
 

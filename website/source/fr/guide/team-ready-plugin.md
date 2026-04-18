@@ -109,7 +109,7 @@ Un dépôt de plugin prêt pour l’équipe devrait diriger les gens vers :
 - [Préparation à la production](/fr/guide/production-readiness)
 - [Intégration CI](/fr/guide/ci-integration)
 - [Norme de référentiel](/fr/reference/repository-standard)
-- la note de version publique actuelle, maintenant [v1.0.6](/fr/releases/v1-0-6)
+- la note de version publique actuelle, maintenant [v1.1.0](/fr/releases/v1-1-0)
 
 ## Règle finale
 

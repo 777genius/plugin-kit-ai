@@ -94,8 +94,8 @@ Si vous êtes nouveau, arrêtez-vous après ces quatre pages. Tout le reste est 
 
 ## Base de référence actuelle du dépôt
 
-- La référence publique actuelle dans cet ensemble de documents est [`v1.0.6`](/fr/releases/v1-0-6).
-- Cette version a fait de la livraison partagée des packages d'exécution pour Python et Node une histoire entièrement prise en charge.
+- La référence publique actuelle dans cet ensemble de documents est [`v1.1.0`](/fr/releases/v1-1-0).
+- Cette version a renforcé la vérification du cycle de vie des intégrations détenues par le dépôt entre les agents et a synchronisé la surface de publication publique avec le contrat de version actuel.
 - Commencez par là lorsque vous souhaitez connaître la ligne de base recommandée actuelle.
 
 ## Ce que ce site vous aide à faire- démarrer un dépôt de plugin au lieu de diviser la source de vérité par écosystème

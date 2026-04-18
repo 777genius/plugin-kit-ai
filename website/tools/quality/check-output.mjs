@@ -73,7 +73,7 @@ if (!generatedCli.includes(">Source<")) {
   hasError = true;
 }
 
-const latestRelease = await fs.readFile(path.join(distRoot, "en", "releases", "v1-0-6.html"), "utf8");
+const latestRelease = await fs.readFile(path.join(distRoot, "en", "releases", "v1-1-0.html"), "utf8");
 if (!latestRelease.includes("Why This Release Matters")) {
   console.error("Latest public release page is missing its expected headline content.");
   hasError = true;

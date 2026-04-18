@@ -22,8 +22,8 @@ outline: false
 
 - ответ про установку: [Каналы установки](/ru/reference/install-channels)
 - самый короткий ответ про поддержку: [Граница поддержки](/ru/reference/support-boundary)
-- team-facing policy: [Политика версий и совместимости](/ru/reference/version-and-compatibility)
-- support map по типам outputs: [Поддержка target'ов](/ru/reference/target-support)
+- ответ для командной политики: [Политика версий и совместимости](/ru/reference/version-and-compatibility)
+- карта поддержки по типам output: [Поддержка target'ов](/ru/reference/target-support)
 - ответ про здоровый repo: [Стандарт репозитория](/ru/reference/repository-standard) и [Процесс авторинга](/ru/reference/authoring-workflow)
 
 <div class="docs-grid">
@@ -33,11 +33,11 @@ outline: false
   </a>
   <a class="docs-card" href="./support-boundary">
     <h2>Граница поддержки</h2>
-    <p>Получите самый короткий практический ответ про рекомендуемые paths, advanced surfaces и точные support limits.</p>
+    <p>Получите самый короткий практический ответ про рекомендуемые пути, advanced surfaces и точные границы поддержки.</p>
   </a>
   <a class="docs-card" href="./version-and-compatibility">
     <h2>Политика версий и совместимости</h2>
-    <p>Используйте team-facing policy для release baselines, compatibility promises и долгой стандартизации.</p>
+    <p>Используйте эту страницу как компактную политику для release baseline, compatibility promises и долгой стандартизации.</p>
   </a>
   <a class="docs-card" href="./target-support">
     <h2>Поддержка target'ов</h2>

@@ -5,7 +5,7 @@ Module: `github.com/777genius/plugin-kit-ai/sdk`
 Normal consumption path:
 
 ```bash
-go get github.com/777genius/plugin-kit-ai/sdk@v1.0.6
+go get github.com/777genius/plugin-kit-ai/sdk@v1.1.0
 ```
 
 The canonical release contract for this subdirectory module is:

@@ -46,7 +46,7 @@ flowchart LR
 
 Этот workflow одинаково важен и для single-target, и для multi-target repo.
 
-Разница только в том, что в multi-target проекте цикл `generate` и `validate` повторяется для каждого target’а, который repo действительно обещает поддерживать.
+Разница только в том, что в multi-target проекте цикл `generate` и `validate` повторяется для каждого target'а, который repo действительно обещает поддерживать.
 
 ## Когда workflow меняется
 

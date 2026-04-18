@@ -35,7 +35,7 @@ This starter keeps one canonical Node story:
 
 - `npm`
 - `src/main.ts`
-- `package.json` pinned to `plugin-kit-ai-runtime@1.0.6`
+- `package.json` pinned to `plugin-kit-ai-runtime@1.1.0`
 - `dist/main.js`
 
 This starter begins on the shared package path directly instead of vendoring `src/plugin-runtime.ts`.

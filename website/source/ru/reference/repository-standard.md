@@ -20,7 +20,7 @@ translationRequired: true
 
 - исходное состояние проекта легко найти
 - generated target files явно являются outputs
-- основной target или набор target’ов в scope видимы
+- основной target или набор target'ов в scope видимы
 - выбранный runtime или runtime-политика видимы
 - validation command задокументирована
 
@@ -28,9 +28,9 @@ translationRequired: true
 
 В здоровом репозитории без копания должны быть понятны такие вещи:
 
-- основной target или target’ы в scope
-- выбранный runtime или политика runtime по target’ам
-- canonical команда `validate --strict` или набор validation-команд, если target’ов несколько
+- основной target или target'ы в scope
+- выбранный runtime или политика runtime по target'ам
+- canonical команда `validate --strict` или набор validation-команд, если target'ов несколько
 - runtime prerequisites вроде Go, Python или Node
 - использует ли repo Go SDK path или shared runtime package
 

@@ -4,7 +4,22 @@ All notable changes to this repository are documented here. **CLI releases** (`p
 
 ## [Unreleased]
 
-Post-`v1.0.0` hardening on `main` lands here. The initial stable release was tagged as `v1.0.0` at commit `6e9379868a666e79d7530a02e171a160c2cb1689`.
+Changes after `v1.1.0` land here.
+
+## [1.1.0] - 2026-04-18
+
+### Added
+
+- repo-level lifecycle e2e coverage for managed integrations across `cursor`, `codex`, `opencode`, and `claude`, including add, update, remove, dry-run, persisted-state, and journal-phase verification
+- public release pages for `v1.1.0` across the docs locales, plus generated sidebar updates so the current release appears in the published navigation
+
+### Changed
+
+- pinned Go SDK and shared `plugin-kit-ai-runtime` starter references now align on the `v1.1.0` version contract
+- runtime authoring package upgrade smoke now exercises upgrades into `1.1.0` instead of stopping on the older patch line
+- docs and website baseline messaging now point to `v1.1.0` as the current public release instead of leaving `v1.0.6` as the visible top-line baseline
+
+Post-`v1.0.0` hardening on `main` continues here. The initial stable release was tagged as `v1.0.0` at commit `6e9379868a666e79d7530a02e171a160c2cb1689`.
 
 ### Added
 

@@ -94,8 +94,8 @@ Si es nuevo, deténgase después de esas cuatro páginas. Todo lo demás es una 
 
 ## Línea base del repositorio actual
 
-- La línea de base pública actual en este conjunto de documentos es [`v1.0.6`](/es/releases/v1-0-6).
-- Esa versión convirtió la entrega de paquetes de tiempo de ejecución compartido para Python y Node en una historia totalmente compatible.
+- La línea de base pública actual en este conjunto de documentos es [`v1.1.0`](/es/releases/v1-1-0).
+- Esa versión reforzó la verificación del ciclo de vida de las integraciones propiedad del repositorio en todos los agentes y sincronizó la superficie de lanzamiento pública con el contrato de versión actual.
 - Comience allí cuando desee obtener la línea base recomendada actual.
 
 ## Qué le ayuda a hacer este sitio- iniciar un repositorio de complementos en lugar de dividir la fuente de verdad por ecosistema

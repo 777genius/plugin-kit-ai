@@ -32,7 +32,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 This starter keeps one canonical Python env story:
 
-- `requirements.txt` pinned to `plugin-kit-ai-runtime==1.0.6`
+- `requirements.txt` pinned to `plugin-kit-ai-runtime==1.1.0`
 - repo-local `.venv`
 - `src/main.py` importing `plugin_kit_ai_runtime`
 

@@ -110,7 +110,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 - [Готовность к продакшену](/ru/guide/production-readiness)
 - [Интеграцию с CI](/ru/guide/ci-integration)
 - [Стандарт репозитория](/ru/reference/repository-standard)
-- текущий публичный release note, сейчас это [v1.0.6](/ru/releases/v1-0-6)
+- текущий публичный release note, сейчас это [v1.1.0](/ru/releases/v1-1-0)
 
 ## Финальное правило
 

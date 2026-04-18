@@ -7,7 +7,7 @@ This ledger tracks the current delivery state of the shipped architecture after 
 - `v1.0.0 released`
 - `community-first interpreted stable subset promoted on main`
 - `release evidence refreshed after tag`
-- latest deterministic patch candidate rehearsal recorded at `8b3bdbbf400805c410ea05bec8b0c5215dacd131`
+- latest deterministic patch candidate rehearsal recorded at `6d0bc9d27e51b67e5945f2c362e4f05662b6e185`
 
 | Area | Status | Notes |
 |------|--------|-------|
@@ -37,8 +37,8 @@ This ledger tracks the current delivery state of the shipped architecture after 
 - the current source tree also carries the post-`v1` interpreted stable-subset promotion ledger in [INTERPRETED_STABLE_SUBSET_AUDIT.md](./INTERPRETED_STABLE_SUBSET_AUDIT.md)
 - the current source tree also carries the post-`v1` OpenCode stable-subset promotion ledger in [OPENCODE_STABLE_PROMOTION_AUDIT.md](./OPENCODE_STABLE_PROMOTION_AUDIT.md)
 - latest deterministic `v1.0.x` candidate rehearsal:
-  - candidate SHA: `8b3bdbbf400805c410ea05bec8b0c5215dacd131`
-  - date: `2026-03-27`
+  - candidate SHA: `6d0bc9d27e51b67e5945f2c362e4f05662b6e185`
+  - date: `2026-03-29`
   - `make release-gate`: `pass`
   - `make test-install-compat`: `pass`
   - `make test-polyglot-smoke`: `pass`

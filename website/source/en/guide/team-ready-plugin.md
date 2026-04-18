@@ -110,7 +110,7 @@ A team-ready plugin repo should point people to:
 - [Production Readiness](/en/guide/production-readiness)
 - [CI Integration](/en/guide/ci-integration)
 - [Repository Standard](/en/reference/repository-standard)
-- the current public release note, now [v1.0.6](/en/releases/v1-0-6)
+- the current public release note, now [v1.1.0](/en/releases/v1-1-0)
 
 ## Final Rule
 
