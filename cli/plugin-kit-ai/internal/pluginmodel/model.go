@@ -12,7 +12,7 @@ const (
 	FileName            = "plugin.yaml"
 	LauncherFileName    = "launcher.yaml"
 	SourceDirName       = platformmeta.CanonicalAuthoredRoot
-	LegacySourceDirName = platformmeta.LegacyAuthoredRoot
+	LegacySourceDirName = "src"
 	APIVersionV1        = "v1"
 )
 
@@ -160,7 +160,7 @@ func (tc TargetState) ComponentPaths(kind string) []string {
 
 func IsAuthoredRoot(path string) bool {
 	path = filepath.ToSlash(strings.TrimSpace(path))
-	return path == SourceDirName || path == LegacySourceDirName
+	return path == SourceDirName
 }
 
 func CanonicalAuthoredPath(path string) string {
@@ -171,7 +171,13 @@ func CanonicalAuthoredPath(path string) string {
 	if IsAuthoredRoot(path) {
 		return path
 	}
-	if strings.HasPrefix(path, SourceDirName+"/") || strings.HasPrefix(path, LegacySourceDirName+"/") {
+	if path == LegacySourceDirName {
+		return SourceDirName
+	}
+	if strings.HasPrefix(path, LegacySourceDirName+"/") {
+		return filepath.ToSlash(filepath.Join(SourceDirName, strings.TrimPrefix(path, LegacySourceDirName+"/")))
+	}
+	if strings.HasPrefix(path, SourceDirName+"/") {
 		return path
 	}
 	return filepath.ToSlash(filepath.Join(SourceDirName, path))
@@ -187,12 +193,10 @@ func RebaseAuthoredPath(path string, authoredRoot string) string {
 		authoredRoot = SourceDirName
 	}
 	switch {
-	case path == SourceDirName, path == LegacySourceDirName:
+	case path == SourceDirName:
 		return authoredRoot
 	case strings.HasPrefix(path, SourceDirName+"/"):
 		return filepath.ToSlash(filepath.Join(authoredRoot, strings.TrimPrefix(path, SourceDirName+"/")))
-	case strings.HasPrefix(path, LegacySourceDirName+"/"):
-		return filepath.ToSlash(filepath.Join(authoredRoot, strings.TrimPrefix(path, LegacySourceDirName+"/")))
 	default:
 		return path
 	}

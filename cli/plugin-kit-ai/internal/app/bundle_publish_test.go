@@ -84,7 +84,7 @@ func (f *fakeBundlePublisher) DeleteReleaseAsset(_ context.Context, _ string, _ 
 
 func fakeBundleExportFunc(t *testing.T, root string, metadata exportMetadata, extraFiles ...string) func(PluginExportOptions) (PluginExportResult, error) {
 	t.Helper()
-	baseFiles := []string{"src/plugin.yaml", "src/launcher.yaml"}
+	baseFiles := []string{"plugin/plugin.yaml", "plugin/launcher.yaml"}
 	baseFiles = append(baseFiles, extraFiles...)
 	return func(opts PluginExportOptions) (PluginExportResult, error) {
 		if opts.Root != root {
@@ -102,9 +102,9 @@ func fakeBundleExportFunc(t *testing.T, root string, metadata exportMetadata, ex
 
 func TestPluginServiceBundlePublishCreatesPublishedReleaseByDefault(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "main.py"), "print('ok')\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "main.py"), "print('ok')\n")
 
 	publisher := &fakeBundlePublisher{
 		findErr: domain.NewError(domain.ExitRelease, "release tag \"v1\" not found"),
@@ -131,7 +131,7 @@ func TestPluginServiceBundlePublishCreatesPublishedReleaseByDefault(t *testing.T
 			Next:           []string{"plugin-kit-ai doctor ."},
 			BundleFormat:   "tar.gz",
 			GeneratedBy:    "plugin-kit-ai export",
-		}, filepath.ToSlash(filepath.Join("src", "main.py"))),
+		}, filepath.ToSlash(filepath.Join("plugin", "main.py"))),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -164,9 +164,9 @@ func TestPluginServiceBundlePublishCreatesPublishedReleaseByDefault(t *testing.T
 
 func TestPluginServiceBundlePublishCreatesDraftReleaseWhenRequested(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "main.py"), "print('ok')\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "main.py"), "print('ok')\n")
 
 	publisher := &fakeBundlePublisher{
 		findErr: domain.NewError(domain.ExitRelease, "release tag \"v1\" not found"),
@@ -194,7 +194,7 @@ func TestPluginServiceBundlePublishCreatesDraftReleaseWhenRequested(t *testing.T
 			Next:           []string{"plugin-kit-ai doctor ."},
 			BundleFormat:   "tar.gz",
 			GeneratedBy:    "plugin-kit-ai export",
-		}, filepath.ToSlash(filepath.Join("src", "main.py"))),
+		}, filepath.ToSlash(filepath.Join("plugin", "main.py"))),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -209,8 +209,8 @@ func TestPluginServiceBundlePublishCreatesDraftReleaseWhenRequested(t *testing.T
 
 func TestPluginServiceBundlePublishPromotesExistingDraftReleaseToPublished(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 	writeBootstrapProjectFile(t, dir, "package.json", `{"name":"demo","scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeBootstrapProjectFile(t, dir, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
 	writeBootstrapProjectFile(t, dir, filepath.Join("dist", "main.js"), "console.log('ok')\n")
@@ -263,8 +263,8 @@ func TestPluginServiceBundlePublishPromotesExistingDraftReleaseToPublished(t *te
 
 func TestPluginServiceBundlePublishReusesExistingDraftReleaseWhenRequested(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 	writeBootstrapProjectFile(t, dir, "package.json", `{"name":"demo","scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeBootstrapProjectFile(t, dir, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
 	writeBootstrapProjectFile(t, dir, filepath.Join("dist", "main.js"), "console.log('ok')\n")
@@ -309,8 +309,8 @@ func TestPluginServiceBundlePublishReusesExistingDraftReleaseWhenRequested(t *te
 
 func TestPluginServiceBundlePublishReusesExistingPublishedReleaseWithForce(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 	writeBootstrapProjectFile(t, dir, "package.json", `{"name":"demo","scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeBootstrapProjectFile(t, dir, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
 	writeBootstrapProjectFile(t, dir, filepath.Join("dist", "main.js"), "console.log('ok')\n")
@@ -362,8 +362,8 @@ func TestPluginServiceBundlePublishReusesExistingPublishedReleaseWithForce(t *te
 
 func TestPluginServiceBundlePublishFailsWhenAssetExistsWithoutForce(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 	writeBootstrapProjectFile(t, dir, "package.json", `{"name":"demo","scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeBootstrapProjectFile(t, dir, "tsconfig.json", `{"compilerOptions":{"outDir":"dist"}}`)
 	writeBootstrapProjectFile(t, dir, filepath.Join("dist", "main.js"), "console.log('ok')\n")
@@ -404,9 +404,9 @@ func TestPluginServiceBundlePublishFailsWhenAssetExistsWithoutForce(t *testing.T
 
 func TestPluginServiceBundlePublishRejectsShellRuntime(t *testing.T) {
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: shell\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: shell\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	writeBootstrapProjectFile(t, dir, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec \"$ROOT/scripts/main.sh\" \"$@\"\n")
 	writeBootstrapProjectFile(t, dir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
 	mustChmodBootstrapExecutable(t, filepath.Join(dir, "bin", "demo"))

@@ -492,19 +492,19 @@ servers:
 	opencodePackageYAML := fmt.Sprintf("plugins:\n  - %q\n", version.OpenCodePluginRef)
 	opencodePackageJSON := fmt.Sprintf("{\n  \"name\": \"lifecycle-demo-opencode\",\n  \"version\": %q\n}\n", version.Version)
 
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), pluginYAML)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), mcpYAML)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "codex-package", "package.yaml"), codexPackageYAML)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "codex-package", "interface.json"), codexInterfaceJSON)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.yaml"), opencodePackageYAML)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "permission.json"), version.OpenCodePermission+"\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.json"), opencodePackageJSON)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "plugins", "example.js"), version.OpenCodeExampleBody)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "plugin.yaml"), pluginYAML)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "mcp", "servers.yaml"), mcpYAML)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "package.yaml"), codexPackageYAML)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "interface.json"), codexInterfaceJSON)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.yaml"), opencodePackageYAML)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "permission.json"), version.OpenCodePermission+"\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.json"), opencodePackageJSON)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "plugins", "example.js"), version.OpenCodeExampleBody)
 	if version.IncludeDefaultAgent {
-		mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "default_agent.txt"), "reviewer\n")
+		mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "default_agent.txt"), "reviewer\n")
 	}
 	if version.IncludeStalePlugin {
-		mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "plugins", "stale.js"), "export const StalePlugin = true\n")
+		mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "plugins", "stale.js"), "export const StalePlugin = true\n")
 	}
 }
 

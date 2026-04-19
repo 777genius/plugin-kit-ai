@@ -6,11 +6,11 @@ import (
 	"github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 )
 
-func TestAuthoringDocPath_NormalizesLegacyRoots(t *testing.T) {
+func TestAuthoringDocPath_CanonicalizesLegacyRootsToPlugin(t *testing.T) {
 	t.Parallel()
 
 	if got := authoringDocPath("src/targets/gemini/package.yaml"); got != "plugin/targets/gemini/package.yaml" {
-		t.Fatalf("legacy path = %q", got)
+		t.Fatalf("legacy path canonicalized = %q", got)
 	}
 	if got := authoringDocPath("targets/gemini/package.yaml"); got != "plugin/targets/gemini/package.yaml" {
 		t.Fatalf("relative path = %q", got)

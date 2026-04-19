@@ -20,9 +20,9 @@ func inferRuntime(root string) string {
 	switch {
 	case fileExists(filepath.Join(root, "go.mod")):
 		return "go"
-	case fileExists(filepath.Join(root, pluginmodel.SourceDirName, "main.py")), fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, "main.py")):
+	case fileExists(filepath.Join(root, pluginmodel.SourceDirName, "main.py")):
 		return "python"
-	case fileExists(filepath.Join(root, pluginmodel.SourceDirName, "main.mjs")), fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, "main.mjs")):
+	case fileExists(filepath.Join(root, pluginmodel.SourceDirName, "main.mjs")):
 		return "node"
 	case fileExists(filepath.Join(root, "scripts", "main.sh")):
 		return "shell"

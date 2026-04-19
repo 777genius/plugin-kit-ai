@@ -42,7 +42,6 @@ func authoredOpenCodePluginDir(root string, state pluginmodel.TargetState) strin
 	}
 	for _, candidate := range []string{
 		filepath.Join(pluginmodel.SourceDirName, "targets", "opencode", "plugins"),
-		filepath.Join(pluginmodel.LegacySourceDirName, "targets", "opencode", "plugins"),
 	} {
 		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
 			return filepath.ToSlash(candidate)

@@ -15,7 +15,7 @@ type packageMeta struct {
 }
 
 func (a Adapter) materializeAuthoredGeminiSource(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, destRoot string) error {
-	meta, err := loadPackageMeta(filepath.Join(sourceRoot, "src", "targets", "gemini", "package.yaml"))
+	meta, err := loadPackageMeta(filepath.Join(sourceRoot, "plugin", "targets", "gemini", "package.yaml"))
 	if err != nil {
 		return err
 	}

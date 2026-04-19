@@ -8,6 +8,5 @@ import (
 )
 
 func shouldDiagnoseGeneratedPublicationArtifacts(root string) bool {
-	return fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) ||
-		fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, pluginmanifest.FileName))
+	return fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName))
 }

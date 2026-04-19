@@ -13,25 +13,17 @@ func detectAuthoredLayout(root string) (authoredLayout, error) {
 	if legacyRel := rootLegacyPortableMCPPath(root); legacyRel != "" {
 		return authoredLayout{}, fmt.Errorf("unsupported portable MCP authored path %s: use %s/mcp/servers.yaml", legacyRel, pluginmodel.SourceDirName)
 	}
-	return selectAuthoredLayout(root, canonical, legacy)
-}
-
-func selectAuthoredLayout(root string, canonical, legacy authoredLayout) (authoredLayout, error) {
 	canonicalPresent := authoredLayoutPresent(root, canonical)
 	legacyPresent := authoredLayoutPresent(root, legacy)
 	rootPresent := rootAuthoredLayoutPresent(root)
 
 	switch {
-	case canonicalPresent && legacyPresent:
-		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ or %s/, not both", pluginmodel.SourceDirName, pluginmodel.LegacySourceDirName)
+	case legacyPresent:
+		return authoredLayout{}, fmt.Errorf("unsupported authored layout: legacy %s/ is no longer supported; move manual plugin sources into %s/", pluginmodel.LegacySourceDirName, pluginmodel.SourceDirName)
 	case canonicalPresent && rootPresent:
 		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ and remove root-authored plugin files", pluginmodel.SourceDirName)
 	case canonicalPresent:
 		return canonical, nil
-	case legacyPresent && rootPresent:
-		return authoredLayout{}, fmt.Errorf("mixed authored layout: keep manual plugin sources only under %s/ and remove root-authored plugin files", pluginmodel.LegacySourceDirName)
-	case legacyPresent:
-		return legacy, nil
 	case rootPresent:
 		return authoredLayout{}, fmt.Errorf("unsupported authored layout: move manual plugin sources into %s/", pluginmodel.SourceDirName)
 	default:

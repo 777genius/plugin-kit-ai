@@ -31,10 +31,10 @@ func TestPluginServiceBundleInstallInstallsPythonBundleIntoDestination(t *testin
 	}
 	writeBundleArchive(t, bundle, metadata, map[string]bundleEntry{
 		".plugin-kit-ai-export.json": {mode: 0o644, body: mustJSON(t, metadata)},
-		"src/plugin.yaml":                {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml":              {mode: 0o644, body: []byte("runtime: python\nentrypoint: ./bin/demo\n")},
+		"plugin/plugin.yaml":         {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/launcher.yaml":       {mode: 0o644, body: []byte("runtime: python\nentrypoint: ./bin/demo\n")},
 		"bin/demo":                   {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
-		"src/main.py":                {mode: 0o644, body: []byte("print('ok')\n")},
+		"plugin/main.py":             {mode: 0o644, body: []byte("print('ok')\n")},
 	})
 
 	dest := filepath.Join(dir, "installed")
@@ -46,7 +46,7 @@ func TestPluginServiceBundleInstallInstallsPythonBundleIntoDestination(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dest, "src/plugin.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(dest, "plugin/plugin.yaml")); err != nil {
 		t.Fatalf("expected installed plugin.yaml: %v", err)
 	}
 	text := strings.Join(result.Lines, "\n")
@@ -141,7 +141,7 @@ func TestPluginServiceBundleInstallDestinationRequiresForceForNonEmptyPath(t *te
 	}
 	writeBundleArchive(t, bundle, metadata, map[string]bundleEntry{
 		".plugin-kit-ai-export.json": {mode: 0o644, body: mustJSON(t, metadata)},
-		"src/plugin.yaml":                {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml":         {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	dest := filepath.Join(dir, "dest")
 	if err := os.MkdirAll(dest, 0o755); err != nil {
@@ -161,7 +161,7 @@ func TestPluginServiceBundleInstallDestinationRequiresForceForNonEmptyPath(t *te
 	if _, err := os.Stat(filepath.Join(dest, "keep.txt")); !os.IsNotExist(err) {
 		t.Fatalf("expected overwrite to replace destination, err=%v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dest, "src/plugin.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(dest, "plugin/plugin.yaml")); err != nil {
 		t.Fatalf("expected new bundle content, err=%v", err)
 	}
 }

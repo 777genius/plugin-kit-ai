@@ -43,7 +43,7 @@ Cela vous donne le chemin par défaut le plus solide aujourd'hui : un référen
 ## Ce que vous obtenez
 
 - un dépôt de plugin dès le premier jour
-- fichiers créés sous `plugin/` pour les nouveaux dépôts, avec compatibilité héritée pour `src/`
+- fichiers créés sous `plugin/`
 - généré une sortie d'exécution Codex à partir du même dépôt
 - un contrôle de préparation propre via `validate --strict`
 
@@ -80,7 +80,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## Que faire ensuite
 
-- modifiez le plugin sous `plugin/`, sauf si vous maintenez volontairement un dépôt hérité avec `src/`
+- modifiez le plugin sous `plugin/`
 - exécutez à nouveau `plugin-kit-ai generate ./my-plugin` après les modifications
 - exécutez à nouveau `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict`
 - ensuite seulement, ajoutez un autre moyen de l'expédier si le produit en a besoin

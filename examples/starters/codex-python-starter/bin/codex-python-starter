@@ -12,4 +12,4 @@ else
   exit 1
 fi
 
-exec "$PYTHON" "$ROOT/src/main.py" "$@"
+exec "$PYTHON" "$ROOT/plugin/main.py" "$@"

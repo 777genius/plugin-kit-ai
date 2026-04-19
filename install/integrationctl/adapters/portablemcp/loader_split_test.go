@@ -12,14 +12,14 @@ import (
 func TestLoadForTargetPrefersSrcLayoutAndFiltersTargets(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writePortableMCPTestFile(t, filepath.Join(root, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    targets: [codex, opencode, codex]\n    remote:\n      protocol: STREAMABLE_HTTP\n      url: https://example.com/mcp\n  gemini-only:\n    type: stdio\n    targets: [gemini]\n    stdio:\n      command: node\n")
+	writePortableMCPTestFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    targets: [codex, opencode, codex]\n    remote:\n      protocol: STREAMABLE_HTTP\n      url: https://example.com/mcp\n  gemini-only:\n    type: stdio\n    targets: [gemini]\n    stdio:\n      command: node\n")
 	writePortableMCPTestFile(t, filepath.Join(root, "mcp", "servers.yaml"), "api_version: v1\nservers:\n  fallback:\n    type: stdio\n    stdio:\n      command: node\n")
 
 	loaded, err := Loader{FS: fsadapter.OS{}}.LoadForTarget(context.Background(), root, domain.TargetCodex)
 	if err != nil {
 		t.Fatalf("LoadForTarget error = %v", err)
 	}
-	if loaded.Path != filepath.Join(root, "src", "mcp", "servers.yaml") {
+	if loaded.Path != filepath.Join(root, "plugin", "mcp", "servers.yaml") {
 		t.Fatalf("path = %q", loaded.Path)
 	}
 	if len(loaded.Servers) != 1 {
@@ -37,7 +37,7 @@ func TestLoadForTargetPrefersSrcLayoutAndFiltersTargets(t *testing.T) {
 func TestLoadForTargetRejectsInvalidAlias(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writePortableMCPTestFile(t, filepath.Join(root, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  Invalid_Alias:\n    type: stdio\n    stdio:\n      command: node\n")
+	writePortableMCPTestFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  Invalid_Alias:\n    type: stdio\n    stdio:\n      command: node\n")
 
 	_, err := Loader{FS: fsadapter.OS{}}.LoadForTarget(context.Background(), root, domain.TargetCodex)
 	if err == nil || err.Error() != "portable MCP alias \"Invalid_Alias\" is invalid" {

@@ -53,11 +53,7 @@ func normalizePortableSkillPath(rel string) string {
 	switch {
 	case strings.HasPrefix(normalizedRel, pluginmodel.SourceDirName+"/skills/"):
 		return strings.TrimPrefix(normalizedRel, pluginmodel.SourceDirName+"/")
-	case strings.HasPrefix(normalizedRel, pluginmodel.LegacySourceDirName+"/skills/"):
-		return strings.TrimPrefix(normalizedRel, pluginmodel.LegacySourceDirName+"/")
 	case normalizedRel == pluginmodel.SourceDirName+"/skills":
-		return "skills"
-	case normalizedRel == pluginmodel.LegacySourceDirName+"/skills":
 		return "skills"
 	default:
 		return normalizedRel

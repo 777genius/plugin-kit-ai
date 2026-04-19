@@ -19,39 +19,39 @@ func (a Adapter) materializeAuthoredClaudeSource(ctx context.Context, manifest d
 		"version":     manifest.Version,
 		"description": manifest.Description,
 	}
-	if hasSkills, err := copyPathIfExists(filepath.Join(sourceRoot, "src", "skills"), filepath.Join(destRoot, "skills")); err != nil {
+	if hasSkills, err := copyPathIfExists(filepath.Join(sourceRoot, "plugin", "skills"), filepath.Join(destRoot, "skills")); err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Claude skills", err)
 	} else if hasSkills {
 		doc["skills"] = "./skills/"
 	}
-	if hasAgents, err := copyPathIfExists(filepath.Join(sourceRoot, "src", "targets", "claude", "agents"), filepath.Join(destRoot, "agents")); err != nil {
+	if hasAgents, err := copyPathIfExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "agents"), filepath.Join(destRoot, "agents")); err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Claude agents", err)
 	} else if hasAgents {
 		doc["agents"] = "./agents/"
 	}
-	if fileExists(filepath.Join(sourceRoot, "src", "targets", "claude", "settings.json")) {
-		if err := copyFile(filepath.Join(sourceRoot, "src", "targets", "claude", "settings.json"), filepath.Join(destRoot, "settings.json")); err != nil {
+	if fileExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "settings.json")) {
+		if err := copyFile(filepath.Join(sourceRoot, "plugin", "targets", "claude", "settings.json"), filepath.Join(destRoot, "settings.json")); err != nil {
 			return domain.NewError(domain.ErrMutationApply, "copy Claude settings", err)
 		}
 	}
-	if fileExists(filepath.Join(sourceRoot, "src", "targets", "claude", "lsp.json")) {
-		if err := copyFile(filepath.Join(sourceRoot, "src", "targets", "claude", "lsp.json"), filepath.Join(destRoot, ".lsp.json")); err != nil {
+	if fileExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "lsp.json")) {
+		if err := copyFile(filepath.Join(sourceRoot, "plugin", "targets", "claude", "lsp.json"), filepath.Join(destRoot, ".lsp.json")); err != nil {
 			return domain.NewError(domain.ErrMutationApply, "copy Claude LSP config", err)
 		}
 	}
-	if fileExists(filepath.Join(sourceRoot, "src", "targets", "claude", "user-config.json")) {
-		raw, err := readJSONObject(filepath.Join(sourceRoot, "src", "targets", "claude", "user-config.json"))
+	if fileExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "user-config.json")) {
+		raw, err := readJSONObject(filepath.Join(sourceRoot, "plugin", "targets", "claude", "user-config.json"))
 		if err != nil {
 			return err
 		}
 		doc["userConfig"] = raw
 	}
-	if hasHooks, err := copyPathIfExists(filepath.Join(sourceRoot, "src", "targets", "claude", "hooks"), filepath.Join(destRoot, "hooks")); err != nil {
+	if hasHooks, err := copyPathIfExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "hooks"), filepath.Join(destRoot, "hooks")); err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Claude hooks", err)
-	} else if !hasHooks && fileExists(filepath.Join(sourceRoot, "src", "launcher.yaml")) {
-		return domain.NewError(domain.ErrMutationApply, "Claude authored source with src/launcher.yaml requires generated native hooks or authored src/targets/claude/hooks", nil)
+	} else if !hasHooks && fileExists(filepath.Join(sourceRoot, "plugin", "launcher.yaml")) {
+		return domain.NewError(domain.ErrMutationApply, "Claude authored source with plugin/launcher.yaml requires generated native hooks or authored plugin/targets/claude/hooks", nil)
 	}
-	if _, err := copyPathIfExists(filepath.Join(sourceRoot, "src", "targets", "claude", "commands"), filepath.Join(destRoot, "commands")); err != nil {
+	if _, err := copyPathIfExists(filepath.Join(sourceRoot, "plugin", "targets", "claude", "commands"), filepath.Join(destRoot, "commands")); err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Claude commands", err)
 	}
 	if mcp, err := a.renderClaudeMCP(ctx, sourceRoot); err != nil {
@@ -66,7 +66,7 @@ func (a Adapter) materializeAuthoredClaudeSource(ctx context.Context, manifest d
 		}
 		doc["mcpServers"] = "./.mcp.json"
 	}
-	if err := mergeClaudeManifestExtra(doc, filepath.Join(sourceRoot, "src", "targets", "claude", "manifest.extra.json")); err != nil {
+	if err := mergeClaudeManifestExtra(doc, filepath.Join(sourceRoot, "plugin", "targets", "claude", "manifest.extra.json")); err != nil {
 		return err
 	}
 	body, err := marshalJSON(doc)

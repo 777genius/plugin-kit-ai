@@ -19,4 +19,4 @@ if exist "%ROOT%\.venv\Scripts\python.exe" (
     )
   )
 )
-"%PYTHON%" "%ROOT%\src\main.py" %*
+"%PYTHON%" "%ROOT%\plugin\main.py" %*

@@ -199,10 +199,10 @@ func TestClaudeImportNormalizesInlineMCPServersToPortableMCP(t *testing.T) {
 func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
+	writeClaudeTestFile(t, filepath.Join(root, "plugin", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
 
 	state := pluginmodel.NewTargetState("claude")
-	state.SetDoc("settings", filepath.Join("src", "targets", "claude", "settings.json"))
+	state.SetDoc("settings", filepath.Join("plugin", "targets", "claude", "settings.json"))
 	artifacts, err := (claudeAdapter{}).Generate(root, pluginmodel.PackageGraph{
 		Manifest: pluginmodel.Manifest{
 			Name:        "claude-demo",
@@ -229,12 +229,12 @@ func TestClaudeGeneratePackageOnlyModeSkipsGeneratedHooks(t *testing.T) {
 func TestClaudeValidateReportsHookEntrypointMismatchAndUserConfigShape(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "hooks", "hooks.json"), "{\n  \"hooks\": {\n    \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/other Stop\"}]}]\n  }\n}\n")
-	writeClaudeTestFile(t, filepath.Join(root, "src", "targets", "claude", "user-config.json"), "{\n  \"bad\": true\n}\n")
+	writeClaudeTestFile(t, filepath.Join(root, "plugin", "targets", "claude", "hooks", "hooks.json"), "{\n  \"hooks\": {\n    \"Stop\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"./bin/other Stop\"}]}]\n  }\n}\n")
+	writeClaudeTestFile(t, filepath.Join(root, "plugin", "targets", "claude", "user-config.json"), "{\n  \"bad\": true\n}\n")
 
 	state := pluginmodel.NewTargetState("claude")
-	state.AddComponent("hooks", filepath.Join("src", "targets", "claude", "hooks", "hooks.json"))
-	state.SetDoc("user_config", filepath.Join("src", "targets", "claude", "user-config.json"))
+	state.AddComponent("hooks", filepath.Join("plugin", "targets", "claude", "hooks", "hooks.json"))
+	state.SetDoc("user_config", filepath.Join("plugin", "targets", "claude", "user-config.json"))
 
 	diagnostics, err := (claudeAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Launcher: &pluginmodel.Launcher{Entrypoint: "./bin/demo"},

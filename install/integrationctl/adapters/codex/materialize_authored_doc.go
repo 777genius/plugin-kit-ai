@@ -10,13 +10,13 @@ import (
 
 func (a Adapter) buildAuthoredCodexManifest(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, destRoot string) (map[string]any, error) {
 	doc := newManagedCodexManifestDoc(manifest)
-	if err := applyCodexPackageMeta(doc, filepath.Join(sourceRoot, "src", "targets", "codex-package", "package.yaml")); err != nil {
+	if err := applyCodexPackageMeta(doc, filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "package.yaml")); err != nil {
 		return nil, err
 	}
 	if err := copyCodexSkills(doc, sourceRoot, destRoot); err != nil {
 		return nil, err
 	}
-	if err := addCodexInterfaceDoc(doc, filepath.Join(sourceRoot, "src", "targets", "codex-package", "interface.json")); err != nil {
+	if err := addCodexInterfaceDoc(doc, filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "interface.json")); err != nil {
 		return nil, err
 	}
 	if err := addCodexAppManifest(doc, sourceRoot, destRoot); err != nil {
@@ -25,7 +25,7 @@ func (a Adapter) buildAuthoredCodexManifest(ctx context.Context, manifest domain
 	if err := a.addCodexMCPManifest(ctx, doc, sourceRoot, destRoot); err != nil {
 		return nil, err
 	}
-	if err := mergeCodexManifestExtra(doc, filepath.Join(sourceRoot, "src", "targets", "codex-package", "manifest.extra.json")); err != nil {
+	if err := mergeCodexManifestExtra(doc, filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "manifest.extra.json")); err != nil {
 		return nil, err
 	}
 	return doc, nil
@@ -40,7 +40,7 @@ func newManagedCodexManifestDoc(manifest domain.IntegrationManifest) map[string]
 }
 
 func copyCodexSkills(doc map[string]any, sourceRoot, destRoot string) error {
-	hasSkills, err := copyPathIfExists(filepath.Join(sourceRoot, "src", "skills"), filepath.Join(destRoot, "skills"))
+	hasSkills, err := copyPathIfExists(filepath.Join(sourceRoot, "plugin", "skills"), filepath.Join(destRoot, "skills"))
 	if err != nil {
 		return domain.NewError(domain.ErrMutationApply, "copy Codex skills", err)
 	}
@@ -63,7 +63,7 @@ func addCodexInterfaceDoc(doc map[string]any, path string) error {
 }
 
 func addCodexAppManifest(doc map[string]any, sourceRoot, destRoot string) error {
-	src := filepath.Join(sourceRoot, "src", "targets", "codex-package", "app.json")
+	src := filepath.Join(sourceRoot, "plugin", "targets", "codex-package", "app.json")
 	if !fileExists(src) {
 		return nil
 	}

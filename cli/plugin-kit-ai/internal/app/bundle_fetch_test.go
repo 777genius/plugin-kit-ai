@@ -88,10 +88,10 @@ func TestPluginServiceBundleFetchURLInstallsPythonBundleWithExplicitChecksum(t *
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml":   {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml": {mode: 0o644, body: []byte("runtime: python\nentrypoint: ./bin/demo\n")},
-		"bin/demo":          {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
-		"src/main.py":       {mode: 0o644, body: []byte("print('ok')\n")},
+		"plugin/plugin.yaml":   {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/launcher.yaml": {mode: 0o644, body: []byte("runtime: python\nentrypoint: ./bin/demo\n")},
+		"bin/demo":             {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
+		"plugin/main.py":       {mode: 0o644, body: []byte("print('ok')\n")},
 	})
 	sum := sha256.Sum256(bundle)
 	result, err := bundleFetch(context.Background(), PluginBundleFetchOptions{
@@ -108,7 +108,7 @@ func TestPluginServiceBundleFetchURLInstallsPythonBundleWithExplicitChecksum(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "installed", "src/plugin.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "installed", "plugin/plugin.yaml")); err != nil {
 		t.Fatalf("expected installed plugin.yaml: %v", err)
 	}
 	text := strings.Join(result.Lines, "\n")
@@ -131,7 +131,7 @@ func TestPluginServiceBundleFetchURLUsesSidecarChecksum(t *testing.T) {
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	sum := sha256.Sum256(bundle)
 	sidecar := []byte(hex.EncodeToString(sum[:]) + "  demo_bundle.tar.gz\n")
@@ -172,7 +172,7 @@ func TestPluginServiceBundleFetchURLFailsChecksumMismatch(t *testing.T) {
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	_, err := bundleFetch(context.Background(), PluginBundleFetchOptions{
 		URL:    "https://example.com/demo_bundle.tar.gz",
@@ -201,8 +201,8 @@ func TestPluginServiceBundleFetchGitHubInstallsNodeBundleFromChecksumsTxt(t *tes
 		BundleFormat:   "tar.gz",
 		GeneratedBy:    "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml":            {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml":          {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
+		"plugin/plugin.yaml":         {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/launcher.yaml":       {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
 		"package.json":               {mode: 0o644, body: []byte(`{"name":"demo","scripts":{"build":"tsc"}}`)},
 		"dist/main.js":               {mode: 0o644, body: []byte("console.log('ok')\n")},
 		"bin/demo":                   {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
@@ -257,7 +257,7 @@ func TestPluginServiceBundleFetchGitHubFallsBackToSidecarChecksum(t *testing.T) 
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	sum := sha256.Sum256(bundle)
 	release := &domain.Release{
@@ -298,8 +298,8 @@ func TestPluginServiceBundleFetchGitHubUsesLatestRelease(t *testing.T) {
 		BundleFormat:   "tar.gz",
 		GeneratedBy:    "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml":            {mode: 0o644, body: []byte("name: demo\n")},
-		"src/launcher.yaml":          {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
+		"plugin/plugin.yaml":         {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/launcher.yaml":       {mode: 0o644, body: []byte("runtime: node\nentrypoint: ./bin/demo\n")},
 		"package.json":               {mode: 0o644, body: []byte(`{"name":"demo"}`)},
 		"dist/main.js":               {mode: 0o644, body: []byte("console.log('ok')\n")},
 		"bin/demo":                   {mode: 0o755, body: []byte("#!/usr/bin/env bash\n")},
@@ -392,7 +392,7 @@ func TestPluginServiceBundleFetchGitHubRejectsMetadataMismatch(t *testing.T) {
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	sum := sha256.Sum256(bundle)
 	release := &domain.Release{

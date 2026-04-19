@@ -58,7 +58,6 @@ Package platformmeta exposes generated public metadata about supported target pl
 ```go
 const (
     CanonicalAuthoredRoot = "plugin"
-    LegacyAuthoredRoot    = "src"
 )
 ```
 

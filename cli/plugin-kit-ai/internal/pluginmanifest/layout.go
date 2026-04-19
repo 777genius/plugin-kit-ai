@@ -15,10 +15,6 @@ func (l authoredLayout) IsCanonical() bool {
 	return filepath.ToSlash(strings.TrimSpace(l.RootRel)) == pluginmodel.SourceDirName
 }
 
-func (l authoredLayout) IsLegacy() bool {
-	return filepath.ToSlash(strings.TrimSpace(l.RootRel)) == pluginmodel.LegacySourceDirName
-}
-
 func (l authoredLayout) Path(rel string) string {
 	rel = filepath.ToSlash(strings.TrimSpace(rel))
 	if rel == "" {

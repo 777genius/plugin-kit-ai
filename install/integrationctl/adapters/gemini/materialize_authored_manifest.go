@@ -18,12 +18,12 @@ func (a Adapter) materializedGeminiManifest(ctx context.Context, manifest domain
 		"description": manifest.Description,
 	}
 	applyPackageMeta(doc, meta)
-	if settings, err := loadSettings(filepath.Join(sourceRoot, "src", "targets", "gemini", "settings")); err != nil {
+	if settings, err := loadSettings(filepath.Join(sourceRoot, "plugin", "targets", "gemini", "settings")); err != nil {
 		return nil, err
 	} else if len(settings) > 0 {
 		doc["settings"] = settings
 	}
-	if themes, err := loadThemes(filepath.Join(sourceRoot, "src", "targets", "gemini", "themes")); err != nil {
+	if themes, err := loadThemes(filepath.Join(sourceRoot, "plugin", "targets", "gemini", "themes")); err != nil {
 		return nil, err
 	} else if len(themes) > 0 {
 		doc["themes"] = themes
@@ -33,7 +33,7 @@ func (a Adapter) materializedGeminiManifest(ctx context.Context, manifest domain
 	} else if len(mcp) > 0 {
 		doc["mcpServers"] = mcp
 	}
-	if err := mergeManifestExtra(doc, filepath.Join(sourceRoot, "src", "targets", "gemini", "manifest.extra.json")); err != nil {
+	if err := mergeManifestExtra(doc, filepath.Join(sourceRoot, "plugin", "targets", "gemini", "manifest.extra.json")); err != nil {
 		return nil, err
 	}
 	return doc, nil

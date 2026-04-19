@@ -13,7 +13,7 @@ func TestCodexPackageValidateRejectsMCPProjectionMismatch(t *testing.T) {
 	root := t.TempDir()
 	writeCodexTestFile(t, filepath.Join(root, ".codex-plugin", "plugin.json"), "{\n  \"name\": \"codex-demo\",\n  \"version\": \"0.1.0\",\n  \"description\": \"codex demo\",\n  \"mcpServers\": \"./.mcp.json\"\n}\n")
 	writeCodexTestFile(t, filepath.Join(root, ".mcp.json"), "{\n  \"docs\": {\"type\": \"remote\", \"url\": \"https://wrong.example/mcp\"}\n}\n")
-	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+	parsed, err := pluginmodel.ParsePortableMCP("plugin/mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   docs:
@@ -34,7 +34,7 @@ servers:
 		},
 		Portable: pluginmodel.PortableComponents{
 			MCP: &pluginmodel.PortableMCP{
-				Path:    filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")),
+				Path:    filepath.ToSlash(filepath.Join("plugin", "mcp", "servers.yaml")),
 				Servers: parsed.Servers,
 				File:    parsed.File,
 			},

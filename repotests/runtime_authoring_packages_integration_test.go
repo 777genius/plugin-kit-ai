@@ -52,7 +52,7 @@ func TestPythonRuntimePackageContractFiles(t *testing.T) {
 	for _, want := range []string{
 		"pip install plugin-kit-ai-runtime",
 		"supported handler-oriented API as a shared dependency",
-		"local `src/plugin_runtime.py` helper",
+		"local `plugin/plugin_runtime.py` helper",
 		"Go is still the recommended path",
 		"stable supported lane",
 	} {
@@ -363,7 +363,7 @@ func copyPythonRuntimeAuthoringPackageToTemp(t *testing.T) string {
 
 func rewritePythonRuntimeAuthoringPackageVersion(t *testing.T, packageRoot, version string) {
 	t.Helper()
-	path := filepath.Join(packageRoot, "src", "plugin_kit_ai_runtime", "__init__.py")
+	path := filepath.Join(packageRoot, "plugin", "plugin_kit_ai_runtime", "__init__.py")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

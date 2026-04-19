@@ -9,4 +9,4 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 NODE="$(command -v node)"
-exec "$NODE" "$ROOT/src/main.mjs" "$@"
+exec "$NODE" "$ROOT/plugin/main.mjs" "$@"

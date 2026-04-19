@@ -54,9 +54,6 @@ func geminiValidateSuccessHints(root string, report validate.Report) []string {
 	}
 	launcherPath := filepath.Join(root, pluginmodel.SourceDirName, "launcher.yaml")
 	if _, err := os.Stat(launcherPath); err != nil {
-		launcherPath = filepath.Join(root, pluginmodel.LegacySourceDirName, "launcher.yaml")
-	}
-	if _, err := os.Stat(launcherPath); err != nil {
 		return nil
 	}
 	return []string{

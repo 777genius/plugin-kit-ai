@@ -26,6 +26,5 @@ func generateInitArtifacts(out string) error {
 
 func shouldGenerateInitArtifacts(out string) bool {
 	return fileExists(filepath.Join(out, pluginmanifest.FileName)) ||
-		fileExists(filepath.Join(out, pluginmodel.SourceDirName, pluginmanifest.FileName)) ||
-		fileExists(filepath.Join(out, pluginmodel.LegacySourceDirName, pluginmanifest.FileName))
+		fileExists(filepath.Join(out, pluginmodel.SourceDirName, pluginmanifest.FileName))
 }

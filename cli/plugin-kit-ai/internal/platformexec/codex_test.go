@@ -92,11 +92,11 @@ func TestCodexPackageImportWarnsOnIgnoredAgentsDirectory(t *testing.T) {
 func TestCodexPackageGenerateWritesManagedBundleArtifacts(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\"Ship it\"]\n}\n")
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
-	writeCodexTestFile(t, filepath.Join(root, "src", "skills", "release-checks", "SKILL.md"), "# Skill\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\"Ship it\"]\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "skills", "release-checks", "SKILL.md"), "# Skill\n")
 
-	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+	parsed, err := pluginmodel.ParsePortableMCP("plugin/mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   docs:
@@ -117,14 +117,14 @@ servers:
 		},
 		Portable: pluginmodel.PortableComponents{
 			Items: map[string][]string{
-				"skills": {filepath.ToSlash(filepath.Join("src", "skills", "release-checks", "SKILL.md"))},
+				"skills": {filepath.ToSlash(filepath.Join("plugin", "skills", "release-checks", "SKILL.md"))},
 			},
-			MCP: &pluginmodel.PortableMCP{Path: filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")), Servers: parsed.Servers, File: parsed.File},
+			MCP: &pluginmodel.PortableMCP{Path: filepath.ToSlash(filepath.Join("plugin", "mcp", "servers.yaml")), Servers: parsed.Servers, File: parsed.File},
 		},
 	}
 	state := pluginmodel.NewTargetState("codex-package")
-	state.SetDoc("interface", filepath.Join("src", "targets", "codex-package", "interface.json"))
-	state.SetDoc("app_manifest", filepath.Join("src", "targets", "codex-package", "app.json"))
+	state.SetDoc("interface", filepath.Join("plugin", "targets", "codex-package", "interface.json"))
+	state.SetDoc("app_manifest", filepath.Join("plugin", "targets", "codex-package", "app.json"))
 
 	artifacts, err := (codexPackageAdapter{}).Generate(root, graph, state)
 	if err != nil {
@@ -160,12 +160,12 @@ func TestCodexRuntimeValidateUsesModelHintAndConfigExtra(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeCodexTestFile(t, filepath.Join(root, ".codex", "config.toml"), "model = \"gpt-5.4-mini\"\nnotify = [\"./bin/demo\", \"announce\"]\napproval_policy = \"never\"\n")
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4\n")
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"always\"\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-runtime", "config.extra.toml"), "approval_policy = \"always\"\n")
 
 	state := pluginmodel.NewTargetState("codex-runtime")
-	state.SetDoc("package_metadata", filepath.Join("src", "targets", "codex-runtime", "package.yaml"))
-	state.SetDoc("config_extra", filepath.Join("src", "targets", "codex-runtime", "config.extra.toml"))
+	state.SetDoc("package_metadata", filepath.Join("plugin", "targets", "codex-runtime", "package.yaml"))
+	state.SetDoc("config_extra", filepath.Join("plugin", "targets", "codex-runtime", "config.extra.toml"))
 
 	diagnostics, err := (codexRuntimeAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Launcher: &pluginmodel.Launcher{Entrypoint: "./bin/demo"},
@@ -188,7 +188,7 @@ func TestCodexRuntimeValidateUsesModelHintAndConfigExtra(t *testing.T) {
 func TestCodexRuntimeGenerateDefaultsModelHint(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-runtime", "commands", "announce.toml"), "description = \"announce\"\ncommand = \"echo\"\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-runtime", "commands", "announce.toml"), "description = \"announce\"\ncommand = \"echo\"\n")
 
 	state := pluginmodel.NewTargetState("codex-runtime")
 
@@ -215,10 +215,10 @@ func TestCodexPackageValidateRequiresManagedAppsRef(t *testing.T) {
 	root := t.TempDir()
 	writeCodexTestFile(t, filepath.Join(root, ".codex-plugin", "plugin.json"), "{\n  \"name\": \"codex-demo\",\n  \"version\": \"0.1.0\",\n  \"description\": \"codex demo\",\n  \"apps\": \"./custom/app.json\"\n}\n")
 	writeCodexTestFile(t, filepath.Join(root, "custom", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
-	writeCodexTestFile(t, filepath.Join(root, "src", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
 
 	state := pluginmodel.NewTargetState("codex-package")
-	state.SetDoc("app_manifest", filepath.Join("src", "targets", "codex-package", "app.json"))
+	state.SetDoc("app_manifest", filepath.Join("plugin", "targets", "codex-package", "app.json"))
 
 	diagnostics, err := (codexPackageAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Manifest: pluginmodel.Manifest{

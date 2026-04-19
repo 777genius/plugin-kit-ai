@@ -9,7 +9,7 @@ import (
 func TestValidateOpenCodeDefaultAgentRejectsBlankFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	rel := filepath.ToSlash(filepath.Join("src", "targets", "opencode", "default-agent.txt"))
+	rel := filepath.ToSlash(filepath.Join("plugin", "targets", "opencode", "default-agent.txt"))
 	writeOpenCodeValidateFile(t, filepath.Join(root, rel), "   \n")
 
 	diagnostics := validateOpenCodeDefaultAgent(root, rel)

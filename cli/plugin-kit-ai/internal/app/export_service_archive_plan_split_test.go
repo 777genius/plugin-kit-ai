@@ -26,7 +26,7 @@ func TestResolveExportArchiveOutputPathUsesManifestAndRuntime(t *testing.T) {
 func TestDropExportArchiveOutputRemovesOutputFromFileList(t *testing.T) {
 	t.Parallel()
 
-	files := dropExportArchiveOutput([]string{"src/plugin.yaml", "demo_claude_node_bundle.tar.gz"}, "/tmp/demo", "/tmp/demo/demo_claude_node_bundle.tar.gz")
+	files := dropExportArchiveOutput([]string{"plugin/plugin.yaml", "demo_claude_node_bundle.tar.gz"}, "/tmp/demo", "/tmp/demo/demo_claude_node_bundle.tar.gz")
 	if slices.Contains(files, "demo_claude_node_bundle.tar.gz") {
 		t.Fatalf("files = %#v", files)
 	}

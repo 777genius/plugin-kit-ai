@@ -181,14 +181,14 @@ func TestCloudflareObservabilityCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveCloudflareObservabilityCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(cloudflareObservabilityCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a cloudflare-observability plugin with src/plugin.yaml", cloudflareObservabilityCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a cloudflare-observability plugin with plugin/plugin.yaml", cloudflareObservabilityCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "cloudflare-observability")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("cloudflare-observability catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/cloudflare-observability", cloudflareObservabilityCatalogDirEnvVar)

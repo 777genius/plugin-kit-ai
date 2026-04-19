@@ -17,15 +17,15 @@ func TestApplyInstallPatchesConfigAndCopiesAssets(t *testing.T) {
 	projectRoot := t.TempDir()
 	sourceRoot := t.TempDir()
 	mustWriteOpenCodeFile(t, filepath.Join(projectRoot, "opencode.json"), "{\n  // keep me\n  \"theme\": \"midnight\",\n  \"mcp\": {\"user-owned\":{\"type\":\"local\",\"command\":[\"node\",\"user.js\"]}},\n  \"plugin\": [\"@user/existing\"]\n}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  context7:\n    type: stdio\n    stdio:\n      command: npx\n      args:\n        - -y\n        - '@upstash/context7-mcp'\n    targets:\n      - opencode\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.yaml"), "plugins:\n  - '@acme/opencode-demo-plugin'\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "default_agent.txt"), "reviewer\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "instructions.yaml"), "- AGENTS.md\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "permission.json"), "{\"bash\":\"ask\"}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "config.extra.json"), "{\"watcher\":{\"ignore\":[\"dist/**\"]}}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "plugins", "example.js"), "export const ExamplePlugin = async () => ({})\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.json"), "{\n  \"name\": \"demo\",\n  \"private\": true\n}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  context7:\n    type: stdio\n    stdio:\n      command: npx\n      args:\n        - -y\n        - '@upstash/context7-mcp'\n    targets:\n      - opencode\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.yaml"), "plugins:\n  - '@acme/opencode-demo-plugin'\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "default_agent.txt"), "reviewer\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "instructions.yaml"), "- AGENTS.md\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "permission.json"), "{\"bash\":\"ask\"}\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "config.extra.json"), "{\"watcher\":{\"ignore\":[\"dist/**\"]}}\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "plugins", "example.js"), "export const ExamplePlugin = async () => ({})\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.json"), "{\n  \"name\": \"demo\",\n  \"private\": true\n}\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "skills", "demo", "SKILL.md"), "# Demo\n")
 
 	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: projectRoot, UserHome: t.TempDir()}
 	result, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
@@ -70,10 +70,10 @@ func TestApplyUpdateRemovesStaleOwnedEntriesAndFiles(t *testing.T) {
 	mustWriteOpenCodeFile(t, filepath.Join(projectRoot, ".opencode", "plugins", "example.js"), "old\n")
 	mustWriteOpenCodeFile(t, filepath.Join(projectRoot, ".opencode", "plugins", "stale.js"), "stale\n")
 	mustWriteOpenCodeFile(t, filepath.Join(projectRoot, ".opencode", "package.json"), "{\n  \"name\": \"demo-old\"\n}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.yaml"), "plugins:\n  - '@acme/opencode-next-plugin'\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "plugins", "example.js"), "new\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "package.json"), "{\n  \"name\": \"demo-next\"\n}\n")
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "permission.json"), "{\"edit\":\"allow\"}\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.yaml"), "plugins:\n  - '@acme/opencode-next-plugin'\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "plugins", "example.js"), "new\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.json"), "{\n  \"name\": \"demo-next\"\n}\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "permission.json"), "{\"edit\":\"allow\"}\n")
 
 	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: projectRoot, UserHome: t.TempDir()}
 	result, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{

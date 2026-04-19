@@ -12,11 +12,11 @@ func TestPluginServicePublicationMaterializeCodexMarketplaceRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ndisplay_name: Local Repo\nsource_root: ./\ncategory: Productivity\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\ndisplay_name: Local Repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "skills", "demo", "SKILL.md"), "# Demo\n")
 
 	result, err := PluginService{}.PublicationMaterialize(PluginPublicationMaterializeOptions{
 		Root:   root,
@@ -38,10 +38,10 @@ func TestPluginServicePublicationMaterializeClaudeMarketplaceMergesExistingCatal
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join(".claude-plugin", "marketplace.json"), `{"name":"team-tools","owner":{"name":"Team"},"plugins":[{"name":"alpha","source":"./plugins/alpha","description":"alpha","version":"1.0.0"}]}`)
 
 	_, err := PluginService{}.PublicationMaterialize(PluginPublicationMaterializeOptions{
@@ -59,10 +59,10 @@ func TestPluginServicePublicationMaterializeRemovesOldPackageRoot(t *testing.T) 
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join("plugins", "demo", "stale.txt"), "old\n")
 
 	_, err := PluginService{}.PublicationMaterialize(PluginPublicationMaterializeOptions{
@@ -82,10 +82,10 @@ func TestPluginServicePublicationMaterializeDryRunDoesNotWrite(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
 
 	result, err := PluginService{}.PublicationMaterialize(PluginPublicationMaterializeOptions{
 		Root:   root,
@@ -111,10 +111,10 @@ func TestPluginServicePublicationRemoveCodexMarketplaceRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join("plugins", "demo", ".codex-plugin", "plugin.json"), "{}\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join(".agents", "plugins", "marketplace.json"), `{"name":"local-repo","plugins":[{"name":"demo","source":{"source":"local","path":"./plugins/demo"},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"},{"name":"alpha","source":{"source":"local","path":"./plugins/alpha"},"policy":{"installation":"AVAILABLE","authentication":"ON_INSTALL"},"category":"Productivity"}]}`)
 
@@ -149,10 +149,10 @@ func TestPluginServicePublicationRemoveIsIdempotentWhenEntryMissing(t *testing.T
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join(".claude-plugin", "marketplace.json"), `{"name":"team-tools","owner":{"name":"Team"},"plugins":[{"name":"alpha","source":"./plugins/alpha","description":"alpha","version":"1.0.0"}]}`)
 
 	result, err := PluginService{}.PublicationRemove(PluginPublicationRemoveOptions{
@@ -179,10 +179,10 @@ func TestPluginServicePublicationRemoveDryRunDoesNotDelete(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
 	mustWritePublicationSourceFile(t, dest, filepath.Join("plugins", "demo", ".claude-plugin", "plugin.json"), "{}\n")
 	originalCatalog := `{"name":"team-tools","owner":{"name":"Team"},"plugins":[{"name":"demo","source":"./plugins/demo","description":"demo","version":"0.1.0"}]}`
 	mustWritePublicationSourceFile(t, dest, filepath.Join(".claude-plugin", "marketplace.json"), originalCatalog)
@@ -215,11 +215,11 @@ func TestPluginServicePublicationVerifyRootReady(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "skills", "demo", "SKILL.md"), "# Demo\n")
 	if _, err := (PluginService{}).PublicationMaterialize(PluginPublicationMaterializeOptions{
 		Root:   root,
 		Target: "codex-package",
@@ -245,10 +245,10 @@ func TestPluginServicePublicationVerifyRootReportsDriftedCatalogEntry(t *testing
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
 	if _, err := (PluginService{}).PublicationMaterialize(PluginPublicationMaterializeOptions{
 		Root:   root,
 		Target: "claude",
@@ -278,9 +278,9 @@ func TestLoadPublicationContextPreservesChannelMetadataHints(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"claude\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
 
 	t.Run("materialize", func(t *testing.T) {
 		t.Parallel()
@@ -289,7 +289,7 @@ func TestLoadPublicationContextPreservesChannelMetadataHints(t *testing.T) {
 			Target: "claude",
 			Dest:   dest,
 		})
-		if err == nil || !strings.Contains(err.Error(), "target claude requires authored publication channel metadata under src/publish/...") {
+		if err == nil || !strings.Contains(err.Error(), "target claude requires authored publication channel metadata under plugin/publish/...") {
 			t.Fatalf("error = %v", err)
 		}
 	})
@@ -311,10 +311,10 @@ func TestPluginServicePublishDelegatesToLocalCodexMaterialize(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
 
 	result, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:    root,
@@ -348,9 +348,9 @@ func TestPluginServicePublishDelegatesToLocalCodexMaterialize(t *testing.T) {
 func TestPluginServicePublishGeminiGalleryDryRunPlan(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: github_release\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: release_archive_root\n")
 
 	result, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:    root,
@@ -384,9 +384,9 @@ func TestPluginServicePublishGeminiGalleryDryRunPlan(t *testing.T) {
 func TestPluginServicePublishGeminiGalleryReadyInGitHubRepo(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
 	if err := exec.Command("git", "-C", root, "init").Run(); err != nil {
 		t.Skipf("git init unavailable: %v", err)
 	}
@@ -410,9 +410,9 @@ func TestPluginServicePublishGeminiGalleryReadyInGitHubRepo(t *testing.T) {
 func TestPluginServicePublishGeminiGalleryRejectsApply(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
 
 	_, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:    root,
@@ -426,9 +426,9 @@ func TestPluginServicePublishGeminiGalleryRejectsApply(t *testing.T) {
 func TestPluginServicePublishAllDryRunNeedsChannelsWhenNoAuthoredPublication(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
 
 	result, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:   root,
@@ -446,12 +446,12 @@ func TestPluginServicePublishAllDryRunNeedsChannelsWhenNoAuthoredPublication(t *
 func TestPluginServicePublishAllDryRunRequiresDestForLocalChannels(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"gemini\"]\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
 
 	_, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:   root,
@@ -467,17 +467,17 @@ func TestPluginServicePublishAllDryRunOrdersChannels(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	dest := t.TempDir()
-	mustWritePublicationSourceFile(t, root, "src/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"claude\", \"gemini\"]\n")
+	mustWritePublicationSourceFile(t, root, "plugin/plugin.yaml", "api_version: v1\nname: \"demo\"\nversion: \"0.1.0\"\ndescription: \"demo\"\ntargets: [\"codex-package\", \"claude\", \"gemini\"]\n")
 	mustWritePublicationSourceFile(t, root, "go.mod", "module example.com/demo\n\ngo 1.24.0\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "launcher.yaml"), "runtime: go\nentrypoint: ./bin/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "codex-package", "interface.json"), `{"defaultPrompt":["Inspect"]}`)
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "claude", "package.yaml"), "homepage: https://example.com/demo\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "targets", "gemini", "package.yaml"), "homepage: https://example.com/demo\n")
 	mustWritePublicationSourceFile(t, root, "gemini-extension.json", "{}\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
-	mustWritePublicationSourceFile(t, root, filepath.Join("src", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "codex", "marketplace.yaml"), "api_version: v1\nmarketplace_name: local-repo\nsource_root: ./\ncategory: Productivity\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "claude", "marketplace.yaml"), "api_version: v1\nmarketplace_name: team-tools\nowner_name: Team\nsource_root: ./\n")
+	mustWritePublicationSourceFile(t, root, filepath.Join("plugin", "publish", "gemini", "gallery.yaml"), "api_version: v1\ndistribution: git_repository\nrepository_visibility: public\ngithub_topic: gemini-cli-extension\nmanifest_root: repository_root\n")
 
 	result, err := PluginService{}.Publish(PluginPublishOptions{
 		Root:   root,

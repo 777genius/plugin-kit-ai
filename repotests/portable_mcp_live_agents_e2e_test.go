@@ -127,7 +127,7 @@ func newPortableMCPLiveWorkspace(t *testing.T, pluginKitAIBin, mcpBin string) st
 		t.Fatal(err)
 	}
 
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "plugin.yaml"), `api_version: v1
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "plugin.yaml"), `api_version: v1
 name: "portable-mcp-live"
 version: "0.1.0"
 description: "portable MCP live smoke package"
@@ -138,17 +138,17 @@ targets:
   - "opencode"
   - "cursor"
 `)
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "launcher.yaml"), "runtime: shell\nentrypoint: ./scripts/main.sh\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "launcher.yaml"), "runtime: shell\nentrypoint: ./scripts/main.sh\n")
 	mustWriteRepoExecutable(t, workDir, filepath.Join("scripts", "main.sh"), "#!/usr/bin/env bash\nexit 0\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-live\"\n")
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "targets", "cursor", "rules", "project.mdc"), `---
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "targets", "gemini", "contexts", "GEMINI.md"), "# Gemini\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "targets", "opencode", "package.yaml"), "plugins:\n  - \"@acme/portable-mcp-live\"\n")
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "targets", "cursor", "rules", "project.mdc"), `---
 description: "Portable MCP live smoke"
 alwaysApply: true
 ---
 
 - When explicitly asked to use the MCP tool release_checks, do so exactly once.`)
-	mustWriteRepoFile(t, workDir, filepath.Join("src", "mcp", "servers.yaml"), fmt.Sprintf(`api_version: v1
+	mustWriteRepoFile(t, workDir, filepath.Join("plugin", "mcp", "servers.yaml"), fmt.Sprintf(`api_version: v1
 
 servers:
   release-checks:

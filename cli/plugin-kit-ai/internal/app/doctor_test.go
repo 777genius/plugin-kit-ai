@@ -44,11 +44,11 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 		{
 			name: "ready",
 			setup: func(t *testing.T, root string) {
-				writeDoctorFile(t, root, "src/plugin.yaml", minimalBootstrapManifest())
-				writeDoctorFile(t, root, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+				writeDoctorFile(t, root, "plugin/plugin.yaml", minimalBootstrapManifest())
+				writeDoctorFile(t, root, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 				writeDoctorFile(t, root, "package.json", `{"type":"module"}`)
-				writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec node \"$ROOT/src/main.mjs\" \"$@\"\n")
-				writeDoctorFile(t, root, filepath.Join("src", "main.mjs"), "console.log('ok')\n")
+				writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec node \"$ROOT/plugin/main.mjs\" \"$@\"\n")
+				writeDoctorFile(t, root, filepath.Join("plugin", "main.mjs"), "console.log('ok')\n")
 				writeDoctorFile(t, root, filepath.Join("node_modules", ".installed"), "ok")
 				mustChmodBootstrapExecutable(t, filepath.Join(root, "bin", "demo"))
 			},
@@ -58,11 +58,11 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 		{
 			name: "needs-bootstrap",
 			setup: func(t *testing.T, root string) {
-				writeDoctorFile(t, root, "src/plugin.yaml", minimalBootstrapManifest())
-				writeDoctorFile(t, root, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+				writeDoctorFile(t, root, "plugin/plugin.yaml", minimalBootstrapManifest())
+				writeDoctorFile(t, root, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
 				writeDoctorFile(t, root, "requirements.txt", "requests==2.32.0\n")
-				writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec python \"$ROOT/src/main.py\" \"$@\"\n")
-				writeDoctorFile(t, root, filepath.Join("src", "main.py"), "print('ok')\n")
+				writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec python \"$ROOT/plugin/main.py\" \"$@\"\n")
+				writeDoctorFile(t, root, filepath.Join("plugin", "main.py"), "print('ok')\n")
 				mustChmodBootstrapExecutable(t, filepath.Join(root, "bin", "demo"))
 			},
 			wantReady:  false,
@@ -71,8 +71,8 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 		{
 			name: "needs-build",
 			setup: func(t *testing.T, root string) {
-				writeDoctorFile(t, root, "src/plugin.yaml", minimalBootstrapManifest())
-				writeDoctorFile(t, root, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+				writeDoctorFile(t, root, "plugin/plugin.yaml", minimalBootstrapManifest())
+				writeDoctorFile(t, root, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 				writeDoctorFile(t, root, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
 				writeDoctorFile(t, root, "tsconfig.json", "{}\n")
 				writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec node \"$ROOT/dist/main.js\" \"$@\"\n")
@@ -85,8 +85,8 @@ func TestPluginServiceDoctorReadyNeedsBootstrapNeedsBuildAndBlocked(t *testing.T
 		{
 			name: "blocked",
 			setup: func(t *testing.T, root string) {
-				writeDoctorFile(t, root, "src/plugin.yaml", minimalBootstrapManifest())
-				writeDoctorFile(t, root, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+				writeDoctorFile(t, root, "plugin/plugin.yaml", minimalBootstrapManifest())
+				writeDoctorFile(t, root, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
 				writeDoctorFile(t, root, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
 				writeDoctorFile(t, root, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
 				writeDoctorFile(t, root, "tsconfig.json", "{}\n")
@@ -186,7 +186,7 @@ func TestPluginServiceDoctorReportsGoToolchainWhenGoModIsPresent(t *testing.T) {
 	})
 
 	root := t.TempDir()
-	writeDoctorFile(t, root, "src/plugin.yaml", `api_version: v1
+	writeDoctorFile(t, root, "plugin/plugin.yaml", `api_version: v1
 name: "demo"
 version: "0.1.0"
 description: "demo"
@@ -238,11 +238,11 @@ func TestPluginServiceDoctorPoetryManagerOwnedEnvIsReady(t *testing.T) {
 	})
 
 	root := t.TempDir()
-	writeDoctorFile(t, root, "src/plugin.yaml", minimalBootstrapManifest())
-	writeDoctorFile(t, root, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeDoctorFile(t, root, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeDoctorFile(t, root, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
 	writeDoctorFile(t, root, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
-	writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec python \"$ROOT/src/main.py\" \"$@\"\n")
-	writeDoctorFile(t, root, filepath.Join("src", "main.py"), "print('ok')\n")
+	writeDoctorFile(t, root, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexec python \"$ROOT/plugin/main.py\" \"$@\"\n")
+	writeDoctorFile(t, root, filepath.Join("plugin", "main.py"), "print('ok')\n")
 	writeDoctorFile(t, root, filepath.Join("external-env", "bin", "python3"), "ok")
 	mustChmodBootstrapExecutable(t, filepath.Join(root, "bin", "demo"))
 

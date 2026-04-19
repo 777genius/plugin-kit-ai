@@ -292,14 +292,14 @@ func TestContext7CatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveContext7CatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(context7CatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a context7 plugin with src/plugin.yaml", context7CatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a context7 plugin with plugin/plugin.yaml", context7CatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "context7")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("context7 catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/context7", context7CatalogDirEnvVar)

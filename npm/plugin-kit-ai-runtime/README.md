@@ -27,4 +27,4 @@ Notes:
 
 - Go is still the recommended path when you want the most self-contained delivery model.
 - Node authoring remains a stable supported lane, but the machine running the plugin still needs Node.js `20+`.
-- The helper API mirrors the generated `src/plugin-runtime.ts` and `src/plugin-runtime.mjs` scaffold surface.
+- The helper API mirrors the generated `plugin/plugin-runtime.ts` and `plugin/plugin-runtime.mjs` scaffold surface.

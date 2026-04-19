@@ -82,8 +82,5 @@ func exportAuthoredRoot(root string) string {
 	if fileExists(filepath.Join(root, pluginmodel.SourceDirName, pluginmanifest.FileName)) {
 		return pluginmodel.SourceDirName
 	}
-	if fileExists(filepath.Join(root, pluginmodel.LegacySourceDirName, pluginmanifest.FileName)) {
-		return pluginmodel.LegacySourceDirName
-	}
 	return pluginmodel.SourceDirName
 }

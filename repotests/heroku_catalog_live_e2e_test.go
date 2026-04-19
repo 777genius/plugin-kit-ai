@@ -195,14 +195,14 @@ func TestHerokuCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveHerokuCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(herokuCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a heroku plugin with src/plugin.yaml", herokuCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a heroku plugin with plugin/plugin.yaml", herokuCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "heroku")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("heroku catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/heroku", herokuCatalogDirEnvVar)

@@ -25,10 +25,10 @@ func TestResolveGitURLUsesProcessRunnerAndHashesMaterializedTree(t *testing.T) {
 		Runner: stubRunner{run: func(_ context.Context, cmd ports.Command) (ports.CommandResult, error) {
 			if len(cmd.Argv) >= 5 && cmd.Argv[0] == "git" && cmd.Argv[1] == "clone" {
 				dst := cmd.Argv[len(cmd.Argv)-1]
-				if err := os.MkdirAll(filepath.Join(dst, "src"), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dst, "plugin"), 0o755); err != nil {
 					t.Fatalf("mkdir clone dst: %v", err)
 				}
-				if err := os.WriteFile(filepath.Join(dst, "src", "plugin.yaml"), []byte("api_version: v1\nname: demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - cursor\n"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dst, "plugin", "plugin.yaml"), []byte("api_version: v1\nname: demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - cursor\n"), 0o644); err != nil {
 					t.Fatalf("write clone plugin.yaml: %v", err)
 				}
 				return ports.CommandResult{ExitCode: 0}, nil
@@ -69,13 +69,13 @@ func TestResolveGitHubSubdirUsesSubtreeDigestAndCleanupRoot(t *testing.T) {
 		Runner: stubRunner{run: func(_ context.Context, cmd ports.Command) (ports.CommandResult, error) {
 			if len(cmd.Argv) >= 5 && cmd.Argv[0] == "git" && cmd.Argv[1] == "clone" {
 				dst := cmd.Argv[len(cmd.Argv)-1]
-				if err := os.MkdirAll(filepath.Join(dst, "plugins", "demo", "src"), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dst, "plugins", "demo", "plugin"), 0o755); err != nil {
 					t.Fatalf("mkdir clone dst: %v", err)
 				}
 				if err := os.WriteFile(filepath.Join(dst, "README.md"), []byte("root readme\n"), 0o644); err != nil {
 					t.Fatalf("write clone readme: %v", err)
 				}
-				if err := os.WriteFile(filepath.Join(dst, "plugins", "demo", "src", "plugin.yaml"), []byte("api_version: v1\nname: demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - opencode\n"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dst, "plugins", "demo", "plugin", "plugin.yaml"), []byte("api_version: v1\nname: demo\nversion: 0.1.0\ndescription: test\ntargets:\n  - opencode\n"), 0o644); err != nil {
 					t.Fatalf("write subtree plugin.yaml: %v", err)
 				}
 				return ports.CommandResult{ExitCode: 0}, nil
@@ -119,10 +119,10 @@ func TestResolveFirstPartyAliasMapsToCanonicalGitHubSource(t *testing.T) {
 					t.Fatalf("clone url = %q, want %q", got, want)
 				}
 				dst := cmd.Argv[len(cmd.Argv)-1]
-				if err := os.MkdirAll(filepath.Join(dst, "plugins", "notion", "src"), 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Join(dst, "plugins", "notion", "plugin"), 0o755); err != nil {
 					t.Fatalf("mkdir clone dst: %v", err)
 				}
-				if err := os.WriteFile(filepath.Join(dst, "plugins", "notion", "src", "plugin.yaml"), []byte("api_version: v1\nname: notion\nversion: 0.1.0\ndescription: test\ntargets:\n  - claude\n"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dst, "plugins", "notion", "plugin", "plugin.yaml"), []byte("api_version: v1\nname: notion\nversion: 0.1.0\ndescription: test\ntargets:\n  - claude\n"), 0o644); err != nil {
 					t.Fatalf("write subtree plugin.yaml: %v", err)
 				}
 				return ports.CommandResult{ExitCode: 0}, nil

@@ -75,7 +75,7 @@ plugin-kit-ai version
 ## Что вы получите
 
 - один plugin repo с первого дня
-- authored files под `plugin/` для новых репозиториев, при этом legacy `src/` остаётся поддержанным
+- authored files под `plugin/`
 - generated output для Codex runtime из того же repo
 - понятную проверку готовности через `validate --strict`
 
@@ -112,7 +112,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## Что делать дальше
 
-- правьте плагин под `plugin/`, если только вы не поддерживаете legacy `src/` репозиторий
+- правьте плагин под `plugin/`
 - после изменений снова запускайте `plugin-kit-ai generate ./my-plugin`
 - потом снова запускайте `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict`
 - и только после этого добавляйте другие способы поставки, если продукту это действительно нужно

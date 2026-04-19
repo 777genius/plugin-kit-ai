@@ -58,11 +58,11 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "codex-go-starter"),
 			requiredFiles: []string{
 				"README.md",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"go.mod",
 				"cmd/codex-go-starter/main.go",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/targets/codex-runtime/package.yaml",
 				".codex/config.toml",
 			},
 			absent: []string{
@@ -84,11 +84,11 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/codex-python-starter",
 				"bin/codex-python-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"requirements.txt",
-				"src/main.py",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/main.py",
+				"plugin/targets/codex-runtime/package.yaml",
 				".codex/config.toml",
 				".github/workflows/bundle-release.yml",
 			},
@@ -112,12 +112,12 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/codex-node-typescript-starter",
 				"bin/codex-node-typescript-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"package.json",
 				"tsconfig.json",
-				"src/main.ts",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/main.ts",
+				"plugin/targets/codex-runtime/package.yaml",
 				".codex/config.toml",
 				".github/workflows/bundle-release.yml",
 			},
@@ -139,18 +139,18 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 			dir:      filepath.Join(root, "examples", "starters", "claude-go-starter"),
 			requiredFiles: []string{
 				"README.md",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"go.mod",
 				"cmd/claude-go-starter/main.go",
 				".claude-plugin/plugin.json",
 				"hooks/hooks.json",
-				"src/targets/claude/hooks/hooks.json",
+				"plugin/targets/claude/hooks/hooks.json",
 			},
 			absent: []string{
 				".github/workflows/bundle-release.yml",
 				".codex/config.toml",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/targets/codex-runtime/package.yaml",
 			},
 			contains: []string{
 				"SDK-first handlers",
@@ -166,18 +166,18 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/claude-python-starter",
 				"bin/claude-python-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"requirements.txt",
-				"src/main.py",
+				"plugin/main.py",
 				".claude-plugin/plugin.json",
 				"hooks/hooks.json",
-				"src/targets/claude/hooks/hooks.json",
+				"plugin/targets/claude/hooks/hooks.json",
 				".github/workflows/bundle-release.yml",
 			},
 			absent: []string{
 				".codex/config.toml",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/targets/codex-runtime/package.yaml",
 			},
 			contains: []string{
 				"requirements.txt",
@@ -195,19 +195,19 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/claude-node-typescript-starter",
 				"bin/claude-node-typescript-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"package.json",
 				"tsconfig.json",
-				"src/main.ts",
+				"plugin/main.ts",
 				".claude-plugin/plugin.json",
 				"hooks/hooks.json",
-				"src/targets/claude/hooks/hooks.json",
+				"plugin/targets/claude/hooks/hooks.json",
 				".github/workflows/bundle-release.yml",
 			},
 			absent: []string{
 				".codex/config.toml",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/targets/codex-runtime/package.yaml",
 			},
 			contains: []string{
 				"dist/main.js",
@@ -225,16 +225,16 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/codex-python-runtime-package-starter",
 				"bin/codex-python-runtime-package-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"requirements.txt",
-				"src/main.py",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/main.py",
+				"plugin/targets/codex-runtime/package.yaml",
 				".codex/config.toml",
 				".github/workflows/bundle-release.yml",
 			},
 			absent: []string{
-				"src/plugin_runtime.py",
+				"plugin/plugin_runtime.py",
 				".claude-plugin/plugin.json",
 				"hooks/hooks.json",
 			},
@@ -253,20 +253,20 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 				"README.md",
 				"bin/claude-node-typescript-runtime-package-starter",
 				"bin/claude-node-typescript-runtime-package-starter.cmd",
-				"src/plugin.yaml",
-				"src/launcher.yaml",
+				"plugin/plugin.yaml",
+				"plugin/launcher.yaml",
 				"package.json",
 				"tsconfig.json",
-				"src/main.ts",
+				"plugin/main.ts",
 				".claude-plugin/plugin.json",
 				"hooks/hooks.json",
-				"src/targets/claude/hooks/hooks.json",
+				"plugin/targets/claude/hooks/hooks.json",
 				".github/workflows/bundle-release.yml",
 			},
 			absent: []string{
-				"src/plugin-runtime.ts",
+				"plugin/plugin-runtime.ts",
 				".codex/config.toml",
-				"src/targets/codex-runtime/package.yaml",
+				"plugin/targets/codex-runtime/package.yaml",
 			},
 			contains: []string{
 				"plugin-kit-ai-runtime@" + runtimePackageVersion,
@@ -292,11 +292,11 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 
 			readme := readRepoFile(t, tc.dir, "README.md")
 			mustContain(t, readme, "<!-- plugin-kit-ai:managed-root-readme -->")
-			mustContain(t, readme, "[`src/README.md`](./src/README.md)")
+			mustContain(t, readme, "[`plugin/README.md`](./plugin/README.md)")
 			mustContain(t, readme, "[`AGENTS.md`](./AGENTS.md)")
 			mustContain(t, readme, "[`GENERATED.md`](./GENERATED.md)")
 
-			authoredReadme := readRepoFile(t, tc.dir, "src", "README.md")
+			authoredReadme := readRepoFile(t, tc.dir, "plugin", "README.md")
 			mustContain(t, authoredReadme, "## Who It Is For")
 			mustContain(t, authoredReadme, "## Prerequisites")
 			mustContain(t, authoredReadme, "## First Run")
@@ -323,14 +323,14 @@ func TestStarterRepos_LayoutAndReadmesStayAligned(t *testing.T) {
 		})
 	}
 
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-starter", "src", "main.py"), "handle_claude")
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-starter", "src", "main.py"), "Stop|PreToolUse|UserPromptSubmit")
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-node-typescript-starter", "src", "main.ts"), "handleClaude")
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-node-typescript-starter", "src", "main.ts"), "PreToolUse")
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "claude-python-starter", "src", "main.py"), "notify")
-	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "claude-node-typescript-starter", "src", "main.ts"), "\"notify\"")
-	mustContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-runtime-package-starter", "src", "main.py"), "from plugin_kit_ai_runtime import")
-	mustContain(t, readRepoFile(t, root, "examples", "starters", "claude-node-typescript-runtime-package-starter", "src", "main.ts"), `from "plugin-kit-ai-runtime"`)
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-starter", "plugin", "main.py"), "handle_claude")
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-starter", "plugin", "main.py"), "Stop|PreToolUse|UserPromptSubmit")
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-node-typescript-starter", "plugin", "main.ts"), "handleClaude")
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "codex-node-typescript-starter", "plugin", "main.ts"), "PreToolUse")
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "claude-python-starter", "plugin", "main.py"), "notify")
+	mustNotContain(t, readRepoFile(t, root, "examples", "starters", "claude-node-typescript-starter", "plugin", "main.ts"), "\"notify\"")
+	mustContain(t, readRepoFile(t, root, "examples", "starters", "codex-python-runtime-package-starter", "plugin", "main.py"), "from plugin_kit_ai_runtime import")
+	mustContain(t, readRepoFile(t, root, "examples", "starters", "claude-node-typescript-runtime-package-starter", "plugin", "main.ts"), `from "plugin-kit-ai-runtime"`)
 }
 
 func TestStarterRepos_Smoke(t *testing.T) {
@@ -720,7 +720,7 @@ func prepareSharedNodeRuntimeStarter(t *testing.T, workDir string) {
 func writeLocalPythonRuntimeWheel(t *testing.T, wheelPath, version string) {
 	t.Helper()
 	root := RepoRoot(t)
-	sourcePath := filepath.Join(root, "python", "plugin-kit-ai-runtime", "src", "plugin_kit_ai_runtime", "__init__.py")
+	sourcePath := filepath.Join(root, "python", "plugin-kit-ai-runtime", "plugin", "plugin_kit_ai_runtime", "__init__.py")
 	sourceBody, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatal(err)

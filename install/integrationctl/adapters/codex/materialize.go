@@ -38,7 +38,7 @@ func (a Adapter) syncManagedPlugin(ctx context.Context, manifest domain.Integrat
 			_ = os.RemoveAll(tmpRoot)
 		}
 	}()
-	if fileExists(filepath.Join(root, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(root, "plugin", "plugin.yaml")) {
 		if err := a.materializeAuthoredCodexSource(ctx, manifest, root, tmpRoot); err != nil {
 			return err
 		}

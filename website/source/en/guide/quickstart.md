@@ -79,7 +79,7 @@ plugin-kit-ai version
 ## What You Get
 
 - one plugin repo from day one
-- authored files under `plugin/` for new repos, with legacy `src/` still supported
+- authored files under `plugin/`
 - generated Codex runtime output from the same repo
 - a clean readiness check through `validate --strict`
 
@@ -116,7 +116,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 ## What To Do Next
 
-- edit the plugin under `plugin/` unless you are intentionally maintaining a legacy `src/` repo
+- edit the plugin under `plugin/`
 - run `plugin-kit-ai generate ./my-plugin` again after changes
 - run `plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict` again
 - only then add another way to ship it if the product needs that

@@ -597,7 +597,7 @@ func TestInitRunner_opencodeWorkspaceStarter(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(rootReadmeBody), "[`plugin/README.md`](./plugin/README.md)") {
-		t.Fatalf("OpenCode root README missing src pointer:\n%s", rootReadmeBody)
+		t.Fatalf("OpenCode root README missing plugin pointer:\n%s", rootReadmeBody)
 	}
 }
 

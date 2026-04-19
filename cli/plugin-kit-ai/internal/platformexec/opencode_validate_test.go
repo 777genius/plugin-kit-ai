@@ -13,10 +13,10 @@ func TestOpenCodeValidateRejectsToolHelperWithoutPackageDependency(t *testing.T)
 	t.Parallel()
 	root := t.TempDir()
 	writeOpenCodeValidateFile(t, filepath.Join(root, "opencode.json"), "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n")
-	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "tools", "demo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({})\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "plugin", "targets", "opencode", "tools", "demo.ts"), "import { tool } from \"@opencode-ai/plugin\"\nexport default tool({})\n")
 
 	state := pluginmodel.NewTargetState("opencode")
-	state.AddComponent("tools", filepath.Join("src", "targets", "opencode", "tools", "demo.ts"))
+	state.AddComponent("tools", filepath.Join("plugin", "targets", "opencode", "tools", "demo.ts"))
 
 	diagnostics, err := (opencodeAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Portable: pluginmodel.NewPortableComponents(),
@@ -25,7 +25,7 @@ func TestOpenCodeValidateRejectsToolHelperWithoutPackageDependency(t *testing.T)
 		t.Fatalf("Validate error = %v", err)
 	}
 	joined := diagnosticsText(diagnostics)
-	if !strings.Contains(joined, `must declare that dependency in src/targets/opencode/package.json`) {
+	if !strings.Contains(joined, `must declare that dependency in plugin/targets/opencode/package.json`) {
 		t.Fatalf("diagnostics missing dependency failure:\n%s", joined)
 	}
 }
@@ -34,10 +34,10 @@ func TestOpenCodeValidateRejectsLegacyPluginScaffoldShape(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeOpenCodeValidateFile(t, filepath.Join(root, "opencode.json"), "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n")
-	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "plugins", "index.ts"), "export default { setup() { return {} } }\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "plugin", "targets", "opencode", "plugins", "index.ts"), "export default { setup() { return {} } }\n")
 
 	state := pluginmodel.NewTargetState("opencode")
-	state.AddComponent("local_plugin_code", filepath.Join("src", "targets", "opencode", "plugins", "index.ts"))
+	state.AddComponent("local_plugin_code", filepath.Join("plugin", "targets", "opencode", "plugins", "index.ts"))
 
 	diagnostics, err := (opencodeAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Portable: pluginmodel.NewPortableComponents(),
@@ -55,12 +55,12 @@ func TestOpenCodeValidateRejectsCaseInsensitiveToolCollisions(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeOpenCodeValidateFile(t, filepath.Join(root, "opencode.json"), "{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}\n")
-	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "tools", "Demo.ts"), "export default {}\n")
-	writeOpenCodeValidateFile(t, filepath.Join(root, "src", "targets", "opencode", "tools", "demo.ts"), "export default {}\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "plugin", "targets", "opencode", "tools", "Demo.ts"), "export default {}\n")
+	writeOpenCodeValidateFile(t, filepath.Join(root, "plugin", "targets", "opencode", "tools", "demo.ts"), "export default {}\n")
 
 	state := pluginmodel.NewTargetState("opencode")
-	state.AddComponent("tools", filepath.Join("src", "targets", "opencode", "tools", "Demo.ts"))
-	state.AddComponent("tools", filepath.Join("src", "targets", "opencode", "tools", "demo.ts"))
+	state.AddComponent("tools", filepath.Join("plugin", "targets", "opencode", "tools", "Demo.ts"))
+	state.AddComponent("tools", filepath.Join("plugin", "targets", "opencode", "tools", "demo.ts"))
 
 	diagnostics, err := (opencodeAdapter{}).Validate(root, pluginmodel.PackageGraph{
 		Portable: pluginmodel.NewPortableComponents(),
@@ -77,7 +77,7 @@ func TestOpenCodeValidateRejectsCaseInsensitiveToolCollisions(t *testing.T) {
 func TestValidateOpenCodeAgentFilesRejectsDeprecatedToolsField(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	rel := filepath.ToSlash(filepath.Join("src", "targets", "opencode", "agents", "reviewer.md"))
+	rel := filepath.ToSlash(filepath.Join("plugin", "targets", "opencode", "agents", "reviewer.md"))
 	writeOpenCodeValidateFile(t, filepath.Join(root, rel), "---\ndescription: Review code\ntools:\n  - read\n---\nPrompt body\n")
 
 	diagnostics := validateOpenCodeAgentFiles(root, []string{rel})

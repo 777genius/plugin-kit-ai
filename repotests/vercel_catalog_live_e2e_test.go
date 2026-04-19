@@ -195,14 +195,14 @@ func TestVercelCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveVercelCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(vercelCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a vercel plugin with src/plugin.yaml", vercelCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a vercel plugin with plugin/plugin.yaml", vercelCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "vercel")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("vercel catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/vercel", vercelCatalogDirEnvVar)

@@ -1,15 +1,15 @@
 <!-- plugin-kit-ai:begin managed-guidance -->
 # Plugin Boundary
 
-This plugin uses the canonical `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}src{{end}}/` authoring layout.
+This plugin uses the canonical `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}plugin{{end}}/` authoring layout.
 
-- Edit only files under `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}src{{end}}/`.
+- Edit only files under `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}plugin{{end}}/`.
 - Start with [`{{if .AuthoredReadmePath}}{{.AuthoredReadmePath}}{{else}}plugin/README.md{{end}}`](./{{if .AuthoredReadmePath}}{{.AuthoredReadmePath}}{{else}}plugin/README.md{{end}}) for the full plugin guide.
 - Read [`GENERATED.md`](./GENERATED.md) before touching plugin-root files. It is the required inventory of managed generated outputs.
 - Treat plugin-root `README.md`, manifests, and config files as generated outputs.
 - `plugin-kit-ai generate` may overwrite every path listed in `GENERATED.md`.
 
-After changing `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}src{{end}}/`, run:
+After changing `{{if .AuthoredRoot}}{{.AuthoredRoot}}{{else}}plugin{{end}}/`, run:
 
 ```bash
 plugin-kit-ai normalize .

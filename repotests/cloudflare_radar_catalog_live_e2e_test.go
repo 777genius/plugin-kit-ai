@@ -193,14 +193,14 @@ func TestCloudflareRadarCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveCloudflareRadarCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(cloudflareRadarCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a cloudflare-radar plugin with src/plugin.yaml", cloudflareRadarCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a cloudflare-radar plugin with plugin/plugin.yaml", cloudflareRadarCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "cloudflare-radar")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("cloudflare-radar catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/cloudflare-radar", cloudflareRadarCatalogDirEnvVar)

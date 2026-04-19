@@ -11,7 +11,7 @@ import (
 func (a Adapter) loadBaseSourceMaterial(ctx context.Context, sourceRoot string) (sourceMaterial, error) {
 	material := newSourceMaterial()
 
-	plugins, err := readPlugins(filepath.Join(sourceRoot, "src", "targets", "opencode", "package.yaml"))
+	plugins, err := readPlugins(filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.yaml"))
 	if err != nil {
 		return sourceMaterial{}, err
 	}
@@ -54,7 +54,7 @@ func (a Adapter) completeSourceMaterial(sourceRoot, scope string, workspaceRoot 
 	if err := material.loadFirstClassDocs(sourceRoot); err != nil {
 		return sourceMaterial{}, err
 	}
-	extra, err := readConfigExtra(filepath.Join(sourceRoot, "src", "targets", "opencode", "config.extra.json"))
+	extra, err := readConfigExtra(filepath.Join(sourceRoot, "plugin", "targets", "opencode", "config.extra.json"))
 	if err != nil {
 		return sourceMaterial{}, err
 	}

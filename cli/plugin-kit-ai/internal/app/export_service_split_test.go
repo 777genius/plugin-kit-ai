@@ -31,7 +31,7 @@ func TestBuildExportResultLinesIncludesRuntimeMetadata(t *testing.T) {
 		project:  runtimecheck.Project{Root: "/tmp/out", Runtime: "node"},
 	}, exportArchivePlan{
 		outputPath: "/tmp/out/demo_claude_node_bundle.tar.gz",
-		files:      []string{"src/plugin.yaml"},
+		files:      []string{"plugin/plugin.yaml"},
 		metadata: exportMetadata{
 			RuntimeRequirement: "Node.js 20+ installed on the machine running the plugin",
 			RuntimeInstallHint: "Go is the recommended path when you want users to avoid installing Node.js before running the plugin",

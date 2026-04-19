@@ -71,7 +71,7 @@ func (Loader) Load(_ context.Context, source ports.ResolvedSource) (domain.Integ
 func readPluginYAML(root string) (string, []byte, error) {
 	candidates := []string{
 		filepath.Join(root, "plugin.yaml"),
-		filepath.Join(root, "src", "plugin.yaml"),
+		filepath.Join(root, "plugin", "plugin.yaml"),
 	}
 	for _, path := range candidates {
 		data, err := os.ReadFile(path)

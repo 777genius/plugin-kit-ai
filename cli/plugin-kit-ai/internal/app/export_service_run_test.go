@@ -16,7 +16,7 @@ func TestBuildExportServiceResultUsesRenderedLines(t *testing.T) {
 		project:  runtimecheck.Project{Root: "/tmp/demo", Runtime: "node"},
 	}, exportArchivePlan{
 		outputPath: "/tmp/demo/demo_claude_node_bundle.tar.gz",
-		files:      []string{"src/plugin.yaml"},
+		files:      []string{"plugin/plugin.yaml"},
 		metadata: exportMetadata{
 			RuntimeRequirement: "Node.js 20+ installed on the machine running the plugin",
 		},

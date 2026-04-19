@@ -17,7 +17,7 @@ func TestLoadFetchedBundleMetadataRejectsRequestedPlatformMismatch(t *testing.T)
 		BundleFormat: "tar.gz",
 		GeneratedBy:  "plugin-kit-ai export",
 	}, map[string]bundleEntry{
-		"src/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
+		"plugin/plugin.yaml": {mode: 0o644, body: []byte("name: demo\n")},
 	})
 	archivePath := filepath.Join(t.TempDir(), "demo.tar.gz")
 	if err := os.WriteFile(archivePath, bundle, 0o644); err != nil {

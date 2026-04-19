@@ -40,6 +40,8 @@ func extractFailurePath(message string) string {
 			return ""
 		}
 		return canonicalAuthoredPath(rest[:idx])
+	case strings.HasPrefix(message, "unsupported authored layout: legacy "+pluginmodel.LegacySourceDirName+"/"):
+		return pluginmodel.LegacySourceDirName
 	case strings.HasPrefix(message, "runtime not found: "):
 		rest := strings.TrimPrefix(message, "runtime not found: ")
 		if idx := strings.Index(rest, "parse "); idx >= 0 {

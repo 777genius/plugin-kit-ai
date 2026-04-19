@@ -146,7 +146,7 @@ func TestApplyInstallRejectsManagedManifestExtraOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := writeAuthoredCodexSource(t, "0.1.0", "original")
-	writeCodexFile(t, filepath.Join(source, "src", "targets", "codex-package", "manifest.extra.json"), "{\n  \"mcpServers\": \"./override.json\"\n}\n")
+	writeCodexFile(t, filepath.Join(source, "plugin", "targets", "codex-package", "manifest.extra.json"), "{\n  \"mcpServers\": \"./override.json\"\n}\n")
 	adapter := Adapter{ProjectRoot: project, UserHome: home}
 	manifest := domain.IntegrationManifest{
 		IntegrationID: "codex-smoke",
@@ -690,11 +690,11 @@ func TestPathsForRecordPrefersOwnedNativePaths(t *testing.T) {
 func writeAuthoredCodexSource(t *testing.T, version, prompt string) string {
 	t.Helper()
 	root := t.TempDir()
-	writeCodexFile(t, filepath.Join(root, "src", "plugin.yaml"), "name: codex-smoke\nversion: "+version+"\ndescription: codex smoke\n")
-	writeCodexFile(t, filepath.Join(root, "src", "skills", "codex-smoke", "SKILL.md"), "# skill\n")
-	writeCodexFile(t, filepath.Join(root, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  smoke:\n    type: stdio\n    targets:\n      - codex-package\n    stdio:\n      command: node\n      args:\n        - ./bin/smoke.js\n")
-	writeCodexFile(t, filepath.Join(root, "src", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/codex-smoke\nauthor:\n  name: Example\nkeywords:\n  - codex\n")
-	writeCodexFile(t, filepath.Join(root, "src", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\n    \""+prompt+"\"\n  ]\n}\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "plugin.yaml"), "name: codex-smoke\nversion: "+version+"\ndescription: codex smoke\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "skills", "codex-smoke", "SKILL.md"), "# skill\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  smoke:\n    type: stdio\n    targets:\n      - codex-package\n    stdio:\n      command: node\n      args:\n        - ./bin/smoke.js\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/codex-smoke\nauthor:\n  name: Example\nkeywords:\n  - codex\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\n    \""+prompt+"\"\n  ]\n}\n")
 	return root
 }
 

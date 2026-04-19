@@ -187,14 +187,14 @@ func TestDockerHubCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveDockerHubCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(dockerHubCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a docker-hub plugin with src/plugin.yaml", dockerHubCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a docker-hub plugin with plugin/plugin.yaml", dockerHubCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "docker-hub")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("docker-hub catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/docker-hub", dockerHubCatalogDirEnvVar)

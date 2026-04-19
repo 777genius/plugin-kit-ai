@@ -15,7 +15,7 @@ func TestLoadSourceMaterialRejectsEmptyInstructionPath(t *testing.T) {
 	t.Parallel()
 
 	sourceRoot := t.TempDir()
-	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "src", "targets", "opencode", "instructions.yaml"), "- AGENTS.md\n- \"\"\n")
+	mustWriteOpenCodeFile(t, filepath.Join(sourceRoot, "plugin", "targets", "opencode", "instructions.yaml"), "- AGENTS.md\n- \"\"\n")
 
 	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: t.TempDir(), UserHome: t.TempDir()}
 	_, err := adapter.loadSourceMaterial(context.Background(), sourceRoot, "project", adapter.ProjectRoot)

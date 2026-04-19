@@ -45,7 +45,7 @@ func (a Adapter) syncManagedMarketplace(ctx context.Context, manifest domain.Int
 }
 
 func (a Adapter) materializeManagedSource(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, pluginDir string) error {
-	if fileExists(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json")) && !fileExists(filepath.Join(sourceRoot, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json")) && !fileExists(filepath.Join(sourceRoot, "plugin", "plugin.yaml")) {
 		return copyNativeClaudePackage(sourceRoot, pluginDir)
 	}
 	return a.materializeAuthoredClaudeSource(ctx, manifest, sourceRoot, pluginDir)

@@ -106,7 +106,7 @@ func Validate(root, platform string) (Report, error) {
 		return Report{}, invalidProjectReport(
 			FailureManifestInvalid,
 			filepath.Join(".plugin-kit-ai", "project.toml"),
-			"unsupported project format: .plugin-kit-ai/project.toml is not supported; use plugin/plugin.yaml and plugin/targets/<platform>/... (legacy src/ remains supported)",
+			"unsupported project format: .plugin-kit-ai/project.toml is not supported; use plugin/plugin.yaml and plugin/targets/<platform>/...",
 		)
 	}
 	return Report{}, invalidProjectReport(

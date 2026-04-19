@@ -112,21 +112,21 @@ func TestStarterTemplateSyncScriptSupportsLocalMirror(t *testing.T) {
 	}
 
 	coreChecks := map[string][]string{
-		"plugin-kit-ai-starter-codex-go":              {"src/plugin.yaml", "go.mod", "cmd/codex-go-starter/main.go", "src/targets/codex-runtime/package.yaml"},
-		"plugin-kit-ai-starter-codex-python":          {"src/plugin.yaml", "requirements.txt", "bin/codex-python-starter", "bin/codex-python-starter.cmd", "src/targets/codex-runtime/package.yaml", ".github/workflows/bundle-release.yml"},
-		"plugin-kit-ai-starter-codex-node-typescript": {"src/plugin.yaml", "package.json", "bin/codex-node-typescript-starter", "bin/codex-node-typescript-starter.cmd", "tsconfig.json", "src/targets/codex-runtime/package.yaml"},
-		"plugin-kit-ai-starter-claude-go":             {"src/plugin.yaml", "go.mod", ".claude-plugin/plugin.json", "src/targets/claude/hooks/hooks.json"},
-		"plugin-kit-ai-starter-claude-python":         {"src/plugin.yaml", "requirements.txt", "bin/claude-python-starter", "bin/claude-python-starter.cmd", ".claude-plugin/plugin.json", "src/targets/claude/hooks/hooks.json"},
+		"plugin-kit-ai-starter-codex-go":              {"plugin/plugin.yaml", "go.mod", "cmd/codex-go-starter/main.go", "plugin/targets/codex-runtime/package.yaml"},
+		"plugin-kit-ai-starter-codex-python":          {"plugin/plugin.yaml", "requirements.txt", "bin/codex-python-starter", "bin/codex-python-starter.cmd", "plugin/targets/codex-runtime/package.yaml", ".github/workflows/bundle-release.yml"},
+		"plugin-kit-ai-starter-codex-node-typescript": {"plugin/plugin.yaml", "package.json", "bin/codex-node-typescript-starter", "bin/codex-node-typescript-starter.cmd", "tsconfig.json", "plugin/targets/codex-runtime/package.yaml"},
+		"plugin-kit-ai-starter-claude-go":             {"plugin/plugin.yaml", "go.mod", ".claude-plugin/plugin.json", "plugin/targets/claude/hooks/hooks.json"},
+		"plugin-kit-ai-starter-claude-python":         {"plugin/plugin.yaml", "requirements.txt", "bin/claude-python-starter", "bin/claude-python-starter.cmd", ".claude-plugin/plugin.json", "plugin/targets/claude/hooks/hooks.json"},
 		"plugin-kit-ai-starter-claude-node-typescript": {
-			"src/plugin.yaml", "package.json", "bin/claude-node-typescript-starter", "bin/claude-node-typescript-starter.cmd", ".claude-plugin/plugin.json", "src/targets/claude/hooks/hooks.json",
+			"plugin/plugin.yaml", "package.json", "bin/claude-node-typescript-starter", "bin/claude-node-typescript-starter.cmd", ".claude-plugin/plugin.json", "plugin/targets/claude/hooks/hooks.json",
 		},
 	}
 	runtimePackageChecks := map[string][]string{
 		"plugin-kit-ai-starter-codex-python-runtime-package": {
-			"src/plugin.yaml", "requirements.txt", "bin/codex-python-runtime-package-starter", "bin/codex-python-runtime-package-starter.cmd", "src/targets/codex-runtime/package.yaml",
+			"plugin/plugin.yaml", "requirements.txt", "bin/codex-python-runtime-package-starter", "bin/codex-python-runtime-package-starter.cmd", "plugin/targets/codex-runtime/package.yaml",
 		},
 		"plugin-kit-ai-starter-claude-node-typescript-runtime-package": {
-			"src/plugin.yaml", "package.json", "bin/claude-node-typescript-runtime-package-starter", "bin/claude-node-typescript-runtime-package-starter.cmd", ".claude-plugin/plugin.json", "src/targets/claude/hooks/hooks.json",
+			"plugin/plugin.yaml", "package.json", "bin/claude-node-typescript-runtime-package-starter", "bin/claude-node-typescript-runtime-package-starter.cmd", ".claude-plugin/plugin.json", "plugin/targets/claude/hooks/hooks.json",
 		},
 	}
 

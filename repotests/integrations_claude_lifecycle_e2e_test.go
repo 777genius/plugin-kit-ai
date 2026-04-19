@@ -328,20 +328,20 @@ func writeClaudeLifecycleSource(t *testing.T, sourceRoot, version, prompt, skill
 	if err := os.RemoveAll(sourceRoot); err != nil {
 		t.Fatalf("remove Claude source root: %v", err)
 	}
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "plugin.yaml"), `api_version: v1
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "plugin.yaml"), `api_version: v1
 name: claude-demo
 version: `+version+`
 description: Claude lifecycle integration e2e fixture
 targets:
   - claude
 `)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "skills", "demo", "SKILL.md"), skillBody)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "settings.json"), `{"agent":"reviewer"}`+"\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "user-config.json"), `{"mode":"strict"}`+"\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "commands", "review.md"), "# review\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "hooks", "hooks.json"), "{\n  \"hooks\": {}\n}\n")
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), `api_version: v1
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "skills", "demo", "SKILL.md"), skillBody)
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "settings.json"), `{"agent":"reviewer"}`+"\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "user-config.json"), `{"mode":"strict"}`+"\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "commands", "review.md"), "# review\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "hooks", "hooks.json"), "{\n  \"hooks\": {}\n}\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "mcp", "servers.yaml"), `api_version: v1
 servers:
   docs:
     type: remote
@@ -351,7 +351,7 @@ servers:
       protocol: streamable_http
       url: "https://example.com/mcp"
 `)
-	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "src", "targets", "claude", "manifest.extra.json"), "{\n  \"interface\": {\"defaultPrompt\": ["+quoteJSON(prompt)+"]}\n}\n")
+	mustWriteIntegrationFile(t, filepath.Join(sourceRoot, "plugin", "targets", "claude", "manifest.extra.json"), "{\n  \"interface\": {\"defaultPrompt\": ["+quoteJSON(prompt)+"]}\n}\n")
 }
 
 func writeFakeClaudeCLI(t *testing.T, binDir string) {

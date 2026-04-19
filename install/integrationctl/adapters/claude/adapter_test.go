@@ -32,13 +32,13 @@ func TestApplyInstallLocalUsesManagedMarketplaceAndPluginInstall(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	source := filepath.Join(root, "source")
-	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "user-config.json"), "{\n  \"mode\": \"strict\"\n}\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "commands", "review.md"), "# review\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - claude\n  checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - run.mjs\n    targets:\n      - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "skills", "demo", "SKILL.md"), "# Demo\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "settings.json"), "{\n  \"agent\": \"reviewer\"\n}\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "user-config.json"), "{\n  \"mode\": \"strict\"\n}\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "commands", "review.md"), "# review\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - claude\n  checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - run.mjs\n    targets:\n      - claude\n")
 
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, ProjectRoot: filepath.Join(root, "project"), UserHome: home}
@@ -147,8 +147,8 @@ func TestApplyInstallRejectsManagedManifestExtraOverride(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	source := filepath.Join(root, "source")
-	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "targets", "claude", "manifest.extra.json"), "{\n  \"name\": \"override\"\n}\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.1.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "manifest.extra.json"), "{\n  \"name\": \"override\"\n}\n")
 
 	adapter := Adapter{Runner: &stubRunner{}, FS: fsadapter.OS{}, ProjectRoot: filepath.Join(root, "project"), UserHome: home}
 	_, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
@@ -421,8 +421,8 @@ func TestApplyUpdateUsesMarketplaceRefreshAndReinstall(t *testing.T) {
 	if err := os.MkdirAll(workspaceB, 0o755); err != nil {
 		t.Fatalf("mkdir workspace-b: %v", err)
 	}
-	writeClaudeFile(t, filepath.Join(source, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
-	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Updated\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "skills", "demo", "SKILL.md"), "# Updated\n")
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
 	prevWD, err := os.Getwd()
@@ -560,7 +560,7 @@ func TestRepairUsesMarketplaceRefreshAndBestEffortUninstall(t *testing.T) {
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: filepath.Join(root, "home")}
 	source := filepath.Join(root, "source")
-	writeClaudeFile(t, filepath.Join(source, "src", "skills", "demo", "SKILL.md"), "# Demo\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "skills", "demo", "SKILL.md"), "# Demo\n")
 	prevWD, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("getwd: %v", err)
@@ -613,7 +613,7 @@ func TestRepairFallsBackToMarketplaceAddWhenUpdateFails(t *testing.T) {
 	home := t.TempDir()
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
 	root := t.TempDir()
-	writeClaudeFile(t, filepath.Join(root, "src", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
+	writeClaudeFile(t, filepath.Join(root, "plugin", "plugin.yaml"), "api_version: v1\nname: claude-demo\nversion: 0.2.0\ndescription: Claude demo plugin\ntargets:\n  - claude\n")
 
 	_, err := adapter.Repair(context.Background(), ports.RepairInput{
 		Record: domain.InstallationRecord{

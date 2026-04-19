@@ -181,14 +181,14 @@ func TestHubSpotCRMCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveHubSpotCRMCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(hubspotCRMCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a hubspot-crm plugin with src/plugin.yaml", hubspotCRMCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a hubspot-crm plugin with plugin/plugin.yaml", hubspotCRMCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "hubspot-crm")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("hubspot-crm catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/hubspot-crm", hubspotCRMCatalogDirEnvVar)

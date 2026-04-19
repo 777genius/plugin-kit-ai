@@ -77,14 +77,14 @@ func authoringDocPath(path string) string {
 	if path == "" {
 		return ""
 	}
-	if path == platformmeta.CanonicalAuthoredRoot || strings.HasPrefix(path, platformmeta.CanonicalAuthoredRoot+"/") {
-		return path
-	}
-	if path == platformmeta.LegacyAuthoredRoot {
+	if path == "src" {
 		return platformmeta.CanonicalAuthoredRoot
 	}
-	if strings.HasPrefix(path, platformmeta.LegacyAuthoredRoot+"/") {
-		return filepath.ToSlash(filepath.Join(platformmeta.CanonicalAuthoredRoot, strings.TrimPrefix(path, platformmeta.LegacyAuthoredRoot+"/")))
+	if strings.HasPrefix(path, "src/") {
+		return filepath.ToSlash(filepath.Join(platformmeta.CanonicalAuthoredRoot, strings.TrimPrefix(path, "src/")))
+	}
+	if path == platformmeta.CanonicalAuthoredRoot || strings.HasPrefix(path, platformmeta.CanonicalAuthoredRoot+"/") {
+		return path
 	}
 	return filepath.ToSlash(filepath.Join(platformmeta.CanonicalAuthoredRoot, path))
 }

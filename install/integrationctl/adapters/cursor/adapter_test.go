@@ -17,7 +17,7 @@ func TestApplyInstallPreservesUnmanagedEntries(t *testing.T) {
 	projectRoot := t.TempDir()
 	sourceRoot := t.TempDir()
 	mustWriteFile(t, filepath.Join(projectRoot, ".cursor", "mcp.json"), `{"mcpServers":{"user-owned":{"command":"node","args":["user.mjs"]}}}`)
-	mustWriteFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks.mjs\n")
+	mustWriteFile(t, filepath.Join(sourceRoot, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks.mjs\n")
 
 	adapter := Adapter{
 		FS:          fsadapter.OS{},
@@ -92,7 +92,7 @@ func TestApplyUpdateRemovesStaleOwnedAliasesAfterAliasRename(t *testing.T) {
 	sourceRoot := t.TempDir()
 	configPath := filepath.Join(projectRoot, ".cursor", "mcp.json")
 	mustWriteFile(t, configPath, `{"mcpServers":{"user-owned":{"command":"node","args":["user.mjs"]},"release-checks":{"command":"node","args":["managed-old.mjs"]}}}`)
-	mustWriteFile(t, filepath.Join(sourceRoot, "src", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks-v2:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks-v2.mjs\n")
+	mustWriteFile(t, filepath.Join(sourceRoot, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  release-checks-v2:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks-v2.mjs\n")
 
 	adapter := Adapter{
 		FS:          fsadapter.OS{},

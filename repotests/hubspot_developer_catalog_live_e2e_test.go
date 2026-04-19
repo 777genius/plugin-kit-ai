@@ -164,14 +164,14 @@ func TestHubSpotDeveloperCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveHubSpotDeveloperCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(hubspotDeveloperCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a hubspot-developer plugin with src/plugin.yaml", hubspotDeveloperCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a hubspot-developer plugin with plugin/plugin.yaml", hubspotDeveloperCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "hubspot-developer")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("hubspot-developer catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/hubspot-developer", hubspotDeveloperCatalogDirEnvVar)

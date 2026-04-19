@@ -16,9 +16,9 @@ import (
 func TestPluginServiceBootstrapPythonCreatesVenvAndInstallsRequirements(t *testing.T) {
 	restoreBootstrapHelpers(t)
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	writeBootstrapProjectFile(t, dir, "requirements.txt", "requests==2.32.0\n")
 
 	var svc PluginService
@@ -56,8 +56,8 @@ func TestPluginServiceBootstrapPythonCreatesVenvAndInstallsRequirements(t *testi
 func TestPluginServiceBootstrapPoetryReportsManagerOwnedEnv(t *testing.T) {
 	restoreBootstrapHelpers(t)
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: python\nentrypoint: ./bin/demo\n")
 	writeBootstrapProjectFile(t, dir, "pyproject.toml", "[tool.poetry]\nname='demo'\n")
 
 	var svc PluginService
@@ -80,9 +80,9 @@ func TestPluginServiceBootstrapPoetryReportsManagerOwnedEnv(t *testing.T) {
 func TestPluginServiceBootstrapNodePNPMTypeScriptRunsInstallAndBuild(t *testing.T) {
 	restoreBootstrapHelpers(t)
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: node\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	writeBootstrapProjectFile(t, dir, "tsconfig.json", "{}\n")
 	writeBootstrapProjectFile(t, dir, "package.json", `{"scripts":{"build":"tsc -p tsconfig.json"}}`)
 	writeBootstrapProjectFile(t, dir, "pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
@@ -119,9 +119,9 @@ func TestPluginServiceBootstrapNodePNPMTypeScriptRunsInstallAndBuild(t *testing.
 func TestPluginServiceBootstrapGoIsNoOp(t *testing.T) {
 	restoreBootstrapHelpers(t)
 	dir := t.TempDir()
-	writeBootstrapProjectFile(t, dir, "src/plugin.yaml", minimalBootstrapManifest())
-	writeBootstrapProjectFile(t, dir, "src/launcher.yaml", "runtime: go\nentrypoint: ./bin/demo\n")
-	writeBootstrapProjectFile(t, dir, filepath.Join("src", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
+	writeBootstrapProjectFile(t, dir, "plugin/plugin.yaml", minimalBootstrapManifest())
+	writeBootstrapProjectFile(t, dir, "plugin/launcher.yaml", "runtime: go\nentrypoint: ./bin/demo\n")
+	writeBootstrapProjectFile(t, dir, filepath.Join("plugin", "targets", "codex-runtime", "package.yaml"), "model_hint: gpt-5.4-mini\n")
 	writeBootstrapProjectFile(t, dir, filepath.Join("bin", "demo"), "#!/usr/bin/env bash\nexit 0\n")
 	mustChmodBootstrapExecutable(t, filepath.Join(dir, "bin", "demo"))
 

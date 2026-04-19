@@ -34,12 +34,12 @@ func (a Adapter) copyOwnedFiles(files []copyFile) ([]string, error) {
 func collectCopyFiles(sourceRoot, assetsRoot string) ([]copyFile, error) {
 	type pair struct{ src, dst string }
 	pairs := []pair{
-		{filepath.Join(sourceRoot, "src", "targets", "opencode", "commands"), filepath.Join(assetsRoot, "commands")},
-		{filepath.Join(sourceRoot, "src", "targets", "opencode", "agents"), filepath.Join(assetsRoot, "agents")},
-		{filepath.Join(sourceRoot, "src", "targets", "opencode", "themes"), filepath.Join(assetsRoot, "themes")},
-		{filepath.Join(sourceRoot, "src", "targets", "opencode", "tools"), filepath.Join(assetsRoot, "tools")},
-		{filepath.Join(sourceRoot, "src", "targets", "opencode", "plugins"), filepath.Join(assetsRoot, "plugins")},
-		{filepath.Join(sourceRoot, "src", "skills"), filepath.Join(assetsRoot, "skills")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "opencode", "commands"), filepath.Join(assetsRoot, "commands")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "opencode", "agents"), filepath.Join(assetsRoot, "agents")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "opencode", "themes"), filepath.Join(assetsRoot, "themes")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "opencode", "tools"), filepath.Join(assetsRoot, "tools")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "opencode", "plugins"), filepath.Join(assetsRoot, "plugins")},
+		{filepath.Join(sourceRoot, "plugin", "skills"), filepath.Join(assetsRoot, "skills")},
 	}
 	var out []copyFile
 	for _, pair := range pairs {
@@ -70,7 +70,7 @@ func collectCopyFiles(sourceRoot, assetsRoot string) ([]copyFile, error) {
 			return nil, err
 		}
 	}
-	if pkg := filepath.Join(sourceRoot, "src", "targets", "opencode", "package.json"); fileExists(pkg) {
+	if pkg := filepath.Join(sourceRoot, "plugin", "targets", "opencode", "package.json"); fileExists(pkg) {
 		out = append(out, copyFile{Source: pkg, Destination: filepath.Join(assetsRoot, "package.json")})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Destination < out[j].Destination })

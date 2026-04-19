@@ -199,14 +199,14 @@ servers:
 func TestCursorPackagedGenerateWritesManagedPluginArtifacts(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	skillPath := filepath.Join(root, "src", "skills", "release-checks")
+	skillPath := filepath.Join(root, "plugin", "skills", "release-checks")
 	if err := os.MkdirAll(skillPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: release-checks\ndescription: release checks\n---\n\nUse this skill.\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+	parsed, err := pluginmodel.ParsePortableMCP("plugin/mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   docs:
@@ -222,9 +222,9 @@ servers:
 		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
 		Portable: pluginmodel.PortableComponents{
 			Items: map[string][]string{
-				"skills": {filepath.ToSlash(filepath.Join("src", "skills", "release-checks", "SKILL.md"))},
+				"skills": {filepath.ToSlash(filepath.Join("plugin", "skills", "release-checks", "SKILL.md"))},
 			},
-			MCP: &pluginmodel.PortableMCP{Path: filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")), Servers: parsed.Servers, File: parsed.File},
+			MCP: &pluginmodel.PortableMCP{Path: filepath.ToSlash(filepath.Join("plugin", "mcp", "servers.yaml")), Servers: parsed.Servers, File: parsed.File},
 		},
 	}
 	artifacts, err := (cursorAdapter{}).Generate(root, graph, pluginmodel.NewTargetState("cursor"))
@@ -262,7 +262,7 @@ func TestCursorPackagedValidateRequiresManagedMCPRef(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo","mcpServers":"./config/mcp.json"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	parsed, err := pluginmodel.ParsePortableMCP("src/mcp/servers.yaml", []byte(`api_version: v1
+	parsed, err := pluginmodel.ParsePortableMCP("plugin/mcp/servers.yaml", []byte(`api_version: v1
 
 servers:
   docs:
@@ -278,7 +278,7 @@ servers:
 		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
 		Portable: pluginmodel.PortableComponents{
 			MCP: &pluginmodel.PortableMCP{
-				Path:    filepath.ToSlash(filepath.Join("src", "mcp", "servers.yaml")),
+				Path:    filepath.ToSlash(filepath.Join("plugin", "mcp", "servers.yaml")),
 				Servers: parsed.Servers,
 				File:    parsed.File,
 			},

@@ -240,7 +240,7 @@ Current beta surfaces that remain intentionally outside the stable set:
 
 Config contract:
 
-- canonical new projects author under `plugin/`, with `plugin/plugin.yaml` as the canonical authoring manifest and root `CLAUDE.md` / `AGENTS.md` as boundary docs; legacy `src/` remains supported
+- canonical projects author under `plugin/`, with `plugin/plugin.yaml` as the authoring manifest and root `CLAUDE.md` / `AGENTS.md` as boundary docs
 - the package-standard `plugin.yaml` schema is intentionally limited to package/build intent; unknown keys warn in `plugin-kit-ai validate`
 - `plugin-kit-ai normalize` is the canonical cleanup path for rewriting unknown manifest content into the package-standard shape
 - `plugin-kit-ai import` is the supported bridge from current native Claude/Codex/Gemini/OpenCode layouts back into the authored package-standard layout

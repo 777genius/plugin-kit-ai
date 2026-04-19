@@ -8,10 +8,10 @@ import (
 
 func (a Adapter) copyAuthoredGeminiSupportFiles(sourceRoot, destRoot string) error {
 	for _, pair := range [][2]string{
-		{filepath.Join(sourceRoot, "src", "targets", "gemini", "commands"), filepath.Join(destRoot, "commands")},
-		{filepath.Join(sourceRoot, "src", "targets", "gemini", "policies"), filepath.Join(destRoot, "policies")},
-		{filepath.Join(sourceRoot, "src", "targets", "gemini", "agents"), filepath.Join(destRoot, "agents")},
-		{filepath.Join(sourceRoot, "src", "skills"), filepath.Join(destRoot, "skills")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "gemini", "commands"), filepath.Join(destRoot, "commands")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "gemini", "policies"), filepath.Join(destRoot, "policies")},
+		{filepath.Join(sourceRoot, "plugin", "targets", "gemini", "agents"), filepath.Join(destRoot, "agents")},
+		{filepath.Join(sourceRoot, "plugin", "skills"), filepath.Join(destRoot, "skills")},
 	} {
 		if err := copyDirIfExists(pair[0], pair[1]); err != nil {
 			return domain.NewError(domain.ErrMutationApply, "copy Gemini authored directory", err)
@@ -21,7 +21,7 @@ func (a Adapter) copyAuthoredGeminiSupportFiles(sourceRoot, destRoot string) err
 }
 
 func copyAuthoredGeminiHooks(sourceRoot, destRoot string) error {
-	hooksSrc := filepath.Join(sourceRoot, "src", "targets", "gemini", "hooks", "hooks.json")
+	hooksSrc := filepath.Join(sourceRoot, "plugin", "targets", "gemini", "hooks", "hooks.json")
 	if !fileExists(hooksSrc) {
 		return nil
 	}

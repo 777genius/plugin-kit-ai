@@ -92,14 +92,14 @@ func TestSlackCatalogLiveAcrossSupportedAgents(t *testing.T) {
 func resolveSlackCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(slackCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a slack plugin with src/plugin.yaml", slackCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a slack plugin with plugin/plugin.yaml", slackCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "slack")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("slack catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/slack", slackCatalogDirEnvVar)

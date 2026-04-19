@@ -75,7 +75,7 @@ func TestValidateTargets_RejectsMissingPublicationTarget(t *testing.T) {
 
 func TestDiscoverInLayoutPrefixesPublicationPaths(t *testing.T) {
 	root := t.TempDir()
-	authoredRoot := "src"
+	authoredRoot := "plugin"
 	mustWritePublishFile(t, root, filepath.Join(authoredRoot, CodexMarketplaceRel), "api_version: v1\nmarketplace_name: local-repo\ncategory: Productivity\n")
 	mustWritePublishFile(t, root, filepath.Join(authoredRoot, ClaudeMarketplaceRel), "api_version: v1\nmarketplace_name: acme-tools\nowner_name: ACME Team\n")
 

@@ -181,14 +181,14 @@ func TestCloudflareDocsCatalogLiveAcrossInstalledAgents(t *testing.T) {
 func resolveCloudflareDocsCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(cloudflareDocsCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to a cloudflare-docs plugin with src/plugin.yaml", cloudflareDocsCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to a cloudflare-docs plugin with plugin/plugin.yaml", cloudflareDocsCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "cloudflare-docs")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("cloudflare-docs catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/cloudflare-docs", cloudflareDocsCatalogDirEnvVar)

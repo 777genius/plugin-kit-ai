@@ -34,7 +34,7 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 ## What You Edit
 
-The authored source of truth lives under `plugin/` in new repos, while legacy `src/` repos remain supported.
+The authored source of truth lives under `plugin/`.
 
 The important files are usually:
 
@@ -54,7 +54,7 @@ That usually includes:
 - root guidance files such as `README.md`, `CLAUDE.md`, `AGENTS.md`, and `GENERATED.md`
 - native output for the target you are shipping, such as `.codex/config.toml`, `hooks/hooks.json`, or `gemini-extension.json`
 
-Edit the source under `plugin/` unless you are intentionally maintaining a legacy `src/` repo.
+Edit the source under `plugin/`.
 Treat the root outputs as managed outputs.
 
 ## Why This Path Is More Advanced

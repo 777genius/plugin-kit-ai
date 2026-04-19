@@ -37,8 +37,6 @@ func authoredRootHint(state pluginmodel.TargetState, portable pluginmodel.Portab
 func authoredRootFromPath(path string) string {
 	path = strings.TrimSpace(path)
 	switch {
-	case strings.HasPrefix(path, pluginmodel.LegacySourceDirName+"/"), path == pluginmodel.LegacySourceDirName:
-		return pluginmodel.LegacySourceDirName
 	case strings.HasPrefix(path, pluginmodel.SourceDirName+"/"), path == pluginmodel.SourceDirName:
 		return pluginmodel.SourceDirName
 	default:

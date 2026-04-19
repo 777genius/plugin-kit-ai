@@ -759,7 +759,7 @@ These are not vendor facts. They are engineering rules we should adopt because m
 
 Observed patterns from repo layout:
 
-- authored source of truth now lives under `plugin/` for new repos, with legacy `src/` still supported
+- authored source of truth now lives under `plugin/`
 - generated native artifacts are committed at plugin root
 - one shared `.mcp.json` is referenced by both Claude and Codex package manifests
 - generated outputs differ by target, but the authored source remains unified

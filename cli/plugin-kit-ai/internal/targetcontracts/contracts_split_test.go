@@ -19,13 +19,13 @@ func TestByTargetNormalizesInput(t *testing.T) {
 	}
 }
 
-func TestAuthoringDocPathPrefixesSourceDirOnce(t *testing.T) {
+func TestAuthoringDocPathCanonicalizesToPluginRoot(t *testing.T) {
 	want := filepath.Join(pluginmodel.SourceDirName, "targets", "gemini", "package.yaml")
 	if got := authoringDocPath(filepath.Join("targets", "gemini", "package.yaml")); got != want {
-		t.Fatalf("authoringDocPath without src = %q", got)
+		t.Fatalf("authoringDocPath without plugin = %q", got)
 	}
-	if got := authoringDocPath(filepath.Join(pluginmodel.LegacySourceDirName, "targets", "gemini", "package.yaml")); got != filepath.Join(pluginmodel.LegacySourceDirName, "targets", "gemini", "package.yaml") {
-		t.Fatalf("authoringDocPath with src = %q", got)
+	if got := authoringDocPath(filepath.Join(pluginmodel.LegacySourceDirName, "targets", "gemini", "package.yaml")); got != want {
+		t.Fatalf("authoringDocPath with legacy src = %q", got)
 	}
 }
 

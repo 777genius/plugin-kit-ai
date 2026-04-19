@@ -58,7 +58,6 @@ import "github.com/777genius/plugin-kit-ai/sdk/platformmeta"
 ```go
 const (
     CanonicalAuthoredRoot = "plugin"
-    LegacyAuthoredRoot    = "src"
 )
 ```
 

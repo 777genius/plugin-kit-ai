@@ -9,7 +9,7 @@ import (
 
 func (l Loader) readPortableMCP(ctx context.Context, root string) (string, []byte, error) {
 	candidates := []string{
-		filepath.Join(root, "src", "mcp", "servers.yaml"),
+		filepath.Join(root, "plugin", "mcp", "servers.yaml"),
 		filepath.Join(root, "mcp", "servers.yaml"),
 	}
 	for _, path := range candidates {

@@ -51,7 +51,7 @@ Today portable MCP is already first-class, but still low-level.
 
 What is already good:
 
-- canonical authored path should be `plugin/mcp/servers.yaml`, with legacy `src/mcp/servers.yaml` still supported
+- canonical authored path is `plugin/mcp/servers.yaml`
 - native import already normalizes back into one portable location
 - portable MCP is supported by `claude`, `codex-package`, `gemini`, `cursor`, and `opencode`
 - typed authored schema now exists and projects cleanly into current target-native MCP shapes
@@ -556,7 +556,7 @@ servers:
 
 Recommended path:
 
-1. standardize immediately on `plugin/mcp/servers.yaml` as the canonical authored portable MCP path, while keeping legacy `src/mcp/servers.yaml` readable for compatibility. `Увер. 10/10`, `Надёж. 10/10`
+1. standardize immediately on `plugin/mcp/servers.yaml` as the canonical authored portable MCP path and reject old authored paths early. `Увер. 10/10`, `Надёж. 10/10`
 2. require the typed envelope with `format`, `version`, and `servers`; do not keep raw object-map authoring compatibility. `Увер. 10/10`, `Надёж. 10/10`
 3. normalize native imports directly into the new envelope, preserving non-portable vendor data under `passthrough.<target>` when needed. `Увер. 9/10`, `Надёж. 9/10`
 4. fail fast on old authored paths and shapes so the public contract becomes clear immediately, before users depend on ambiguous behavior. `Увер. 9/10`, `Надёж. 10/10`
@@ -579,7 +579,7 @@ Bad promise:
 
 Recommended product decision:
 
-1. standardize on `plugin/mcp/servers.yaml` as the canonical human-authored path, with legacy `src/mcp/servers.yaml` still accepted. `Увер. 10/10`, `Надёж. 9/10`
+1. standardize on `plugin/mcp/servers.yaml` as the canonical human-authored path. `Увер. 10/10`, `Надёж. 9/10`
 2. introduce a package-standard envelope with `format`, `version`, and `servers`. `Увер. 9/10`, `Надёж. 9/10`
 3. use a small stable core with `type: stdio|remote` and explicit `stdio:` / `remote:` blocks. `Увер. 10/10`, `Надёж. 9/10`
 4. keep `plugin.yaml` lean and do not move full MCP into it. `Увер. 10/10`, `Надёж. 10/10`

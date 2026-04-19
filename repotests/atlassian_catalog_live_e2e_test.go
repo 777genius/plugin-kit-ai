@@ -208,14 +208,14 @@ func assertAtlassianRenderedServer(t *testing.T, server map[string]any) {
 func resolveAtlassianCatalogPluginDir(t *testing.T) string {
 	t.Helper()
 	if dir := strings.TrimSpace(os.Getenv(atlassianCatalogDirEnvVar)); dir != "" {
-		if fileExists(filepath.Join(dir, "src", "plugin.yaml")) {
+		if fileExists(filepath.Join(dir, "plugin", "plugin.yaml")) {
 			return dir
 		}
-		t.Fatalf("%s=%q does not point to an atlassian plugin with src/plugin.yaml", atlassianCatalogDirEnvVar, dir)
+		t.Fatalf("%s=%q does not point to an atlassian plugin with plugin/plugin.yaml", atlassianCatalogDirEnvVar, dir)
 	}
 	root := RepoRoot(t)
 	candidate := filepath.Join(filepath.Dir(root), "universal-plugins-for-ai-agents", "plugins", "atlassian")
-	if fileExists(filepath.Join(candidate, "src", "plugin.yaml")) {
+	if fileExists(filepath.Join(candidate, "plugin", "plugin.yaml")) {
 		return candidate
 	}
 	t.Skipf("atlassian catalog plugin not found; set %s=/abs/path/to/universal-plugins-for-ai-agents/plugins/atlassian", atlassianCatalogDirEnvVar)
