@@ -4,7 +4,13 @@ All notable changes to this repository are documented here. **CLI releases** (`p
 
 ## [Unreleased]
 
-Changes after `v1.1.0` land here.
+Changes after `v1.1.1` land here.
+
+## [1.1.1] - 2026-04-19
+
+### Fixed
+
+- restored integration installer compatibility with both legacy `src/plugin.yaml` trees and current `plugin/plugin.yaml` trees, which fixes `plugin-kit-ai add <source>` for first-party aliases such as `gitlab` and `notion` when the published CLI resolves current `universal-plugins-for-ai-agents` sources
 
 ## [1.1.0] - 2026-04-18
 

@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 	"gopkg.in/yaml.v3"
@@ -69,11 +69,7 @@ func (Loader) Load(_ context.Context, source ports.ResolvedSource) (domain.Integ
 }
 
 func readPluginYAML(root string) (string, []byte, error) {
-	candidates := []string{
-		filepath.Join(root, "plugin.yaml"),
-		filepath.Join(root, "plugin", "plugin.yaml"),
-	}
-	for _, path := range candidates {
+	for _, path := range authoredpath.ManifestCandidates(root) {
 		data, err := os.ReadFile(path)
 		if err == nil {
 			return path, data, nil

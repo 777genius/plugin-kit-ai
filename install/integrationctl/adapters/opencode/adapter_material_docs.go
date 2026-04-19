@@ -3,15 +3,15 @@ package opencode
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"gopkg.in/yaml.v3"
 )
 
 func (m *sourceMaterial) loadFirstClassDocs(sourceRoot string) error {
-	defaultAgentPath := filepath.Join(sourceRoot, "plugin", "targets", "opencode", "default_agent.txt")
+	defaultAgentPath := authoredpath.Join(sourceRoot, "targets", "opencode", "default_agent.txt")
 	if fileExists(defaultAgentPath) {
 		body, err := os.ReadFile(defaultAgentPath)
 		if err != nil {
@@ -24,7 +24,7 @@ func (m *sourceMaterial) loadFirstClassDocs(sourceRoot string) error {
 		m.WholeFields["default_agent"] = text
 	}
 
-	instructionsPath := filepath.Join(sourceRoot, "plugin", "targets", "opencode", "instructions.yaml")
+	instructionsPath := authoredpath.Join(sourceRoot, "targets", "opencode", "instructions.yaml")
 	if fileExists(instructionsPath) {
 		body, err := os.ReadFile(instructionsPath)
 		if err != nil {
@@ -46,7 +46,7 @@ func (m *sourceMaterial) loadFirstClassDocs(sourceRoot string) error {
 		m.WholeFields["instructions"] = instructions
 	}
 
-	permissionPath := filepath.Join(sourceRoot, "plugin", "targets", "opencode", "permission.json")
+	permissionPath := authoredpath.Join(sourceRoot, "targets", "opencode", "permission.json")
 	if fileExists(permissionPath) {
 		body, err := os.ReadFile(permissionPath)
 		if err != nil {

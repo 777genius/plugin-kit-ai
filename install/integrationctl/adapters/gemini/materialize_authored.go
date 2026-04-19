@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
@@ -15,7 +16,7 @@ type packageMeta struct {
 }
 
 func (a Adapter) materializeAuthoredGeminiSource(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, destRoot string) error {
-	meta, err := loadPackageMeta(filepath.Join(sourceRoot, "plugin", "targets", "gemini", "package.yaml"))
+	meta, err := loadPackageMeta(authoredpath.Join(sourceRoot, "targets", "gemini", "package.yaml"))
 	if err != nil {
 		return err
 	}

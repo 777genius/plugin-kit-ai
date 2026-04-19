@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
@@ -38,7 +39,7 @@ func (a Adapter) syncManagedPlugin(ctx context.Context, manifest domain.Integrat
 			_ = os.RemoveAll(tmpRoot)
 		}
 	}()
-	if fileExists(filepath.Join(root, "plugin", "plugin.yaml")) {
+	if authoredpath.HasManifest(root) {
 		if err := a.materializeAuthoredCodexSource(ctx, manifest, root, tmpRoot); err != nil {
 			return err
 		}

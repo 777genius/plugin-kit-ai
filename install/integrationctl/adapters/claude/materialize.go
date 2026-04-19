@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
@@ -45,7 +46,7 @@ func (a Adapter) syncManagedMarketplace(ctx context.Context, manifest domain.Int
 }
 
 func (a Adapter) materializeManagedSource(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, pluginDir string) error {
-	if fileExists(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json")) && !fileExists(filepath.Join(sourceRoot, "plugin", "plugin.yaml")) {
+	if fileExists(filepath.Join(sourceRoot, ".claude-plugin", "plugin.json")) && !authoredpath.HasManifest(sourceRoot) {
 		return copyNativeClaudePackage(sourceRoot, pluginDir)
 	}
 	return a.materializeAuthoredClaudeSource(ctx, manifest, sourceRoot, pluginDir)

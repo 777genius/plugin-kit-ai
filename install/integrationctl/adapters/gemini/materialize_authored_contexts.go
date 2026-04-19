@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
 func materializeAuthoredContexts(sourceRoot, destRoot string, meta packageMeta) (string, error) {
-	contextsRoot := filepath.Join(sourceRoot, "plugin", "targets", "gemini", "contexts")
+	contextsRoot := authoredpath.Join(sourceRoot, "targets", "gemini", "contexts")
 	candidates, err := discoverFiles(contextsRoot)
 	if err != nil {
 		return "", domain.NewError(domain.ErrMutationApply, "discover Gemini contexts", err)

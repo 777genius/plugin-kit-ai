@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
@@ -45,7 +46,7 @@ func (a Adapter) prepareManagedSourceTempRoot(managedRoot, integrationID string)
 }
 
 func (a Adapter) materializeManagedSource(ctx context.Context, manifest domain.IntegrationManifest, root, tmpRoot string) error {
-	if fileExists(filepath.Join(root, "plugin", "plugin.yaml")) {
+	if authoredpath.HasManifest(root) {
 		return a.materializeAuthoredGeminiSource(ctx, manifest, root, tmpRoot)
 	}
 	if fileExists(filepath.Join(root, "gemini-extension.json")) {
