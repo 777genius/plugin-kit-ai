@@ -720,7 +720,7 @@ func prepareSharedNodeRuntimeStarter(t *testing.T, workDir string) {
 func writeLocalPythonRuntimeWheel(t *testing.T, wheelPath, version string) {
 	t.Helper()
 	root := RepoRoot(t)
-	sourcePath := filepath.Join(root, "python", "plugin-kit-ai-runtime", "plugin", "plugin_kit_ai_runtime", "__init__.py")
+	sourcePath := filepath.Join(root, "python", "plugin-kit-ai-runtime", "src", "plugin_kit_ai_runtime", "__init__.py")
 	sourceBody, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatal(err)

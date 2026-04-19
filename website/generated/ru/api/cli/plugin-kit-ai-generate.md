@@ -26,7 +26,7 @@ translationRequired: false
 
 ### Описание
 
-Собирает нативные артефакты целевых платформ из package graph. discovered via canonical plugin/plugin.yaml plus the standard authored directories.
+Собирает нативные артефакты целевых платформ из package graph, используя канонический `plugin/plugin.yaml` и стандартные authored directories.
 
 Claude and Codex runtime/package lanes generate their managed native artifacts from the package graph.
 Gemini generation always produces the native extension package artifacts and may also carry the optional Go runtime lane when the authored project includes it; that lane now exposes a production-ready 9-hook runtime surface, but it still does not imply blanket runtime parity for future hooks beyond the promoted contract.
