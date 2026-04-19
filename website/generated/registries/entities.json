@@ -2757,6 +2757,25 @@
     ]
   },
   {
+    "canonicalId": "page:releases:v1-0-5",
+    "kind": "page",
+    "surface": "releases",
+    "localeStrategy": "mirrored",
+    "title": "v1.0.5",
+    "summary": "Patch release notes for the repo rename cleanup and release-surface tightening.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "releases/v1-0-5.md",
+    "pathEn": "/en/releases/v1-0-5",
+    "pathRu": "/ru/releases/v1-0-5",
+    "relatedIds": [],
+    "searchTerms": [
+      "v1.0.5"
+    ]
+  },
+  {
     "canonicalId": "page:releases:v1-0-6",
     "kind": "page",
     "surface": "releases",

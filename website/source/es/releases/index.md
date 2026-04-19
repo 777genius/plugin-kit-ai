@@ -36,9 +36,9 @@ outline: false
     <h2>v1.0.5</h2>
     <p>La política de compatibilidad, la redacción de soporte y los documentos generados se volvieron más fáciles de leer y más seguros de estandarizar.</p>
   </a>
-  <a class="docs-card" href="./v1-0-4">
-    <h2>v1.0.4</h2>
-    <p>La configuración para recién llegados se volvió más simple al eliminar la fricción evitable de la configuración por primera vez y ajustar el flujo de trabajo por primera vez.</p>
+  <a class="docs-card" href="./v1-0-4-go-sdk">
+    <h2>v1.0.4 Go SDK</h2>
+    <p>La ruta del modulo Go SDK se volvió veraz para el consumo normal de Go y dejó de enseñar soluciones alternativas a los recién llegados.</p>
   </a>
   <a class="docs-card" href="./v1-0-0">
     <h2>v1.0.0</h2>

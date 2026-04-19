@@ -36,9 +36,9 @@ outline: false
     <h2>v1.0.5</h2>
     <p>兼容性策略、支持措辞和生成的文档变得更易于阅读且更安全地标准化。</p>
   </a>
-  <a class="docs-card" href="./v1-0-4">
-    <h2>v1.0.4</h2>
-    <p>通过消除可避免的首次设置摩擦并收紧首次工作流程，新人设置变得更加简单。</p>
+  <a class="docs-card" href="./v1-0-4-go-sdk">
+    <h2>v1.0.4 Go SDK</h2>
+    <p>Go SDK 模块路径终于与正常 Go 使用方式一致，不再教新用户依赖特殊 workaround。</p>
   </a>
   <a class="docs-card" href="./v1-0-0">
     <h2>v1.0.0</h2>

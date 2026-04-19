@@ -37,9 +37,9 @@ outline: false
     <h2>v1.0.5</h2>
     <p>Compatibility policy, support wording и generated docs стали понятнее и безопаснее для командной стандартизации.</p>
   </a>
-  <a class="docs-card" href="./v1-0-4">
-    <h2>v1.0.4</h2>
-    <p>Старт для новых пользователей стал проще: релиз убрал лишнее трение в первом setup и ужал первый рабочий flow.</p>
+  <a class="docs-card" href="./v1-0-4-go-sdk">
+    <h2>v1.0.4 Go SDK</h2>
+    <p>Go SDK module path стал корректным для нормального Go consumption и перестал тащить workaround'ы для новичков.</p>
   </a>
   <a class="docs-card" href="./v1-0-0">
     <h2>v1.0.0</h2>
