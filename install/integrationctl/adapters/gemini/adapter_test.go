@@ -165,6 +165,45 @@ func TestApplyInstallRemoteUsesGeminiInstallFlags(t *testing.T) {
 	}
 }
 
+func TestApplyInstallGitHubRepoPathUsesManagedProjection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	sourceRoot := filepath.Join(root, "source")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "plugin.yaml"), "api_version: v1\nname: gemini-demo\nversion: 0.1.0\ndescription: Gemini demo extension\ntargets:\n  - gemini\n")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "targets", "gemini", "package.yaml"), "context_file_name: \"GEMINI.md\"\n")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "targets", "gemini", "contexts", "GEMINI.md"), "# Primary\n")
+	runner := &stubRunner{}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+
+	result, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "gemini-demo",
+			Version:       "0.1.0",
+			Description:   "Gemini demo extension",
+			RequestedRef:  domain.RequestedSourceRef{Kind: "github_repo_path", Value: "github:acme/demo//plugins/gemini-demo"},
+			ResolvedRef:   domain.ResolvedSourceRef{Kind: "git_commit", Value: "https://github.com/acme/demo@abc123"},
+		},
+		ResolvedSource: &ports.ResolvedSource{
+			Kind:      "github_repo_path",
+			LocalPath: sourceRoot,
+		},
+		Policy: domain.InstallPolicy{Scope: "user", AutoUpdate: true},
+	})
+	if err != nil {
+		t.Fatalf("apply install: %v", err)
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for github repo-path projection install", runner.commands)
+	}
+	if got := result.AdapterMetadata["install_mode"]; got != "local_projection" {
+		t.Fatalf("install_mode = %#v, want %q", got, "local_projection")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "gemini-extension.json")); err != nil {
+		t.Fatalf("stat projected extension config: %v", err)
+	}
+}
+
 func TestApplyUpdateUsesGeminiUpdate(t *testing.T) {
 	t.Parallel()
 	runner := &stubRunner{}
@@ -229,6 +268,56 @@ func TestApplyUpdateUsesGeminiUpdate(t *testing.T) {
 	}
 	if result.State != domain.InstallInstalled {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestApplyUpdateGitHubRepoPathUsesManagedProjection(t *testing.T) {
+	t.Parallel()
+	runner := &stubRunner{}
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	sourceRoot := filepath.Join(root, "source")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "plugin.yaml"), "api_version: v1\nname: gemini-demo\nversion: 0.2.0\ndescription: Gemini demo extension\ntargets:\n  - gemini\n")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "targets", "gemini", "package.yaml"), "context_file_name: \"GEMINI.md\"\n")
+	writeGeminiFile(t, filepath.Join(sourceRoot, "plugin", "targets", "gemini", "contexts", "GEMINI.md"), "# Updated from repo path\n")
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
+	writeGeminiFile(t, filepath.Join(home, ".gemini", "extensions", "gemini-demo", ".env"), "RELEASE_PROFILE=prod\n")
+
+	result, err := adapter.ApplyUpdate(context.Background(), ports.ApplyInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "gemini-demo",
+			Version:       "0.2.0",
+			Description:   "Gemini demo extension",
+			RequestedRef:  domain.RequestedSourceRef{Kind: "github_repo_path", Value: "github:acme/demo//plugins/gemini-demo"},
+			ResolvedRef:   domain.ResolvedSourceRef{Kind: "git_commit", Value: "https://github.com/acme/demo@def456"},
+		},
+		ResolvedSource: &ports.ResolvedSource{Kind: "github_repo_path", LocalPath: sourceRoot},
+		Record: &domain.InstallationRecord{
+			IntegrationID:      "gemini-demo",
+			RequestedSourceRef: domain.RequestedSourceRef{Kind: "github_repo_path", Value: "github:acme/demo//plugins/gemini-demo"},
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetGemini: {
+					TargetID: domain.TargetGemini,
+					AdapterMetadata: map[string]any{
+						"install_mode":             "local_projection",
+						"materialized_source_root": filepath.Join(home, ".plugin-kit-ai", "materialized", "gemini", "gemini-demo"),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply update: %v", err)
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("runner commands = %#v, want none for github repo-path projection update", runner.commands)
+	}
+	body, err := os.ReadFile(filepath.Join(home, ".gemini", "extensions", "gemini-demo", "GEMINI.md"))
+	if err != nil || !strings.Contains(string(body), "Updated from repo path") {
+		t.Fatalf("projected extension dir not refreshed: %v %q", err, body)
+	}
+	if got := result.AdapterMetadata["update_mode"]; got != "local_projection" {
+		t.Fatalf("update_mode = %#v, want %q", got, "local_projection")
 	}
 }
 

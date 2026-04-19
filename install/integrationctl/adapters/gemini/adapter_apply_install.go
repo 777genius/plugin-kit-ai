@@ -3,7 +3,6 @@ package gemini
 import (
 	"context"
 	"path/filepath"
-	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -20,7 +19,7 @@ func (a Adapter) ApplyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	if cleanup != nil {
 		defer cleanup()
 	}
-	if strings.TrimSpace(in.ResolvedSource.Kind) == "local_path" {
+	if usesManagedLocalInstall(in.ResolvedSource.Kind) {
 		if err := a.activateManagedLocalInstall(materializedRoot, in.Manifest.IntegrationID); err != nil {
 			return ports.ApplyResult{}, err
 		}

@@ -4,7 +4,13 @@ All notable changes to this repository are documented here. **CLI releases** (`p
 
 ## [Unreleased]
 
-Changes after `v1.1.1` land here.
+Changes after `v1.1.2` land here.
+
+## [1.1.2] - 2026-04-19
+
+### Fixed
+
+- routed Gemini installs for GitHub repo-path sources through the managed local projection flow so first-party aliases such as `gitlab` and `notion` no longer fail during full multi-target `plugin-kit-ai add <source>` runs
 
 ## [1.1.1] - 2026-04-19
 

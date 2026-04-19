@@ -22,12 +22,13 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		"extension_name":  name,
 		"resolved_source": in.Manifest.ResolvedRef.Value,
 	}
+	manualSteps := []string{"restart Gemini CLI after the native extension update completes"}
 	owned := []domain.NativeObjectRef{{
 		Kind:            "extension_dir",
 		Path:            filepath.Join(a.userHome(), ".gemini", "extensions", name),
 		ProtectionClass: domain.ProtectionUserMutable,
 	}}
-	if in.ResolvedSource != nil && strings.TrimSpace(in.ResolvedSource.Kind) == "local_path" {
+	if in.ResolvedSource != nil && usesManagedLocalInstall(in.ResolvedSource.Kind) {
 		materializedRoot, err := a.syncManagedLocalSource(ctx, in.Manifest, in.ResolvedSource.LocalPath)
 		if err != nil {
 			return ports.ApplyResult{}, err
@@ -42,6 +43,7 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 			ProtectionClass: domain.ProtectionUserMutable,
 		})
 		metadata["update_mode"] = "local_projection"
+		manualSteps = []string{"restart Gemini CLI to load the updated extension and merged configuration"}
 	} else {
 		argv := []string{"gemini", "extensions", "update", name}
 		if err := a.runGemini(ctx, argv, a.commandDirForRecord(*in.Record)); err != nil {
@@ -55,7 +57,7 @@ func (a Adapter) ApplyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		ActivationState:    domain.ActivationRestartPending,
 		OwnedNativeObjects: owned,
 		EvidenceClass:      domain.EvidenceConfirmed,
-		ManualSteps:        []string{"restart Gemini CLI after the native extension update completes"},
+		ManualSteps:        manualSteps,
 		AdapterMetadata:    metadata,
 	}, nil
 }
@@ -118,6 +120,8 @@ func (a Adapter) Repair(ctx context.Context, in ports.RepairInput) (ports.ApplyR
 	}
 	if len(result.ManualSteps) == 0 {
 		result.ManualSteps = append(result.ManualSteps, "restart Gemini CLI after repair to reload the updated extension")
+	} else if installModeFromRecord(in.Record) == "local_projection" || strings.TrimSpace(anyString(result.AdapterMetadata["update_mode"])) == "local_projection" {
+		result.ManualSteps = append(result.ManualSteps, "repair refreshed the managed Gemini projection")
 	} else {
 		result.ManualSteps = append(result.ManualSteps, "repair used native gemini extensions update semantics")
 	}
@@ -140,4 +144,9 @@ func (a Adapter) runGemini(ctx context.Context, argv []string, dir string) error
 		return domain.NewError(domain.ErrMutationApply, msg, nil)
 	}
 	return nil
+}
+
+func anyString(v any) string {
+	s, _ := v.(string)
+	return s
 }

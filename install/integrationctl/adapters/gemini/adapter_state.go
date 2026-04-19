@@ -33,8 +33,17 @@ func fileExists(path string) bool {
 	return pathpolicy.FileExists(path)
 }
 
+func usesManagedLocalInstall(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case "local_path", "github_repo_path":
+		return true
+	default:
+		return false
+	}
+}
+
 func installModeForKind(kind string) string {
-	if strings.TrimSpace(kind) == "local_path" {
+	if usesManagedLocalInstall(kind) {
 		return "local_projection"
 	}
 	return "install"

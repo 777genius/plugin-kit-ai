@@ -13,13 +13,13 @@ func (a Adapter) installCommand(ctx context.Context, in ports.ApplyInput) ([]str
 		return nil, "", nil, "", domain.NewError(domain.ErrMutationApply, "Gemini install requires resolved source", nil)
 	}
 	switch kind := strings.TrimSpace(in.ResolvedSource.Kind); kind {
-	case "local_path":
+	case "local_path", "github_repo_path":
 		path, err := a.syncManagedLocalSource(ctx, in.Manifest, in.ResolvedSource.LocalPath)
 		if err != nil {
 			return nil, "", nil, "", err
 		}
 		return []string{"gemini", "extensions", "link", path}, "", nil, path, nil
-	case "github_repo_path", "git_url":
+	case "git_url":
 		return a.remoteInstallCommand(in), "", nil, "", nil
 	default:
 		return nil, "", nil, "", domain.NewError(domain.ErrMutationApply, "Gemini does not support source kind "+kind, nil)
