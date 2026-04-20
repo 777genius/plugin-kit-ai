@@ -29,11 +29,12 @@ plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
 plugin-kit-ai inspect . --authoring
 go mod tidy
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify
 ```
 
-For the default Go starter, run `go mod tidy` once so the scaffold writes `go.sum` before the first validate or test cycle.
+For the default Go starter, run `go mod tidy` once so the scaffold writes `go.sum` before the first validate or test cycle, then build `bin/my-plugin` once before the first `test` or `dev` run.
 
 ## What You Edit
 
@@ -77,6 +78,7 @@ That is why it is visible on the first screen, but marked as an advanced path.
 ```bash
 go mod tidy
 go test ./...
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify
 ```

@@ -29,11 +29,12 @@ plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
 plugin-kit-ai inspect . --authoring
 go mod tidy
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify
 ```
 
-Для стартового Go scaffolding один раз запустите `go mod tidy`, чтобы проект записал `go.sum` перед первым циклом validate или test.
+Для стартового Go scaffolding один раз запустите `go mod tidy`, чтобы проект записал `go.sum` перед первым циклом validate или test, а перед первым `test` или `dev` один раз соберите `bin/my-plugin`.
 
 ## Что вы редактируете
 
@@ -77,6 +78,7 @@ Root outputs воспринимайте как managed outputs.
 ```bash
 go mod tidy
 go test ./...
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify
 ```

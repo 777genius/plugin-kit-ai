@@ -101,6 +101,7 @@ func TestInitSuccessOutputByLane(t *testing.T) {
 				`Created plugin "demo" at /tmp/demo plugin`,
 				`cd "/tmp/demo plugin"`,
 				"go mod tidy",
+				"go build -o bin/demo ./cmd/demo",
 				"plugin-kit-ai validate . --platform codex-runtime --strict",
 				"plugin-kit-ai test . --platform codex-runtime --event Notify",
 				"plugin-kit-ai dev . --platform codex-runtime --event Notify",
@@ -272,6 +273,7 @@ func TestInitSuccessOutput_CustomLogicHighlightsAdvancedPath(t *testing.T) {
 	for _, want := range []string{
 		"plugin-kit-ai inspect . --authoring",
 		"go mod tidy",
+		"go build -o bin/demo ./cmd/demo",
 		"See plugin/README.md for SDK setup and first-run steps",
 		"Advanced path: start with plugin/README.md, then grow into deeper runtime and hook details only when you need them.",
 	} {

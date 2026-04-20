@@ -35,7 +35,7 @@ translationRequired: true
 Со стороны автора:
 
 ```bash
-plugin-kit-ai export .
+plugin-kit-ai export . --platform <codex-runtime|claude>
 plugin-kit-ai bundle publish . --platform <codex-runtime|claude> --repo <owner/repo> --tag <tag>
 ```
 

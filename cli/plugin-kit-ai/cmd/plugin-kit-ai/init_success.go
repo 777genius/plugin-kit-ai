@@ -117,6 +117,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 	default:
 		lines = append(lines,
 			"  go mod tidy",
+			fmt.Sprintf("  go build -o bin/%s ./cmd/%s", opts.ProjectName, opts.ProjectName),
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),
