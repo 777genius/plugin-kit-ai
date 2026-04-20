@@ -31,6 +31,7 @@ plugin-kit-ai version
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 ```
 
 La ruta predeterminada `init` ya es el punto de inicio de producción recomendado.

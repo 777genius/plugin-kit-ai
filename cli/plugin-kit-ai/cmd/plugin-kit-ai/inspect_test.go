@@ -54,7 +54,7 @@ func TestInspectTextShowsLauncherAndGeminiGuidance(t *testing.T) {
 	output := buf.String()
 	for _, want := range []string{
 		"launcher: runtime=go entrypoint=./bin/demo",
-		"next=go test ./...; plugin-kit-ai generate --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
+		"next=go mod tidy; go test ./...; plugin-kit-ai generate --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
 		"runtime_gate=make test-gemini-runtime",
 		"live_runtime_gate=make test-gemini-runtime-live",
 	} {

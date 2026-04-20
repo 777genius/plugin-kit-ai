@@ -31,6 +31,7 @@ plugin-kit-ai version
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 ```
 
 Le chemin par défaut `init` est déjà le point de départ de production recommandé.

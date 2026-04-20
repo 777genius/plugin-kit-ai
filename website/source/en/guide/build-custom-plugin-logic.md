@@ -28,9 +28,12 @@ If you are connecting a local tool like Docker Hub or HubSpot Developer, start w
 plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
 plugin-kit-ai inspect . --authoring
+go mod tidy
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify
 ```
+
+For the default Go starter, run `go mod tidy` once so the scaffold writes `go.sum` before the first validate or test cycle.
 
 ## What You Edit
 
@@ -72,6 +75,7 @@ That is why it is visible on the first screen, but marked as an advanced path.
 ### Go runtime
 
 ```bash
+go mod tidy
 go test ./...
 plugin-kit-ai validate . --platform codex-runtime --strict
 plugin-kit-ai test . --platform codex-runtime --event Notify

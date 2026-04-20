@@ -32,9 +32,12 @@ plugin-kit-ai version
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 ```
 
 This path still exists for backward compatibility, but it is no longer the recommended first start for new repos.
+
+Run `go mod tidy` once after scaffold so the starter writes `go.sum` before the first strict validation pass.
 
 ## 3. Generate The Target Files
 

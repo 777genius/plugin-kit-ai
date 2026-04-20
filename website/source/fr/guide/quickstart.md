@@ -28,6 +28,7 @@ brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```

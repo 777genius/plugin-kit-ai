@@ -42,6 +42,7 @@ flowchart LR
 plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
 plugin-kit-ai inspect . --authoring
+go mod tidy
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 

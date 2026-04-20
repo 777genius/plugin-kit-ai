@@ -40,6 +40,7 @@ Utilisez le chemin par défaut le plus fiable, sauf si vous avez une réelle rai
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```

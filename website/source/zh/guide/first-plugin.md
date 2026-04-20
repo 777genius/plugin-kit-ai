@@ -31,6 +31,7 @@ plugin-kit-ai version
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 ```
 
 默认的 `init` 路径已经是推荐的生产起点。

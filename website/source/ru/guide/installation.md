@@ -14,6 +14,9 @@ translationRequired: true
 
 ## Самая быстрая первая установка плагина
 
+Это опциональная проверка без собственного repo, что опубликованный install flow действительно жив.
+Она не создаёт repo плагина, который вы будете редактировать.
+
 ```bash
 npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
@@ -21,6 +24,7 @@ npx plugin-kit-ai@latest add notion
 
 - Первая команда - безопасный single-target путь.
 - Вторая ставит все поддерживаемые outputs этого плагина.
+- Если ваша цель - авторский plugin repo, переходите в Quickstart и начинайте с `plugin-kit-ai init ...`.
 
 ## Поддерживаемые каналы
 

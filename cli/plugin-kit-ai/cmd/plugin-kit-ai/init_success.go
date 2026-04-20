@@ -52,6 +52,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 			lines = append(lines, "  Portable MCP starter: plugin/mcp/servers.yaml")
 		}
 		lines = append(lines,
+			"  go mod tidy",
 			"  go test ./...",
 			"  plugin-kit-ai generate .",
 			"  plugin-kit-ai generate --check .",
@@ -115,6 +116,7 @@ func formatInitSuccess(outDir string, opts app.InitOptions) string {
 		)
 	default:
 		lines = append(lines,
+			"  go mod tidy",
 			fmt.Sprintf("  plugin-kit-ai validate . --platform %s --strict", platform),
 			fmt.Sprintf("  %s", initTestCommand(platform)),
 			fmt.Sprintf("  %s", initDevCommand(platform)),

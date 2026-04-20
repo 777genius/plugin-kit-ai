@@ -145,6 +145,7 @@ func TestResolveRuntimeTestPlatformGeminiRequestedReturnsRuntimeGuidance(t *test
 	}
 	for _, want := range []string{
 		"Gemini uses its dedicated runtime gate instead",
+		"go mod tidy",
 		"go test ./...",
 		"plugin-kit-ai validate . --platform gemini --strict",
 		"plugin-kit-ai inspect . --target gemini",

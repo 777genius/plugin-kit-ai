@@ -14,6 +14,9 @@ Use `npx` for the fastest first plugin install. Use Homebrew when you want plugi
 
 ## Fastest First Plugin Install
 
+This is an optional zero-repo proof that the published install flow is live.
+It does not create the plugin repo you will edit.
+
 ```bash
 npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
@@ -21,6 +24,7 @@ npx plugin-kit-ai@latest add notion
 
 - The first command is the safe single-target path.
 - The second installs every supported output for that plugin.
+- If your goal is to author your own plugin repo, continue to Quickstart and start with `plugin-kit-ai init ...`.
 
 ## Supported Channels
 

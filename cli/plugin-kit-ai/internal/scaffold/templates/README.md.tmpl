@@ -31,6 +31,7 @@ Choose this lane when long-term support, packaged distribution, and the clearest
 ## First Run
 
 ```bash
+go mod tidy
 go test ./...
 go build -o bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
 plugin-kit-ai validate . --platform claude --strict

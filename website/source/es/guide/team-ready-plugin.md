@@ -40,6 +40,7 @@ Utilice la ruta predeterminada más segura a menos que tenga una razón real par
 ```bash
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```

@@ -24,9 +24,9 @@ translationRequired: true
 
 Если хотите сначала короткое объяснение, откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building).
 
-## Сразу попробуйте реальный плагин
+## Опциональная быстрая проверка
 
-Если хотите максимально быстро убедиться, что flow реальный, начните отсюда:
+Если хотите максимально быстро убедиться, что опубликованный install flow реально работает, начните отсюда:
 
 ```bash
 npx plugin-kit-ai@latest add notion --target claude
@@ -35,6 +35,8 @@ npx plugin-kit-ai@latest add notion
 
 - Первая команда - безопасный single-target путь.
 - Вторая ставит все поддерживаемые outputs этого плагина.
+- Эта опциональная проверка не создаёт repo, который вы будете редактировать дальше.
+- Если ваша цель - авторский plugin repo, пропустите этот шаг и идите сразу в job-first `init` выше.
 
 ## Если читать только одно
 
@@ -51,6 +53,7 @@ brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 plugin-kit-ai init my-plugin
 cd my-plugin
+go mod tidy
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
