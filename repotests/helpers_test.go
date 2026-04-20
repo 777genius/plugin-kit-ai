@@ -3,12 +3,14 @@ package pluginkitairepo_test
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +18,15 @@ import (
 )
 
 const rootGoModModuleLine = "module github.com/777genius/plugin-kit-ai"
+
+var (
+	pluginKitAIBuildOnce    sync.Once
+	pluginKitAIBuildPath    string
+	pluginKitAIBuildErr     error
+	pluginKitAIE2EBuildOnce sync.Once
+	pluginKitAIE2EBuildPath string
+	pluginKitAIE2EBuildErr  error
+)
 
 // RepoRoot returns the plugin-kit-ai monorepo root (directory containing the anchor go.mod).
 // Walks up from the caller's file until it finds go.mod with module github.com/777genius/plugin-kit-ai.
@@ -63,38 +74,48 @@ func isAnchorGoMod(path string) bool {
 
 func buildPluginKitAI(t *testing.T) string {
 	t.Helper()
-	root := RepoRoot(t)
-	cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
-	binDir := t.TempDir()
-	name := "plugin-kit-ai"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
+	pluginKitAIBuildOnce.Do(func() {
+		root := RepoRoot(t)
+		cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
+		pluginKitAIBuildPath, pluginKitAIBuildErr = buildGoBinaryForTests(cliDir, "plugin-kit-ai", nil, "./cmd/plugin-kit-ai")
+	})
+	if pluginKitAIBuildErr != nil {
+		t.Fatalf("build plugin-kit-ai: %v", pluginKitAIBuildErr)
 	}
-	pluginKitAIBin := filepath.Join(binDir, name)
-	build := exec.Command("go", "build", "-o", pluginKitAIBin, "./cmd/plugin-kit-ai")
-	build.Dir = cliDir
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build plugin-kit-ai: %v\n%s", err, out)
-	}
-	return pluginKitAIBin
+	return pluginKitAIBuildPath
 }
 
 func buildPluginKitAIWithVersion(t *testing.T, cliVersion string) string {
 	t.Helper()
 	root := RepoRoot(t)
 	cliDir := filepath.Join(root, "cli", "plugin-kit-ai")
-	binDir := t.TempDir()
-	name := "plugin-kit-ai"
+	pluginKitAIBin, err := buildGoBinaryForTests(cliDir, "plugin-kit-ai", []string{"-ldflags", "-X main.version=" + cliVersion}, "./cmd/plugin-kit-ai")
+	if err != nil {
+		t.Fatalf("build plugin-kit-ai with version: %v", err)
+	}
+	return pluginKitAIBin
+}
+
+func buildGoBinaryForTests(workDir, baseName string, buildArgs []string, target string) (string, error) {
+	binDir, err := os.MkdirTemp("", baseName+"-testbin-*")
+	if err != nil {
+		return "", err
+	}
+	name := baseName
 	if runtime.GOOS == "windows" {
 		name += ".exe"
 	}
-	pluginKitAIBin := filepath.Join(binDir, name)
-	build := exec.Command("go", "build", "-ldflags", "-X main.version="+cliVersion, "-o", pluginKitAIBin, "./cmd/plugin-kit-ai")
-	build.Dir = cliDir
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build plugin-kit-ai with version: %v\n%s", err, out)
+	outPath := filepath.Join(binDir, name)
+	args := []string{"build", "-buildvcs=false"}
+	args = append(args, buildArgs...)
+	args = append(args, "-o", outPath, target)
+	cmd := exec.Command("go", args...)
+	cmd.Dir = workDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%w\n%s", err, out)
 	}
-	return pluginKitAIBin
+	return outPath, nil
 }
 
 func newGoModuleEnv(t testing.TB) []string {
@@ -261,20 +282,15 @@ func authoredSlash(parts ...string) string {
 // buildPluginKitAIE2E builds sdk/cmd/plugin-kit-ai-e2e into a temp dir and returns the binary path.
 func buildPluginKitAIE2E(t *testing.T) string {
 	t.Helper()
-	root := RepoRoot(t)
-	sdkDir := filepath.Join(root, "sdk")
-	binDir := t.TempDir()
-	name := "plugin-kit-ai-e2e"
-	if runtime.GOOS == "windows" {
-		name += ".exe"
+	pluginKitAIE2EBuildOnce.Do(func() {
+		root := RepoRoot(t)
+		sdkDir := filepath.Join(root, "sdk")
+		pluginKitAIE2EBuildPath, pluginKitAIE2EBuildErr = buildGoBinaryForTests(sdkDir, "plugin-kit-ai-e2e", nil, "./cmd/plugin-kit-ai-e2e")
+	})
+	if pluginKitAIE2EBuildErr != nil {
+		t.Fatalf("build plugin-kit-ai-e2e: %v", pluginKitAIE2EBuildErr)
 	}
-	out := filepath.Join(binDir, name)
-	cmd := exec.Command("go", "build", "-o", out, "./cmd/plugin-kit-ai-e2e")
-	cmd.Dir = sdkDir
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build plugin-kit-ai-e2e: %v\n%s", err, b)
-	}
-	return out
+	return pluginKitAIE2EBuildPath
 }
 
 func requireBindTests(t *testing.T) {
