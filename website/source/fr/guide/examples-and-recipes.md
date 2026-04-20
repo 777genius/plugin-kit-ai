@@ -24,7 +24,7 @@ Voici les exemples les plus clairs de formes publiques finies :
 
 Lisez-les quand vous le souhaitez :
 
-- une mise en pension concrète
+- une structure concrète de dépôt
 - sorties réelles générées
 - un exemple public véridique de ce à quoi ressemble le terme « sain »
 
@@ -40,7 +40,7 @@ Ils sont les meilleurs pour :
 - intégration de l'équipe
 - choisir entre les points de départ Go, Python, Node, Claude et Codex
 
-Si vous êtes toujours en train de choisir, associez-le à [Choose A Starter Repo](/fr/guide/choose-a-starter).
+Si vous êtes toujours en train de choisir, associez cette page à [Choisissez un dépôt de démarrage](/fr/guide/choose-a-starter).
 
 ## 3. Références d'exécution locales
 
@@ -61,16 +61,16 @@ Ce ne sont pas le principal point d’entrée pour la plupart des auteurs de plu
 - vous souhaitez intégrer des documents, des aides à la révision ou au formatage dans le flux de travail plus large
 - vous voulez comprendre comment les compétences adjacentes peuvent s'adapter aux dépôts de plugins
 
-## Lecture suggérée par Goal
+## Lecture suggérée selon l'objectif
 
-- Vous voulez l'exemple d'exécution le plus performant : commencez par l'exemple de production Codex ou Claude, puis lisez [Créer un plugin prêt pour l'équipe] (/fr/guide/team-ready-plugin).
-- Vous souhaitez des exemples d'empaquetage ou de configuration d'espace de travail : commencez par les exemples de package Codex, Gemini, Cursor ou OpenCode, puis lisez [Cibles du package et de l'espace de travail] (/fr/guide/package-and-workspace-targets).
-- Vous voulez un point de départ clair, pas un exemple fini : accédez à [Modèles de démarrage] (/fr/guide/starter-templates).
-- Vous souhaitez choisir la cible avant de consulter les dépôts : lisez [Choose A Target](/fr/guide/choose-a-target).
-- Vous voulez d'abord connaître l'histoire complète de l'expansion d'un seul dépôt : lisez [Ce que vous pouvez construire] (/fr/guide/what-you-can-build).
+- Vous voulez l'exemple d'exécution le plus performant : commencez par l'exemple de production Codex ou Claude, puis lisez [Créez un plugin prêt pour l'équipe](/fr/guide/team-ready-plugin).
+- Vous souhaitez des exemples d'empaquetage ou de configuration d'espace de travail : commencez par les exemples Codex package, Gemini, Cursor ou OpenCode, puis lisez [Packages et configuration de l'intégration](/fr/guide/package-and-workspace-targets).
+- Vous voulez un point de départ clair, pas un exemple fini : accédez à [Modèles de démarrage](/fr/guide/starter-templates).
+- Vous souhaitez choisir la cible avant de consulter les dépôts : lisez [Choisissez une cible](/fr/guide/choose-a-target).
+- Vous voulez d'abord connaître l'histoire complète de l'expansion d'un seul dépôt : lisez [Ce que vous pouvez construire](/fr/guide/what-you-can-build).
 
 ## Règle finale
 
 Les exemples doivent clarifier le marché public et non le remplacer.
 
-Utilisez des exemples de dépôts pour voir la forme et les résultats sains. Pour le modèle mental multi-cibles à dépôt unique, lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets).
+Utilisez des exemples de dépôts pour voir la forme et les résultats sains. Pour le modèle mental multi-cibles à dépôt unique, lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets).

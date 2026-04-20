@@ -27,7 +27,7 @@ Après cela, gardez le dépôt unifié et développez-le selon vos besoins.
 
 Lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) si vous souhaitez une vue plus large du système.
 
-## Codex Durée d'exécution
+## Runtime Codex
 
 - [plugin-kit-ai-starter-codex-go](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
 - [plugin-kit-ai-starter-codex-python](https://github.com/777genius/plugin-kit-ai-starter-codex-python)

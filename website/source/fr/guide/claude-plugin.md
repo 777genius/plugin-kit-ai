@@ -34,7 +34,7 @@ plugin-kit-ai init my-claude-plugin --platform claude --claude-extended-hooks
 
 Choisissez des crochets étendus uniquement lorsque vous souhaitez intentionnellement un ensemble pris en charge plus large et que vous acceptez une stabilité plus lâche que le sous-ensemble stable.
 
-## Good Ajustement
+## Quand ce chemin convient
 
 - un plugin qui doit s'intégrer aux hooks d'exécution Claude
 - les équipes qui souhaitent un dépôt et un flux de travail au lieu d'éditer manuellement les artefacts Claude natifs
@@ -43,4 +43,4 @@ Choisissez des crochets étendus uniquement lorsque vous souhaitez intentionnell
 ## Prochaines étapes
 
 - Lisez [Modèle cible](/fr/concepts/target-model) pour voir en quoi Claude diffère des cibles d'empaquetage ou de configuration d'espace de travail.
-- Vérifiez [Événements de plate-forme] (/fr/api/platform-events/claude) pour une référence au niveau de l'événement.
+- Vérifiez [Événements de plateforme](/fr/api/platform-events/claude) pour une référence au niveau de l'événement.

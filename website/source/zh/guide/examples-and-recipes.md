@@ -24,7 +24,7 @@ translationRequired: true
 
 当您需要时，请阅读这些内容：
 
-- 具体的回购布局
+- 具体的仓库布局
 - 真实生成的输出
 - “健康”的真实公开例子
 
@@ -40,7 +40,7 @@ translationRequired: true
 - 团队入职
 - 在 Go、Python、Node、Claude 和 Codex 起始点之间进行选择
 
-如果您仍在选择，请将其与 [Choose A Starter Repo](/zh/guide/choose-a-starter) 配对。
+如果您仍在选择，请将其与 [选择一个入门存储库](/zh/guide/choose-a-starter) 配对。
 
 ## 3. 本地运行时引用
 
@@ -61,7 +61,7 @@ translationRequired: true
 - 您想要将文档、审阅或格式化助手连接到更广泛的工作流程中
 - 您想了解相邻技能如何适应插件存储库
 
-## 建议阅读 Goal
+## 按目标推荐阅读
 
 - 想要最强的运行时示例：从 Codex 或 Claude 生产示例开始，然后阅读 [构建团队就绪插件](/zh/guide/team-ready-plugin)。
 - 想要打包或工作区配置示例：从 Codex 包、Gemini、Cursor 或 OpenCode 示例开始，然后阅读 [包和工作区目标](/zh/guide/package-and-workspace-targets)。

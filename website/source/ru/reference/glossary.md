@@ -12,15 +12,15 @@ translationRequired: true
 
 Используйте эту страницу, когда какой-то термин тормозит чтение docs. Цель здесь не идеальная теория, а быстрое общее понимание.
 
-## Authored State
+## Авторское состояние
 
 Часть repo, которой команда владеет напрямую. `generate` превращает этот source в target-specific output.
 
-## Generated Target Files
+## Сгенерированные target-файлы
 
 Файлы, которые появляются для конкретного target после генерации. Это реальный delivery output, но не долгосрочный source of truth.
 
-## Path
+## Путь
 
 Практический способ собрать и поставлять plugin. Примеры: default Go runtime path, локальный Node/TypeScript path и repo-owned integration setup.
 
@@ -28,35 +28,35 @@ translationRequired: true
 
 Output, в который вы целитесь, например `codex-runtime`, `claude`, `codex-package`, `gemini`, `opencode` или `cursor`.
 
-## Runtime Path
+## Runtime-путь
 
 Path, в котором repo напрямую владеет исполняемым поведением plugin.
 
-## Package Or Extension Path
+## Package- или extension-путь
 
 Path, сфокусированный на правильном package или extension artifact, а не на основной исполняемой runtime-форме.
 
-## Repo-Owned Integration Setup
+## Настройка интеграции, которой владеет репозиторий
 
 Path, где repo в основном поставляет checked-in configuration для другого tool или workspace.
 
-## Install Channel
+## Канал установки
 
 Способ установить CLI, например через Homebrew, npm, PyPI или verified script. Это не public runtime API.
 
-## Shared Runtime Package
+## Общий runtime-пакет
 
 Зависимость `plugin-kit-ai-runtime`, которую используют одобренные Python и Node flows вместо копирования helper files в каждый repo.
 
-## Support Boundary
+## Граница поддержки
 
 Публичная граница между тем, что проект рекомендует по умолчанию, что поддерживает осторожнее и что оставляет experimental.
 
-## Readiness Gate
+## Гейт готовности
 
 Проверка, которую стоит считать сигналом, что repo уже достаточно здоров для handoff. Для большинства repo это `validate --strict`.
 
-## Handoff
+## Передача
 
 Момент, когда другой человек, другая машина или другой пользователь может использовать repo без скрытых шагов setup.
 

@@ -84,7 +84,7 @@ Si no está seguro:
 2. comience con el iniciador Node/TypeScript para la ruta principal admitida que no es Go
 3. solo elija Python o variantes de paquete compartido cuando la compensación del equipo ya sea real
 
-## Good Política del equipo
+## Buena política de equipo
 
 La elección de un titular para todo el equipo debe ser consistente el tiempo suficiente para que:
 

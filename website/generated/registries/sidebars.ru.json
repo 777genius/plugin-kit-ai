@@ -21,11 +21,11 @@
       "text": "Суть проекта",
       "items": [
         {
-          "text": "Что можно построить",
+          "text": "Что можно собрать",
           "link": "/ru/guide/what-you-can-build"
         },
         {
-          "text": "Один проект, несколько target’ов",
+          "text": "Один проект, несколько target'ов",
           "link": "/ru/guide/one-project-multiple-targets"
         },
         {
@@ -42,19 +42,19 @@
           "link": "/ru/guide/first-plugin"
         },
         {
-          "text": "Python runtime-плагин",
+          "text": "Соберите Python runtime-плагин",
           "link": "/ru/guide/python-runtime"
         },
         {
-          "text": "Плагин для команды",
+          "text": "Сделайте плагин готовым для команды",
           "link": "/ru/guide/team-ready-plugin"
         },
         {
-          "text": "Плагин для Claude",
+          "text": "Соберите плагин для Claude",
           "link": "/ru/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript runtime-плагин",
+          "text": "Соберите Node/TypeScript runtime-плагин",
           "link": "/ru/guide/node-typescript-runtime"
         }
       ]
@@ -133,11 +133,11 @@
       "text": "Суть проекта",
       "items": [
         {
-          "text": "Что можно построить",
+          "text": "Что можно собрать",
           "link": "/ru/guide/what-you-can-build"
         },
         {
-          "text": "Один проект, несколько target’ов",
+          "text": "Один проект, несколько target'ов",
           "link": "/ru/guide/one-project-multiple-targets"
         },
         {
@@ -154,19 +154,19 @@
           "link": "/ru/guide/first-plugin"
         },
         {
-          "text": "Python runtime-плагин",
+          "text": "Соберите Python runtime-плагин",
           "link": "/ru/guide/python-runtime"
         },
         {
-          "text": "Плагин для команды",
+          "text": "Сделайте плагин готовым для команды",
           "link": "/ru/guide/team-ready-plugin"
         },
         {
-          "text": "Плагин для Claude",
+          "text": "Соберите плагин для Claude",
           "link": "/ru/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript runtime-плагин",
+          "text": "Соберите Node/TypeScript runtime-плагин",
           "link": "/ru/guide/node-typescript-runtime"
         }
       ]
@@ -232,7 +232,7 @@
           "link": "/ru/concepts/"
         },
         {
-          "text": "Зачем plugin-kit-ai",
+          "text": "Зачем нужен plugin-kit-ai",
           "link": "/ru/concepts/why-plugin-kit-ai"
         },
         {
@@ -253,7 +253,7 @@
           "link": "/ru/concepts/stability-model"
         },
         {
-          "text": "Модель target’ов",
+          "text": "Модель target'ов",
           "link": "/ru/concepts/target-model"
         },
         {
@@ -297,7 +297,7 @@
           "link": "/ru/reference/support-boundary"
         },
         {
-          "text": "Поддержка Target'ов",
+          "text": "Поддержка target'ов",
           "link": "/ru/reference/target-support"
         }
       ]

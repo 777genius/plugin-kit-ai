@@ -61,7 +61,7 @@ brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 ```
 
-## 2. 脚手架 A Python 项目
+## 2. 搭建 Python 项目
 
 对于正常的 Python-第一个 Codex 路径：
 
@@ -77,7 +77,7 @@ plugin-kit-ai init my-plugin --platform claude --runtime python
 cd my-plugin
 ```
 
-## 3.准备本地Python环境
+## 3. 准备本地 Python 环境
 
 ```bash
 plugin-kit-ai doctor .
@@ -160,10 +160,12 @@ plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime
 该路径从已发布的 [`plugin-kit-ai-runtime`](https://github.com/777genius/plugin-kit-ai/tree/main/python/plugin-kit-ai-runtime) 包导入 [`plugin_kit_ai_runtime`](/zh/api/runtime-python/plugin-kit-ai-runtime)，而不是生成 `plugin/plugin_runtime.py`。
 
 如果您使用此源树中的 CLI 的本地开发版本，请在 `init` 期间显式传递 `--runtime-package-version`。
-已发布稳定的 CLIs 自动推断匹配的帮助程序版本。
+已发布的稳定 CLI 会自动推断匹配的帮助程序版本。
 
-## 简短规则- 当团队已经位于 Python 并且插件是存储库本地时，选择 Python
+## 简短规则
+
 - 当您想要最干净的包装和分发故事时，选择 Go
+- 当团队已经位于 Python 并且插件是存储库本地时，选择 Python
 - 使用 `doctor -> bootstrap -> generate -> validate --strict` 作为正常的 Python 流程
 - 仅当您确实需要共享依赖项时才切换到 `--runtime-package`
 

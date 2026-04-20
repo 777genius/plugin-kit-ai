@@ -61,7 +61,7 @@ brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 ```
 
-## 2. Projet d'échafaudage A Python
+## 2. Créez un projet Python
 
 Pour le chemin normal Python-first Codex :
 

@@ -15,7 +15,7 @@ translationRequired: true
 
 起始名称有意按主路径分割，例如 Codex 或 Claude。
 
-这并不**意味着回购协议被永久锁定到一个代理家族。
+这并不**意味着**仓库会被永久锁定到某一个代理家族。
 
 入门工具可帮助您选择最佳的第一个形状：
 
@@ -41,7 +41,7 @@ translationRequired: true
 - [plugin-kit-ai-starter-claude-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
 - [plugin-kit-ai-starter-claude-node-typescript-runtime-package](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package)
 
-## 何时选择开胃菜
+## 何时选择 starter
 
 在以下情况下使用启动器：
 
@@ -58,5 +58,5 @@ translationRequired: true
 ## 安全心理模型
 
 - 选择**第一个**正确路径的启动器
-- 不要将起始系列视为回购的最终边界
+- 不要将 starter 系列视为仓库的最终边界
 - 保留一个存储库，并仅在产品确实需要更多输出时才扩展它

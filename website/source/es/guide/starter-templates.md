@@ -11,7 +11,7 @@ translationRequired: true
 
 Si desea un buen punto de partida conocido en lugar de un andamiaje desde un directorio en blanco, utilice los repositorios de inicio oficiales.
 
-## Importante: los principiantes son puntos de entrada
+## Importante: los starters son puntos de entrada
 
 Los nombres iniciales se dividen intencionalmente por ruta principal, como Codex o Claude.
 
@@ -27,23 +27,23 @@ Después de eso, mantenga el repositorio unificado y hágalo crecer según sea n
 
 Lea [Un proyecto, múltiples objetivos](/es/guide/one-project-multiple-targets) si desea una vista más amplia del sistema.
 
-## Codex Tiempo de ejecución
+## Runtime Codex
 
 - [plugin-kit-ai-starter-codex-go](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
 - [plugin-kit-ai-starter-codex-python](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
-- [plugin-kit-ai-inicio-codex-nodo-mecanografiado](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
-- [plugin-kit-ai-paquete-starter-codex-python-runtime](https://github.com/777genius/plugin-kit-ai-starter-codex-python-runtime-package)
+- [plugin-kit-ai-starter-codex-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+- [plugin-kit-ai-starter-codex-python-runtime-package](https://github.com/777genius/plugin-kit-ai-starter-codex-python-runtime-package)
 
 ## Claude
 
-- [plugin-kit-ai-iniciador-claude-go](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
-- [plugin-kit-ai-iniciador-claude-python](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
-- [plugin-kit-ai-starter-claude-nodo-mecanografiado](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+- [plugin-kit-ai-starter-claude-go](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+- [plugin-kit-ai-starter-claude-python](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+- [plugin-kit-ai-starter-claude-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
 - [plugin-kit-ai-starter-claude-node-typescript-runtime-package](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package)
 
-## Cuándo preferir un entrante
+## Cuándo preferir un starter
 
-Utilice un iniciador cuando:
+Utilice un starter cuando:
 
 - desea un diseño de repositorio en buen estado de inmediato
 - desea comparar su proyecto con un ejemplo mínimo compatible

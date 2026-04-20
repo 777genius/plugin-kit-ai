@@ -83,4 +83,4 @@ Il s'agit de la valeur par défaut car c'est le point de départ le plus simple 
 - choisissez les aides du fournisseur lorsque vous souhaitez démarrer Python ou Node le plus en douceur
 - choisissez le package d'exécution partagé lorsque vous savez déjà que vous souhaitez une stratégie de dépendance réutilisable entre les dépôts
 
-Associez cette page à [Créer un plug-in d'exécution Python] (/fr/guide/python-runtime), [Choisir un dépôt de démarrage] (/fr/guide/choose-a-starter), [Modèles de démarrage] (/fr/guide/starter-templates) et [Préparation à la production] (/fr/guide/production-readiness).
+Associez cette page à [Créer un plugin d'exécution Python](/fr/guide/python-runtime), [Choisissez un dépôt de démarrage](/fr/guide/choose-a-starter), [Modèles de démarrage](/fr/guide/starter-templates) et [Préparation à la production](/fr/guide/production-readiness).

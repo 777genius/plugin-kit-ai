@@ -17,7 +17,7 @@ Vérifiez que le binaire est bien sur votre shell `PATH`.
 
 Si vous avez installé via npm ou PyPI, assurez-vous que le package a réellement téléchargé le binaire publié. Ne traitez pas le package wrapper lui-même comme le moteur d’exécution.
 
-## Python ou Node Les projets d'exécution échouent prématurément
+## Les projets runtime Python ou Node échouent trop tôt
 
 Vérifiez d'abord le temps d'exécution réel :
 
@@ -35,7 +35,7 @@ plugin-kit-ai generate ./my-plugin
 plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ```
 
-## `validate --strict` Échec
+## Échec de `validate --strict`
 
 Traitez cela comme un signal et non comme du bruit.
 
@@ -45,7 +45,7 @@ Causes courantes :
 - la plateforme sélectionnée ne correspond pas à la source du projet
 - le chemin d'exécution nécessite encore des correctifs d'amorçage ou d'environnement
 
-## `generate` Le résultat est différent de celui prévu
+## `generate` produit un résultat inattendu
 
 Cela signifie généralement que la source du projet et votre modèle mental se sont séparés.
 
@@ -57,4 +57,4 @@ Commencez par le chemin par défaut Go si vous voulez le contrat le plus solide.
 
 Passez à Node/TypeScript ou Python uniquement lorsque le compromis d'exécution locale est réel et intentionnel.
 
-Voir [Créer un plug-in d'exécution Python](/fr/guide/python-runtime), [Flux de travail de création](/fr/reference/authoring-workflow) et [FAQ](/fr/reference/faq).
+Voir [Créer un plugin d'exécution Python](/fr/guide/python-runtime), [Flux de travail de création](/fr/reference/authoring-workflow) et [FAQ](/fr/reference/faq).

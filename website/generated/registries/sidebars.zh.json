@@ -12,7 +12,7 @@
           "link": "/zh/guide/installation"
         },
         {
-          "text": "快速开始",
+          "text": "快速入门",
           "link": "/zh/guide/quickstart"
         }
       ]
@@ -21,15 +21,15 @@
       "text": "核心思路",
       "items": [
         {
-          "text": "你可以构建什么",
+          "text": "您可以构建什么",
           "link": "/zh/guide/what-you-can-build"
         },
         {
-          "text": "一个项目，多个 targets",
+          "text": "一个项目，多个目标",
           "link": "/zh/guide/one-project-multiple-targets"
         },
         {
-          "text": "选择 target",
+          "text": "选择一个目标",
           "link": "/zh/guide/choose-a-target"
         }
       ]
@@ -38,23 +38,23 @@
       "text": "构建插件",
       "items": [
         {
-          "text": "构建第一个插件",
+          "text": "构建你的第一个插件",
           "link": "/zh/guide/first-plugin"
         },
         {
-          "text": "Python 运行时插件",
+          "text": "构建 Python 运行时插件",
           "link": "/zh/guide/python-runtime"
         },
         {
-          "text": "团队可用插件",
+          "text": "构建一个团队就绪的插件",
           "link": "/zh/guide/team-ready-plugin"
         },
         {
-          "text": "Claude 插件",
+          "text": "构建 Claude 插件",
           "link": "/zh/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript 运行时插件",
+          "text": "构建 Node/TypeScript 运行时插件",
           "link": "/zh/guide/node-typescript-runtime"
         }
       ]
@@ -63,15 +63,15 @@
       "text": "Starter 与示例",
       "items": [
         {
-          "text": "Starter 模板",
+          "text": "入门模板",
           "link": "/zh/guide/starter-templates"
         },
         {
-          "text": "选择入门仓库",
+          "text": "选择一个入门存储库",
           "link": "/zh/guide/choose-a-starter"
         },
         {
-          "text": "示例与实践",
+          "text": "示例和食谱",
           "link": "/zh/guide/examples-and-recipes"
         }
       ]
@@ -80,15 +80,15 @@
       "text": "交付与 targets",
       "items": [
         {
-          "text": "选择交付模型",
+          "text": "选择交付模式",
           "link": "/zh/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle 交接",
+          "text": "捆绑交接",
           "link": "/zh/guide/bundle-handoff"
         },
         {
-          "text": "包与集成配置",
+          "text": "包和集成设置",
           "link": "/zh/guide/package-and-workspace-targets"
         },
         {
@@ -101,7 +101,7 @@
       "text": "生产与 CI",
       "items": [
         {
-          "text": "生产准备",
+          "text": "生产准备情况",
           "link": "/zh/guide/production-readiness"
         },
         {
@@ -124,7 +124,7 @@
           "link": "/zh/guide/installation"
         },
         {
-          "text": "快速开始",
+          "text": "快速入门",
           "link": "/zh/guide/quickstart"
         }
       ]
@@ -133,15 +133,15 @@
       "text": "核心思路",
       "items": [
         {
-          "text": "你可以构建什么",
+          "text": "您可以构建什么",
           "link": "/zh/guide/what-you-can-build"
         },
         {
-          "text": "一个项目，多个 targets",
+          "text": "一个项目，多个目标",
           "link": "/zh/guide/one-project-multiple-targets"
         },
         {
-          "text": "选择 target",
+          "text": "选择一个目标",
           "link": "/zh/guide/choose-a-target"
         }
       ]
@@ -150,23 +150,23 @@
       "text": "构建插件",
       "items": [
         {
-          "text": "构建第一个插件",
+          "text": "构建你的第一个插件",
           "link": "/zh/guide/first-plugin"
         },
         {
-          "text": "Python 运行时插件",
+          "text": "构建 Python 运行时插件",
           "link": "/zh/guide/python-runtime"
         },
         {
-          "text": "团队可用插件",
+          "text": "构建一个团队就绪的插件",
           "link": "/zh/guide/team-ready-plugin"
         },
         {
-          "text": "Claude 插件",
+          "text": "构建 Claude 插件",
           "link": "/zh/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript 运行时插件",
+          "text": "构建 Node/TypeScript 运行时插件",
           "link": "/zh/guide/node-typescript-runtime"
         }
       ]
@@ -175,15 +175,15 @@
       "text": "Starter 与示例",
       "items": [
         {
-          "text": "Starter 模板",
+          "text": "入门模板",
           "link": "/zh/guide/starter-templates"
         },
         {
-          "text": "选择入门仓库",
+          "text": "选择一个入门存储库",
           "link": "/zh/guide/choose-a-starter"
         },
         {
-          "text": "示例与实践",
+          "text": "示例和食谱",
           "link": "/zh/guide/examples-and-recipes"
         }
       ]
@@ -192,15 +192,15 @@
       "text": "交付与 targets",
       "items": [
         {
-          "text": "选择交付模型",
+          "text": "选择交付模式",
           "link": "/zh/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle 交接",
+          "text": "捆绑交接",
           "link": "/zh/guide/bundle-handoff"
         },
         {
-          "text": "包与集成配置",
+          "text": "包和集成设置",
           "link": "/zh/guide/package-and-workspace-targets"
         },
         {
@@ -213,7 +213,7 @@
       "text": "生产与 CI",
       "items": [
         {
-          "text": "生产准备",
+          "text": "生产准备情况",
           "link": "/zh/guide/production-readiness"
         },
         {
@@ -232,15 +232,15 @@
           "link": "/zh/concepts/"
         },
         {
-          "text": "为什么选择 plugin-kit-ai",
+          "text": "为什么 plugin-kit-ai",
           "link": "/zh/concepts/why-plugin-kit-ai"
         },
         {
-          "text": "plugin-kit-ai 如何工作",
+          "text": "plugin-kit-ai 的工作原理",
           "link": "/zh/concepts/managed-project-model"
         },
         {
-          "text": "源码与 outputs",
+          "text": "项目来源和产出",
           "link": "/zh/concepts/authoring-architecture"
         }
       ]
@@ -253,11 +253,11 @@
           "link": "/zh/concepts/stability-model"
         },
         {
-          "text": "Target 模型",
+          "text": "目标模型",
           "link": "/zh/concepts/target-model"
         },
         {
-          "text": "选择 runtime",
+          "text": "选择运行时",
           "link": "/zh/concepts/choosing-runtime"
         }
       ]
@@ -272,19 +272,19 @@
           "link": "/zh/reference/"
         },
         {
-          "text": "安装渠道",
+          "text": "安装频道",
           "link": "/zh/reference/install-channels"
         },
         {
-          "text": "版本与兼容性",
+          "text": "版本和兼容性政策",
           "link": "/zh/reference/version-and-compatibility"
         },
         {
-          "text": "编写流程",
+          "text": "创作工作流程",
           "link": "/zh/reference/authoring-workflow"
         },
         {
-          "text": "仓库标准",
+          "text": "存储库标准",
           "link": "/zh/reference/repository-standard"
         }
       ]
@@ -297,7 +297,7 @@
           "link": "/zh/reference/support-boundary"
         },
         {
-          "text": "Target 支持",
+          "text": "目标支持",
           "link": "/zh/reference/target-support"
         }
       ]
@@ -310,11 +310,11 @@
           "link": "/zh/reference/faq"
         },
         {
-          "text": "故障排查",
+          "text": "故障排除",
           "link": "/zh/reference/troubleshooting"
         },
         {
-          "text": "术语表",
+          "text": "词汇表",
           "link": "/zh/reference/glossary"
         }
       ]

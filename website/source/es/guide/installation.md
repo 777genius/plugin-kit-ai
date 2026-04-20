@@ -27,7 +27,7 @@ brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
 plugin-kit-ai version
 ```
 
-### mpn
+### npm
 
 ```bash
 npm i -g plugin-kit-ai
@@ -68,4 +68,4 @@ Para CI, prefiera la acción de configuración dedicada en lugar de enseñar a c
 
 Los paquetes npm y PyPI son canales de instalación para CLI. No son APIs de tiempo de ejecución ni SDKs.
 
-Consulte [Referencia > Instalar canales](/es/reference/install-channels) para conocer los límites del contrato.
+Consulte [Referencia > Canales de instalación](/es/reference/install-channels) para conocer los límites del contrato.

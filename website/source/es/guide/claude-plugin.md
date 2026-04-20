@@ -34,7 +34,7 @@ plugin-kit-ai init my-claude-plugin --platform claude --claude-extended-hooks
 
 Solo elija ganchos extendidos cuando intencionalmente desee el conjunto con soporte más amplio y acepte una estabilidad más flexible que el subconjunto estable.
 
-## Goadaptacion
+## Cuándo encaja esta ruta
 
 - un complemento que debe integrarse con los ganchos de tiempo de ejecución Claude
 - equipos que quieren un repositorio y un flujo de trabajo en lugar de editar manualmente los artefactos nativos Claude

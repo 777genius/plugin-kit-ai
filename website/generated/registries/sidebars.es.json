@@ -21,15 +21,15 @@
       "text": "Idea central",
       "items": [
         {
-          "text": "Qué puedes crear",
+          "text": "Lo que puedes construir",
           "link": "/es/guide/what-you-can-build"
         },
         {
-          "text": "Un proyecto, múltiples targets",
+          "text": "Un proyecto, múltiples objetivos",
           "link": "/es/guide/one-project-multiple-targets"
         },
         {
-          "text": "Elegir un target",
+          "text": "Elige un objetivo",
           "link": "/es/guide/choose-a-target"
         }
       ]
@@ -38,23 +38,23 @@
       "text": "Crear plugins",
       "items": [
         {
-          "text": "Crea tu primer plugin",
+          "text": "Cree su primer complemento",
           "link": "/es/guide/first-plugin"
         },
         {
-          "text": "Plugin de runtime Python",
+          "text": "Cree un complemento de tiempo de ejecución Python",
           "link": "/es/guide/python-runtime"
         },
         {
-          "text": "Plugin listo para equipos",
+          "text": "Cree un complemento listo para el equipo",
           "link": "/es/guide/team-ready-plugin"
         },
         {
-          "text": "Plugin para Claude",
+          "text": "Cree un complemento Claude",
           "link": "/es/guide/claude-plugin"
         },
         {
-          "text": "Plugin Node/TypeScript runtime",
+          "text": "Cree un complemento de tiempo de ejecución Node/TypeScript",
           "link": "/es/guide/node-typescript-runtime"
         }
       ]
@@ -63,11 +63,11 @@
       "text": "Starters y ejemplos",
       "items": [
         {
-          "text": "Plantillas starter",
+          "text": "Plantillas de inicio",
           "link": "/es/guide/starter-templates"
         },
         {
-          "text": "Elegir un repositorio inicial",
+          "text": "Elija un repositorio inicial",
           "link": "/es/guide/choose-a-starter"
         },
         {
@@ -80,19 +80,19 @@
       "text": "Entrega y targets",
       "items": [
         {
-          "text": "Elegir modelo de entrega",
+          "text": "Elija el modelo de entrega",
           "link": "/es/guide/choose-delivery-model"
         },
         {
-          "text": "Transferencia de bundle",
+          "text": "Transferencia de paquete",
           "link": "/es/guide/bundle-handoff"
         },
         {
-          "text": "Paquetes e integración",
+          "text": "Configuración de paquetes y integración",
           "link": "/es/guide/package-and-workspace-targets"
         },
         {
-          "text": "Cómo publicar plugins",
+          "text": "Cómo publicar complementos",
           "link": "/es/guide/how-to-publish-plugins"
         }
       ]
@@ -101,11 +101,11 @@
       "text": "Producción y CI",
       "items": [
         {
-          "text": "Preparación para producción",
+          "text": "Preparación para la producción",
           "link": "/es/guide/production-readiness"
         },
         {
-          "text": "Integración con CI",
+          "text": "Integración de CI",
           "link": "/es/guide/ci-integration"
         }
       ]
@@ -133,15 +133,15 @@
       "text": "Idea central",
       "items": [
         {
-          "text": "Qué puedes crear",
+          "text": "Lo que puedes construir",
           "link": "/es/guide/what-you-can-build"
         },
         {
-          "text": "Un proyecto, múltiples targets",
+          "text": "Un proyecto, múltiples objetivos",
           "link": "/es/guide/one-project-multiple-targets"
         },
         {
-          "text": "Elegir un target",
+          "text": "Elige un objetivo",
           "link": "/es/guide/choose-a-target"
         }
       ]
@@ -150,23 +150,23 @@
       "text": "Crear plugins",
       "items": [
         {
-          "text": "Crea tu primer plugin",
+          "text": "Cree su primer complemento",
           "link": "/es/guide/first-plugin"
         },
         {
-          "text": "Plugin de runtime Python",
+          "text": "Cree un complemento de tiempo de ejecución Python",
           "link": "/es/guide/python-runtime"
         },
         {
-          "text": "Plugin listo para equipos",
+          "text": "Cree un complemento listo para el equipo",
           "link": "/es/guide/team-ready-plugin"
         },
         {
-          "text": "Plugin para Claude",
+          "text": "Cree un complemento Claude",
           "link": "/es/guide/claude-plugin"
         },
         {
-          "text": "Plugin Node/TypeScript runtime",
+          "text": "Cree un complemento de tiempo de ejecución Node/TypeScript",
           "link": "/es/guide/node-typescript-runtime"
         }
       ]
@@ -175,11 +175,11 @@
       "text": "Starters y ejemplos",
       "items": [
         {
-          "text": "Plantillas starter",
+          "text": "Plantillas de inicio",
           "link": "/es/guide/starter-templates"
         },
         {
-          "text": "Elegir un repositorio inicial",
+          "text": "Elija un repositorio inicial",
           "link": "/es/guide/choose-a-starter"
         },
         {
@@ -192,19 +192,19 @@
       "text": "Entrega y targets",
       "items": [
         {
-          "text": "Elegir modelo de entrega",
+          "text": "Elija el modelo de entrega",
           "link": "/es/guide/choose-delivery-model"
         },
         {
-          "text": "Transferencia de bundle",
+          "text": "Transferencia de paquete",
           "link": "/es/guide/bundle-handoff"
         },
         {
-          "text": "Paquetes e integración",
+          "text": "Configuración de paquetes y integración",
           "link": "/es/guide/package-and-workspace-targets"
         },
         {
-          "text": "Cómo publicar plugins",
+          "text": "Cómo publicar complementos",
           "link": "/es/guide/how-to-publish-plugins"
         }
       ]
@@ -213,11 +213,11 @@
       "text": "Producción y CI",
       "items": [
         {
-          "text": "Preparación para producción",
+          "text": "Preparación para la producción",
           "link": "/es/guide/production-readiness"
         },
         {
-          "text": "Integración con CI",
+          "text": "Integración de CI",
           "link": "/es/guide/ci-integration"
         }
       ]
@@ -240,7 +240,7 @@
           "link": "/es/concepts/managed-project-model"
         },
         {
-          "text": "Código fuente y outputs",
+          "text": "Fuente y resultados del proyecto",
           "link": "/es/concepts/authoring-architecture"
         }
       ]
@@ -253,11 +253,11 @@
           "link": "/es/concepts/stability-model"
         },
         {
-          "text": "Modelo de targets",
+          "text": "Modelo objetivo",
           "link": "/es/concepts/target-model"
         },
         {
-          "text": "Elegir runtime",
+          "text": "Elegir el tiempo de ejecución",
           "link": "/es/concepts/choosing-runtime"
         }
       ]
@@ -276,15 +276,15 @@
           "link": "/es/reference/install-channels"
         },
         {
-          "text": "Versiones y compatibilidad",
+          "text": "Política de versión y compatibilidad",
           "link": "/es/reference/version-and-compatibility"
         },
         {
-          "text": "Flujo de autoría",
+          "text": "Flujo de trabajo de creación",
           "link": "/es/reference/authoring-workflow"
         },
         {
-          "text": "Estándar del repositorio",
+          "text": "Estándar de repositorio",
           "link": "/es/reference/repository-standard"
         }
       ]
@@ -310,7 +310,7 @@
           "link": "/es/reference/faq"
         },
         {
-          "text": "Resolución de problemas",
+          "text": "Solución de problemas",
           "link": "/es/reference/troubleshooting"
         },
         {

@@ -72,7 +72,7 @@ Démarreurs actuels de packages partagés :
 - [`plugin-kit-ai-starter-codex-python-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-codex-python-runtime-package) : Python Codex démarreur avec `plugin-kit-ai-runtime` épinglé dans `requirements.txt`
 - [`plugin-kit-ai-starter-claude-node-typescript-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package) : Node/TypeScript Claude démarreur avec `plugin-kit-ai-runtime` épinglé dans `package.json`
 
-Si vous choisissez entre le démarreur Python normal et le démarreur du package d'exécution Python, lisez d'abord [Construire un plug-in d'exécution Python](/fr/guide/python-runtime), puis [Choisir le modèle de livraison](/fr/guide/choose-delivery-model).
+Si vous choisissez entre le démarreur Python normal et le démarreur du package d'exécution Python, lisez d'abord [Créer un plugin d'exécution Python](/fr/guide/python-runtime), puis [Choisir le modèle de livraison](/fr/guide/choose-delivery-model).
 
 ## Quand éviter de sur-optimiser le choix
 
@@ -84,7 +84,7 @@ Si vous n'êtes pas sûr :
 2. commencez par le démarreur Node/TypeScript pour le chemin principal non-Go pris en charge
 3. ne choisissez Python ou des variantes de package partagé que lorsque le compromis de l'équipe est déjà réel
 
-## Good Politique d'équipe
+## Bonne politique d'équipe
 
 Un choix de partant à l’échelle de l’équipe doit rester cohérent suffisamment longtemps pour que :
 
@@ -94,4 +94,4 @@ Un choix de partant à l’échelle de l’équipe doit rester cohérent suffisa
 
 Mais un choix de démarrage stable n’empêche toujours pas un dépôt d’ajouter d’autres cibles ultérieurement si le produit les nécessite.
 
-Associez cette page à [Modèles de démarrage] (/fr/guide/starter-templates), [Choisir le modèle de livraison] (/fr/guide/choose-delivery-model) et [Norme de référentiel] (/fr/reference/repository-standard).
+Associez cette page à [Modèles de démarrage](/fr/guide/starter-templates), [Choisir le modèle de livraison](/fr/guide/choose-delivery-model) et [Norme de référentiel](/fr/reference/repository-standard).

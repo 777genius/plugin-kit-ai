@@ -34,7 +34,7 @@ plugin-kit-ai init my-claude-plugin --platform claude --claude-extended-hooks
 
 仅当您有意想要更广泛的支持集并且您接受比稳定子集更宽松的稳定性时，才选择扩展挂钩。
 
-## Good 适合
+## 何时适合这条路径
 
 - 必须与 Claude 运行时挂钩集成的插件
 - 需要一个存储库和一个工作流程而不是手动编辑本机 Claude 工件的团队

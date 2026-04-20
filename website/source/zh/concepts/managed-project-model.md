@@ -23,7 +23,7 @@ source -> generate -> validate --strict -> handoff
 
 该循环很重要，因为该项目不仅仅是一个入门模板。生成的输出可以随着目标的发展而改变，而您编写的源代码保持清晰且可维护。
 
-## 一个回购协议作为真理的来源
+## 一个仓库作为事实来源
 
 存储库是插件真正存在的地方。
 
@@ -49,7 +49,7 @@ source -> generate -> validate --strict -> handoff
 - 它使编写的文件和生成的文件清晰分开
 - 它允许一个存储库稍后扩展到更多输出，而无需重写整个项目模型
 
-## 下一步去哪里 Go
+## 接下来去哪里
 
 - 阅读[项目源和输出](/zh/concepts/authoring-architecture) 了解创作与生成的边界。
 - 阅读[目标模型](/zh/concepts/target-model) 了解不同的输出类型。
