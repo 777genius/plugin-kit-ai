@@ -11,20 +11,20 @@ translationRequired: true
 
 当您已经知道需要 `plugin-kit-ai` 时，请使用此页面，但您仍然需要将存储库与您想要发送插件的方式相匹配。
 
-选择目标意味着选择产品今天需要的主要路径，而不是永远锁定回购。
+选择目标意味着选择产品今天真正需要的主要路径，而不是把仓库永久锁死。
 
 <MermaidDiagram
   :chart='`
 flowchart TD
-  Need[What does the product need right now] --> Exec{可执行行为}
-  需要 --> 工件{包或扩展}
-  需要 --> 配置{Repo 托管集成}
-  执行 --> Codex[codex-runtime]
-  执行 --> Claude[克劳德]
-  工件 --> CodexPackage[codex-package]
-  神器 --> Gemini[双子座]
-  配置 --> OpenCode[开放代码]
-  配置 --> Cursor[光标]
+  Need["产品现在真正需要什么？"] --> Exec{"可执行行为"}
+  Need --> Artifact{"包或扩展产物"}
+  Need --> Config{"仓库自管集成配置"}
+  Exec --> Codex["codex-runtime"]
+  Exec --> Claude["claude"]
+  Artifact --> CodexPackage["codex-package"]
+  Artifact --> Gemini["gemini"]
+  Config --> OpenCode["opencode"]
+  Config --> Cursor["cursor"]
 `'
 />
 
@@ -38,14 +38,14 @@ flowchart TD
 
 ## 目标目录
 
-|目标|当 | 时选择它车道 |
+|目标|何时选择|所属车道|
 | --- | --- | --- |
-| `codex-runtime` |您想要默认的可执行插件路径 |推荐的运行时路径 |
-| `claude` |您特别需要 Claude 钩子 |推荐的 Claude 路径 |
-| `codex-package` |您需要 Codex 打包输出 |推荐包路径|
-| `gemini` |您正在运送 Gemini 扩展包 |推荐扩展路径 |
-| `opencode` |您想要回购拥有的 OpenCode 集成设置 |回购拥有的集成设置 |
-| `cursor` |您想要回购拥有的 Cursor 集成设置 |回购拥有的集成设置 |
+| `codex-runtime` |您想要默认的可执行插件路径 |推荐的 runtime 路径 |
+| `claude` |您明确需要 Claude hooks |推荐的 Claude 路径 |
+| `codex-package` |您需要 Codex 打包输出 |推荐的包路径 |
+| `gemini` |您要交付 Gemini 扩展包 |推荐的扩展路径 |
+| `opencode` |您需要仓库自管的 OpenCode 集成配置 |仓库自管的集成配置 |
+| `cursor` |您需要仓库自管的 Cursor 集成配置 |仓库自管的集成配置 |
 
 ## 安全默认值
 

@@ -106,7 +106,7 @@ Choisissez d'abord `claude` uniquement lorsque les crochets Claude constituent d
 
 ## Après le démarrage rapide
 
-- Continuez avec [Créez votre premier plugin] (/fr/guide/first-plugin) si vous souhaitez le didacticiel recommandé le plus restreint.
+- Continuez avec [Créez votre premier plugin](/fr/guide/first-plugin) si vous souhaitez le didacticiel recommandé le plus restreint.
 - Continuez avec [Ce que vous pouvez construire](/fr/guide/what-you-can-build) si vous souhaitez la carte complète des produits.
-- Continuez avec [Choisir une cible] (/fr/guide/choose-a-target) lorsque vous êtes prêt à faire correspondre le dépôt à la manière dont vous souhaitez l'expédier.
-- Continuez avec [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets) lorsque vous êtes prêt à vous développer au-delà du premier chemin.
+- Continuez avec [Choisir une cible](/fr/guide/choose-a-target) lorsque vous êtes prêt à faire correspondre le dépôt à la manière dont vous souhaitez l'expédier.
+- Continuez avec [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) lorsque vous êtes prêt à vous développer au-delà du premier chemin.

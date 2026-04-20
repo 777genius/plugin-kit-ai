@@ -34,4 +34,4 @@ A partir d'un même projet, vous pouvez évoluer vers :
 
 Choisir Node ou Python ne vous oblige pas à décider de chaque détail d'emballage ou d'intégration dès le premier jour.
 
-Cette page est l'aperçu. Si votre question est de savoir si un dépôt doit continuer à croître, lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets).
+Cette page est l'aperçu. Si votre question est de savoir si un dépôt doit continuer à croître, lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets).

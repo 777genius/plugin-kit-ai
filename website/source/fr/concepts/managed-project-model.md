@@ -23,7 +23,7 @@ source -> generate -> validate --strict -> handoff
 
 Cette boucle est importante car le projet n'est pas seulement un modèle de démarrage. La sortie générée peut changer à mesure que la cible évolue, tandis que votre source créée reste claire et maintenable.
 
-## One Repo comme source de vérité
+## Un dépôt comme source de vérité
 
 Le dépôt est l’endroit où le plugin vit réellement.
 
@@ -49,8 +49,8 @@ Un modèle de démarrage vous donne une forme initiale. plugin-kit-ai continue d
 - il maintient les fichiers créés et les fichiers générés clairement séparés
 - il permet à un référentiel de s'étendre ultérieurement à plusieurs sorties sans réécrire l'ensemble du modèle de projet
 
-## Où aller Go Suivant
+## Où aller ensuite
 
-- Lisez [Source et résultats du projet] (/fr/concepts/authoring-architecture) pour connaître la limite entre création et génération.
+- Lisez [Source et résultats du projet](/fr/concepts/authoring-architecture) pour connaître la limite entre création et génération.
 - Lisez [Modèle cible](/fr/concepts/target-model) pour les différents types de sortie.
-- Lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets) lorsque vous souhaitez développer davantage un dépôt.
+- Lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) lorsque vous souhaitez développer davantage un dépôt.

@@ -21,9 +21,9 @@ outline: false
 
 - commencez par [Pourquoi plugin-kit-ai](/fr/concepts/why-plugin-kit-ai) si vous voulez la réponse adaptée au produit
 - puis lisez [Comment fonctionne plugin-kit-ai](/fr/concepts/managed-project-model) pour le modèle à dépôt unique
-- lisez [Choisir le runtime] (/fr/concepts/choosing-runtime) pour choisir entre Go, Node ou Python
-- lire [Modèle cible] (/fr/concepts/target-model) pour décider du type de sortie à expédier
-- laissez [Modèle de stabilité] (/fr/concepts/stability-model) pour la fin lorsque vous avez besoin d'un langage politique précis
+- lisez [Choisir le runtime](/fr/concepts/choosing-runtime) pour choisir entre Go, Node ou Python
+- lisez [Modèle cible](/fr/concepts/target-model) pour décider du type de sortie à expédier
+- gardez [Modèle de stabilité](/fr/concepts/stability-model) pour la fin lorsque vous avez besoin d'un langage politique précis
 
 <div class="docs-grid">
   <a class="docs-card" href="./why-plugin-kit-ai">

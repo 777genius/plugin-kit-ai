@@ -63,4 +63,4 @@ Ce site de documentation publique traite la norme de référentiel comme l'endro
 - les limites de soutien deviennent exécutoires
 - le transfert devient crédible
 
-Associez cette page à [Workflow de création] (/fr/reference/authoring-workflow), [Préparation à la production] (/fr/guide/production-readiness) et [Glossaire] (/fr/reference/glossary).
+Associez cette page à [Workflow de création](/fr/reference/authoring-workflow), [Préparation à la production](/fr/guide/production-readiness) et [Glossaire](/fr/reference/glossary).

@@ -72,4 +72,4 @@ Utilisez le même modèle que Node et rendez la version Python explicite dans CI
 
 Si CI ne peut pas reproduire les sorties créées et transmettre `validate --strict`, le dépôt n'est pas prêt pour un transfert stable. Pour un dépôt multi-cibles, cela signifie une exécution verte explicite pour chaque cible à l'intérieur de la portée de support.
 
-Associez cette page à [Préparation à la production] (/fr/guide/production-readiness), [Limite de support] (/fr/reference/support-boundary) et [Dépannage] (/fr/reference/troubleshooting).
+Associez cette page à [Préparation à la production](/fr/guide/production-readiness), [Limite de support](/fr/reference/support-boundary) et [Dépannage](/fr/reference/troubleshooting).

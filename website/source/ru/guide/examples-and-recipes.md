@@ -12,28 +12,28 @@ translationRequired: true
 
 Используйте эту страницу, когда хотите увидеть, как `plugin-kit-ai` выглядит в реальных репозиториях, а не только в абстрактных объяснениях.
 
-## 1. Production plugin examples
+## 1. Продакшен-примеры плагинов
 
 Это самые наглядные примеры законченных публичных форм:
 
-- `codex-basic-prod`: production repo для Codex runtime
-- `claude-basic-prod`: production repo для Claude
-- `codex-package-prod`: target для Codex package
+- `codex-basic-prod`: продакшен-репозиторий для Codex runtime
+- `claude-basic-prod`: продакшен-репозиторий для Claude
+- `codex-package-prod`: пакетный target для Codex package
 - `gemini-extension-package`: packaging target для Gemini extension
-- `cursor-basic`: workspace-config target для Cursor
-- `opencode-basic`: workspace-config target для OpenCode
+- `cursor-basic`: target конфигурации workspace для Cursor
+- `opencode-basic`: target конфигурации workspace для OpenCode
 
 Читайте их, когда нужен:
 
-- конкретный layout репозитория
+- конкретную структуру репозитория
 - реальный пример generated outputs
-- честный публичный пример того, как выглядит “здоровый” проект
+- честный публичный пример того, как выглядит здоровый проект
 
-Важно: эти examples показывают отдельные публичные формы продукта, а не требуют делить реальную систему на отдельный repo под каждый target.
+Важно: эти примеры показывают отдельные публичные формы продукта, а не требуют делить реальную систему на отдельный репозиторий под каждый target.
 
-## 2. Starter repos
+## 2. Стартовые репозитории
 
-Используйте starter repos, когда хотите начинать не с пустой директории, а с known-good baseline.
+Используйте стартовые репозитории, когда хотите начинать не с пустой директории, а с проверенного baseline.
 
 Они лучше всего подходят для:
 
@@ -43,21 +43,21 @@ translationRequired: true
 
 Если вы ещё выбираете стартовую точку, свяжите это с [Выбором стартового репозитория](/ru/guide/choose-a-starter).
 
-## 3. Local runtime references
+## 3. Локальные runtime references
 
 Каталог `examples/local` показывает локальные Python и Node runtime references.
 
 Он полезен, когда:
 
-- нужно глубже понять interpreted runtime story
+- нужно глубже понять историю interpreted runtime
 - вы хотите сравнить JavaScript, TypeScript и Python local-runtime setups
-- нужен конкретный reference сверх starter repos
+- нужен конкретный reference сверх стартовых репозиториев
 
 ## 4. Skill examples
 
 Каталог `examples/skills` показывает примеры skills и вспомогательных интеграций.
 
-Это не главный entrypoint для большинства авторов плагинов, но он полезен, когда:
+Это не главная точка входа для большинства авторов плагинов, но раздел полезен, когда:
 
 - вы хотите встроить docs, review или formatting helpers в более широкий workflow
 - нужно понять, как соседние skills могут жить рядом с plugin repos
@@ -72,6 +72,6 @@ translationRequired: true
 
 ## Главное правило
 
-Examples должны прояснять публичный контракт, а не заменять его.
+Примеры должны прояснять публичный контракт, а не заменять его.
 
-Используйте example repos, чтобы увидеть форму и healthy outputs. Для multi-target mental model идите в [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets).
+Используйте example repos, чтобы увидеть форму и корректные outputs. Для multi-target mental model переходите к [Одному проекту, нескольким target'ам](/ru/guide/one-project-multiple-targets).

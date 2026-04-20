@@ -24,9 +24,9 @@ flowchart TD
 
 在选择之前，请记住一条重要规则：
 
-- 入门者告诉您如何开始
-- 这不是产品的最终限制
-- 它不会阻止一个回购协议以后支持更多目标
+- 入门模板只决定你如何开始
+- 它不是产品的最终边界
+- 它不会阻止一个仓库以后支持更多目标
 
 如果这种区别仍然模糊，请先阅读[一个项目，多个目标](/zh/guide/one-project-multiple-targets)。
 
@@ -48,14 +48,14 @@ flowchart TD
 
 ## 入门矩阵
 
-|如果你想要|最佳首发|为什么 |
+|如果你想要|最佳入门模板|为什么 |
 | --- | --- | --- |
-|最强Codex制作路径| `plugin-kit-ai-starter-codex-go` | Go - 具有最简洁交接故事的第一条生产路径 |
-| Python 中的存储库本地 Codex 插件 | `plugin-kit-ai-starter-codex-python` |具有已知良好存储库布局的稳定 Python 子集 |
-| Node/TS 中的存储库本地 Codex 插件 | `plugin-kit-ai-starter-codex-node-typescript` |主要支持的非Go路径|
-|最强Claude制作路径| `plugin-kit-ai-starter-claude-go` |稳定的 Claude 子集加上最干净的生产路径 |
-| Python 中的存储库本地 Claude 插件 | `plugin-kit-ai-starter-claude-python` |带有 Python 助手的稳定 Claude 钩子子集 |
-| Node/TS 中的存储库本地 Claude 插件 | `plugin-kit-ai-starter-claude-node-typescript` | TypeScript 第一团队的稳定 Claude 钩子子集 |
+|最强的 Codex 生产路径| `plugin-kit-ai-starter-codex-go` | Go - 默认最强、交接最清晰的生产路径 |
+| Python 中的仓库本地 Codex 插件 | `plugin-kit-ai-starter-codex-python` |稳定的 Python 子集，仓库布局清晰 |
+| Node/TS 中的仓库本地 Codex 插件 | `plugin-kit-ai-starter-codex-node-typescript` |主要支持的非 Go 路径 |
+|最强的 Claude 生产路径| `plugin-kit-ai-starter-claude-go` |稳定的 Claude 子集，加上最清晰的生产路径 |
+| Python 中的仓库本地 Claude 插件 | `plugin-kit-ai-starter-claude-python` |带有 Python helper 的稳定 Claude hook 子集 |
+| Node/TS 中的仓库本地 Claude 插件 | `plugin-kit-ai-starter-claude-node-typescript` |适合 TypeScript 优先团队的稳定 Claude hook 子集 |
 
 ## 共享包变体
 
@@ -76,7 +76,7 @@ flowchart TD
 
 ## 何时避免过度优化选择
 
-不要花太长时间寻找完美的开胃菜。
+不要花太长时间寻找完美的 starter。
 
 如果您不确定：
 
@@ -86,12 +86,12 @@ flowchart TD
 
 ## 良好的团队策略
 
-全队范围内的首发选择应该保持足够长的时间一致，以便：
+团队范围内的 starter 选择最好在一段时间内保持一致，这样：
 
-- 每个人都认识回购布局
+- 每个人都熟悉仓库布局
 - CI 使用相同的准备流程
 - 移交不依赖于维护者的解释
 
-但是，稳定的起始选择仍然无法阻止一个存储库稍后在产品需要时添加其他目标。
+但是，稳定的 starter 选择仍然不会阻止一个仓库在产品需要时稍后添加其他目标。
 
 将此页面与[入门模板](/zh/guide/starter-templates)、[选择交付模型](/zh/guide/choose-delivery-model)和[存储库标准](/zh/reference/repository-standard)配对。

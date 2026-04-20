@@ -13,37 +13,37 @@ translationRequired: true
 
 ## 本指南涵盖的内容
 
-- 哪些平台支持真正的本地应用今天
-- 哪个平台使用计划和准备状态
-- 首先运行哪个命令
-- 命令完成后预期的结果
+- 哪些平台今天支持真正的本地落地
+- 哪些平台目前只支持计划与就绪性检查
+- 应该先运行哪个命令
+- 命令完成后应该看到什么结果
 
 ## 快速比较
 
-|平台|出版模型 |真正适用于`plugin-kit-ai` |主命令 |你得到什么 |
+|平台|发布模型|当前是否真正可用|主命令|产物|
 |---|---|---:|---|---|
-| Codex |本地市场根 |是的 | `publish --channel codex-marketplace` | `.agents/plugins/marketplace.json` 加 `plugins/<name>/...` |
-| Claude |本地市场根 |是的 | `publish --channel claude-marketplace` | `.claude-plugin/marketplace.json` 加 `plugins/<name>/...` |
-| Gemini |存储库/发布准备|没有| `publish --channel gemini-gallery --dry-run` |有界出版计划和准备诊断|
+| Codex |本地 marketplace 根目录|是| `publish --channel codex-marketplace` | `.agents/plugins/marketplace.json` 和 `plugins/<name>/...` |
+| Claude |本地 marketplace 根目录|是| `publish --channel claude-marketplace` | `.claude-plugin/marketplace.json` 和 `plugins/<name>/...` |
+| Gemini |仓库发布准备|否| `publish --channel gemini-gallery --dry-run` |有界的发布计划和就绪性诊断|
 
 ## 简短规则
 
-- 当您需要发布工作流程时，请使用 `publish`
-- 当您想要先进行检查或医生查看时，请使用 `publication`
-- Codex 和 Claude 支持立即本地申请
-- Gemini 在 v1 中使用计划和准备情况发布，而不是本地应用
+- 需要发布工作流时使用 `publish`
+- 想先检查或诊断时使用 `publication`
+- Codex 和 Claude 支持立即落地到本地 marketplace
+- Gemini 在 v1 中只提供计划与就绪性检查，不做本地应用
 
-回购协议的形状保持不变：
+仓库结构保持不变：
 
 - `plugin.yaml` 是核心插件清单
 - `targets/...` 保存特定于目标的创作输入
 - `publish/...` 持有发布意图
-- `publication` 是检查和刮刀表面
-- `publish` 是发布工作流程界面
+- `publication` 是检查与诊断入口
+- `publish` 是发布工作流入口
 
 ## 发布到 Codex
 
-对于 Codex 来说，发布意味着实现本地市场根基。
+对于 Codex，发布意味着落地到本地 marketplace 根目录。
 
 首先运行这个：
 
@@ -51,7 +51,7 @@ translationRequired: true
 plugin-kit-ai publish ./my-plugin --channel codex-marketplace --dest ./local-codex-marketplace --dry-run
 ```
 
-当计划看起来正确时应用它：
+当计划看起来正确时再执行实际落地：
 
 ```bash
 plugin-kit-ai publish ./my-plugin --channel codex-marketplace --dest ./local-codex-marketplace
@@ -62,11 +62,11 @@ plugin-kit-ai publish ./my-plugin --channel codex-marketplace --dest ./local-cod
 - `.agents/plugins/marketplace.json`
 - `plugins/<name>/...`
 
-这样的本地根目录已经可以充当 Codex 插件源。
+这样的本地根目录已经可以作为 Codex 插件来源。
 
 ## 发布到 Claude
 
-对于 Claude 来说，发布还意味着实现本地市场根基。
+对于 Claude，发布同样意味着落地到本地 marketplace 根目录。
 
 首先运行这个：
 
@@ -74,7 +74,7 @@ plugin-kit-ai publish ./my-plugin --channel codex-marketplace --dest ./local-cod
 plugin-kit-ai publish ./my-plugin --channel claude-marketplace --dest ./local-claude-marketplace --dry-run
 ```
 
-当计划看起来正确时应用它：
+当计划看起来正确时再执行实际落地：
 
 ```bash
 plugin-kit-ai publish ./my-plugin --channel claude-marketplace --dest ./local-claude-marketplace
@@ -87,13 +87,13 @@ plugin-kit-ai publish ./my-plugin --channel claude-marketplace --dest ./local-cl
 
 ## 发布到 Gemini
 
-对于 Gemini，发布并不意味着建立本地市场根基。
+对于 Gemini，发布并不意味着建立本地 marketplace 根目录。
 
-在 v1 中，`plugin-kit-ai` 做了三件有界的事情：
+在 v1 中，`plugin-kit-ai` 只做三件有界的事情：
 
 - 验证发布意图
 - 检查存储库准备情况
-- 制定出版计划
+- 生成发布计划
 
 从准备开始：
 
@@ -114,9 +114,9 @@ plugin-kit-ai publish ./my-plugin --channel gemini-gallery --dry-run
 - GitHub 主题 `gemini-cli-extension`
 - `gemini-extension.json` 在正确的根目录中
 
-Gemini 在 v1 中使用计划和准备发布，而不是本地应用。
+Gemini 在 v1 中使用计划与就绪性发布，而不是本地应用。
 
-## 跨所有创作渠道进行规划
+## 跨所有已编写渠道统一规划
 
 当一个存储库作者有多个发布渠道时使用此选项：
 
@@ -124,11 +124,13 @@ Gemini 在 v1 中使用计划和准备发布，而不是本地应用。
 plugin-kit-ai publish ./my-plugin --all --dry-run --dest ./local-marketplaces --format json
 ```
 
-重要规则：- 它仅使用创作的 `publish/...` 通道
-- 它不会从 `targets` 推断通道
-- 仅在 v1 中进行规划
-- 仅当创作渠道包含 Codex 或 Claude 本地市场流量时才需要 `--dest`
-- 仅 Gemini 编排不需要 `--dest`
+重要规则：
+
+- 它只使用已编写的 `publish/...` 渠道
+- 它不会从 `targets` 推断渠道
+- v1 只做规划
+- 只有当已编写渠道里包含 Codex 或 Claude 本地 marketplace 流时才需要 `--dest`
+- 纯 Gemini 规划不需要 `--dest`
 
 如果存储库作者只有 `gemini-gallery`，这也有效：
 
@@ -140,8 +142,8 @@ plugin-kit-ai publish ./my-plugin --all --dry-run --format json
 
 - 我想要本地 Codex 市场根： `plugin-kit-ai publish --channel codex-marketplace --dest <marketplace-root>`
 - 我想要本地 Claude 市场根： `plugin-kit-ai publish --channel claude-marketplace --dest <marketplace-root>`
-- 我想要 Gemini 出版准备：`plugin-kit-ai publication doctor --target gemini`
-- 我想要 Gemini 出版计划：`plugin-kit-ai publish --channel gemini-gallery --dry-run`
+- 我想要 Gemini 发布就绪性检查：`plugin-kit-ai publication doctor --target gemini`
+- 我想要 Gemini 发布计划：`plugin-kit-ai publish --channel gemini-gallery --dry-run`
 - 我想要一个组合发布计划：`plugin-kit-ai publish --all --dry-run`，并在包含 Codex 或 Claude 创作频道时添加 `--dest <marketplace-root>`
 
 ## 进一步阅读

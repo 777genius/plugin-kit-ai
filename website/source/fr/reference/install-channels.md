@@ -22,4 +22,4 @@ translationRequired: true
 
 Ces packages d'installation ne sont pas documentés en tant que SDKs publics ou APIs d'exécution. Le public API réside sous la section générée [API](/fr/api/).
 
-Lisez [Politique de version et de compatibilité] (/fr/reference/version-and-compatibility) si votre vraie question n'est pas « comment puis-je l'installer ? mais "qu'est-ce qui porte exactement la promesse de compatibilité publique ?".
+Lisez [Politique de version et de compatibilité](/fr/reference/version-and-compatibility) si votre vraie question n'est pas « comment puis-je l'installer ? », mais plutôt « qu'est-ce qui porte exactement la promesse de compatibilité publique ? ».

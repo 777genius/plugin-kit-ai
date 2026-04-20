@@ -63,4 +63,4 @@ Si vous démarrez intentionnellement sur Node/TypeScript ou Python pris en charg
 - garder le repo unifié
 - ajouter plus de cibles uniquement lorsqu'une réelle exigence de livraison ou d'intégration apparaît
 
-Lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets) lorsque vous souhaitez un modèle mental multi-cibles plus large.
+Lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) lorsque vous souhaitez un modèle mental multi-cibles plus large.

@@ -61,13 +61,13 @@ Estos no son el punto de entrada principal para la mayoría de los autores de co
 - desea conectar documentos, revisar o formatear ayudas en el flujo de trabajo más amplio
 - desea comprender cómo las habilidades adyacentes pueden encajar en los repositorios de complementos
 
-## Lectura sugerida por Goal
+## Lectura sugerida según el objetivo
 
-- Si desea el ejemplo de tiempo de ejecución más sólido: comience con el ejemplo de producción Codex o Claude y luego lea [Crear un complemento listo para el equipo](/es/guide/team-ready-plugin).
+- Si desea el ejemplo de runtime más sólido: comience con el ejemplo de producción de Codex o Claude y luego lea [Crear un complemento listo para el equipo](/es/guide/team-ready-plugin).
 - Si desea ejemplos de empaquetado o configuración del espacio de trabajo: comience con los ejemplos del paquete Codex, Gemini, Cursor o OpenCode y luego lea [Destinos del paquete y del espacio de trabajo](/es/guide/package-and-workspace-targets).
 - Si desea un punto de partida claro, no un ejemplo terminado: vaya a [Plantillas de inicio](/es/guide/starter-templates).
 - Quiere elegir el objetivo antes de mirar los repositorios: lea [Elija un objetivo](/es/guide/choose-a-target).
-- Primero desea conocer la historia completa de la expansión de un repositorio: lea [Lo que puedes construir] (/es/guide/what-you-can-build).
+- Si primero quiere entender cómo puede expandirse un repositorio: lea [Lo que puedes construir](/es/guide/what-you-can-build).
 
 ## Regla final
 

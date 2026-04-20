@@ -92,4 +92,4 @@ Ne présumez pas que le même contrat s’applique à :
 
 ## Ordre de lecture recommandé
 
-Associez cette page à [Choisir le modèle de livraison] (/fr/guide/choose-delivery-model), [Préparation à la production] (/fr/guide/production-readiness) et [Limite de support] (/fr/reference/support-boundary).
+Associez cette page à [Choisir le modèle de livraison](/fr/guide/choose-delivery-model), [Préparation à la production](/fr/guide/production-readiness) et [Limite de support](/fr/reference/support-boundary).

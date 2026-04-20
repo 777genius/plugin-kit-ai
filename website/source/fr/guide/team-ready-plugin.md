@@ -116,4 +116,4 @@ Un dépôt de plugin prêt pour l’équipe devrait diriger les gens vers :
 
 Le dépôt est prêt lorsqu'un autre coéquipier peut le cloner, comprendre le chemin et la portée cible, reproduire les sorties générées et passer la porte de validation stricte sans improvisation.
 
-Associez ce didacticiel à [Construisez votre premier plugin] (/fr/guide/first-plugin), [Authoring Architecture] (/fr/concepts/authoring-architecture) et [Support Boundary] (/fr/reference/support-boundary).
+Associez ce didacticiel à [Construisez votre premier plugin](/fr/guide/first-plugin), [Architecture de création](/fr/concepts/authoring-architecture) et [Limite de support](/fr/reference/support-boundary).
