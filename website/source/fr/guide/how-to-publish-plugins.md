@@ -11,6 +11,8 @@ translationRequired: true
 
 Utilisez ce guide lorsque votre dépôt est déjà créé dans `plugin-kit-ai` et que vous souhaitez connaître la prochaine étape la plus claire pour la publication Codex, Claude ou Gemini.
 
+Commencez par un dépôt où `plugin-kit-ai generate .` et `plugin-kit-ai validate . --strict` passent déjà, afin que les commandes de publication lisent des artefacts gérés à jour plutôt que des fichiers obsolètes.
+
 ## Ce que couvre ce guide
 
 - quelles plates-formes prennent en charge les applications locales réelles aujourd'hui

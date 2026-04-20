@@ -11,6 +11,8 @@ translationRequired: true
 
 当您的存储库已在 `plugin-kit-ai` 中编写，并且您希望为 Codex、Claude 或 Gemini 发布提供最清晰的下一步时，请使用本指南。
 
+请从已经通过 `plugin-kit-ai generate .` 和 `plugin-kit-ai validate . --strict` 的仓库开始，这样发布命令读取的就是最新的托管产物，而不是过期文件。
+
 ## 本指南涵盖的内容
 
 - 哪些平台今天支持真正的本地落地

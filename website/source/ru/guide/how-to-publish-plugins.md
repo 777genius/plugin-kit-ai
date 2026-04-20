@@ -12,6 +12,8 @@ translationRequired: true
 
 Откройте этот гайд, когда repo уже авторится через `plugin-kit-ai`, и вам нужен самый понятный следующий шаг для публикации в Codex, Claude или Gemini.
 
+Начинайте с repo, где уже проходят `plugin-kit-ai generate .` и `plugin-kit-ai validate . --strict`, чтобы publication-команды читали актуальные managed artifacts, а не устаревшие.
+
 ## Что покрывает этот гайд
 
 - какие платформы уже поддерживают реальный local apply

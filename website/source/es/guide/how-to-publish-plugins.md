@@ -11,6 +11,8 @@ translationRequired: true
 
 Utilice esta guía cuando su repositorio ya esté creado en `plugin-kit-ai` y desee el siguiente paso más claro para la publicación Codex, Claude o Gemini.
 
+Empiece con un repositorio en el que `plugin-kit-ai generate .` y `plugin-kit-ai validate . --strict` ya pasen, para que los comandos de publicación lean artefactos gestionados actuales y no archivos desactualizados.
+
 ## Qué cubre esta guía
 
 - qué plataformas admiten aplicaciones locales reales hoy

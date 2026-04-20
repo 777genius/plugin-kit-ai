@@ -12,6 +12,8 @@ translationRequired: true
 
 Use this guide when your repo is already authored in `plugin-kit-ai` and you want the clearest next step for Codex, Claude, or Gemini publication.
 
+Start from a repo where `plugin-kit-ai generate .` and `plugin-kit-ai validate . --strict` already pass, so the publication commands read current managed artifacts instead of stale ones.
+
 ## What This Guide Covers
 
 - which platforms support real local apply today
