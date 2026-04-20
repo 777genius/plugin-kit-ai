@@ -1953,6 +1953,9 @@
     "sourceRef": "api/index.md",
     "pathEn": "/en/api/",
     "pathRu": "/ru/api/",
+    "pathEs": "/es/api/",
+    "pathFr": "/fr/api/",
+    "pathZh": "/zh/api/",
     "relatedIds": [],
     "searchTerms": [
       "API"
@@ -1972,6 +1975,9 @@
     "sourceRef": "concepts/authoring-architecture.md",
     "pathEn": "/en/concepts/authoring-architecture",
     "pathRu": "/ru/concepts/authoring-architecture",
+    "pathEs": "/es/concepts/authoring-architecture",
+    "pathFr": "/fr/concepts/authoring-architecture",
+    "pathZh": "/zh/concepts/authoring-architecture",
     "relatedIds": [],
     "searchTerms": [
       "Project Source And Outputs"
@@ -1991,6 +1997,9 @@
     "sourceRef": "concepts/choosing-runtime.md",
     "pathEn": "/en/concepts/choosing-runtime",
     "pathRu": "/ru/concepts/choosing-runtime",
+    "pathEs": "/es/concepts/choosing-runtime",
+    "pathFr": "/fr/concepts/choosing-runtime",
+    "pathZh": "/zh/concepts/choosing-runtime",
     "relatedIds": [],
     "searchTerms": [
       "Choosing Runtime"
@@ -2010,6 +2019,9 @@
     "sourceRef": "concepts/index.md",
     "pathEn": "/en/concepts/",
     "pathRu": "/ru/concepts/",
+    "pathEs": "/es/concepts/",
+    "pathFr": "/fr/concepts/",
+    "pathZh": "/zh/concepts/",
     "relatedIds": [],
     "searchTerms": [
       "Concepts"
@@ -2029,6 +2041,9 @@
     "sourceRef": "concepts/managed-project-model.md",
     "pathEn": "/en/concepts/managed-project-model",
     "pathRu": "/ru/concepts/managed-project-model",
+    "pathEs": "/es/concepts/managed-project-model",
+    "pathFr": "/fr/concepts/managed-project-model",
+    "pathZh": "/zh/concepts/managed-project-model",
     "relatedIds": [],
     "searchTerms": [
       "How plugin-kit-ai Works"
@@ -2048,6 +2063,9 @@
     "sourceRef": "concepts/stability-model.md",
     "pathEn": "/en/concepts/stability-model",
     "pathRu": "/ru/concepts/stability-model",
+    "pathEs": "/es/concepts/stability-model",
+    "pathFr": "/fr/concepts/stability-model",
+    "pathZh": "/zh/concepts/stability-model",
     "relatedIds": [],
     "searchTerms": [
       "Stability Model"
@@ -2067,6 +2085,9 @@
     "sourceRef": "concepts/target-model.md",
     "pathEn": "/en/concepts/target-model",
     "pathRu": "/ru/concepts/target-model",
+    "pathEs": "/es/concepts/target-model",
+    "pathFr": "/fr/concepts/target-model",
+    "pathZh": "/zh/concepts/target-model",
     "relatedIds": [],
     "searchTerms": [
       "Target Model"
@@ -2086,6 +2107,9 @@
     "sourceRef": "concepts/why-plugin-kit-ai.md",
     "pathEn": "/en/concepts/why-plugin-kit-ai",
     "pathRu": "/ru/concepts/why-plugin-kit-ai",
+    "pathEs": "/es/concepts/why-plugin-kit-ai",
+    "pathFr": "/fr/concepts/why-plugin-kit-ai",
+    "pathZh": "/zh/concepts/why-plugin-kit-ai",
     "relatedIds": [],
     "searchTerms": [
       "Why plugin-kit-ai"
@@ -2105,6 +2129,9 @@
     "sourceRef": "guide/build-custom-plugin-logic.md",
     "pathEn": "/en/guide/build-custom-plugin-logic",
     "pathRu": "/ru/guide/build-custom-plugin-logic",
+    "pathEs": "/es/guide/build-custom-plugin-logic",
+    "pathFr": "/fr/guide/build-custom-plugin-logic",
+    "pathZh": "/zh/guide/build-custom-plugin-logic",
     "relatedIds": [],
     "searchTerms": [
       "Build Custom Plugin Logic"
@@ -2124,6 +2151,9 @@
     "sourceRef": "guide/bundle-handoff.md",
     "pathEn": "/en/guide/bundle-handoff",
     "pathRu": "/ru/guide/bundle-handoff",
+    "pathEs": "/es/guide/bundle-handoff",
+    "pathFr": "/fr/guide/bundle-handoff",
+    "pathZh": "/zh/guide/bundle-handoff",
     "relatedIds": [],
     "searchTerms": [
       "Bundle Handoff"
@@ -2143,6 +2173,9 @@
     "sourceRef": "guide/choose-a-starter.md",
     "pathEn": "/en/guide/choose-a-starter",
     "pathRu": "/ru/guide/choose-a-starter",
+    "pathEs": "/es/guide/choose-a-starter",
+    "pathFr": "/fr/guide/choose-a-starter",
+    "pathZh": "/zh/guide/choose-a-starter",
     "relatedIds": [],
     "searchTerms": [
       "Choose A Starter Repo"
@@ -2162,6 +2195,9 @@
     "sourceRef": "guide/choose-a-target.md",
     "pathEn": "/en/guide/choose-a-target",
     "pathRu": "/ru/guide/choose-a-target",
+    "pathEs": "/es/guide/choose-a-target",
+    "pathFr": "/fr/guide/choose-a-target",
+    "pathZh": "/zh/guide/choose-a-target",
     "relatedIds": [],
     "searchTerms": [
       "Choose A Target"
@@ -2181,6 +2217,9 @@
     "sourceRef": "guide/choose-delivery-model.md",
     "pathEn": "/en/guide/choose-delivery-model",
     "pathRu": "/ru/guide/choose-delivery-model",
+    "pathEs": "/es/guide/choose-delivery-model",
+    "pathFr": "/fr/guide/choose-delivery-model",
+    "pathZh": "/zh/guide/choose-delivery-model",
     "relatedIds": [],
     "searchTerms": [
       "Choose Delivery Model"
@@ -2200,6 +2239,9 @@
     "sourceRef": "guide/choose-what-you-are-building.md",
     "pathEn": "/en/guide/choose-what-you-are-building",
     "pathRu": "/ru/guide/choose-what-you-are-building",
+    "pathEs": "/es/guide/choose-what-you-are-building",
+    "pathFr": "/fr/guide/choose-what-you-are-building",
+    "pathZh": "/zh/guide/choose-what-you-are-building",
     "relatedIds": [],
     "searchTerms": [
       "Choose What You Are Building"
@@ -2219,6 +2261,9 @@
     "sourceRef": "guide/ci-integration.md",
     "pathEn": "/en/guide/ci-integration",
     "pathRu": "/ru/guide/ci-integration",
+    "pathEs": "/es/guide/ci-integration",
+    "pathFr": "/fr/guide/ci-integration",
+    "pathZh": "/zh/guide/ci-integration",
     "relatedIds": [],
     "searchTerms": [
       "CI Integration"
@@ -2238,6 +2283,9 @@
     "sourceRef": "guide/claude-plugin.md",
     "pathEn": "/en/guide/claude-plugin",
     "pathRu": "/ru/guide/claude-plugin",
+    "pathEs": "/es/guide/claude-plugin",
+    "pathFr": "/fr/guide/claude-plugin",
+    "pathZh": "/zh/guide/claude-plugin",
     "relatedIds": [],
     "searchTerms": [
       "Build A Claude Plugin"
@@ -2257,6 +2305,9 @@
     "sourceRef": "guide/examples-and-recipes.md",
     "pathEn": "/en/guide/examples-and-recipes",
     "pathRu": "/ru/guide/examples-and-recipes",
+    "pathEs": "/es/guide/examples-and-recipes",
+    "pathFr": "/fr/guide/examples-and-recipes",
+    "pathZh": "/zh/guide/examples-and-recipes",
     "relatedIds": [],
     "searchTerms": [
       "Examples And Recipes"
@@ -2276,6 +2327,9 @@
     "sourceRef": "guide/first-plugin.md",
     "pathEn": "/en/guide/first-plugin",
     "pathRu": "/ru/guide/first-plugin",
+    "pathEs": "/es/guide/first-plugin",
+    "pathFr": "/fr/guide/first-plugin",
+    "pathZh": "/zh/guide/first-plugin",
     "relatedIds": [],
     "searchTerms": [
       "Build Your First Plugin"
@@ -2295,6 +2349,9 @@
     "sourceRef": "guide/how-to-publish-plugins.md",
     "pathEn": "/en/guide/how-to-publish-plugins",
     "pathRu": "/ru/guide/how-to-publish-plugins",
+    "pathEs": "/es/guide/how-to-publish-plugins",
+    "pathFr": "/fr/guide/how-to-publish-plugins",
+    "pathZh": "/zh/guide/how-to-publish-plugins",
     "relatedIds": [],
     "searchTerms": [
       "How To Publish Plugins"
@@ -2314,6 +2371,9 @@
     "sourceRef": "guide/index.md",
     "pathEn": "/en/guide/",
     "pathRu": "/ru/guide/",
+    "pathEs": "/es/guide/",
+    "pathFr": "/fr/guide/",
+    "pathZh": "/zh/guide/",
     "relatedIds": [],
     "searchTerms": [
       "Guides"
@@ -2333,6 +2393,9 @@
     "sourceRef": "guide/installation.md",
     "pathEn": "/en/guide/installation",
     "pathRu": "/ru/guide/installation",
+    "pathEs": "/es/guide/installation",
+    "pathFr": "/fr/guide/installation",
+    "pathZh": "/zh/guide/installation",
     "relatedIds": [],
     "searchTerms": [
       "Installation"
@@ -2352,6 +2415,9 @@
     "sourceRef": "guide/node-typescript-runtime.md",
     "pathEn": "/en/guide/node-typescript-runtime",
     "pathRu": "/ru/guide/node-typescript-runtime",
+    "pathEs": "/es/guide/node-typescript-runtime",
+    "pathFr": "/fr/guide/node-typescript-runtime",
+    "pathZh": "/zh/guide/node-typescript-runtime",
     "relatedIds": [],
     "searchTerms": [
       "Build A Node/TypeScript Runtime Plugin"
@@ -2371,6 +2437,9 @@
     "sourceRef": "guide/one-project-multiple-targets.md",
     "pathEn": "/en/guide/one-project-multiple-targets",
     "pathRu": "/ru/guide/one-project-multiple-targets",
+    "pathEs": "/es/guide/one-project-multiple-targets",
+    "pathFr": "/fr/guide/one-project-multiple-targets",
+    "pathZh": "/zh/guide/one-project-multiple-targets",
     "relatedIds": [],
     "searchTerms": [
       "One Project, Multiple Targets"
@@ -2390,6 +2459,9 @@
     "sourceRef": "guide/package-and-workspace-targets.md",
     "pathEn": "/en/guide/package-and-workspace-targets",
     "pathRu": "/ru/guide/package-and-workspace-targets",
+    "pathEs": "/es/guide/package-and-workspace-targets",
+    "pathFr": "/fr/guide/package-and-workspace-targets",
+    "pathZh": "/zh/guide/package-and-workspace-targets",
     "relatedIds": [],
     "searchTerms": [
       "Packages And Integration Setup"
@@ -2409,6 +2481,9 @@
     "sourceRef": "guide/production-readiness.md",
     "pathEn": "/en/guide/production-readiness",
     "pathRu": "/ru/guide/production-readiness",
+    "pathEs": "/es/guide/production-readiness",
+    "pathFr": "/fr/guide/production-readiness",
+    "pathZh": "/zh/guide/production-readiness",
     "relatedIds": [],
     "searchTerms": [
       "Production Readiness"
@@ -2428,6 +2503,9 @@
     "sourceRef": "guide/python-runtime.md",
     "pathEn": "/en/guide/python-runtime",
     "pathRu": "/ru/guide/python-runtime",
+    "pathEs": "/es/guide/python-runtime",
+    "pathFr": "/fr/guide/python-runtime",
+    "pathZh": "/zh/guide/python-runtime",
     "relatedIds": [],
     "searchTerms": [
       "Build A Python Runtime Plugin"
@@ -2447,6 +2525,9 @@
     "sourceRef": "guide/quickstart.md",
     "pathEn": "/en/guide/quickstart",
     "pathRu": "/ru/guide/quickstart",
+    "pathEs": "/es/guide/quickstart",
+    "pathFr": "/fr/guide/quickstart",
+    "pathZh": "/zh/guide/quickstart",
     "relatedIds": [],
     "searchTerms": [
       "Quickstart"
@@ -2466,6 +2547,9 @@
     "sourceRef": "guide/starter-templates.md",
     "pathEn": "/en/guide/starter-templates",
     "pathRu": "/ru/guide/starter-templates",
+    "pathEs": "/es/guide/starter-templates",
+    "pathFr": "/fr/guide/starter-templates",
+    "pathZh": "/zh/guide/starter-templates",
     "relatedIds": [],
     "searchTerms": [
       "Starter Templates"
@@ -2485,6 +2569,9 @@
     "sourceRef": "guide/team-ready-plugin.md",
     "pathEn": "/en/guide/team-ready-plugin",
     "pathRu": "/ru/guide/team-ready-plugin",
+    "pathEs": "/es/guide/team-ready-plugin",
+    "pathFr": "/fr/guide/team-ready-plugin",
+    "pathZh": "/zh/guide/team-ready-plugin",
     "relatedIds": [],
     "searchTerms": [
       "Build A Team-Ready Plugin"
@@ -2504,6 +2591,9 @@
     "sourceRef": "guide/what-you-can-build.md",
     "pathEn": "/en/guide/what-you-can-build",
     "pathRu": "/ru/guide/what-you-can-build",
+    "pathEs": "/es/guide/what-you-can-build",
+    "pathFr": "/fr/guide/what-you-can-build",
+    "pathZh": "/zh/guide/what-you-can-build",
     "relatedIds": [],
     "searchTerms": [
       "What You Can Build"
@@ -2523,6 +2613,9 @@
     "sourceRef": "index.md",
     "pathEn": "/en/",
     "pathRu": "/ru/",
+    "pathEs": "/es/",
+    "pathFr": "/fr/",
+    "pathZh": "/zh/",
     "relatedIds": [],
     "searchTerms": [
       "plugin-kit-ai Documentation"
@@ -2542,6 +2635,9 @@
     "sourceRef": "reference/authoring-workflow.md",
     "pathEn": "/en/reference/authoring-workflow",
     "pathRu": "/ru/reference/authoring-workflow",
+    "pathEs": "/es/reference/authoring-workflow",
+    "pathFr": "/fr/reference/authoring-workflow",
+    "pathZh": "/zh/reference/authoring-workflow",
     "relatedIds": [],
     "searchTerms": [
       "Authoring Workflow"
@@ -2561,6 +2657,9 @@
     "sourceRef": "reference/faq.md",
     "pathEn": "/en/reference/faq",
     "pathRu": "/ru/reference/faq",
+    "pathEs": "/es/reference/faq",
+    "pathFr": "/fr/reference/faq",
+    "pathZh": "/zh/reference/faq",
     "relatedIds": [],
     "searchTerms": [
       "FAQ"
@@ -2580,6 +2679,9 @@
     "sourceRef": "reference/glossary.md",
     "pathEn": "/en/reference/glossary",
     "pathRu": "/ru/reference/glossary",
+    "pathEs": "/es/reference/glossary",
+    "pathFr": "/fr/reference/glossary",
+    "pathZh": "/zh/reference/glossary",
     "relatedIds": [],
     "searchTerms": [
       "Glossary"
@@ -2599,6 +2701,9 @@
     "sourceRef": "reference/index.md",
     "pathEn": "/en/reference/",
     "pathRu": "/ru/reference/",
+    "pathEs": "/es/reference/",
+    "pathFr": "/fr/reference/",
+    "pathZh": "/zh/reference/",
     "relatedIds": [],
     "searchTerms": [
       "Reference"
@@ -2618,6 +2723,9 @@
     "sourceRef": "reference/install-channels.md",
     "pathEn": "/en/reference/install-channels",
     "pathRu": "/ru/reference/install-channels",
+    "pathEs": "/es/reference/install-channels",
+    "pathFr": "/fr/reference/install-channels",
+    "pathZh": "/zh/reference/install-channels",
     "relatedIds": [],
     "searchTerms": [
       "Install Channels"
@@ -2637,6 +2745,9 @@
     "sourceRef": "reference/repository-standard.md",
     "pathEn": "/en/reference/repository-standard",
     "pathRu": "/ru/reference/repository-standard",
+    "pathEs": "/es/reference/repository-standard",
+    "pathFr": "/fr/reference/repository-standard",
+    "pathZh": "/zh/reference/repository-standard",
     "relatedIds": [],
     "searchTerms": [
       "Repository Standard"
@@ -2656,6 +2767,9 @@
     "sourceRef": "reference/support-boundary.md",
     "pathEn": "/en/reference/support-boundary",
     "pathRu": "/ru/reference/support-boundary",
+    "pathEs": "/es/reference/support-boundary",
+    "pathFr": "/fr/reference/support-boundary",
+    "pathZh": "/zh/reference/support-boundary",
     "relatedIds": [],
     "searchTerms": [
       "Support Boundary"
@@ -2675,6 +2789,9 @@
     "sourceRef": "reference/troubleshooting.md",
     "pathEn": "/en/reference/troubleshooting",
     "pathRu": "/ru/reference/troubleshooting",
+    "pathEs": "/es/reference/troubleshooting",
+    "pathFr": "/fr/reference/troubleshooting",
+    "pathZh": "/zh/reference/troubleshooting",
     "relatedIds": [],
     "searchTerms": [
       "Troubleshooting"
@@ -2694,6 +2811,9 @@
     "sourceRef": "reference/version-and-compatibility.md",
     "pathEn": "/en/reference/version-and-compatibility",
     "pathRu": "/ru/reference/version-and-compatibility",
+    "pathEs": "/es/reference/version-and-compatibility",
+    "pathFr": "/fr/reference/version-and-compatibility",
+    "pathZh": "/zh/reference/version-and-compatibility",
     "relatedIds": [],
     "searchTerms": [
       "Version And Compatibility Policy"
@@ -2713,6 +2833,9 @@
     "sourceRef": "releases/index.md",
     "pathEn": "/en/releases/",
     "pathRu": "/ru/releases/",
+    "pathEs": "/es/releases/",
+    "pathFr": "/fr/releases/",
+    "pathZh": "/zh/releases/",
     "relatedIds": [],
     "searchTerms": [
       "Releases"
@@ -2732,6 +2855,9 @@
     "sourceRef": "releases/v1-0-0.md",
     "pathEn": "/en/releases/v1-0-0",
     "pathRu": "/ru/releases/v1-0-0",
+    "pathEs": "/es/releases/v1-0-0",
+    "pathFr": "/fr/releases/v1-0-0",
+    "pathZh": "/zh/releases/v1-0-0",
     "relatedIds": [],
     "searchTerms": [
       "v1.0.0"
@@ -2751,6 +2877,9 @@
     "sourceRef": "releases/v1-0-4-go-sdk.md",
     "pathEn": "/en/releases/v1-0-4-go-sdk",
     "pathRu": "/ru/releases/v1-0-4-go-sdk",
+    "pathEs": "/es/releases/v1-0-4-go-sdk",
+    "pathFr": "/fr/releases/v1-0-4-go-sdk",
+    "pathZh": "/zh/releases/v1-0-4-go-sdk",
     "relatedIds": [],
     "searchTerms": [
       "v1.0.4 Go SDK"
@@ -2770,6 +2899,9 @@
     "sourceRef": "releases/v1-0-5.md",
     "pathEn": "/en/releases/v1-0-5",
     "pathRu": "/ru/releases/v1-0-5",
+    "pathEs": "/es/releases/v1-0-5",
+    "pathFr": "/fr/releases/v1-0-5",
+    "pathZh": "/zh/releases/v1-0-5",
     "relatedIds": [],
     "searchTerms": [
       "v1.0.5"
@@ -2789,6 +2921,9 @@
     "sourceRef": "releases/v1-0-6.md",
     "pathEn": "/en/releases/v1-0-6",
     "pathRu": "/ru/releases/v1-0-6",
+    "pathEs": "/es/releases/v1-0-6",
+    "pathFr": "/fr/releases/v1-0-6",
+    "pathZh": "/zh/releases/v1-0-6",
     "relatedIds": [],
     "searchTerms": [
       "v1.0.6"
@@ -2808,6 +2943,9 @@
     "sourceRef": "releases/v1-1-0.md",
     "pathEn": "/en/releases/v1-1-0",
     "pathRu": "/ru/releases/v1-1-0",
+    "pathEs": "/es/releases/v1-1-0",
+    "pathFr": "/fr/releases/v1-1-0",
+    "pathZh": "/zh/releases/v1-1-0",
     "relatedIds": [],
     "searchTerms": [
       "v1.1.0"
@@ -2827,6 +2965,9 @@
     "sourceRef": "releases/v1-1-1.md",
     "pathEn": "/en/releases/v1-1-1",
     "pathRu": "/ru/releases/v1-1-1",
+    "pathEs": "/es/releases/v1-1-1",
+    "pathFr": "/fr/releases/v1-1-1",
+    "pathZh": "/zh/releases/v1-1-1",
     "relatedIds": [],
     "searchTerms": [
       "v1.1.1"
@@ -2846,6 +2987,9 @@
     "sourceRef": "releases/v1-1-2.md",
     "pathEn": "/en/releases/v1-1-2",
     "pathRu": "/ru/releases/v1-1-2",
+    "pathEs": "/es/releases/v1-1-2",
+    "pathFr": "/fr/releases/v1-1-2",
+    "pathZh": "/zh/releases/v1-1-2",
     "relatedIds": [],
     "searchTerms": [
       "v1.1.2"

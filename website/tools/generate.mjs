@@ -8,8 +8,8 @@ import { generatedRoot, generatedRegistryPaths, runtimeRoot, sourceRoot, website
 import { copyTree, ensureDir, listMarkdownFiles, rimraf, writeFile, writeJson } from "./lib/fs.mjs";
 import { readFrontmatter } from "./lib/site-model.mjs";
 
-const sourceLocales = ["en", "ru"];
 const docsLocales = ["en", "ru", "es", "fr", "zh"];
+const sourceLocales = docsLocales;
 const mirroredGeneratedLocales = ["es", "fr", "zh"];
 
 for (const locale of docsLocales) {
@@ -71,7 +71,7 @@ async function scanSourceEntities() {
       const relative = path.relative(path.join(sourceRoot, locale), filePath).replace(/\\/g, "/");
       const existing = entities.find((entry) => entry.canonicalId === meta.canonicalId);
       const targetPath = `/${locale}/${relative.replace(/index\.md$/, "").replace(/\.md$/, "")}`;
-      const localeKey = locale === "en" ? "pathEn" : "pathRu";
+      const localeKey = localePathField(locale);
       if (existing) {
         existing[localeKey] = targetPath;
         continue;
@@ -90,12 +90,31 @@ async function scanSourceEntities() {
         sourceRef: relative,
         pathEn: locale === "en" ? targetPath : "",
         pathRu: locale === "ru" ? targetPath : "",
+        pathEs: locale === "es" ? targetPath : "",
+        pathFr: locale === "fr" ? targetPath : "",
+        pathZh: locale === "zh" ? targetPath : "",
         relatedIds: [],
         searchTerms: [meta.title || relative]
       });
     }
   }
   return entities;
+}
+
+function localePathField(locale) {
+  if (locale === "en") {
+    return "pathEn";
+  }
+  if (locale === "ru") {
+    return "pathRu";
+  }
+  if (locale === "es") {
+    return "pathEs";
+  }
+  if (locale === "fr") {
+    return "pathFr";
+  }
+  return "pathZh";
 }
 
 function buildSidebar(locale, entities) {

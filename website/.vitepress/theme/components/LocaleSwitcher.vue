@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useData, useRoute, withBase } from "vitepress";
+import entities from "../../../generated/registries/entities.json";
 
 type Variant = "navbar" | "screen";
 type LocaleCode = "en" | "ru" | "es" | "fr" | "zh";
+type RegistryEntity = {
+  canonicalId?: string;
+  pathEn?: string;
+  pathRu?: string;
+  pathEs?: string;
+  pathFr?: string;
+  pathZh?: string;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -14,7 +23,13 @@ const props = withDefaults(
   }
 );
 
-const { site } = useData();
+const entityByCanonicalId = new Map(
+  (entities as RegistryEntity[])
+    .filter((entity) => typeof entity.canonicalId === "string" && entity.canonicalId.length > 0)
+    .map((entity) => [entity.canonicalId as string, entity])
+);
+
+const { page, site } = useData();
 const route = useRoute();
 const open = ref(false);
 const rootEl = ref<HTMLElement | null>(null);
@@ -32,11 +47,27 @@ const currentLocale = computed(() => {
   return locales.find((locale) => locale.code === code) ?? null;
 });
 
+const currentEntity = computed(() => {
+  const canonicalId = page.value.frontmatter?.canonicalId;
+  return typeof canonicalId === "string" ? entityByCanonicalId.get(canonicalId) ?? null : null;
+});
+
 const localeLinks = computed(() =>
-  locales.map((locale) => ({
-    ...locale,
-    href: withBase(buildLocalePath(locale.code))
-  }))
+  locales.flatMap((locale) => {
+    const entityPath = currentEntity.value ? pathForLocale(currentEntity.value, locale.code) : null;
+    const href = withBase(entityPath || buildLocalePath(locale.code));
+
+    if (currentEntity.value && !entityPath) {
+      return [];
+    }
+
+    return [
+      {
+        ...locale,
+        href
+      }
+    ];
+  })
 );
 
 const buttonLabel = computed(() => currentLocale.value?.title || "Language");
@@ -84,6 +115,22 @@ function buildLocalePath(target: LocaleCode): string {
   const suffix = normalized.slice(currentPrefix.length) || "/";
   const nextPath = `/${target}${suffix === "/" ? "/" : suffix}`;
   return nextPath.endsWith("/") ? nextPath : `${nextPath}/`;
+}
+
+function pathForLocale(entity: RegistryEntity, target: LocaleCode): string | null {
+  if (target === "en") {
+    return entity.pathEn || null;
+  }
+  if (target === "ru") {
+    return entity.pathRu || null;
+  }
+  if (target === "es") {
+    return entity.pathEs || null;
+  }
+  if (target === "fr") {
+    return entity.pathFr || null;
+  }
+  return entity.pathZh || null;
 }
 
 function toggle() {
