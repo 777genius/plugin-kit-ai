@@ -131,7 +131,7 @@ func TestGeneratedConfigCanaries_GeminiRuntimeContract(t *testing.T) {
 	textReport := inspectGeneratedProjectText(t, pluginKitAIBin, plugRoot, "gemini")
 	for _, want := range []string{
 		"launcher: runtime=go entrypoint=./bin/genplug",
-		"next=go test ./...; plugin-kit-ai generate --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
+		"next=go mod tidy; go test ./...; plugin-kit-ai generate --check .; plugin-kit-ai validate . --platform gemini --strict; gemini extensions link .",
 		"runtime_gate=make test-gemini-runtime",
 		"live_runtime_gate=make test-gemini-runtime-live",
 	} {
