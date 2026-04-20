@@ -46,6 +46,15 @@ plugin-kit-ai validate . --platform <target> --strict
 
 Go 是最简洁的 CI 路径，因为执行环境不需要为了运行时通道额外安装 Python 或 Node。
 
+对于基于 launcher 的 Go 仓库，请先构建要检查的 launcher：
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 ### Node/TypeScript
 
 请显式加入 bootstrap 步骤：

@@ -45,6 +45,15 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
+Для Go launcher lanes сначала соберите `bin/<name>`, чтобы launcher entrypoint уже существовал на диске:
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 Для Python и Node runtime lanes `doctor` и `bootstrap` - часть готовности.
 
 ## 4. Проверяйте точную support boundary

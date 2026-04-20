@@ -35,13 +35,13 @@ flowchart LR
 
 ## 1. Commencez par le chemin stable le plus étroit
 
-Utilisez le chemin par défaut le plus fiable, sauf si vous avez une réelle raison de ne pas le faire :
+Commencez par le chemin le plus étroit qui correspond réellement au besoin :
 
 ```bash
-plugin-kit-ai init my-plugin
+plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
+plugin-kit-ai inspect . --authoring
 go mod tidy
-plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
@@ -70,15 +70,23 @@ Ne corrigez pas les fichiers générés à la main et espérez ensuite que l'éq
 
 ## 4. Ajouter une porte CI répétable
 
-La porte minimale devrait ressembler à ceci :
+Pour le chemin Go launcher par défaut, la porte minimale devrait ressembler à ceci :
 
 ```bash
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai doctor .
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-Si le chemin choisi est Node ou Python, incluez `bootstrap` et épinglez la version d'exécution dans CI.
+Si le chemin choisi est Node ou Python, incluez `bootstrap` et épinglez la version d'exécution dans CI :
+
+```bash
+plugin-kit-ai doctor .
+plugin-kit-ai bootstrap .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
 
 Si le dépôt prend en charge plusieurs cibles, la porte CI doit vérifier explicitement chaque cible prise en charge plutôt que d'assumer une couverture indirecte.
 

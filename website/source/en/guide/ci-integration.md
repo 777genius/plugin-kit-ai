@@ -47,6 +47,15 @@ If your lane has stable smoke tests or bundle checks, add them after the validat
 
 Go is the cleanest CI path because the execution machine does not need Python or Node just to satisfy the runtime lane.
 
+For launcher-based Go repos, build the checked-in launcher before `doctor`:
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 ### Node/TypeScript
 
 Add bootstrap explicitly:

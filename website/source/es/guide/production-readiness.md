@@ -44,6 +44,15 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
+Para los carriles Go basados en launcher, construya primero `bin/<name>` para que la entrada del launcher exista en disco:
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 Para los carriles de tiempo de ejecución Python y Node, `doctor` y `bootstrap` son parte de la preparación.
 
 ## 4. Verifique el límite de soporte exacto

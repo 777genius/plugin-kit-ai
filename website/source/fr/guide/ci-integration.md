@@ -46,6 +46,15 @@ Si votre voie comporte des tests de fumée stables ou des contrôles de faisceau
 
 Go est le chemin CI le plus propre car la machine d'exécution n'a pas besoin de Python ou Node juste pour satisfaire la voie d'exécution.
 
+Pour les dépôts Go basés sur un launcher, construisez d'abord le launcher vérifié :
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 ### Node/TypeScript
 
 Ajoutez explicitement bootstrap :

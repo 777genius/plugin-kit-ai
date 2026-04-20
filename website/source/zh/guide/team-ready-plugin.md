@@ -35,13 +35,13 @@ flowchart LR
 
 ## 1. 从最窄的稳定路径开始
 
-使用最强的默认路径，除非您有真正的理由不这样做：
+从真正匹配当前任务的最窄稳定路径开始：
 
 ```bash
-plugin-kit-ai init my-plugin
+plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
+plugin-kit-ai inspect . --authoring
 go mod tidy
-plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
@@ -70,15 +70,23 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## 4. 添加可重复的 CI 门
 
-最小的门应该是这样的：
+对于默认的 Go launcher 路径，最小门应如下所示：
 
 ```bash
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai doctor .
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-如果选择的路径是 Node 或 Python，请包含 `bootstrap` 并将运行时版本固定在 CI 中。
+如果选择的是 Node 或 Python 路径，请加入 `bootstrap` 并在 CI 中固定运行时版本：
+
+```bash
+plugin-kit-ai doctor .
+plugin-kit-ai bootstrap .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
 
 如果存储库支持多个目标，则 CI 门应显式检查每个支持的目标，而不是假设间接覆盖。
 
@@ -94,7 +102,9 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## 6. 使切换可见
 
-新队友应该能够从存储库和文档中回答以下问题：- 如何安装先决条件？
+新队友应该能够从存储库和文档中回答以下问题：
+
+- 如何安装先决条件？
 - 什么命令证明回购是健康的？
 - 我要验证什么目标？
 - 哪些文件是创作状态的，哪些是生成的？

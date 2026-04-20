@@ -46,6 +46,15 @@ Si su carril tiene pruebas de humo estable o controles de paquetes, agréguelos 
 
 Go es la ruta de CI más limpia porque la máquina de ejecución no necesita Python o Node solo para satisfacer el carril de tiempo de ejecución.
 
+Para repositorios Go basados en launcher, construya primero el launcher verificado:
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 ### Node/TypeScript
 
 Agregue bootstrap explícitamente:

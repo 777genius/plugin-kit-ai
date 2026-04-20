@@ -71,15 +71,23 @@ Do not patch generated files by hand and then hope the team never reruns generat
 
 ## 4. Add A Repeatable CI Gate
 
-The minimum gate should look like this:
+For the default Go launcher path, the minimum gate should look like this:
 
 ```bash
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai doctor .
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-If the chosen path is Node or Python, include `bootstrap` and pin the runtime version in CI.
+If the chosen path is Node or Python, include `bootstrap` and pin the runtime version in CI:
+
+```bash
+plugin-kit-ai doctor .
+plugin-kit-ai bootstrap .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
 
 If the repo supports multiple targets, the CI gate should check each supported target explicitly rather than assuming indirect coverage.
 

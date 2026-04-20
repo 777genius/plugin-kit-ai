@@ -71,15 +71,23 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## 4. Добавьте повторяемый CI gate
 
-Минимальный gate должен выглядеть так:
+Для стандартного Go launcher path минимальный gate должен выглядеть так:
 
 ```bash
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai doctor .
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-Если выбран Node или Python путь, добавьте `bootstrap` и зафиксируйте версию runtime в CI.
+Если выбран Node или Python путь, добавьте `bootstrap` и зафиксируйте версию runtime в CI:
+
+```bash
+plugin-kit-ai doctor .
+plugin-kit-ai bootstrap .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
 
 Если repo поддерживает несколько target’ов, CI gate должен явно проверять каждый из них, а не надеяться на косвенную совместимость.
 

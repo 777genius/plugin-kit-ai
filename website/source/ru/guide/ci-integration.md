@@ -47,6 +47,15 @@ plugin-kit-ai validate . --platform <target> --strict
 
 Go — самый чистый CI path, потому что execution machine не обязана иметь Python или Node просто для удовлетворения runtime path.
 
+Для launcher-based Go repo сначала собирайте проверяемый launcher:
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 ### Node/TypeScript
 
 Явно добавляйте bootstrap:

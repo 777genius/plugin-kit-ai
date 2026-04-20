@@ -44,6 +44,15 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
+Pour les voies Go basées sur un launcher, construisez d'abord `bin/<name>` afin que le point d'entrée du launcher existe déjà sur le disque :
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 Pour les voies d'exécution Python et Node, `doctor` et `bootstrap` font partie de la préparation.
 
 ## 4. Vérifiez la limite exacte du support

@@ -44,6 +44,15 @@ plugin-kit-ai generate .
 plugin-kit-ai validate . --platform <target> --strict
 ```
 
+对于基于 launcher 的 Go 通道，请先构建 `bin/<name>`，这样 launcher 入口点会先出现在磁盘上：
+
+```bash
+go build -o bin/my-plugin ./cmd/my-plugin
+plugin-kit-ai doctor .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
+
 对于 Python 和 Node 运行时通道，`doctor` 和 `bootstrap` 是准备状态的一部分。
 
 ## 4. 验证确切的支撑边界

@@ -35,13 +35,13 @@ Al final, deberías tener:
 
 ## 1. Comience desde el camino estable más estrecho
 
-Utilice la ruta predeterminada más segura a menos que tenga una razón real para no hacerlo:
+Comience con el camino más estrecho que realmente coincida con el trabajo:
 
 ```bash
-plugin-kit-ai init my-plugin
+plugin-kit-ai init my-plugin --template custom-logic
 cd my-plugin
+plugin-kit-ai inspect . --authoring
 go mod tidy
-plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
@@ -70,15 +70,23 @@ No parchee los archivos generados manualmente y luego espere que el equipo nunca
 
 ## 4. Agregue una puerta CI repetible
 
-La puerta mínima debería verse así:
+Para la ruta Go launcher predeterminada, la puerta mínima debería verse así:
 
 ```bash
+go build -o bin/my-plugin ./cmd/my-plugin
 plugin-kit-ai doctor .
 plugin-kit-ai generate .
 plugin-kit-ai validate . --platform codex-runtime --strict
 ```
 
-Si la ruta elegida es Node o Python, incluya `bootstrap` y fije la versión del tiempo de ejecución en CI.
+Si la ruta elegida es Node o Python, incluya `bootstrap` y fije la versión del tiempo de ejecución en CI:
+
+```bash
+plugin-kit-ai doctor .
+plugin-kit-ai bootstrap .
+plugin-kit-ai generate .
+plugin-kit-ai validate . --platform codex-runtime --strict
+```
 
 Si el repositorio admite múltiples objetivos, la puerta de CI debe verificar explícitamente cada objetivo admitido en lugar de asumir una cobertura indirecta.
 
