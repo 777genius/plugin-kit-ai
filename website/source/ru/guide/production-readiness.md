@@ -15,11 +15,11 @@ translationRequired: true
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Path[Lane выбран осознанно] --> Source[Один authored repo]
-  Source --> Checks[generate and validate gates]
-  Checks --> Boundary[Support boundary confirmed]
-  Boundary --> Handoff[Docs and handoff are explicit]
-  Handoff --> Ready[Production ready]
+  path[Путь выбран осознанно] --> source[Один исходный repo]
+  source --> checks[Generate и validate gates]
+  checks --> boundary[Граница поддержки подтверждена]
+  boundary --> handoff[Документация и handoff явные]
+  handoff --> ready[Проект готов к продакшену]
 `"
 />
 

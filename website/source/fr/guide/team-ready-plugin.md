@@ -14,11 +14,11 @@ Ce didacticiel reprend là où s'arrête le premier plugin réussi. L'objectif n
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Scaffold[Scaffolded repo] --> Explicite[Chemin du document et portée cible]
-  Explicite -> Honnête [Garder les fichiers générés honnêtes]
-  Honnête -> CI [Ajouter une porte CI répétable]
-  CI --> Transfert[Transfert visible pour les coéquipiers]
-  Handoff -> TeamReady [Dépôt prêt pour l'équipe]
+  scaffold[Dépôt initial] --> explicit[Chemin et portée rendus explicites]
+  explicit --> honest[Fichiers générés gardés honnêtes]
+  honest --> ci[Porte CI répétable]
+  ci --> handoff[Transfert visible pour les coéquipiers]
+  handoff --> ready[Dépôt prêt pour une équipe]
 `"
 />
 

@@ -14,11 +14,11 @@ Utilice esta lista de verificación antes de calificar un proyecto como listo pa
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Path[Lane chosen on purpose] --> Fuente[Un repositorio de autor]
-  Fuente --> Cheques [generar y validar puertas]
-  Verificaciones --> Límite[Límite de soporte confirmado]
-  Límite --> Traspaso [Los documentos y el traspaso son explícitos]
-  Traspaso --> Listo[Producción lista]
+  path[Camino elegido con intención] --> source[Un solo repositorio fuente]
+  source --> checks[Puertas de generate y validate]
+  checks --> boundary[Límite de soporte confirmado]
+  boundary --> handoff[Documentación y traspaso explícitos]
+  handoff --> ready[Proyecto listo para producción]
 `"
 />
 

@@ -14,11 +14,11 @@ Este tutorial continúa donde termina el primer complemento exitoso. El objetivo
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Scaffold[Scaffolded repo] --> Explícito[Ruta del documento y alcance de destino]
-  Explícito --> Honesto [Mantenga los archivos generados honestos]
-  Honesto -> CI [Agregar puerta CI repetible]
-  CI --> Traspaso[Transpaso visible para compañeros de equipo]
-  Transferencia --> TeamReady[Repositorio listo para el equipo]
+  scaffold[Repositorio base] --> explicit[Camino y alcance explícitos]
+  explicit --> honest[Archivos generados mantenidos honestos]
+  honest --> ci[Puerta de CI repetible]
+  ci --> handoff[Traspaso visible para el equipo]
+  handoff --> ready[Repositorio listo para el equipo]
 `"
 />
 

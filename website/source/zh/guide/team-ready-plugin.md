@@ -14,11 +14,11 @@ translationRequired: true
 <MermaidDiagram
   :chart='`
 flowchart LR
-  Scaffold[Scaffolded repo] --> Explicit[文档路径和目标范围]
-  显式 --> 诚实[保持生成的文件诚实]
-  诚实 --> CI[添加可重复的 CI 门]
-  CI --> Handoff[队友可见的切换]
-  交接 --> TeamReady[团队就绪存储库]
+  scaffold[仓库脚手架已生成] --> explicit[明确路径与目标范围]
+  explicit --> honest[保持生成文件可信]
+  honest --> ci[加入可重复的 CI 门]
+  ci --> handoff[让交接对队友可见]
+  handoff --> ready[仓库已准备好交给团队]
 `'
 />
 

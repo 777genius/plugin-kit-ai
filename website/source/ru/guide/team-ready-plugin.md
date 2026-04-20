@@ -15,11 +15,11 @@ translationRequired: true
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Scaffold[Scaffolded repo] --> Explicit[Document path and target scope]
-  Explicit --> Honest[Keep generated files honest]
-  Honest --> CI[Add repeatable CI gate]
-  CI --> Handoff[Visible handoff for teammates]
-  Handoff --> TeamReady[Team ready repo]
+  scaffold[Каркас репозитория] --> explicit[Зафиксируйте путь и границы target-ов]
+  explicit --> honest[Держите generated-файлы честными]
+  honest --> ci[Добавьте повторяемый CI gate]
+  ci --> handoff[Сделайте handoff видимым]
+  handoff --> ready[Репозиторий готов для команды]
 `"
 />
 

@@ -14,11 +14,11 @@ translationRequired: true
 <MermaidDiagram
   :chart='`
 flowchart LR
-  Path[Lane chosen on purpose] --> 来源[一个创作的存储库]
-  来源 --> 检查[生成并验证门]
-  检查 --> 边界[支持边界确认]
-  边界 --> 切换[文档和切换是明确的]
-  交接 --> 就绪[生产就绪]
+  path[有意识地选择路径] --> source[一个源仓库]
+  source --> checks[Generate 与 validate 门]
+  checks --> boundary[支持边界已确认]
+  boundary --> handoff[文档与交接都很明确]
+  handoff --> ready[项目已准备好进入生产]
 `'
 />
 

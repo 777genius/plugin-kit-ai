@@ -14,11 +14,11 @@ Utilisez cette liste de contrôle avant de qualifier un projet de prêt pour la 
 <MermaidDiagram
   :chart="`
 flowchart LR
-  Path[Lane chosen on purpose] --> Source[Un dépôt rédigé]
-  Source --> Contrôles[générer et valider les portes]
-  Vérifications -> Limite [Limite de support confirmée]
-  Limite -> Transfert [Les documents et le transfert sont explicites]
-  Transfert -> Prêt[Production prête]
+  path[Voie choisie consciemment] --> source[Un dépôt source]
+  source --> checks[Portes generate et validate]
+  checks --> boundary[Limite de support confirmée]
+  boundary --> handoff[Documentation et transfert explicites]
+  handoff --> ready[Projet prêt pour la production]
 `"
 />
 
