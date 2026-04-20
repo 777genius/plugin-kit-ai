@@ -107,6 +107,7 @@ async function runSmoke(browser, base) {
     if (!body?.includes(expected)) {
       errors.push(`${name}: expected body to include "${expected}"`);
     }
+    await assertMermaidRendered(page, name);
   }
 
   await page.goto(`${base}/?gateway=1`, { waitUntil: "networkidle" });
@@ -203,6 +204,25 @@ async function runSmoke(browser, base) {
     .catch(() => false);
   if (!runtimeExists) {
     errors.push("Assembled runtime source is missing Node runtime API index.");
+  }
+}
+
+async function assertMermaidRendered(page, name) {
+  const diagramCount = await page.locator(".mermaid-diagram").count();
+  if (diagramCount < 1) {
+    return;
+  }
+
+  const errorBox = page.locator(".mermaid-diagram__error").first();
+  if ((await errorBox.count()) > 0) {
+    const message = (await errorBox.textContent())?.trim() || "unknown Mermaid render error";
+    errors.push(`${name}: ${message}`);
+    return;
+  }
+
+  const svgCount = await page.locator(".mermaid-diagram__surface svg").count();
+  if (svgCount < 1) {
+    errors.push(`${name}: expected Mermaid SVG output.`);
   }
 }
 
