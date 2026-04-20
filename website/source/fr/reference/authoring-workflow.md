@@ -55,4 +55,4 @@ Le flux de travail peut s'élargir pour des cas particuliers :
 - `import` et `normalize` sont importants lors de la consolidation des fichiers cibles gérés manuellement dans le modèle de projet géré
 - les commandes groupées sont importantes pour les flux de transfert portables Python et Node
 
-Commencez par [Quickstart](/fr/guide/quickstart) lorsque vous avez besoin du chemin le plus court.
+Commencez par [Démarrage rapide](/fr/guide/quickstart) lorsque vous avez besoin du chemin le plus court.

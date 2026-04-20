@@ -24,7 +24,7 @@ npx plugin-kit-ai@latest add notion
 
 - Первая команда - безопасный single-target путь.
 - Вторая ставит все поддерживаемые outputs этого плагина.
-- Если ваша цель - авторский plugin repo, переходите в Quickstart и начинайте с `plugin-kit-ai init ...`.
+- Если ваша цель - авторский plugin repo, переходите в [Быстрый старт](/ru/guide/quickstart) и начинайте с `plugin-kit-ai init ...`.
 
 ## Поддерживаемые каналы
 
@@ -78,7 +78,7 @@ plugin-kit-ai version
 
 Большинству людей стоит сразу перейти к [Быстрому старту](/ru/guide/quickstart), сначала попробовать реальный плагин, а потом создать первый repo на job-first пути под свою задачу.
 
-Если вы выбрали `pipx`, потому что команда уже Python-first и вам заранее нужен Python-путь, переходите к [Python runtime](/ru/guide/python-runtime).
+Если вы выбрали `pipx`, потому что команда уже Python-first и вам заранее нужен Python-путь, переходите к [Python runtime-плагину](/ru/guide/python-runtime).
 
 ## Важная граница
 

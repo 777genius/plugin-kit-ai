@@ -75,4 +75,4 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 不。
 
-不同的路径承载着不同的支持承诺。使用 [Support Boundary](/zh/reference/support-boundary) 作为简短答案，使用 [Target Support](/zh/reference/target-support) 作为精确矩阵。
+不同的路径承载着不同的支持承诺。使用 [支持边界](/zh/reference/support-boundary) 作为简短答案，使用 [目标支持](/zh/reference/target-support) 作为精确矩阵。

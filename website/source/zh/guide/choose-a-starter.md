@@ -70,7 +70,9 @@ flowchart TD
 当前共享包启动器：
 
 - [`plugin-kit-ai-starter-codex-python-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-codex-python-runtime-package): Python Codex 启动器，其中 `plugin-kit-ai-runtime` 固定在 `requirements.txt` 中
-- [`plugin-kit-ai-starter-claude-node-typescript-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package): Node/TypeScript Claude 启动器，其中 `plugin-kit-ai-runtime` 固定在 `package.json` 中如果您要在普通 Python 启动器和运行时包 Python 启动器之间进行选择，请先阅读[构建 Python 运行时插件](/zh/guide/python-runtime)，然后再阅读[选择交付模型](/zh/guide/choose-delivery-model)。
+- [`plugin-kit-ai-starter-claude-node-typescript-runtime-package`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript-runtime-package): Node/TypeScript Claude 启动器，其中 `plugin-kit-ai-runtime` 固定在 `package.json` 中
+
+如果您要在普通 Python 启动器和运行时包 Python 启动器之间进行选择，请先阅读[构建 Python 运行时插件](/zh/guide/python-runtime)，然后再阅读[选择交付模型](/zh/guide/choose-delivery-model)。
 
 ## 何时避免过度优化选择
 
@@ -82,7 +84,7 @@ flowchart TD
 2. 从主要支持的非 Go 路径的 Node/TypeScript 启动器开始
 3. 仅当团队权衡已经真实时才选择 Python 或共享包变体
 
-## Good 团队政策
+## 良好的团队策略
 
 全队范围内的首发选择应该保持足够长的时间一致，以便：
 

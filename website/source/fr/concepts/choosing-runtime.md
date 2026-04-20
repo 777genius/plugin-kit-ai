@@ -7,7 +7,7 @@ locale: "fr"
 generated: false
 translationRequired: true
 ---
-# Choisir le temps d'exécution
+# Choisir l'environnement d'exécution
 
 Le choix du runtime ne concerne pas seulement la préférence linguistique. Cela change la façon dont le plugin fonctionne, ce que la machine d'exécution doit avoir installé et la simplicité du CI et du transfert.
 

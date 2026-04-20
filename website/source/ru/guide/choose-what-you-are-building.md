@@ -56,7 +56,7 @@ plugin-kit-ai init my-plugin --template custom-logic
 - вы сохраняете один repo, даже когда generated target outputs появляются в корне
 - вы сами владеете runtime entrypoint, test flow и поведением, которые определяют плагин
 
-Откройте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), если вам нужен отдельный advanced guide для этого пути.
+Откройте [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic), если вам нужен отдельный продвинутый гайд для этого пути.
 
 ## Что делать дальше
 
@@ -74,6 +74,6 @@ plugin-kit-ai generate --check .
 ## Когда открывать advanced pages
 
 - Открывайте [Быстрый старт](/ru/guide/quickstart), когда нужен самый короткий first-run flow.
-- Открывайте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), когда вы осознанно выбираете advanced runtime path.
+- Открывайте [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic), когда вы осознанно выбираете продвинутый runtime path.
 - Открывайте [Выбор target](/ru/guide/choose-a-target), когда нужны конкретные решения по способу поставки.
 - Открывайте [Что можно собрать](/ru/guide/what-you-can-build), когда нужна полная product map.

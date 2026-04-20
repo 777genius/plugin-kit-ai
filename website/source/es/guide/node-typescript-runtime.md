@@ -7,7 +7,7 @@ locale: "es"
 generated: false
 translationRequired: true
 ---
-# Construya un complemento de tiempo de ejecución Node/TypeScript
+# Cree un complemento de tiempo de ejecución Node/TypeScript
 
 Esta es la ruta principal admitida que no es Go cuando su equipo quiere TypeScript pero aún necesita un complemento de tiempo de ejecución local compatible.
 

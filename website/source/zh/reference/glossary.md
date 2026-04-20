@@ -7,7 +7,7 @@ locale: "zh"
 generated: false
 translationRequired: true
 ---
-# 术语表
+# 词汇表
 
 当文档术语拖慢您的速度时，请使用此页面。目标不是完美的理论。目标是快速共享意义。
 

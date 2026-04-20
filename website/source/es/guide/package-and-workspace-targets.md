@@ -9,7 +9,7 @@ translationRequired: true
 aside: true
 outline: [2, 3]
 ---
-# Paquetes y configuración de integración
+# Configuración de paquetes y integración
 
 No todos los proyectos deberían enviarse como un complemento de tiempo de ejecución ejecutable.
 

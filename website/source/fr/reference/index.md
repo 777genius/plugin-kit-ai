@@ -19,15 +19,15 @@ outline: false
 
 ## Commencez ici quand vous en avez besoin
 
-- la réponse d'installation : [Installer les chaînes](/fr/reference/install-channels)
-- la réponse courte du support : [Support Boundary](/fr/reference/support-boundary)
-- la réponse à la politique de l'équipe : [Version et compatibilité](/fr/reference/version-and-compatibility)
-- la cartographie des supports par type de sortie : [Target Support](/fr/reference/target-support)
-- la réponse saine du repo : [Repository Standard](/fr/reference/repository-standard) et [Authoring Workflow](/fr/reference/authoring-workflow)
+- la réponse d'installation : [Canaux d'installation](/fr/reference/install-channels)
+- la réponse courte du support : [Limite de support](/fr/reference/support-boundary)
+- la réponse à la politique de l'équipe : [Politique de version et de compatibilité](/fr/reference/version-and-compatibility)
+- la cartographie des supports par type de sortie : [Support des cibles](/fr/reference/target-support)
+- la réponse saine du repo : [Norme de référentiel](/fr/reference/repository-standard) et [Flux de travail de création](/fr/reference/authoring-workflow)
 
 <div class="docs-grid">
   <a class="docs-card" href="./install-channels">
-    <h2>Installer les canaux</h2>
+    <h2>Canaux d'installation</h2>
     <p>Découvrez les méthodes prises en charge pour installer CLI et comprenez quel chemin recommander à votre équipe.</p>
   </a>
   <a class="docs-card" href="./support-boundary">

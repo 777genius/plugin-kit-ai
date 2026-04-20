@@ -16,7 +16,7 @@ translationRequired: true
 - язык: `go`
 - readiness gate: `validate --strict`
 
-Если вы ещё выбираете путь для нового repo, сначала откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building) или [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic).
+Если вы ещё выбираете путь для нового repo, сначала откройте [Что именно вы собираете](/ru/guide/choose-what-you-are-building) или [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic).
 
 ## 1. Установите CLI
 
@@ -73,7 +73,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 
 ## Следующие шаги
 
-- Откройте [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic), если вам на самом деле нужен advanced runtime path, а не узкий legacy-compatible tutorial.
+- Откройте [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic), если вам на самом деле нужен продвинутый runtime path, а не узкий legacy-compatible tutorial.
 - Прочитайте [Один проект, несколько target’ов](/ru/guide/one-project-multiple-targets), если для вас важна идея одного repo и нескольких outputs как основная идея продукта.
 - Используйте [Стартовые шаблоны](/ru/guide/starter-templates), когда нужен проверенный пример репозитория.
 - Откройте [Справочник CLI](/ru/api/cli/), когда нужно точное поведение команд.

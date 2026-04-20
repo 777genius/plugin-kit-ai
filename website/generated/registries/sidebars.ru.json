@@ -42,7 +42,7 @@
           "link": "/ru/guide/first-plugin"
         },
         {
-          "text": "Python runtime",
+          "text": "Python runtime-плагин",
           "link": "/ru/guide/python-runtime"
         },
         {
@@ -54,7 +54,7 @@
           "link": "/ru/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript runtime",
+          "text": "Node/TypeScript runtime-плагин",
           "link": "/ru/guide/node-typescript-runtime"
         }
       ]
@@ -84,11 +84,11 @@
           "link": "/ru/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle handoff",
+          "text": "Передача bundle",
           "link": "/ru/guide/bundle-handoff"
         },
         {
-          "text": "Package и workspace targets",
+          "text": "Пакеты и настройка интеграций",
           "link": "/ru/guide/package-and-workspace-targets"
         },
         {
@@ -154,7 +154,7 @@
           "link": "/ru/guide/first-plugin"
         },
         {
-          "text": "Python runtime",
+          "text": "Python runtime-плагин",
           "link": "/ru/guide/python-runtime"
         },
         {
@@ -166,7 +166,7 @@
           "link": "/ru/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript runtime",
+          "text": "Node/TypeScript runtime-плагин",
           "link": "/ru/guide/node-typescript-runtime"
         }
       ]
@@ -196,11 +196,11 @@
           "link": "/ru/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle handoff",
+          "text": "Передача bundle",
           "link": "/ru/guide/bundle-handoff"
         },
         {
-          "text": "Package и workspace targets",
+          "text": "Пакеты и настройка интеграций",
           "link": "/ru/guide/package-and-workspace-targets"
         },
         {

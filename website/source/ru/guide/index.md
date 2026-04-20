@@ -21,8 +21,8 @@ outline: false
 ## Рекомендуемый порядок чтения
 
 - [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
-- [Quickstart](/ru/guide/quickstart)
-- [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic)
+- [Быстрый старт](/ru/guide/quickstart)
+- [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic)
 - [Создайте первый plugin](/ru/guide/first-plugin)
 - [Что можно собрать](/ru/guide/what-you-can-build)
 - [Выберите target](/ru/guide/choose-a-target)
@@ -35,11 +35,11 @@ outline: false
     <p>Сначала выберите online service, local tool или custom logic, а уже потом уходите в target-модель.</p>
   </a>
   <a class="docs-card" href="./quickstart">
-    <h2>Quickstart</h2>
+    <h2>Быстрый старт</h2>
     <p>Превратите этот выбор в рабочий repo и первый validation loop.</p>
   </a>
   <a class="docs-card" href="./build-custom-plugin-logic">
-    <h2>Build Custom Plugin Logic</h2>
+    <h2>Соберите собственную логику плагина</h2>
     <p>Используйте advanced guided path, когда ценность плагина живёт в runtime code, hooks или orchestration.</p>
   </a>
   <a class="docs-card" href="./first-plugin">
@@ -59,11 +59,11 @@ outline: false
     <p>Возвращайтесь сюда позже, когда нужно решить, стоит ли одному repo расти дальше, оставаться узким или делиться на отдельные repos.</p>
   </a>
   <a class="docs-card" href="./choose-delivery-model">
-    <h2>Выберите delivery model</h2>
+    <h2>Выберите модель поставки</h2>
     <p>Выбирайте helper delivery только тогда, когда осознанно хотите вызывать локальный Node или Python code из plugin.</p>
   </a>
   <a class="docs-card" href="./package-and-workspace-targets">
-    <h2>Packages и настройка интеграций</h2>
+    <h2>Пакеты и настройка интеграций</h2>
     <p>Поймите, когда packaging или checked-in integration setup нужны вместо исполняемого runtime.</p>
   </a>
   <a class="docs-card" href="./how-to-publish-plugins">

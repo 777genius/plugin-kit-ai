@@ -7,7 +7,7 @@ locale: "es"
 generated: false
 translationRequired: true
 ---
-# Plantillas iniciales
+# Plantillas de inicio
 
 Si desea un buen punto de partida conocido en lugar de un andamiaje desde un directorio en blanco, utilice los repositorios de inicio oficiales.
 

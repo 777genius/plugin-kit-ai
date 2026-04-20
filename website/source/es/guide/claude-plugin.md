@@ -7,7 +7,7 @@ locale: "es"
 generated: false
 translationRequired: true
 ---
-# Construya un complemento Claude
+# Cree un complemento Claude
 
 Elija esta ruta cuando esté apuntando explícitamente a ganchos Claude en lugar de la ruta de tiempo de ejecución predeterminada Codex.
 

@@ -17,7 +17,7 @@ Le champ d’application est intentionnellement restreint :
 - première langue : `go`
 - première porte de préparation : `validate --strict`
 
-Cette forme étroite est réservée au premier passage. Si l'histoire plus large d'un dépôt unique et de plusieurs résultats est la principale chose qui vous intéresse, lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets) juste après ce didacticiel.
+Cette forme étroite est réservée au premier passage. Si l'histoire plus large d'un dépôt unique et de plusieurs résultats est la principale chose qui vous intéresse, lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) juste après ce didacticiel.
 
 ## 1. Installez le CLI
 
@@ -72,7 +72,7 @@ Cela ne signifie pas que le dépôt doit rester éternellement à cible unique 
 
 ## Prochaines étapes
 
-- Lisez [Choosing Runtime](/fr/concepts/choosing-runtime) avant de quitter le chemin par défaut.
-- Lisez [Un projet, plusieurs cibles] (/fr/guide/one-project-multiple-targets) si l'idée d'un dépôt unique et de plusieurs résultats est l'une des principales raisons pour lesquelles vous vous souciez du produit.
-- Utilisez [Modèles de démarrage] (/fr/guide/starter-templates) lorsque vous souhaitez un exemple de dépôt connu.
-- Parcourez [CLI Reference](/fr/api/cli/) lorsque vous avez besoin d'un comportement de commande exact.
+- Lisez [Choisir l'environnement d'exécution](/fr/concepts/choosing-runtime) avant de quitter le chemin par défaut.
+- Lisez [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) si l'idée d'un dépôt unique et de plusieurs résultats est l'une des principales raisons pour lesquelles vous vous souciez du produit.
+- Utilisez [Modèles de démarrage](/fr/guide/starter-templates) lorsque vous souhaitez un exemple de dépôt connu.
+- Parcourez [Référence CLI](/fr/api/cli/) lorsque vous avez besoin d'un comportement de commande exact.

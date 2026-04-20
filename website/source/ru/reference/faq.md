@@ -30,7 +30,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 Дальше редактируйте plugin, заново делайте generate и снова валидируйте.
 
-См. [Python runtime](/ru/guide/python-runtime).
+См. [Python runtime-плагин](/ru/guide/python-runtime).
 
 ## Когда нужен `--runtime-package`?
 

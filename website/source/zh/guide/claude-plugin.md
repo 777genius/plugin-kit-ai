@@ -7,7 +7,7 @@ locale: "zh"
 generated: false
 translationRequired: true
 ---
-# 构建一个 Claude 插件
+# 构建 Claude 插件
 
 当您显式定位 Claude 挂钩而不是默认的 Codex 运行时路径时，请选择此路径。
 

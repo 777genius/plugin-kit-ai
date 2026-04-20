@@ -7,7 +7,7 @@ locale: "es"
 generated: false
 translationRequired: true
 ---
-# Crea tu primer complemento
+# Cree su primer complemento
 
 Este tutorial le brinda el primer repositorio de trabajo más simple en la ruta predeterminada más sólida.
 

@@ -42,7 +42,7 @@
           "link": "/es/guide/first-plugin"
         },
         {
-          "text": "Plugin Python runtime",
+          "text": "Plugin de runtime Python",
           "link": "/es/guide/python-runtime"
         },
         {
@@ -54,7 +54,7 @@
           "link": "/es/guide/claude-plugin"
         },
         {
-          "text": "Runtime Node/TypeScript",
+          "text": "Plugin Node/TypeScript runtime",
           "link": "/es/guide/node-typescript-runtime"
         }
       ]
@@ -67,7 +67,7 @@
           "link": "/es/guide/starter-templates"
         },
         {
-          "text": "Elegir un starter repo",
+          "text": "Elegir un repositorio inicial",
           "link": "/es/guide/choose-a-starter"
         },
         {
@@ -84,11 +84,11 @@
           "link": "/es/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle handoff",
+          "text": "Transferencia de bundle",
           "link": "/es/guide/bundle-handoff"
         },
         {
-          "text": "Packages e integración",
+          "text": "Paquetes e integración",
           "link": "/es/guide/package-and-workspace-targets"
         },
         {
@@ -154,7 +154,7 @@
           "link": "/es/guide/first-plugin"
         },
         {
-          "text": "Plugin Python runtime",
+          "text": "Plugin de runtime Python",
           "link": "/es/guide/python-runtime"
         },
         {
@@ -166,7 +166,7 @@
           "link": "/es/guide/claude-plugin"
         },
         {
-          "text": "Runtime Node/TypeScript",
+          "text": "Plugin Node/TypeScript runtime",
           "link": "/es/guide/node-typescript-runtime"
         }
       ]
@@ -179,7 +179,7 @@
           "link": "/es/guide/starter-templates"
         },
         {
-          "text": "Elegir un starter repo",
+          "text": "Elegir un repositorio inicial",
           "link": "/es/guide/choose-a-starter"
         },
         {
@@ -196,11 +196,11 @@
           "link": "/es/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle handoff",
+          "text": "Transferencia de bundle",
           "link": "/es/guide/bundle-handoff"
         },
         {
-          "text": "Packages e integración",
+          "text": "Paquetes e integración",
           "link": "/es/guide/package-and-workspace-targets"
         },
         {

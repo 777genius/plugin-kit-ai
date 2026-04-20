@@ -58,4 +58,4 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 Переходите на Node/TypeScript или Python только тогда, когда локальный runtime tradeoff действительно осознан и нужен.
 
-См. [Python runtime](/ru/guide/python-runtime), [Процесс авторинга](/ru/reference/authoring-workflow) и [Частые вопросы](/ru/reference/faq).
+См. [Python runtime-плагин](/ru/guide/python-runtime), [Процесс авторинга](/ru/reference/authoring-workflow) и [Частые вопросы](/ru/reference/faq).

@@ -171,6 +171,6 @@ Les CLI stables publiés déduisent automatiquement la version d'assistance corr
 
 ## Prochaines étapes
 
-- Lisez [Choosing Runtime](/fr/concepts/choosing-runtime) pour connaître les compromis d'exécution.
-- Lisez [Choisir le modèle de livraison] (/fr/guide/choose-delivery-model) pour connaître la décision entre l'assistance locale et le package partagé.
-- Ouvrez [Python Runtime API](/fr/api/runtime-python/) lorsque vous avez besoin de la référence d'assistance.
+- Lisez [Choisir l'environnement d'exécution](/fr/concepts/choosing-runtime) pour connaître les compromis d'exécution.
+- Lisez [Choisir le modèle de livraison](/fr/guide/choose-delivery-model) pour connaître la décision entre l'assistance locale et le package partagé.
+- Ouvrez [API Python Runtime](/fr/api/runtime-python/) lorsque vous avez besoin de la référence d'assistance.

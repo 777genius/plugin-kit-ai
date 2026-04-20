@@ -7,7 +7,7 @@ locale: "es"
 generated: false
 translationRequired: true
 ---
-# Construya un complemento de tiempo de ejecución Python
+# Cree un complemento de tiempo de ejecución Python
 
 Utilice esta ruta cuando su equipo ya escriba Python y desee que el complemento se ejecute desde este repositorio.
 

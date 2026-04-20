@@ -104,7 +104,9 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 - 当存储库应该拥有集成设置时，OpenCode 和 Cursor 适合
 - 确切的支持边界保留在参考文档中，而不是在您的首次启动流程中
 
-## 快速入门后- 如果您想要最窄的推荐教程，请继续[构建您的第一个插件](/zh/guide/first-plugin)。
+## 快速入门后
+
+- 如果您想要最窄的推荐教程，请继续[构建您的第一个插件](/zh/guide/first-plugin)。
 - 如果您想要完整的产品地图，请继续[您可以构建什么](/zh/guide/what-you-can-build)。
 - 当您准备好将存储库与您想要的运输方式相匹配时，继续[选择目标](/zh/guide/choose-a-target)。
 - 当您准备好扩展第一条路径之外时，继续[一个项目，多个目标](/zh/guide/one-project-multiple-targets)。

@@ -7,7 +7,7 @@ locale: "fr"
 generated: false
 translationRequired: true
 ---
-#Installation
+# Installation
 
 Utilisez Homebrew par défaut lorsqu'il correspond à votre environnement. L'objectif ici est simple : installez le CLI et accédez rapidement à votre premier dépôt fonctionnel.
 
@@ -56,9 +56,9 @@ plugin-kit-ai version
 
 ## Après l'installation
 
-La plupart des gens devraient continuer directement vers [Quickstart](/fr/guide/quickstart) et créer le premier dépôt sur le chemin par défaut Go.
+La plupart des gens devraient continuer directement vers [Démarrage rapide](/fr/guide/quickstart) et créer le premier dépôt sur le chemin par défaut Go.
 
-Si vous avez choisi `pipx` parce que votre équipe est Python-en premier et que vous savez déjà que vous voulez le chemin Python, continuez avec [Créer un plug-in d'exécution Python] (/fr/guide/python-runtime).
+Si vous avez choisi `pipx` parce que votre équipe est Python-en premier et que vous savez déjà que vous voulez le chemin Python, continuez avec [Créer un plugin d'exécution Python](/fr/guide/python-runtime).
 
 ## Chemin d'installation de CI
 

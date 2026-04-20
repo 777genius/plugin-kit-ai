@@ -1,5 +1,5 @@
 ---
-title: "持续集成集成"
+title: "CI 集成"
 description: "将公共创作流程转变为 plugin-kit-ai 项目的稳定 CI 门。"
 canonicalId: "page:guide:ci-integration"
 section: "guide"

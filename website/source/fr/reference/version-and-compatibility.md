@@ -14,8 +14,8 @@ Cette page est destinée à une décision pratique d'équipe : que normalisons-
 ## Choisissez en 60 secondes
 
 - lisez cette page lorsque votre équipe a besoin d'une politique compacte pour les versions, les wrappers, les SDK, les environnements d'exécution et les promesses de compatibilité
-- lisez [Support Boundary](/fr/reference/support-boundary) lorsque vous souhaitez la réponse d'assistance pratique la plus courte
-- lisez [Releases](/fr/releases/) lorsque vous voulez l'histoire d'une version spécifique
+- lisez [Limite de support](/fr/reference/support-boundary) lorsque vous souhaitez la réponse d'assistance pratique la plus courte
+- lisez [Versions](/fr/releases/) lorsque vous voulez l'histoire d'une version spécifique
 
 ## La référence publique
 

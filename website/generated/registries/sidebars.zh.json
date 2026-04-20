@@ -42,7 +42,7 @@
           "link": "/zh/guide/first-plugin"
         },
         {
-          "text": "Python runtime 插件",
+          "text": "Python 运行时插件",
           "link": "/zh/guide/python-runtime"
         },
         {
@@ -54,7 +54,7 @@
           "link": "/zh/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript Runtime",
+          "text": "Node/TypeScript 运行时插件",
           "link": "/zh/guide/node-typescript-runtime"
         }
       ]
@@ -67,7 +67,7 @@
           "link": "/zh/guide/starter-templates"
         },
         {
-          "text": "选择 starter repo",
+          "text": "选择入门仓库",
           "link": "/zh/guide/choose-a-starter"
         },
         {
@@ -84,11 +84,11 @@
           "link": "/zh/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle 交付",
+          "text": "Bundle 交接",
           "link": "/zh/guide/bundle-handoff"
         },
         {
-          "text": "Packages 与集成配置",
+          "text": "包与集成配置",
           "link": "/zh/guide/package-and-workspace-targets"
         },
         {
@@ -154,7 +154,7 @@
           "link": "/zh/guide/first-plugin"
         },
         {
-          "text": "Python runtime 插件",
+          "text": "Python 运行时插件",
           "link": "/zh/guide/python-runtime"
         },
         {
@@ -166,7 +166,7 @@
           "link": "/zh/guide/claude-plugin"
         },
         {
-          "text": "Node/TypeScript Runtime",
+          "text": "Node/TypeScript 运行时插件",
           "link": "/zh/guide/node-typescript-runtime"
         }
       ]
@@ -179,7 +179,7 @@
           "link": "/zh/guide/starter-templates"
         },
         {
-          "text": "选择 starter repo",
+          "text": "选择入门仓库",
           "link": "/zh/guide/choose-a-starter"
         },
         {
@@ -196,11 +196,11 @@
           "link": "/zh/guide/choose-delivery-model"
         },
         {
-          "text": "Bundle 交付",
+          "text": "Bundle 交接",
           "link": "/zh/guide/bundle-handoff"
         },
         {
-          "text": "Packages 与集成配置",
+          "text": "包与集成配置",
           "link": "/zh/guide/package-and-workspace-targets"
         },
         {

@@ -84,4 +84,4 @@ plugin-kit-ai init my-plugin --platform codex-runtime --runtime python --runtime
 - выбирайте vendored helpers, когда нужен самый гладкий Python или Node старт
 - выбирайте shared runtime package, когда вы уже знаете, что нужна reusable dependency strategy across repos
 
-Свяжите эту страницу с [Python runtime](/ru/guide/python-runtime), [Выбором starter repo](/ru/guide/choose-a-starter), [Bundle handoff](/ru/guide/bundle-handoff), [Стартовыми шаблонами](/ru/guide/starter-templates) и [Готовностью к продакшену](/ru/guide/production-readiness).
+Свяжите эту страницу с [Python runtime-плагином](/ru/guide/python-runtime), [Выбором стартового репозитория](/ru/guide/choose-a-starter), [Передачей bundle](/ru/guide/bundle-handoff), [Стартовыми шаблонами](/ru/guide/starter-templates) и [Готовностью к продакшену](/ru/guide/production-readiness).

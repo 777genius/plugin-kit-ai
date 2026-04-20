@@ -141,7 +141,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 ## Что читать дальше
 
 - [Что именно вы собираете](/ru/guide/choose-what-you-are-building)
-- [Build Custom Plugin Logic](/ru/guide/build-custom-plugin-logic)
+- [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic)
 - [Создайте первый plugin](/ru/guide/first-plugin)
 - [Что можно собрать](/ru/guide/what-you-can-build)
 - [Выбор target](/ru/guide/choose-a-target)

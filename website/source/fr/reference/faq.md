@@ -29,7 +29,7 @@ plugin-kit-ai validate ./my-plugin --platform codex-runtime --strict
 
 Modifiez ensuite le plugin, régénérez-le et validez à nouveau.
 
-Voir [Créer un plug-in d'exécution Python] (/fr/guide/python-runtime).
+Voir [Créer un plugin d'exécution Python](/fr/guide/python-runtime).
 
 ## Quand dois-je utiliser `--runtime-package` ?
 
@@ -75,4 +75,4 @@ Voir [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets) et [M
 
 Non.
 
-Différents chemins comportent différentes promesses de soutien. Utilisez [Support Boundary](/fr/reference/support-boundary) pour la réponse courte et [Target Support](/fr/reference/target-support) pour la matrice exacte.
+Différents chemins comportent différentes promesses de soutien. Utilisez [Limite de support](/fr/reference/support-boundary) pour la réponse courte et [Support des cibles](/fr/reference/target-support) pour la matrice exacte.
