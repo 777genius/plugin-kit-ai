@@ -24,6 +24,14 @@ outline: false
 - quoi mettre à jour dans votre dépôt, votre flux de travail ou vos conseils d'installation
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-2">
+    <h2>v1.1.2</h2>
+    <p>Les flux Gemini d'ajout multi-target complets utilisent désormais la projection gérée repo-path au lieu d'échouer sur les aliases first-party.</p>
+  </a>
+  <a class="docs-card" href="./v1-1-1">
+    <h2>v1.1.1</h2>
+    <p>Les installations d'aliases first-party ont retrouvé la compatibilité avec le layout legacy `src` comme avec le layout auteur actuel `plugin`.</p>
+  </a>
   <a class="docs-card" href="./v1-1-0">
     <h2>v1.1.0</h2>
     <p>Le cycle de vie des intégrations détenues par le dépôt est devenu plus fiable entre les agents et la surface de publication publique reste désormais alignée sur le contrat de version actif.</p>

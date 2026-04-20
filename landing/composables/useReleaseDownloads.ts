@@ -1,14 +1,17 @@
-import { emptyDownloadsResponse } from "~/utils/releaseDownloads"
+import { emptyDownloadsResponse, parseGitHubRelease } from "~/utils/releaseDownloads"
 import type {
   DownloadArch,
   DownloadsApiResponse,
-  DownloadOs
+  DownloadOs,
+  GitHubRelease
 } from "~/utils/releaseDownloads"
+import type { Ref } from "vue"
 
 type ResolveResult = { url: string; version: string | null } | null
 
 const CACHE_KEY = "plugin-kit-ai_release_meta"
 const CACHE_TTL = 10 * 60 * 1000
+let clientRefreshPromise: Promise<DownloadsApiResponse | null> | null = null
 
 function isClient(): boolean {
   return typeof window !== "undefined"
@@ -51,6 +54,49 @@ function writeCache(data: DownloadsApiResponse): void {
   }
 }
 
+async function fetchLatestReleaseDirect(
+  githubRepo: string
+): Promise<DownloadsApiResponse | null> {
+  try {
+    const release = await $fetch<GitHubRelease>(
+      `https://api.github.com/repos/${githubRepo}/releases/latest`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json"
+        }
+      }
+    )
+
+    const parsed = parseGitHubRelease(release)
+    writeCache(parsed)
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+async function refreshLatestRelease(
+  data: Ref<DownloadsApiResponse>,
+  githubRepo: string
+): Promise<void> {
+  if (!isClient()) {
+    return
+  }
+
+  if (!clientRefreshPromise) {
+    clientRefreshPromise = fetchLatestReleaseDirect(githubRepo)
+  }
+
+  try {
+    const latest = await clientRefreshPromise
+    if (latest) {
+      data.value = latest
+    }
+  } finally {
+    clientRefreshPromise = null
+  }
+}
+
 export const useReleaseDownloads = () => {
   const config = useRuntimeConfig()
   const githubRepo = config.public.githubRepo || "777genius/plugin-kit-ai"
@@ -79,6 +125,10 @@ export const useReleaseDownloads = () => {
       default: () => emptyDownloadsResponse()
     }
   )
+
+  if (isClient()) {
+    void refreshLatestRelease(data, githubRepo)
+  }
 
   const resolve = (
     os: DownloadOs,

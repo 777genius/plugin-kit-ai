@@ -90,15 +90,17 @@ outline: false
   </a>
 </div>
 
-Si es nuevo, deténgase después de esas cuatro páginas. Todo lo demás es una referencia más profunda o detalles de implementación.
+Si es nuevo, puede detenerse después de las páginas iniciales. Todo lo demás es una referencia más profunda o detalles de implementación.
 
 ## Línea base del repositorio actual
 
-- La línea de base pública actual en este conjunto de documentos es [`v1.1.0`](/es/releases/v1-1-0).
-- Esa versión reforzó la verificación del ciclo de vida de las integraciones propiedad del repositorio en todos los agentes y sincronizó la superficie de lanzamiento pública con el contrato de versión actual.
+- La línea de base pública actual en este conjunto de documentos es [`v1.1.2`](/es/releases/v1-1-2).
+- Esta línea de parches restauró la compatibilidad de instalación de first-party aliases entre el layout heredado y el actual, y luego corrigió las instalaciones Gemini de varios targets desde fuentes GitHub repo-path.
 - Comience allí cuando desee obtener la línea base recomendada actual.
 
-## Qué le ayuda a hacer este sitio- iniciar un repositorio de complementos en lugar de dividir la fuente de verdad por ecosistema
+## Qué le ayuda a hacer este sitio
+
+- iniciar un repositorio de complementos en lugar de dividir la fuente de verdad por ecosistema
 - Elija una ruta de inicio recomendada sin conocer todos los detalles del objetivo por adelantado
 - expandir el mismo repositorio más adelante a más rutas de envío
 - mantenga una historia de revisión y validación a medida que crece el repositorio

@@ -107,7 +107,7 @@ plugin-kit-ai validate . --platform codex-runtime --strict
 - [生产准备情况](/zh/guide/production-readiness)
 - [CI 集成](/zh/guide/ci-integration)
 - [存储库标准](/zh/reference/repository-standard)
-- 当前的公开发行说明，现在为 [v1.1.0](/zh/releases/v1-1-0)
+- 当前的公开发行说明，现在为 [v1.1.2](/zh/releases/v1-1-2)
 
 ## 最终规则
 

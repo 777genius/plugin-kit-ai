@@ -24,6 +24,14 @@ outline: false
 - qué actualizar en su repositorio, flujo de trabajo o guía de instalación
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-2">
+    <h2>v1.1.2</h2>
+    <p>Los flujos Gemini de add multi-target completo ahora usan la proyección administrada de repo-path en lugar de fallar con first-party aliases.</p>
+  </a>
+  <a class="docs-card" href="./v1-1-1">
+    <h2>v1.1.1</h2>
+    <p>Las instalaciones de first-party aliases recuperaron compatibilidad tanto con el layout heredado `src` como con el layout actual `plugin`.</p>
+  </a>
   <a class="docs-card" href="./v1-1-0">
     <h2>v1.1.0</h2>
     <p>El trabajo del ciclo de vida de las integraciones propiedad del repositorio se volvió más confiable entre agentes y la superficie de lanzamiento pública ahora permanece alineada con el contrato de versión activo.</p>

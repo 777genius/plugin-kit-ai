@@ -90,15 +90,17 @@ outline: false
   </a>
 </div>
 
-Si vous êtes nouveau, arrêtez-vous après ces quatre pages. Tout le reste est une référence plus profonde ou des détails de mise en œuvre.
+Si vous êtes nouveau, vous pouvez vous arrêter après les pages de départ. Tout le reste est une référence plus profonde ou des détails de mise en œuvre.
 
 ## Base de référence actuelle du dépôt
 
-- La référence publique actuelle dans cet ensemble de documents est [`v1.1.0`](/fr/releases/v1-1-0).
-- Cette version a renforcé la vérification du cycle de vie des intégrations détenues par le dépôt entre les agents et a synchronisé la surface de publication publique avec le contrat de version actuel.
+- La référence publique actuelle dans cet ensemble de documents est [`v1.1.2`](/fr/releases/v1-1-2).
+- Cette ligne de patch a rétabli la compatibilité d'installation des aliases first-party entre les layouts auteur legacy et actuels, puis a corrigé les installations Gemini multi-target complètes depuis les sources GitHub repo-path.
 - Commencez par là lorsque vous souhaitez connaître la ligne de base recommandée actuelle.
 
-## Ce que ce site vous aide à faire- démarrer un dépôt de plugin au lieu de diviser la source de vérité par écosystème
+## Ce que ce site vous aide à faire
+
+- démarrer un dépôt de plugin au lieu de diviser la source de vérité par écosystème
 - choisissez un chemin de départ recommandé sans apprendre tous les détails de la cible à l'avance
 - étendre le même dépôt plus tard dans plus de chemins d'expédition
 - conserver une histoire de révision et de validation à mesure que le dépôt se développe

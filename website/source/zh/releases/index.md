@@ -24,6 +24,14 @@ outline: false
 - 在您的存储库、工作流程或安装指南中要更新的内容
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-2">
+    <h2>v1.1.2</h2>
+    <p>Gemini 的完整 multi-target add 流程现在会使用受管的 repo-path projection，而不会再在 first-party aliases 上失败。</p>
+  </a>
+  <a class="docs-card" href="./v1-1-1">
+    <h2>v1.1.1</h2>
+    <p>first-party aliases 的安装重新同时兼容 legacy `src` layout 和当前的 `plugin` authored layout。</p>
+  </a>
   <a class="docs-card" href="./v1-1-0">
     <h2>v1.1.0</h2>
     <p>repo-owned 集成生命周期在多代理之间变得更可靠，公共发布面现在也与当前版本契约保持一致。</p>

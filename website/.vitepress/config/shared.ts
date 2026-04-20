@@ -4,6 +4,14 @@ import { defineConfig } from "vitepress";
 
 const websiteRoot = path.resolve(__dirname, "..", "..");
 const generatedRoot = path.join(websiteRoot, "generated", "registries");
+type RegistryEntity = {
+  canonicalId?: string;
+  pathEn?: string;
+  pathRu?: string;
+  pathEs?: string;
+  pathFr?: string;
+  pathZh?: string;
+};
 
 function readJson<T>(fileName: string, fallback: T): T {
   const full = path.join(generatedRoot, fileName);
@@ -17,9 +25,40 @@ export const docsBasePath = process.env.DOCS_BASE_PATH || "/plugin-kit-ai/docs/"
 export const docsHostname = process.env.DOCS_HOSTNAME || "https://777genius.github.io";
 const docsBaseUrl = new URL(docsBasePath, docsHostname).toString();
 const socialImageUrl = new URL("og-docs.svg", docsBaseUrl).toString();
+const entities = readJson<RegistryEntity[]>("entities.json", []);
+const entityByCanonicalId = new Map(
+  entities
+    .filter((entity) => typeof entity.canonicalId === "string" && entity.canonicalId.length > 0)
+    .map((entity) => [entity.canonicalId as string, entity])
+);
+const localeHrefLang = {
+  en: "en-US",
+  ru: "ru-RU",
+  es: "es-ES",
+  fr: "fr-FR",
+  zh: "zh-CN"
+} as const;
 
 function escapeForRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function toDocsAbsoluteUrl(value: string): string {
+  return new URL(value.replace(/^\/+/, ""), docsBaseUrl).toString();
+}
+
+function toDocsPageUrl(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, "/");
+  if (normalized === "gateway/index.md") {
+    return docsBaseUrl;
+  }
+
+  const withoutExtension = normalized.replace(/\.md$/, "");
+  const publicPath = withoutExtension.endsWith("/index")
+    ? `${withoutExtension.slice(0, -"/index".length)}/`
+    : withoutExtension;
+
+  return toDocsAbsoluteUrl(publicPath);
 }
 
 export const sharedConfig = defineConfig({
@@ -35,18 +74,82 @@ export const sharedConfig = defineConfig({
     ["link", { rel: "icon", href: `${docsBasePath}icon.svg`, type: "image/svg+xml" }],
     ["link", { rel: "manifest", href: `${docsBasePath}site.webmanifest` }],
     ["meta", { name: "theme-color", content: "#f7f7f8" }],
-    ["meta", { name: "color-scheme", content: "light dark" }],
-    ["meta", { property: "og:type", content: "website" }],
-    ["meta", { property: "og:site_name", content: "plugin-kit-ai Docs" }],
-    ["meta", { property: "og:title", content: "plugin-kit-ai Docs" }],
-    ["meta", { property: "og:description", content: "Public documentation for plugin-kit-ai." }],
-    ["meta", { property: "og:url", content: docsBaseUrl }],
-    ["meta", { property: "og:image", content: socialImageUrl }],
-    ["meta", { name: "twitter:card", content: "summary" }],
-    ["meta", { name: "twitter:title", content: "plugin-kit-ai Docs" }],
-    ["meta", { name: "twitter:description", content: "Public documentation for plugin-kit-ai." }],
-    ["meta", { name: "twitter:image", content: socialImageUrl }]
+    ["meta", { name: "color-scheme", content: "light dark" }]
   ],
+  transformHead({ pageData, title, description }) {
+    const relativePath = pageData.relativePath.replace(/\\/g, "/");
+    const isGateway = relativePath.startsWith("gateway/");
+    const isNotFound = pageData.isNotFound || relativePath === "gateway/404.md";
+    const pageTitle = title || pageData.title || "plugin-kit-ai Docs";
+    const pageDescription =
+      description || pageData.description || "Public documentation for plugin-kit-ai.";
+    const pageUrl = isNotFound ? null : toDocsPageUrl(relativePath);
+    const head = [
+      ["meta", { property: "og:type", content: "website" }],
+      ["meta", { property: "og:site_name", content: "plugin-kit-ai Docs" }],
+      ["meta", { property: "og:title", content: pageTitle }],
+      ["meta", { property: "og:description", content: pageDescription }],
+      ["meta", { property: "og:image", content: socialImageUrl }],
+      ["meta", { name: "twitter:card", content: "summary" }],
+      ["meta", { name: "twitter:title", content: pageTitle }],
+      ["meta", { name: "twitter:description", content: pageDescription }],
+      ["meta", { name: "twitter:image", content: socialImageUrl }]
+    ] as [string, Record<string, string>][];
+
+    if (pageUrl) {
+      head.push(["meta", { property: "og:url", content: pageUrl }]);
+    }
+
+    if (!isGateway && !isNotFound && pageUrl) {
+      head.push(["link", { rel: "canonical", href: pageUrl }]);
+    }
+
+    const canonicalId =
+      typeof pageData.frontmatter?.canonicalId === "string"
+        ? pageData.frontmatter.canonicalId
+        : null;
+    const entity = canonicalId ? entityByCanonicalId.get(canonicalId) : null;
+
+    if (!isGateway && !isNotFound && entity) {
+      const localePaths = [
+        ["en", entity.pathEn],
+        ["ru", entity.pathRu],
+        ["es", entity.pathEs],
+        ["fr", entity.pathFr],
+        ["zh", entity.pathZh]
+      ] as const;
+
+      for (const [code, localePath] of localePaths) {
+        if (typeof localePath !== "string" || !localePath) {
+          continue;
+        }
+
+        head.push([
+          "link",
+          {
+            rel: "alternate",
+            hreflang: localeHrefLang[code],
+            href: toDocsAbsoluteUrl(localePath)
+          }
+        ]);
+      }
+
+      const defaultPath =
+        entity.pathEn || entity.pathRu || entity.pathEs || entity.pathFr || entity.pathZh;
+      if (typeof defaultPath === "string" && defaultPath) {
+        head.push([
+          "link",
+          {
+            rel: "alternate",
+            hreflang: "x-default",
+            href: toDocsAbsoluteUrl(defaultPath)
+          }
+        ]);
+      }
+    }
+
+    return head;
+  },
   sitemap: {
     hostname: docsBaseUrl,
     transformItems(items) {
@@ -59,7 +162,8 @@ export const sharedConfig = defineConfig({
     }
   },
   async buildEnd() {
-    const sitemapPath = path.join(websiteRoot, "dist", "sitemap.xml");
+    const distRoot = path.join(websiteRoot, "dist");
+    const sitemapPath = path.join(distRoot, "sitemap.xml");
     if (!fs.existsSync(sitemapPath)) {
       return;
     }
@@ -71,14 +175,14 @@ export const sharedConfig = defineConfig({
       fs.writeFileSync(sitemapPath, next);
     }
 
-    const robotsPath = path.join(websiteRoot, "dist", "robots.txt");
+    const robotsPath = path.join(distRoot, "robots.txt");
     const robotsBody = [`User-agent: *`, `Allow: /`, `Sitemap: ${new URL("sitemap.xml", docsBaseUrl).toString()}`, ``].join(
       "\n"
     );
     fs.writeFileSync(robotsPath, robotsBody);
   },
   locales: {
-    root: { label: "Language Gateway", lang: "en-US" },
+    root: { label: "Language Gateway", lang: "en-US", link: "/" },
     en: { label: "English", lang: "en-US" },
     ru: { label: "Русский", lang: "ru-RU" },
     es: { label: "Español", lang: "es-ES" },

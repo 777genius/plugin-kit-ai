@@ -94,7 +94,7 @@ async function runSmoke(browser, base) {
     ["node runtime", `${base}/en/api/runtime-node/`, "Node Runtime"],
     ["python runtime", `${base}/en/api/runtime-python/`, "Python Runtime"],
     ["target support", `${base}/en/reference/target-support`, "Target Support"],
-    ["latest release", `${base}/en/releases/v1-1-0`, "Why This Release Matters"]
+    ["latest release", `${base}/en/releases/v1-1-2`, "Why This Release Matters"]
   ];
 
   for (const [name, url, expected] of desktopChecks) {

@@ -47,17 +47,22 @@ export const usePageSeo = (
     }
 
     return {
-      url: '/og-image.svg',
+      url: 'og-image.png',
       width: 1200,
       height: 630,
-      type: 'image/svg+xml',
+      type: 'image/png',
       alt: 'plugin-kit-ai - build a plugin once and ship it to many AI agents',
     };
   });
 
   const resolvedImageUrl = computed(() => {
     const imageUrl = resolvedImage.value.url;
-    return imageUrl.startsWith('http') ? imageUrl : new URL(imageUrl, siteUrl).toString();
+    if (imageUrl.startsWith('http')) {
+      return imageUrl;
+    }
+
+    const siteBase = siteUrl.endsWith('/') ? siteUrl : `${siteUrl}/`;
+    return new URL(imageUrl.replace(/^\/+/, ''), siteBase).toString();
   });
 
   useSeoMeta({

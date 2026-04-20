@@ -2814,6 +2814,44 @@
     ]
   },
   {
+    "canonicalId": "page:releases:v1-1-1",
+    "kind": "page",
+    "surface": "releases",
+    "localeStrategy": "mirrored",
+    "title": "v1.1.1",
+    "summary": "User-facing release notes for the compatibility patch that restored installer support for both legacy and current authored layouts.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "releases/v1-1-1.md",
+    "pathEn": "/en/releases/v1-1-1",
+    "pathRu": "/ru/releases/v1-1-1",
+    "relatedIds": [],
+    "searchTerms": [
+      "v1.1.1"
+    ]
+  },
+  {
+    "canonicalId": "page:releases:v1-1-2",
+    "kind": "page",
+    "surface": "releases",
+    "localeStrategy": "mirrored",
+    "title": "v1.1.2",
+    "summary": "User-facing release notes for the Gemini install patch that fixed managed repo-path handling for first-party aliases.",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "publicVisibility": "public",
+    "sourceKind": "hand-authored",
+    "sourceRef": "releases/v1-1-2.md",
+    "pathEn": "/en/releases/v1-1-2",
+    "pathRu": "/ru/releases/v1-1-2",
+    "relatedIds": [],
+    "searchTerms": [
+      "v1.1.2"
+    ]
+  },
+  {
     "relatedIds": [],
     "searchTerms": [
       "plugin_kit_ai_runtime",

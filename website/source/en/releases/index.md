@@ -25,6 +25,14 @@ outline: false
 - what to update in your repo, workflow, or install guidance
 
 <div class="docs-grid">
+  <a class="docs-card" href="./v1-1-2">
+    <h2>v1.1.2</h2>
+    <p>Gemini full multi-target add flows now use the managed repo-path projection instead of failing on first-party aliases.</p>
+  </a>
+  <a class="docs-card" href="./v1-1-1">
+    <h2>v1.1.1</h2>
+    <p>First-party alias installs regained compatibility across both legacy `src` and current `plugin` authored layouts.</p>
+  </a>
   <a class="docs-card" href="./v1-1-0">
     <h2>v1.1.0</h2>
     <p>Repo-owned integration lifecycle work became more trustworthy across agents, and the public release surface now stays aligned with the active version contract.</p>

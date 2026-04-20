@@ -73,9 +73,25 @@ if (!generatedCli.includes(">Source<")) {
   hasError = true;
 }
 
-const latestRelease = await fs.readFile(path.join(distRoot, "en", "releases", "v1-1-0.html"), "utf8");
+const latestRelease = await fs.readFile(path.join(distRoot, "en", "releases", "v1-1-2.html"), "utf8");
 if (!latestRelease.includes("Why This Release Matters")) {
   console.error("Latest public release page is missing its expected headline content.");
+  hasError = true;
+}
+
+const latestReleaseAlias = await fs.readFile(path.join(distRoot, "releases", "v1-1-2.html"), "utf8");
+if (!latestReleaseAlias.includes('http-equiv="refresh"')) {
+  console.error("Latest public release alias is missing its redirect metadata.");
+  hasError = true;
+}
+if (!latestReleaseAlias.includes("https://777genius.github.io/plugin-kit-ai/docs/en/releases/v1-1-2")) {
+  console.error("Latest public release alias is missing its canonical EN destination.");
+  hasError = true;
+}
+
+const guideAlias = await fs.readFile(path.join(distRoot, "guide", "index.html"), "utf8");
+if (!guideAlias.includes("https://777genius.github.io/plugin-kit-ai/docs/en/guide/")) {
+  console.error("Guide alias is missing its canonical EN destination.");
   hasError = true;
 }
 

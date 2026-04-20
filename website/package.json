@@ -10,7 +10,7 @@
   "scripts": {
     "docs:clean": "node ./tools/clean.mjs",
     "docs:gen": "node ./tools/generate.mjs",
-    "docs:build": "pnpm run docs:gen && vitepress build",
+    "docs:build": "pnpm run docs:gen && vitepress build && node ./tools/postbuild.mjs",
     "docs:dev": "pnpm run docs:gen && vitepress dev",
     "docs:preview": "vitepress preview",
     "docs:check-locale": "node ./tools/quality/check-locale.mjs",
@@ -20,7 +20,7 @@
     "docs:check-output": "node ./tools/quality/check-output.mjs",
     "docs:smoke-ui": "node ./tools/quality/check-ui.mjs",
     "docs:check-ui": "pnpm run docs:build && pnpm run docs:smoke-ui",
-    "docs:check": "pnpm run docs:gen && pnpm run docs:check-locale && pnpm run docs:check-model && pnpm run docs:check-public-boundary && pnpm run docs:check-drift && vitepress build && pnpm run docs:check-output"
+    "docs:check": "pnpm run docs:gen && pnpm run docs:check-locale && pnpm run docs:check-model && pnpm run docs:check-public-boundary && pnpm run docs:check-drift && vitepress build && node ./tools/postbuild.mjs && pnpm run docs:check-output"
   },
   "devDependencies": {
     "mermaid": "11.14.0",

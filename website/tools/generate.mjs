@@ -269,6 +269,8 @@ function buildSidebar(locale, entities) {
     ]),
     [`${prefix}releases/`]: section(labels.releases, [
       linkItem(labels.releasesOverview, `${prefix}releases/`),
+      linkItem("v1.1.2", `${prefix}releases/v1-1-2`),
+      linkItem("v1.1.1", `${prefix}releases/v1-1-1`),
       linkItem("v1.1.0", `${prefix}releases/v1-1-0`),
       linkItem("v1.0.6", `${prefix}releases/v1-0-6`),
       linkItem("v1.0.0", `${prefix}releases/v1-0-0`),
