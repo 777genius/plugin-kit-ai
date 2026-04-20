@@ -64,6 +64,7 @@ export default defineNuxtConfig({
     prerender: {
       routes: [
         ...generateI18nRoutes(),
+        "/api/releases/latest",
         "/sitemap.xml",
         "/robots.txt"
       ]
