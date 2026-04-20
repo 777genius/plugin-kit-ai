@@ -1,6 +1,6 @@
 ---
-title: "Build Custom Plugin Logic"
-description: "Advanced путь для плагинов, в которых ценность живёт в runtime code, hooks и orchestration."
+title: "Соберите собственную логику плагина"
+description: "Продвинутый путь для плагинов, в которых ценность живёт в runtime-коде, hooks и orchestration."
 canonicalId: "page:guide:build-custom-plugin-logic"
 section: "guide"
 locale: "ru"
@@ -8,14 +8,14 @@ generated: false
 translationRequired: true
 ---
 
-# Build Custom Plugin Logic
+# Соберите собственную логику плагина
 
 Выбирайте этот путь, когда плагин не просто подключает существующий сервис или локальный инструмент.
 
-Это advanced path для repo, в которых ценность живёт в:
+Это продвинутый путь для repo, в которых ценность живёт в:
 
-- runtime code, которым владеете вы
-- hooks и orchestration logic
+- runtime-коде, которым владеете вы
+- hooks и логике оркестрации
 - policy, transformation или guardrail behavior
 - custom behavior, которого не было бы без вашего кода
 
@@ -68,7 +68,7 @@ Root outputs воспринимайте как managed outputs.
 - больше ответственности за runtime contract
 - больше пространства для tests, hooks и policy logic
 
-Именно поэтому он остаётся на первом экране, но помечается как advanced path.
+Именно поэтому он остаётся на первом экране, но помечается как продвинутый путь.
 
 ## Первый запуск по runtime shape
 

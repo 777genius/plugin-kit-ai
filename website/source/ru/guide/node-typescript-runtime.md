@@ -1,5 +1,5 @@
 ---
-title: "Сделайте Node/TypeScript runtime plugin"
+title: "Соберите Node/TypeScript runtime-плагин"
 description: "Основной поддерживаемый путь без Go для локальных runtime-плагинов."
 canonicalId: "page:guide:node-typescript-runtime"
 section: "guide"
@@ -8,7 +8,7 @@ generated: false
 translationRequired: true
 ---
 
-# Сделайте Node/TypeScript runtime plugin
+# Соберите Node/TypeScript runtime-плагин
 
 Это основной поддерживаемый путь без Go, когда команде нужен TypeScript, но при этом нужен поддерживаемый локальный runtime-плагин.
 

@@ -1,5 +1,5 @@
 ---
-title: "Limite de soutien"
+title: "Limite de support"
 description: "La réponse pratique la plus courte à ce que plugin-kit-ai recommande, soutient avec soin et reste expérimental."
 canonicalId: "page:reference:support-boundary"
 section: "reference"

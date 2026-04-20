@@ -1,5 +1,5 @@
 ---
-title: "Packages и настройка интеграций"
+title: "Пакеты и настройка интеграций"
 description: "Когда packaging или checked-in integration setup нужны вместо исполняемого runtime plugin."
 canonicalId: "page:guide:package-and-workspace-targets"
 section: "guide"
@@ -10,7 +10,7 @@ aside: true
 outline: [2, 3]
 ---
 
-# Packages и настройка интеграций
+# Пакеты и настройка интеграций
 
 Не каждый проект должен поставляться как исполняемый runtime plugin.
 

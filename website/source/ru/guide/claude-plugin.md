@@ -1,5 +1,5 @@
 ---
-title: "Сделайте Claude plugin"
+title: "Соберите плагин для Claude"
 description: "Сфокусированный guide для стабильного пути Claude в plugin-kit-ai."
 canonicalId: "page:guide:claude-plugin"
 section: "guide"
@@ -8,7 +8,7 @@ generated: false
 translationRequired: true
 ---
 
-# Сделайте Claude plugin
+# Соберите плагин для Claude
 
 Выбирайте этот путь, когда вам нужны именно Claude hooks, а не путь Codex по умолчанию.
 

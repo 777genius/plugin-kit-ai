@@ -1,5 +1,5 @@
 ---
-title: "Bundle handoff"
+title: "Передача bundle"
 description: "Как экспортировать, устанавливать, загружать и публиковать portable bundles для поддерживаемых Python и Node сценариев."
 canonicalId: "page:guide:bundle-handoff"
 section: "guide"
@@ -8,7 +8,7 @@ generated: false
 translationRequired: true
 ---
 
-# Bundle handoff
+# Передача bundle
 
 Используйте этот гайд, когда Python или Node плагин нужно передавать как готовый portable artifact, а не как живой checkout репозитория.
 

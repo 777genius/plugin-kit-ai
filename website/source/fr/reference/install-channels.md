@@ -1,5 +1,5 @@
 ---
-title: "Installer des chaînes"
+title: "Canaux d'installation"
 description: "Canaux d'installation publics pour plugin-kit-ai."
 canonicalId: "page:reference:install-channels"
 section: "reference"
@@ -7,7 +7,7 @@ locale: "fr"
 generated: false
 translationRequired: true
 ---
-# Installer les chaînes
+# Canaux d'installation
 
 `plugin-kit-ai` prend en charge plusieurs façons d'installer le CLI lui-même.
 
