@@ -11,9 +11,9 @@ outline: false
 ---
 <div class="docs-hero docs-hero--compact">
   <p class="docs-kicker">RÉFÉRENCE GÉNÉRÉE</p>
-  <h1>API Surfaces</h1>
+  <h1>Surfaces API</h1>
   <p class="docs-lead">
-    Cette section rassemble les plugin-kit-ai API publics : CLI, Go SDK, les assistants d'exécution, les événements de plate-forme et les fonctionnalités.
+    Cette section rassemble les API publiques de plugin-kit-ai : CLI, Go SDK, helpers runtime, événements de plateforme et capacités.
   </p>
 </div>
 
@@ -24,15 +24,15 @@ outline: false
   </a>
   <a class="docs-card" href="./go-sdk/">
     <h2>Go SDK</h2>
-    Packages <p>Public Go pour les plugins d'exécution prêts pour la production.</p>
+    <p>Paquets Go publics pour les plugins runtime prêts pour la production.</p>
   </a>
   <a class="docs-card" href="./runtime-node/">
-    <h2>Node Durée d'exécution</h2>
-    <p>Assistants d'exécution typés pour les consommateurs JS et TS.</p>
+    <h2>Runtime Node</h2>
+    <p>Helpers runtime typés pour les consommateurs JS et TS.</p>
   </a>
   <a class="docs-card" href="./runtime-python/">
-    <h2>Python Durée d'exécution</h2>
-    <p>Public Python assistants d'exécution uniquement, pas d'installation de wrappers.</p>
+    <h2>Runtime Python</h2>
+    <p>Helpers runtime Python publics uniquement, sans wrappers d'installation.</p>
   </a>
   <a class="docs-card" href="./platform-events/">
     <h2>Événements de plateforme</h2>
@@ -48,7 +48,7 @@ outline: false
 
 - Ouvrez `CLI` lorsque vous avez besoin de commandes, d'indicateurs ou du flux de travail de création.
 - Ouvrez `Go SDK` lorsque vous créez un plugin d'exécution prêt pour la production dans Go.
-- Ouvrez `Node Runtime` ou `Python Runtime` lorsque vous avez besoin de l'assistant partagé API pour un runtime de dépôt local.
+- Ouvrez `Runtime Node` ou `Runtime Python` lorsque vous avez besoin de l'API partagée des helpers pour un runtime local au dépôt.
 - Ouvrez `Platform Events` lorsque vous choisissez des événements spécifiques à une cible.
 - Ouvrez `Capabilities` lorsque vous souhaitez voir quelles actions et points d'extension existent sur les plates-formes.
 

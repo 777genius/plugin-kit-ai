@@ -157,8 +157,8 @@ export async function extractPlatformData() {
       relativePath: path.join(locale, "api", "platform-events", "index.md"),
       content: renderMarkdownPage(
         {
-          title: "Platform Events",
-          description: "Generated platform event reference",
+          title: locale === "ru" ? "События платформ" : "Platform Events",
+          description: locale === "ru" ? "Сгенерированный справочник по событиям платформ" : "Generated platform event reference",
           canonicalId: "page:api:platform-events:index",
           surface: "platform-events",
           section: "api",

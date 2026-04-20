@@ -1,11 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { docsBaseUrl, websiteRoot } from "../config/site.mjs";
+import { docsBaseUrl, runtimeRoot, websiteRoot } from "../config/site.mjs";
 import { listMarkdownFiles } from "../lib/fs.mjs";
 
 const distRoot = path.join(websiteRoot, "dist");
 const repoRoot = path.resolve(websiteRoot, "..");
 const htmlFiles = (await listHtmlFiles(distRoot)).sort();
+const generatedMarkdownFiles = (await listMarkdownFiles(runtimeRoot)).sort();
 const editPrefix = `https://github.com/777genius/plugin-kit-ai/edit/main/website/source/`;
 
 let hasError = false;
@@ -43,6 +44,24 @@ const robots = await fs.readFile(path.join(distRoot, "robots.txt"), "utf8");
 if (!robots.includes(`Sitemap: ${new URL("sitemap.xml", docsBaseUrl).toString()}`)) {
   console.error("robots.txt is missing the sitemap declaration.");
   hasError = true;
+}
+
+for (const filePath of generatedMarkdownFiles) {
+  const body = await fs.readFile(filePath, "utf8");
+  if (!/^generated:\s*true$/m.test(body)) {
+    continue;
+  }
+  const titleMatch = body.match(/^title:\s*"([^"]+)"$/m);
+  const headingMatch = body.match(/^#\s+(.+)$/m);
+  if (!titleMatch || !headingMatch) {
+    continue;
+  }
+  const title = titleMatch[1].trim();
+  const heading = headingMatch[1].trim();
+  if (title !== heading) {
+    console.error(`Generated page title/H1 mismatch: ${filePath} ("${title}" vs "${heading}")`);
+    hasError = true;
+  }
 }
 
 const handAuthoredHome = await fs.readFile(path.join(distRoot, "en", "index.html"), "utf8");

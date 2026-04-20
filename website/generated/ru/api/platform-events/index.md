@@ -1,6 +1,6 @@
 ---
-title: "Platform Events"
-description: "Generated platform event reference"
+title: "События платформ"
+description: "Сгенерированный справочник по событиям платформ"
 canonicalId: "page:api:platform-events:index"
 surface: "platform-events"
 section: "api"

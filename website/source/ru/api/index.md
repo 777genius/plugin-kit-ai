@@ -12,7 +12,7 @@ outline: false
 
 <div class="docs-hero docs-hero--compact">
   <p class="docs-kicker">СГЕНЕРИРОВАННЫЙ СПРАВОЧНИК</p>
-  <h1>API поверхности</h1>
+  <h1>Поверхности API</h1>
   <p class="docs-lead">
     Этот раздел собирает публичные API plugin-kit-ai: CLI, Go SDK, runtime-хелперы, события платформ и возможности API.
   </p>

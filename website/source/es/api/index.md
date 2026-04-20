@@ -11,9 +11,9 @@ outline: false
 ---
 <div class="docs-hero docs-hero--compact">
   <p class="docs-kicker">REFERENCIA GENERADA</p>
-  <h1>API Superficies</h1>
+  <h1>Superficies de API</h1>
   <p class="docs-lead">
-    Esta sección recopila los plugin-kit-ai APIs públicos: CLI, Go SDK, ayudantes de tiempo de ejecución, eventos de plataforma y capacidades.
+    Esta sección reúne las API públicas de plugin-kit-ai: CLI, Go SDK, helpers de runtime, eventos de plataforma y capacidades.
   </p>
 </div>
 
@@ -24,22 +24,22 @@ outline: false
   </a>
   <a class="docs-card" href="./go-sdk/">
     <h2>Go SDK</h2>
-    <p>Paquetes públicos Go para complementos de tiempo de ejecución listos para producción.</p>
+    <p>Paquetes Go públicos para complementos de runtime listos para producción.</p>
   </a>
   <a class="docs-card" href="./runtime-node/">
-    <h2>Node Tiempo de ejecución</h2>
-    <p>Ayudantes de tiempo de ejecución escritos para consumidores de JS y TS.</p>
+    <h2>Runtime Node</h2>
+    <p>Helpers de runtime tipados para consumidores de JS y TS.</p>
   </a>
   <a class="docs-card" href="./runtime-python/">
-    <h2>Python Tiempo de ejecución</h2>
-    <p>Público Python solo ayudantes de tiempo de ejecución, no contenedores de instalación.</p>
+    <h2>Runtime Python</h2>
+    <p>Solo helpers públicos de runtime para Python, no wrappers de instalación.</p>
   </a>
   <a class="docs-card" href="./platform-events/">
     <h2>Eventos de plataforma</h2>
     <p>Superficies de eventos agrupadas por plataforma de destino.</p>
   </a>
   <a class="docs-card" href="./capabilities/">
-    <h2>Capacidad</h2>
+    <h2>Capacidades</h2>
     <p>Capacidades agrupadas entre plataformas y eventos.</p>
   </a>
 </div>
@@ -47,8 +47,8 @@ outline: false
 ## Abra la superficie correcta
 
 - Abra `CLI` cuando necesite comandos, indicadores o el flujo de trabajo de creación.
-- Abra `Go SDK` cuando esté creando un complemento de tiempo de ejecución listo para producción en Go.
-- Abra `Node Runtime` o `Python Runtime` cuando necesite el asistente compartido API para un tiempo de ejecución local de repositorio.
+- Abra `Go SDK` cuando esté creando un complemento de runtime listo para producción en Go.
+- Abra `Runtime Node` o `Runtime Python` cuando necesite la API compartida de helpers para un runtime local al repositorio.
 - Abra `Platform Events` cuando elija eventos de objetivos específicos.
 - Abra `Capabilities` cuando desee ver qué acciones y puntos de extensión existen en todas las plataformas.
 
