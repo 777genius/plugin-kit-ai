@@ -1,4 +1,116 @@
 {
+  "/es/": [
+    {
+      "text": "Inicio",
+      "items": [
+        {
+          "text": "Resumen",
+          "link": "/es/guide/"
+        },
+        {
+          "text": "Instalación",
+          "link": "/es/guide/installation"
+        },
+        {
+          "text": "Inicio rápido",
+          "link": "/es/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "Idea central",
+      "items": [
+        {
+          "text": "Qué puedes crear",
+          "link": "/es/guide/what-you-can-build"
+        },
+        {
+          "text": "Un proyecto, múltiples targets",
+          "link": "/es/guide/one-project-multiple-targets"
+        },
+        {
+          "text": "Elegir un target",
+          "link": "/es/guide/choose-a-target"
+        }
+      ]
+    },
+    {
+      "text": "Crear plugins",
+      "items": [
+        {
+          "text": "Crea tu primer plugin",
+          "link": "/es/guide/first-plugin"
+        },
+        {
+          "text": "Plugin Python runtime",
+          "link": "/es/guide/python-runtime"
+        },
+        {
+          "text": "Plugin listo para equipos",
+          "link": "/es/guide/team-ready-plugin"
+        },
+        {
+          "text": "Plugin para Claude",
+          "link": "/es/guide/claude-plugin"
+        },
+        {
+          "text": "Runtime Node/TypeScript",
+          "link": "/es/guide/node-typescript-runtime"
+        }
+      ]
+    },
+    {
+      "text": "Starters y ejemplos",
+      "items": [
+        {
+          "text": "Plantillas starter",
+          "link": "/es/guide/starter-templates"
+        },
+        {
+          "text": "Elegir un starter repo",
+          "link": "/es/guide/choose-a-starter"
+        },
+        {
+          "text": "Ejemplos y recetas",
+          "link": "/es/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "Entrega y targets",
+      "items": [
+        {
+          "text": "Elegir modelo de entrega",
+          "link": "/es/guide/choose-delivery-model"
+        },
+        {
+          "text": "Bundle handoff",
+          "link": "/es/guide/bundle-handoff"
+        },
+        {
+          "text": "Packages e integración",
+          "link": "/es/guide/package-and-workspace-targets"
+        },
+        {
+          "text": "Cómo publicar plugins",
+          "link": "/es/guide/how-to-publish-plugins"
+        }
+      ]
+    },
+    {
+      "text": "Producción y CI",
+      "items": [
+        {
+          "text": "Preparación para producción",
+          "link": "/es/guide/production-readiness"
+        },
+        {
+          "text": "Integración con CI",
+          "link": "/es/guide/ci-integration"
+        }
+      ]
+    }
+  ],
   "/es/guide/": [
     {
       "text": "Inicio",

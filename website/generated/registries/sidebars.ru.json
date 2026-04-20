@@ -1,4 +1,116 @@
 {
+  "/ru/": [
+    {
+      "text": "Старт",
+      "items": [
+        {
+          "text": "Обзор",
+          "link": "/ru/guide/"
+        },
+        {
+          "text": "Установка",
+          "link": "/ru/guide/installation"
+        },
+        {
+          "text": "Быстрый старт",
+          "link": "/ru/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "Суть проекта",
+      "items": [
+        {
+          "text": "Что можно построить",
+          "link": "/ru/guide/what-you-can-build"
+        },
+        {
+          "text": "Один проект, несколько target’ов",
+          "link": "/ru/guide/one-project-multiple-targets"
+        },
+        {
+          "text": "Выбор target",
+          "link": "/ru/guide/choose-a-target"
+        }
+      ]
+    },
+    {
+      "text": "Сборка плагина",
+      "items": [
+        {
+          "text": "Соберите первый плагин",
+          "link": "/ru/guide/first-plugin"
+        },
+        {
+          "text": "Python runtime",
+          "link": "/ru/guide/python-runtime"
+        },
+        {
+          "text": "Плагин для команды",
+          "link": "/ru/guide/team-ready-plugin"
+        },
+        {
+          "text": "Плагин для Claude",
+          "link": "/ru/guide/claude-plugin"
+        },
+        {
+          "text": "Node/TypeScript runtime",
+          "link": "/ru/guide/node-typescript-runtime"
+        }
+      ]
+    },
+    {
+      "text": "Starter'ы и примеры",
+      "items": [
+        {
+          "text": "Стартовые шаблоны",
+          "link": "/ru/guide/starter-templates"
+        },
+        {
+          "text": "Выбор стартового репозитория",
+          "link": "/ru/guide/choose-a-starter"
+        },
+        {
+          "text": "Примеры и рецепты",
+          "link": "/ru/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "Поставка и target'ы",
+      "items": [
+        {
+          "text": "Выбор модели поставки",
+          "link": "/ru/guide/choose-delivery-model"
+        },
+        {
+          "text": "Bundle handoff",
+          "link": "/ru/guide/bundle-handoff"
+        },
+        {
+          "text": "Package и workspace targets",
+          "link": "/ru/guide/package-and-workspace-targets"
+        },
+        {
+          "text": "Как публиковать плагины",
+          "link": "/ru/guide/how-to-publish-plugins"
+        }
+      ]
+    },
+    {
+      "text": "Продакшен и CI",
+      "items": [
+        {
+          "text": "Готовность к продакшену",
+          "link": "/ru/guide/production-readiness"
+        },
+        {
+          "text": "Интеграция с CI",
+          "link": "/ru/guide/ci-integration"
+        }
+      ]
+    }
+  ],
   "/ru/guide/": [
     {
       "text": "Старт",

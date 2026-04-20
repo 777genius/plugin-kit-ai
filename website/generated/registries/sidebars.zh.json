@@ -1,4 +1,116 @@
 {
+  "/zh/": [
+    {
+      "text": "开始",
+      "items": [
+        {
+          "text": "总览",
+          "link": "/zh/guide/"
+        },
+        {
+          "text": "安装",
+          "link": "/zh/guide/installation"
+        },
+        {
+          "text": "快速开始",
+          "link": "/zh/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "核心思路",
+      "items": [
+        {
+          "text": "你可以构建什么",
+          "link": "/zh/guide/what-you-can-build"
+        },
+        {
+          "text": "一个项目，多个 targets",
+          "link": "/zh/guide/one-project-multiple-targets"
+        },
+        {
+          "text": "选择 target",
+          "link": "/zh/guide/choose-a-target"
+        }
+      ]
+    },
+    {
+      "text": "构建插件",
+      "items": [
+        {
+          "text": "构建第一个插件",
+          "link": "/zh/guide/first-plugin"
+        },
+        {
+          "text": "Python runtime 插件",
+          "link": "/zh/guide/python-runtime"
+        },
+        {
+          "text": "团队可用插件",
+          "link": "/zh/guide/team-ready-plugin"
+        },
+        {
+          "text": "Claude 插件",
+          "link": "/zh/guide/claude-plugin"
+        },
+        {
+          "text": "Node/TypeScript Runtime",
+          "link": "/zh/guide/node-typescript-runtime"
+        }
+      ]
+    },
+    {
+      "text": "Starter 与示例",
+      "items": [
+        {
+          "text": "Starter 模板",
+          "link": "/zh/guide/starter-templates"
+        },
+        {
+          "text": "选择 starter repo",
+          "link": "/zh/guide/choose-a-starter"
+        },
+        {
+          "text": "示例与实践",
+          "link": "/zh/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "交付与 targets",
+      "items": [
+        {
+          "text": "选择交付模型",
+          "link": "/zh/guide/choose-delivery-model"
+        },
+        {
+          "text": "Bundle 交付",
+          "link": "/zh/guide/bundle-handoff"
+        },
+        {
+          "text": "Packages 与集成配置",
+          "link": "/zh/guide/package-and-workspace-targets"
+        },
+        {
+          "text": "如何发布插件",
+          "link": "/zh/guide/how-to-publish-plugins"
+        }
+      ]
+    },
+    {
+      "text": "生产与 CI",
+      "items": [
+        {
+          "text": "生产准备",
+          "link": "/zh/guide/production-readiness"
+        },
+        {
+          "text": "CI 集成",
+          "link": "/zh/guide/ci-integration"
+        }
+      ]
+    }
+  ],
   "/zh/guide/": [
     {
       "text": "开始",

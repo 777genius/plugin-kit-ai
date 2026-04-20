@@ -1,4 +1,116 @@
 {
+  "/fr/": [
+    {
+      "text": "Démarrer",
+      "items": [
+        {
+          "text": "Vue d'ensemble",
+          "link": "/fr/guide/"
+        },
+        {
+          "text": "Installation",
+          "link": "/fr/guide/installation"
+        },
+        {
+          "text": "Démarrage rapide",
+          "link": "/fr/guide/quickstart"
+        }
+      ]
+    },
+    {
+      "text": "Idée centrale",
+      "items": [
+        {
+          "text": "Ce que vous pouvez créer",
+          "link": "/fr/guide/what-you-can-build"
+        },
+        {
+          "text": "Un projet, plusieurs targets",
+          "link": "/fr/guide/one-project-multiple-targets"
+        },
+        {
+          "text": "Choisir un target",
+          "link": "/fr/guide/choose-a-target"
+        }
+      ]
+    },
+    {
+      "text": "Créer des plugins",
+      "items": [
+        {
+          "text": "Créer votre premier plugin",
+          "link": "/fr/guide/first-plugin"
+        },
+        {
+          "text": "Plugin Python runtime",
+          "link": "/fr/guide/python-runtime"
+        },
+        {
+          "text": "Plugin prêt pour l'équipe",
+          "link": "/fr/guide/team-ready-plugin"
+        },
+        {
+          "text": "Plugin Claude",
+          "link": "/fr/guide/claude-plugin"
+        },
+        {
+          "text": "Runtime Node/TypeScript",
+          "link": "/fr/guide/node-typescript-runtime"
+        }
+      ]
+    },
+    {
+      "text": "Starters et exemples",
+      "items": [
+        {
+          "text": "Templates starter",
+          "link": "/fr/guide/starter-templates"
+        },
+        {
+          "text": "Choisir un starter repo",
+          "link": "/fr/guide/choose-a-starter"
+        },
+        {
+          "text": "Exemples et recettes",
+          "link": "/fr/guide/examples-and-recipes"
+        }
+      ]
+    },
+    {
+      "text": "Livraison et targets",
+      "items": [
+        {
+          "text": "Choisir le modèle de livraison",
+          "link": "/fr/guide/choose-delivery-model"
+        },
+        {
+          "text": "Bundle handoff",
+          "link": "/fr/guide/bundle-handoff"
+        },
+        {
+          "text": "Packages et intégration",
+          "link": "/fr/guide/package-and-workspace-targets"
+        },
+        {
+          "text": "Publier des plugins",
+          "link": "/fr/guide/how-to-publish-plugins"
+        }
+      ]
+    },
+    {
+      "text": "Production et CI",
+      "items": [
+        {
+          "text": "Préparation production",
+          "link": "/fr/guide/production-readiness"
+        },
+        {
+          "text": "Intégration CI",
+          "link": "/fr/guide/ci-integration"
+        }
+      ]
+    }
+  ],
   "/fr/guide/": [
     {
       "text": "Démarrer",

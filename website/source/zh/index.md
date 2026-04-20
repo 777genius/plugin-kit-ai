@@ -6,8 +6,6 @@ section: "home"
 locale: "zh"
 generated: false
 translationRequired: true
-aside: false
-outline: false
 ---
 <div class="docs-hero docs-hero--feature">
   <p class="docs-kicker">公共文档</p>
