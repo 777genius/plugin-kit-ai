@@ -63,10 +63,10 @@ curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/script
 plugin-kit-ai version
 ```
 
-Чтобы установить CLI и сразу поставить совместимый binary plugin без Node/npm:
+Чтобы установить CLI и сразу посмотреть план установки реального universal plugin без Node/npm:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- install 777genius/claude-notifications-go --latest --dir ./bin
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
 ```
 
 ## Что выбирать большинству людей?

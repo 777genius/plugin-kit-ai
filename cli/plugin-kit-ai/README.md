@@ -58,10 +58,10 @@ curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/script
 plugin-kit-ai version
 ```
 
-Or install the CLI and install a compatible binary plugin in one shell line:
+Or install the CLI and preview a real universal plugin in one shell line:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- install 777genius/claude-notifications-go --latest --dir ./bin
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
 ```
 
 ```bash
