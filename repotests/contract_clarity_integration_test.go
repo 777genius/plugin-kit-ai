@@ -217,7 +217,7 @@ func TestContractClarity_RuntimeMetadataAndDocsStayAligned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mustContain(t, string(rootReadme), "Build one plugin repo and ship it to many AI agents.")
+	mustContain(t, string(rootReadme), "Build one plugin and ship it to many AI agents.")
 	mustContain(t, string(sdkReadme), "`(*plugin-kit-ai.App).Gemini()`")
 	mustContain(t, string(sdkReadme), "`github.com/777genius/plugin-kit-ai/sdk/gemini`")
 	mustContain(t, string(sdkReadme), "## Gemini Example")
