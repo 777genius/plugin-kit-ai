@@ -5,6 +5,8 @@ bin/
 !examples/starters/**/bin/*
 !examples/local/**/bin/
 !examples/local/**/bin/*
+/my-plugin/
+/cli/tmpcompat.*/
 .DS_Store
 __pycache__/
 *.pyc
