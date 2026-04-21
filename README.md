@@ -1,6 +1,6 @@
 # plugin-kit-ai
 
-Build one plugin repo and ship it to many AI agents.
+Build one plugin and ship it to many AI agents.
 
 `plugin-kit-ai` keeps authored source under `plugin/`, generates the supported outputs you need, and helps you validate the repo before handoff.
 The honest promise is `one repo / many supported outputs`, not fake parity everywhere.
