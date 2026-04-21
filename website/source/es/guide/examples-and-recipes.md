@@ -15,12 +15,12 @@ Utilice esta página cuando desee ver cómo se ve `plugin-kit-ai` en repositorio
 
 Estos son los ejemplos más claros de formas públicas terminadas:
 
-- `codex-basic-prod`: Codex repositorio de producción en tiempo de ejecución
-- `claude-basic-prod`: Claude repositorio de producción
-- `codex-package-prod`: Codex destino del paquete
-- `gemini-extension-package`: Gemini destino de empaquetado de extensión
-- `cursor-basic`: Cursor destino de configuración del espacio de trabajo
-- `opencode-basic`: OpenCode destino de configuración del espacio de trabajo
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod): repositorio de producción Go más `codex-runtime`
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod): repositorio de producción Go más `claude`
+- [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod): destino `codex-package`
+- [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package): destino de empaquetado `gemini`
+- [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic): destino `cursor` de configuración de espacio de trabajo
+- [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic): destino `opencode` de configuración de espacio de trabajo
 
 Lee estos cuando quieras:
 
@@ -40,6 +40,15 @@ Son mejores para:
 - incorporación del equipo
 - elegir entre los puntos de partida Go, Python, Node, Claude y Codex
 
+Los enlaces code-first más directos son:
+
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+
 Si aún elige, vincúlelo con [Elija un repositorio inicial](/es/guide/choose-a-starter).
 
 ## 3. Referencias de tiempo de ejecución local
@@ -51,6 +60,11 @@ Estos son útiles cuando:
 - desea comprender más profundamente la historia interpretada en tiempo de ejecución
 - desea comparar configuraciones de tiempo de ejecución local de JavaScript, TypeScript y Python
 - necesitas una referencia concreta más allá de los repositorios iniciales
+
+Comience con:
+
+- [`codex-node-typescript-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-node-typescript-local)
+- [`codex-python-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-python-local)
 
 ## 4. Ejemplos de habilidades
 
@@ -64,6 +78,7 @@ Estos no son el punto de entrada principal para la mayoría de los autores de co
 ## Lectura sugerida según el objetivo
 
 - Si desea el ejemplo de runtime más sólido: comience con el ejemplo de producción de Codex o Claude y luego lea [Crear un complemento listo para el equipo](/es/guide/team-ready-plugin).
+- Si desea un ejemplo code-first por lenguaje y destino: comience con el repositorio de inicio Go, Python o Node enlazado arriba y luego lea [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic).
 - Si desea ejemplos de empaquetado o configuración del espacio de trabajo: comience con los ejemplos del paquete Codex, Gemini, Cursor o OpenCode y luego lea [Destinos del paquete y del espacio de trabajo](/es/guide/package-and-workspace-targets).
 - Si desea un punto de partida claro, no un ejemplo terminado: vaya a [Plantillas de inicio](/es/guide/starter-templates).
 - Quiere elegir el objetivo antes de mirar los repositorios: lea [Elija un objetivo](/es/guide/choose-a-target).

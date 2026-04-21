@@ -88,12 +88,10 @@ If you do not know which path to choose yet, start here:
 Try a real plugin now without installing the CLI permanently:
 
 ```bash
-npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
 ```
 
-The first command is the safe single-target path.
-The second installs every supported output for that plugin.
+This installs every supported output for that plugin.
 
 Recommended daily-use install path:
 
@@ -145,7 +143,7 @@ Other supported CLI install methods:
 - npm: `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`
 - pipx (`public-beta`, only when that release is published to PyPI): `pipx install plugin-kit-ai`
 - fallback installer: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
-- fallback one-shot command: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run`
+- fallback one-shot command: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --dry-run`
 - source build for maintainers of this repo: `go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai`
 
 ## Keep This Rule In Mind

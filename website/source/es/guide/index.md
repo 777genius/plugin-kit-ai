@@ -20,7 +20,9 @@ outline: false
 ## Orden de lectura recomendado
 
 - [Inicio rápido](/es/guide/quickstart)
+- [Construir lógica personalizada del plugin](/es/guide/build-custom-plugin-logic)
 - [Crea tu primer complemento](/es/guide/first-plugin)
+- [Ejemplos y recetas](/es/guide/examples-and-recipes)
 - [Lo que puedes construir](/es/guide/what-you-can-build)
 - [Elija un objetivo](/es/guide/choose-a-target)
 - [Un proyecto, múltiples objetivos](/es/guide/one-project-multiple-targets)
@@ -31,9 +33,17 @@ outline: false
     <h2>Inicio rápido</h2>
     <p>Obtenga un repositorio que funcione rápidamente con la ruta predeterminada Go y borre las alternativas Node/Python compatibles.</p>
   </a>
+  <a class="docs-card" href="./build-custom-plugin-logic">
+    <h2>Construir lógica personalizada del plugin</h2>
+    <p>Abra la ruta guiada avanzada cuando el valor del complemento viva en el código runtime, hooks u orquestación.</p>
+  </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Cree su primer complemento</h2>
     <p>Vea lo que hay en el repositorio, lo que edita y lo que sucede cuando regenera y valida.</p>
+  </a>
+  <a class="docs-card" href="./examples-and-recipes">
+    <h2>Ejemplos y recetas</h2>
+    <p>Abra los repositorios concretos cuando quiera ejemplos visibles por destino, lenguaje y forma final de salida.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>Lo que puedes construir</h2>

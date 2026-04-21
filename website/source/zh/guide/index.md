@@ -20,7 +20,9 @@ outline: false
 ## 推荐阅读顺序
 
 - [快速入门](/zh/guide/quickstart)
+- [构建自定义插件逻辑](/zh/guide/build-custom-plugin-logic)
 - [构建您的第一个插件](/zh/guide/first-plugin)
+- [示例和食谱](/zh/guide/examples-and-recipes)
 - [你可以构建什么](/zh/guide/what-you-can-build)
 - [选择目标](/zh/guide/choose-a-target)
 - [一个项目，多个目标](/zh/guide/one-project-multiple-targets)
@@ -31,9 +33,17 @@ outline: false
     <h2>快速入门</h2>
     <p>使用默认的 Go 路径快速获取工作存储库并清除支持的 Node/Python 替代方案。</p>
   </a>
+  <a class="docs-card" href="./build-custom-plugin-logic">
+    <h2>构建自定义插件逻辑</h2>
+    <p>当插件的价值来自 runtime 代码、hooks 或编排时，打开这条高级引导路径。</p>
+  </a>
   <a class="docs-card" href="./first-plugin">
     <h2>构建您的第一个插件</h2>
     <p>查看存储库中的内容、您编辑的内容以及重新生成和验证时会发生什么。</p>
+  </a>
+  <a class="docs-card" href="./examples-and-recipes">
+    <h2>示例和食谱</h2>
+    <p>当您需要按目标、语言和最终输出形状查看具体仓库时，请打开这里。</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>你可以构建什么</h2>

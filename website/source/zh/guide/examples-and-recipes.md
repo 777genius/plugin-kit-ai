@@ -15,12 +15,12 @@ translationRequired: true
 
 这些是成品公共形状的最清晰示例：
 
-- `codex-basic-prod`：Codex 运行时生产存储库
-- `claude-basic-prod`：Claude 生产仓库
-- `codex-package-prod`: Codex 包目标
-- `gemini-extension-package`: Gemini 扩展打包目标
-- `cursor-basic`: Cursor 工作区配置目标
-- `opencode-basic`: OpenCode 工作区配置目标
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod)：Go 加 `codex-runtime` 的生产参考仓库
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod)：Go 加 `claude` 的生产参考仓库
+- [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod)：`codex-package` 目标
+- [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package)：`gemini` 打包目标
+- [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic)：`cursor` 工作区配置目标
+- [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic)：`opencode` 工作区配置目标
 
 当您需要时，请阅读这些内容：
 
@@ -40,6 +40,15 @@ translationRequired: true
 - 团队入职
 - 在 Go、Python、Node、Claude 和 Codex 起始点之间进行选择
 
+最直接的 code-first 链接是：
+
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+
 如果您仍在选择，请将其与 [选择一个入门存储库](/zh/guide/choose-a-starter) 配对。
 
 ## 3. 本地运行时引用
@@ -51,6 +60,11 @@ translationRequired: true
 - 您想更深入地了解解释的运行时故事
 - 您想要比较 JavaScript、TypeScript 和 Python 本地运行时设置
 - 除了入门存储库之外，您还需要一个具体的参考
+
+可以先看：
+
+- [`codex-node-typescript-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-node-typescript-local)
+- [`codex-python-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-python-local)
 
 ## 4. 技能示例
 
@@ -64,6 +78,7 @@ translationRequired: true
 ## 按目标推荐阅读
 
 - 想要最强的运行时示例：从 Codex 或 Claude 生产示例开始，然后阅读 [构建团队就绪插件](/zh/guide/team-ready-plugin)。
+- 想按语言和目标看 code-first 示例：先打开上面的 Go、Python 或 Node 入门仓库，然后阅读 [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic)。
 - 想要打包或工作区配置示例：从 Codex 包、Gemini、Cursor 或 OpenCode 示例开始，然后阅读 [包和工作区目标](/zh/guide/package-and-workspace-targets)。
 - 想要一个干净的起点，而不是一个完成的示例：转到[入门模板](/zh/guide/starter-templates)。
 - 想要在查看存储库之前选择目标：请阅读[选择目标](/zh/guide/choose-a-target)。

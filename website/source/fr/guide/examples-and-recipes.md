@@ -15,12 +15,12 @@ Utilisez cette page lorsque vous souhaitez voir à quoi ressemble `plugin-kit-ai
 
 Voici les exemples les plus clairs de formes publiques finies :
 
-- `codex-basic-prod` : Codex dépôt de production d'exécution
-- `claude-basic-prod` : Claude dépôt de production
-- `codex-package-prod` : cible du package Codex
-- `gemini-extension-package` : Gemini cible d'emballage d'extension
-- `cursor-basic` : Cursor cible de configuration de l'espace de travail
-- `opencode-basic` : OpenCode cible de configuration de l'espace de travail
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod) : dépôt de production Go plus `codex-runtime`
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod) : dépôt de production Go plus `claude`
+- [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod) : cible `codex-package`
+- [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package) : cible de packaging `gemini`
+- [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic) : cible `cursor` de configuration d'espace de travail
+- [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic) : cible `opencode` de configuration d'espace de travail
 
 Lisez-les quand vous le souhaitez :
 
@@ -40,6 +40,15 @@ Ils sont les meilleurs pour :
 - intégration de l'équipe
 - choisir entre les points de départ Go, Python, Node, Claude et Codex
 
+Les liens code-first les plus directs sont :
+
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+
 Si vous êtes toujours en train de choisir, associez cette page à [Choisissez un dépôt de démarrage](/fr/guide/choose-a-starter).
 
 ## 3. Références d'exécution locales
@@ -51,6 +60,11 @@ Ceux-ci sont utiles lorsque :
 - vous souhaitez comprendre plus en profondeur l'histoire d'exécution interprétée
 - vous souhaitez comparer les configurations d'exécution locale JavaScript, TypeScript et Python
 - vous avez besoin d'une référence concrète au-delà des dépôts de démarrage
+
+Commencez par :
+
+- [`codex-node-typescript-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-node-typescript-local)
+- [`codex-python-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-python-local)
 
 ## 4. Exemples de compétences
 
@@ -64,6 +78,7 @@ Ce ne sont pas le principal point d’entrée pour la plupart des auteurs de plu
 ## Lecture suggérée selon l'objectif
 
 - Vous voulez l'exemple d'exécution le plus performant : commencez par l'exemple de production Codex ou Claude, puis lisez [Créez un plugin prêt pour l'équipe](/fr/guide/team-ready-plugin).
+- Vous voulez un exemple code-first par langage et cible : commencez par le dépôt de démarrage Go, Python ou Node lié ci-dessus, puis ouvrez [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic).
 - Vous souhaitez des exemples d'empaquetage ou de configuration d'espace de travail : commencez par les exemples Codex package, Gemini, Cursor ou OpenCode, puis lisez [Packages et configuration de l'intégration](/fr/guide/package-and-workspace-targets).
 - Vous voulez un point de départ clair, pas un exemple fini : accédez à [Modèles de démarrage](/fr/guide/starter-templates).
 - Vous souhaitez choisir la cible avant de consulter les dépôts : lisez [Choisissez une cible](/fr/guide/choose-a-target).

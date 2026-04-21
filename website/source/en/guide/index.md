@@ -24,6 +24,7 @@ outline: false
 - [Quickstart](/en/guide/quickstart)
 - [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic)
 - [Build Your First Plugin](/en/guide/first-plugin)
+- [Examples And Recipes](/en/guide/examples-and-recipes)
 - [What You Can Build](/en/guide/what-you-can-build)
 - [Choose A Target](/en/guide/choose-a-target)
 - [One Project, Multiple Targets](/en/guide/one-project-multiple-targets)
@@ -45,6 +46,10 @@ outline: false
   <a class="docs-card" href="./first-plugin">
     <h2>Build Your First Plugin</h2>
     <p>Follow the narrow legacy-compatible Codex runtime tutorial when that exact path is what you need.</p>
+  </a>
+  <a class="docs-card" href="./examples-and-recipes">
+    <h2>Examples And Recipes</h2>
+    <p>Open the concrete repos when you want visible examples by target, language, and finished output shape.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>What You Can Build</h2>

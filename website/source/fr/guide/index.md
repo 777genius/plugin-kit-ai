@@ -20,7 +20,9 @@ outline: false
 ## Ordre de lecture recommandé
 
 - [Démarrage rapide](/fr/guide/quickstart)
+- [Créer une logique de plugin personnalisée](/fr/guide/build-custom-plugin-logic)
 - [Créez votre premier plugin](/fr/guide/first-plugin)
+- [Exemples et recettes](/fr/guide/examples-and-recipes)
 - [Ce que vous pouvez construire](/fr/guide/what-you-can-build)
 - [Choisissez une cible](/fr/guide/choose-a-target)
 - [Un projet, plusieurs cibles](/fr/guide/one-project-multiple-targets)
@@ -31,9 +33,17 @@ outline: false
     <h2>Démarrage rapide</h2>
     <p>Obtenez rapidement un dépôt fonctionnel avec le chemin par défaut Go et supprimez les alternatives Node/Python prises en charge.</p>
   </a>
+  <a class="docs-card" href="./build-custom-plugin-logic">
+    <h2>Créer une logique de plugin personnalisée</h2>
+    <p>Ouvrez le parcours guidé avancé lorsque la valeur du plugin vit dans le code runtime, les hooks ou l'orchestration.</p>
+  </a>
   <a class="docs-card" href="./first-plugin">
     <h2>Créez votre premier plugin</h2>
     <p>Découvrez ce qui se trouve dans le dépôt, ce que vous modifiez et ce qui se passe lorsque vous régénérez et validez.</p>
+  </a>
+  <a class="docs-card" href="./examples-and-recipes">
+    <h2>Exemples et recettes</h2>
+    <p>Ouvrez les dépôts concrets lorsque vous voulez des exemples visibles par cible, langage et forme finale de sortie.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>Ce que vous pouvez construire</h2>

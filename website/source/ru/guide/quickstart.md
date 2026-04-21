@@ -29,12 +29,10 @@ translationRequired: true
 Если хотите максимально быстро убедиться, что опубликованный install flow реально работает, начните отсюда:
 
 ```bash
-npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
 ```
 
-- Первая команда - безопасный single-target путь.
-- Вторая ставит все поддерживаемые outputs этого плагина.
+- Эта команда ставит все поддерживаемые outputs этого плагина.
 - Эта опциональная проверка не создаёт repo, который вы будете редактировать дальше.
 - Если ваша цель - авторский plugin repo, пропустите этот шаг и идите сразу в job-first `init` выше.
 

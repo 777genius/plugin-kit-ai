@@ -18,12 +18,10 @@ This is an optional zero-repo proof that the published install flow is live.
 It does not create the plugin repo you will edit.
 
 ```bash
-npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
 ```
 
-- The first command is the safe single-target path.
-- The second installs every supported output for that plugin.
+- This installs every supported output for that plugin.
 - If your goal is to author your own plugin repo, continue to Quickstart and start with `plugin-kit-ai init ...`.
 
 ## Supported Channels
@@ -66,7 +64,7 @@ plugin-kit-ai version
 To install the CLI and preview a real universal plugin without Node/npm:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --dry-run
 ```
 
 ## Which One Should Most People Use?

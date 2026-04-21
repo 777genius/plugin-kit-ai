@@ -61,7 +61,7 @@ plugin-kit-ai version
 Or install the CLI and preview a real universal plugin in one shell line:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --dry-run
 ```
 
 ```bash

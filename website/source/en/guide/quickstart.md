@@ -33,12 +33,10 @@ If you want the shortest decision page first, read [Choose What You Are Building
 If you want the fastest first proof that the published install flow is real, start here:
 
 ```bash
-npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
 ```
 
-- The first command is the safe single-target path.
-- The second installs every supported output for that plugin.
+- This installs every supported output for that plugin.
 - This optional proof does not create the repo you will edit next.
 - If your goal is to author a plugin repo, skip this proof and continue with the job-first `init` path above.
 

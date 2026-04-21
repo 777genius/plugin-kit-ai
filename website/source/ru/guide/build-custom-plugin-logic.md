@@ -36,6 +36,21 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 Для стартового Go scaffolding один раз запустите `go mod tidy`, чтобы проект записал `go.sum` перед первым циклом validate или test, а перед первым `test` или `dev` один раз соберите `bin/my-plugin`.
 
+## Reference repos
+
+Используйте эти ссылки, когда нужны именно видимые code-first примеры, а не только абстрактное объяснение:
+
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod): production reference для Go плюс `codex-runtime`
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod): production reference для Go плюс `claude`
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go): самый прямой Go-first starter для `codex-runtime`
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python): starter для Python плюс `codex-runtime`
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript): starter для Node или TypeScript плюс `codex-runtime`
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go): starter для Go плюс `claude`
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python): starter для Python плюс `claude`
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript): starter для Node или TypeScript плюс `claude`
+
+Если нужны packaging-only или workspace-config примеры, переходите в [Примеры и рецепты](/ru/guide/examples-and-recipes).
+
 ## Что вы редактируете
 
 Authored source of truth живёт под `plugin/`.
@@ -96,5 +111,6 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 - Откройте [Быстрый старт](/ru/guide/quickstart), если хотите сравнить этот путь с более простыми job-first starter'ами.
 - Откройте [Создайте первый plugin](/ru/guide/first-plugin), если вам нужен узкий legacy-compatible tutorial для Codex runtime.
+- Откройте [Примеры и рецепты](/ru/guide/examples-and-recipes), если хотите прямые ссылки на repo вместо только conceptual path.
 - Откройте [Выбор target](/ru/guide/choose-a-target), когда понадобятся конкретные решения по способу поставки.
 - Откройте [Один проект, несколько target'ов](/ru/guide/one-project-multiple-targets), когда repo будет готов расти в несколько outputs.

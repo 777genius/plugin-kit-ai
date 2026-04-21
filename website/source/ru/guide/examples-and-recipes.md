@@ -16,12 +16,12 @@ translationRequired: true
 
 Это самые наглядные примеры законченных публичных форм:
 
-- `codex-basic-prod`: продакшен-репозиторий для Codex runtime
-- `claude-basic-prod`: продакшен-репозиторий для Claude
-- `codex-package-prod`: пакетный target для Codex package
-- `gemini-extension-package`: packaging target для Gemini extension
-- `cursor-basic`: target конфигурации workspace для Cursor
-- `opencode-basic`: target конфигурации workspace для OpenCode
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod): Go плюс продакшен-репозиторий для `codex-runtime`
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod): Go плюс продакшен-репозиторий для `claude`
+- [`codex-package-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-package-prod): target `codex-package`
+- [`gemini-extension-package`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/gemini-extension-package): packaging target `gemini`
+- [`cursor-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/cursor-basic): workspace-config target `cursor`
+- [`opencode-basic`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/opencode-basic): workspace-config target `opencode`
 
 Читайте их, когда нужен:
 
@@ -41,6 +41,15 @@ translationRequired: true
 - онбординга команды
 - выбора между Go, Python, Node, Claude и Codex
 
+Самые прямые code-first starter-ссылки:
+
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)
+
 Если вы ещё выбираете стартовую точку, свяжите это с [Выбором стартового репозитория](/ru/guide/choose-a-starter).
 
 ## 3. Локальные runtime references
@@ -52,6 +61,11 @@ translationRequired: true
 - нужно глубже понять историю interpreted runtime
 - вы хотите сравнить JavaScript, TypeScript и Python local-runtime setups
 - нужен конкретный reference сверх стартовых репозиториев
+
+Начните с:
+
+- [`codex-node-typescript-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-node-typescript-local)
+- [`codex-python-local`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/local/codex-python-local)
 
 ## 4. Skill examples
 
@@ -65,6 +79,7 @@ translationRequired: true
 ## Что читать по цели
 
 - Нужен самый сильный runtime example: начните с production example для Codex или Claude, потом прочитайте [Плагин для команды](/ru/guide/team-ready-plugin).
+- Нужен code-first пример по языку и target: начните с Go, Python или Node starter repo выше, потом откройте [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic).
 - Нужны packaging или workspace-config examples: начните с примеров для Codex package, Gemini, Cursor или OpenCode, потом прочитайте [Package и workspace targets](/ru/guide/package-and-workspace-targets).
 - Нужна чистая стартовая точка, а не finished example: идите в [Стартовые шаблоны](/ru/guide/starter-templates).
 - Сначала нужно выбрать сам target: прочитайте [Выбор target](/ru/guide/choose-a-target).

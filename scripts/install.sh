@@ -17,7 +17,7 @@
 #
 # Any arguments after the script are passed to the installed plugin-kit-ai binary.
 # Example:
-#   curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
+#   curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --dry-run
 
 set -eu
 

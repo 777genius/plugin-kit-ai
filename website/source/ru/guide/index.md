@@ -24,6 +24,7 @@ outline: false
 - [Быстрый старт](/ru/guide/quickstart)
 - [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic)
 - [Создайте первый plugin](/ru/guide/first-plugin)
+- [Примеры и рецепты](/ru/guide/examples-and-recipes)
 - [Что можно собрать](/ru/guide/what-you-can-build)
 - [Выберите target](/ru/guide/choose-a-target)
 - [Один проект, несколько target'ов](/ru/guide/one-project-multiple-targets)
@@ -45,6 +46,10 @@ outline: false
   <a class="docs-card" href="./first-plugin">
     <h2>Создайте первый plugin</h2>
     <p>Используйте этот узкий legacy-compatible tutorial, только когда вам нужен именно такой Codex runtime path.</p>
+  </a>
+  <a class="docs-card" href="./examples-and-recipes">
+    <h2>Примеры и рецепты</h2>
+    <p>Откройте конкретные repo, когда нужны видимые примеры по target, языку и готовой форме output.</p>
   </a>
   <a class="docs-card" href="./what-you-can-build">
     <h2>Что можно собрать</h2>

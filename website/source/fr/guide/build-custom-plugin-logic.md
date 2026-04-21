@@ -14,3 +14,11 @@ Ce guide avancé est pour l'instant maintenu en anglais.
 
 - Ouvrez le guide anglais : [Build Custom Plugin Logic](/en/guide/build-custom-plugin-logic)
 - Ou ouvrez la version russe : [Соберите собственную логику плагина](/ru/guide/build-custom-plugin-logic)
+- Pour des exemples code-first visibles, ouvrez [Exemples et recettes](/fr/guide/examples-and-recipes)
+- Pour des exemples directs par langage et cible :
+  - [plugin-kit-ai-starter-codex-go](https://github.com/777genius/plugin-kit-ai-starter-codex-go)
+  - [plugin-kit-ai-starter-codex-python](https://github.com/777genius/plugin-kit-ai-starter-codex-python)
+  - [plugin-kit-ai-starter-codex-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript)
+  - [plugin-kit-ai-starter-claude-go](https://github.com/777genius/plugin-kit-ai-starter-claude-go)
+  - [plugin-kit-ai-starter-claude-python](https://github.com/777genius/plugin-kit-ai-starter-claude-python)
+  - [plugin-kit-ai-starter-claude-node-typescript](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript)

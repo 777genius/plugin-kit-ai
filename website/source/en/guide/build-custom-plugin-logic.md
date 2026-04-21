@@ -36,6 +36,21 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 For the default Go starter, run `go mod tidy` once so the scaffold writes `go.sum` before the first validate or test cycle, then build `bin/my-plugin` once before the first `test` or `dev` run.
 
+## Reference Repos
+
+Use these when you want visible code-first examples instead of only abstract guidance:
+
+- [`codex-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/codex-basic-prod): Go plus `codex-runtime` production reference
+- [`claude-basic-prod`](https://github.com/777genius/plugin-kit-ai/tree/main/examples/plugins/claude-basic-prod): Go plus `claude` production reference
+- [`plugin-kit-ai-starter-codex-go`](https://github.com/777genius/plugin-kit-ai-starter-codex-go): smallest Go-first `codex-runtime` starter
+- [`plugin-kit-ai-starter-codex-python`](https://github.com/777genius/plugin-kit-ai-starter-codex-python): Python plus `codex-runtime` starter
+- [`plugin-kit-ai-starter-codex-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-codex-node-typescript): Node or TypeScript plus `codex-runtime` starter
+- [`plugin-kit-ai-starter-claude-go`](https://github.com/777genius/plugin-kit-ai-starter-claude-go): Go plus `claude` starter
+- [`plugin-kit-ai-starter-claude-python`](https://github.com/777genius/plugin-kit-ai-starter-claude-python): Python plus `claude` starter
+- [`plugin-kit-ai-starter-claude-node-typescript`](https://github.com/777genius/plugin-kit-ai-starter-claude-node-typescript): Node or TypeScript plus `claude` starter
+
+These references are for runtime code you own. For packaging-only or workspace-config examples, use [Examples And Recipes](/en/guide/examples-and-recipes).
+
 ## What You Edit
 
 The authored source of truth lives under `plugin/`.
@@ -96,5 +111,6 @@ plugin-kit-ai test . --platform codex-runtime --event Notify
 
 - Open [Quickstart](/en/guide/quickstart) when you want to compare this path against the simpler job-first starters.
 - Open [Build Your First Plugin](/en/guide/first-plugin) when you intentionally want the narrow legacy-compatible Codex runtime tutorial.
+- Open [Examples And Recipes](/en/guide/examples-and-recipes) when you want direct repo links instead of only the conceptual path.
 - Open [Choose A Target](/en/guide/choose-a-target) when you need target-specific shipping decisions.
 - Open [One Project, Multiple Targets](/en/guide/one-project-multiple-targets) when the repo is ready to grow into more outputs.

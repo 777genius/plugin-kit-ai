@@ -18,12 +18,10 @@ translationRequired: true
 Она не создаёт repo плагина, который вы будете редактировать.
 
 ```bash
-npx plugin-kit-ai@latest add notion --target claude
 npx plugin-kit-ai@latest add notion
 ```
 
-- Первая команда - безопасный single-target путь.
-- Вторая ставит все поддерживаемые outputs этого плагина.
+- Эта команда ставит все поддерживаемые outputs этого плагина.
 - Если ваша цель - авторский plugin repo, переходите в [Быстрый старт](/ru/guide/quickstart) и начинайте с `plugin-kit-ai init ...`.
 
 ## Поддерживаемые каналы
@@ -66,7 +64,7 @@ plugin-kit-ai version
 Чтобы установить CLI и сразу посмотреть план установки реального universal plugin без Node/npm:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --target claude --dry-run
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- add notion --dry-run
 ```
 
 ## Что выбирать большинству людей?
