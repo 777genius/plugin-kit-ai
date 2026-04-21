@@ -165,7 +165,7 @@ Stable CLI bootstrap/setup path for `plugin-kit-ai` itself:
 - when the PyPI wrapper is published for a release, `pipx install plugin-kit-ai` or `pipx run plugin-kit-ai version` is the Python ecosystem path for the CLI itself; this wrapper stays `public-beta`, downloads the matching published GitHub Releases binary, and verifies `checksums.txt`
 - for Python/Node plugin authoring helpers, the shared package path is `plugin-kit-ai-runtime` on PyPI and npm; this mirrors the scaffold helper API and stays separate from the CLI wrappers above
 - helper delivery modes are documented in [CHOOSING_HELPER_DELIVERY_MODE.md](./CHOOSING_HELPER_DELIVERY_MODE.md); the default scaffold vendors helper files, while `init ... --runtime-package` switches to the shared dependency path; released CLIs pin the helper version automatically and development builds accept `--runtime-package-version`
-- `scripts/install.sh` resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, and installs the matching GitHub Releases tarball into `BIN_DIR`
+- `scripts/install.sh` resolves the latest published stable release by default, verifies `checksums.txt`, auto-detects OS/arch, installs the matching GitHub Releases tarball into `BIN_DIR`, and can pass trailing script arguments to the installed CLI for one-shot commands
 - `777genius/plugin-kit-ai/setup-plugin-kit-ai@v1` is the official CI setup action and reuses the same verified release contract instead of rebuilding from source in downstream repos
 
 Current beta CLI commands:

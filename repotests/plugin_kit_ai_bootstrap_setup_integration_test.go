@@ -116,6 +116,44 @@ func TestPluginKitAIBootstrapScriptSupportsExplicitVersion(t *testing.T) {
 	}
 }
 
+func TestPluginKitAIBootstrapScriptRunsArgumentsAfterInstall(t *testing.T) {
+	t.Parallel()
+	requireBindTests(t)
+	requireShellBootstrap(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("mock pass-through binary is a POSIX shell script")
+	}
+
+	binaryName := "plugin-kit-ai"
+	assetName := fmt.Sprintf("plugin-kit-ai_1.2.3_%s_%s.tar.gz", runtimeGOOSForScript(), runtimeGOARCHForScript())
+	archive := mustTarGz(t, binaryName, []byte("#!/usr/bin/env sh\nprintf 'fake plugin-kit-ai args:'\nfor arg in \"$@\"; do printf ' [%s]' \"$arg\"; done\nprintf '\\n'\n"))
+	sum := sha256.Sum256(archive)
+	checksums := fmt.Sprintf("%s  %s\n", hex.EncodeToString(sum[:]), assetName)
+
+	srv := newBootstrapReleaseServer(t, bootstrapReleaseConfig{
+		tag:       "v1.2.3",
+		assetName: assetName,
+		checksums: checksums,
+		archive:   archive,
+	})
+	t.Cleanup(srv.Close)
+
+	binDir := filepath.Join(t.TempDir(), "bin")
+	out := runBootstrapScript(t, srv.URL, map[string]string{
+		"BIN_DIR": binDir,
+	}, "install", "owner/repo", "--latest")
+
+	for _, want := range []string{
+		"Installed plugin-kit-ai",
+		"Running plugin-kit-ai install owner/repo --latest",
+		"fake plugin-kit-ai args: [install] [owner/repo] [--latest]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("pass-through output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 func TestPluginKitAIBootstrapScriptRejectsChecksumMismatch(t *testing.T) {
 	t.Parallel()
 	requireBindTests(t)
@@ -266,10 +304,11 @@ func newBootstrapReleaseServer(t *testing.T, cfg bootstrapReleaseConfig) *httpte
 	return srv
 }
 
-func runBootstrapScript(t *testing.T, serverURL string, env map[string]string) string {
+func runBootstrapScript(t *testing.T, serverURL string, env map[string]string, passthroughArgs ...string) string {
 	t.Helper()
 	root := RepoRoot(t)
 	args := []string{shellPath(t), filepath.Join(root, "scripts", "install.sh")}
+	args = append(args, passthroughArgs...)
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = append(os.Environ(),
 		"PLUGIN_KIT_AI_REPOSITORY=777genius/plugin-kit-ai",

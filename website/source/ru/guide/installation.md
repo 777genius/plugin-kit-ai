@@ -63,12 +63,18 @@ curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/script
 plugin-kit-ai version
 ```
 
+Чтобы установить CLI и сразу поставить совместимый binary plugin без Node/npm:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- install 777genius/claude-notifications-go --latest --dir ./bin
+```
+
 ## Что выбирать большинству людей?
 
 - Выбирайте `npx`, если хотите самый короткий первый запуск без постоянной установки.
 - Выбирайте Homebrew, если вы на macOS и хотите самый удобный путь для ежедневной работы.
 - Выбирайте npm или pipx только тогда, когда это уже соответствует среде вашей команды.
-- Используйте verified script как запасной путь вне сценариев, где всё уже крутится вокруг пакетного менеджера.
+- Используйте verified script как запасной путь вне сценариев, где всё уже крутится вокруг пакетного менеджера, в том числе для one-shot команд через `sh -s -- ...`.
 
 ## Путь для CI
 

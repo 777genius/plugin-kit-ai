@@ -145,6 +145,7 @@ Other supported CLI install methods:
 - npm: `npm i -g plugin-kit-ai` or `npx plugin-kit-ai@latest ...`
 - pipx (`public-beta`, only when that release is published to PyPI): `pipx install plugin-kit-ai`
 - fallback installer: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh`
+- fallback one-shot plugin install: `curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- install 777genius/claude-notifications-go --latest --dir ./bin`
 - source build for maintainers of this repo: `go build -o bin/plugin-kit-ai ./cli/plugin-kit-ai/cmd/plugin-kit-ai`
 
 ## Keep This Rule In Mind

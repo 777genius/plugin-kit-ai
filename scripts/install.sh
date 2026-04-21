@@ -14,6 +14,10 @@
 #   PLUGIN_KIT_AI_REPOSITORY owner/repo override (default 777genius/plugin-kit-ai)
 #   PLUGIN_KIT_AI_RELEASE_BASE_URL override release download base (advanced/test only)
 #   PLUGIN_KIT_AI_OUTPUT_FILE optional key=value output file for automation/action usage
+#
+# Any arguments after the script are passed to the installed plugin-kit-ai binary.
+# Example:
+#   curl -fsSL https://raw.githubusercontent.com/777genius/plugin-kit-ai/main/scripts/install.sh | sh -s -- install 777genius/claude-notifications-go --latest --dir ./bin
 
 set -eu
 
@@ -216,3 +220,8 @@ write_output "version" "$TAG"
 write_output "path" "$DISPLAY_DEST_PATH"
 write_output "bin_dir" "$BIN_DIR"
 write_output "asset" "$ASSET_NAME"
+
+if [ "$#" -gt 0 ]; then
+  echo "Running plugin-kit-ai $*"
+  "$DEST_PATH" "$@"
+fi
