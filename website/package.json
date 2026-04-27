@@ -30,6 +30,6 @@
     "vitepress": "2.0.0-alpha.17",
     "vitepress-codeblock-collapse": "1.0.0",
     "vitepress-mermaid-zoom": "1.0.2",
-    "vue": "3.5.32"
+    "vue": "3.5.33"
   }
 }
