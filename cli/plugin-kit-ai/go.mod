@@ -14,7 +14,7 @@ require (
 	github.com/777genius/plugin-kit-ai/install/integrationctl v0.0.0
 	github.com/777genius/plugin-kit-ai/plugininstall v0.0.0
 	github.com/777genius/plugin-kit-ai/sdk v0.0.0
-	github.com/pelletier/go-toml/v2 v2.3.0
+	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/spf13/cobra v1.10.2
 	github.com/tailscale/hujson v0.0.0-20260302212456-ecc657c15afd
 	gopkg.in/yaml.v3 v3.0.1
