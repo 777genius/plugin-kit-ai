@@ -24,6 +24,7 @@ func buildDoctorReport(installations []domain.InstallationRecord) (domain.Report
 				authPendingCount++
 			}
 			report.Targets = append(report.Targets, domain.TargetReport{
+				IntegrationID:           inst.IntegrationID,
 				TargetID:                string(targetID),
 				DeliveryKind:            string(ti.DeliveryKind),
 				CapabilitySurface:       append([]string(nil), ti.CapabilitySurface...),
@@ -43,9 +44,12 @@ func buildDoctorReport(installations []domain.InstallationRecord) (domain.Report
 
 func sortDoctorTargets(targets []domain.TargetReport) {
 	sort.Slice(targets, func(i, j int) bool {
-		if targets[i].TargetID == targets[j].TargetID {
-			return targets[i].DeliveryKind < targets[j].DeliveryKind
+		if targets[i].IntegrationID == targets[j].IntegrationID {
+			if targets[i].TargetID == targets[j].TargetID {
+				return targets[i].DeliveryKind < targets[j].DeliveryKind
+			}
+			return targets[i].TargetID < targets[j].TargetID
 		}
-		return targets[i].TargetID < targets[j].TargetID
+		return targets[i].IntegrationID < targets[j].IntegrationID
 	})
 }

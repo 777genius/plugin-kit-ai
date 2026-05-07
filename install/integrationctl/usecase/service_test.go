@@ -2073,6 +2073,190 @@ func TestAddPersistsWorkspaceRootForProjectScope(t *testing.T) {
 	}
 }
 
+func TestAddAppliesInstallableTargetsAndSkipsBlockedOnes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.json")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.claude","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]},{"key":"test.gemini","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: statePath}
+	geminiInspectCalls := 0
+
+	svc := Service{
+		SourceResolver: stubResolver{
+			resolve: func(ref domain.IntegrationRef) (ports.ResolvedSource, error) {
+				return ports.ResolvedSource{
+					Kind:      "local_path",
+					Requested: domain.RequestedSourceRef{Kind: "local_path", Value: ref.Raw},
+					Resolved:  domain.ResolvedSourceRef{Kind: "local_path", Value: ref.Raw},
+					LocalPath: ref.Raw,
+				}, nil
+			},
+		},
+		ManifestLoader: stubManifestLoader{
+			load: func(ports.ResolvedSource) (domain.IntegrationManifest, error) {
+				return domain.IntegrationManifest{
+					IntegrationID: "demo",
+					Version:       "0.1.0",
+					RequestedRef:  domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					ResolvedRef:   domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					Deliveries: []domain.Delivery{
+						{TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, Name: "demo-claude"},
+						{TargetID: domain.TargetGemini, DeliveryKind: domain.DeliveryGeminiExtension, Name: "demo-gemini"},
+					},
+				}, nil
+			},
+		},
+		StateStore:  store,
+		LockManager: locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:     journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:    evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetClaude: stubTargetAdapter{
+				id: domain.TargetClaude,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					return ports.InspectResult{
+						TargetID:                domain.TargetClaude,
+						State:                   domain.InstallInstalled,
+						ActivationState:         domain.ActivationReloadPending,
+						EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{domain.RestrictionSourceToolMissing},
+					}, nil
+				},
+				planInstall: func(in ports.PlanInstallInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{
+						TargetID:    domain.TargetClaude,
+						ActionClass: "install_missing",
+						EvidenceKey: "test.claude",
+						Blocking:    true,
+						ManualSteps: []string{"Claude Code CLI is not available on PATH; install/configure Claude Code and rerun from a shell where `claude` works"},
+					}, nil
+				},
+			},
+			domain.TargetGemini: stubTargetAdapter{
+				id: domain.TargetGemini,
+				inspect: func(in ports.InspectInput) (ports.InspectResult, error) {
+					geminiInspectCalls++
+					if geminiInspectCalls == 1 {
+						return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallRemoved}, nil
+					}
+					return ports.InspectResult{TargetID: domain.TargetGemini, State: domain.InstallInstalled, ActivationState: domain.ActivationRestartPending}, nil
+				},
+				planInstall: func(in ports.PlanInstallInput) (ports.AdapterPlan, error) {
+					return ports.AdapterPlan{TargetID: domain.TargetGemini, ActionClass: "install_missing", EvidenceKey: "test.gemini"}, nil
+				},
+				applyInstall: func(in ports.ApplyInput) (ports.ApplyResult, error) {
+					return ports.ApplyResult{TargetID: domain.TargetGemini, State: domain.InstallInstalled, ActivationState: domain.ActivationRestartPending}, nil
+				},
+			},
+		},
+	}
+
+	report, err := svc.Add(context.Background(), AddInput{Source: filepath.Join(root, "plugin")})
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if report.Summary != `Installed integration "demo" at version 0.1.0 on 1 target.` {
+		t.Fatalf("summary = %q", report.Summary)
+	}
+	if report.RequestedTargetCount != 2 {
+		t.Fatalf("requested target count = %d, want 2", report.RequestedTargetCount)
+	}
+	if len(report.SkippedTargets) != 1 || report.SkippedTargets[0] != "claude" {
+		t.Fatalf("skipped targets = %+v", report.SkippedTargets)
+	}
+	if len(report.Warnings) != 1 || !strings.Contains(report.Warnings[0], `Skipped "claude"`) {
+		t.Fatalf("warnings = %+v", report.Warnings)
+	}
+	if len(report.Targets) != 1 || report.Targets[0].TargetID != "gemini" {
+		t.Fatalf("report targets = %+v", report.Targets)
+	}
+	state, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatalf("load state: %v", err)
+	}
+	if len(state.Installations) != 1 {
+		t.Fatalf("installations = %d, want 1", len(state.Installations))
+	}
+	if _, ok := state.Installations[0].Targets[domain.TargetClaude]; ok {
+		t.Fatalf("blocked target should not be persisted: %+v", state.Installations[0].Targets)
+	}
+	if got := state.Installations[0].Targets[domain.TargetGemini].State; got != domain.InstallInstalled {
+		t.Fatalf("gemini state = %s, want installed", got)
+	}
+}
+
+func TestAddRejectsAlreadyManagedIntegrationBeforePlanningTargets(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.json")
+	evidencePath := filepath.Join(root, "evidence.json")
+	writeFile(t, evidencePath, `{"schema_version":1,"entries":[{"key":"test.claude","claim":"x","evidence_class":"confirmed_vendor_fact","urls":["https://example.com"]}]}`)
+	fs := fsadapter.OS{}
+	store := jsonstate.Store{FS: fs, Path: statePath}
+	if err := store.Save(context.Background(), ports.StateFile{
+		SchemaVersion: 1,
+		Installations: []domain.InstallationRecord{{
+			IntegrationID: "demo",
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetClaude: {TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, State: domain.InstallInstalled},
+			},
+		}},
+	}); err != nil {
+		t.Fatalf("seed state: %v", err)
+	}
+
+	planned := false
+	svc := Service{
+		SourceResolver: stubResolver{
+			resolve: func(ref domain.IntegrationRef) (ports.ResolvedSource, error) {
+				return ports.ResolvedSource{
+					Kind:      "local_path",
+					Requested: domain.RequestedSourceRef{Kind: "local_path", Value: ref.Raw},
+					Resolved:  domain.ResolvedSourceRef{Kind: "local_path", Value: ref.Raw},
+					LocalPath: ref.Raw,
+				}, nil
+			},
+		},
+		ManifestLoader: stubManifestLoader{
+			load: func(ports.ResolvedSource) (domain.IntegrationManifest, error) {
+				return domain.IntegrationManifest{
+					IntegrationID: "demo",
+					Version:       "0.1.0",
+					RequestedRef:  domain.RequestedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					ResolvedRef:   domain.ResolvedSourceRef{Kind: "local_path", Value: filepath.Join(root, "plugin")},
+					Deliveries: []domain.Delivery{
+						{TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, Name: "demo-claude"},
+					},
+				}, nil
+			},
+		},
+		StateStore:  store,
+		LockManager: locks.FileLock{BaseDir: filepath.Join(root, "locks")},
+		Journal:     journal.FileJournal{FS: fs, BaseDir: filepath.Join(root, "ops")},
+		Evidence:    evidence.Registry{FS: fs, Path: evidencePath},
+		Adapters: map[domain.TargetID]ports.TargetAdapter{
+			domain.TargetClaude: stubTargetAdapter{
+				id: domain.TargetClaude,
+				planInstall: func(in ports.PlanInstallInput) (ports.AdapterPlan, error) {
+					planned = true
+					return ports.AdapterPlan{TargetID: domain.TargetClaude, ActionClass: "install_missing", EvidenceKey: "test.claude", Blocking: true}, nil
+				},
+			},
+		},
+	}
+
+	_, err := svc.Add(context.Background(), AddInput{Source: filepath.Join(root, "plugin")})
+	if err == nil || !strings.Contains(err.Error(), "integration already exists in state: demo") {
+		t.Fatalf("error = %v", err)
+	}
+	if planned {
+		t.Fatal("target planning should not run when the integration is already managed")
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

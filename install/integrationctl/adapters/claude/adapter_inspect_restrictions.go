@@ -6,7 +6,7 @@ func (a Adapter) inspectRestrictions(inspect inspectContext, record *domain.Inst
 	restrictions := []domain.EnvironmentRestrictionCode{}
 	settingsFiles := []string{inspect.settings}
 
-	if !inspect.cliAvailable && !inspect.installed {
+	if !inspect.cliAvailable {
 		restrictions = append(restrictions, domain.RestrictionSourceToolMissing)
 	}
 	if managedPath, managed, ok := a.readManagedSettings(inspect.scope, inspect.workspaceRoot); ok {
@@ -25,8 +25,5 @@ func (a Adapter) inspectRestrictions(inspect inspectContext, record *domain.Inst
 			restrictions = append(restrictions, domain.RestrictionReadOnlyNativeLayer)
 		}
 	}
-	if hasRestriction(restrictions, domain.RestrictionManagedPolicyBlock) || hasRestriction(restrictions, domain.RestrictionReadOnlyNativeLayer) {
-		restrictions = dedupeRestrictions(restrictions)
-	}
-	return restrictions, settingsFiles
+	return dedupeRestrictions(restrictions), settingsFiles
 }

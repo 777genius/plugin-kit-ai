@@ -211,6 +211,7 @@ Need the short user-facing guide for choosing the right publication flow for Cod
 - `install`: plugin binary from GitHub Releases with checksum verification
 - `version`: build/version info
 - `skills init|validate|generate`: experimental SKILL.md authoring and agent generate tooling
+- `skills install|list|update|remove`: external npm-backed Agent Skills management through `skills@1.5.5`
 
 For the experimental skills subsystem, handwritten `skills/<name>/SKILL.md` is supported directly. `skills init` is convenience scaffold, not a required entrypoint.
 For `install`, the stable CLI promise is limited to verified installation of third-party plugin binaries from GitHub Releases. It does not include self-update for the `plugin-kit-ai` CLI itself; use Homebrew as the recommended local install path, the `public-beta` npm wrapper as the official JS ecosystem path, the `public-beta` PyPI/pipx wrapper when that release was published to PyPI, `scripts/install.sh` as the verified fallback, or `setup-plugin-kit-ai@v1` in CI.

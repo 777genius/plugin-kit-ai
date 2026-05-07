@@ -15,14 +15,14 @@ func (s Service) planExistingRemoval(ctx context.Context, record domain.Installa
 	if _, err := s.validateEvidence(ctx, item.TargetID, plan.EvidenceKey); err != nil {
 		return plannedExistingTarget{}, err
 	}
-	return finalizeExistingRemovalPlan(item, plan, sharedResolved, sharedManifest), nil
+	return finalizeExistingRemovalPlan(record, item, plan, sharedResolved, sharedManifest), nil
 }
 
-func finalizeExistingRemovalPlan(item plannedExistingTarget, plan ports.AdapterPlan, sharedResolved *ports.ResolvedSource, sharedManifest *domain.IntegrationManifest) plannedExistingTarget {
+func finalizeExistingRemovalPlan(record domain.InstallationRecord, item plannedExistingTarget, plan ports.AdapterPlan, sharedResolved *ports.ResolvedSource, sharedManifest *domain.IntegrationManifest) plannedExistingTarget {
 	item.Plan = plan
 	item.Manifest = cloneManifestPtr(sharedManifest)
 	item.Resolved = cloneResolvedPtr(sharedResolved)
-	item.Report = toTargetReport(item.Delivery, item.Inspect, plan)
+	item.Report = toTargetReport(record.IntegrationID, item.Delivery, item.Inspect, plan)
 	return item
 }
 
@@ -46,7 +46,7 @@ func (s Service) planExistingToggle(ctx context.Context, record domain.Installat
 	if _, err := s.validateEvidence(ctx, item.TargetID, plan.EvidenceKey); err != nil {
 		return plannedExistingTarget{}, err
 	}
-	return finalizeExistingTogglePlan(item, plan), nil
+	return finalizeExistingTogglePlan(record, item, plan), nil
 }
 
 func existingToggleAdapter(item plannedExistingTarget, enable bool) (ports.ToggleTargetAdapter, error) {
@@ -64,9 +64,9 @@ func existingToggleAction(enable bool) string {
 	return "disable"
 }
 
-func finalizeExistingTogglePlan(item plannedExistingTarget, plan ports.AdapterPlan) plannedExistingTarget {
+func finalizeExistingTogglePlan(record domain.InstallationRecord, item plannedExistingTarget, plan ports.AdapterPlan) plannedExistingTarget {
 	item.Plan = plan
-	item.Report = toTargetReport(item.Delivery, item.Inspect, plan)
+	item.Report = toTargetReport(record.IntegrationID, item.Delivery, item.Inspect, plan)
 	return item
 }
 

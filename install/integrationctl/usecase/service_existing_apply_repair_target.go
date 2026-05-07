@@ -42,7 +42,7 @@ func (s Service) applyRepairedExistingTarget(ctx context.Context, record domain.
 	}
 	runtime.nextRecord.Targets[target.TargetID] = targetInstallationFromExisting(target, applyResult, verified)
 	applyManifestMetadata(&runtime.nextRecord, *target.Manifest, runtime.startedAt)
-	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
+	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(record.IntegrationID, target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	return false, nil
 }
 

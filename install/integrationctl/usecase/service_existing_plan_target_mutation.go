@@ -31,7 +31,7 @@ func (s Service) planExistingMutation(ctx context.Context, record domain.Install
 	if _, err := s.validateEvidence(ctx, item.TargetID, plan.EvidenceKey); err != nil {
 		return plannedExistingTarget{}, err
 	}
-	return finalizeExistingMutationPlan(item, *nextDelivery, plan, resolved, manifest), nil
+	return finalizeExistingMutationPlan(record, item, *nextDelivery, plan, resolved, manifest), nil
 }
 
 func (s Service) resolveExistingMutationSource(ctx context.Context, record domain.InstallationRecord, sharedResolved *ports.ResolvedSource, sharedManifest *domain.IntegrationManifest) (ports.ResolvedSource, domain.IntegrationManifest, error) {
@@ -49,11 +49,11 @@ func requireExistingMutationDelivery(manifest domain.IntegrationManifest, target
 	return nextDelivery, nil
 }
 
-func finalizeExistingMutationPlan(item plannedExistingTarget, delivery domain.Delivery, plan ports.AdapterPlan, resolved ports.ResolvedSource, manifest domain.IntegrationManifest) plannedExistingTarget {
+func finalizeExistingMutationPlan(record domain.InstallationRecord, item plannedExistingTarget, delivery domain.Delivery, plan ports.AdapterPlan, resolved ports.ResolvedSource, manifest domain.IntegrationManifest) plannedExistingTarget {
 	item.Delivery = delivery
 	item.Plan = plan
 	item.Manifest = &manifest
 	item.Resolved = &resolved
-	item.Report = toTargetReport(delivery, item.Inspect, plan)
+	item.Report = toTargetReport(record.IntegrationID, delivery, item.Inspect, plan)
 	return item
 }

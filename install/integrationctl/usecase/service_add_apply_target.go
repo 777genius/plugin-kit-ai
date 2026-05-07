@@ -44,7 +44,7 @@ func (s Service) applyAddedTarget(ctx context.Context, manifest domain.Integrati
 		return false, err
 	}
 	runtime.applied = append(runtime.applied, appliedTargetInstall{Planned: target, Result: applyResult, Verify: verified})
-	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
+	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(manifest.IntegrationID, target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	return false, nil
 }
 

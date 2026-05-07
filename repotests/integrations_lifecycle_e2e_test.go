@@ -18,7 +18,7 @@ import (
 
 var (
 	trailingCommaRE = regexp.MustCompile(`,\s*([}\]])`)
-	operationLineRE = regexp.MustCompile(`(?m)^Operation:\s*(\S+)\s*$`)
+	operationLineRE = regexp.MustCompile(`(?m)^(?:🆔\s*)?Operation:\s*(\S+)\s*$`)
 )
 
 type integrationsLifecycleVersion struct {
@@ -75,9 +75,11 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "add", sourceRoot, "--scope", "project", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run plan for integration "lifecycle-demo" at version 0.1.0.`,
-		"- codex: action=install_missing",
-		"- cursor: action=install_missing",
-		"- opencode: action=install_missing",
+		"✅ Already present: cursor, opencode",
+		"⬇️ New install: codex",
+		"⬇️ codex - will install Codex plugin",
+		"✅ cursor - will adopt existing Cursor MCP setup",
+		"✅ opencode - will adopt existing OpenCode plugin",
 	} {
 		if !strings.Contains(addDryRunOutput, want) {
 			t.Fatalf("add dry-run output missing %q:\n%s", want, addDryRunOutput)
@@ -98,9 +100,12 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "add", sourceRoot, "--scope", "project", "--dry-run=false")
 	for _, want := range []string{
 		`Installed integration "lifecycle-demo" at version 0.1.0.`,
-		"- codex: action=install_missing delivery=codex-marketplace-plugin state=activation_pending",
-		"- cursor: action=install_missing delivery=cursor-mcp state=installed",
-		"- opencode: action=install_missing delivery=opencode-plugin state=installed",
+		"🚀 Ready now: cursor",
+		"🔄 Restart or reload: opencode",
+		"🧩 Finish setup: codex",
+		"🟡 codex - prepared Codex plugin for in-app install",
+		"✅ cursor - installed Cursor MCP setup",
+		"🟡 opencode - installed OpenCode plugin",
 	} {
 		if !strings.Contains(addOutput, want) {
 			t.Fatalf("add output missing %q:\n%s", want, addOutput)
@@ -238,9 +243,11 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "update", "lifecycle-demo", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run update_version plan for "lifecycle-demo".`,
-		"- codex: action=update_version",
-		"- cursor: action=update_version",
-		"- opencode: action=update_version",
+		"✅ Already present: cursor, opencode",
+		"🟡 Needs attention: codex",
+		"🟡 codex - will update Codex plugin",
+		"✅ cursor - will update Cursor MCP setup",
+		"✅ opencode - will update OpenCode plugin",
 	} {
 		if !strings.Contains(updateDryRunOutput, want) {
 			t.Fatalf("update dry-run output missing %q:\n%s", want, updateDryRunOutput)
@@ -261,9 +268,12 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "update", "lifecycle-demo", "--dry-run=false")
 	for _, want := range []string{
 		`Updated integration "lifecycle-demo".`,
-		"- codex: action=update_version delivery=codex-marketplace-plugin state=activation_pending",
-		"- cursor: action=update_version delivery=cursor-mcp state=installed",
-		"- opencode: action=update_version delivery=opencode-plugin state=installed",
+		"🚀 Ready now: cursor",
+		"🔄 Restart or reload: opencode",
+		"🧩 Finish setup: codex",
+		"🟡 codex - prepared Codex plugin for in-app install",
+		"✅ cursor - installed Cursor MCP setup",
+		"🟡 opencode - installed OpenCode plugin",
 	} {
 		if !strings.Contains(updateOutput, want) {
 			t.Fatalf("update output missing %q:\n%s", want, updateOutput)
@@ -351,9 +361,11 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "remove", "lifecycle-demo", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run remove_orphaned_target plan for "lifecycle-demo".`,
-		"- codex: action=remove_orphaned_target",
-		"- cursor: action=remove_orphaned_target",
-		"- opencode: action=remove_orphaned_target",
+		"✅ Already present: cursor, opencode",
+		"🟡 Needs attention: codex",
+		"🟡 codex - will remove Codex plugin",
+		"✅ cursor - will remove Cursor MCP setup",
+		"✅ opencode - will remove OpenCode plugin",
 	} {
 		if !strings.Contains(removeDryRunOutput, want) {
 			t.Fatalf("remove dry-run output missing %q:\n%s", want, removeDryRunOutput)
@@ -373,9 +385,11 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"integrations", "remove", "lifecycle-demo", "--dry-run=false")
 	for _, want := range []string{
 		`Removed managed targets from integration "lifecycle-demo".`,
-		"- codex: action=remove_orphaned_target delivery=codex-marketplace-plugin state=removed",
-		"- cursor: action=remove_orphaned_target delivery=cursor-mcp state=removed",
-		"- opencode: action=remove_orphaned_target delivery=opencode-plugin state=removed",
+		"🚀 Ready now: cursor",
+		"🔄 Restart or reload: opencode",
+		"🟡 codex - removed Codex plugin",
+		"✅ cursor - removed Cursor MCP setup",
+		"🟡 opencode - removed OpenCode plugin",
 	} {
 		if !strings.Contains(removeOutput, want) {
 			t.Fatalf("remove output missing %q:\n%s", want, removeOutput)

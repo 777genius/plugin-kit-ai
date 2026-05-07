@@ -44,7 +44,7 @@ func (s Service) applyRemovedExistingTarget(ctx context.Context, record domain.I
 	}
 	runtime.removed = appendRemovedExisting(runtime.removed, target, applyResult)
 	delete(runtime.nextRecord.Targets, target.TargetID)
-	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
+	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(record.IntegrationID, target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 	return false, nil
 }
 

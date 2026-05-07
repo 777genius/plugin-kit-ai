@@ -11,6 +11,7 @@ func appendListTargets(report *domain.Report, inst domain.InstallationRecord) {
 	for _, targetID := range sortedTargets(inst.Targets) {
 		ti := inst.Targets[targetID]
 		report.Targets = append(report.Targets, domain.TargetReport{
+			IntegrationID:     inst.IntegrationID,
 			TargetID:          string(targetID),
 			DeliveryKind:      string(ti.DeliveryKind),
 			CapabilitySurface: append([]string(nil), ti.CapabilitySurface...),
@@ -22,8 +23,9 @@ func appendListTargets(report *domain.Report, inst domain.InstallationRecord) {
 	}
 }
 
-func toTargetReport(delivery domain.Delivery, inspect ports.InspectResult, plan ports.AdapterPlan) domain.TargetReport {
+func toTargetReport(integrationID string, delivery domain.Delivery, inspect ports.InspectResult, plan ports.AdapterPlan) domain.TargetReport {
 	report := domain.TargetReport{
+		IntegrationID:            integrationID,
 		TargetID:                 string(delivery.TargetID),
 		DeliveryKind:             string(delivery.DeliveryKind),
 		CapabilitySurface:        append([]string(nil), delivery.CapabilitySurface...),
@@ -47,7 +49,7 @@ func toTargetReport(delivery domain.Delivery, inspect ports.InspectResult, plan 
 	return report
 }
 
-func toAppliedTargetReport(delivery domain.Delivery, inspect ports.InspectResult, verified ports.InspectResult, plan ports.AdapterPlan, result ports.ApplyResult) domain.TargetReport {
+func toAppliedTargetReport(integrationID string, delivery domain.Delivery, inspect ports.InspectResult, verified ports.InspectResult, plan ports.AdapterPlan, result ports.ApplyResult) domain.TargetReport {
 	state := result.State
 	if verified.State != "" {
 		state = verified.State
@@ -66,6 +68,7 @@ func toAppliedTargetReport(delivery domain.Delivery, inspect ports.InspectResult
 		environmentRestrictions = append([]domain.EnvironmentRestrictionCode(nil), verified.EnvironmentRestrictions...)
 	}
 	report := domain.TargetReport{
+		IntegrationID:        integrationID,
 		TargetID:             string(delivery.TargetID),
 		DeliveryKind:         string(delivery.DeliveryKind),
 		CapabilitySurface:    append([]string(nil), delivery.CapabilitySurface...),

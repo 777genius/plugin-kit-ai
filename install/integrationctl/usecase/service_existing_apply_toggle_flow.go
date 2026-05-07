@@ -31,6 +31,6 @@ func (s Service) appendExistingPlanJournal(ctx context.Context, operationID stri
 	return nil
 }
 
-func newExistingToggleTargetReport(target plannedExistingTarget, verified ports.InspectResult, applyResult ports.ApplyResult) domain.TargetReport {
-	return toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult)
+func newExistingToggleTargetReport(record domain.InstallationRecord, target plannedExistingTarget, verified ports.InspectResult, applyResult ports.ApplyResult) domain.TargetReport {
+	return toAppliedTargetReport(record.IntegrationID, target.Delivery, target.Inspect, verified, target.Plan, applyResult)
 }

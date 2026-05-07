@@ -173,7 +173,15 @@ func TestPlanInstallBlocksWhenManagedSettingsDisallowMarketplaceAdd(t *testing.T
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	writeClaudeFile(t, filepath.Join(home, ".claude", "managed-settings.json"), "{\n  \"strictKnownMarketplaces\": []\n}\n")
-	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+	runner := &stubRunner{
+		run: func(cmd ports.Command) (ports.CommandResult, error) {
+			if equalStrings(cmd.Argv, []string{"claude", "plugin", "list", "--json"}) {
+				return ports.CommandResult{ExitCode: 0, Stdout: []byte("[]")}, nil
+			}
+			return ports.CommandResult{ExitCode: 0}, nil
+		},
+	}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
 
 	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{Scope: "user"})
 	if err != nil {
@@ -298,6 +306,58 @@ func TestPlanUpdateUsesPersistedWorkspaceRootSettingsPath(t *testing.T) {
 	}
 }
 
+func TestInspectInstalledClaudeStillFlagsMissingCLIAndBlocksMutation(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	settingsPath := filepath.Join(workspace, ".claude", "settings.json")
+	binDir := filepath.Join(root, "bin")
+	writeClaudeFile(t, settingsPath, "{\n  \"plugins\": []\n}\n")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("mkdir bin: %v", err)
+	}
+	t.Setenv("PATH", binDir)
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: t.TempDir()}
+	record := domain.InstallationRecord{
+		IntegrationID: "claude-demo",
+		Policy:        domain.InstallPolicy{Scope: "project"},
+		WorkspaceRoot: workspace,
+	}
+
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Scope:         "project",
+		IntegrationID: "claude-demo",
+		Record:        &record,
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled {
+		t.Fatalf("state = %s, want installed", inspect.State)
+	}
+	if !containsRestriction(inspect.EnvironmentRestrictions, domain.RestrictionSourceToolMissing) {
+		t.Fatalf("expected source tool missing restriction, got %#v", inspect.EnvironmentRestrictions)
+	}
+
+	plan, err := adapter.PlanUpdate(context.Background(), ports.PlanUpdateInput{
+		CurrentRecord: record,
+		NextManifest:  domain.IntegrationManifest{IntegrationID: "claude-demo", Version: "0.2.0"},
+		Inspect:       inspect,
+	})
+	if err != nil {
+		t.Fatalf("plan update: %v", err)
+	}
+	if !plan.Blocking {
+		t.Fatal("expected update plan to be blocking when Claude CLI is missing")
+	}
+	if len(plan.ManualSteps) == 0 || !strings.Contains(strings.Join(plan.ManualSteps, " "), "PATH") {
+		t.Fatalf("manual steps = %#v", plan.ManualSteps)
+	}
+	if len(inspect.SettingsFiles) == 0 || inspect.SettingsFiles[0] != settingsPath {
+		t.Fatalf("settings files = %#v, want %q first", inspect.SettingsFiles, settingsPath)
+	}
+}
+
 func TestInspectUsesNativePluginListForKnownPluginState(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace-a")
@@ -364,9 +424,23 @@ func TestPlanUpdateBlocksWhenMarketplaceIsSeedManaged(t *testing.T) {
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	seed := filepath.Join(root, "seed")
+	binDir := filepath.Join(root, "bin")
 	writeClaudeFile(t, filepath.Join(seed, "marketplaces", "integrationctl-claude-demo", ".claude-plugin", "marketplace.json"), "{\n  \"name\": \"integrationctl-claude-demo\"\n}\n")
+	writeClaudeFile(t, filepath.Join(binDir, "claude"), "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(filepath.Join(binDir, "claude"), 0o755); err != nil {
+		t.Fatalf("chmod claude shim: %v", err)
+	}
+	t.Setenv("PATH", binDir)
 	t.Setenv("CLAUDE_CODE_PLUGIN_SEED_DIR", seed)
-	adapter := Adapter{FS: fsadapter.OS{}, UserHome: home}
+	runner := &stubRunner{
+		run: func(cmd ports.Command) (ports.CommandResult, error) {
+			if equalStrings(cmd.Argv, []string{"claude", "plugin", "list", "--json"}) {
+				return ports.CommandResult{ExitCode: 0, Stdout: []byte("[]")}, nil
+			}
+			return ports.CommandResult{ExitCode: 0}, nil
+		},
+	}
+	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
 
 	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
 		Scope:         "user",

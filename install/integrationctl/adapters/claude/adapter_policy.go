@@ -48,6 +48,9 @@ func blockingSteps(inspect ports.InspectResult) ([]string, bool) {
 		if restriction == domain.RestrictionManagedPolicyBlock {
 			return []string{"managed settings block adding this Claude marketplace; ask an administrator to update the allowlist or seed configuration"}, true
 		}
+		if restriction == domain.RestrictionSourceToolMissing {
+			return []string{"Claude Code CLI is not available on PATH; install/configure Claude Code and rerun from a shell where `claude` works"}, true
+		}
 	}
 	return []string{"install or configure Claude Code before applying this integration"}, true
 }

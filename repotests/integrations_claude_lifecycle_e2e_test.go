@@ -43,7 +43,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "add", sourceRoot, "--scope", "project", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run plan for integration "claude-demo" at version 0.1.0.`,
-		"- claude: action=install_missing",
+		"⬇️ New install: claude",
+		"⬇️ claude - will install Claude plugin",
 	} {
 		if !strings.Contains(addDryRunOutput, want) {
 			t.Fatalf("add dry-run output missing %q:\n%s", want, addDryRunOutput)
@@ -67,7 +68,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "add", sourceRoot, "--scope", "project", "--dry-run=false")
 	for _, want := range []string{
 		`Installed integration "claude-demo" at version 0.1.0.`,
-		"- claude: action=install_missing delivery=claude-marketplace-plugin state=installed",
+		"🚀 Ready now: claude",
+		"✅ claude - installed Claude plugin",
 	} {
 		if !strings.Contains(addOutput, want) {
 			t.Fatalf("add output missing %q:\n%s", want, addOutput)
@@ -149,7 +151,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "update", "claude-demo", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run update_version plan for "claude-demo".`,
-		"- claude: action=update_version",
+		"✅ Already present: claude",
+		"✅ claude - will update Claude plugin",
 	} {
 		if !strings.Contains(updateDryRunOutput, want) {
 			t.Fatalf("update dry-run output missing %q:\n%s", want, updateDryRunOutput)
@@ -172,7 +175,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "update", "claude-demo", "--dry-run=false")
 	for _, want := range []string{
 		`Updated integration "claude-demo".`,
-		"- claude: action=update_version delivery=claude-marketplace-plugin state=installed",
+		"🚀 Ready now: claude",
+		"✅ claude - installed Claude plugin",
 	} {
 		if !strings.Contains(updateOutput, want) {
 			t.Fatalf("update output missing %q:\n%s", want, updateOutput)
@@ -248,7 +252,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "remove", "claude-demo", "--dry-run=true")
 	for _, want := range []string{
 		`Dry-run remove_orphaned_target plan for "claude-demo".`,
-		"- claude: action=remove_orphaned_target",
+		"✅ Already present: claude",
+		"✅ claude - will remove Claude plugin",
 	} {
 		if !strings.Contains(removeDryRunOutput, want) {
 			t.Fatalf("remove dry-run output missing %q:\n%s", want, removeDryRunOutput)
@@ -271,7 +276,8 @@ func TestPluginKitAIIntegrationsLifecycleClaudeProjectScope(t *testing.T) {
 		"integrations", "remove", "claude-demo", "--dry-run=false")
 	for _, want := range []string{
 		`Removed managed targets from integration "claude-demo".`,
-		"- claude: action=remove_orphaned_target delivery=claude-marketplace-plugin state=removed",
+		"🚀 Ready now: claude",
+		"✅ claude - removed Claude plugin",
 	} {
 		if !strings.Contains(removeOutput, want) {
 			t.Fatalf("remove output missing %q:\n%s", want, removeOutput)

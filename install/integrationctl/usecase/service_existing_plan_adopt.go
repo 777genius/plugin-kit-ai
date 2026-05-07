@@ -83,7 +83,7 @@ func (s Service) planAutomaticAdoptedUpdateTarget(ctx context.Context, record do
 	if adoptedUpdateShouldWarnBlocked(plan) {
 		return plannedExistingTarget{}, adoptedUpdateBlockedWarning(record, delivery.TargetID), nil
 	}
-	return finalizeAdoptedExistingTarget(delivery, adapter, inspect, plan, manifest, resolved), "", nil
+	return finalizeAdoptedExistingTarget(record, delivery, adapter, inspect, plan, manifest, resolved), "", nil
 }
 
 func (s Service) adoptedUpdateAdapter(targetID domain.TargetID) (ports.TargetAdapter, bool) {
@@ -128,13 +128,13 @@ func adoptedUpdateShouldWarnBlocked(plan ports.AdapterPlan) bool {
 	return plan.Blocking
 }
 
-func finalizeAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest domain.IntegrationManifest, resolved ports.ResolvedSource) plannedExistingTarget {
+func finalizeAdoptedExistingTarget(record domain.InstallationRecord, delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest domain.IntegrationManifest, resolved ports.ResolvedSource) plannedExistingTarget {
 	resolvedCopy := resolved
 	manifestCopy := manifest
-	return newAdoptedExistingTarget(delivery, adapter, inspect, plan, &manifestCopy, &resolvedCopy)
+	return newAdoptedExistingTarget(record.IntegrationID, delivery, adapter, inspect, plan, &manifestCopy, &resolvedCopy)
 }
 
-func newAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest *domain.IntegrationManifest, resolved *ports.ResolvedSource) plannedExistingTarget {
+func newAdoptedExistingTarget(integrationID string, delivery domain.Delivery, adapter ports.TargetAdapter, inspect ports.InspectResult, plan ports.AdapterPlan, manifest *domain.IntegrationManifest, resolved *ports.ResolvedSource) plannedExistingTarget {
 	return plannedExistingTarget{
 		TargetID: delivery.TargetID,
 		Delivery: delivery,
@@ -143,7 +143,7 @@ func newAdoptedExistingTarget(delivery domain.Delivery, adapter ports.TargetAdap
 		Plan:     plan,
 		Manifest: manifest,
 		Resolved: resolved,
-		Report:   toTargetReport(delivery, inspect, plan),
+		Report:   toTargetReport(integrationID, delivery, inspect, plan),
 		Adopted:  true,
 	}
 }

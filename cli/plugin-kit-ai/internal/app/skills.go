@@ -24,7 +24,8 @@ type SkillsGenerateOptions struct {
 }
 
 type SkillsService struct {
-	svc skillsapp.Service
+	svc            skillsapp.Service
+	ExternalRunner ExternalSkillsRunner
 }
 
 func (s SkillsService) Init(opts SkillsInitOptions) (string, error) {

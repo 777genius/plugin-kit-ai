@@ -21,10 +21,12 @@ func runIntegrationsAdd(cmd *cobra.Command, args []string) error {
 
 func newIntegrationsAddCommand(use, short string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: short,
-		Args:  cobra.ExactArgs(1),
-		RunE:  runIntegrationsAdd,
+		Use:           use,
+		Short:         short,
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runIntegrationsAdd,
 	}
 	cmd.Flags().StringSliceVar(&integrationTargets, "target", nil, "limit planning to one or more targets")
 	cmd.Flags().StringVar(&integrationScope, "scope", "user", "scope intent for the planned installation")
@@ -58,10 +60,12 @@ func runIntegrationsUpdate(cmd *cobra.Command, args []string) error {
 
 func newIntegrationsUpdateCommand(use, short string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: short,
-		Args:  validateIntegrationsUpdateArgs,
-		RunE:  runIntegrationsUpdate,
+		Use:           use,
+		Short:         short,
+		Args:          validateIntegrationsUpdateArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runIntegrationsUpdate,
 	}
 	cmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
 	cmd.Flags().BoolVar(&integrationUpdateAll, "all", false, "update all managed integrations")
@@ -82,10 +86,12 @@ func runIntegrationsRemove(cmd *cobra.Command, args []string) error {
 
 func newIntegrationsRemoveCommand(use, short string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: short,
-		Args:  cobra.ExactArgs(1),
-		RunE:  runIntegrationsRemove,
+		Use:           use,
+		Short:         short,
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runIntegrationsRemove,
 	}
 	cmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
 	return cmd
@@ -106,10 +112,12 @@ func runIntegrationsRepair(cmd *cobra.Command, args []string) error {
 
 func newIntegrationsRepairCommand(use, short string) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   use,
-		Short: short,
-		Args:  cobra.ExactArgs(1),
-		RunE:  runIntegrationsRepair,
+		Use:           use,
+		Short:         short,
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          runIntegrationsRepair,
 	}
 	cmd.Flags().BoolVar(&integrationDryRun, "dry-run", true, "plan only without mutating native targets")
 	cmd.Flags().StringSliceVar(&integrationTargets, "target", nil, "limit repair to one target")

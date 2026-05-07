@@ -2,6 +2,17 @@
 
 `plugin-kit-ai skills` is an experimental, compatibility-first authoring layer for repository-local skills.
 
+It also includes a small external skills wrapper:
+
+```bash
+plugin-kit-ai skills install flutter/skills --global --all
+plugin-kit-ai skills list --global --json
+plugin-kit-ai skills update --global --yes
+plugin-kit-ai skills remove flutter-use-http-package --global --yes
+```
+
+The external `install`, `list`, `update`, and `remove` commands are pass-through wrappers around `npx -y skills@1.5.5 ...`. They are for installing or managing third-party Agent Skills in project or global agent directories. They are separate from the canonical authoring workflow below.
+
 The goal is not to replace the broader `SKILL.md` ecosystem. The goal is to make the common workflow easier to maintain when you want:
 
 - one canonical authored `SKILL.md`
@@ -66,7 +77,7 @@ Compatibility guarantees in this beta layer:
 
 Out of scope for this experimental contract:
 
-- auto-install into agent configs
+- auto-installing generated local authored skills into agent configs
 - registry/publish flows
 - MCP/DXT packaging
 - command execution during validation

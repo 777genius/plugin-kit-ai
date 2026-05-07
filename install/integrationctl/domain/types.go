@@ -193,13 +193,16 @@ type OperationRecord struct {
 }
 
 type Report struct {
-	OperationID string         `json:"operation_id,omitempty"`
-	Summary     string         `json:"summary"`
-	Targets     []TargetReport `json:"targets,omitempty"`
-	Warnings    []string       `json:"warnings,omitempty"`
+	OperationID          string         `json:"operation_id,omitempty"`
+	Summary              string         `json:"summary"`
+	RequestedTargetCount int            `json:"requested_target_count,omitempty"`
+	SkippedTargets       []string       `json:"skipped_targets,omitempty"`
+	Targets              []TargetReport `json:"targets,omitempty"`
+	Warnings             []string       `json:"warnings,omitempty"`
 }
 
 type TargetReport struct {
+	IntegrationID            string                 `json:"integration_id,omitempty"`
 	TargetID                 string                 `json:"target"`
 	DeliveryKind             string                 `json:"delivery_kind,omitempty"`
 	CapabilitySurface        []string               `json:"capability_surface,omitempty"`

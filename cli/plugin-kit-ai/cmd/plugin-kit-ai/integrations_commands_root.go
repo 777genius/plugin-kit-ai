@@ -18,9 +18,11 @@ func newRootAddCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "add <source>",
-		Short: "Install an integration across supported agent targets",
-		Args:  cobra.ExactArgs(1),
+		Use:           "add <source>",
+		Short:         "Install an integration across supported agent targets",
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeIntegrationsAdd(cmd, integrationctl.AddParams{
 				Source:          args[0],
@@ -49,8 +51,10 @@ func newRootUpdateCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update [name]",
-		Short: "Update a managed integration",
+		Use:           "update [name]",
+		Short:         "Update a managed integration",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			return validateUpdateArgs(updateAll, args)
 		},
@@ -75,9 +79,11 @@ func newRootRemoveCommand() *cobra.Command {
 	var dryRun bool
 
 	cmd := &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Remove a managed integration",
-		Args:  cobra.ExactArgs(1),
+		Use:           "remove <name>",
+		Short:         "Remove a managed integration",
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeIntegrationsRemove(cmd, integrationctl.RemoveParams{
 				Name:   args[0],
@@ -96,9 +102,11 @@ func newRootRepairCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "repair <name>",
-		Short: "Repair managed integration drift",
-		Args:  cobra.ExactArgs(1),
+		Use:           "repair <name>",
+		Short:         "Repair managed integration drift",
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return executeIntegrationsRepair(cmd, integrationctl.RepairParams{
 				Name:   args[0],

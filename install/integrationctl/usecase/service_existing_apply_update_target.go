@@ -77,5 +77,5 @@ func existingUpdateVerifyRecord(record domain.InstallationRecord, target planned
 func appendExistingUpdateTargetResult(runtime *existingUpdateRuntime, target plannedExistingTarget, applyResult ports.ApplyResult, verified ports.InspectResult) {
 	runtime.nextRecord.Targets[target.TargetID] = targetInstallationFromExisting(target, applyResult, verified)
 	applyManifestMetadata(&runtime.nextRecord, *target.Manifest, runtime.startedAt)
-	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(target.Delivery, target.Inspect, verified, target.Plan, applyResult))
+	runtime.reportTargets = append(runtime.reportTargets, toAppliedTargetReport(runtime.nextRecord.IntegrationID, target.Delivery, target.Inspect, verified, target.Plan, applyResult))
 }

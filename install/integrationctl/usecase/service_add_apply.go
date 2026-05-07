@@ -72,8 +72,9 @@ func (s Service) applyAdd(ctx context.Context, operationID string, manifest doma
 	committed = true
 	sort.Slice(runtime.reportTargets, func(i, j int) bool { return runtime.reportTargets[i].TargetID < runtime.reportTargets[j].TargetID })
 	return domain.Report{
-		OperationID: operationID,
-		Summary:     fmt.Sprintf("Installed integration %q at version %s.", manifest.IntegrationID, manifest.Version),
-		Targets:     runtime.reportTargets,
+		OperationID:          operationID,
+		Summary:              fmt.Sprintf("Installed integration %q at version %s.", manifest.IntegrationID, manifest.Version),
+		RequestedTargetCount: len(planned),
+		Targets:              runtime.reportTargets,
 	}, nil
 }

@@ -79,6 +79,6 @@ func (s Service) applyToggleExisting(ctx context.Context, record domain.Installa
 	return domain.Report{
 		OperationID: operationID,
 		Summary:     summaryForExisting(action, record.IntegrationID),
-		Targets:     []domain.TargetReport{newExistingToggleTargetReport(target, verified, applyResult)},
+		Targets:     []domain.TargetReport{newExistingToggleTargetReport(record, target, verified, applyResult)},
 	}, nil
 }

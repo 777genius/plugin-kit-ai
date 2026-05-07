@@ -50,8 +50,29 @@ func (a Adapter) inspectInstalledState(ctx context.Context, inspect inspectConte
 			return nativeState, nil
 		}
 	}
+	if persisted, ok := persistedClaudeState(record); ok {
+		switch persisted {
+		case domain.InstallDegraded, domain.InstallActivationPending, domain.InstallAuthPending, domain.InstallDisabled:
+			return persisted, nil
+		case domain.InstallInstalled, domain.InstallRemoved:
+			if !inspect.cliAvailable {
+				return persisted, nil
+			}
+		}
+	}
 	if inspect.installed || inspect.cliAvailable {
 		return domain.InstallInstalled, nil
 	}
 	return domain.InstallRemoved, nil
+}
+
+func persistedClaudeState(record *domain.InstallationRecord) (domain.InstallState, bool) {
+	if record == nil {
+		return "", false
+	}
+	target, ok := record.Targets[domain.TargetClaude]
+	if !ok || target.State == "" {
+		return "", false
+	}
+	return target.State, true
 }

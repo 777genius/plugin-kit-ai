@@ -21,8 +21,8 @@
     },
     {
       "id": "clearBoundary",
-      "title": "Honest stable vs beta boundary",
-      "description": "plugin-kit-ai is explicit about what is production-ready, what is public beta, and where you should not promise fake parity yet."
+      "title": "Clear support boundary",
+      "description": "The main paths are stable today. A few advanced surfaces are still clearly labeled beta, so teams know exactly what they can ship with confidence."
     },
     {
       "id": "installAcrossAgents",
@@ -980,7 +980,7 @@
     {
       "id": "stableBoundary",
       "question": "Is every supported output equally stable today?",
-      "answer": "No. Some lanes are production-ready, and some remain public beta. plugin-kit-ai is explicit about that boundary so you can make honest product promises."
+      "answer": "Not every surface is identical yet, but the main paths are stable today. A few advanced surfaces are still clearly labeled beta in the docs."
     },
     {
       "id": "fastestStart",
