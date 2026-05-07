@@ -77,4 +77,8 @@ CLI покрывает создание проекта, генерацию, пр
 - [`plugin-kit-ai skills generate`](/ru/api/cli/plugin-kit-ai-skills-generate)
 - [`plugin-kit-ai skills help`](/ru/api/cli/plugin-kit-ai-skills-help)
 - [`plugin-kit-ai skills init`](/ru/api/cli/plugin-kit-ai-skills-init)
+- [`plugin-kit-ai skills install`](/ru/api/cli/plugin-kit-ai-skills-install)
+- [`plugin-kit-ai skills list`](/ru/api/cli/plugin-kit-ai-skills-list)
+- [`plugin-kit-ai skills remove`](/ru/api/cli/plugin-kit-ai-skills-remove)
+- [`plugin-kit-ai skills update`](/ru/api/cli/plugin-kit-ai-skills-update)
 - [`plugin-kit-ai skills validate`](/ru/api/cli/plugin-kit-ai-skills-validate)

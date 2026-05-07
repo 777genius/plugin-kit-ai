@@ -28,6 +28,8 @@ Experimental skill authoring tools
 
 Experimental SKILL.md-native authoring, validation, and generating tools for Claude and Codex.
 
+External install/list/update/remove commands are npm-backed pass-through wrappers around skills@1.5.5.
+
 ### Options
 
 ```
@@ -39,4 +41,8 @@ Experimental SKILL.md-native authoring, validation, and generating tools for Cla
 * plugin-kit-ai	 - plugin-kit-ai CLI - scaffold and tooling for AI plugins
 * plugin-kit-ai skills generate	 - Generate Claude/Codex artifacts from canonical SKILL.md files
 * plugin-kit-ai skills init	 - Create a canonical SKILL.md skill package
+* plugin-kit-ai skills install	 - Install external Agent Skills through the npm skills CLI
+* plugin-kit-ai skills list	 - List external Agent Skills through the npm skills CLI
+* plugin-kit-ai skills remove	 - Remove external Agent Skills through the npm skills CLI
+* plugin-kit-ai skills update	 - Update external Agent Skills through the npm skills CLI
 * plugin-kit-ai skills validate	 - Validate canonical SKILL.md skills in a project

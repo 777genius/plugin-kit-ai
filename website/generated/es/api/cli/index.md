@@ -77,4 +77,8 @@ The CLI covers project creation, generate, validation, testing, import, and inst
 - [`plugin-kit-ai skills generate`](/es/api/cli/plugin-kit-ai-skills-generate)
 - [`plugin-kit-ai skills help`](/es/api/cli/plugin-kit-ai-skills-help)
 - [`plugin-kit-ai skills init`](/es/api/cli/plugin-kit-ai-skills-init)
+- [`plugin-kit-ai skills install`](/es/api/cli/plugin-kit-ai-skills-install)
+- [`plugin-kit-ai skills list`](/es/api/cli/plugin-kit-ai-skills-list)
+- [`plugin-kit-ai skills remove`](/es/api/cli/plugin-kit-ai-skills-remove)
+- [`plugin-kit-ai skills update`](/es/api/cli/plugin-kit-ai-skills-update)
 - [`plugin-kit-ai skills validate`](/es/api/cli/plugin-kit-ai-skills-validate)

@@ -1446,6 +1446,86 @@
   {
     "relatedIds": [],
     "searchTerms": [
+      "plugin-kit-ai skills install",
+      "add"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:skills:install",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai skills install",
+    "summary": "Install external Agent Skills through the npm skills CLI",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai skills install",
+    "pathEn": "/en/api/cli/plugin-kit-ai-skills-install",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-skills-install"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai skills list",
+      "ls"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:skills:list",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai skills list",
+    "summary": "List external Agent Skills through the npm skills CLI",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai skills list",
+    "pathEn": "/en/api/cli/plugin-kit-ai-skills-list",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-skills-list"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai skills remove",
+      "rm"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:skills:remove",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai skills remove",
+    "summary": "Remove external Agent Skills through the npm skills CLI",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai skills remove",
+    "pathEn": "/en/api/cli/plugin-kit-ai-skills-remove",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-skills-remove"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
+      "plugin-kit-ai skills update",
+      "upgrade"
+    ],
+    "publicVisibility": "public",
+    "canonicalId": "command:plugin-kit-ai:skills:update",
+    "kind": "command",
+    "surface": "cli",
+    "localeStrategy": "mirrored",
+    "title": "plugin-kit-ai skills update",
+    "summary": "Update external Agent Skills through the npm skills CLI",
+    "stability": "public-stable",
+    "maturity": "stable",
+    "sourceKind": "cobra-doc",
+    "sourceRef": "cli:plugin-kit-ai skills update",
+    "pathEn": "/en/api/cli/plugin-kit-ai-skills-update",
+    "pathRu": "/ru/api/cli/plugin-kit-ai-skills-update"
+  },
+  {
+    "relatedIds": [],
+    "searchTerms": [
       "plugin-kit-ai skills validate"
     ],
     "publicVisibility": "public",

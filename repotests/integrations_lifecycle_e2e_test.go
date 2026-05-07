@@ -77,7 +77,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		`Dry-run plan for integration "lifecycle-demo" at version 0.1.0.`,
 		"✅ Already present: cursor, opencode",
 		"⬇️ New install: codex",
-		"⬇️ codex - will install Codex plugin",
+		"codex - will install Codex plugin",
 		"✅ cursor - will adopt existing Cursor MCP setup",
 		"✅ opencode - will adopt existing OpenCode plugin",
 	} {

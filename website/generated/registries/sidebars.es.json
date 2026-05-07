@@ -596,6 +596,22 @@
           "link": "/es/api/cli/plugin-kit-ai-skills-init"
         },
         {
+          "text": "skills install",
+          "link": "/es/api/cli/plugin-kit-ai-skills-install"
+        },
+        {
+          "text": "skills list",
+          "link": "/es/api/cli/plugin-kit-ai-skills-list"
+        },
+        {
+          "text": "skills remove",
+          "link": "/es/api/cli/plugin-kit-ai-skills-remove"
+        },
+        {
+          "text": "skills update",
+          "link": "/es/api/cli/plugin-kit-ai-skills-update"
+        },
+        {
           "text": "skills validate",
           "link": "/es/api/cli/plugin-kit-ai-skills-validate"
         }
