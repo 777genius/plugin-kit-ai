@@ -103,7 +103,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"🚀 Ready now: cursor",
 		"🔄 Restart or reload: opencode",
 		"🧩 Finish setup: codex",
-		"🟡 codex - prepared Codex plugin for in-app install",
+		"codex - prepared Codex plugin for in-app install",
 		"✅ cursor - installed Cursor MCP setup",
 		"🟡 opencode - installed OpenCode plugin",
 	} {
@@ -244,8 +244,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 	for _, want := range []string{
 		`Dry-run update_version plan for "lifecycle-demo".`,
 		"✅ Already present: cursor, opencode",
-		"🟡 Needs attention: codex",
-		"🟡 codex - will update Codex plugin",
+		"codex - will update Codex plugin",
 		"✅ cursor - will update Cursor MCP setup",
 		"✅ opencode - will update OpenCode plugin",
 	} {
@@ -271,7 +270,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		"🚀 Ready now: cursor",
 		"🔄 Restart or reload: opencode",
 		"🧩 Finish setup: codex",
-		"🟡 codex - prepared Codex plugin for in-app install",
+		"codex - prepared Codex plugin for in-app install",
 		"✅ cursor - installed Cursor MCP setup",
 		"🟡 opencode - installed OpenCode plugin",
 	} {
@@ -362,8 +361,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 	for _, want := range []string{
 		`Dry-run remove_orphaned_target plan for "lifecycle-demo".`,
 		"✅ Already present: cursor, opencode",
-		"🟡 Needs attention: codex",
-		"🟡 codex - will remove Codex plugin",
+		"codex - will remove Codex plugin",
 		"✅ cursor - will remove Cursor MCP setup",
 		"✅ opencode - will remove OpenCode plugin",
 	} {
@@ -387,7 +385,7 @@ func TestPluginKitAIIntegrationsLifecycleAcrossAgents(t *testing.T) {
 		`Removed managed targets from integration "lifecycle-demo".`,
 		"🚀 Ready now: cursor",
 		"🔄 Restart or reload: opencode",
-		"🟡 codex - removed Codex plugin",
+		"codex - removed Codex plugin",
 		"✅ cursor - removed Cursor MCP setup",
 		"🟡 opencode - removed OpenCode plugin",
 	} {
