@@ -3,7 +3,7 @@
 GOCACHE ?= /tmp/plugin-kit-ai-gocache
 export GOCACHE
 
-SECURITY_GOTOOLCHAIN ?= go1.25.9
+SECURITY_GOTOOLCHAIN ?= go1.25.10
 
 EXTENDED_TEST_ARGS ?=
 

@@ -2,7 +2,7 @@ module github.com/777genius/plugin-kit-ai/cli
 
 go 1.23
 
-toolchain go1.25.9
+toolchain go1.25.10
 
 replace github.com/777genius/plugin-kit-ai/sdk => ../../sdk
 
