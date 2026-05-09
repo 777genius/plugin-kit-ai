@@ -271,7 +271,7 @@ For Codex lane selection, use [docs/CODEX_TARGET_BOUNDARY.md](docs/CODEX_TARGET_
 
 Requirements:
 
-- Go `1.25.9` for this monorepo workspace and its CI lanes
+- Go `1.25.10` for this monorepo workspace and its CI lanes
 - generated Go plugin projects created by `plugin-kit-ai init` remain on Go `1.22+`
 
 Common commands from repo root:
