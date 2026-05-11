@@ -1,4 +1,4 @@
-# plugin-kit-ai
+# plugin-kit-ai test
 
 [![Required](https://github.com/777genius/plugin-kit-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/777genius/plugin-kit-ai/actions/workflows/ci.yml)
 [![Docs](https://github.com/777genius/plugin-kit-ai/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/777genius/plugin-kit-ai/actions/workflows/docs.yml)
