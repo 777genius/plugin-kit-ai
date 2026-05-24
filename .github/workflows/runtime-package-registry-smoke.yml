@@ -47,10 +47,18 @@ jobs:
               "NPM Runtime Publish")
                 run_npm="1"
                 run_pypi="0"
+                if [ -z "${tag}" ]; then
+                  version="$(python3 -c 'import json, urllib.request; print(json.load(urllib.request.urlopen("https://registry.npmjs.org/plugin-kit-ai-runtime", timeout=30))["dist-tags"]["latest"])')"
+                  tag="v${version}"
+                fi
                 ;;
               "PyPI Runtime Publish")
                 run_npm="0"
                 run_pypi="1"
+                if [ -z "${tag}" ]; then
+                  version="$(python3 -c 'import json, urllib.request; print(json.load(urllib.request.urlopen("https://pypi.org/pypi/plugin-kit-ai-runtime/json", timeout=30))["info"]["version"])')"
+                  tag="v${version}"
+                fi
                 ;;
               *)
                 echo "unexpected workflow_run source: ${{ github.event.workflow_run.name }}" >&2
@@ -58,12 +66,12 @@ jobs:
                 ;;
             esac
           fi
-          tag="${tag#v}"
-          tag="v${tag}"
           if [ -z "${tag}" ]; then
             echo "Unable to resolve an exact stable tag for runtime package registry smoke." >&2
             exit 1
           fi
+          tag="${tag#v}"
+          tag="v${tag}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
           echo "run_npm=${run_npm}" >> "${GITHUB_OUTPUT}"
           echo "run_pypi=${run_pypi}" >> "${GITHUB_OUTPUT}"
