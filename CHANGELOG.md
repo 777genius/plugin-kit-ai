@@ -4,7 +4,14 @@ All notable changes to this repository are documented here. **CLI releases** (`p
 
 ## [Unreleased]
 
-Changes after `v1.2.3` land here.
+Changes after `v1.2.4` land here.
+
+## [1.2.4] - 2026-05-24
+
+### Fixed
+
+- Reissued the Cursor package installation release from current `main` so downstream Homebrew, npm, and PyPI publication workflows resolve the stable tag from the expected branch state.
+- Hardened release asset publication so future stable tags must point at current `origin/main` before artifacts are built.
 
 ## [1.2.3] - 2026-05-24
 
