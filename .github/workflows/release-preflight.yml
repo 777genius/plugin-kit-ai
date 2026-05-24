@@ -35,6 +35,7 @@ jobs:
       HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       NPM_PUBLISH_READY: ${{ vars.NPM_PUBLISH_READY }}
+      NPM_PUBLISH_AUTH: ${{ vars.NPM_PUBLISH_AUTH }}
       PYPI_TRUSTED_PUBLISHING_READY: ${{ vars.PYPI_TRUSTED_PUBLISHING_READY }}
     steps:
       - uses: actions/checkout@v6
@@ -83,10 +84,22 @@ jobs:
               echo "NPM_PUBLISH_READY must be true before requiring the npm release path." >&2
               exit 1
             fi
-            if [ -z "${NPM_TOKEN:-}" ]; then
-              echo "NPM_TOKEN is required for the npm release path." >&2
-              exit 1
-            fi
+            auth="${NPM_PUBLISH_AUTH:-trusted}"
+            case "${auth}" in
+              trusted)
+                echo "NPM release path expects trusted publishing through GitHub OIDC."
+                ;;
+              token)
+                if [ -z "${NPM_TOKEN:-}" ]; then
+                  echo "NPM_TOKEN is required when NPM_PUBLISH_AUTH=token." >&2
+                  exit 1
+                fi
+                ;;
+              *)
+                echo "Unsupported NPM_PUBLISH_AUTH=${auth}; use trusted or token." >&2
+                exit 1
+                ;;
+            esac
           fi
           if [ "${REQUIRE_PYPI}" = "true" ] && [ "${PYPI_TRUSTED_PUBLISHING_READY}" != "true" ]; then
             echo "PYPI_TRUSTED_PUBLISHING_READY must be true before requiring the PyPI release path." >&2

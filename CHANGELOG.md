@@ -9,6 +9,7 @@ Changes after `v1.2.4` land here.
 ### Fixed
 
 - NPM registry publish workflows now require an explicit `NPM_PUBLISH_READY=true` repository variable before auto-running from release asset publication, while keeping manual dispatch available for credential repair.
+- npm publication workflows now support npm Trusted Publishing through GitHub OIDC by default, while keeping token-based publishing as an explicit `NPM_PUBLISH_AUTH=token` fallback.
 
 ## [1.2.4] - 2026-05-24
 

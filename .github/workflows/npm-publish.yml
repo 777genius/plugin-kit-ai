@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -24,8 +25,16 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "22.21.1"
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
+
+      - name: Install npm CLI with trusted publishing support
+        shell: bash
+        run: |
+          npm install -g 'npm@^11.5.1'
+          node --version
+          npm --version
 
       - name: Resolve stable tag
         id: release
@@ -46,15 +55,30 @@ jobs:
           fi
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
-      - name: Check npm token
+      - name: Configure npm publish authentication
         shell: bash
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_PUBLISH_AUTH: ${{ vars.NPM_PUBLISH_AUTH }}
         run: |
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "NPM_TOKEN is required to publish plugin-kit-ai to npm." >&2
-            exit 1
-          fi
+          auth="${NPM_PUBLISH_AUTH:-trusted}"
+          case "${auth}" in
+            trusted)
+              echo "Using npm trusted publishing through GitHub OIDC."
+              ;;
+            token)
+              if [ -z "${NPM_TOKEN:-}" ]; then
+                echo "NPM_TOKEN is required when NPM_PUBLISH_AUTH=token." >&2
+                exit 1
+              fi
+              printf '//registry.npmjs.org/:_authToken=%s\n' "${NPM_TOKEN}" > "${HOME}/.npmrc"
+              echo "Using npm token authentication from GitHub Actions secret."
+              ;;
+            *)
+              echo "Unsupported NPM_PUBLISH_AUTH=${auth}; use trusted or token." >&2
+              exit 1
+              ;;
+          esac
 
       - name: Validate published release assets
         shell: bash
@@ -96,6 +120,4 @@ jobs:
       - name: Publish npm package
         shell: bash
         working-directory: ${{ runner.temp }}/plugin-kit-ai-npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
