@@ -34,6 +34,7 @@ jobs:
       REQUIRE_PYPI: ${{ inputs.require_pypi }}
       HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      NPM_PUBLISH_READY: ${{ vars.NPM_PUBLISH_READY }}
       PYPI_TRUSTED_PUBLISHING_READY: ${{ vars.PYPI_TRUSTED_PUBLISHING_READY }}
     steps:
       - uses: actions/checkout@v6
@@ -77,9 +78,15 @@ jobs:
             echo "HOMEBREW_TAP_TOKEN is required for the Homebrew tap release path." >&2
             exit 1
           fi
-          if [ "${REQUIRE_NPM}" = "true" ] && [ -z "${NPM_TOKEN:-}" ]; then
-            echo "NPM_TOKEN is required for the npm release path." >&2
-            exit 1
+          if [ "${REQUIRE_NPM}" = "true" ]; then
+            if [ "${NPM_PUBLISH_READY}" != "true" ]; then
+              echo "NPM_PUBLISH_READY must be true before requiring the npm release path." >&2
+              exit 1
+            fi
+            if [ -z "${NPM_TOKEN:-}" ]; then
+              echo "NPM_TOKEN is required for the npm release path." >&2
+              exit 1
+            fi
           fi
           if [ "${REQUIRE_PYPI}" = "true" ] && [ "${PYPI_TRUSTED_PUBLISHING_READY}" != "true" ]; then
             echo "PYPI_TRUSTED_PUBLISHING_READY must be true before requiring the PyPI release path." >&2

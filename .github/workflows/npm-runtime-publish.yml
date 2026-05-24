@@ -12,7 +12,7 @@ on:
 
 jobs:
   publish-npm-runtime:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && vars.NPM_PUBLISH_READY == 'true')
     runs-on: ubuntu-latest
     permissions:
       contents: read
