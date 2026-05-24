@@ -236,6 +236,9 @@ servers:
 		switch artifact.RelPath {
 		case cursorPluginManifestPath:
 			sawManifest = true
+			if !strings.Contains(string(artifact.Content), `"skills": "./skills/"`) {
+				t.Fatalf("plugin manifest missing managed skills ref:\n%s", artifact.Content)
+			}
 			if !strings.Contains(string(artifact.Content), `"mcpServers": "./.mcp.json"`) {
 				t.Fatalf("plugin manifest missing managed MCP ref:\n%s", artifact.Content)
 			}
@@ -250,6 +253,104 @@ servers:
 	}
 	if !sawManifest || !sawMCP || !sawSkill {
 		t.Fatalf("artifacts = %+v", artifacts)
+	}
+}
+
+func TestCursorPackagedValidateRequiresManagedSkillsRef(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "skills", "release-checks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "skills", "release-checks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skillBody := []byte("---\nname: release-checks\ndescription: release checks\n---\n\nUse this skill.\n")
+	if err := os.WriteFile(filepath.Join(root, "plugin", "skills", "release-checks", "SKILL.md"), skillBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "skills", "release-checks", "SKILL.md"), skillBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+		Portable: pluginmodel.PortableComponents{
+			Items: map[string][]string{
+				"skills": {filepath.ToSlash(filepath.Join("plugin", "skills", "release-checks", "SKILL.md"))},
+			},
+		},
+	}, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, `must reference "./skills/"`) {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
+func TestCursorPackagedValidateRejectsSkillsWithoutPortableSkills(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo","skills":"./skills/"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+	}, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 || !strings.Contains(diagnostics[0].Message, "may not define skills when portable skills are absent") {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
+func TestCursorPackagedValidateChecksGeneratedSkillProjection(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".cursor-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "plugin", "skills", "release-checks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "skills", "release-checks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "plugin", "skills", "release-checks", "SKILL.md"), []byte("---\nname: release-checks\ndescription: release checks\n---\n\nSource.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "skills", "release-checks", "SKILL.md"), []byte("---\nname: release-checks\ndescription: release checks\n---\n\nGenerated drift.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".cursor-plugin", "plugin.json"), []byte(`{"name":"cursor-demo","version":"0.1.0","description":"cursor demo","skills":"./skills/"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics, err := (cursorAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{Name: "cursor-demo", Version: "0.1.0", Description: "cursor demo", Targets: []string{"cursor"}},
+		Portable: pluginmodel.PortableComponents{
+			Items: map[string][]string{
+				"skills": {filepath.ToSlash(filepath.Join("plugin", "skills", "release-checks", "SKILL.md"))},
+			},
+		},
+	}, pluginmodel.NewTargetState("cursor"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagnostics) == 0 || !strings.Contains(diagnosticsText(diagnostics), "does not match authored portable skill") {
+		t.Fatalf("diagnostics = %+v", diagnostics)
 	}
 }
 

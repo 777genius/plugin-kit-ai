@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
@@ -45,7 +46,7 @@ func (Loader) Load(_ context.Context, source ports.ResolvedSource) (domain.Integ
 	deliveries := make([]domain.Delivery, 0, len(raw.Targets))
 	seen := map[domain.TargetID]struct{}{}
 	for _, target := range raw.Targets {
-		delivery, err := mapTarget(strings.ToLower(strings.TrimSpace(target)), raw.Name)
+		delivery, err := mapTarget(strings.ToLower(strings.TrimSpace(target)), raw.Name, source.LocalPath)
 		if err != nil {
 			return domain.IntegrationManifest{}, err
 		}
@@ -81,7 +82,7 @@ func readPluginYAML(root string) (string, []byte, error) {
 	return "", nil, os.ErrNotExist
 }
 
-func mapTarget(target, name string) (domain.Delivery, error) {
+func mapTarget(target, name, sourceRoot string) (domain.Delivery, error) {
 	switch target {
 	case "claude":
 		return domain.Delivery{TargetID: domain.TargetClaude, DeliveryKind: domain.DeliveryClaudeMarketplace, Name: name, NativeRefHint: name, CapabilitySurface: []string{"skills", "commands", "agents", "hooks", "mcp"}}, nil
@@ -90,10 +91,21 @@ func mapTarget(target, name string) (domain.Delivery, error) {
 	case "gemini":
 		return domain.Delivery{TargetID: domain.TargetGemini, DeliveryKind: domain.DeliveryGeminiExtension, Name: name, NativeRefHint: name, CapabilitySurface: []string{"contexts", "settings", "themes", "commands", "policies", "hooks", "agents", "skills", "mcp"}}, nil
 	case "cursor":
+		if cursorPluginPackageExists(sourceRoot) {
+			return domain.Delivery{TargetID: domain.TargetCursor, DeliveryKind: domain.DeliveryCursorPlugin, Name: name, NativeRefHint: name, CapabilitySurface: []string{"plugin_bundle", "skills", "rules", "agents", "commands", "hooks", "mcp"}}, nil
+		}
 		return domain.Delivery{TargetID: domain.TargetCursor, DeliveryKind: domain.DeliveryCursorMCP, Name: name, NativeRefHint: name, CapabilitySurface: []string{"mcp"}}, nil
 	case "opencode":
 		return domain.Delivery{TargetID: domain.TargetOpenCode, DeliveryKind: domain.DeliveryOpenCodePlugin, Name: name, NativeRefHint: name, CapabilitySurface: []string{"plugin", "mcp", "skills", "commands", "agents", "themes", "tools"}}, nil
 	default:
 		return domain.Delivery{}, domain.NewError(domain.ErrUnsupportedTarget, fmt.Sprintf("unsupported integrationctl target: %s", target), nil)
 	}
+}
+
+func cursorPluginPackageExists(sourceRoot string) bool {
+	if strings.TrimSpace(sourceRoot) == "" {
+		return false
+	}
+	info, err := os.Stat(filepath.Join(sourceRoot, ".cursor-plugin", "plugin.json"))
+	return err == nil && !info.IsDir()
 }

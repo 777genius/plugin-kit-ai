@@ -8,6 +8,9 @@ func (cursorAdapter) Generate(root string, graph pluginmodel.PackageGraph, state
 		"version":     graph.Manifest.Version,
 		"description": graph.Manifest.Description,
 	}
+	if len(graph.Portable.Paths("skills")) > 0 {
+		doc["skills"] = cursorPluginSkillsRef
+	}
 	var artifacts []pluginmodel.Artifact
 	if graph.Portable.MCP != nil {
 		doc["mcpServers"] = cursorPluginMCPRef

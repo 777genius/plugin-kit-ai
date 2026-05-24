@@ -3,7 +3,7 @@ package cursor
 import (
 	"context"
 	"os"
-	"os/exec"
+	"path/filepath"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -17,15 +17,41 @@ func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.Insp
 			config = configPathFromTarget(target, config)
 		}
 	}
-	_, cmdErr := exec.LookPath("cursor-agent")
 	_, statErr := os.Stat(config)
 	restrictions := []domain.EnvironmentRestrictionCode{}
 	state := domain.InstallRemoved
-	if cmdErr != nil && statErr != nil {
-		restrictions = append(restrictions, domain.RestrictionSourceToolMissing)
-	}
 	if in.Record != nil {
 		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
+			if pluginRoot := pluginRootFromTarget(target, ""); pluginRoot != "" {
+				info, err := a.fs().Stat(ctx, pluginRoot)
+				if err != nil {
+					return ports.InspectResult{}, err
+				}
+				if info.Exists && info.IsDir {
+					observed = append(observed, domain.NativeObjectRef{Kind: cursorPluginRootKind, Name: target.NativeRef, Path: pluginRoot})
+					return ports.InspectResult{
+						TargetID:                a.ID(),
+						Installed:               true,
+						State:                   domain.InstallInstalled,
+						ActivationState:         domain.ActivationNotRequired,
+						ConfigPrecedenceContext: []string{"cursor_local_plugins", "project", "global", "parent_discovery"},
+						EnvironmentRestrictions: restrictions,
+						ObservedNativeObjects:   observed,
+						SettingsFiles:           []string{filepath.Join(pluginRoot, cursorPluginManifestRelPath)},
+						EvidenceClass:           domain.EvidenceConfirmed,
+					}, nil
+				}
+				return ports.InspectResult{
+					TargetID:                a.ID(),
+					Installed:               false,
+					State:                   domain.InstallRemoved,
+					ActivationState:         domain.ActivationNotRequired,
+					ConfigPrecedenceContext: []string{"cursor_local_plugins", "project", "global", "parent_discovery"},
+					EnvironmentRestrictions: restrictions,
+					SettingsFiles:           []string{filepath.Join(pluginRoot, cursorPluginManifestRelPath)},
+					EvidenceClass:           domain.EvidenceConfirmed,
+				}, nil
+			}
 			aliases := ownedAliases(target.OwnedNativeObjects)
 			if len(aliases) > 0 && statErr == nil {
 				doc, _, _, err := a.readDocument(ctx, config)
@@ -58,7 +84,7 @@ func (a Adapter) Inspect(ctx context.Context, in ports.InspectInput) (ports.Insp
 			}
 		}
 	}
-	if statErr == nil || cmdErr == nil {
+	if statErr == nil {
 		state = domain.InstallInstalled
 	}
 	return ports.InspectResult{

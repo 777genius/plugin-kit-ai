@@ -2,6 +2,7 @@ package cursor
 
 import (
 	"context"
+	"os"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/portablemcp"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
@@ -12,12 +13,71 @@ func (a Adapter) applyInstall(ctx context.Context, in ports.ApplyInput) (ports.A
 	if in.ResolvedSource == nil {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Cursor apply requires resolved source", nil)
 	}
+	if shouldUsePluginPackage(in.Manifest, in.ResolvedSource.LocalPath) {
+		return a.applyPluginPackage(ctx, in)
+	}
 	docPath := a.targetConfigPath(in.Policy.Scope, workspaceRootFromApplyInput(in))
 	return a.applyProjection(ctx, in, docPath, ownedAliasesFromRecord(in.Record))
 }
 
 func (a Adapter) applyUpdate(ctx context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
+	if in.ResolvedSource != nil && shouldUsePluginPackage(in.Manifest, in.ResolvedSource.LocalPath) {
+		return a.applyPluginPackage(ctx, in)
+	}
+	if root := ownedPluginRootFromRecord(in.Record); root != "" {
+		if err := removePluginRoot(root); err != nil {
+			return ports.ApplyResult{}, err
+		}
+	}
 	return a.applyInstall(ctx, in)
+}
+
+func (a Adapter) applyPluginPackage(ctx context.Context, in ports.ApplyInput) (ports.ApplyResult, error) {
+	if in.ResolvedSource == nil {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Cursor plugin install requires resolved source", nil)
+	}
+	integrationID := in.Manifest.IntegrationID
+	if integrationID == "" && in.Record != nil {
+		integrationID = in.Record.IntegrationID
+	}
+	if integrationID == "" {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "Cursor plugin install requires integration id", nil)
+	}
+	pluginRoot := a.targetPluginRoot(integrationID)
+	if in.Record != nil {
+		if target, ok := in.Record.Targets[domain.TargetCursor]; ok {
+			pluginRoot = pluginRootFromTarget(target, pluginRoot)
+		}
+	}
+	if err := a.syncManagedPlugin(ctx, in.Manifest, in.ResolvedSource.LocalPath, pluginRoot); err != nil {
+		return ports.ApplyResult{}, err
+	}
+	return ports.ApplyResult{
+		TargetID:        a.ID(),
+		State:           domain.InstallActivationPending,
+		ActivationState: domain.ActivationNativePending,
+		OwnedNativeObjects: ownedObjectsForPluginRoot(
+			pluginRoot,
+			integrationID,
+		),
+		ReloadRequired:    true,
+		NewThreadRequired: true,
+		EnvironmentRestrictions: []domain.EnvironmentRestrictionCode{
+			domain.RestrictionNativeActivation,
+			domain.RestrictionReloadRequired,
+			domain.RestrictionNewThreadRequired,
+		},
+		ManualSteps: []string{
+			"reload Cursor with Developer: Reload Window or restart Cursor",
+			"open a new Cursor chat so the plugin skills are loaded",
+		},
+		EvidenceClass: domain.EvidenceConfirmed,
+		AdapterMetadata: map[string]any{
+			"plugin_root":       pluginRoot,
+			"plugin_name":       integrationID,
+			"activation_method": "cursor_local_plugin",
+		},
+	}, nil
 }
 
 func (a Adapter) applyProjection(ctx context.Context, in ports.ApplyInput, docPath string, owned []string) (ports.ApplyResult, error) {
@@ -88,4 +148,25 @@ func ownedAliasesFromRecord(record *domain.InstallationRecord) []string {
 		return nil
 	}
 	return ownedAliases(target.OwnedNativeObjects)
+}
+
+func ownedPluginRootFromRecord(record *domain.InstallationRecord) string {
+	if record == nil {
+		return ""
+	}
+	target, ok := record.Targets[domain.TargetCursor]
+	if !ok {
+		return ""
+	}
+	return ownedPluginRoot(target.OwnedNativeObjects)
+}
+
+func removePluginRoot(path string) error {
+	if path == "" {
+		return nil
+	}
+	if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
+		return domain.NewError(domain.ErrMutationApply, "remove Cursor managed plugin root", err)
+	}
+	return nil
 }

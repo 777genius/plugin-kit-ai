@@ -129,6 +129,9 @@ func assertCursorConfig(t *testing.T, root string) {
 	if !bytes.Contains(manifestBody, []byte(`"mcpServers": "./.mcp.json"`)) {
 		t.Fatalf("unexpected cursor plugin manifest:\n%s", manifestBody)
 	}
+	if !bytes.Contains(manifestBody, []byte(`"skills": "./skills/"`)) {
+		t.Fatalf("unexpected cursor plugin manifest:\n%s", manifestBody)
+	}
 	body, err := os.ReadFile(filepath.Join(root, ".mcp.json"))
 	if err != nil {
 		t.Fatal(err)

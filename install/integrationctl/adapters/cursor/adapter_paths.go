@@ -87,6 +87,34 @@ func ownedAliases(items []domain.NativeObjectRef) []string {
 	return out
 }
 
+func ownedPluginRoot(items []domain.NativeObjectRef) string {
+	for _, item := range items {
+		if item.Kind == cursorPluginRootKind && strings.TrimSpace(item.Path) != "" {
+			return item.Path
+		}
+	}
+	return ""
+}
+
+func ownedObjectsForPluginRoot(path, name string) []domain.NativeObjectRef {
+	return []domain.NativeObjectRef{{
+		Kind:            cursorPluginRootKind,
+		Name:            name,
+		Path:            path,
+		ProtectionClass: domain.ProtectionUserMutable,
+	}}
+}
+
+func pluginRootFromTarget(target domain.TargetInstallation, fallback string) string {
+	if root := ownedPluginRoot(target.OwnedNativeObjects); root != "" {
+		return root
+	}
+	if metadataPath, ok := target.AdapterMetadata["plugin_root"].(string); ok && strings.TrimSpace(metadataPath) != "" {
+		return metadataPath
+	}
+	return fallback
+}
+
 func configPathFromTarget(target domain.TargetInstallation, fallback string) string {
 	for _, item := range target.OwnedNativeObjects {
 		if item.Kind == "file" && strings.TrimSpace(item.Path) != "" {

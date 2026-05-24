@@ -15,19 +15,34 @@ func (a Adapter) applyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if !ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Cursor target is missing from installation record", nil)
 	}
+	pluginRoot := ownedPluginRoot(target.OwnedNativeObjects)
+	removedPluginRoot := false
+	if pluginRoot != "" {
+		if err := removePluginRoot(pluginRoot); err != nil {
+			return ports.ApplyResult{}, err
+		}
+		removedPluginRoot = true
+	}
+	aliases := ownedAliases(target.OwnedNativeObjects)
+	if len(aliases) == 0 {
+		meta := map[string]any{}
+		if removedPluginRoot {
+			meta["removed_plugin_root"] = pluginRoot
+		}
+		return ports.ApplyResult{
+			TargetID:        a.ID(),
+			State:           domain.InstallRemoved,
+			ActivationState: removeActivationState(removedPluginRoot),
+			EvidenceClass:   domain.EvidenceConfirmed,
+			ReloadRequired:  removedPluginRoot,
+			ManualSteps:     removeManualSteps(removedPluginRoot),
+			AdapterMetadata: meta,
+		}, nil
+	}
 	docPath := configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
 	doc, wrapped, originalBody, err := a.readDocument(ctx, docPath)
 	if err != nil {
 		return ports.ApplyResult{}, err
-	}
-	aliases := ownedAliases(target.OwnedNativeObjects)
-	if len(aliases) == 0 {
-		return ports.ApplyResult{
-			TargetID:        a.ID(),
-			State:           domain.InstallRemoved,
-			ActivationState: domain.ActivationNotRequired,
-			EvidenceClass:   domain.EvidenceConfirmed,
-		}, nil
 	}
 	for _, alias := range aliases {
 		delete(doc, alias)
@@ -58,12 +73,15 @@ func (a Adapter) applyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	return ports.ApplyResult{
 		TargetID:        a.ID(),
 		State:           domain.InstallRemoved,
-		ActivationState: domain.ActivationNotRequired,
+		ActivationState: removeActivationState(removedPluginRoot),
 		EvidenceClass:   domain.EvidenceConfirmed,
+		ReloadRequired:  removedPluginRoot,
+		ManualSteps:     removeManualSteps(removedPluginRoot),
 		AdapterMetadata: map[string]any{
-			"config_path":     docPath,
-			"removed_aliases": aliases,
-			"wrapped_style":   wrapped,
+			"config_path":         docPath,
+			"removed_aliases":     aliases,
+			"removed_plugin_root": pluginRoot,
+			"wrapped_style":       wrapped,
 		},
 	}, nil
 }
@@ -87,4 +105,18 @@ func (a Adapter) repair(ctx context.Context, in ports.RepairInput) (ports.ApplyR
 		result.ManualSteps = append(result.ManualSteps, "repair reconciled managed Cursor MCP entries into the effective config layer")
 	}
 	return result, nil
+}
+
+func removeActivationState(pluginRemoved bool) domain.ActivationState {
+	if pluginRemoved {
+		return domain.ActivationNativePending
+	}
+	return domain.ActivationNotRequired
+}
+
+func removeManualSteps(pluginRemoved bool) []string {
+	if !pluginRemoved {
+		return nil
+	}
+	return []string{"reload Cursor with Developer: Reload Window or restart Cursor"}
 }

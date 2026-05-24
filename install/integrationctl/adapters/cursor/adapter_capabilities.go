@@ -11,7 +11,7 @@ func (Adapter) ID() domain.TargetID { return domain.TargetCursor }
 
 func (Adapter) Capabilities(context.Context) (ports.Capabilities, error) {
 	return ports.Capabilities{
-		InstallMode:               "config_projection",
+		InstallMode:               "plugin_materialization_or_config_projection",
 		SupportsNativeUpdate:      false,
 		SupportsNativeRemove:      true,
 		SupportsRepair:            true,

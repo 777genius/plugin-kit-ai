@@ -13,6 +13,7 @@ type cursorAdapter struct{}
 const (
 	cursorPluginManifestPath = ".cursor-plugin/plugin.json"
 	cursorPluginMCPRef       = "./.mcp.json"
+	cursorPluginSkillsRef    = "./skills/"
 )
 
 func (cursorAdapter) ID() string { return "cursor" }

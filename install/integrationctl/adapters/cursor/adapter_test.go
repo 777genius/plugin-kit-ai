@@ -132,6 +132,118 @@ func TestApplyUpdateRemovesStaleOwnedAliasesAfterAliasRename(t *testing.T) {
 	}
 }
 
+func TestApplyInstallMaterializesCursorPluginPackage(t *testing.T) {
+	t.Parallel()
+	userHome := t.TempDir()
+	sourceRoot := t.TempDir()
+	mustWriteFile(t, filepath.Join(sourceRoot, ".cursor-plugin", "plugin.json"), `{"name":"agent-code-navigator","version":"0.1.0","logo":"./icon.png","skills":"./skills/"}`)
+	mustWriteFile(t, filepath.Join(sourceRoot, "icon.png"), "fake icon")
+	mustWriteFile(t, filepath.Join(sourceRoot, "skills", "code-tool-router", "SKILL.md"), "# Code tool router\n")
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: userHome}
+	result, err := adapter.ApplyInstall(context.Background(), ports.ApplyInput{
+		Manifest: domain.IntegrationManifest{
+			IntegrationID: "agent-code-navigator",
+			Deliveries: []domain.Delivery{{
+				TargetID:     domain.TargetCursor,
+				DeliveryKind: domain.DeliveryCursorPlugin,
+			}},
+		},
+		ResolvedSource: &ports.ResolvedSource{Kind: "local_path", LocalPath: sourceRoot},
+	})
+	if err != nil {
+		t.Fatalf("apply install: %v", err)
+	}
+	pluginRoot := filepath.Join(userHome, ".cursor", "plugins", "local", "agent-code-navigator")
+	if result.State != domain.InstallActivationPending {
+		t.Fatalf("state = %s, want activation pending", result.State)
+	}
+	if !result.ReloadRequired || !result.NewThreadRequired {
+		t.Fatalf("activation flags = reload:%v newThread:%v, want both true", result.ReloadRequired, result.NewThreadRequired)
+	}
+	if _, err := os.Stat(filepath.Join(pluginRoot, ".cursor-plugin", "plugin.json")); err != nil {
+		t.Fatalf("stat cursor manifest: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(pluginRoot, "icon.png")); err != nil {
+		t.Fatalf("stat manifest-referenced logo: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(pluginRoot, "skills", "code-tool-router", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read generated skill: %v", err)
+	}
+	if string(body) != "# Code tool router\n" {
+		t.Fatalf("skill body = %q", body)
+	}
+	if _, err := os.Stat(filepath.Join(userHome, ".cursor", "mcp.json")); !os.IsNotExist(err) {
+		t.Fatalf("expected no Cursor MCP config for plugin package install, stat err = %v", err)
+	}
+	if len(result.OwnedNativeObjects) != 1 || result.OwnedNativeObjects[0].Kind != cursorPluginRootKind || result.OwnedNativeObjects[0].Path != pluginRoot {
+		t.Fatalf("owned objects = %#v, want cursor plugin root", result.OwnedNativeObjects)
+	}
+}
+
+func TestApplyRemoveDeletesCursorPluginRoot(t *testing.T) {
+	t.Parallel()
+	userHome := t.TempDir()
+	pluginRoot := filepath.Join(userHome, ".cursor", "plugins", "local", "agent-code-navigator")
+	mustWriteFile(t, filepath.Join(pluginRoot, ".cursor-plugin", "plugin.json"), `{"name":"agent-code-navigator"}`)
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: userHome}
+	record := domain.InstallationRecord{
+		Targets: map[domain.TargetID]domain.TargetInstallation{
+			domain.TargetCursor: {
+				TargetID: domain.TargetCursor,
+				OwnedNativeObjects: []domain.NativeObjectRef{
+					{Kind: cursorPluginRootKind, Name: "agent-code-navigator", Path: pluginRoot},
+				},
+			},
+		},
+	}
+	result, err := adapter.ApplyRemove(context.Background(), ports.ApplyInput{Record: &record})
+	if err != nil {
+		t.Fatalf("apply remove: %v", err)
+	}
+	if result.State != domain.InstallRemoved {
+		t.Fatalf("state = %s, want removed", result.State)
+	}
+	if !result.ReloadRequired {
+		t.Fatal("expected Cursor reload to be required after plugin removal")
+	}
+	if _, err := os.Stat(pluginRoot); !os.IsNotExist(err) {
+		t.Fatalf("expected plugin root to be removed, stat err = %v", err)
+	}
+}
+
+func TestInspectCursorPluginRootFromRecord(t *testing.T) {
+	t.Parallel()
+	userHome := t.TempDir()
+	pluginRoot := filepath.Join(userHome, ".cursor", "plugins", "local", "agent-code-navigator")
+	mustWriteFile(t, filepath.Join(pluginRoot, ".cursor-plugin", "plugin.json"), `{"name":"agent-code-navigator"}`)
+
+	adapter := Adapter{FS: fsadapter.OS{}, UserHome: userHome}
+	inspect, err := adapter.Inspect(context.Background(), ports.InspectInput{
+		Record: &domain.InstallationRecord{
+			Targets: map[domain.TargetID]domain.TargetInstallation{
+				domain.TargetCursor: {
+					TargetID: domain.TargetCursor,
+					OwnedNativeObjects: []domain.NativeObjectRef{
+						{Kind: cursorPluginRootKind, Name: "agent-code-navigator", Path: pluginRoot},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if inspect.State != domain.InstallInstalled || !inspect.Installed {
+		t.Fatalf("inspect state = %s installed = %v, want installed", inspect.State, inspect.Installed)
+	}
+	if len(inspect.ObservedNativeObjects) != 1 || inspect.ObservedNativeObjects[0].Kind != cursorPluginRootKind {
+		t.Fatalf("observed native objects = %#v", inspect.ObservedNativeObjects)
+	}
+}
+
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

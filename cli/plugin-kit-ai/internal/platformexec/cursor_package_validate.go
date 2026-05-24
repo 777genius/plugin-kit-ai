@@ -8,6 +8,7 @@ func (cursorAdapter) Validate(root string, graph pluginmodel.PackageGraph, state
 		return diagnostics, nil
 	}
 	diagnostics = append(diagnostics, validateCursorPluginIdentity(manifest, graph)...)
+	diagnostics = append(diagnostics, validateCursorPortableSkillsContract(root, manifest, graph)...)
 	mcpDiagnostics, err := validateCursorPortableMCPContract(root, manifest, graph)
 	if err != nil {
 		return nil, err

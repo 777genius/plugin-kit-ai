@@ -16,6 +16,7 @@ const (
 	DeliveryClaudeMarketplace DeliveryKind = "claude-marketplace-plugin"
 	DeliveryCodexMarketplace  DeliveryKind = "codex-marketplace-plugin"
 	DeliveryGeminiExtension   DeliveryKind = "gemini-extension"
+	DeliveryCursorPlugin      DeliveryKind = "cursor-plugin"
 	DeliveryCursorMCP         DeliveryKind = "cursor-mcp"
 	DeliveryOpenCodePlugin    DeliveryKind = "opencode-plugin"
 )
