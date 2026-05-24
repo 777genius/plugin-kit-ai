@@ -4,7 +4,17 @@ All notable changes to this repository are documented here. **CLI releases** (`p
 
 ## [Unreleased]
 
-Changes after `v1.1.2` land here.
+Changes after `v1.2.3` land here.
+
+## [1.2.3] - 2026-05-24
+
+### Added
+
+- Cursor package installs now support `.cursor-plugin/plugin.json` bundles with generated `skills`, while preserving the older `.cursor/mcp.json` projection path for MCP-only Cursor plugins.
+
+### Fixed
+
+- Cursor integration state no longer reports the Cursor CLI as missing for local plugin package installs, because local Cursor plugin materialization does not require `cursor-agent` in `PATH`.
 
 ## [1.1.2] - 2026-04-19
 
