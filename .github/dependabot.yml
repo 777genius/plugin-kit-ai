@@ -7,6 +7,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -18,6 +19,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -29,6 +31,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -40,6 +43,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -51,6 +55,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -62,6 +67,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -73,6 +79,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -84,6 +91,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -95,6 +103,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -106,6 +115,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -117,6 +127,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
@@ -128,6 +139,7 @@ updates:
       day: "monday"
       time: "09:00"
       timezone: "Europe/Kiev"
+    open-pull-requests-limit: 0
     commit-message:
       prefix: "chore"
       include: "scope"
