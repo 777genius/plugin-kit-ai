@@ -21,16 +21,16 @@ func (a Adapter) renderCodexMCP(ctx context.Context, sourceRoot string) (map[str
 			if strings.Contains(message, "does not define any servers for codex") {
 				loaded, err = loader.LoadForTarget(ctx, sourceRoot, domain.TargetID("codex-package"))
 				if err == nil {
-					return renderCodexLoadedMCP(loaded)
+					return renderCodexLoadedMCP(loaded, sourceRoot)
 				}
 			}
 		}
 		return nil, err
 	}
-	return renderCodexLoadedMCP(loaded)
+	return renderCodexLoadedMCP(loaded, sourceRoot)
 }
 
-func renderCodexLoadedMCP(loaded portablemcp.Loaded) (map[string]any, error) {
+func renderCodexLoadedMCP(loaded portablemcp.Loaded, sourceRoot string) (map[string]any, error) {
 	out := make(map[string]any, len(loaded.Servers))
 	aliases := make([]string, 0, len(loaded.Servers))
 	for alias := range loaded.Servers {
@@ -41,16 +41,24 @@ func renderCodexLoadedMCP(loaded portablemcp.Loaded) (map[string]any, error) {
 		server := loaded.Servers[alias]
 		switch server.Type {
 		case "stdio":
-			item := map[string]any{"command": server.Stdio.Command}
+			item := map[string]any{"command": replaceCodexPackageRoot(server.Stdio.Command, sourceRoot)}
 			if len(server.Stdio.Args) > 0 {
-				item["args"] = append([]string(nil), server.Stdio.Args...)
+				args := make([]string, 0, len(server.Stdio.Args))
+				for _, arg := range server.Stdio.Args {
+					args = append(args, replaceCodexPackageRoot(arg, sourceRoot))
+				}
+				item["args"] = args
 			}
 			if len(server.Stdio.Env) > 0 {
-				item["env"] = server.Stdio.Env
+				env := map[string]string{}
+				for key, value := range server.Stdio.Env {
+					env[key] = replaceCodexPackageRoot(value, sourceRoot)
+				}
+				item["env"] = env
 			}
 			out[alias] = item
 		case "remote":
-			item := map[string]any{"url": server.Remote.URL}
+			item := map[string]any{"url": replaceCodexPackageRoot(server.Remote.URL, sourceRoot)}
 			switch strings.ToLower(strings.TrimSpace(server.Remote.Protocol)) {
 			case "streamable_http":
 				item["type"] = "http"
@@ -58,7 +66,11 @@ func renderCodexLoadedMCP(loaded portablemcp.Loaded) (map[string]any, error) {
 				item["type"] = "sse"
 			}
 			if len(server.Remote.Headers) > 0 {
-				item["headers"] = server.Remote.Headers
+				headers := map[string]string{}
+				for key, value := range server.Remote.Headers {
+					headers[key] = replaceCodexPackageRoot(value, sourceRoot)
+				}
+				item["headers"] = headers
 			}
 			out[alias] = item
 		default:
@@ -66,4 +78,8 @@ func renderCodexLoadedMCP(loaded portablemcp.Loaded) (map[string]any, error) {
 		}
 	}
 	return out, nil
+}
+
+func replaceCodexPackageRoot(value, sourceRoot string) string {
+	return strings.ReplaceAll(value, "${package.root}", sourceRoot)
 }

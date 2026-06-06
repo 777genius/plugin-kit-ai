@@ -38,7 +38,7 @@ func TestApplyInstallLocalUsesManagedMarketplaceAndPluginInstall(t *testing.T) {
 	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "user-config.json"), "{\n  \"mode\": \"strict\"\n}\n")
 	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "commands", "review.md"), "# review\n")
 	writeClaudeFile(t, filepath.Join(source, "plugin", "targets", "claude", "agents", "reviewer.md"), "# reviewer\n")
-	writeClaudeFile(t, filepath.Join(source, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - claude\n  checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - run.mjs\n    targets:\n      - claude\n")
+	writeClaudeFile(t, filepath.Join(source, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - claude\n  checks:\n    type: stdio\n    stdio:\n      command: ${package.root}/bin/checks\n      args:\n        - --script=${package.root}/run.mjs\n    targets:\n      - claude\n")
 
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, ProjectRoot: filepath.Join(root, "project"), UserHome: home}
@@ -102,8 +102,12 @@ func TestApplyInstallLocalUsesManagedMarketplaceAndPluginInstall(t *testing.T) {
 	if err := json.Unmarshal(mcpBody, &mcp); err != nil {
 		t.Fatalf("parse .mcp.json: %v", err)
 	}
-	if mcp["docs"]["type"] != "http" || mcp["checks"]["command"] != "node" {
+	if mcp["docs"]["type"] != "http" || mcp["checks"]["command"] != filepath.Join(source, "bin", "checks") {
 		t.Fatalf("mcp projection = %#v", mcp)
+	}
+	args, _ := mcp["checks"]["args"].([]any)
+	if len(args) != 1 || args[0] != "--script="+filepath.Join(source, "run.mjs") {
+		t.Fatalf("mcp args = %#v", mcp["checks"]["args"])
 	}
 	if result.State != domain.InstallInstalled || !result.ReloadRequired {
 		t.Fatalf("result = %+v", result)

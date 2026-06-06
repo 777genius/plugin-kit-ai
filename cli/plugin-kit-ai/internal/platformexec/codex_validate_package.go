@@ -34,6 +34,7 @@ func (codexPackageAdapter) Validate(root string, graph pluginmodel.PackageGraph,
 	}
 	diagnostics = append(diagnostics, metaDiagnostics...)
 	diagnostics = append(diagnostics, validateCodexSkillsDiagnostics(graph, pluginManifest)...)
+	diagnostics = append(diagnostics, validateCodexHooksDiagnostics(root, state)...)
 	mcpDiagnostics, err := validateCodexMCPDiagnostics(root, graph, pluginManifest)
 	if err != nil {
 		return nil, err

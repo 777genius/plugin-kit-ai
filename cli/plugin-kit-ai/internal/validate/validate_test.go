@@ -137,6 +137,33 @@ targets: ["codex-runtime"]
 	}
 }
 
+func TestValidatePluginRuntimeFilesOptionalLauncherUsesEntrypointOnly(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteValidateFile(t, dir, filepath.Join("plugin", "plugin.yaml"), `api_version: v1
+name: "x"
+version: "0.1.0"
+description: "x"
+targets: ["claude", "codex-package", "gemini"]
+`)
+	mustWriteValidateFile(t, dir, filepath.Join("bin", "hook"), "#!/bin/sh\nexit 0\n")
+	if err := os.Chmod(filepath.Join(dir, "bin", "hook"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	var report Report
+	validatePluginRuntimeFiles(
+		dir,
+		pluginmanifest.Manifest{Targets: []string{"claude", "codex-package", "gemini"}},
+		&pluginmanifest.Launcher{Runtime: "python", Entrypoint: "./bin/hook"},
+		&report,
+	)
+
+	if len(report.Failures) != 0 {
+		t.Fatalf("failures = %+v", report.Failures)
+	}
+}
+
 func TestValidate_LegacyPortableMCPPathSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

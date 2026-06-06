@@ -90,7 +90,14 @@ func codexPackageNativeArtifacts(root string, graph pluginmodel.PackageGraph, st
 	if appArtifact != nil {
 		artifacts = append(artifacts, *appArtifact)
 	}
-	return artifacts, nil
+	hookArtifacts, err := copyArtifactDirs(root, artifactDir{
+		src: authoredComponentDir(state, "hooks", filepath.Join("targets", "codex-package", "hooks")),
+		dst: "hooks",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(artifacts, hookArtifacts...), nil
 }
 
 func mergeCodexPackageInterfaceDoc(root string, state pluginmodel.TargetState, doc map[string]any) error {

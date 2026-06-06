@@ -17,8 +17,8 @@ func codexPackageProfile() PlatformProfile {
 			GenerateSupport:        true,
 			ValidateSupport:        true,
 			PortableComponentKinds: []string{"skills", "mcp_servers"},
-			TargetComponentKinds:   []string{"package_metadata", "interface", "manifest_extra", "app_manifest"},
-			Summary:                "Codex package lane compiles the official plugin bundle from canonical plugin-authored inputs: plugin.json plus shared package metadata, optional interface/app assets, and optional MCP wiring.",
+			TargetComponentKinds:   []string{"package_metadata", "interface", "hooks", "manifest_extra", "app_manifest"},
+			Summary:                "Codex package lane compiles the official plugin bundle from canonical plugin-authored inputs: plugin.json plus shared package metadata, optional interface/app/hook assets, and optional MCP wiring.",
 		},
 		SDK: SDKMeta{
 			PublicPackage:   "codex",
@@ -37,6 +37,7 @@ func codexPackageProfile() PlatformProfile {
 		},
 		SurfaceTiers: []SurfaceSupport{
 			{Kind: "interface", Tier: SurfaceTierStable},
+			{Kind: "hooks", Tier: SurfaceTierStable},
 			{Kind: "manifest_extra", Tier: SurfaceTierStable},
 			{Kind: "app_manifest", Tier: SurfaceTierBeta},
 			{Kind: "agents", Tier: SurfaceTierUnsupported},
@@ -46,6 +47,7 @@ func codexPackageProfile() PlatformProfile {
 		ManagedArtifacts: []ManagedArtifactSpec{
 			{Kind: ManagedArtifactStatic, Path: ".codex-plugin/plugin.json"},
 			{Kind: ManagedArtifactStatic, Path: ".app.json"},
+			{Kind: ManagedArtifactMirror, ComponentKind: "hooks", SourceRoot: authoredPath("targets/codex-package/hooks"), OutputRoot: "hooks"},
 			{Kind: ManagedArtifactPortableSkills, SourceRoot: authoredPath("skills"), OutputRoot: "skills"},
 			{Kind: ManagedArtifactPortableMCP, Path: ".mcp.json"},
 		},
@@ -62,6 +64,7 @@ func codexPackageProfile() PlatformProfile {
 				authoredPath("targets/codex-package/interface.json"),
 				authoredPath("targets/codex-package/manifest.extra.json"),
 				authoredPath("targets/codex-package/app.json"),
+				authoredPath("targets/codex-package/hooks/hooks.json"),
 				authoredPath("skills/{{.ProjectName}}/SKILL.md"),
 			},
 			ForbiddenFiles: []string{

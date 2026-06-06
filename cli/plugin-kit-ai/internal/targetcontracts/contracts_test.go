@@ -21,19 +21,24 @@ func TestAllIncludesNativeDocPathsForCodexTargets(t *testing.T) {
 	if got := packageEntry.NativeSurfaceTiers["interface"]; got != "stable" {
 		t.Fatalf("codex-package native_surface_tiers[interface] = %q", got)
 	}
+	if got := packageEntry.NativeSurfaceTiers["hooks"]; got != "stable" {
+		t.Fatalf("codex-package native_surface_tiers[hooks] = %q", got)
+	}
 	if got := packageEntry.NativeSurfaceTiers["app_manifest"]; got != "beta" {
 		t.Fatalf("codex-package native_surface_tiers[app_manifest] = %q", got)
 	}
-	var foundAppRule, foundMCPRule bool
+	var foundAppRule, foundHooksRule, foundMCPRule bool
 	for _, rule := range packageEntry.ManagedArtifactRules {
 		switch {
 		case rule.Path == ".app.json" && rule.Condition == "when app_manifest is enabled":
 			foundAppRule = true
+		case rule.Path == "hooks/**" && rule.Condition == "when hooks are authored":
+			foundHooksRule = true
 		case rule.Path == ".mcp.json" && rule.Condition == "when portable MCP is authored":
 			foundMCPRule = true
 		}
 	}
-	if !foundAppRule || !foundMCPRule {
+	if !foundAppRule || !foundHooksRule || !foundMCPRule {
 		t.Fatalf("codex-package managed_artifact_rules = %+v", packageEntry.ManagedArtifactRules)
 	}
 

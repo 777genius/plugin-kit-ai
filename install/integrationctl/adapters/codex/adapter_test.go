@@ -70,6 +70,13 @@ func TestApplyInstallMaterializesMarketplaceAndBundle(t *testing.T) {
 	if !strings.Contains(string(pluginBody), `"mcpServers": "./.mcp.json"`) {
 		t.Fatalf("plugin manifest missing mcpServers ref: %s", string(pluginBody))
 	}
+	mcpBody, err := os.ReadFile(filepath.Join(project, ".agents", "plugins", "plugins", "codex-smoke", ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read mcp config: %v", err)
+	}
+	if !strings.Contains(string(mcpBody), filepath.Join(source, "bin", "smoke.js")) {
+		t.Fatalf("mcp config missing source-root command: %s", string(mcpBody))
+	}
 }
 
 func TestApplyUpdateRefreshesBundleAndPreservesOtherMarketplaceEntries(t *testing.T) {
@@ -692,7 +699,7 @@ func writeAuthoredCodexSource(t *testing.T, version, prompt string) string {
 	root := t.TempDir()
 	writeCodexFile(t, filepath.Join(root, "plugin", "plugin.yaml"), "name: codex-smoke\nversion: "+version+"\ndescription: codex smoke\n")
 	writeCodexFile(t, filepath.Join(root, "plugin", "skills", "codex-smoke", "SKILL.md"), "# skill\n")
-	writeCodexFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  smoke:\n    type: stdio\n    targets:\n      - codex-package\n    stdio:\n      command: node\n      args:\n        - ./bin/smoke.js\n")
+	writeCodexFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  smoke:\n    type: stdio\n    targets:\n      - codex-package\n    stdio:\n      command: ${package.root}/bin/smoke.js\n")
 	writeCodexFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "package.yaml"), "homepage: https://example.com/codex-smoke\nauthor:\n  name: Example\nkeywords:\n  - codex\n")
 	writeCodexFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\n    \""+prompt+"\"\n  ]\n}\n")
 	return root

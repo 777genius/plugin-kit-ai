@@ -23,6 +23,9 @@ func appendImportedCodexPackageBundleArtifacts(result *ImportResult, root string
 	if err := appendImportedCodexMCPArtifact(result, root, pluginManifest); err != nil {
 		return err
 	}
+	if err := appendImportedCodexHooksArtifacts(result, root); err != nil {
+		return err
+	}
 	appendImportedCodexExtraArtifact(result, extra)
 	return nil
 }
@@ -98,6 +101,18 @@ func appendImportedCodexMCPArtifact(result *ImportResult, root string, pluginMan
 		return err
 	}
 	result.Artifacts = append(result.Artifacts, artifact)
+	return nil
+}
+
+func appendImportedCodexHooksArtifacts(result *ImportResult, root string) error {
+	copied, err := copyArtifactDirs(root, artifactDir{
+		src: "hooks",
+		dst: filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "hooks"),
+	})
+	if err != nil {
+		return err
+	}
+	result.Artifacts = append(result.Artifacts, copied...)
 	return nil
 }
 

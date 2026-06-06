@@ -51,9 +51,9 @@
 
 ### Hooks
 
-У Codex есть **экспериментальные** lifecycle hooks через **`hooks.json`** и флаг **`features.codex_hooks`** — это **отдельная** от плагина поверхность: [Hooks](https://developers.openai.com/codex/hooks), [config reference](https://developers.openai.com/codex/config-reference).
+У Codex есть lifecycle hooks через **`hooks.json`** и флаг **`features.hooks`**; старый `features.codex_hooks` остаётся deprecated alias. Источник: [Hooks](https://developers.openai.com/codex/hooks), [config reference](https://developers.openai.com/codex/config-reference).
 
-**В официальной «структуре плагина»** папки hooks **нет** (в отличие от Claude Code). Системный скилл **`plugin-creator`** может предлагать опцию вроде **`--with-hooks`** — это материал **бандла установки Codex** (`~/.codex/skills/.system/...`), не замена веб-документации.
+Свежая официальная структура плагина допускает lifecycle config через plugin manifest или default **`hooks/hooks.json`**. В `plugin-kit-ai` это теперь моделируется как target-native Codex package surface: `plugin/targets/codex-package/hooks/**` зеркалится в bundled `hooks/**`.
 
 ### Marketplace (свой список плагинов)
 
@@ -127,10 +127,10 @@
 
 | Измерение | **Codex** | **Claude Code** | **Gemini CLI** | **OpenCode** | **Cursor** |
 |-----------|-----------|-----------------|----------------|--------------|------------|
-| **Формат пакета** | `.codex-plugin/plugin.json` + корневые `skills/`, `.mcp.json`, `.app.json` | `.claude-plugin/plugin.json` + `skills/`, `agents/`, `commands/`, `hooks/`, `.mcp.json`, `.lsp.json`, `settings.json` | **`gemini-extension.json`** в корне расширения | **JS/TS plugins** + `opencode.json`; **custom tools** | **`.cursor-plugin/plugin.json`** (IDE) |
+| **Формат пакета** | `.codex-plugin/plugin.json` + корневые `skills/`, `hooks/`, `.mcp.json`, `.app.json` | `.claude-plugin/plugin.json` + `skills/`, `agents/`, `commands/`, `hooks/`, `.mcp.json`, `.lsp.json`, `settings.json` | **`gemini-extension.json`** в корне расширения | **JS/TS plugins** + `opencode.json`; **custom tools** | **`.cursor-plugin/plugin.json`** (IDE) |
 | **Skills** | `SKILL.md` в плагине и в `.agents/skills` | `SKILL.md` + `commands/`; неймспейс `/plugin:skill` | `skills/**/SKILL.md` в расширении | `SKILL.md` в `.opencode/skills/` + совместимость `.claude`/`.agents` | Skills в **плагине IDE** + Rules |
 | **MCP** | Плагин → `.mcp.json`; рантайм в `config.toml`, `codex mcp` | `.mcp.json` + `${CLAUDE_PLUGIN_ROOT}` | `mcpServers` **внутри** `gemini-extension.json` | Блок `mcp` + `opencode mcp` | `.cursor/mcp.json`, маркетплейс |
-| **Хуки в пакете** | Не в структуре плагина; экспериментальные **проектные/глобальные** hooks | **Да**, `hooks/hooks.json` / inline | `hooks/hooks.json` в расширении (другая модель событий) | In-process хуки в JS-плагине | Hooks в плагине IDE |
+| **Хуки в пакете** | **Да**, default `hooks/hooks.json` или lifecycle config через manifest | **Да**, `hooks/hooks.json` / inline | `hooks/hooks.json` в расширении (другая модель событий) | In-process хуки в JS-плагине | Hooks в плагине IDE |
 | **Субагенты в пакете** | Не как у Claude в публичной спеке плагина | **`agents/`** в плагине | `agents/` (preview) + experimental в ядре | Агенты в конфиге | Agents в плагине IDE |
 | **Уникально у Codex** | **Apps** (`.app.json`), Plugin Directory, **`@`**, кэш `~/.codex/plugins/cache/...` | **LSP**, **`settings.json`** + default agent, marketplaces | Один манифест, **GEMINI.md**, TOML commands, галерея | npm/Bun plugins, custom tools | Team rules, **CLI без полных plugin bundles** ([Plugins](https://cursor.com/docs/plugins)) |
 | **CLI и полный пакет** | **Да** — `/plugins` | `--plugin-dir`, marketplaces | `gemini extensions install` / link | Тот же стек | Headless CLI + MCP; плагины IDE отдельно |

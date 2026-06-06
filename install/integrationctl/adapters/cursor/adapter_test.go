@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	fsadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/fs"
@@ -137,6 +138,7 @@ func TestApplyInstallMaterializesCursorPluginPackage(t *testing.T) {
 	userHome := t.TempDir()
 	sourceRoot := t.TempDir()
 	mustWriteFile(t, filepath.Join(sourceRoot, ".cursor-plugin", "plugin.json"), `{"name":"agent-code-navigator","version":"0.1.0","logo":"./icon.png","skills":"./skills/"}`)
+	mustWriteFile(t, filepath.Join(sourceRoot, ".mcp.json"), `{"mcpServers":{"memory-platform":{"command":"./bin/memory-mcp","args":["--repo=${package.root}"]}}}`)
 	mustWriteFile(t, filepath.Join(sourceRoot, "icon.png"), "fake icon")
 	mustWriteFile(t, filepath.Join(sourceRoot, "skills", "code-tool-router", "SKILL.md"), "# Code tool router\n")
 
@@ -173,6 +175,16 @@ func TestApplyInstallMaterializesCursorPluginPackage(t *testing.T) {
 	}
 	if string(body) != "# Code tool router\n" {
 		t.Fatalf("skill body = %q", body)
+	}
+	mcpBody, err := os.ReadFile(filepath.Join(pluginRoot, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("read cursor package mcp: %v", err)
+	}
+	if !strings.Contains(string(mcpBody), filepath.Join(sourceRoot, "bin", "memory-mcp")) {
+		t.Fatalf("mcp command was not source-root projected: %s", string(mcpBody))
+	}
+	if !strings.Contains(string(mcpBody), "--repo="+sourceRoot) {
+		t.Fatalf("mcp args were not source-root projected: %s", string(mcpBody))
 	}
 	if _, err := os.Stat(filepath.Join(userHome, ".cursor", "mcp.json")); !os.IsNotExist(err) {
 		t.Fatalf("expected no Cursor MCP config for plugin package install, stat err = %v", err)

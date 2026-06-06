@@ -253,5 +253,9 @@ func mustSaveValidatedPackage(t *testing.T, root string, manifest pluginmanifest
 		if err := pluginmanifest.SaveLauncher(root, pluginmanifest.DefaultLauncher(manifest.Name, runtime), false); err != nil {
 			t.Fatal(err)
 		}
+		mustWriteValidateFile(t, root, filepath.Join("bin", manifest.Name), "#!/bin/sh\nexit 0\n")
+		if err := os.Chmod(filepath.Join(root, "bin", manifest.Name), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

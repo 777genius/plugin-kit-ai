@@ -42,7 +42,7 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	writeGeminiFile(t, filepath.Join(root, "plugin", "targets", "gemini", "hooks", "hooks.json"), "{\n  \"hooks\": {}\n}\n")
 	writeGeminiFile(t, filepath.Join(root, "plugin", "targets", "gemini", "agents", "reviewer.md"), "# reviewer\n")
 	writeGeminiFile(t, filepath.Join(root, "plugin", "skills", "security-audit", "SKILL.md"), "# Skill\n")
-	writeGeminiFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - gemini\n  release-checks:\n    type: stdio\n    stdio:\n      command: node\n      args:\n        - ${package.root}/bin/release-checks.mjs\n    targets:\n      - gemini\n")
+	writeGeminiFile(t, filepath.Join(root, "plugin", "mcp", "servers.yaml"), "api_version: v1\nservers:\n  docs:\n    type: remote\n    remote:\n      protocol: streamable_http\n      url: \"https://example.com/mcp\"\n    targets:\n      - gemini\n  release-checks:\n    type: stdio\n    stdio:\n      command: ${package.root}/bin/release-checks.mjs\n      args:\n        - --config=${package.root}/config.json\n    targets:\n      - gemini\n")
 	runner := &stubRunner{}
 	adapter := Adapter{Runner: runner, FS: fsadapter.OS{}, UserHome: home}
 
@@ -120,11 +120,11 @@ func TestApplyInstallLocalUsesManagedGeminiInstall(t *testing.T) {
 	if docs, _ := servers["docs"].(map[string]any); docs["httpUrl"] != "https://example.com/mcp" {
 		t.Fatalf("docs projection = %#v", servers["docs"])
 	}
-	if checks, _ := servers["release-checks"].(map[string]any); checks["command"] != "node" {
+	if checks, _ := servers["release-checks"].(map[string]any); checks["command"] != filepath.Join(root, "bin", "release-checks.mjs") {
 		t.Fatalf("checks projection = %#v", servers["release-checks"])
 	} else {
 		args, _ := checks["args"].([]any)
-		if len(args) != 1 || args[0] != "${extensionPath}/bin/release-checks.mjs" {
+		if len(args) != 1 || args[0] != "--config="+filepath.Join(root, "config.json") {
 			t.Fatalf("checks args = %#v", checks["args"])
 		}
 	}

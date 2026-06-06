@@ -28,16 +28,24 @@ func (a Adapter) renderClaudeMCP(ctx context.Context, sourceRoot string) (map[st
 		server := loaded.Servers[alias]
 		switch server.Type {
 		case "stdio":
-			doc := map[string]any{"command": server.Stdio.Command}
+			doc := map[string]any{"command": replaceClaudePackageRoot(server.Stdio.Command, sourceRoot)}
 			if len(server.Stdio.Args) > 0 {
-				doc["args"] = append([]string(nil), server.Stdio.Args...)
+				args := make([]string, 0, len(server.Stdio.Args))
+				for _, arg := range server.Stdio.Args {
+					args = append(args, replaceClaudePackageRoot(arg, sourceRoot))
+				}
+				doc["args"] = args
 			}
 			if len(server.Stdio.Env) > 0 {
-				doc["env"] = server.Stdio.Env
+				env := map[string]string{}
+				for key, value := range server.Stdio.Env {
+					env[key] = replaceClaudePackageRoot(value, sourceRoot)
+				}
+				doc["env"] = env
 			}
 			out[alias] = doc
 		case "remote":
-			doc := map[string]any{"url": server.Remote.URL}
+			doc := map[string]any{"url": replaceClaudePackageRoot(server.Remote.URL, sourceRoot)}
 			switch strings.ToLower(strings.TrimSpace(server.Remote.Protocol)) {
 			case "streamable_http":
 				doc["type"] = "http"
@@ -45,7 +53,11 @@ func (a Adapter) renderClaudeMCP(ctx context.Context, sourceRoot string) (map[st
 				doc["type"] = "sse"
 			}
 			if len(server.Remote.Headers) > 0 {
-				doc["headers"] = server.Remote.Headers
+				headers := map[string]string{}
+				for key, value := range server.Remote.Headers {
+					headers[key] = replaceClaudePackageRoot(value, sourceRoot)
+				}
+				doc["headers"] = headers
 			}
 			out[alias] = doc
 		default:
@@ -53,4 +65,9 @@ func (a Adapter) renderClaudeMCP(ctx context.Context, sourceRoot string) (map[st
 		}
 	}
 	return out, nil
+}
+
+func replaceClaudePackageRoot(value, sourceRoot string) string {
+	value = strings.ReplaceAll(value, "${package.root}", sourceRoot)
+	return strings.ReplaceAll(value, "${CLAUDE_PLUGIN_ROOT}", sourceRoot)
 }

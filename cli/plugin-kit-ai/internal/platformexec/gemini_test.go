@@ -231,6 +231,32 @@ func TestGeminiRenderGeneratesDefaultHooksFromLauncher(t *testing.T) {
 	}
 }
 
+func TestGeminiValidateIgnoresSharedHooksWhenGeminiHooksAreNotEnabled(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"./bin/demo UserPromptSubmit"}]}]}}`
+	if err := os.WriteFile(filepath.Join(root, "hooks", "hooks.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	graph := pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{
+			Name:        "multi-target",
+			Version:     "0.1.0",
+			Description: "demo",
+			Targets:     []string{"claude", "codex-package", "gemini"},
+		},
+		Launcher: &pluginmodel.Launcher{Runtime: "python", Entrypoint: "./bin/demo"},
+	}
+
+	diagnostics := validateGeminiGeneratedHooks(root, graph, nil)
+	if len(diagnostics) != 0 {
+		t.Fatalf("diagnostics = %+v", diagnostics)
+	}
+}
+
 func TestGeminiRenderProjectsPackageMetaSettingsThemesAndContext(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

@@ -24,6 +24,18 @@ func TestCodexPackageImportNormalizesManagedRefsAndPreservesExtras(t *testing.T)
 	writeCodexTestFile(t, filepath.Join(root, "resources", "skills", "release-checks", "SKILL.md"), "# Skill\n")
 	writeCodexTestFile(t, filepath.Join(root, "config", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
 	writeCodexTestFile(t, filepath.Join(root, "config", "mcp.json"), "{\n  \"docs\": {\"command\": \"node\"}\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "hooks", "hooks.json"), `{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "./bin/demo Stop"}
+        ]
+      }
+    ]
+  }
+}
+`)
 
 	imported, err := (codexPackageAdapter{}).Import(root, ImportSeed{
 		Manifest: pluginmodel.Manifest{
@@ -43,6 +55,7 @@ func TestCodexPackageImportNormalizesManagedRefsAndPreservesExtras(t *testing.T)
 		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "package.yaml")),
 		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "app.json")),
 		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "manifest.extra.json")),
+		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "targets", "codex-package", "hooks", "hooks.json")),
 		filepath.ToSlash(filepath.Join(pluginmodel.SourceDirName, "mcp", "servers.yaml")),
 		filepath.ToSlash(filepath.Join("skills", "release-checks", "SKILL.md")),
 	} {
@@ -94,6 +107,18 @@ func TestCodexPackageGenerateWritesManagedBundleArtifacts(t *testing.T) {
 	root := t.TempDir()
 	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "interface.json"), "{\n  \"defaultPrompt\": [\"Ship it\"]\n}\n")
 	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "app.json"), "{\n  \"entry\": \"open\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "hooks", "hooks.json"), `{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "./bin/demo Stop"}
+        ]
+      }
+    ]
+  }
+}
+`)
 	writeCodexTestFile(t, filepath.Join(root, "plugin", "skills", "release-checks", "SKILL.md"), "# Skill\n")
 
 	parsed, err := pluginmodel.ParsePortableMCP("plugin/mcp/servers.yaml", []byte(`api_version: v1
@@ -125,6 +150,7 @@ servers:
 	state := pluginmodel.NewTargetState("codex-package")
 	state.SetDoc("interface", filepath.Join("plugin", "targets", "codex-package", "interface.json"))
 	state.SetDoc("app_manifest", filepath.Join("plugin", "targets", "codex-package", "app.json"))
+	state.AddComponent("hooks", filepath.Join("plugin", "targets", "codex-package", "hooks", "hooks.json"))
 
 	artifacts, err := (codexPackageAdapter{}).Generate(root, graph, state)
 	if err != nil {
@@ -148,11 +174,37 @@ servers:
 		filepath.ToSlash(filepath.Join(".codex-plugin", "plugin.json")),
 		".app.json",
 		".mcp.json",
+		filepath.ToSlash(filepath.Join("hooks", "hooks.json")),
 		filepath.ToSlash(filepath.Join("skills", "release-checks", "SKILL.md")),
 	} {
 		if !hasArtifactPath(artifacts, want) {
 			t.Fatalf("artifacts missing %s: %+v", want, artifacts)
 		}
+	}
+}
+
+func TestCodexPackageValidateReportsInvalidHooks(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeCodexTestFile(t, filepath.Join(root, ".codex-plugin", "plugin.json"), "{\n  \"name\": \"codex-demo\",\n  \"version\": \"0.1.0\",\n  \"description\": \"codex demo\"\n}\n")
+	writeCodexTestFile(t, filepath.Join(root, "plugin", "targets", "codex-package", "hooks", "hooks.json"), "{\n  \"Stop\": []\n}\n")
+
+	state := pluginmodel.NewTargetState("codex-package")
+	state.AddComponent("hooks", filepath.Join("plugin", "targets", "codex-package", "hooks", "hooks.json"))
+
+	diagnostics, err := (codexPackageAdapter{}).Validate(root, pluginmodel.PackageGraph{
+		Manifest: pluginmodel.Manifest{
+			Name:        "codex-demo",
+			Version:     "0.1.0",
+			Description: "codex demo",
+			Targets:     []string{"codex-package"},
+		},
+	}, state)
+	if err != nil {
+		t.Fatalf("Validate error = %v", err)
+	}
+	if joined := diagnosticsText(diagnostics); !strings.Contains(joined, `top-level "hooks" object`) {
+		t.Fatalf("diagnostics missing hooks shape guidance:\n%s", joined)
 	}
 }
 

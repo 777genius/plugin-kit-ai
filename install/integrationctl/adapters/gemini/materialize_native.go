@@ -62,19 +62,19 @@ func (a Adapter) loadProjectedMCP(ctx context.Context, sourceRoot string) (map[s
 		switch server.Type {
 		case "stdio":
 			doc := map[string]any{
-				"command": server.Stdio.Command,
+				"command": replaceGeminiPackageRoot(server.Stdio.Command, sourceRoot),
 			}
 			if len(server.Stdio.Args) > 0 {
 				args := make([]string, 0, len(server.Stdio.Args))
 				for _, arg := range server.Stdio.Args {
-					args = append(args, strings.ReplaceAll(arg, "${package.root}", "${extensionPath}"))
+					args = append(args, replaceGeminiPackageRoot(arg, sourceRoot))
 				}
 				doc["args"] = args
 			}
 			if len(server.Stdio.Env) > 0 {
 				env := map[string]string{}
 				for key, value := range server.Stdio.Env {
-					env[key] = strings.ReplaceAll(value, "${package.root}", "${extensionPath}")
+					env[key] = replaceGeminiPackageRoot(value, sourceRoot)
 				}
 				doc["env"] = env
 			}
@@ -83,12 +83,16 @@ func (a Adapter) loadProjectedMCP(ctx context.Context, sourceRoot string) (map[s
 			doc := map[string]any{}
 			switch strings.ToLower(strings.TrimSpace(server.Remote.Protocol)) {
 			case "streamable_http":
-				doc["httpUrl"] = server.Remote.URL
+				doc["httpUrl"] = replaceGeminiPackageRoot(server.Remote.URL, sourceRoot)
 			default:
-				doc["url"] = server.Remote.URL
+				doc["url"] = replaceGeminiPackageRoot(server.Remote.URL, sourceRoot)
 			}
 			if len(server.Remote.Headers) > 0 {
-				doc["headers"] = server.Remote.Headers
+				headers := map[string]string{}
+				for key, value := range server.Remote.Headers {
+					headers[key] = replaceGeminiPackageRoot(value, sourceRoot)
+				}
+				doc["headers"] = headers
 			}
 			out[alias] = doc
 		default:
@@ -96,4 +100,9 @@ func (a Adapter) loadProjectedMCP(ctx context.Context, sourceRoot string) (map[s
 		}
 	}
 	return out, nil
+}
+
+func replaceGeminiPackageRoot(value, sourceRoot string) string {
+	value = strings.ReplaceAll(value, "${package.root}", sourceRoot)
+	return strings.ReplaceAll(value, "${extensionPath}", sourceRoot)
 }

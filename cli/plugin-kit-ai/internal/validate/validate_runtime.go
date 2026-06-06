@@ -22,6 +22,10 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		}
 		return
 	}
+	if !requireLauncher {
+		validatePluginLauncher(root, launcher, report)
+		return
+	}
 	switch launcher.Runtime {
 	case "go":
 		validateGoRuntimeFiles(root, report)

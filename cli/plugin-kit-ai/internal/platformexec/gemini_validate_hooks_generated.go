@@ -17,13 +17,6 @@ func validateGeminiGeneratedHooks(root string, graph pluginmodel.PackageGraph, a
 		return validateGeminiAuthoredGeneratedHooks(root, authoredHookPaths[0], generatedHooksPath, body, err)
 	}
 	if !geminiUsesGeneratedHooks(graph, pluginmodel.TargetState{Target: "gemini"}) {
-		if err == nil {
-			return []Diagnostic{geminiHookDiagnostic(
-				CodeGeneratedContractInvalid,
-				generatedHooksPath,
-				"Gemini generated hooks/hooks.json may not exist when no authored hooks or generated launcher hooks are expected",
-			)}
-		}
 		return nil
 	}
 	if err != nil {

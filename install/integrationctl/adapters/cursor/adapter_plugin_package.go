@@ -68,6 +68,9 @@ func (a Adapter) syncManagedPlugin(ctx context.Context, manifest domain.Integrat
 	if err := copyCursorManifestRefs(root, tmpRoot); err != nil {
 		return err
 	}
+	if err := rewriteCursorPackageMCP(filepath.Join(tmpRoot, ".mcp.json"), root); err != nil {
+		return err
+	}
 	if !cursorPluginPackageExists(tmpRoot) {
 		return domain.NewError(domain.ErrMutationApply, "Cursor package copy did not produce .cursor-plugin/plugin.json", nil)
 	}
@@ -198,6 +201,68 @@ func copyNativeCursorPackage(sourceRoot, destRoot string) error {
 		}
 	}
 	return nil
+}
+
+func rewriteCursorPackageMCP(path, sourceRoot string) error {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return domain.NewError(domain.ErrMutationApply, "read Cursor package MCP config", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "parse Cursor package MCP config", err)
+	}
+	servers, wrapped := doc["mcpServers"].(map[string]any)
+	if !wrapped {
+		servers = doc
+	}
+	for _, raw := range servers {
+		server, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if command, ok := server["command"].(string); ok {
+			server["command"] = rewriteCursorPackagePath(command, sourceRoot, true)
+		}
+		if args, ok := server["args"].([]any); ok {
+			for index, rawArg := range args {
+				if arg, ok := rawArg.(string); ok {
+					args[index] = rewriteCursorPackagePath(arg, sourceRoot, false)
+				}
+			}
+		}
+		if env, ok := server["env"].(map[string]any); ok {
+			for key, rawValue := range env {
+				if value, ok := rawValue.(string); ok {
+					env[key] = rewriteCursorPackagePath(value, sourceRoot, false)
+				}
+			}
+		}
+	}
+	next := doc
+	if wrapped {
+		next = map[string]any{"mcpServers": servers}
+	}
+	rendered, err := json.MarshalIndent(next, "", "  ")
+	if err != nil {
+		return domain.NewError(domain.ErrMutationApply, "marshal Cursor package MCP config", err)
+	}
+	if err := os.WriteFile(path, append(rendered, '\n'), 0o644); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "write Cursor package MCP config", err)
+	}
+	return nil
+}
+
+func rewriteCursorPackagePath(value, sourceRoot string, rewriteRelative bool) string {
+	value = strings.ReplaceAll(value, "${package.root}", sourceRoot)
+	value = strings.ReplaceAll(value, "${extensionPath}", sourceRoot)
+	if rewriteRelative && strings.HasPrefix(value, "./") {
+		return filepath.Join(sourceRoot, strings.TrimPrefix(value, "./"))
+	}
+	return value
 }
 
 func copyPathIfExists(src, dest string) (bool, error) {
