@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmanifest"
@@ -22,7 +23,7 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 		}
 		return
 	}
-	if !requireLauncher {
+	if !requireLauncher && !hasRuntimeProjectFiles(root, launcher.Runtime) {
 		validatePluginLauncher(root, launcher, report)
 		return
 	}
@@ -36,6 +37,26 @@ func validatePluginRuntimeFiles(root string, manifest pluginmanifest.Manifest, l
 	case "shell":
 		validateShellRuntimeFiles(root, launcher, report)
 	}
+}
+
+func hasRuntimeProjectFiles(root, runtimeName string) bool {
+	var candidates []string
+	switch runtimeName {
+	case "go":
+		candidates = []string{"go.mod", "cmd"}
+	case "python":
+		candidates = []string{authoredProjectPath(root, "main.py"), "requirements.txt", "pyproject.toml", ".venv"}
+	case "node":
+		candidates = []string{"package.json", "src", authoredProjectPath(root, "main.mjs"), authoredProjectPath(root, "main.js"), authoredProjectPath(root, "main.ts")}
+	case "shell":
+		candidates = []string{filepath.Join("scripts", "main.sh")}
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(filepath.Join(root, candidate)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func runtimeLauncherRequired(targets []string) bool {

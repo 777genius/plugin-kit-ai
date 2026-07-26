@@ -164,6 +164,37 @@ targets: ["claude", "codex-package", "gemini"]
 	}
 }
 
+func TestHasRuntimeProjectFiles(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		runtimeName string
+		path        string
+	}{
+		{name: "go module", runtimeName: "go", path: "go.mod"},
+		{name: "go sources", runtimeName: "go", path: filepath.Join("cmd", "demo", "main.go")},
+		{name: "python project", runtimeName: "python", path: "pyproject.toml"},
+		{name: "python authored entrypoint", runtimeName: "python", path: filepath.Join(pluginmodel.SourceDirName, "main.py")},
+		{name: "node package", runtimeName: "node", path: "package.json"},
+		{name: "node authored module", runtimeName: "node", path: filepath.Join(pluginmodel.SourceDirName, "main.mjs")},
+		{name: "node authored typescript", runtimeName: "node", path: filepath.Join(pluginmodel.SourceDirName, "main.ts")},
+		{name: "shell target", runtimeName: "shell", path: filepath.Join("scripts", "main.sh")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mustWriteValidateFile(t, dir, tt.path, "fixture")
+			if !hasRuntimeProjectFiles(dir, tt.runtimeName) {
+				t.Fatalf("hasRuntimeProjectFiles(%q) = false", tt.runtimeName)
+			}
+		})
+	}
+
+	if hasRuntimeProjectFiles(t.TempDir(), "python") {
+		t.Fatal("empty optional launcher project detected as a runtime project")
+	}
+}
+
 func TestValidate_LegacyPortableMCPPathSetsFailurePath(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
