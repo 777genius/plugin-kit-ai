@@ -6,6 +6,11 @@
     "#internal/nuxt/paths": "./utils/nuxtInternalPaths.js"
   },
   "packageManager": "pnpm@8.15.1",
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": "5.0.8"
+    }
+  },
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build",
@@ -22,23 +27,23 @@
     "@nuxtjs/i18n": "^9.5.6",
     "@pinia/nuxt": "^0.11.3",
     "@vueuse/nuxt": "^10.11.1",
-    "nuxt": "^3.20.2",
+    "nuxt": "^3.21.9",
     "nuxt-icon": "^0.6.10",
     "pinia": "^3.0.4",
-    "swiper": "^12.1.2",
-    "vue": "^3.5.31",
-    "vue-i18n": "^11.3.2",
+    "swiper": "^12.2.0",
+    "vue": "^3.5.40",
+    "vue-i18n": "^11.4.8",
     "vue-router": "^4.6.4",
-    "vuetify": "^3.11.6"
+    "vuetify": "^3.12.11"
   },
   "devDependencies": {
-    "@typescript-eslint/parser": "^8.58.0",
     "@mdi/font": "^7.4.47",
-    "@nuxt/eslint": "^1.12.1",
-    "eslint": "^9.39.2",
-    "prettier": "^3.8.0",
-    "sass": "^1.97.2",
-    "typescript": "^6.0.2",
+    "@nuxt/eslint": "^1.16.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.6",
+    "sass": "^1.102.0",
+    "typescript": "^6.0.3",
     "vite-plugin-vuetify": "^2.1.3"
   }
 }

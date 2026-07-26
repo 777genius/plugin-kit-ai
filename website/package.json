@@ -7,6 +7,14 @@
     "node": "22.21.1",
     "pnpm": "8.15.1"
   },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": "5.0.8",
+      "dompurify": "3.4.12",
+      "lodash-es": "4.18.1",
+      "uuid": "14.0.1"
+    }
+  },
   "scripts": {
     "docs:clean": "node ./tools/clean.mjs",
     "docs:gen": "node ./tools/generate.mjs",
@@ -23,13 +31,13 @@
     "docs:check": "pnpm run docs:gen && pnpm run docs:check-locale && pnpm run docs:check-model && pnpm run docs:check-public-boundary && pnpm run docs:check-drift && vitepress build && node ./tools/postbuild.mjs && pnpm run docs:check-output"
   },
   "devDependencies": {
-    "mermaid": "11.14.0",
-    "playwright": "1.59.1",
-    "typedoc": "0.28.18",
-    "typedoc-plugin-markdown": "4.11.0",
-    "vitepress": "2.0.0-alpha.17",
+    "mermaid": "11.16.0",
+    "playwright": "1.62.0",
+    "typedoc": "0.28.20",
+    "typedoc-plugin-markdown": "4.12.0",
+    "vitepress": "2.0.0-alpha.18",
     "vitepress-codeblock-collapse": "1.0.0",
     "vitepress-mermaid-zoom": "1.0.2",
-    "vue": "3.5.32"
+    "vue": "3.5.40"
   }
 }
