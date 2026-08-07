@@ -15,6 +15,13 @@ existing package are welcome.
 6. Update `SOURCES.md` and `docs/COMPATIBILITY.md`.
 7. Run the validator and unit tests.
 
+```bash
+python3 scripts/validate_catalog.py
+python3 scripts/build_openai_compat.py --check
+python3 scripts/validate_openai_compat.py
+python3 -m unittest discover -s tests
+```
+
 Do not add credentials, token placeholders in remote headers, undocumented OAuth
 metadata, shell command strings, floating dependency tags, or endpoints copied
 from a client-specific hosted connector.
@@ -28,3 +35,11 @@ Keep pull requests focused. Explain the upstream source, what changed, how the
 package was validated, and whether authentication or tool permissions changed.
 Use conventional commit titles such as `feat: add example plugin` or
 `fix: update context7 server pin`.
+
+## Release checklist
+
+1. Merge through protected `main` after `portable-catalog` and review pass.
+2. Push the new `v*` tag and wait for both live E2E jobs to pass.
+3. Create a draft GitHub release for that tag, review its notes/assets, and
+   publish it. Release immutability then locks the tag and assets.
+4. Confirm the README pin and Live E2E badge target the published release.

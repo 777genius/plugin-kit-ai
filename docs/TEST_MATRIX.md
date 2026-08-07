@@ -1,28 +1,38 @@
 # Plugin verification matrix
 
-Status meanings:
+Verified on 2026-08-07. Each column is independent: a schema pass is not an
+install, an auth challenge is not OAuth success, and tool discovery is not a
+tool call. `Direct harness` means MCP Inspector, not a client installation.
 
-- `Tested`: installed or exercised in a named client or direct MCP harness.
-- `Schema only`: package structure validates, but runtime behavior was not run.
-- `Auth required`: the endpoint correctly requested authentication; no behavior
-  claim is made until OAuth or token setup succeeds.
-- `OAuth passed`: authenticated behavior succeeded in the named client only. It
-  does not prove repository-package installation, another client's OAuth flow,
-  or portable authentication behavior.
-
-| Plugin | Package | Endpoint/package | Auth | Behavior | Evidence |
+| Plugin | Schema | Installed | Tool called | OAuth | Clients |
 | --- | --- | --- | --- | --- | --- |
-| `agent-code-navigator` | Tested | Tested | None | Codex skill call passed | Codex CLI 0.144.1 + MCP harness, 2026-08-07 |
-| `context7` | Tested | Tested | None | Codex, Cursor, and Kiro calls/connections passed | Codex 0.144.1, Cursor 3.9.16, Kiro 1.0.288, Inspector 2.1.0 |
-| `cloudflare-docs` | Tested | Tested | None | Search call passed | MCP Inspector 2.1.0, 2026-08-07 |
-| `cloudflare-radar` | Tested | Reachable | Auth required | OAuth discovery confirmed | MCP Inspector 2.1.0, 2026-08-07 |
-| `chrome-devtools` | Tested | Tested | Local browser | 29 tools discovered in an isolated sandbox | MCP Inspector 2.1.0, 2026-08-07 |
-| `figma` | Tested | Tested | Auth required | OAuth discovery passed; successful consent pending | Inspector + Codex 0.144.1 |
-| `github` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0; `GITHUB_PAT_TOKEN` adapter metadata |
-| `linear` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
-| `notion` | Schema only | Tested | OAuth passed | ChatGPT raw MCP development connection completed OAuth and returned `UAP_NOTION_E2E_OK 0` from an authenticated read-only search; repository package install remains separate | ChatGPT web + Inspector + Codex 0.144.1 |
-| `sentry` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
-| Remaining 16 packages | Schema only | Reachable or package-verified | Varies | Not run | See `COMPATIBILITY.md` |
+| `agent-code-navigator` | Pass | Codex | N/A - packaged skill/doctor ran | None | Codex |
+| `atlassian` | Pass | No | No | Required - not tested | None |
+| `chrome-devtools` | Pass | No | No - 29 tools discovered | Local browser, not OAuth | Direct harness |
+| `cloudflare` | Pass | No | No | Required - not tested | None |
+| `cloudflare-bindings` | Pass | No | No | Required - not tested | None |
+| `cloudflare-docs` | Pass | No | `search_cloudflare_documentation` | None | Direct harness |
+| `cloudflare-observability` | Pass | No | No | Required - not tested | None |
+| `cloudflare-radar` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
+| `context7` | Pass | Codex; Kiro import; Cursor local load | `resolve-library-id`; `query-docs` | None | Codex; Kiro; Cursor; direct harness |
+| `docker-hub` | Pass | No | No | Optional credentials - not tested | None |
+| `figma` | Pass | No | No | Discovery passed; consent pending | Direct harness; Codex discovery |
+| `firebase` | Pass | No | No | Local CLI login - not tested | None |
+| `github` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
+| `gitlab` | Pass | No | No | Required - not tested | None |
+| `greptile` | Pass | No | No | Required - not tested | None |
+| `heroku` | Pass | No | No | Required - not tested | None |
+| `hubspot-crm` | Pass | No | No | Required - not tested | None |
+| `hubspot-developer` | Pass | No | No | Local CLI login - not tested | None |
+| `linear` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
+| `neon` | Pass | No | No | Required - not tested | None |
+| `notion` | Pass | No - raw endpoint only | Authenticated read-only search | Passed for ChatGPT raw MCP; package install separate | ChatGPT; direct harness; Codex discovery |
+| `sentry` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
+| `statsig` | Pass | No | No | Required - not tested | None |
+| `stripe` | Pass | No | No | Required - not tested | None |
+| `supabase` | Pass | No | No | Required - not tested | None |
+| `vercel` | Pass | No | No | Required - not tested | None |
 
-A `401` or OAuth prompt proves auth discovery, not successful authenticated
-behavior. Sanitized raw evidence is in [`tests/e2e/results`](../tests/e2e/results).
+The automated Codex record includes the public release ref and commit, workflow
+URL and commit, copy-ready reproduction commands, and a sanitized three-event
+transcript. All client records are under [`tests/e2e/results`](../tests/e2e/results).

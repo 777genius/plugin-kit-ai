@@ -4,6 +4,12 @@ These examples avoid account credentials and are designed to prove the package
 flow before a user connects a private service. Choose one example. They are
 independent alternatives, not sequential installation steps.
 
+Add the release-pinned catalog once:
+
+```bash
+codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
+```
+
 ## 1. Agent Code Navigator
 
 Install:

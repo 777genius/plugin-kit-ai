@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 840" role="img" aria-labelledby="title desc">
   <title id="title">Universal Agent Plugins</title>
-  <desc id="desc">Twenty-six portable Agent Plugins packages for skills and MCP servers.</desc>
+  <desc id="desc">Twenty-six portable Agent Plugins packages with verified paths for Codex, Cursor, and Kiro.</desc>
   <defs>
     <linearGradient id="background" x1="60" y1="40" x2="1540" y2="800" gradientUnits="userSpaceOnUse">
       <stop stop-color="#11162E"/>
@@ -35,7 +35,7 @@
     <text x="108" y="220" fill="#9BA9C7" font-size="28" font-weight="650" letter-spacing="3">COMMUNITY-MAINTAINED · OPEN SOURCE</text>
     <text x="104" y="322" fill="#F7F9FF" font-size="82" font-weight="760" letter-spacing="-3">Universal</text>
     <text x="104" y="410" fill="#F7F9FF" font-size="82" font-weight="760" letter-spacing="-3">Agent Plugins</text>
-    <text x="108" y="486" fill="#BFC9DF" font-size="32" font-weight="450">26 portable packages. One open standard.</text>
+    <text x="108" y="486" fill="#BFC9DF" font-size="32" font-weight="450">Portable format. Verified in Codex, Cursor &amp; Kiro.</text>
     <g font-size="22" font-weight="650">
       <rect x="108" y="554" width="248" height="58" rx="29" fill="#7257FF" fill-opacity=".19" stroke="#8E79FF" stroke-opacity=".5"/>
       <text x="137" y="591" fill="#C9BFFF">Agent Plugins 1.0</text>
@@ -44,7 +44,7 @@
       <rect x="584" y="554" width="180" height="58" rx="29" fill="#FF806E" fill-opacity=".12" stroke="#FF806E" stroke-opacity=".38"/>
       <text x="620" y="591" fill="#FFC1B6">Apache 2.0</text>
     </g>
-    <text x="108" y="687" fill="#7E8AA5" font-size="23">ChatGPT · Codex · Cursor · VS Code · Copilot · Kiro</text>
+    <text x="108" y="687" fill="#7E8AA5" font-size="23">Codex marketplace · Cursor local load · Kiro folder import</text>
   </g>
   <circle cx="1201" cy="423" r="194" fill="#4D6FFF" opacity=".18" filter="url(#blur)"/>
   <g fill="none" stroke-linecap="round">

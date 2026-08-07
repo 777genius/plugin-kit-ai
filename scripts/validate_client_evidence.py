@@ -22,6 +22,11 @@ REQUIRED_PRIVACY_EXCLUSIONS = {
     "authorization URLs",
 }
 DATED_EVIDENCE_NAME = re.compile(r".+-(?P<date>\d{4}-\d{2}-\d{2})\.json\Z")
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}\Z")
+AUTOMATED_CODEX_REPOSITORY = "https://github.com/777genius/universal-agent-plugins"
+AUTOMATED_CODEX_WORKFLOW = re.compile(
+    r"https://github\.com/777genius/universal-agent-plugins/actions/runs/[0-9]+\Z"
+)
 
 
 class ValidationError(RuntimeError):
@@ -127,6 +132,50 @@ def _validate_cleanup(data: dict[str, object], source: Path) -> None:
             )
 
 
+def _validate_automated_codex_evidence(
+    data: dict[str, object], source: Path
+) -> None:
+    """Require reproducible provenance and a path-free sanitized transcript."""
+    if not (
+        data.get("client") == "Codex CLI"
+        and data.get("evidence_type") == "automated_public_install"
+    ):
+        return
+
+    if data.get("real_user_project_used") is not False:
+        raise ValidationError(f"{source}: automated Codex E2E must use a sandbox")
+    source_data = data.get("source")
+    workflow = data.get("workflow")
+    reproduction = data.get("reproduction")
+    transcript = data.get("transcript")
+    if not isinstance(source_data, dict) or not isinstance(workflow, dict):
+        raise ValidationError(f"{source}: automated Codex E2E requires provenance")
+    if source_data.get("repository") != AUTOMATED_CODEX_REPOSITORY:
+        raise ValidationError(f"{source}: unexpected marketplace repository")
+    if not COMMIT_SHA.fullmatch(str(source_data.get("commit_sha", ""))):
+        raise ValidationError(f"{source}: invalid marketplace commit SHA")
+    if not AUTOMATED_CODEX_WORKFLOW.fullmatch(str(workflow.get("url", ""))):
+        raise ValidationError(f"{source}: invalid workflow URL")
+    if not COMMIT_SHA.fullmatch(str(workflow.get("commit_sha", ""))):
+        raise ValidationError(f"{source}: invalid workflow commit SHA")
+    if not isinstance(reproduction, dict) or not isinstance(
+        reproduction.get("commands"), list
+    ):
+        raise ValidationError(f"{source}: reproduction commands are required")
+    commands = reproduction["commands"]
+    ref = source_data.get("ref")
+    if not isinstance(ref, str) or not any(
+        isinstance(command, str) and f"--ref {ref}" in command
+        for command in commands
+    ):
+        raise ValidationError(f"{source}: reproduction does not pin the source ref")
+    if not isinstance(transcript, list) or len(transcript) < 3:
+        raise ValidationError(f"{source}: sanitized transcript is incomplete")
+    joined = "\n".join(str(line) for line in transcript)
+    if re.search(r"(?:/private)?/tmp/|/home/runner/|[A-Za-z]:[/\\]", joined):
+        raise ValidationError(f"{source}: transcript contains an absolute temp path")
+
+
 def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
     """Validate one sanitized client evidence record."""
     data = json.loads(source.read_text(encoding="utf-8"))
@@ -136,6 +185,7 @@ def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
     _validate_evidence_paths(data, source, root)
     _validate_privacy(data, source)
     _validate_cleanup(data, source)
+    _validate_automated_codex_evidence(data, source)
 
 
 def validate_all(root: Path = ROOT) -> int:

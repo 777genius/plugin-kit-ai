@@ -20,3 +20,12 @@ policy.
 Agent Plugins 1.0 does not define a permission system, signature verification,
 sandboxing, or a portable secret store. Users must review every server's tools
 and configure authentication through their client.
+
+## Release integrity
+
+- Install the catalog from an explicit release ref, not mutable `main`.
+- GitHub Actions are pinned to full commit SHAs and checked by Dependabot.
+- `main` requires CI and review; force pushes and deletion are disabled.
+- Published releases from `v0.1.1` onward are immutable on GitHub, locking the
+  tag and assets and generating a release attestation.
+- `v0.1.0` predates release immutability. Use `v0.1.1` or newer.

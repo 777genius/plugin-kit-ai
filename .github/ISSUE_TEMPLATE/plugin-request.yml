@@ -1,0 +1,41 @@
+name: Plugin request
+description: Propose a portable Agent Plugins 1.0 package
+title: "feat: add "
+body:
+  - type: input
+    id: vendor
+    attributes:
+      label: Service or tool
+    validations:
+      required: true
+  - type: input
+    id: upstream
+    attributes:
+      label: Official MCP or skill documentation
+      placeholder: https://vendor.example/docs/mcp
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Portable component
+      options:
+        - MCP server
+        - Agent Skill
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: auth
+    attributes:
+      label: Authentication and scopes
+      description: Explain whether auth is client-managed, local, optional, or unnecessary.
+    validations:
+      required: true
+  - type: textarea
+    id: permissions
+    attributes:
+      label: Read and write capabilities
+      description: Call out destructive or account-wide tools explicitly.
+    validations:
+      required: true

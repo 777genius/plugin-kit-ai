@@ -3,14 +3,15 @@
 # Universal Agent Plugins
 
 [![Validate](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/validate.yml)
+[![Live E2E](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml/badge.svg)](https://github.com/777genius/universal-agent-plugins/actions/workflows/live-e2e.yml)
 [![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
 [![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
 
 26 community-maintained plugins packaged for the
 [Agent Plugins 1.0](https://agent-plugins.org/specification) open standard.
-The format is supported by ChatGPT and Codex, Cursor, VS Code, GitHub Copilot,
-Kiro, and other compatible agents. This repository has package-install evidence
-for Codex, Cursor, and Kiro; installation still differs by client.
+Portable format. Verified paths: Codex marketplace install, Cursor local load,
+and Kiro folder import. VS Code and GitHub Copilot support the standard, but this
+release has schema evidence only for those clients.
 
 ## Start in one minute
 
@@ -18,7 +19,7 @@ You only need **one** plugin. Context7 is a simple first choice and requires no
 account. It requires a current Codex CLI and Node.js with `npx`:
 
 ```bash
-codex plugin marketplace add 777genius/universal-agent-plugins
+codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
 codex plugin add context7@universal-agent-plugins
 ```
 
@@ -53,10 +54,10 @@ The repository includes plugins for code intelligence, browser automation,
 design, cloud platforms, deployment, source control, project management,
 databases, observability, payments, and analytics.
 
-All 26 packages pass the standard schemas. Runtime depth is intentionally
-separate: 4 packages have positive runtime behavior, 5 have authentication
-discovery, 1 vendor endpoint has direct OAuth evidence, and 16 are schema-only.
-The unchanged Context7 package has install/runtime evidence in three clients.
+All 26 packages pass the standard schemas. Runtime depth is tracked separately:
+Context7 has an automated public Codex install and tool call, plus Cursor
+local-load and Kiro folder-import evidence. Other runtime and OAuth checks are
+listed per package instead of being inferred from schema validation.
 
 Browse all 26 packages in [`plugins/`](plugins) or check
 [compatibility and authentication](docs/COMPATIBILITY.md) before connecting a
