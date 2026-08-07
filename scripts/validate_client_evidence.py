@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -19,6 +20,7 @@ REQUIRED_PRIVACY_EXCLUSIONS = {
     "account identifiers",
     "authorization URLs",
 }
+DATED_EVIDENCE_NAME = re.compile(r".+-\d{4}-\d{2}-\d{2}\.json\Z")
 
 
 class ValidationError(RuntimeError):
@@ -76,22 +78,42 @@ def _validate_privacy(data: dict[str, object], source: Path) -> None:
 
 def _validate_cleanup(data: dict[str, object], source: Path) -> None:
     cleanup = data.get("cleanup")
-    if not isinstance(cleanup, dict) or cleanup.get("status") != "completed":
+    if not isinstance(cleanup, dict):
         return
 
-    for field in (
+    status = cleanup.get("status")
+    tracked_fields = (
         "connection_removed",
         "developer_mode_restored",
         "provider_grant_revoked",
-    ):
-        if cleanup.get(field) is not True:
-            raise ValidationError(f"{source}: completed cleanup requires {field}=true")
-    if not cleanup.get("provider_revocation_method"):
-        raise ValidationError(
-            f"{source}: completed cleanup requires provider_revocation_method"
-        )
-    if not cleanup.get("completed_at_utc"):
-        raise ValidationError(f"{source}: completed cleanup requires completed_at_utc")
+    )
+    if status == "completed":
+        for field in tracked_fields:
+            if cleanup.get(field) is not True:
+                raise ValidationError(f"{source}: completed cleanup requires {field}=true")
+        if not cleanup.get("provider_revocation_method"):
+            raise ValidationError(
+                f"{source}: completed cleanup requires provider_revocation_method"
+            )
+        if not cleanup.get("completed_at_utc"):
+            raise ValidationError(f"{source}: completed cleanup requires completed_at_utc")
+    elif status == "partial":
+        if "provider_grant_revoked" not in cleanup:
+            raise ValidationError(
+                f"{source}: partial cleanup requires provider_grant_revoked"
+            )
+        if all(cleanup.get(field) is True for field in tracked_fields):
+            raise ValidationError(
+                f"{source}: partial cleanup requires an incomplete or unknown dimension"
+            )
+        if not cleanup.get("provider_revocation_observation"):
+            raise ValidationError(
+                f"{source}: partial cleanup requires provider_revocation_observation"
+            )
+        if not cleanup.get("last_checked_at_utc"):
+            raise ValidationError(
+                f"{source}: partial cleanup requires last_checked_at_utc"
+            )
 
 
 def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
@@ -105,7 +127,12 @@ def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
 
 
 def validate_all(root: Path = ROOT) -> int:
-    sources = sorted((root / "tests" / "e2e" / "results").glob("*-2026-*.json"))
+    results_dir = root / "tests" / "e2e" / "results"
+    sources = sorted(
+        source
+        for source in results_dir.glob("*.json")
+        if DATED_EVIDENCE_NAME.fullmatch(source.name)
+    )
     if not sources:
         raise ValidationError("no dated client evidence files found")
     for source in sources:

@@ -39,6 +39,8 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
                         "connection_removed": True,
                         "developer_mode_restored": True,
                         "provider_grant_revoked": False,
+                        "provider_revocation_observation": "Provider grant remains active",
+                        "last_checked_at_utc": "2026-08-07T15:04:00Z",
                     },
                 }
             ),
@@ -81,6 +83,45 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             evidence.write_text(json.dumps(data))
             with self.assertRaises(validator.ValidationError):
                 validator.validate_evidence_file(evidence, root)
+
+    def test_partial_cleanup_requires_observation_and_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["cleanup"].pop("provider_revocation_observation", None)
+            data["cleanup"].pop("last_checked_at_utc", None)
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
+    def test_partial_cleanup_requires_incomplete_dimension(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["cleanup"].update(
+                {
+                    "provider_grant_revoked": True,
+                    "provider_revocation_observation": "All dimensions complete",
+                    "last_checked_at_utc": "2026-08-07T15:04:00Z",
+                }
+            )
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
+    def test_future_year_evidence_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            future = evidence.with_name("chatgpt-web-2027-01-02.json")
+            evidence.rename(future)
+            data = json.loads(future.read_text())
+            data["privacy"]["excluded"].remove("tokens")
+            future.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_all(root)
 
 
 if __name__ == "__main__":

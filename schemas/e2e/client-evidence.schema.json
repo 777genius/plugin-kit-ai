@@ -120,6 +120,31 @@
                     "provider_grant_revoked": { "const": true }
                   }
                 }
+              },
+              {
+                "if": {
+                  "properties": { "status": { "const": "partial" } },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": [
+                    "provider_grant_revoked",
+                    "provider_revocation_observation",
+                    "last_checked_at_utc"
+                  ],
+                  "not": {
+                    "required": [
+                      "connection_removed",
+                      "developer_mode_restored",
+                      "provider_grant_revoked"
+                    ],
+                    "properties": {
+                      "connection_removed": { "const": true },
+                      "developer_mode_restored": { "const": true },
+                      "provider_grant_revoked": { "const": true }
+                    }
+                  }
+                }
               }
             ],
             "additionalProperties": false

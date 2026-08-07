@@ -19,7 +19,7 @@ jobs:
       - run: python3 -m pip install check-jsonschema==0.37.4 skills-ref==0.1.1 PyYAML==6.0.3
       - run: check-jsonschema --schemafile schemas/1.0.0/plugin.schema.json plugins/*/plugin.json
       - run: check-jsonschema --schemafile schemas/1.0.0/mcp.schema.json plugins/*/mcp.json
-      - run: check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json tests/e2e/results/*-2026-*.json
+      - run: find tests/e2e/results -type f -name '*.json' ! -name 'latest.json' -print0 | xargs -0 check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json
       - run: python3 scripts/validate_client_evidence.py
       - run: for skill in plugins/*/skills/*; do agentskills validate "$skill"; done
       - run: python3 scripts/validate_catalog.py
