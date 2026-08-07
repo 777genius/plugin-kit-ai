@@ -1,0 +1,74 @@
+{
+  "client": "Codex CLI",
+  "version": "0.147.0",
+  "date": "2026-08-07",
+  "observed_at_utc": "2026-08-07T19:33:46+00:00",
+  "evidence_type": "automated_public_install",
+  "sandbox": "fresh disposable git repository and isolated CODEX_HOME",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "ref": "v0.1.0",
+    "commit_sha": "0173847e9777628cdac4358da716eb858d5ca0c7"
+  },
+  "workflow": {
+    "url": "https://github.com/777genius/universal-agent-plugins/actions/runs/31211963015",
+    "commit_sha": "4974cc9bd05fff62003978b3be87317820702ed2",
+    "event": "workflow_dispatch"
+  },
+  "reproduction": {
+    "requirements": [
+      "Codex CLI 0.147.0",
+      "Node.js 24"
+    ],
+    "commands": [
+      "codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.0 --json",
+      "codex plugin add context7@universal-agent-plugins --json",
+      "python3 scripts/run_codex_install_e2e.py --marketplace-ref v0.1.0"
+    ]
+  },
+  "checks": [
+    {
+      "scenario": "add the public GitHub marketplace at an explicit ref",
+      "status": "passed",
+      "ref": "v0.1.0",
+      "commit_sha": "0173847e9777628cdac4358da716eb858d5ca0c7"
+    },
+    {
+      "scenario": "install Context7 from the Codex marketplace cache",
+      "status": "passed",
+      "plugin_id": "context7@universal-agent-plugins",
+      "plugin_version": "0.1.0"
+    },
+    {
+      "scenario": "call resolve-library-id from the installed package",
+      "status": "passed",
+      "tool": "resolve-library-id",
+      "result_marker": "/microsoft/playwright"
+    }
+  ],
+  "transcript": [
+    "marketplace.add passed ref=v0.1.0 commit=0173847e9777628cdac4358da716eb858d5ca0c7",
+    "plugin.add passed id=context7@universal-agent-plugins version=0.1.0",
+    "tools.call passed name=resolve-library-id marker=/microsoft/playwright"
+  ],
+  "environment": {
+    "platform": "Linux",
+    "architecture": "x86_64"
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output"
+    ]
+  }
+}
