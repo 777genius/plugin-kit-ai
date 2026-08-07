@@ -20,7 +20,7 @@
 | stdio MCP | Initialize and list tools | Missing executable reports component failure | Harness JSON |
 | HTTP MCP | Initialize and list tools | Auth endpoint reports 401/challenge | Harness JSON |
 | Cursor | Local package appears in Customize | Invalid fixture is rejected or absent | Screenshot and app logs |
-| ChatGPT OAuth | Connection discovers auth | Cancel leaves no completed-auth claim | Screenshot and matrix status |
+| ChatGPT OAuth | Connection discovers auth, user consent completes, and a synthetic read-only search returns a marker | Pending/cancelled OAuth must not claim success; cleanup removes the development connection | Sanitized screenshot, evidence JSON, and matrix status |
 
 ## Visual checks
 

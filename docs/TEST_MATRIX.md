@@ -17,7 +17,7 @@ Status meanings:
 | `figma` | Tested | Tested | Auth required | OAuth discovery passed; successful consent pending | Inspector + Codex 0.144.1 |
 | `github` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0; `GITHUB_PAT_TOKEN` adapter metadata |
 | `linear` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
-| `notion` | Tested | Tested | Auth required | ChatGPT development connection created; provider login reached; consent pending | ChatGPT web + Inspector + Codex 0.144.1 |
+| `notion` | Tested | Tested | OAuth passed | ChatGPT raw MCP development connection completed OAuth and returned `UAP_NOTION_E2E_OK 0` from an authenticated read-only search; repository package install remains separate | ChatGPT web + Inspector + Codex 0.144.1 |
 | `sentry` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
 | Remaining 16 packages | Schema only | Reachable or package-verified | Varies | Not run | See `COMPATIBILITY.md` |
 

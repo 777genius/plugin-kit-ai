@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/777genius/universal-agent-plugins/schemas/e2e/client-evidence.schema.json",
+  "title": "Sanitized client E2E evidence",
+  "type": "object",
+  "required": [
+    "client",
+    "date",
+    "checks",
+    "secrets_recorded",
+    "real_user_project_used",
+    "privacy"
+  ],
+  "properties": {
+    "client": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "date": { "type": "string", "format": "date" },
+    "observed_at_utc": { "type": "string", "format": "date-time" },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["scenario", "status"],
+        "properties": {
+          "scenario": { "type": "string", "minLength": 1 },
+          "status": {
+            "enum": ["passed", "auth_required", "manual_step", "failed", "skipped"]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "secrets_recorded": { "const": false },
+    "real_user_project_used": { "type": "boolean" },
+    "privacy": {
+      "type": "object",
+      "required": ["sanitized", "excluded"],
+      "properties": {
+        "sanitized": { "const": true },
+        "excluded": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "client": { "const": "ChatGPT web" } },
+        "required": ["client"]
+      },
+      "then": {
+        "required": [
+          "version",
+          "observed_at_utc",
+          "account_context",
+          "workspace_context",
+          "preconditions",
+          "observed_redirect_origin",
+          "evidence",
+          "cleanup"
+        ],
+        "properties": {
+          "account_context": {
+            "enum": ["dedicated_test", "user_approved_personal", "unknown"]
+          },
+          "workspace_context": {
+            "enum": ["dedicated_test", "user_approved_personal", "unknown"]
+          },
+          "preconditions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "observed_redirect_origin": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "cleanup": {
+            "type": "object",
+            "required": ["status", "connection_removed", "developer_mode_restored"],
+            "properties": {
+              "status": { "enum": ["pending", "completed", "retained_with_user_approval"] },
+              "connection_removed": { "type": ["boolean", "null"] },
+              "developer_mode_restored": { "type": ["boolean", "null"] },
+              "completed_at_utc": { "type": "string", "format": "date-time" }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

@@ -43,8 +43,13 @@ in `plugins/docker-hub/mcp.json`.
   an isolated user-data directory.
 - ChatGPT web Plugins Directory was verified in a signed-in session. Developer
   mode was enabled with explicit user consent, ChatGPT created a development
-  connection for `https://mcp.notion.com/mcp`, discovered OAuth, and reached the
-  Notion provider login. Successful provider consent remains pending.
+  connection for `https://mcp.notion.com/mcp`, completed Notion OAuth, and ran an
+  authenticated read-only search for a synthetic probe. ChatGPT returned
+  `UAP_NOTION_E2E_OK 0` without page titles or content. This verifies the raw MCP
+  endpoint and OAuth flow, not installation of this repository's package. The
+  interactive check used a user-approved personal account and workspace, not a
+  dedicated test account. The connection was then removed and Developer Mode
+  was restored to disabled.
 
 Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
 The launch screenshots show the public repository on
@@ -64,7 +69,9 @@ handshake behavior, OAuth compatibility, account scoping, or tool correctness.
 
 ## Deliberately not tested
 
-No destructive tool, write operation, real user project, or successful vendor
-OAuth consent was used. Provider login screens were reached without recording
-credentials. Authenticated behavior remains `Auth required` until a user
-completes consent.
+No destructive tool, write operation, or real user project was used. Successful
+Notion OAuth consent was completed interactively on a user-approved personal
+workspace, followed by one synthetic read-only search and immediate cleanup.
+Evidence excludes credentials, account/workspace identity, cookies, OAuth codes,
+state, tokens, page titles, and page content. Automated and repeatable OAuth
+tests must use a dedicated test account or workspace.

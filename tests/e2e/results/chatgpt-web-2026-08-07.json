@@ -1,6 +1,19 @@
 {
   "client": "ChatGPT web",
+  "version": "rolling web release; build identifier not exposed",
   "date": "2026-08-07",
+  "observed_at_utc": "2026-08-07T14:35:00Z",
+  "account_context": "user_approved_personal",
+  "workspace_context": "user_approved_personal",
+  "preconditions": [
+    "authenticated ChatGPT Pro session",
+    "explicit user approval to enable Developer Mode",
+    "direct public Notion MCP endpoint"
+  ],
+  "observed_redirect_origin": "https://app.notion.com",
+  "evidence": [
+    "assets/screenshots/chatgpt-notion-oauth-e2e.png"
+  ],
   "checks": [
     {
       "scenario": "open Plugins Directory in an authenticated ChatGPT session",
@@ -17,10 +30,31 @@
     },
     {
       "scenario": "start Notion OAuth from the ChatGPT development connection",
-      "status": "auth_required",
-      "detail": "ChatGPT discovered OAuth and reached the Notion provider login. Successful consent is pending user completion."
+      "status": "passed",
+      "detail": "ChatGPT discovered OAuth, reached the Notion provider, completed user consent, and returned to the installed development plugin."
+    },
+    {
+      "scenario": "run an authenticated read-only Notion search through ChatGPT",
+      "status": "passed",
+      "result_marker": "UAP_NOTION_E2E_OK 0",
+      "detail": "The exact synthetic probe returned zero results without exposing page titles or content."
+    },
+    {
+      "scenario": "remove the development connection and restore Developer Mode",
+      "status": "passed",
+      "detail": "The test plugin disappeared from installed plugins and the Developer Mode switch returned to false."
     }
   ],
   "secrets_recorded": false,
-  "real_user_project_used": false
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identity", "workspace identity", "authorization URLs"]
+  },
+  "cleanup": {
+    "status": "completed",
+    "connection_removed": true,
+    "developer_mode_restored": true,
+    "completed_at_utc": "2026-08-07T14:38:00Z"
+  }
 }

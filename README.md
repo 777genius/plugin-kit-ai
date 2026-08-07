@@ -56,7 +56,8 @@ Copilot, Kiro, authentication, upgrades, and removal.
 ![One-minute install and tool call](assets/demo.gif)
 
 Public launch screenshots: [desktop](assets/screenshots/github-desktop.png) and
-[mobile](assets/screenshots/github-mobile.png).
+[mobile](assets/screenshots/github-mobile.png). Authenticated ChatGPT OAuth E2E:
+[sanitized Notion read-only probe](assets/screenshots/chatgpt-notion-oauth-e2e.png).
 
 ## Try these first
 
