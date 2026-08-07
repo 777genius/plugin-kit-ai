@@ -15,6 +15,12 @@
       "result_marker": "CONTEXT7_OK /microsoft/playwright"
     },
     {
+      "scenario": "install context7 from the public GitHub marketplace and call resolve-library-id",
+      "status": "passed",
+      "source": "https://github.com/777genius/universal-agent-plugins.git",
+      "result_marker": "REMOTE_INSTALL_OK /microsoft/playwright"
+    },
+    {
       "scenario": "install agent-code-navigator and run code-intelligence-doctor",
       "status": "passed",
       "result_marker": "NAVIGATOR_OK"

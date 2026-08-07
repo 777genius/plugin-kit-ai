@@ -55,6 +55,9 @@ Copilot, Kiro, authentication, upgrades, and removal.
 
 ![One-minute install and tool call](assets/demo.gif)
 
+Public launch screenshots: [desktop](assets/screenshots/github-desktop.png) and
+[mobile](assets/screenshots/github-mobile.png).
+
 ## Try these first
 
 | Plugin | Why it is a good first test | Authentication |

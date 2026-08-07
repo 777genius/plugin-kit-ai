@@ -35,6 +35,9 @@ in `plugins/docker-hub/mcp.json`.
 - Codex CLI 0.144.1 added the local marketplace, installed Context7 and Agent
   Code Navigator, called the Context7 MCP tool, and executed the packaged
   diagnostic skill in fresh disposable repositories.
+- Codex CLI 0.144.1 also added the public GitHub marketplace, installed Context7
+  from the cloned compatibility package, and returned
+  `REMOTE_INSTALL_OK /microsoft/playwright` from a fresh disposable repository.
 - Cursor 3.9.16 loaded the portable Context7 package from its local plugin
   directory, started version 4.0.0, and completed the stdio MCP connection in
   an isolated user-data directory.
@@ -42,6 +45,11 @@ in `plugins/docker-hub/mcp.json`.
   a signed-in session. Developer mode remained disabled because ChatGPT labels
   it elevated risk; no development connection was created without separate
   consent.
+
+Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
+The launch screenshots show the public repository on
+[desktop](../assets/screenshots/github-desktop.png) and
+[mobile](../assets/screenshots/github-mobile.png).
 
 ## Remote endpoint reachability
 
