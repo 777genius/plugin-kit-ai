@@ -41,10 +41,10 @@ in `plugins/docker-hub/mcp.json`.
 - Cursor 3.9.16 loaded the portable Context7 package from its local plugin
   directory, started version 4.0.0, and completed the stdio MCP connection in
   an isolated user-data directory.
-- ChatGPT web Plugins Directory and the developer-mode control were verified in
-  a signed-in session. Developer mode remained disabled because ChatGPT labels
-  it elevated risk; no development connection was created without separate
-  consent.
+- ChatGPT web Plugins Directory was verified in a signed-in session. Developer
+  mode was enabled with explicit user consent, ChatGPT created a development
+  connection for `https://mcp.notion.com/mcp`, discovered OAuth, and reached the
+  Notion provider login. Successful provider consent remains pending.
 
 Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
 The launch screenshots show the public repository on
@@ -65,6 +65,6 @@ handshake behavior, OAuth compatibility, account scoping, or tool correctness.
 ## Deliberately not tested
 
 No destructive tool, write operation, real user project, or successful vendor
-OAuth consent was used. Provider login screens were reached without entering
+OAuth consent was used. Provider login screens were reached without recording
 credentials. Authenticated behavior remains `Auth required` until a user
-completes consent in a dedicated test account.
+completes consent.

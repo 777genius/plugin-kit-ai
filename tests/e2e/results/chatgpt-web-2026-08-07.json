@@ -12,9 +12,15 @@
     },
     {
       "scenario": "add a direct development MCP connection",
-      "status": "manual_step",
-      "detail": "Developer mode was disabled and explicitly labeled elevated risk, so it was not enabled without separate user consent."
+      "status": "passed",
+      "detail": "Developer mode was enabled with explicit user consent and ChatGPT created a development connection for https://mcp.notion.com/mcp."
+    },
+    {
+      "scenario": "start Notion OAuth from the ChatGPT development connection",
+      "status": "auth_required",
+      "detail": "ChatGPT discovered OAuth and reached the Notion provider login. Successful consent is pending user completion."
     }
   ],
-  "secrets_recorded": false
+  "secrets_recorded": false,
+  "real_user_project_used": false
 }
