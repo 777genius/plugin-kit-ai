@@ -9,9 +9,9 @@
 
 26 community-maintained plugins packaged for the
 [Agent Plugins 1.0](https://agent-plugins.org/specification) open standard.
-Portable format. Verified paths: Codex marketplace install, Cursor local load,
-and Kiro folder import. VS Code and GitHub Copilot support the standard, but this
-release has schema evidence only for those clients.
+Context7 is verified through a Codex marketplace install, Cursor local load, and
+Kiro folder import. VS Code and GitHub Copilot support the standard, but this
+release has no repository-specific adapter or runtime evidence for those clients.
 
 ## Start in one minute
 
@@ -32,7 +32,7 @@ Use Context7 to find the current Playwright quick start and summarize it with so
 That is the complete first run. Agent Code Navigator, Context7, and the other
 plugins are independent alternatives, not required steps in a sequence.
 
-Using another agent? Follow the short [client setup guide](docs/QUICKSTART.md)
+Using another agent? Follow the short [client compatibility and setup guide](docs/QUICKSTART.md)
 for Cursor, VS Code, GitHub Copilot, Kiro, and ChatGPT.
 
 ## Pick what you need
