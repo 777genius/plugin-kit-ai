@@ -41,15 +41,25 @@ in `plugins/docker-hub/mcp.json`.
 - Cursor 3.9.16 loaded the portable Context7 package from its local plugin
   directory, started version 4.0.0, and completed the stdio MCP connection in
   an isolated user-data directory.
-- ChatGPT web Plugins Directory and the developer-mode control were verified in
-  a signed-in session. Developer mode remained disabled because ChatGPT labels
-  it elevated risk; no development connection was created without separate
-  consent.
+- Kiro IDE 1.0.288 imported the unchanged Context7 package from a local folder,
+  activated it as a Power, called `resolve-library-id` and `query-docs`, and
+  returned `UAP_KIRO_E2E_OK` with a React documentation URL. The app profile and
+  project were disposable; no real user project was opened.
+- ChatGPT web Plugins Directory was verified in a signed-in session. Developer
+  mode was enabled with explicit user consent, ChatGPT created a development
+  connection for `https://mcp.notion.com/mcp`, completed Notion OAuth, and ran an
+  authenticated read-only search for a synthetic probe. ChatGPT returned
+  `UAP_NOTION_E2E_OK 0` without page titles or content. This verifies the raw MCP
+  endpoint and OAuth flow, not installation of this repository's package. The
+  interactive check used a user-approved personal account and workspace, not a
+  dedicated test account. The connection was then removed and Developer Mode
+  was restored to disabled. Provider-side settings still showed ChatGPT as
+  connected. Notion offered only a workspace-wide disconnect that would also
+  revoke an unrelated existing MCP client, so it was not used and cleanup is
+  recorded as partial rather than complete.
 
-Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
-The launch screenshots show the public repository on
-[desktop](../assets/screenshots/github-desktop.png) and
-[mobile](../assets/screenshots/github-mobile.png).
+Sanitized structured client evidence is committed under
+[`tests/e2e/results`](../tests/e2e/results).
 
 ## Remote endpoint reachability
 
@@ -64,7 +74,11 @@ handshake behavior, OAuth compatibility, account scoping, or tool correctness.
 
 ## Deliberately not tested
 
-No destructive tool, write operation, real user project, or successful vendor
-OAuth consent was used. Provider login screens were reached without entering
-credentials. Authenticated behavior remains `Auth required` until a user
-completes consent in a dedicated test account.
+No destructive tool, write operation, or real user project was used. Successful
+Notion OAuth consent was completed interactively on a user-approved personal
+workspace, followed by one synthetic read-only search, immediate client cleanup,
+and a provider-side revocation check. Provider cleanup remains explicitly partial
+for the reason recorded above.
+Evidence excludes credentials, account/workspace identity, cookies, OAuth codes,
+state, tokens, page titles, and page content. Automated and repeatable OAuth
+tests must use a dedicated test account or workspace.

@@ -1,19 +1,18 @@
 # Client quick start
 
 The portable packages live under `plugins/`. Installation is client-owned in
-Agent Plugins 1.0, so use the flow for your client.
+Agent Plugins 1.0, so use the flow for your client. A marketplace manifest is
+not part of the portable standard.
 
-## ChatGPT and Codex
+## Codex
 
 ```bash
 codex plugin marketplace add 777genius/universal-agent-plugins
 codex plugin add context7@universal-agent-plugins
 ```
 
-Then start a new Codex session. In the ChatGPT desktop app, restart the app,
-open **Plugins**, select **Universal Agent Plugins**, and install from the same
-marketplace. ChatGPT web can use public-directory plugins and developer-mode
-MCP connections, but local repo marketplaces are a desktop authoring surface.
+Then start a new Codex session. Context7 is only an example; replace its name
+with any plugin you want. Plugins are independent, so install only what you need.
 
 Remove the test installation with:
 
@@ -21,6 +20,13 @@ Remove the test installation with:
 codex plugin remove context7@universal-agent-plugins
 codex plugin marketplace remove universal-agent-plugins
 ```
+
+## ChatGPT
+
+ChatGPT uses its Plugins Directory or a developer-mode MCP connection. Adding a
+public MCP endpoint there verifies that endpoint, not installation of this
+repository's package. GitHub marketplace installation was verified in Codex;
+the separate ChatGPT boundary is tracked in the [client matrix](CLIENTS.md).
 
 ## Cursor
 
@@ -33,38 +39,38 @@ cp -R plugins/context7 ~/.cursor/plugins/local/context7
 ```
 
 Open **Customize**, find the plugin, select **Install**, and choose user or
-project scope. Team and Enterprise users can also import the GitHub repository
-as a team marketplace from **Dashboard -> Plugins**.
+project scope. This local-package flow passed in Cursor 3.9.16.
 
 ## VS Code
 
-Add the public repository to the `chat.plugins.marketplaces` setting:
-
-```json
-{
-  "chat.plugins.marketplaces": [
-    "777genius/universal-agent-plugins"
-  ]
-}
-```
-
-Open Extensions, search for `@agentPlugins`, select a plugin, and install it.
-VS Code can also register local plugin paths through its Agent Plugins settings.
+VS Code supports Agent Plugins 1.0, but this v0.1 release does not ship a VS
+Code marketplace adapter and has not been runtime-tested there. Do not add the
+catalog repository URL as a VS Code marketplace source yet.
 
 ## GitHub Copilot CLI
 
-```bash
-copilot plugin marketplace add 777genius/universal-agent-plugins
-copilot plugin install context7@universal-agent-plugins
-```
-
-Use `copilot plugin list` to verify the installation.
+GitHub Copilot CLI supports Agent Plugins 1.0, but its marketplace needs a
+Copilot-specific manifest. This v0.1 release does not ship or claim that adapter,
+and Copilot CLI was not installed on the test machine.
 
 ## Kiro
 
-Open the Powers panel, select **Add Custom Power**, and import either the public
-GitHub URL or a local package directory such as `plugins/context7`. Kiro calls
-Agent Plugins "powers" and manages their MCP servers internally.
+Clone the catalog once:
+
+```bash
+git clone --depth 1 https://github.com/777genius/universal-agent-plugins.git
+```
+
+In Kiro, open **Powers -> Add Custom Power -> Import power from a folder** and
+select `universal-agent-plugins/plugins/context7`. Start a new chat and try:
+
+```text
+Use Context7 to find the current React documentation and return one source URL.
+```
+
+Kiro calls Agent Plugins "powers". The first activation and first use of each
+MCP tool can require approval. This exact folder-import and tool-call flow passed
+in Kiro IDE 1.0.288 using a disposable project.
 
 ## Claude Code, Gemini CLI, and OpenCode
 

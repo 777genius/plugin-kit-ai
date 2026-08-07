@@ -6,18 +6,21 @@ Status meanings:
 - `Schema only`: package structure validates, but runtime behavior was not run.
 - `Auth required`: the endpoint correctly requested authentication; no behavior
   claim is made until OAuth or token setup succeeds.
+- `OAuth passed`: authenticated behavior succeeded in the named client only. It
+  does not prove repository-package installation, another client's OAuth flow,
+  or portable authentication behavior.
 
 | Plugin | Package | Endpoint/package | Auth | Behavior | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | `agent-code-navigator` | Tested | Tested | None | Codex skill call passed | Codex CLI 0.144.1 + MCP harness, 2026-08-07 |
-| `context7` | Tested | Tested | None | Codex and Cursor calls/connections passed | Codex 0.144.1, Cursor 3.9.16, Inspector 2.1.0 |
+| `context7` | Tested | Tested | None | Codex, Cursor, and Kiro calls/connections passed | Codex 0.144.1, Cursor 3.9.16, Kiro 1.0.288, Inspector 2.1.0 |
 | `cloudflare-docs` | Tested | Tested | None | Search call passed | MCP Inspector 2.1.0, 2026-08-07 |
 | `cloudflare-radar` | Tested | Reachable | Auth required | OAuth discovery confirmed | MCP Inspector 2.1.0, 2026-08-07 |
 | `chrome-devtools` | Tested | Tested | Local browser | 29 tools discovered in an isolated sandbox | MCP Inspector 2.1.0, 2026-08-07 |
 | `figma` | Tested | Tested | Auth required | OAuth discovery passed; successful consent pending | Inspector + Codex 0.144.1 |
 | `github` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0; `GITHUB_PAT_TOKEN` adapter metadata |
 | `linear` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
-| `notion` | Tested | Tested | Auth required | Provider login reached; consent pending | Inspector + Codex 0.144.1 |
+| `notion` | Schema only | Tested | OAuth passed | ChatGPT raw MCP development connection completed OAuth and returned `UAP_NOTION_E2E_OK 0` from an authenticated read-only search; repository package install remains separate | ChatGPT web + Inspector + Codex 0.144.1 |
 | `sentry` | Tested | Tested | Auth required | Auth discovery passed | MCP Inspector 2.1.0, 2026-08-07 |
 | Remaining 16 packages | Schema only | Reachable or package-verified | Varies | Not run | See `COMPATIBILITY.md` |
 

@@ -5,7 +5,7 @@
 Do not open a public issue for leaked credentials, command execution, path
 escape, malicious skill instructions, or a package that connects to an
 unexpected endpoint. Contact the repository owner privately through the
-security-reporting channel configured on the GitHub repository.
+[GitHub private vulnerability report](https://github.com/777genius/universal-agent-plugins/security/advisories/new).
 
 Never include live tokens, cookies, personal data, or production credentials in
 a report. Use redacted logs and a minimal reproduction.

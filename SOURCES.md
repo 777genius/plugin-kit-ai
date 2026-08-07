@@ -2,13 +2,14 @@
 
 Checked on 2026-08-07. Vendor names and trademarks belong to their owners.
 
-OpenAI-only auth adapter values are taken from OpenAI's published
-[GitHub](https://github.com/openai/plugins/blob/main/plugins/github/.mcp.json),
-[Figma](https://github.com/openai/plugins/blob/main/plugins/figma/.mcp.json),
-[Linear](https://github.com/openai/plugins/blob/main/plugins/linear/.mcp.json),
-and [Notion](https://github.com/openai/plugins/blob/main/plugins/notion/.mcp.json)
-packages. No host-specific auth value is inferred when a published package is
-unavailable.
+OpenAI-only auth and capability adapter values are taken from OpenAI's published
+[GitHub](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/github/.mcp.json),
+[Figma](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/figma/.codex-plugin/plugin.json),
+[Linear](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/linear/.mcp.json),
+[Notion](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/notion/.mcp.json),
+and [Sentry](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/sentry/.codex-plugin/plugin.json)
+packages at commit `11c74d6ba24d3a6d48f54a194cd00ef3beea18f9`.
+No host-specific auth value is inferred when a published package is unavailable.
 
 CI uses OpenAI's Apache-2.0 licensed
 [`plugin-creator` validator](https://github.com/openai/codex/blob/a4b129eb3e1a6929c09d6e2e1af0638122c56f0d/codex-rs/skills/src/assets/samples/plugin-creator/scripts/validate_plugin.py)

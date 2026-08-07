@@ -1,6 +1,16 @@
 {
   "client": "ChatGPT web",
+  "version": "rolling web release; build identifier not exposed",
   "date": "2026-08-07",
+  "observed_at_utc": "2026-08-07T14:35:00Z",
+  "account_context": "user_approved_personal",
+  "workspace_context": "user_approved_personal",
+  "preconditions": [
+    "authenticated ChatGPT Pro session",
+    "explicit user approval to enable Developer Mode",
+    "direct public Notion MCP endpoint"
+  ],
+  "observed_redirect_origin": "https://app.notion.com",
   "checks": [
     {
       "scenario": "open Plugins Directory in an authenticated ChatGPT session",
@@ -12,9 +22,39 @@
     },
     {
       "scenario": "add a direct development MCP connection",
-      "status": "manual_step",
-      "detail": "Developer mode was disabled and explicitly labeled elevated risk, so it was not enabled without separate user consent."
+      "status": "passed",
+      "detail": "Developer mode was enabled with explicit user consent and ChatGPT created a development connection for https://mcp.notion.com/mcp."
+    },
+    {
+      "scenario": "start Notion OAuth from the ChatGPT development connection",
+      "status": "passed",
+      "detail": "ChatGPT discovered OAuth, reached the Notion provider, completed user consent, and returned to the installed development plugin."
+    },
+    {
+      "scenario": "run an authenticated read-only Notion search through ChatGPT",
+      "status": "passed",
+      "result_marker": "UAP_NOTION_E2E_OK 0",
+      "detail": "The exact synthetic probe returned zero results without exposing page titles or content."
+    },
+    {
+      "scenario": "remove the development connection and restore Developer Mode",
+      "status": "passed",
+      "detail": "The test plugin disappeared from installed plugins and the Developer Mode switch returned to false."
     }
   ],
-  "secrets_recorded": false
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identifiers", "workspace identifiers", "authorization URLs"]
+  },
+  "cleanup": {
+    "status": "partial",
+    "connection_removed": true,
+    "developer_mode_restored": true,
+    "provider_grant_revoked": false,
+    "provider_revocation_method": null,
+    "provider_revocation_observation": "Notion Settings > Notion MCP showed ChatGPT as Connected; the only available disconnect action was workspace-wide and was not used because it would also revoke an existing unrelated MCP client.",
+    "last_checked_at_utc": "2026-08-07T15:04:00Z"
+  }
 }

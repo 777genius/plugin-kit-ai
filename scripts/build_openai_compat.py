@@ -40,10 +40,15 @@ READ_ONLY_PLUGINS = {
     "cloudflare-radar",
     "context7",
     "docker-hub",
-    "figma",
     "greptile",
     "hubspot-crm",
-    "sentry",
+}
+
+# Provenance-backed exceptions from OpenAI's published plugin metadata. Unknown
+# integrations default to Read + Write so the generated UI never understates risk.
+CAPABILITY_OVERRIDES = {
+    "figma": ["Interactive", "Read", "Write"],
+    "sentry": ["Interactive", "Write"],
 }
 
 SHORT_DESCRIPTIONS = {
@@ -77,6 +82,7 @@ SHORT_DESCRIPTIONS = {
 
 
 def load(path: Path) -> dict[str, object]:
+    """Load one JSON object from disk."""
     value = json.loads(path.read_text())
     if not isinstance(value, dict):
         raise ValueError(f"{path} must contain an object")
@@ -84,11 +90,13 @@ def load(path: Path) -> dict[str, object]:
 
 
 def dump(path: Path, value: object) -> None:
+    """Write deterministic, human-readable JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
 
 
 def display_name(name: str) -> str:
+    """Return the user-facing name for a portable package."""
     special = {
         "agent-code-navigator": "Agent Code Navigator",
         "chrome-devtools": "Chrome DevTools",
@@ -112,6 +120,7 @@ def display_name(name: str) -> str:
 
 
 def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool) -> dict[str, object]:
+    """Translate a portable manifest into the current OpenAI host manifest."""
     name = str(portable["name"])
     description = str(portable["description"])
     homepage = str(portable.get("homepage", portable.get("repository", "")))
@@ -129,7 +138,10 @@ def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool
         manifest["skills"] = "./skills/"
     if has_mcp:
         manifest["mcpServers"] = "./.mcp.json"
-    capabilities = ["Read"] if name in READ_ONLY_PLUGINS else ["Read", "Write"]
+    capabilities = CAPABILITY_OVERRIDES.get(
+        name,
+        ["Read"] if name in READ_ONLY_PLUGINS else ["Read", "Write"],
+    )
     manifest["interface"] = {
         "displayName": display_name(name),
         "shortDescription": SHORT_DESCRIPTIONS[name],
@@ -149,6 +161,7 @@ def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool
 
 
 def openai_mcp(portable: dict[str, object], plugin_name: str) -> dict[str, object]:
+    """Translate portable MCP transports and approved host auth metadata."""
     result: dict[str, object] = {}
     servers = portable["mcpServers"]
     assert isinstance(servers, dict)
@@ -166,6 +179,7 @@ def openai_mcp(portable: dict[str, object], plugin_name: str) -> dict[str, objec
 
 
 def build(output_root: Path, marketplace_path: Path) -> None:
+    """Generate all OpenAI packages and their marketplace catalog."""
     entries = []
     for portable_root in sorted(path for path in PORTABLE_ROOT.iterdir() if path.is_dir()):
         portable = load(portable_root / "plugin.json")
@@ -209,6 +223,7 @@ def build(output_root: Path, marketplace_path: Path) -> None:
 
 
 def tree_files(root: Path) -> dict[str, bytes]:
+    """Return a byte-exact snapshot of a generated tree."""
     if not root.exists():
         return {}
     return {
@@ -219,6 +234,7 @@ def tree_files(root: Path) -> dict[str, bytes]:
 
 
 def check() -> int:
+    """Compare committed OpenAI adapters with a fresh generation."""
     with tempfile.TemporaryDirectory() as tmp:
         temp = Path(tmp)
         expected_plugins = temp / "plugins"
@@ -235,6 +251,7 @@ def check() -> int:
 
 
 def main() -> int:
+    """Generate or verify the OpenAI compatibility layer."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()

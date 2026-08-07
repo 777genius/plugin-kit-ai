@@ -5,11 +5,15 @@ Verified on 2026-08-07. "Supported" comes from the Agent Plugins project;
 
 | Client | Agent Plugins 1.0 components | Local availability | Verification |
 | --- | --- | --- | --- |
-| ChatGPT and Codex | Skills; stdio and Streamable HTTP MCP | ChatGPT web/desktop and Codex CLI 0.144.1 | Codex install + tool/skill calls passed; ChatGPT directory and developer-mode control verified |
+| ChatGPT and Codex | Skills; stdio and Streamable HTTP MCP | ChatGPT web/desktop and Codex CLI 0.144.1 | Codex package install + tool/skill calls passed; ChatGPT raw MCP development connection, OAuth consent, and authenticated read-only search passed; repository package install remains separate |
 | Cursor | Skills; stdio, Streamable HTTP, legacy SSE MCP | Cursor 3.9.16 | Local package load + pinned stdio MCP connection passed |
 | VS Code | Skills; stdio, Streamable HTTP, legacy SSE MCP | Not installed | Official documentation only |
 | GitHub Copilot | Skills; stdio, Streamable HTTP, legacy SSE MCP | Copilot CLI not installed | Official documentation only |
-| Kiro | Skills; stdio, Streamable HTTP, legacy SSE MCP | Not installed | Official documentation only |
+| Kiro | Skills; stdio, Streamable HTTP, legacy SSE MCP | Kiro IDE 1.0.288 | Local folder import, power activation, and Context7 resolve/query calls passed in a disposable project |
+
+The compatibility directory describes client support for the standard. It is
+not proof that this repository was installed in every listed client. Marketplace
+and directory manifests are client-owned adapters, not portable 1.0 files.
 
 ## Component-compatible, not claimed as Agent Plugins 1.0 clients
 

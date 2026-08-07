@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/777genius/universal-agent-plugins/schemas/e2e/client-evidence.schema.json",
+  "title": "Sanitized client E2E evidence",
+  "type": "object",
+  "required": [
+    "client",
+    "date",
+    "checks",
+    "secrets_recorded",
+    "real_user_project_used",
+    "privacy"
+  ],
+  "properties": {
+    "client": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "date": { "type": "string", "format": "date" },
+    "observed_at_utc": { "type": "string", "format": "date-time" },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["scenario", "status"],
+        "properties": {
+          "scenario": { "type": "string", "minLength": 1 },
+          "status": {
+            "enum": ["passed", "auth_required", "manual_step", "failed", "skipped"]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "secrets_recorded": { "const": false },
+    "real_user_project_used": { "type": "boolean" },
+    "privacy": {
+      "type": "object",
+      "required": ["sanitized", "excluded"],
+      "properties": {
+        "sanitized": { "const": true },
+        "excluded": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "client": { "const": "ChatGPT web" } },
+        "required": ["client"]
+      },
+      "then": {
+        "required": [
+          "version",
+          "observed_at_utc",
+          "account_context",
+          "workspace_context",
+          "preconditions",
+          "observed_redirect_origin",
+          "cleanup"
+        ],
+        "properties": {
+          "account_context": {
+            "enum": ["dedicated_test", "user_approved_personal", "unknown"]
+          },
+          "workspace_context": {
+            "enum": ["dedicated_test", "user_approved_personal", "unknown"]
+          },
+          "preconditions": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "observed_redirect_origin": {
+            "type": "string",
+            "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?$"
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 },
+            "uniqueItems": true
+          },
+          "cleanup": {
+            "type": "object",
+            "required": ["status", "connection_removed", "developer_mode_restored"],
+            "properties": {
+              "status": { "enum": ["pending", "partial", "completed", "retained_with_user_approval"] },
+              "connection_removed": { "type": ["boolean", "null"] },
+              "developer_mode_restored": { "type": ["boolean", "null"] },
+              "provider_grant_revoked": { "type": ["boolean", "null"] },
+              "provider_revocation_method": { "type": ["string", "null"], "minLength": 1 },
+              "provider_revocation_observation": { "type": ["string", "null"], "minLength": 1 },
+              "last_checked_at_utc": { "type": "string", "format": "date-time" },
+              "completed_at_utc": { "type": "string", "format": "date-time" }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "status": { "const": "completed" } },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": [
+                    "completed_at_utc",
+                    "connection_removed",
+                    "developer_mode_restored",
+                    "provider_grant_revoked",
+                    "provider_revocation_method"
+                  ],
+                  "properties": {
+                    "connection_removed": { "const": true },
+                    "developer_mode_restored": { "const": true },
+                    "provider_grant_revoked": { "const": true }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": { "status": { "const": "partial" } },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": [
+                    "provider_grant_revoked",
+                    "provider_revocation_observation",
+                    "last_checked_at_utc"
+                  ],
+                  "not": {
+                    "required": [
+                      "connection_removed",
+                      "developer_mode_restored",
+                      "provider_grant_revoked"
+                    ],
+                    "properties": {
+                      "connection_removed": { "const": true },
+                      "developer_mode_restored": { "const": true },
+                      "provider_grant_revoked": { "const": true }
+                    }
+                  }
+                }
+              }
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

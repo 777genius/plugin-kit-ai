@@ -1,0 +1,47 @@
+{
+  "client": "Kiro IDE",
+  "version": "1.0.288",
+  "date": "2026-08-07",
+  "observed_at_utc": "2026-08-07T16:09:58Z",
+  "sandbox": "fresh disposable project, app copy, user-data directory, and plugin copy under /tmp",
+  "plugin": "context7",
+  "checks": [
+    {
+      "scenario": "import the unchanged portable package from a local folder",
+      "status": "passed",
+      "result_marker": "Power \"context7\" installed successfully"
+    },
+    {
+      "scenario": "activate the installed Context7 power in a new chat",
+      "status": "passed",
+      "result_marker": "Activated Kiro power context7"
+    },
+    {
+      "scenario": "call the packaged resolve-library-id tool",
+      "status": "passed",
+      "result_marker": "/reactjs/react.dev"
+    },
+    {
+      "scenario": "call the packaged query-docs tool and return its source",
+      "status": "passed",
+      "result_marker": "UAP_KIRO_E2E_OK",
+      "source": "https://github.com/reactjs/react.dev/blob/main/src/content/reference/react/index.md"
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "authorization URLs",
+      "absolute temporary paths"
+    ]
+  }
+}
