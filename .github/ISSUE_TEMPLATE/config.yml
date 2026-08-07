@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private vulnerability report
+    url: https://github.com/777genius/universal-agent-plugins/security/advisories/new
+    about: Report credentials, command execution, path escape, or malicious instructions privately.

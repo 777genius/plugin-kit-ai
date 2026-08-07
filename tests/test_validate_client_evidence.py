@@ -182,6 +182,66 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_all(root)
 
+    def make_automated_codex_fixture(self, root: Path) -> Path:
+        evidence = root / "tests" / "e2e" / "results" / "codex-ci-2026-08-07.json"
+        evidence.parent.mkdir(parents=True)
+        evidence.write_text(
+            json.dumps(
+                {
+                    "client": "Codex CLI",
+                    "evidence_type": "automated_public_install",
+                    "real_user_project_used": False,
+                    "source": {
+                        "repository": validator.AUTOMATED_CODEX_REPOSITORY,
+                        "ref": "v0.1.0",
+                        "commit_sha": "a" * 40,
+                    },
+                    "workflow": {
+                        "url": "https://github.com/777genius/universal-agent-plugins/actions/runs/123",
+                        "commit_sha": "b" * 40,
+                    },
+                    "reproduction": {
+                        "commands": [
+                            "codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.0 --json"
+                        ]
+                    },
+                    "transcript": ["one", "two", "three"],
+                    "privacy": {
+                        "sanitized": True,
+                        "excluded": sorted(validator.REQUIRED_PRIVACY_EXCLUSIONS),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        return evidence
+
+    def test_valid_automated_codex_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_automated_codex_fixture(root)
+            validator.validate_evidence_file(evidence, root)
+
+    def test_automated_codex_requires_pinned_reproduction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_automated_codex_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["reproduction"]["commands"] = ["codex plugin marketplace add owner/repo"]
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
+    def test_automated_codex_rejects_temp_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_automated_codex_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["transcript"][0] = "installedPath=/tmp/secret/plugin"
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@ not part of the portable standard.
 ## Codex
 
 ```bash
-codex plugin marketplace add 777genius/universal-agent-plugins
+codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
 codex plugin add context7@universal-agent-plugins
 ```
 
@@ -34,6 +34,8 @@ Cursor loads conformant Agent Plugins directly from
 `~/.cursor/plugins/local` while developing:
 
 ```bash
+git clone --depth 1 --branch v0.1.1 https://github.com/777genius/universal-agent-plugins.git
+cd universal-agent-plugins
 mkdir -p ~/.cursor/plugins/local
 cp -R plugins/context7 ~/.cursor/plugins/local/context7
 ```
@@ -58,7 +60,7 @@ and Copilot CLI was not installed on the test machine.
 Clone the catalog once:
 
 ```bash
-git clone --depth 1 https://github.com/777genius/universal-agent-plugins.git
+git clone --depth 1 --branch v0.1.1 https://github.com/777genius/universal-agent-plugins.git
 ```
 
 In Kiro, open **Powers -> Add Custom Power -> Import power from a folder** and

@@ -5,8 +5,8 @@ Verified on 2026-08-07. "Supported" comes from the Agent Plugins project;
 
 | Client | Agent Plugins 1.0 components | Local availability | Verification |
 | --- | --- | --- | --- |
-| ChatGPT and Codex | Skills; stdio and Streamable HTTP MCP | ChatGPT web/desktop and Codex CLI 0.144.1 | Codex package install + tool/skill calls passed; ChatGPT raw MCP development connection, OAuth consent, and authenticated read-only search passed; repository package install remains separate |
-| Cursor | Skills; stdio, Streamable HTTP, legacy SSE MCP | Cursor 3.9.16 | Local package load + pinned stdio MCP connection passed |
+| ChatGPT and Codex | Skills; stdio and Streamable HTTP MCP | ChatGPT web/desktop and Codex CLI 0.147.0 | Automated Codex public marketplace install + Context7 tool call; ChatGPT raw MCP development connection, OAuth consent, and authenticated read-only search passed; repository package install remains separate |
+| Cursor | Skills; stdio, Streamable HTTP, legacy SSE MCP | Cursor 3.9.16 | Local package load + pinned stdio MCP connection passed; no marketplace-install claim |
 | VS Code | Skills; stdio, Streamable HTTP, legacy SSE MCP | Not installed | Official documentation only |
 | GitHub Copilot | Skills; stdio, Streamable HTTP, legacy SSE MCP | Copilot CLI not installed | Official documentation only |
 | Kiro | Skills; stdio, Streamable HTTP, legacy SSE MCP | Kiro IDE 1.0.288 | Local folder import, power activation, and Context7 resolve/query calls passed in a disposable project |

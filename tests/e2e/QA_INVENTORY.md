@@ -16,13 +16,18 @@
 
 | Flow | Happy path | Off-happy path | Evidence |
 | --- | --- | --- | --- |
-| Codex marketplace | Add, list, install hero plugin | Unknown plugin fails clearly | Command transcript and JSON status |
+| Codex marketplace | Add the public release ref, install Context7, call `resolve-library-id` | Missing ref, wrong package, path escape, or malformed tool output fails the job | Workflow URL/commit, source ref/commit, reproduction commands, sanitized transcript |
 | Skills plugin | New sandbox session discovers skills | Unrelated prompt does not need the skill | Session transcript |
 | stdio MCP | Initialize and list tools | Missing executable reports component failure | Harness JSON |
 | HTTP MCP | Initialize and list tools | Auth endpoint reports 401/challenge | Harness JSON |
 | Cursor | Local package appears in Customize | Invalid fixture is rejected or absent | App logs and evidence JSON |
 | Kiro | Import Context7 folder, activate Power, call both Context7 tools | Approval remains explicit; no real project is opened | Sanitized evidence JSON |
 | ChatGPT OAuth | Connection discovers auth, user consent completes, and a synthetic read-only search returns a marker | Pending/cancelled OAuth must not claim success; client and provider cleanup are tracked separately | Sanitized evidence JSON and matrix status |
+
+Automated Codex records must come from a fresh `CODEX_HOME` and disposable Git
+repository. They must exclude credentials, raw tool output, account data, and
+absolute temporary paths. The committed record links to the successful public
+workflow run that produced the downloadable artifact.
 
 ## Visual checks
 

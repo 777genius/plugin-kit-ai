@@ -1,25 +1,98 @@
-name: live MCP E2E
+name: live E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      marketplace_ref:
+        description: Public marketplace Git ref to install
+        required: false
+        default: v0.1.1
+  schedule:
+    - cron: "17 6 * * 1"
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
+
+concurrency:
+  group: live-e2e-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   public-read-flows:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-      - uses: actions/setup-node@v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
       - run: python3 scripts/run_mcp_e2e.py --profile ci --output /tmp/universal-agent-plugins-e2e.json
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: live-e2e-evidence
+          name: public-mcp-evidence-${{ github.run_id }}
           path: /tmp/universal-agent-plugins-e2e.json
+          retention-days: 30
+
+  codex-marketplace-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      MARKETPLACE_REF: ${{ github.event.inputs.marketplace_ref || (github.ref_type == 'tag' && github.ref_name) || 'v0.1.1' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Install pinned Codex CLI
+        run: npm install --global @openai/codex@0.147.0
+      - name: Verify release tag belongs to main
+        if: github.ref_type == 'tag'
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+      - name: Install public plugin and call Context7
+        run: >-
+          python3 scripts/run_codex_install_e2e.py
+          --marketplace-ref "$MARKETPLACE_REF"
+          --require-ci-metadata
+          --output /tmp/codex-install-e2e.json
+      - name: Validate sanitized evidence
+        run: |
+          python3 -m pip install check-jsonschema==0.37.4
+          check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json /tmp/codex-install-e2e.json
+          python3 scripts/validate_client_evidence.py --file /tmp/codex-install-e2e.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codex-install-evidence-${{ github.run_id }}
+          path: /tmp/codex-install-e2e.json
+          retention-days: 30
+
+  publish-release:
+    if: github.ref_type == 'tag'
+    needs:
+      - public-read-flows
+      - codex-marketplace-install
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Publish immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --repo "$GITHUB_REPOSITORY"
+          --verify-tag
+          --generate-notes
+          --title "$GITHUB_REF_NAME"
