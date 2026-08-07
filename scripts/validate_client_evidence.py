@@ -35,12 +35,12 @@ def _validate_redirect_origin(value: object, source: Path) -> None:
     if not isinstance(value, str):
         raise ValidationError(f"{source}: observed_redirect_origin must be a string")
 
-    parsed = urlsplit(value)
     try:
-        parsed.port
+        parsed = urlsplit(value)
+        _ = parsed.port
     except ValueError as error:
         raise ValidationError(
-            f"{source}: observed_redirect_origin contains an invalid port"
+            f"{source}: observed_redirect_origin contains an invalid URL or port"
         ) from error
     if (
         parsed.scheme != "https"

@@ -77,6 +77,18 @@ class InspectorOutputTests(unittest.TestCase):
         )
         self.assertEqual(
             e2e.summarize_result(
+                {
+                    "result": {
+                        "isError": "true",
+                        "content": [{"type": "text", "text": "malformed"}],
+                    }
+                },
+                method="tools/call",
+            ),
+            {"status": "failed", "error_code": "unexpected_content_result"},
+        )
+        self.assertEqual(
+            e2e.summarize_result(
                 {"result": {"content": [{"text": "missing type"}]}},
                 method="tools/call",
             ),

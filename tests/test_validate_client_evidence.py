@@ -84,6 +84,16 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_evidence_file(evidence, root)
 
+    def test_malformed_redirect_authority_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["observed_redirect_origin"] = "https://["
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
     def test_completed_cleanup_requires_provider_revocation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

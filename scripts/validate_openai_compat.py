@@ -44,11 +44,13 @@ class ValidationError(Exception):
 
 
 def require(condition: bool, message: str) -> None:
+    """Raise a validation error when an invariant is false."""
     if not condition:
         raise ValidationError(message)
 
 
 def load(path: Path) -> dict[str, object]:
+    """Load a JSON object or raise a contextual validation error."""
     try:
         value = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
@@ -58,12 +60,14 @@ def load(path: Path) -> dict[str, object]:
 
 
 def require_https(value: object, field: str) -> None:
+    """Require a field to contain an HTTPS URL."""
     require(isinstance(value, str), f"{field}: must be a string")
     parsed = urlsplit(value)
     require(parsed.scheme == "https" and bool(parsed.hostname), f"{field}: must be an HTTPS URL")
 
 
 def validate_mcp(plugin_root: Path, plugin_name: str) -> None:
+    """Validate one generated OpenAI MCP configuration."""
     path = plugin_root / ".mcp.json"
     doc = load(path)
     require(set(doc) == {"mcpServers"}, f"{path}: only mcpServers is allowed")
@@ -91,6 +95,7 @@ def validate_mcp(plugin_root: Path, plugin_name: str) -> None:
 
 
 def validate_plugin(plugin_root: Path) -> str:
+    """Validate one generated OpenAI plugin and return its name."""
     path = plugin_root / ".codex-plugin" / "plugin.json"
     manifest = load(path)
     require(not (set(manifest) - MANIFEST_FIELDS), f"{path}: unknown manifest fields")
@@ -127,6 +132,7 @@ def validate_plugin(plugin_root: Path) -> str:
 
 
 def validate() -> int:
+    """Validate every generated package and marketplace entry."""
     require(PLUGINS_ROOT.is_dir(), f"{PLUGINS_ROOT}: missing generated plugins")
     names = [validate_plugin(path) for path in sorted(PLUGINS_ROOT.iterdir()) if path.is_dir()]
     marketplace = load(MARKETPLACE)
@@ -139,6 +145,7 @@ def validate() -> int:
 
 
 def main() -> int:
+    """Run the OpenAI compatibility validator."""
     try:
         validate()
     except ValidationError as exc:

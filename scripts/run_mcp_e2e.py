@@ -70,8 +70,10 @@ def summarize_result(
 
     if method in (None, "tools/call") and "content" in result:
         content = result.get("content")
+        is_error = result.get("isError", False)
         if (
-            result.get("isError") is True
+            not isinstance(is_error, bool)
+            or is_error
             or not isinstance(content, list)
             or not content
             or not all(
@@ -96,6 +98,7 @@ def inspector_check(
     stored_auth_only: bool = False,
     timeout: int = 90,
 ) -> dict[str, Any]:
+    """Run one MCP Inspector check in a disposable client directory."""
     config = ROOT / "plugins" / plugin / "mcp.json"
     with tempfile.TemporaryDirectory(prefix=f"uap-{plugin}-") as sandbox:
         command = [
@@ -144,6 +147,7 @@ def inspector_check(
 
 
 def doctor_check() -> dict[str, Any]:
+    """Run the packaged code-intelligence diagnostic in a sandbox."""
     script = (
         ROOT
         / "plugins"
@@ -171,6 +175,7 @@ def doctor_check() -> dict[str, Any]:
 
 
 def run_profile(profile: str) -> list[dict[str, Any]]:
+    """Run the credential-free checks selected by an E2E profile."""
     checks: list[tuple[str, dict[str, Any]]] = [
         ("context7:tools/list", inspector_check("context7")),
         (
@@ -216,6 +221,7 @@ def run_profile(profile: str) -> list[dict[str, Any]]:
 
 
 def main() -> int:
+    """Run MCP E2E checks and write their structured report."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", choices=("ci", "full"), default="full")
     parser.add_argument("--output", type=Path, default=RESULTS_DIR / "latest.json")
