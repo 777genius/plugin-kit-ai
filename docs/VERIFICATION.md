@@ -54,10 +54,8 @@ in `plugins/docker-hub/mcp.json`.
   revoke an unrelated existing MCP client, so it was not used and cleanup is
   recorded as partial rather than complete.
 
-Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
-The launch screenshots show the public repository on
-[desktop](../assets/screenshots/github-desktop.png) and
-[mobile](../assets/screenshots/github-mobile.png).
+Sanitized structured client evidence is committed under
+[`tests/e2e/results`](../tests/e2e/results).
 
 ## Remote endpoint reachability
 

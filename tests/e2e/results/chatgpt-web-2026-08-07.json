@@ -11,9 +11,6 @@
     "direct public Notion MCP endpoint"
   ],
   "observed_redirect_origin": "https://app.notion.com",
-  "evidence": [
-    "assets/screenshots/chatgpt-notion-oauth-e2e.png"
-  ],
   "checks": [
     {
       "scenario": "open Plugins Directory in an authenticated ChatGPT session",

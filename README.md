@@ -6,192 +6,84 @@
 [![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
 [![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
 
-Community-maintained packages for the [Agent Plugins 1.0](https://agent-plugins.org/specification) open standard.
+26 community-maintained plugins packaged for the
+[Agent Plugins 1.0](https://agent-plugins.org/specification) open standard.
+The portable packages target ChatGPT and Codex, Cursor, VS Code, GitHub Copilot,
+Kiro, and other compatible agents; installation differs by client.
 
-This repository rebuilds the portable subset of
-[`universal-plugins-for-ai-agents`](https://github.com/777genius/universal-plugins-for-ai-agents)
-without `plugin-kit-ai` as its authoring layer. Every source package uses the
-standard root `plugin.json`, optional root `mcp.json`, and optional `skills/`
-directory.
+## Start in one minute
 
-Because current OpenAI builder documentation still describes the pre-standard
-host layout, the repo also contains a generated [OpenAI compatibility
-layer](compat/openai/README.md) and repo marketplace. The portable packages are
-the only source of truth.
-
-See the [packaging ADR](docs/ADR-0001-portable-core-openai-adapter.md) and the
-[public directory submission boundary](docs/OPENAI_SUBMISSION.md) for the exact
-difference between compatibility and publication.
-
-## Quick start
-
-### ChatGPT and Codex
-
-Add the GitHub marketplace and install one of the no-auth starter plugins:
+You only need **one** plugin. Context7 is a simple first choice and requires no
+account:
 
 ```bash
 codex plugin marketplace add 777genius/universal-agent-plugins
 codex plugin add context7@universal-agent-plugins
 ```
 
-Start a new Codex session, or restart the ChatGPT desktop app and select the
-`Universal Agent Plugins` marketplace in the Plugins Directory.
+Start a new Codex session and try:
 
-### Cursor
-
-During local development, copy a portable package directly into Cursor's local
-plugin directory:
-
-```bash
-mkdir -p ~/.cursor/plugins/local
-cp -R plugins/context7 ~/.cursor/plugins/local/context7
+```text
+Use Context7 to find the current Playwright quick start and summarize it with source links.
 ```
 
-Open **Customize**, find Context7, select **Install**, and choose user or project
-scope. Cursor documents that conformant Agent Plugins load without changes.
+That is the complete first run. Agent Code Navigator, Context7, and the other
+plugins are independent alternatives, not required steps in a sequence.
 
-See the [full client quick start](docs/QUICKSTART.md) for VS Code, GitHub
-Copilot, Kiro, authentication, upgrades, and removal.
+Using another agent? Follow the short [client setup guide](docs/QUICKSTART.md)
+for Cursor, VS Code, GitHub Copilot, Kiro, and ChatGPT.
 
-![One-minute install and tool call](assets/demo.gif)
+## Pick what you need
 
-Public launch screenshots: [desktop](assets/screenshots/github-desktop.png) and
-[mobile](assets/screenshots/github-mobile.png). Authenticated ChatGPT OAuth E2E:
-[sanitized Notion read-only probe](assets/screenshots/chatgpt-notion-oauth-e2e.png).
-
-## Try these first
-
-| Plugin | Why it is a good first test | Authentication |
+| Plugin | What it adds | Login |
 | --- | --- | --- |
-| [`agent-code-navigator`](plugins/agent-code-navigator) | Four portable code-intelligence skills | None |
-| [`context7`](plugins/context7) | Current library documentation over stdio | None |
-| [`cloudflare-docs`](plugins/cloudflare-docs) | Public hosted documentation MCP | None |
-| [`chrome-devtools`](plugins/chrome-devtools) | Local browser inspection and debugging | Local browser only |
+| [`context7`](plugins/context7) | Current library documentation | No |
+| [`agent-code-navigator`](plugins/agent-code-navigator) | Code search and architecture skills | No |
+| [`cloudflare-docs`](plugins/cloudflare-docs) | Cloudflare documentation search | No |
+| [`chrome-devtools`](plugins/chrome-devtools) | Browser debugging tools | Local browser |
 
-Copy-ready prompts and one-minute walkthroughs are in
-[Hero plugins](docs/HERO_PLUGINS.md). Verification status is tracked separately
-in the [plugin test matrix](docs/TEST_MATRIX.md) and
-[client matrix](docs/CLIENTS.md).
-
-## Why this repository exists
-
-Agent Plugins defines one portable package format for Agent Skills and MCP
-servers. Compatible clients currently include ChatGPT and Codex, Cursor, GitHub
-Copilot, Kiro, and VS Code, though each client may support a different subset of
-components and transports.
-
-The 1.0.0 specification is currently a Working Draft. Client-specific
-installation, OAuth, permissions, and marketplace behavior remain outside the
-portable core.
-
-The standard deliberately does not define marketplaces, installation UX,
-authentication, permissions, sandboxing, or public-directory review. Those
-remain client-managed.
+More copy-ready examples are in [plugins to try first](docs/HERO_PLUGINS.md).
+Installation status and authentication requirements are tracked in the
+[test matrix](docs/TEST_MATRIX.md).
 
 ## Catalog
 
-The initial catalog contains 26 packages:
+The repository includes plugins for code intelligence, browser automation,
+design, cloud platforms, deployment, source control, project management,
+databases, observability, payments, and analytics.
 
-| Area | Plugins |
-| --- | --- |
-| Code intelligence | `agent-code-navigator`, `context7`, `greptile` |
-| Browser and design | `chrome-devtools`, `figma` |
-| Cloud and deployment | `cloudflare`, `cloudflare-bindings`, `cloudflare-docs`, `cloudflare-observability`, `cloudflare-radar`, `firebase`, `heroku`, `vercel` |
-| Source control and planning | `atlassian`, `github`, `gitlab`, `linear`, `notion` |
-| Data and backend | `docker-hub`, `hubspot-crm`, `hubspot-developer`, `neon`, `sentry`, `statsig`, `stripe`, `supabase` |
+Browse all 26 packages in [`plugins/`](plugins) or check
+[compatibility and authentication](docs/COMPATIBILITY.md) before connecting a
+private service.
 
-See [compatibility and authentication notes](docs/COMPATIBILITY.md) before
-enabling a package. Four legacy Claude-hosted integrations were intentionally
-not copied; the rationale and official alternatives are documented in
-[known gaps](docs/GAPS.md).
+## How it works
 
-## Package layout
+Each portable package contains a standard `plugin.json` plus optional `mcp.json`
+and Agent Skills. No package stores credentials. The portable packages under
+`plugins/` are the source of truth; the OpenAI-specific layout under
+[`compat/openai`](compat/openai) is generated from them.
 
-```text
-plugins/<plugin-name>/
-├── plugin.json      # Required Agent Plugins manifest
-├── mcp.json         # Optional portable MCP configuration
-├── skills/          # Optional Agent Skills
-└── README.md        # Package-specific source and auth notes
-```
+Agent Plugins 1.0 standardizes packaging. Installation, OAuth, permissions, and
+marketplace review are still managed by each client. The specification is a
+Working Draft, so verified behavior and current limits are recorded in
+[verification](docs/VERIFICATION.md) and the [client matrix](docs/CLIENTS.md).
 
-A minimal manifest looks like this:
+## Safety
 
-```json
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "example-plugin"
-}
-```
-
-MCP configuration uses explicit standard transports:
-
-```json
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
-  "mcpServers": {
-    "example": {
-      "type": "streamable-http",
-      "url": "https://example.com/mcp"
-    }
-  }
-}
-```
-
-## Use a plugin
-
-Choose a package under `plugins/` and follow the setup instructions for your
-client from the [official compatible-clients list](https://agent-plugins.org/compatible-clients).
-Installation and distribution commands are client-specific in Agent Plugins
-1.0.
-
-Before enabling an MCP package:
-
-1. Read its `README.md` and upstream documentation.
-2. Review the tools and write capabilities exposed by the server.
-3. Configure authentication through the client. No package in this repository
-   stores credentials.
-4. Start with read-only tasks and confirm the account or project scope.
-
-## Validate the catalog
-
-The validator uses only the Python standard library:
-
-```bash
-python3 scripts/validate_catalog.py
-python3 scripts/build_openai_compat.py --check
-python3 scripts/validate_openai_compat.py
-python3 -m unittest discover -s tests
-```
-
-It checks the closed Agent Plugins schemas, fixed component locations, path
-containment, explicit MCP transports, URL rules, forbidden credential
-placeholders, dependency pins, and Agent Skills frontmatter.
-
-The current evidence and its limits are recorded in
-[docs/VERIFICATION.md](docs/VERIFICATION.md).
-
-## Security boundaries
-
-Agent Plugins standardizes packaging, not trust:
-
-- Path containment is not a subprocess sandbox.
-- Remote MCP authentication is client-managed.
-- Agent Plugins 1.0 has no portable secrets or OAuth fields.
+- Review a plugin's tools and scopes before enabling it.
+- Start with read-only tasks, especially after OAuth.
+- Never place tokens in `plugin.json`, `mcp.json`, or committed headers.
 - A valid package can still expose destructive tools.
-- Vendor endpoints, scopes, and behavior can change independently.
 
-Read [SECURITY.md](SECURITY.md) before reporting a sensitive issue.
+See [SECURITY.md](SECURITY.md) for reporting and security boundaries.
 
-## Independence and trademarks
+## Project
+
+This repository rebuilds the portable subset of
+[`universal-plugins-for-ai-agents`](https://github.com/777genius/universal-plugins-for-ai-agents)
+without `plugin-kit-ai` as its authoring layer. Contributions are welcome; see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 This is an independent community project maintained by 777genius. It is not
 affiliated with or endorsed by OpenAI or the vendors represented in the catalog.
-Vendor names and trademarks belong to their respective owners. Upstream links
-and the verification date are listed in [SOURCES.md](SOURCES.md).
-
-## License
-
-The original material in this repository is available under the Apache License
-2.0. Third-party servers, services, trademarks, and linked projects remain under
-their own terms and licenses.
+Original project material is licensed under [Apache 2.0](LICENSE).

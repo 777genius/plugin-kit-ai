@@ -1,7 +1,8 @@
-# Four plugins to try first
+# Four optional plugins to try first
 
 These examples avoid account credentials and are designed to prove the package
-flow before a user connects a private service.
+flow before a user connects a private service. Choose one example. They are
+independent alternatives, not sequential installation steps.
 
 ## 1. Agent Code Navigator
 

@@ -19,13 +19,10 @@
 | Skills plugin | New sandbox session discovers skills | Unrelated prompt does not need the skill | Session transcript |
 | stdio MCP | Initialize and list tools | Missing executable reports component failure | Harness JSON |
 | HTTP MCP | Initialize and list tools | Auth endpoint reports 401/challenge | Harness JSON |
-| Cursor | Local package appears in Customize | Invalid fixture is rejected or absent | Screenshot and app logs |
-| ChatGPT OAuth | Connection discovers auth, user consent completes, and a synthetic read-only search returns a marker | Pending/cancelled OAuth must not claim success; client and provider cleanup are tracked separately | Sanitized screenshot, evidence JSON, and matrix status |
+| Cursor | Local package appears in Customize | Invalid fixture is rejected or absent | App logs and evidence JSON |
+| ChatGPT OAuth | Connection discovers auth, user consent completes, and a synthetic read-only search returns a marker | Pending/cancelled OAuth must not claim success; client and provider cleanup are tracked separately | Sanitized evidence JSON and matrix status |
 
 ## Visual checks
 
-- GitHub README hero and badges are visible at 1440x900 and 390x844.
 - Quick start is visible without searching the repository.
 - Logo remains legible at 128x128.
-- Demo animation has readable commands and no clipped text.
-- Cursor/ChatGPT screenshots show the exact tested state and contain no private data.

@@ -62,7 +62,6 @@
           "workspace_context",
           "preconditions",
           "observed_redirect_origin",
-          "evidence",
           "cleanup"
         ],
         "properties": {

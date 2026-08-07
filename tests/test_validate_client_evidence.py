@@ -18,9 +18,9 @@ SPEC.loader.exec_module(validator)
 
 class ClientEvidenceValidatorTests(unittest.TestCase):
     def make_fixture(self, root: Path) -> Path:
-        screenshot = root / "assets" / "screenshots" / "proof.png"
-        screenshot.parent.mkdir(parents=True)
-        screenshot.write_bytes(b"\x89PNG\r\n\x1a\n")
+        artifact = root / "assets" / "evidence" / "proof.txt"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("sanitized proof", encoding="utf-8")
 
         evidence = root / "tests" / "e2e" / "results" / "chatgpt-web-2026-08-07.json"
         evidence.parent.mkdir(parents=True)
@@ -29,7 +29,7 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
                 {
                     "client": "ChatGPT web",
                     "observed_redirect_origin": "https://app.notion.com",
-                    "evidence": ["assets/screenshots/proof.png"],
+                    "evidence": ["assets/evidence/proof.txt"],
                     "privacy": {
                         "sanitized": True,
                         "excluded": sorted(validator.REQUIRED_PRIVACY_EXCLUSIONS),
@@ -59,7 +59,7 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             root = Path(tmp)
             evidence = self.make_fixture(root)
             data = json.loads(evidence.read_text())
-            data["evidence"] = ["assets/screenshots/missing.png"]
+            data["evidence"] = ["assets/evidence/missing.txt"]
             evidence.write_text(json.dumps(data))
             with self.assertRaises(validator.ValidationError):
                 validator.validate_evidence_file(evidence, root)

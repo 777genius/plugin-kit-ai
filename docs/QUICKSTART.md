@@ -3,17 +3,15 @@
 The portable packages live under `plugins/`. Installation is client-owned in
 Agent Plugins 1.0, so use the flow for your client.
 
-## ChatGPT and Codex
+## Codex
 
 ```bash
 codex plugin marketplace add 777genius/universal-agent-plugins
 codex plugin add context7@universal-agent-plugins
 ```
 
-Then start a new Codex session. In the ChatGPT desktop app, restart the app,
-open **Plugins**, select **Universal Agent Plugins**, and install from the same
-marketplace. ChatGPT web can use public-directory plugins and developer-mode
-MCP connections, but local repo marketplaces are a desktop authoring surface.
+Then start a new Codex session. Context7 is only an example; replace its name
+with any plugin you want. Plugins are independent, so install only what you need.
 
 Remove the test installation with:
 
@@ -21,6 +19,13 @@ Remove the test installation with:
 codex plugin remove context7@universal-agent-plugins
 codex plugin marketplace remove universal-agent-plugins
 ```
+
+## ChatGPT
+
+ChatGPT uses its Plugins Directory or a developer-mode MCP connection. Adding a
+public MCP endpoint there verifies that endpoint, not installation of this
+repository's package. GitHub marketplace installation was verified in Codex;
+the separate ChatGPT boundary is tracked in the [client matrix](CLIENTS.md).
 
 ## Cursor
 
