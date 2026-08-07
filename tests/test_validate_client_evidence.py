@@ -144,6 +144,16 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_all(root)
 
+    def test_nested_latest_filename_is_not_exempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            nested = evidence.parent / "archive" / "latest.json"
+            nested.parent.mkdir()
+            evidence.rename(nested)
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_all(root)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -131,7 +131,7 @@ def validate_all(root: Path = ROOT) -> int:
     sources = sorted(
         source
         for source in results_dir.rglob("*.json")
-        if source.name != "latest.json"
+        if source != results_dir / "latest.json"
     )
     if not sources:
         raise ValidationError("no client evidence files found")
