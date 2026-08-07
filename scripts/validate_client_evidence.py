@@ -130,12 +130,16 @@ def validate_all(root: Path = ROOT) -> int:
     results_dir = root / "tests" / "e2e" / "results"
     sources = sorted(
         source
-        for source in results_dir.glob("*.json")
-        if DATED_EVIDENCE_NAME.fullmatch(source.name)
+        for source in results_dir.rglob("*.json")
+        if source.name != "latest.json"
     )
     if not sources:
-        raise ValidationError("no dated client evidence files found")
+        raise ValidationError("no client evidence files found")
     for source in sources:
+        if not DATED_EVIDENCE_NAME.fullmatch(source.name):
+            raise ValidationError(
+                f"{source}: client evidence filename must end in YYYY-MM-DD.json"
+            )
         validate_evidence_file(source, root)
     return len(sources)
 

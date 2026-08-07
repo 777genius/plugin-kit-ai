@@ -123,6 +123,27 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_all(root)
 
+    def test_undated_evidence_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            evidence.rename(evidence.with_name("chatgpt-web.json"))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_all(root)
+
+    def test_nested_evidence_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            nested = evidence.parent / "archive" / evidence.name
+            nested.parent.mkdir()
+            evidence.rename(nested)
+            data = json.loads(nested.read_text())
+            data["privacy"]["excluded"].remove("tokens")
+            nested.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_all(root)
+
 
 if __name__ == "__main__":
     unittest.main()
