@@ -20,6 +20,7 @@ jobs:
       - run: check-jsonschema --schemafile schemas/1.0.0/plugin.schema.json plugins/*/plugin.json
       - run: check-jsonschema --schemafile schemas/1.0.0/mcp.schema.json plugins/*/mcp.json
       - run: check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json tests/e2e/results/*-2026-*.json
+      - run: python3 scripts/validate_client_evidence.py
       - run: for skill in plugins/*/skills/*; do agentskills validate "$skill"; done
       - run: python3 scripts/validate_catalog.py
       - run: python3 scripts/build_openai_compat.py --check

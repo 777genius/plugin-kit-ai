@@ -79,7 +79,7 @@
           },
           "observed_redirect_origin": {
             "type": "string",
-            "pattern": "^https://"
+            "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?$"
           },
           "evidence": {
             "type": "array",
@@ -91,11 +91,37 @@
             "type": "object",
             "required": ["status", "connection_removed", "developer_mode_restored"],
             "properties": {
-              "status": { "enum": ["pending", "completed", "retained_with_user_approval"] },
+              "status": { "enum": ["pending", "partial", "completed", "retained_with_user_approval"] },
               "connection_removed": { "type": ["boolean", "null"] },
               "developer_mode_restored": { "type": ["boolean", "null"] },
+              "provider_grant_revoked": { "type": ["boolean", "null"] },
+              "provider_revocation_method": { "type": ["string", "null"], "minLength": 1 },
+              "provider_revocation_observation": { "type": ["string", "null"], "minLength": 1 },
+              "last_checked_at_utc": { "type": "string", "format": "date-time" },
               "completed_at_utc": { "type": "string", "format": "date-time" }
             },
+            "allOf": [
+              {
+                "if": {
+                  "properties": { "status": { "const": "completed" } },
+                  "required": ["status"]
+                },
+                "then": {
+                  "required": [
+                    "completed_at_utc",
+                    "connection_removed",
+                    "developer_mode_restored",
+                    "provider_grant_revoked",
+                    "provider_revocation_method"
+                  ],
+                  "properties": {
+                    "connection_removed": { "const": true },
+                    "developer_mode_restored": { "const": true },
+                    "provider_grant_revoked": { "const": true }
+                  }
+                }
+              }
+            ],
             "additionalProperties": false
           }
         }

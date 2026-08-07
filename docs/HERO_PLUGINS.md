@@ -73,6 +73,12 @@ tools. Do not point this test at a signed-in browser profile.
 ## OAuth follow-up
 
 After a no-auth plugin works, test Cloudflare Radar, Figma, Linear, or Notion in
-a dedicated test workspace. Confirm the requested scopes before approval and
-begin with a read-only query. OAuth success is client-specific and is tracked
-in the [test matrix](TEST_MATRIX.md), not inferred from schema validation.
+a dedicated test workspace. A one-off personal-workspace check is allowed only
+with explicit owner approval, a synthetic read-only probe, no private content in
+the result, immediate client cleanup, and provider-grant revocation. If a safe
+granular provider revoke is unavailable, record cleanup as partial instead of
+using a broader destructive action or claiming completion. Automated or
+repeatable OAuth tests always require a dedicated test account or workspace.
+Confirm the requested scopes before approval and begin with a read-only query.
+OAuth success is client-specific and is tracked in the [test matrix](TEST_MATRIX.md),
+not inferred from schema validation.

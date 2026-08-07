@@ -40,6 +40,6 @@
   "real_user_project_used": false,
   "privacy": {
     "sanitized": true,
-    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identifiers"]
+    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identifiers", "authorization URLs"]
   }
 }

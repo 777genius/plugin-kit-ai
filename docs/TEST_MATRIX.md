@@ -6,6 +6,9 @@ Status meanings:
 - `Schema only`: package structure validates, but runtime behavior was not run.
 - `Auth required`: the endpoint correctly requested authentication; no behavior
   claim is made until OAuth or token setup succeeds.
+- `OAuth passed`: authenticated behavior succeeded in the named client only. It
+  does not prove repository-package installation, another client's OAuth flow,
+  or portable authentication behavior.
 
 | Plugin | Package | Endpoint/package | Auth | Behavior | Evidence |
 | --- | --- | --- | --- | --- | --- |

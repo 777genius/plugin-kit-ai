@@ -25,6 +25,6 @@
   "real_user_project_used": false,
   "privacy": {
     "sanitized": true,
-    "excluded": ["credentials", "tokens", "cookies", "account identifiers", "absolute temporary paths"]
+    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identifiers", "authorization URLs", "absolute temporary paths"]
   }
 }

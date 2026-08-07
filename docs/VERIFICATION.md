@@ -49,7 +49,10 @@ in `plugins/docker-hub/mcp.json`.
   endpoint and OAuth flow, not installation of this repository's package. The
   interactive check used a user-approved personal account and workspace, not a
   dedicated test account. The connection was then removed and Developer Mode
-  was restored to disabled.
+  was restored to disabled. Provider-side settings still showed ChatGPT as
+  connected. Notion offered only a workspace-wide disconnect that would also
+  revoke an unrelated existing MCP client, so it was not used and cleanup is
+  recorded as partial rather than complete.
 
 Sanitized client evidence is committed under [`tests/e2e/results`](../tests/e2e/results).
 The launch screenshots show the public repository on
@@ -71,7 +74,9 @@ handshake behavior, OAuth compatibility, account scoping, or tool correctness.
 
 No destructive tool, write operation, or real user project was used. Successful
 Notion OAuth consent was completed interactively on a user-approved personal
-workspace, followed by one synthetic read-only search and immediate cleanup.
+workspace, followed by one synthetic read-only search, immediate client cleanup,
+and a provider-side revocation check. Provider cleanup remains explicitly partial
+for the reason recorded above.
 Evidence excludes credentials, account/workspace identity, cookies, OAuth codes,
 state, tokens, page titles, and page content. Automated and repeatable OAuth
 tests must use a dedicated test account or workspace.

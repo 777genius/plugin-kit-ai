@@ -49,12 +49,15 @@
   "real_user_project_used": false,
   "privacy": {
     "sanitized": true,
-    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identity", "workspace identity", "authorization URLs"]
+    "excluded": ["credentials", "tokens", "cookies", "OAuth codes", "OAuth state", "account identifiers", "workspace identifiers", "authorization URLs"]
   },
   "cleanup": {
-    "status": "completed",
+    "status": "partial",
     "connection_removed": true,
     "developer_mode_restored": true,
-    "completed_at_utc": "2026-08-07T14:38:00Z"
+    "provider_grant_revoked": false,
+    "provider_revocation_method": null,
+    "provider_revocation_observation": "Notion Settings > Notion MCP showed ChatGPT as Connected; the only available disconnect action was workspace-wide and was not used because it would also revoke an existing unrelated MCP client.",
+    "last_checked_at_utc": "2026-08-07T15:04:00Z"
   }
 }
