@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from datetime import date
@@ -216,8 +217,19 @@ def validate_all(root: Path = ROOT) -> int:
 
 def main() -> int:
     """Run the client evidence validator as a command-line program."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--file",
+        type=Path,
+        help="validate one generated evidence file instead of the committed set",
+    )
+    args = parser.parse_args()
     try:
-        count = validate_all()
+        if args.file:
+            validate_evidence_file(args.file)
+            count = 1
+        else:
+            count = validate_all()
     except (OSError, json.JSONDecodeError, ValidationError) as error:
         print(f"client evidence validation failed: {error}")
         return 1

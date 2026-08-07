@@ -45,6 +45,24 @@ class CodexInstallE2ETests(unittest.TestCase):
             with self.assertRaises(e2e.E2EError):
                 e2e.confined_path(str(root.parent), root, "plugin")
 
+    def test_rejects_mcp_symlink_outside_installed_package(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            installed = sandbox / "installed"
+            installed.mkdir()
+            normal = installed / ".mcp.json"
+            normal.write_text("{}")
+            self.assertEqual(
+                e2e.confined_file(normal, installed, "mcp"),
+                normal.resolve(),
+            )
+            normal.unlink()
+            outside = sandbox / "outside.json"
+            outside.write_text("{}")
+            normal.symlink_to(outside)
+            with self.assertRaises(e2e.E2EError):
+                e2e.confined_file(normal, installed, "mcp")
+
     def test_extracts_only_expected_public_marker(self) -> None:
         payload = {
             "result": {
@@ -92,6 +110,50 @@ class CodexInstallE2ETests(unittest.TestCase):
     def test_requires_complete_ci_provenance(self) -> None:
         with patch.dict(os.environ, {}, clear=True), self.assertRaises(e2e.E2EError):
             e2e.workflow_metadata(True)
+
+    def test_isolated_environment_does_not_inherit_credentials(self) -> None:
+        inherited = {
+            "PATH": "/usr/bin:/bin",
+            "LANG": "C.UTF-8",
+            "AWS_SECRET_ACCESS_KEY": "secret",
+            "GH_TOKEN": "secret",
+            "GITHUB_TOKEN": "secret",
+            "NPM_TOKEN": "secret",
+            "NODE_AUTH_TOKEN": "secret",
+            "GIT_ASKPASS": "/secret/helper",
+            "SSH_AUTH_SOCK": "/secret/socket",
+        }
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            os.environ, inherited, clear=True
+        ):
+            environment = e2e.isolated_environment(Path(tmp))
+        self.assertEqual(environment["PATH"], inherited["PATH"])
+        self.assertEqual(environment["LANG"], inherited["LANG"])
+        for name in inherited.keys() - {"PATH", "LANG"}:
+            self.assertNotIn(name, environment)
+        self.assertEqual(environment["GIT_TERMINAL_PROMPT"], "0")
+        self.assertEqual(environment["CI"], "true")
+
+    def test_tag_event_is_bound_to_source_ref_and_commit(self) -> None:
+        environment = {
+            "GITHUB_REF_TYPE": "tag",
+            "GITHUB_REF_NAME": "v0.1.1",
+            "GITHUB_SHA": "a" * 40,
+        }
+        with patch.dict(os.environ, environment, clear=True):
+            e2e.validate_tag_provenance("v0.1.1", "a" * 40)
+            with self.assertRaises(e2e.E2EError):
+                e2e.validate_tag_provenance("v0.1.0", "a" * 40)
+            with self.assertRaises(e2e.E2EError):
+                e2e.validate_tag_provenance("v0.1.1", "b" * 40)
+
+    def test_non_tag_event_skips_tag_binding(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"GITHUB_REF_TYPE": "branch", "GITHUB_SHA": "a" * 40},
+            clear=True,
+        ):
+            e2e.validate_tag_provenance("v0.1.1", "b" * 40)
 
 
 if __name__ == "__main__":

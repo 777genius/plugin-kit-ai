@@ -26,6 +26,7 @@ and configure authentication through their client.
 - Install the catalog from an explicit release ref, not mutable `main`.
 - GitHub Actions are pinned to full commit SHAs and checked by Dependabot.
 - `main` requires CI and review; force pushes and deletion are disabled.
+- `v*` tags cannot be updated or deleted after creation.
 - Published releases from `v0.1.1` onward are immutable on GitHub, locking the
   tag and assets and generating a release attestation.
-- `v0.1.0` predates release immutability. Use `v0.1.1` or newer.
+- `v0.1.0` predates release attestations. Use `v0.1.1` or newer.

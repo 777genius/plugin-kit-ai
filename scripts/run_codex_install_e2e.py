@@ -86,6 +86,14 @@ def confined_path(raw_path: str, root: Path, context: str) -> Path:
     return path
 
 
+def confined_file(path: Path, root: Path, context: str) -> Path:
+    """Require an existing file, including its symlink target, inside root."""
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root.resolve()) or not resolved.is_file():
+        raise E2EError(f"{context} is missing or escaped its installed package")
+    return resolved
+
+
 def extract_context7_marker(payload: dict[str, Any]) -> str:
     """Verify a successful Context7 call and return only its public marker."""
     if "error" in payload:
@@ -126,23 +134,51 @@ def workflow_metadata(require_ci_metadata: bool) -> dict[str, str | None]:
     }
 
 
+def validate_tag_provenance(marketplace_ref: str, source_commit: str) -> None:
+    """Bind tag-triggered evidence to the exact GitHub tag and workflow commit."""
+    if os.environ.get("GITHUB_REF_TYPE") != "tag":
+        return
+    if os.environ.get("GITHUB_REF_NAME") != marketplace_ref:
+        raise E2EError("tag event marketplace ref does not match GITHUB_REF_NAME")
+    if os.environ.get("GITHUB_SHA") != source_commit:
+        raise E2EError("tag event marketplace commit does not match GITHUB_SHA")
+
+
 def isolated_environment(sandbox: Path) -> dict[str, str]:
     """Return an environment that cannot reuse the user's Codex or npm state."""
-    environment = os.environ.copy()
-    for name in (
-        "CODEX_API_KEY",
-        "OPENAI_API_KEY",
-        "OPENAI_ACCESS_TOKEN",
-        "CHATGPT_ACCESS_TOKEN",
-    ):
-        environment.pop(name, None)
+    allowed = (
+        "PATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TZ",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "NODE_EXTRA_CA_CERTS",
+    )
+    environment = {name: os.environ[name] for name in allowed if name in os.environ}
+    temp_dir = sandbox / "tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
     environment.update(
         {
             "CODEX_HOME": str(sandbox / "codex-home"),
             "HOME": str(sandbox / "home"),
             "NPM_CONFIG_CACHE": str(sandbox / "npm-cache"),
+            "NPM_CONFIG_USERCONFIG": str(sandbox / "home" / ".npmrc"),
             "XDG_CACHE_HOME": str(sandbox / "xdg-cache"),
             "XDG_CONFIG_HOME": str(sandbox / "xdg-config"),
+            "TMPDIR": str(temp_dir),
+            "TMP": str(temp_dir),
+            "TEMP": str(temp_dir),
+            "GIT_CONFIG_GLOBAL": str(sandbox / "home" / ".gitconfig"),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "CI": "true",
+            "NO_COLOR": "1",
         }
     )
     return environment
@@ -205,6 +241,7 @@ def run_e2e(marketplace_ref: str, require_ci_metadata: bool) -> dict[str, Any]:
         ).stdout.strip()
         if not COMMIT_SHA.fullmatch(source_commit):
             raise E2EError("marketplace checkout did not resolve to a commit SHA")
+        validate_tag_provenance(marketplace_ref, source_commit)
 
         install_output = run_command(
             ["codex", "plugin", "add", PLUGIN_ID, "--json"],
@@ -222,9 +259,11 @@ def run_e2e(marketplace_ref: str, require_ci_metadata: bool) -> dict[str, Any]:
             "installed plugin",
         )
         plugin_version = require_text(install, "version", "plugin result")
-        mcp_config = installed_path / ".mcp.json"
-        if not mcp_config.is_file():
-            raise E2EError("installed Context7 package omitted .mcp.json")
+        mcp_config = confined_file(
+            installed_path / ".mcp.json",
+            installed_path,
+            "installed Context7 .mcp.json",
+        )
 
         inspector_output = run_command(
             [

@@ -39,7 +39,8 @@ Use conventional commit titles such as `feat: add example plugin` or
 ## Release checklist
 
 1. Merge through protected `main` after `portable-catalog` and review pass.
-2. Push the new `v*` tag and wait for both live E2E jobs to pass.
-3. Create a draft GitHub release for that tag, review its notes/assets, and
-   publish it. Release immutability then locks the tag and assets.
-4. Confirm the README pin and Live E2E badge target the published release.
+2. Push the new `v*` tag. The workflow rejects a ref/SHA mismatch or a commit
+   outside `main`, then runs both live E2E jobs.
+3. The dependent publish job creates the immutable GitHub release only after
+   both jobs pass.
+4. Confirm the README pin, release page, and Live E2E badge are green.
