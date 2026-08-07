@@ -26,7 +26,8 @@
     "developerName": "777genius",
     "category": "Developer Tools",
     "capabilities": [
-      "Read"
+      "Interactive",
+      "Write"
     ],
     "websiteURL": "https://mcp.sentry.dev",
     "defaultPrompt": [

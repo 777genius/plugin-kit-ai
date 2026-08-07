@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -20,7 +21,7 @@ REQUIRED_PRIVACY_EXCLUSIONS = {
     "account identifiers",
     "authorization URLs",
 }
-DATED_EVIDENCE_NAME = re.compile(r".+-\d{4}-\d{2}-\d{2}\.json\Z")
+DATED_EVIDENCE_NAME = re.compile(r".+-(?P<date>\d{4}-\d{2}-\d{2})\.json\Z")
 
 
 class ValidationError(RuntimeError):
@@ -28,12 +29,19 @@ class ValidationError(RuntimeError):
 
 
 def _validate_redirect_origin(value: object, source: Path) -> None:
+    """Validate that a recorded OAuth redirect contains only a safe origin."""
     if value is None:
         return
     if not isinstance(value, str):
         raise ValidationError(f"{source}: observed_redirect_origin must be a string")
 
     parsed = urlsplit(value)
+    try:
+        parsed.port
+    except ValueError as error:
+        raise ValidationError(
+            f"{source}: observed_redirect_origin contains an invalid port"
+        ) from error
     if (
         parsed.scheme != "https"
         or not parsed.netloc
@@ -49,6 +57,7 @@ def _validate_redirect_origin(value: object, source: Path) -> None:
 
 
 def _validate_evidence_paths(data: dict[str, object], source: Path, root: Path) -> None:
+    """Require referenced artifacts to stay inside the repository."""
     root = root.resolve()
     for raw_path in data.get("evidence", []):
         if not isinstance(raw_path, str) or not raw_path:
@@ -64,6 +73,7 @@ def _validate_evidence_paths(data: dict[str, object], source: Path, root: Path) 
 
 
 def _validate_privacy(data: dict[str, object], source: Path) -> None:
+    """Require every evidence record to state the mandatory exclusions."""
     privacy = data.get("privacy")
     if not isinstance(privacy, dict):
         raise ValidationError(f"{source}: privacy must be an object")
@@ -77,6 +87,7 @@ def _validate_privacy(data: dict[str, object], source: Path) -> None:
 
 
 def _validate_cleanup(data: dict[str, object], source: Path) -> None:
+    """Check cleanup claims when an external authorization flow was used."""
     cleanup = data.get("cleanup")
     if not isinstance(cleanup, dict):
         return
@@ -117,6 +128,7 @@ def _validate_cleanup(data: dict[str, object], source: Path) -> None:
 
 
 def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
+    """Validate one sanitized client evidence record."""
     data = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValidationError(f"{source}: evidence root must be an object")
@@ -127,6 +139,7 @@ def validate_evidence_file(source: Path, root: Path = ROOT) -> None:
 
 
 def validate_all(root: Path = ROOT) -> int:
+    """Validate all dated client evidence records and return their count."""
     results_dir = root / "tests" / "e2e" / "results"
     sources = sorted(
         source
@@ -136,15 +149,23 @@ def validate_all(root: Path = ROOT) -> int:
     if not sources:
         raise ValidationError("no client evidence files found")
     for source in sources:
-        if not DATED_EVIDENCE_NAME.fullmatch(source.name):
+        match = DATED_EVIDENCE_NAME.fullmatch(source.name)
+        if not match:
             raise ValidationError(
                 f"{source}: client evidence filename must end in YYYY-MM-DD.json"
             )
+        try:
+            date.fromisoformat(match.group("date"))
+        except ValueError as error:
+            raise ValidationError(
+                f"{source}: client evidence filename contains an invalid calendar date"
+            ) from error
         validate_evidence_file(source, root)
     return len(sources)
 
 
 def main() -> int:
+    """Run the client evidence validator as a command-line program."""
     try:
         count = validate_all()
     except (OSError, json.JSONDecodeError, ValidationError) as error:

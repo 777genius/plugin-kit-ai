@@ -40,10 +40,15 @@ READ_ONLY_PLUGINS = {
     "cloudflare-radar",
     "context7",
     "docker-hub",
-    "figma",
     "greptile",
     "hubspot-crm",
-    "sentry",
+}
+
+# Provenance-backed exceptions from OpenAI's published plugin metadata. Unknown
+# integrations default to Read + Write so the generated UI never understates risk.
+CAPABILITY_OVERRIDES = {
+    "figma": ["Interactive", "Read", "Write"],
+    "sentry": ["Interactive", "Write"],
 }
 
 SHORT_DESCRIPTIONS = {
@@ -129,7 +134,10 @@ def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool
         manifest["skills"] = "./skills/"
     if has_mcp:
         manifest["mcpServers"] = "./.mcp.json"
-    capabilities = ["Read"] if name in READ_ONLY_PLUGINS else ["Read", "Write"]
+    capabilities = CAPABILITY_OVERRIDES.get(
+        name,
+        ["Read"] if name in READ_ONLY_PLUGINS else ["Read", "Write"],
+    )
     manifest["interface"] = {
         "displayName": display_name(name),
         "shortDescription": SHORT_DESCRIPTIONS[name],

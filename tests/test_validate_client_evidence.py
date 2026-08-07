@@ -74,6 +74,16 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_evidence_file(evidence, root)
 
+    def test_out_of_range_redirect_port_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            data = json.loads(evidence.read_text())
+            data["observed_redirect_origin"] = "https://app.notion.com:99999"
+            evidence.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_evidence_file(evidence, root)
+
     def test_completed_cleanup_requires_provider_revocation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -120,6 +130,14 @@ class ClientEvidenceValidatorTests(unittest.TestCase):
             data = json.loads(future.read_text())
             data["privacy"]["excluded"].remove("tokens")
             future.write_text(json.dumps(data))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_all(root)
+
+    def test_invalid_calendar_date_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = self.make_fixture(root)
+            evidence.rename(evidence.with_name("chatgpt-web-2027-13-40.json"))
             with self.assertRaises(validator.ValidationError):
                 validator.validate_all(root)
 

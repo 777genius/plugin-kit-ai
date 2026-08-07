@@ -41,6 +41,10 @@ in `plugins/docker-hub/mcp.json`.
 - Cursor 3.9.16 loaded the portable Context7 package from its local plugin
   directory, started version 4.0.0, and completed the stdio MCP connection in
   an isolated user-data directory.
+- Kiro IDE 1.0.288 imported the unchanged Context7 package from a local folder,
+  activated it as a Power, called `resolve-library-id` and `query-docs`, and
+  returned `UAP_KIRO_E2E_OK` with a React documentation URL. The app profile and
+  project were disposable; no real user project was opened.
 - ChatGPT web Plugins Directory was verified in a signed-in session. Developer
   mode was enabled with explicit user consent, ChatGPT created a development
   connection for `https://mcp.notion.com/mcp`, completed Notion OAuth, and ran an

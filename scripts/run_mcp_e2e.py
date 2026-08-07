@@ -34,7 +34,13 @@ def parse_inspector_json(output: str) -> dict[str, Any]:
     raise ValueError("Inspector did not emit a JSON object")
 
 
-def summarize_result(payload: dict[str, Any]) -> dict[str, Any]:
+def summarize_result(
+    payload: dict[str, Any],
+    *,
+    method: str | None = None,
+    exit_code: int = 0,
+) -> dict[str, Any]:
+    """Classify only a valid Inspector result for the requested MCP method."""
     error = payload.get("error")
     if isinstance(error, dict):
         code = str(error.get("code", "error"))
@@ -43,24 +49,42 @@ def summarize_result(payload: dict[str, Any]) -> dict[str, Any]:
             "error_code": code,
         }
 
-    result = payload.get("result", payload)
+    if exit_code != 0:
+        return {"status": "failed", "error_code": f"inspector_exit_{exit_code}"}
+
+    result = payload.get("result")
     if not isinstance(result, dict):
         return {"status": "failed", "error_code": "unexpected_result"}
 
-    tools = result.get("tools")
-    if isinstance(tools, list):
-        names = sorted(
-            str(tool["name"])
+    if method in (None, "tools/list") and "tools" in result:
+        tools = result.get("tools")
+        if not isinstance(tools, list) or not tools or not all(
+            isinstance(tool, dict)
+            and isinstance(tool.get("name"), str)
+            and bool(tool["name"])
             for tool in tools
-            if isinstance(tool, dict) and isinstance(tool.get("name"), str)
-        )
+        ):
+            return {"status": "failed", "error_code": "unexpected_tools_result"}
+        names = sorted(str(tool["name"]) for tool in tools)
         return {"status": "passed", "tool_count": len(names), "tools": names}
 
-    content = result.get("content")
-    if isinstance(content, list):
+    if method in (None, "tools/call") and "content" in result:
+        content = result.get("content")
+        if (
+            result.get("isError") is True
+            or not isinstance(content, list)
+            or not content
+            or not all(
+                isinstance(item, dict)
+                and isinstance(item.get("type"), str)
+                and bool(item["type"])
+                for item in content
+            )
+        ):
+            return {"status": "failed", "error_code": "unexpected_content_result"}
         return {"status": "passed", "content_items": len(content)}
 
-    return {"status": "passed"}
+    return {"status": "failed", "error_code": "unexpected_result_shape"}
 
 
 def inspector_check(
@@ -108,7 +132,11 @@ def inspector_check(
             )
             combined = "\n".join((completed.stdout, completed.stderr))
             payload = parse_inspector_json(combined)
-            summary = summarize_result(payload)
+            summary = summarize_result(
+                payload,
+                method=method,
+                exit_code=completed.returncode,
+            )
             summary["exit_code"] = completed.returncode
             return summary
         except (OSError, subprocess.TimeoutExpired, ValueError) as error:

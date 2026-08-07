@@ -8,13 +8,14 @@
 
 26 community-maintained plugins packaged for the
 [Agent Plugins 1.0](https://agent-plugins.org/specification) open standard.
-The portable packages target ChatGPT and Codex, Cursor, VS Code, GitHub Copilot,
-Kiro, and other compatible agents; installation differs by client.
+The format is supported by ChatGPT and Codex, Cursor, VS Code, GitHub Copilot,
+Kiro, and other compatible agents. This repository has package-install evidence
+for Codex, Cursor, and Kiro; installation still differs by client.
 
 ## Start in one minute
 
 You only need **one** plugin. Context7 is a simple first choice and requires no
-account:
+account. It requires a current Codex CLI and Node.js with `npx`:
 
 ```bash
 codex plugin marketplace add 777genius/universal-agent-plugins
@@ -52,6 +53,11 @@ The repository includes plugins for code intelligence, browser automation,
 design, cloud platforms, deployment, source control, project management,
 databases, observability, payments, and analytics.
 
+All 26 packages pass the standard schemas. Runtime depth is intentionally
+separate: 4 packages have positive runtime behavior, 5 have authentication
+discovery, 1 vendor endpoint has direct OAuth evidence, and 16 are schema-only.
+The unchanged Context7 package has install/runtime evidence in three clients.
+
 Browse all 26 packages in [`plugins/`](plugins) or check
 [compatibility and authentication](docs/COMPATIBILITY.md) before connecting a
 private service.
@@ -63,9 +69,13 @@ and Agent Skills. No package stores credentials. The portable packages under
 `plugins/` are the source of truth; the OpenAI-specific layout under
 [`compat/openai`](compat/openai) is generated from them.
 
+Marketplace manifests are client adapters, not part of Agent Plugins 1.0. The
+OpenAI marketplace file in this repository wraps the same portable packages;
+other clients may require different catalog adapters.
+
 Agent Plugins 1.0 standardizes packaging. Installation, OAuth, permissions, and
-marketplace review are still managed by each client. The specification is a
-Working Draft, so verified behavior and current limits are recorded in
+marketplace review are still managed by each client. The 1.0.0 specification is
+published; verified behavior and current limits are recorded in
 [verification](docs/VERIFICATION.md) and the [client matrix](docs/CLIENTS.md).
 
 ## Safety

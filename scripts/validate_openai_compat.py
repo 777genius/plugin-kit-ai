@@ -32,6 +32,10 @@ EXPECTED_AUTH = {
     "linear": {"oauth_resource": "https://mcp.linear.app/mcp"},
     "notion": {"oauth_resource": "https://mcp.notion.com"},
 }
+EXPECTED_CAPABILITIES = {
+    "figma": ["Interactive", "Read", "Write"],
+    "sentry": ["Interactive", "Write"],
+}
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 
@@ -99,9 +103,17 @@ def validate_plugin(plugin_root: Path) -> str:
     require(not (set(interface) - INTERFACE_FIELDS), f"{path}: unknown interface fields")
     capabilities = interface.get("capabilities")
     require(
-        isinstance(capabilities, list) and capabilities and set(capabilities) <= {"Read", "Write"},
-        f"{path}: capabilities must contain Read and/or Write",
+        isinstance(capabilities, list)
+        and capabilities
+        and set(capabilities) <= {"Interactive", "Read", "Write"},
+        f"{path}: invalid capabilities",
     )
+    expected_capabilities = EXPECTED_CAPABILITIES.get(str(name))
+    if expected_capabilities is not None:
+        require(
+            capabilities == expected_capabilities,
+            f"{path}: capability metadata drift for {name}",
+        )
     for field in ("composerIcon", "logo", "logoDark"):
         asset = interface.get(field)
         require(isinstance(asset, str) and asset.startswith("./assets/"), f"{path}: invalid {field}")
