@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "dockerhub": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "mcp/dockerhub@sha256:76454af4edfd21571d9740113104d0d9f707220453d1c8f7c9971b21848d4248",
+        "--transport=stdio"
+      ]
+    }
+  }
+}

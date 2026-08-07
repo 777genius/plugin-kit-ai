@@ -1,0 +1,45 @@
+{
+  "name": "atlassian",
+  "version": "0.1.0",
+  "description": "Community package for the official Atlassian Rovo MCP plugin for Jira, Confluence, and Compass workflows through Atlassian's hosted remote MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "atlassian",
+    "collaboration",
+    "compass",
+    "confluence",
+    "jira",
+    "mcp",
+    "planning",
+    "plugins"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Atlassian",
+    "shortDescription": "Jira and Confluence MCP",
+    "longDescription": "Community package for the official Atlassian Rovo MCP plugin for Jira, Confluence, and Compass workflows through Atlassian's hosted remote MCP service.",
+    "developerName": "777genius",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://support.atlassian.com/atlassian-rovo-mcp-server/docs/getting-started-with-the-atlassian-remote-mcp-server/",
+    "defaultPrompt": [
+      "Use Atlassian for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

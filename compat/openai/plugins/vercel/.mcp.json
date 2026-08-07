@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "vercel": {
+      "url": "https://mcp.vercel.com",
+      "type": "http"
+    }
+  }
+}

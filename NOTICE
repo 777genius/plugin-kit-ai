@@ -1,0 +1,14 @@
+Universal Agent Plugins
+Copyright 2026 777genius
+
+This product includes independently authored configuration and documentation
+for the Agent Plugins open standard.
+
+Agent Plugins specification and schema names are used for compatibility. The
+standard is developed by the Agent Plugins project and its contributors. The
+vendored machine-readable schemas are licensed under Apache-2.0 by their
+contributors; source details are recorded in schemas/README.md.
+
+Third-party product names, services, MCP servers, source repositories, and
+trademarks remain the property of their respective owners. This project is not
+affiliated with or endorsed by OpenAI or those vendors.

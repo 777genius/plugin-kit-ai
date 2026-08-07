@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""Run reproducible, credential-free MCP checks in disposable directories."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import platform
+import re
+import subprocess
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+INSPECTOR = "@modelcontextprotocol/inspector@2.1.0"
+RESULTS_DIR = ROOT / "tests" / "e2e" / "results"
+
+
+def parse_inspector_json(output: str) -> dict[str, Any]:
+    """Return the final JSON object emitted by Inspector, ignoring server logs."""
+    for line in reversed(output.splitlines()):
+        candidate = line.strip()
+        if not candidate.startswith("{"):
+            continue
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    raise ValueError("Inspector did not emit a JSON object")
+
+
+def summarize_result(payload: dict[str, Any]) -> dict[str, Any]:
+    error = payload.get("error")
+    if isinstance(error, dict):
+        code = str(error.get("code", "error"))
+        return {
+            "status": "auth_required" if code == "auth_required" else "failed",
+            "error_code": code,
+        }
+
+    result = payload.get("result", payload)
+    if not isinstance(result, dict):
+        return {"status": "failed", "error_code": "unexpected_result"}
+
+    tools = result.get("tools")
+    if isinstance(tools, list):
+        names = sorted(
+            str(tool["name"])
+            for tool in tools
+            if isinstance(tool, dict) and isinstance(tool.get("name"), str)
+        )
+        return {"status": "passed", "tool_count": len(names), "tools": names}
+
+    content = result.get("content")
+    if isinstance(content, list):
+        return {"status": "passed", "content_items": len(content)}
+
+    return {"status": "passed"}
+
+
+def inspector_check(
+    plugin: str,
+    *,
+    method: str = "tools/list",
+    tool_name: str | None = None,
+    tool_args: dict[str, Any] | None = None,
+    stored_auth_only: bool = False,
+    timeout: int = 90,
+) -> dict[str, Any]:
+    config = ROOT / "plugins" / plugin / "mcp.json"
+    with tempfile.TemporaryDirectory(prefix=f"uap-{plugin}-") as sandbox:
+        command = [
+            "npx",
+            "-y",
+            INSPECTOR,
+            "--cli",
+            "--config",
+            str(config),
+            "--server",
+            plugin,
+            "--method",
+            method,
+            "--format",
+            "json",
+            "--client-config",
+            str(Path(sandbox) / "client.json"),
+        ]
+        if tool_name:
+            command.extend(["--tool-name", tool_name])
+        if tool_args is not None:
+            command.extend(["--tool-args-json", json.dumps(tool_args)])
+        if stored_auth_only:
+            command.append("--stored-auth-only")
+
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=sandbox,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            combined = "\n".join((completed.stdout, completed.stderr))
+            payload = parse_inspector_json(combined)
+            summary = summarize_result(payload)
+            summary["exit_code"] = completed.returncode
+            return summary
+        except (OSError, subprocess.TimeoutExpired, ValueError) as error:
+            return {"status": "failed", "error_code": type(error).__name__}
+
+
+def doctor_check() -> dict[str, Any]:
+    script = (
+        ROOT
+        / "plugins"
+        / "agent-code-navigator"
+        / "skills"
+        / "code-intelligence-doctor"
+        / "scripts"
+        / "doctor.sh"
+    )
+    with tempfile.TemporaryDirectory(prefix="uap-agent-code-navigator-") as sandbox:
+        completed = subprocess.run(
+            ["bash", str(script)],
+            cwd=sandbox,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    match = re.search(r"warnings=(\d+)", completed.stdout)
+    return {
+        "status": "passed" if completed.returncode == 0 else "failed",
+        "exit_code": completed.returncode,
+        "optional_tool_warnings": int(match.group(1)) if match else None,
+    }
+
+
+def run_profile(profile: str) -> list[dict[str, Any]]:
+    checks: list[tuple[str, dict[str, Any]]] = [
+        ("context7:tools/list", inspector_check("context7")),
+        (
+            "context7:resolve-library-id",
+            inspector_check(
+                "context7",
+                method="tools/call",
+                tool_name="resolve-library-id",
+                tool_args={
+                    "libraryName": "playwright",
+                    "query": "Playwright locators quick start",
+                },
+            ),
+        ),
+        ("cloudflare-docs:tools/list", inspector_check("cloudflare-docs")),
+        (
+            "cloudflare-docs:search",
+            inspector_check(
+                "cloudflare-docs",
+                method="tools/call",
+                tool_name="search_cloudflare_documentation",
+                tool_args={"query": "Workers bindings versus environment variables"},
+            ),
+        ),
+    ]
+
+    if profile == "full":
+        checks.extend(
+            [
+                ("agent-code-navigator:doctor", doctor_check()),
+                ("chrome-devtools:tools/list", inspector_check("chrome-devtools")),
+            ]
+        )
+        for plugin in ("cloudflare-radar", "figma", "github", "linear", "notion", "sentry"):
+            checks.append(
+                (
+                    f"{plugin}:auth-discovery",
+                    inspector_check(plugin, stored_auth_only=True),
+                )
+            )
+
+    return [{"check": name, **result} for name, result in checks]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", choices=("ci", "full"), default="full")
+    parser.add_argument("--output", type=Path, default=RESULTS_DIR / "latest.json")
+    args = parser.parse_args()
+
+    checks = run_profile(args.profile)
+    expected_auth = {
+        "cloudflare-radar:auth-discovery",
+        "figma:auth-discovery",
+        "github:auth-discovery",
+        "linear:auth-discovery",
+        "notion:auth-discovery",
+        "sentry:auth-discovery",
+    }
+    failures = [
+        item
+        for item in checks
+        if item["status"] != ("auth_required" if item["check"] in expected_auth else "passed")
+    ]
+    report = {
+        "schema_version": 1,
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "profile": args.profile,
+        "harness": {"name": "MCP Inspector", "version": "2.1.0"},
+        "environment": {"platform": platform.system(), "architecture": platform.machine()},
+        "checks": checks,
+        "summary": {"total": len(checks), "unexpected": len(failures)},
+    }
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    print(json.dumps(report["summary"]))
+    print(f"evidence={args.output}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

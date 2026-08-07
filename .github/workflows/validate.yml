@@ -1,0 +1,33 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  portable-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python3 -m pip install check-jsonschema==0.37.4 skills-ref==0.1.1 PyYAML==6.0.3
+      - run: check-jsonschema --schemafile schemas/1.0.0/plugin.schema.json plugins/*/plugin.json
+      - run: check-jsonschema --schemafile schemas/1.0.0/mcp.schema.json plugins/*/mcp.json
+      - run: for skill in plugins/*/skills/*; do agentskills validate "$skill"; done
+      - run: python3 scripts/validate_catalog.py
+      - run: python3 scripts/build_openai_compat.py --check
+      - run: python3 scripts/validate_openai_compat.py
+      - name: Validate with OpenAI plugin-creator
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/openai/codex/a4b129eb3e1a6929c09d6e2e1af0638122c56f0d/codex-rs/skills/src/assets/samples/plugin-creator/scripts/validate_plugin.py -o /tmp/openai-validate-plugin.py
+          echo "ebda00d55d7518b127f675f062fb5c6e7a1ffdc0a99df1a55ac594400d7d3228  /tmp/openai-validate-plugin.py" | sha256sum --check
+          for plugin in compat/openai/plugins/*; do
+            python3 /tmp/openai-validate-plugin.py "$plugin"
+          done
+      - run: python3 -m unittest discover -s tests

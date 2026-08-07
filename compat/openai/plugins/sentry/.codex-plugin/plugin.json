@@ -1,0 +1,41 @@
+{
+  "name": "sentry",
+  "version": "0.1.0",
+  "description": "Community package for the official Sentry hosted MCP plugin for human-in-the-loop debugging, issue triage, and incident workflows through Sentry's remote MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://mcp.sentry.dev",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "debugging",
+    "incidents",
+    "mcp",
+    "plugins",
+    "sentry"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Sentry",
+    "shortDescription": "Sentry debugging MCP",
+    "longDescription": "Community package for the official Sentry hosted MCP plugin for human-in-the-loop debugging, issue triage, and incident workflows through Sentry's remote MCP service.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://mcp.sentry.dev",
+    "defaultPrompt": [
+      "Use Sentry for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

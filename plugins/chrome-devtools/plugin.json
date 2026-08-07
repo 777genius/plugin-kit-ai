@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "chrome-devtools",
+  "version": "0.1.0",
+  "description": "Portable Agent Plugins package for Chrome DevTools MCP. Inspect pages, automate flows, analyze performance, and debug browser state.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "browser",
+    "chrome",
+    "debugging",
+    "mcp",
+    "performance"
+  ]
+}

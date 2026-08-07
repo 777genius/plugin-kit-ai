@@ -1,0 +1,64 @@
+# Compatibility and authentication
+
+All packages target Agent Plugins 1.0.0. Schema validation proves package
+conformance; it does not prove that a vendor endpoint is available, that OAuth
+will succeed in every client, or that every client exposes the same tools.
+
+The standard-compatible launch clients and supported transports are maintained
+at [agent-plugins.org](https://agent-plugins.org/compatible-clients).
+
+## Package matrix
+
+| Plugin | Component | Authentication and scope |
+| --- | --- | --- |
+| `agent-code-navigator` | 4 skills | Local tools only; specialized tools are optional |
+| `atlassian` | Streamable HTTP | Client-managed Atlassian OAuth |
+| `chrome-devtools` | stdio | Local browser session; pinned npm package |
+| `cloudflare` | Streamable HTTP | Client-managed Cloudflare authorization |
+| `cloudflare-bindings` | Streamable HTTP | Client-managed Cloudflare authorization |
+| `cloudflare-docs` | Streamable HTTP | Public documentation endpoint |
+| `cloudflare-observability` | Streamable HTTP | Client-managed Cloudflare authorization |
+| `cloudflare-radar` | Streamable HTTP | Public telemetry behind client-managed Cloudflare OAuth |
+| `context7` | stdio | No credential stored; service limits may apply |
+| `docker-hub` | stdio | Public data only in portable config; authenticated writes need client-specific secrets |
+| `figma` | Streamable HTTP | Client-managed Figma OAuth |
+| `firebase` | stdio | Uses the local Firebase CLI login and selected project |
+| `github` | Streamable HTTP | Client-managed auth; no PAT stored |
+| `gitlab` | Streamable HTTP | Client-managed GitLab OAuth |
+| `greptile` | Streamable HTTP | Client-managed auth; no API key stored |
+| `heroku` | Streamable HTTP | Client-managed Heroku OAuth |
+| `hubspot-crm` | Streamable HTTP | Client-managed OAuth; upstream may remain beta/read-only |
+| `hubspot-developer` | stdio | Uses the local HubSpot CLI login |
+| `linear` | Streamable HTTP | Client-managed Linear OAuth |
+| `neon` | Streamable HTTP | Client-managed Neon OAuth |
+| `notion` | Streamable HTTP | Client-managed Notion OAuth |
+| `sentry` | Streamable HTTP | Client-managed Sentry OAuth |
+| `statsig` | Streamable HTTP | Client-managed Statsig authorization |
+| `stripe` | Streamable HTTP | Client-managed Stripe OAuth; may expose write tools |
+| `supabase` | Streamable HTTP | Client-managed auth and project scoping; development/test data only per upstream guidance |
+| `vercel` | Streamable HTTP | Client-managed Vercel OAuth |
+
+## Dependency pins
+
+Verified against stable registry releases on 2026-08-07:
+
+| Runtime dependency | Pin |
+| --- | --- |
+| `chrome-devtools-mcp` | `1.6.0` |
+| `@upstash/context7-mcp` | `4.0.0` |
+| `firebase-tools` | `15.26.0` |
+| `@hubspot/cli` | `8.12.0` |
+| `mcp/dockerhub` | OCI digest `sha256:76454af…d4248` |
+
+The code-intelligence skills document current optional versions of Semble
+`0.5.4`, CodeGraphContext `0.5.6`, and Serena `1.6.1`.
+
+## Verification levels
+
+- `Schema`: `plugin.json`, `mcp.json`, skills, path rules, and pins validate.
+- `Reachability`: the endpoint or package exists without authenticating.
+- `Authenticated`: a user completed the vendor flow in a specific client.
+- `Behavior`: representative read and write operations were tested safely.
+
+Runtime and authentication claims are tracked with a client, date, account
+scope, and exact scenario in [the test matrix](TEST_MATRIX.md).

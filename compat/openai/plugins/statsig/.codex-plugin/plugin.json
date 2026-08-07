@@ -1,0 +1,42 @@
+{
+  "name": "statsig",
+  "version": "0.1.0",
+  "description": "Community package for the official Statsig MCP plugin for experiments, feature flags, configs, metrics, and console workflows through Statsig's hosted MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://docs.statsig.com/integrations/mcp/overview",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "experimentation",
+    "feature-flags",
+    "mcp",
+    "plugins",
+    "statsig"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Statsig",
+    "shortDescription": "Statsig experiments MCP",
+    "longDescription": "Community package for the official Statsig MCP plugin for experiments, feature flags, configs, metrics, and console workflows through Statsig's hosted MCP service.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://docs.statsig.com/integrations/mcp/overview",
+    "defaultPrompt": [
+      "Use Statsig for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

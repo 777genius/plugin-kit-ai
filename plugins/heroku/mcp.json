@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "heroku": {
+      "type": "streamable-http",
+      "url": "https://mcp.heroku.com/mcp"
+    }
+  }
+}

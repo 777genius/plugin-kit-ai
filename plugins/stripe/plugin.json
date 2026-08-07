@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "stripe",
+  "version": "0.1.0",
+  "description": "Community package for the official Stripe hosted MCP plugin for payments, billing, customer, and documentation workflows through Stripe's remote MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://docs.stripe.com/mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "billing",
+    "commerce",
+    "mcp",
+    "payments",
+    "plugins",
+    "stripe"
+  ]
+}

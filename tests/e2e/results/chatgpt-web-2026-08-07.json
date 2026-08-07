@@ -1,0 +1,20 @@
+{
+  "client": "ChatGPT web",
+  "date": "2026-08-07",
+  "checks": [
+    {
+      "scenario": "open Plugins Directory in an authenticated ChatGPT session",
+      "status": "passed"
+    },
+    {
+      "scenario": "locate developer-mode control",
+      "status": "passed"
+    },
+    {
+      "scenario": "add a direct development MCP connection",
+      "status": "manual_step",
+      "detail": "Developer mode was disabled and explicitly labeled elevated risk, so it was not enabled without separate user consent."
+    }
+  ],
+  "secrets_recorded": false
+}

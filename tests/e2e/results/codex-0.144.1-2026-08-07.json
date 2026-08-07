@@ -1,0 +1,35 @@
+{
+  "client": "Codex CLI",
+  "version": "0.144.1",
+  "date": "2026-08-07",
+  "sandbox": "fresh disposable git repositories under /tmp",
+  "checks": [
+    {
+      "scenario": "add local marketplace",
+      "status": "passed",
+      "marketplace": "universal-agent-plugins"
+    },
+    {
+      "scenario": "install context7 and call resolve-library-id",
+      "status": "passed",
+      "result_marker": "CONTEXT7_OK /microsoft/playwright"
+    },
+    {
+      "scenario": "install agent-code-navigator and run code-intelligence-doctor",
+      "status": "passed",
+      "result_marker": "NAVIGATOR_OK"
+    },
+    {
+      "scenario": "Notion OAuth authorization",
+      "status": "auth_required",
+      "detail": "The provider login screen was reached; no provider credentials were entered."
+    },
+    {
+      "scenario": "Figma OAuth reuse",
+      "status": "auth_required",
+      "detail": "Codex reported an existing OAuth-capable connection, but the installed package did not expose a successful identity call without a fresh provider login."
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false
+}

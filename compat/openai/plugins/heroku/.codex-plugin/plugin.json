@@ -1,0 +1,44 @@
+{
+  "name": "heroku",
+  "version": "0.1.0",
+  "description": "Community package for the official Heroku hosted MCP plugin for apps, add-ons, logs, Postgres, and operational workflows through Heroku's remote MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://devcenter.heroku.com/articles/heroku-remote-mcp-server",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "apps",
+    "backend",
+    "cloud",
+    "devops",
+    "heroku",
+    "mcp",
+    "plugins"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Heroku",
+    "shortDescription": "Heroku operations MCP",
+    "longDescription": "Community package for the official Heroku hosted MCP plugin for apps, add-ons, logs, Postgres, and operational workflows through Heroku's remote MCP service.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://devcenter.heroku.com/articles/heroku-remote-mcp-server",
+    "defaultPrompt": [
+      "Use Heroku for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

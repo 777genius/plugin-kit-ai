@@ -1,0 +1,62 @@
+# Verification record
+
+Date: 2026-08-07.
+
+## Package conformance
+
+- 26 root `plugin.json` documents pass the Agent Plugins 1.0.0 JSON Schema.
+- 25 root `mcp.json` documents pass the Agent Plugins 1.0.0 MCP Schema.
+- 4 skills pass `skills-ref` 0.1.1.
+- The repository semantic validator reports 26 plugins, 25 MCP servers, and 4
+  skills.
+- All 26 generated OpenAI compatibility packages pass the repository validator
+  and OpenAI's `plugin-creator` validator in CI. The latter is fetched from a
+  pinned `openai/codex` commit and verified by SHA-256 before execution.
+- The OpenAI adapter preserves the host-specific auth metadata published for
+  GitHub, Figma, Linear, and Notion without adding unverified auth fields.
+
+## Dependency verification
+
+The npm registry stable tags were checked before pinning:
+
+- `chrome-devtools-mcp@1.6.0`
+- `@upstash/context7-mcp@4.0.0`
+- `firebase-tools@15.26.0`
+- `@hubspot/cli@8.12.0`
+
+The Docker Hub package is pinned to the multi-architecture OCI digest recorded
+in `plugins/docker-hub/mcp.json`.
+
+## Runtime E2E
+
+- MCP Inspector 2.1.0 completed 12 expected checks with zero unexpected
+  results. Context7 and Cloudflare Docs passed representative read calls;
+  Chrome DevTools exposed 29 tools from a disposable sandbox.
+- Codex CLI 0.144.1 added the local marketplace, installed Context7 and Agent
+  Code Navigator, called the Context7 MCP tool, and executed the packaged
+  diagnostic skill in fresh disposable repositories.
+- Cursor 3.9.16 loaded the portable Context7 package from its local plugin
+  directory, started version 4.0.0, and completed the stdio MCP connection in
+  an isolated user-data directory.
+- ChatGPT web Plugins Directory and the developer-mode control were verified in
+  a signed-in session. Developer mode remained disabled because ChatGPT labels
+  it elevated risk; no development connection was created without separate
+  consent.
+
+## Remote endpoint reachability
+
+Every configured remote HTTPS origin returned an HTTP response during a
+non-authenticated reachability check. Expected results were `401` for protected
+origins, `405` for origins that reject a normal GET, and `200` for public web
+frontends. The Sentry MCP endpoint was corrected to `https://mcp.sentry.dev/mcp`
+after the live handshake exposed the web-root mismatch.
+
+This proves DNS, TLS, and origin reachability only. It does not prove MCP
+handshake behavior, OAuth compatibility, account scoping, or tool correctness.
+
+## Deliberately not tested
+
+No destructive tool, write operation, real user project, or successful vendor
+OAuth consent was used. Provider login screens were reached without entering
+credentials. Authenticated behavior remains `Auth required` until a user
+completes consent in a dedicated test account.

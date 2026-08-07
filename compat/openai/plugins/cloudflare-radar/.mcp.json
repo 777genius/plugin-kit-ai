@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cloudflare-radar": {
+      "url": "https://radar.mcp.cloudflare.com/mcp",
+      "type": "http"
+    }
+  }
+}

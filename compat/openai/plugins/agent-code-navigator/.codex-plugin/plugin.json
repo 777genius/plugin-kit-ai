@@ -1,0 +1,40 @@
+{
+  "name": "agent-code-navigator",
+  "version": "0.1.0",
+  "description": "Route code discovery across exact search, semantic search, LSP navigation, and call-graph analysis.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/agent-code-navigator",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "code-intelligence",
+    "code-search",
+    "lsp",
+    "codegraph",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Code Navigator",
+    "shortDescription": "Route code intelligence",
+    "longDescription": "Route code discovery across exact search, semantic search, LSP navigation, and call-graph analysis.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/agent-code-navigator",
+    "defaultPrompt": [
+      "Use Agent Code Navigator for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

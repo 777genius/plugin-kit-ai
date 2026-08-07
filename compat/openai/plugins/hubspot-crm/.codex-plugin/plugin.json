@@ -1,0 +1,41 @@
+{
+  "name": "hubspot-crm",
+  "version": "0.1.0",
+  "description": "Community package for the official HubSpot remote MCP integration for beta, read-only CRM object access through HubSpot's hosted MCP server.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://developers.hubspot.com/mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "crm",
+    "hubspot",
+    "mcp",
+    "plugins",
+    "sales"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "HubSpot CRM",
+    "shortDescription": "HubSpot CRM access",
+    "longDescription": "Community package for the official HubSpot remote MCP integration for beta, read-only CRM object access through HubSpot's hosted MCP server.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://developers.hubspot.com/mcp",
+    "defaultPrompt": [
+      "Use HubSpot CRM for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

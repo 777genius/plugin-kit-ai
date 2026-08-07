@@ -1,0 +1,44 @@
+{
+  "name": "cloudflare",
+  "version": "0.1.0",
+  "description": "Community package for the official Cloudflare API MCP plugin for token-efficient access to the Cloudflare API through Cloudflare's hosted Code Mode server.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "api",
+    "cloud",
+    "cloudflare",
+    "devops",
+    "mcp",
+    "plugins",
+    "workers"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Cloudflare",
+    "shortDescription": "Cloudflare API MCP",
+    "longDescription": "Community package for the official Cloudflare API MCP plugin for token-efficient access to the Cloudflare API through Cloudflare's hosted Code Mode server.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+    "defaultPrompt": [
+      "Use Cloudflare for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

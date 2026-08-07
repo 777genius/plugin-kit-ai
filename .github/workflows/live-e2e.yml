@@ -1,0 +1,25 @@
+name: live MCP E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-read-flows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: python3 scripts/run_mcp_e2e.py --profile ci --output /tmp/universal-agent-plugins-e2e.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: live-e2e-evidence
+          path: /tmp/universal-agent-plugins-e2e.json

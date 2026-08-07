@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-07T13:28:10+00:00",
+  "profile": "full",
+  "harness": {
+    "name": "MCP Inspector",
+    "version": "2.1.0"
+  },
+  "environment": {
+    "platform": "Darwin",
+    "architecture": "arm64"
+  },
+  "checks": [
+    {
+      "check": "context7:tools/list",
+      "status": "passed",
+      "tool_count": 2,
+      "tools": [
+        "query-docs",
+        "resolve-library-id"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "context7:resolve-library-id",
+      "status": "passed",
+      "content_items": 1,
+      "exit_code": 0
+    },
+    {
+      "check": "cloudflare-docs:tools/list",
+      "status": "passed",
+      "tool_count": 2,
+      "tools": [
+        "migrate_pages_to_workers_guide",
+        "search_cloudflare_documentation"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "cloudflare-docs:search",
+      "status": "passed",
+      "content_items": 1,
+      "exit_code": 0
+    },
+    {
+      "check": "agent-code-navigator:doctor",
+      "status": "passed",
+      "exit_code": 0,
+      "optional_tool_warnings": 2
+    },
+    {
+      "check": "chrome-devtools:tools/list",
+      "status": "passed",
+      "tool_count": 29,
+      "tools": [
+        "click",
+        "close_page",
+        "drag",
+        "emulate",
+        "evaluate_script",
+        "fill",
+        "fill_form",
+        "get_console_message",
+        "get_network_request",
+        "handle_dialog",
+        "hover",
+        "lighthouse_audit",
+        "list_console_messages",
+        "list_network_requests",
+        "list_pages",
+        "navigate_page",
+        "new_page",
+        "performance_analyze_insight",
+        "performance_start_trace",
+        "performance_stop_trace",
+        "press_key",
+        "resize_page",
+        "select_page",
+        "take_heapsnapshot",
+        "take_screenshot",
+        "take_snapshot",
+        "type_text",
+        "upload_file",
+        "wait_for"
+      ],
+      "exit_code": 0
+    },
+    {
+      "check": "cloudflare-radar:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    },
+    {
+      "check": "figma:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    },
+    {
+      "check": "github:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    },
+    {
+      "check": "linear:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    },
+    {
+      "check": "notion:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    },
+    {
+      "check": "sentry:auth-discovery",
+      "status": "auth_required",
+      "error_code": "auth_required",
+      "exit_code": 3
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "unexpected": 0
+  }
+}

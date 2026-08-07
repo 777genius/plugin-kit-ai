@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "agent-code-navigator",
+  "version": "0.1.0",
+  "description": "Route code discovery across exact search, semantic search, LSP navigation, and call-graph analysis.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://github.com/777genius/universal-plugins-for-ai-agents/tree/main/plugins/agent-code-navigator",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "code-intelligence",
+    "code-search",
+    "lsp",
+    "codegraph",
+    "codex"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "name": "linear",
+  "version": "0.1.0",
+  "description": "Community package for the official Linear MCP integration for workspace management, issues, and project workflows.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://linear.app",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "issues",
+    "linear",
+    "mcp",
+    "plugins",
+    "project-management"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Linear",
+    "shortDescription": "Linear planning MCP",
+    "longDescription": "Community package for the official Linear MCP integration for workspace management, issues, and project workflows.",
+    "developerName": "777genius",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://linear.app",
+    "defaultPrompt": [
+      "Use Linear for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

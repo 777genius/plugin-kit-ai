@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 840" role="img" aria-labelledby="title desc">
+  <title id="title">Universal Agent Plugins</title>
+  <desc id="desc">Twenty-six portable Agent Plugins packages for skills and MCP servers.</desc>
+  <defs>
+    <linearGradient id="background" x1="60" y1="40" x2="1540" y2="800" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#11162E"/>
+      <stop offset=".48" stop-color="#0A1023"/>
+      <stop offset="1" stop-color="#050711"/>
+    </linearGradient>
+    <radialGradient id="violet" cx="0" cy="0" r="1" gradientTransform="translate(1220 190) rotate(134) scale(540 490)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7257FF" stop-opacity=".34"/>
+      <stop offset="1" stop-color="#7257FF" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cyan" cx="0" cy="0" r="1" gradientTransform="translate(1130 650) rotate(-113) scale(460 560)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#21C8E7" stop-opacity=".24"/>
+      <stop offset="1" stop-color="#21C8E7" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="core" x1="1035" y1="290" x2="1295" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8C6DFF"/>
+      <stop offset=".52" stop-color="#387BFF"/>
+      <stop offset="1" stop-color="#20C8E8"/>
+    </linearGradient>
+    <filter id="blur" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="28"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="840" rx="40" fill="url(#background)"/>
+  <rect width="1600" height="840" rx="40" fill="url(#violet)"/>
+  <rect width="1600" height="840" rx="40" fill="url(#cyan)"/>
+  <g opacity=".16" fill="#DDE7FF">
+    <circle cx="109" cy="112" r="2"/><circle cx="1430" cy="126" r="2"/><circle cx="1489" cy="696" r="3"/>
+    <circle cx="850" cy="122" r="2"/><circle cx="760" cy="720" r="2"/><circle cx="1380" cy="520" r="2"/>
+  </g>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="108" y="220" fill="#9BA9C7" font-size="28" font-weight="650" letter-spacing="3">COMMUNITY-MAINTAINED · OPEN SOURCE</text>
+    <text x="104" y="322" fill="#F7F9FF" font-size="82" font-weight="760" letter-spacing="-3">Universal</text>
+    <text x="104" y="410" fill="#F7F9FF" font-size="82" font-weight="760" letter-spacing="-3">Agent Plugins</text>
+    <text x="108" y="486" fill="#BFC9DF" font-size="32" font-weight="450">26 portable packages. One open standard.</text>
+    <g font-size="22" font-weight="650">
+      <rect x="108" y="554" width="248" height="58" rx="29" fill="#7257FF" fill-opacity=".19" stroke="#8E79FF" stroke-opacity=".5"/>
+      <text x="137" y="591" fill="#C9BFFF">Agent Plugins 1.0</text>
+      <rect x="374" y="554" width="192" height="58" rx="29" fill="#20C8E8" fill-opacity=".13" stroke="#28C5E6" stroke-opacity=".42"/>
+      <text x="407" y="591" fill="#AEEEF7">Skills + MCP</text>
+      <rect x="584" y="554" width="180" height="58" rx="29" fill="#FF806E" fill-opacity=".12" stroke="#FF806E" stroke-opacity=".38"/>
+      <text x="620" y="591" fill="#FFC1B6">Apache 2.0</text>
+    </g>
+    <text x="108" y="687" fill="#7E8AA5" font-size="23">ChatGPT · Codex · Cursor · VS Code · Copilot · Kiro</text>
+  </g>
+  <circle cx="1201" cy="423" r="194" fill="#4D6FFF" opacity=".18" filter="url(#blur)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M1201 332V196" stroke="#8E79FF" stroke-width="24"/>
+    <path d="M1109 482L972 596" stroke="#28C5E6" stroke-width="24"/>
+    <path d="M1293 482L1430 596" stroke="#FF806E" stroke-width="24"/>
+    <path d="M1098 388L940 336" stroke="#387BFF" stroke-width="18" opacity=".68"/>
+    <path d="M1304 388L1460 332" stroke="#63A0FF" stroke-width="18" opacity=".62"/>
+  </g>
+  <rect x="1088" y="310" width="226" height="226" rx="66" fill="url(#core)"/>
+  <rect x="1146" y="143" width="110" height="110" rx="34" fill="#8E79FF"/>
+  <rect x="871" y="574" width="110" height="110" rx="34" fill="#28C5E6"/>
+  <rect x="1421" y="574" width="110" height="110" rx="34" fill="#FF806E"/>
+  <rect x="867" y="282" width="92" height="92" rx="29" fill="#387BFF" opacity=".9"/>
+  <rect x="1443" y="278" width="92" height="92" rx="29" fill="#63A0FF" opacity=".9"/>
+  <path d="M1164 382h74a25 25 0 0 1 25 25v32a25 25 0 0 1-25 25h-74a25 25 0 0 1-25-25v-32a25 25 0 0 1 25-25Z" fill="#F8FAFF"/>
+  <path d="M1182 358v26m38-26v26m-38 80v26m38-26v26" stroke="#F8FAFF" stroke-width="15" stroke-linecap="round"/>
+</svg>

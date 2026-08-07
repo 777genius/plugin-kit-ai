@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "heroku": {
+      "url": "https://mcp.heroku.com/mcp",
+      "type": "http"
+    }
+  }
+}

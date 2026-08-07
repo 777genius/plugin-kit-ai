@@ -1,0 +1,42 @@
+{
+  "name": "supabase",
+  "version": "0.1.0",
+  "description": "Community package for the official Supabase MCP integration for development and database operations from agent workflows.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://supabase.com/docs/guides/ai-tools/mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "backend",
+    "mcp",
+    "plugins",
+    "postgres",
+    "supabase"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Supabase",
+    "shortDescription": "Supabase backend MCP",
+    "longDescription": "Community package for the official Supabase MCP integration for development and database operations from agent workflows.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://supabase.com/docs/guides/ai-tools/mcp",
+    "defaultPrompt": [
+      "Use Supabase for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

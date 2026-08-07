@@ -1,0 +1,26 @@
+{
+  "client": "Cursor",
+  "version": "3.9.16",
+  "date": "2026-08-07",
+  "sandbox": "fresh disposable git repository and isolated user-data directory",
+  "plugin": "context7",
+  "checks": [
+    {
+      "scenario": "load portable package from the local plugins directory",
+      "status": "passed",
+      "evidence": "loadUserLocalPlugin context7"
+    },
+    {
+      "scenario": "start the packaged stdio MCP server",
+      "status": "passed",
+      "evidence": "Context7 Documentation MCP Server v4.0.0 running on stdio"
+    },
+    {
+      "scenario": "complete MCP connection",
+      "status": "passed",
+      "evidence": "connection:connect_success"
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false
+}

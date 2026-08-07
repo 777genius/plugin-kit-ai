@@ -1,0 +1,42 @@
+{
+  "name": "cloudflare-radar",
+  "version": "0.1.0",
+  "description": "Community package for the official Cloudflare Radar MCP plugin for internet telemetry, traffic trends, and network intelligence through Cloudflare's hosted Radar server.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "analytics",
+    "cloudflare",
+    "mcp",
+    "network",
+    "plugins",
+    "radar"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Cloudflare Radar",
+    "shortDescription": "Internet telemetry MCP",
+    "longDescription": "Community package for the official Cloudflare Radar MCP plugin for internet telemetry, traffic trends, and network intelligence through Cloudflare's hosted Radar server.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/",
+    "defaultPrompt": [
+      "Use Cloudflare Radar for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "docker-hub",
+  "version": "0.1.0",
+  "description": "Community package for the official Docker Hub MCP plugin for repository, image, and Docker Hub workflows through Docker's containerized stdio server.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://github.com/docker/hub-mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "containers",
+    "docker",
+    "mcp",
+    "plugins",
+    "registry"
+  ]
+}

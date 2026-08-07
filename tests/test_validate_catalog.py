@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "validate_catalog.py"
+SPEC = importlib.util.spec_from_file_location("validate_catalog", MODULE_PATH)
+assert SPEC and SPEC.loader
+validator = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(validator)
+
+
+class CatalogValidatorTests(unittest.TestCase):
+    def make_plugin(self, root: Path) -> Path:
+        plugin = root / "plugins" / "demo"
+        plugin.mkdir(parents=True)
+        (plugin / "plugin.json").write_text(
+            json.dumps(
+                {
+                    "$schema": validator.PLUGIN_SCHEMA,
+                    "name": "demo",
+                    "version": "0.1.0",
+                    "description": "Demo plugin",
+                    "author": {"name": "Test"},
+                    "keywords": ["demo"],
+                }
+            )
+        )
+        (plugin / "README.md").write_text("# Demo\n")
+        (plugin / "mcp.json").write_text(
+            json.dumps(
+                {
+                    "$schema": validator.MCP_SCHEMA,
+                    "mcpServers": {
+                        "demo": {
+                            "type": "streamable-http",
+                            "url": "https://example.com/mcp",
+                        }
+                    },
+                }
+            )
+        )
+        return plugin
+
+    def test_valid_catalog(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.make_plugin(Path(tmp))
+            self.assertEqual(validator.validate_catalog(Path(tmp)), (1, 1, 0))
+
+    def test_unknown_manifest_field_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = self.make_plugin(Path(tmp))
+            manifest = json.loads((plugin / "plugin.json").read_text())
+            manifest["mcpServers"] = "./mcp.json"
+            (plugin / "plugin.json").write_text(json.dumps(manifest))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(Path(tmp))
+
+    def test_secret_header_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = self.make_plugin(Path(tmp))
+            mcp = json.loads((plugin / "mcp.json").read_text())
+            mcp["mcpServers"]["demo"]["headers"] = {"Authorization": "Bearer token"}
+            (plugin / "mcp.json").write_text(json.dumps(mcp))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(Path(tmp))
+
+    def test_unpinned_npx_package_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = self.make_plugin(Path(tmp))
+            mcp = {
+                "$schema": validator.MCP_SCHEMA,
+                "mcpServers": {
+                    "demo": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["-y", "demo@latest"],
+                    }
+                },
+            }
+            (plugin / "mcp.json").write_text(json.dumps(mcp))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(Path(tmp))
+
+    def test_invalid_skill_field_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = self.make_plugin(Path(tmp))
+            (plugin / "mcp.json").unlink()
+            skill = plugin / "skills" / "demo-skill"
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(
+                "---\nname: demo-skill\ndescription: Demo\ncommand: ./run.sh\n---\n"
+            )
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(Path(tmp))
+
+    def test_symlink_escape_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = self.make_plugin(root)
+            outside = root / "outside.json"
+            outside.write_text((plugin / "mcp.json").read_text())
+            (plugin / "mcp.json").unlink()
+            (plugin / "mcp.json").symlink_to(outside)
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(root)
+
+    def test_plugin_root_parent_traversal_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = self.make_plugin(root)
+            mcp = {
+                "$schema": validator.MCP_SCHEMA,
+                "mcpServers": {
+                    "demo": {
+                        "type": "stdio",
+                        "command": "demo",
+                        "cwd": "${PLUGIN_ROOT}/../outside",
+                    }
+                },
+            }
+            (plugin / "mcp.json").write_text(json.dumps(mcp))
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(root)
+
+
+if __name__ == "__main__":
+    unittest.main()

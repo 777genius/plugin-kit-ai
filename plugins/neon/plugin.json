@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "neon",
+  "version": "0.1.0",
+  "description": "Community package for the official Neon hosted MCP plugin for database, branch, and project workflows through Neon's remote MCP server.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://mcp.neon.tech/",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "database",
+    "mcp",
+    "neon",
+    "plugins",
+    "postgres"
+  ]
+}

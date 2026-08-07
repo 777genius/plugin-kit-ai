@@ -1,0 +1,320 @@
+{
+  "name": "universal-agent-plugins",
+  "interface": {
+    "displayName": "Universal Agent Plugins"
+  },
+  "plugins": [
+    {
+      "name": "agent-code-navigator",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/agent-code-navigator"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "atlassian",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/atlassian"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "chrome-devtools",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/chrome-devtools"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloudflare",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/cloudflare"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloudflare-bindings",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/cloudflare-bindings"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloudflare-docs",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/cloudflare-docs"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloudflare-observability",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/cloudflare-observability"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "cloudflare-radar",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/cloudflare-radar"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "context7",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/context7"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "docker-hub",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/docker-hub"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "figma",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/figma"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Creativity"
+    },
+    {
+      "name": "firebase",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/firebase"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "github",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/github"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "gitlab",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/gitlab"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "greptile",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/greptile"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "heroku",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/heroku"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "hubspot-crm",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/hubspot-crm"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "hubspot-developer",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/hubspot-developer"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "linear",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/linear"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "neon",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/neon"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "notion",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/notion"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "sentry",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/sentry"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "statsig",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/statsig"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "stripe",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/stripe"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Finance"
+    },
+    {
+      "name": "supabase",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/supabase"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "vercel",
+      "source": {
+        "source": "local",
+        "path": "./compat/openai/plugins/vercel"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

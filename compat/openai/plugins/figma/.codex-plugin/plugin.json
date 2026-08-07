@@ -1,0 +1,41 @@
+{
+  "name": "figma",
+  "version": "0.1.0",
+  "description": "Community package for the official Figma MCP plugin for design context, code-to-design workflows, and authenticated access to Figma Design, Make, and FigJam through Figma's remote MCP service.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "design",
+    "figma",
+    "mcp",
+    "plugins",
+    "ui"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Figma",
+    "shortDescription": "Figma design context",
+    "longDescription": "Community package for the official Figma MCP plugin for design context, code-to-design workflows, and authenticated access to Figma Design, Make, and FigJam through Figma's remote MCP service.",
+    "developerName": "777genius",
+    "category": "Creativity",
+    "capabilities": [
+      "Read"
+    ],
+    "websiteURL": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+    "defaultPrompt": [
+      "Use Figma for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}
