@@ -10,6 +10,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	makefile := readRepoFile(t, root, "Makefile")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
 	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
 
@@ -52,6 +53,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"environment: npm-agentplugins",
+		"id-token: write",
 		`package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"`,
 		`test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"`,
 		`npm view "${package_name}" versions --json`,
@@ -60,14 +63,31 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}`,
 		`npm view "${NPM_PACKAGE}" dist-tags --json`,
 		"npm publish --access public --tag latest --provenance",
+		"trusted publishing only supports existing packages",
 		".latest == $version",
 	} {
-		mustContain(t, npmWorkflow, want)
+		mustContain(t, npmPublishJob, want)
 	}
-	mustNotContain(t, npmWorkflow, "npm view agentplugins versions --json")
-	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
-	mustNotContain(t, npmWorkflow, "--tag beta")
-	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
+	for _, want := range []string{
+		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
+		"npm audit signatures --json --include-attestations",
+		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
+	} {
+		mustContain(t, npmPublishJob, want)
+	}
+	for _, unwanted := range []string{
+		"npm view agentplugins versions --json",
+		"npm view agentplugins version >/dev/null",
+		"--tag beta",
+		"bootstrap_publish",
+		"NPM_TOKEN",
+		"NODE_AUTH_TOKEN",
+	} {
+		mustNotContain(t, npmPublishJob, unwanted)
+	}
+	mustAppearBefore(t, npmPublishJob, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
+	mustAppearBefore(t, npmPublishJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
+	mustAppearBefore(t, npmPublishJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")
@@ -78,8 +98,11 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"`release-manifest.json` before creating the public release",
 		"requires a merged pull request into",
 		"Repository settings are not treated as the release proof",
-		"Only an npm `E404` is accepted as",
-		"proof that the package does not exist",
+		"short-lived bootstrap",
+		"disallow bypass-2FA tokens",
+		"Do not add a bootstrap token back",
+		"publish through",
+		"GitHub OIDC with provenance",
 		"`latest` dist-tag resolves to the exact published version",
 	} {
 		mustContain(t, runbook, want)
@@ -93,4 +116,24 @@ func mustAppearBefore(t *testing.T, text, first, second string) {
 	if firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex {
 		t.Fatalf("expected %q to appear before %q", first, second)
 	}
+}
+
+func yamlJob(t *testing.T, workflow, name string) string {
+	t.Helper()
+	marker := "\n  " + name + ":\n"
+	start := strings.Index(workflow, marker)
+	if start < 0 {
+		t.Fatalf("missing workflow job %q", name)
+	}
+
+	lines := strings.SplitAfter(workflow[start+1:], "\n")
+	var job strings.Builder
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if index > 0 && strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ") && strings.HasSuffix(trimmed, ":") {
+			break
+		}
+		job.WriteString(line)
+	}
+	return job.String()
 }

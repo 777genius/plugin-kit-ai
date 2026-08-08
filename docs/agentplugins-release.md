@@ -19,6 +19,9 @@ the `latest` dist-tag without explicit owner approval for that exact version.
   released catalog and its compiled SHA-256 pin matches.
 - `agentplugins-release` and `npm-agentplugins` require a reviewer and allow
   deployment only from `main`.
+- npm trusted publishing is bound to repository `777genius/plugin-kit-ai`,
+  workflow `agentplugins-npm-publish.yml`, environment `npm-agentplugins`, and
+  the `npm publish` permission.
 - `NPM_AGENTPLUGINS_PUBLISH_READY` stays `false` until the exact publish is
   approved.
 
@@ -43,40 +46,31 @@ project is tagged.
 The workflow refuses an existing release instead of replacing immutable
 assets.
 
-## First npm publication
+## Bootstrap publication record
 
-The first publication cannot use npm trusted publishing because the package
-does not exist yet.
+`universal-agent-plugins@0.1.1` completed the one-time bootstrap publication.
+Its exact registry tarball, provenance, clean-project lifecycle, and attestation
+were verified before trusted publishing was enabled. The short-lived bootstrap
+credential was then removed from both GitHub and npm, and package access was
+changed to disallow bypass-2FA tokens.
 
-1. Add a short-lived granular `NPM_TOKEN` only to the protected
-   `npm-agentplugins` environment.
-2. Set `NPM_AGENTPLUGINS_PUBLISH_READY=true` only after the GitHub assets pass
-   verification.
-3. Dispatch `Agentplugins NPM Publish` with the exact tag and
-   `bootstrap_publish=true`.
-4. Review the exact tag and approve the `npm-agentplugins` deployment.
-5. Confirm the registry preflight succeeds. Only an npm `E404` is accepted as
-   proof that the package does not exist; network, authentication, and other
-   registry errors fail closed.
-6. Confirm the workflow stages the exact npm package, verifies all embedded
-   platform hashes, runs its tests, and exercises the verified release binary.
-7. Confirm the post-publish clean-project smoke runs the exact registry version
-   through `add`, `info`, read-only `doctor`, no-change `update`, `remove`, and
-   final absent-state verification in an isolated HOME. It must prove the
-   `latest` dist-tag resolves to the exact published version and JSON output
-   contains no absolute runner paths.
-8. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
-   bootstrap token.
-9. Configure npm trusted publishing for repository
-   `777genius/plugin-kit-ai` and workflow
-   `.github/workflows/agentplugins-npm-publish.yml`.
+Do not add a bootstrap token back to the workflow. If the package disappears
+from npm, the registry preflight must fail closed instead of attempting to
+recreate it.
 
 ## Later stable publications
 
 Use the same immutable asset workflow, temporarily open the publish-ready gate,
-then dispatch the npm workflow with `bootstrap_publish=false`. The workflow must
-publish through GitHub OIDC with provenance and must pass the exact-version
-registry smoke before the gate is returned to `false`.
+then dispatch the npm workflow with the exact tag. Review and approve the
+`npm-agentplugins` environment deployment. The workflow must publish through
+GitHub OIDC with provenance and must pass the exact-version registry smoke
+after an exact-version, scripts-disabled install verifies both the registry
+signature and SLSA provenance attestation. Only then may it run `add`, `info`,
+read-only `doctor`, no-change `update`, `remove`, and final absent-state
+verification in an isolated HOME.
+It must prove the `latest` dist-tag resolves to the exact published version and
+JSON output contains no absolute runner paths before the gate is returned to
+`false`.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.
