@@ -148,6 +148,21 @@ def encoded(value: object) -> bytes:
 
 def ensure_plugins_match_revision(revision: str) -> None:
     validate_revision(revision)
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", revision, "HEAD"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if ancestor.returncode == 1:
+        raise ValueError(
+            "catalog revision must be an ancestor of the catalog commit; "
+            "merge with history preserved or repin the catalog after merging"
+        )
+    if ancestor.returncode != 0:
+        detail = (ancestor.stderr or "git merge-base failed without stderr").strip()
+        raise ValueError(f"could not verify catalog revision ancestry: {detail[:500]}")
     result = subprocess.run(
         ["git", "diff", "--quiet", revision, "--", "plugins"],
         cwd=ROOT,

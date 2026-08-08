@@ -105,14 +105,28 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         with mock.patch.object(
             builder.subprocess,
             "run",
-            return_value=SimpleNamespace(returncode=1, stderr=""),
+            side_effect=[
+                SimpleNamespace(returncode=0, stderr=""),
+                SimpleNamespace(returncode=1, stderr=""),
+            ],
         ), self.assertRaisesRegex(ValueError, "differs from"):
             builder.ensure_plugins_match_revision("a" * 40)
         with mock.patch.object(
             builder.subprocess,
             "run",
-            return_value=SimpleNamespace(returncode=128, stderr="fatal: bad object"),
+            side_effect=[
+                SimpleNamespace(returncode=0, stderr=""),
+                SimpleNamespace(returncode=128, stderr="fatal: bad object"),
+            ],
         ), self.assertRaisesRegex(ValueError, "fatal: bad object"):
+            builder.ensure_plugins_match_revision("a" * 40)
+
+    def test_catalog_revision_must_be_an_ancestor_of_the_catalog_commit(self) -> None:
+        with mock.patch.object(
+            builder.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=1, stderr=""),
+        ), self.assertRaisesRegex(ValueError, "must be an ancestor"):
             builder.ensure_plugins_match_revision("a" * 40)
 
 
