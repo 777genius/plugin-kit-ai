@@ -19,7 +19,7 @@ def block(name: str) -> str:
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0 add {name}
+npx --yes universal-agent-plugins@0.1.1 add {name}
 ```
 {END}"""
 

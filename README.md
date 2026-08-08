@@ -20,14 +20,14 @@ Context7 is an easy first choice. It finds current library documentation and
 requires no account:
 
 ```bash
-npx --yes agentplugins@0.1.0 add context7
+npx --yes universal-agent-plugins@0.1.1 add context7
 ```
 
 The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. For scripts, be explicit:
 
 ```bash
-npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
+npx --yes universal-agent-plugins@0.1.1 add context7 --target cursor --yes
 ```
 
 Open a new chat or session in the client you selected and ask:

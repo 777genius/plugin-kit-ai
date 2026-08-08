@@ -1,10 +1,10 @@
 {
   "client": "agentplugins CLI isolated multi-client package projections",
-  "version": "0.1.0-development",
+  "version": "0.1.1",
   "date": "2026-08-08",
-  "observed_at_utc": "2026-08-08T08:04:38Z",
-  "catalog_revision": "e201a0a1f8b3894862f69267e14994b2d9f7fd51",
-  "catalog_digest": "sha256:5578f1d46dd22cd68da233ab7c38e353955b285dc4be3bff5006bdfbb8436f03",
+  "observed_at_utc": "2026-08-08T12:26:20Z",
+  "catalog_revision": "7c455ed6436a880e421a9d069fb70ac65be7d980",
+  "catalog_digest": "sha256:f4b315c8a442607075bb2940b4b88c5da338f67d97eed27358e078744ba0d707",
   "checks": [
     {
       "scenario": "five hero packages add/remove across five client projections",

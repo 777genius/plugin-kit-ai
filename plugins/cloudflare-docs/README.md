@@ -6,7 +6,7 @@ Community package for the official Cloudflare hosted MCP plugin for up-to-date C
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0 add cloudflare-docs
+npx --yes universal-agent-plugins@0.1.1 add cloudflare-docs
 ```
 <!-- agentplugins-install:end -->
 
