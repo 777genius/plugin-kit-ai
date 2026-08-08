@@ -48,6 +48,9 @@ The following are invariants:
 - the beta does not publish npm or change a dist-tag without explicit owner approval.
 - the first npm publication is a separate protected bootstrap using a short-lived token; only after package ownership and the exact trusted-publisher binding exist may later tags use OIDC.
 
+Release operations follow the protected
+[`agentplugins` beta runbook](../agentplugins-release.md).
+
 The legacy `plugin/plugin.yaml` loader remains a separate front door. It is not read by `agentplugins add`, and discovery of a later `plugin.json` does not silently switch an existing legacy installation.
 
 `plugin-kit.yaml` is not part of an installed package. No orchestration sidecar is introduced in the beta.
