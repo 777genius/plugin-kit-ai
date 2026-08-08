@@ -140,12 +140,25 @@ test("release metadata, platform names, and cache roots are exact", async (t) =>
   assert.equal(cacheRoot({ LOCALAPPDATA: "C:\\cache" }, "win32", "C:\\home"), path.join("C:\\cache", "agentplugins", "Cache"));
 });
 
-test("package has no install scripts and development metadata cannot download", async () => {
+test("package has no install scripts", async () => {
   const packageRoot = path.resolve(__dirname, "..");
   const pkg = JSON.parse(await fsp.readFile(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(pkg.engines.node, ">=22");
   assert.deepEqual(pkg.scripts, { test: "node --test" });
-  assert.throws(() => loadRelease(packageRoot, detectPlatform("linux", "x64")), /development npm package/);
+});
+
+test("development metadata cannot download a release binary", async (t) => {
+  const packageRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "agentplugins-development-package-"));
+  t.after(() => fsp.rm(packageRoot, { recursive: true, force: true }));
+  await fsp.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({
+    name: "agentplugins",
+    version: "0.0.0-development"
+  }));
+  await fsp.writeFile(path.join(packageRoot, "assets.json"), "{}\n");
+  assert.throws(
+    () => loadRelease(packageRoot, detectPlatform("linux", "x64")),
+    /development npm package/
+  );
 });
 
 test("an old mtime never lets a contender steal a live cache lock", async () => {
