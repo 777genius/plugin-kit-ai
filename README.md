@@ -19,7 +19,7 @@ Want to use a plugin rather than author one? `agentplugins` is the standard-firs
 installer built on this repository's lifecycle engine:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add context7
+npx --yes agentplugins@0.1.0 add context7
 ```
 
 It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
@@ -28,8 +28,8 @@ Copilot/VS Code, and Kiro. The beta supports user scope; client-native limits ar
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add context7 --dry-run --target cursor
-npx --yes agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
+npx --yes agentplugins@0.1.0 add context7 --dry-run --target cursor
+npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
 ```
 
 `agentplugins` is an independent community installer, not an official OpenAI

@@ -12,7 +12,7 @@ const test = require("node:test");
 const { acquireLock, downloadFile, ensureBinary, loadRelease } = require("../lib/bootstrap");
 const { cacheRoot, detectPlatform, expectedAssetName } = require("../lib/platform");
 
-const VERSION = "0.1.0-beta.1";
+const VERSION = "0.1.0";
 const BINARY = Buffer.from("#!/bin/sh\necho isolated-agentplugins-test\n");
 
 async function fixturePackage(t, binary = BINARY) {

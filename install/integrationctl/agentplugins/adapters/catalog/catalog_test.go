@@ -12,7 +12,7 @@ func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
 	body := validCatalog()
 	sum := sha256.Sum256(body)
 	expected := "sha256:" + hex.EncodeToString(sum[:])
-	loaded, err := (Loader{CurrentCLIVersion: "0.1.0-beta.1"}).Load(body, expected)
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load(body, expected)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestCatalogRejectsChecksumUnknownFieldsTraversalAndSupplyChainConflict(t *t
 			if name == "checksum" {
 				expected = digest("f")
 			}
-			if _, err := (Loader{CurrentCLIVersion: "0.1.0-beta.1"}).Load(body, expected); err == nil {
+			if _, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load(body, expected); err == nil {
 				t.Fatal("invalid catalog accepted")
 			}
 		})
@@ -53,8 +53,13 @@ func TestCatalogRejectsChecksumUnknownFieldsTraversalAndSupplyChainConflict(t *t
 
 func TestCatalogEnforcesMinimumCLIVersionAtResolution(t *testing.T) {
 	t.Parallel()
-	body := []byte(strings.Replace(string(validCatalog()), `"0.1.0-beta.1"`, `"0.2.0"`, 1))
-	loaded, err := (Loader{CurrentCLIVersion: "0.1.0-beta.1"}).Load(body, "")
+	body := []byte(strings.Replace(
+		string(validCatalog()),
+		`"minimum_cli_version": "0.1.0"`,
+		`"minimum_cli_version": "0.2.0"`,
+		1,
+	))
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load(body, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +80,7 @@ func validCatalog() []byte {
     "name": "context7",
     "version": "1.0.0",
     "agent_plugins_schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-    "minimum_cli_version": "0.1.0-beta.1",
+    "minimum_cli_version": "0.1.0",
     "source_path": "plugins/context7",
     "tree_digest": "` + digest("a") + `",
     "manifest_digest": "` + digest("b") + `",
@@ -91,6 +96,6 @@ func digest(value string) string {
 }
 
 func conflictCatalog() []byte {
-	duplicate := `, {"name":"context7","version":"1.0.0","agent_plugins_schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","minimum_cli_version":"0.1.0-beta.1","source_path":"plugins/context7-copy","tree_digest":"` + digest("c") + `","manifest_digest":"` + digest("b") + `","components":["mcp"],"compatibility":{}}`
+	duplicate := `, {"name":"context7","version":"1.0.0","agent_plugins_schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","minimum_cli_version":"0.1.0","source_path":"plugins/context7-copy","tree_digest":"` + digest("c") + `","manifest_digest":"` + digest("b") + `","components":["mcp"],"compatibility":{}}`
 	return []byte(strings.Replace(string(validCatalog()), "  }]\n}", "  }"+duplicate+"]\n}", 1))
 }

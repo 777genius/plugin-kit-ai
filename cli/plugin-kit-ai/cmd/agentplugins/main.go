@@ -28,9 +28,9 @@ import (
 )
 
 var (
-	version              = "0.1.0-beta.1-development"
+	version              = "0.1.0-development"
 	defaultCatalogURL    = ""
-	defaultCatalogDigest = "sha256:9afbe030af8c560747d7c77ac25ce9c4e933696a08a452e5c25a5479e43b475e"
+	defaultCatalogDigest = "sha256:5578f1d46dd22cd68da233ab7c38e353955b285dc4be3bff5006bdfbb8436f03"
 	//go:embed catalog-v1.json
 	embeddedCatalog []byte
 )

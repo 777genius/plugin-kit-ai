@@ -403,7 +403,7 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 	return cliFixture{
 		root: root, store: store, operations: operations,
 		app: App{
-			Version: "0.1.0-beta.1", UserHome: filepath.Join(root, "home"),
+			Version: "0.1.0", UserHome: filepath.Join(root, "home"),
 			ManagedRoot: filepath.Join(root, "data", "managed"), StateStore: store,
 			Directory: dirswap.Manager{JournalDir: operations}, Detector: staticDetector{clients: clients},
 			SourceResolver: sourceadapter.Resolver{Runner: runner, DisableAliases: true},

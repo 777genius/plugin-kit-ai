@@ -20,7 +20,7 @@ function loadRelease(packageRoot, platformInfo) {
   const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, "assets.json"), "utf8"));
   const version = String(pkg.version || "").trim();
   if (!VERSION.test(version) || version === "0.0.0-development") {
-    throw new Error("this development npm package has no released binary; use an exact published beta version");
+    throw new Error("this development npm package has no released binary; use an exact published version");
   }
   if (manifest.schema_version !== 1 || manifest.version !== version) {
     throw new Error("npm version and embedded binary manifest do not match");

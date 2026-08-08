@@ -1,10 +1,10 @@
-name: Agentplugins NPM Beta Publish
+name: Agentplugins NPM Publish
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing immutable beta release tag
+        description: Existing immutable stable release tag
         required: true
       bootstrap_publish:
         description: One-time first publish with the protected NPM_TOKEN secret; must be false after trusted publishing is configured
@@ -36,7 +36,7 @@ jobs:
           package-manager-cache: false
       - name: Install pinned npm with trusted publishing support
         run: npm install --global npm@12.0.2
-      - name: Validate explicit beta publication gate
+      - name: Validate explicit stable publication gate
         id: publish-gate
         env:
           TAG: ${{ inputs.tag }}
@@ -44,8 +44,8 @@ jobs:
           BOOTSTRAP: ${{ inputs.bootstrap_publish }}
           NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
-            echo "invalid agentplugins beta tag: ${TAG}" >&2
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
           test "${READY}" = "true"
@@ -55,10 +55,8 @@ jobs:
           test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
           registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
-          latest_before=""
           if npm view agentplugins versions --json >/dev/null 2>"${registry_error}"; then
             exists=true
-            latest_before="$(npm view agentplugins dist-tags --json | jq -r '.latest // ""')"
           elif grep -q 'E404' "${registry_error}"; then
             exists=false
           else
@@ -77,7 +75,6 @@ jobs:
             fi
             echo "mode=trusted" >> "${GITHUB_OUTPUT}"
           fi
-          echo "latest_before=${latest_before}" >> "${GITHUB_OUTPUT}"
       - name: Download and verify all release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,15 +107,14 @@ jobs:
           npm test
           npm pack --dry-run --ignore-scripts
           AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-cache" node bin/agentplugins.js version | grep -Fx "agentplugins ${version}"
-      - name: Publish beta with provenance
+      - name: Publish stable release with provenance
         working-directory: ${{ runner.temp }}/agentplugins-npm
         env:
           NODE_AUTH_TOKEN: ${{ steps.publish-gate.outputs.mode == 'bootstrap' && secrets.NPM_TOKEN || '' }}
-        run: npm publish --access public --tag beta --provenance
-      - name: Verify exact published beta lifecycle from a clean project
+        run: npm publish --access public --tag latest --provenance
+      - name: Verify exact published stable lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
-          LATEST_BEFORE: ${{ steps.publish-gate.outputs.latest_before }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
@@ -146,8 +142,7 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
               dist_tags="$(npm view agentplugins dist-tags --json)"
-              if jq -e --arg version "${version}" '.beta == $version' <<<"${dist_tags}" >/dev/null &&
-                test "$(jq -r '.latest // ""' <<<"${dist_tags}")" = "${LATEST_BEFORE}"; then
+              if jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null; then
                 available=true
                 break
               fi

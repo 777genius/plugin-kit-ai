@@ -1,11 +1,11 @@
-# Agentplugins beta release
+# Agentplugins 0.1.0 release
 
 This runbook is for maintainers. Do not create a release, publish npm, or change
 the `latest` dist-tag without explicit owner approval for that exact version.
 
 ## Required gates
 
-- The release tag matches `agentplugins-vX.Y.Z-beta.N` and points to current
+- The release tag matches `agentplugins-vX.Y.Z` and points to current
   `main`.
 - Required CI, CodeQL, dependency review, and vulnerability checks are green.
 - The release workflow independently requires a merged pull request into
@@ -29,14 +29,14 @@ project is tagged.
 
 ## GitHub assets
 
-1. Create the approved annotated beta tag on current `main` and push only that
+1. Create the approved annotated stable tag on current `main` and push only that
    tag.
 2. Dispatch `Agentplugins Release Assets` with the exact tag.
 3. Review the frozen commit and approve the `agentplugins-release`
    environment deployment.
 4. Confirm the workflow attests all six binaries, `checksums.txt`, and
-   `release-manifest.json` before creating the public prerelease.
-5. Verify the prerelease contains six platform binaries, `checksums.txt`, and
+   `release-manifest.json` before creating the public release.
+5. Verify the release contains six platform binaries, `checksums.txt`, and
    `release-manifest.json`.
 6. Verify GitHub attestations before allowing npm publication.
 
@@ -52,7 +52,7 @@ does not exist yet.
    `npm-agentplugins` environment.
 2. Set `NPM_AGENTPLUGINS_PUBLISH_READY=true` only after the GitHub assets pass
    verification.
-3. Dispatch `Agentplugins NPM Beta Publish` with the exact tag and
+3. Dispatch `Agentplugins NPM Publish` with the exact tag and
    `bootstrap_publish=true`.
 4. Review the exact tag and approve the `npm-agentplugins` deployment.
 5. Confirm the registry preflight succeeds. Only an npm `E404` is accepted as
@@ -63,20 +63,20 @@ does not exist yet.
 7. Confirm the post-publish clean-project smoke runs the exact registry version
    through `add`, `info`, read-only `doctor`, no-change `update`, `remove`, and
    final absent-state verification in an isolated HOME. It must prove the
-   `beta` dist-tag resolves to the exact published version, the `latest`
-   dist-tag is unchanged, and JSON output contains no absolute runner paths.
+   `latest` dist-tag resolves to the exact published version and JSON output
+   contains no absolute runner paths.
 8. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
    bootstrap token.
 9. Configure npm trusted publishing for repository
    `777genius/plugin-kit-ai` and workflow
    `.github/workflows/agentplugins-npm-publish.yml`.
 
-## Later beta publications
+## Later stable publications
 
 Use the same immutable asset workflow, temporarily open the publish-ready gate,
 then dispatch the npm workflow with `bootstrap_publish=false`. The workflow must
 publish through GitHub OIDC with provenance and must pass the exact-version
 registry smoke before the gate is returned to `false`.
 
-Never publish an empty placeholder, reuse a tag, overwrite release assets, fall
-back to `latest`, or move the npm `latest` dist-tag during beta.
+Never publish an empty placeholder, reuse a tag, overwrite release assets, or
+resolve a binary through an unpinned GitHub `latest` release.

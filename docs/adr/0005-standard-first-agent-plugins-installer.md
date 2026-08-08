@@ -45,15 +45,15 @@ The following are invariants:
 - v1 migration is explicit, digest-bound to the reviewed plan, and backed up only after complete State v2 validation;
 - migrated legacy removal delegates to the original lifecycle and then reconciles State v2; it never interprets `plugin.yaml` as Agent Plugins 1.0;
 - client-native trust prompts and discovery checks remain manual until an explicit terminal or client verification contract exists;
-- the beta does not publish npm or change a dist-tag without explicit owner approval.
+- v0.1.0 does not publish npm or change a dist-tag without explicit owner approval.
 - the first npm publication is a separate protected bootstrap using a short-lived token; only after package ownership and the exact trusted-publisher binding exist may later tags use OIDC.
 
 Release operations follow the protected
-[`agentplugins` beta runbook](../agentplugins-release.md).
+[`agentplugins` release runbook](../agentplugins-release.md).
 
 The legacy `plugin/plugin.yaml` loader remains a separate front door. It is not read by `agentplugins add`, and discovery of a later `plugin.json` does not silently switch an existing legacy installation.
 
-`plugin-kit.yaml` is not part of an installed package. No orchestration sidecar is introduced in the beta.
+`plugin-kit.yaml` is not part of an installed package. No orchestration sidecar is introduced in v0.1.0.
 
 ## Consequences
 
@@ -61,7 +61,7 @@ The legacy `plugin/plugin.yaml` loader remains a separate front door. It is not 
 - Existing process, filesystem, locking, and transaction primitives can be hardened and shared without sharing the legacy package model.
 - Standard conformance, client compatibility, and runtime verification remain distinct evidence claims.
 - State migration and client providers require explicit new contracts instead of a small parser-only patch.
-- `agentplugins` can later move to its own repository after two stable beta releases without forking the engine.
+- `agentplugins` can later move to its own repository after two stable releases without forking the engine.
 
 ## Non-Goals
 

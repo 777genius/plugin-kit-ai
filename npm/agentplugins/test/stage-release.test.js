@@ -17,7 +17,7 @@ test("release staging embeds every exact platform asset hash", async (t) => {
   await fsp.mkdir(packageRoot);
   await fsp.mkdir(assetsRoot);
   await fsp.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({ name: "agentplugins", version: "0.0.0-development" }));
-  const version = "0.1.0-beta.1";
+  const version = "0.1.0";
   for (const [platform, arch] of [["darwin", "x64"], ["darwin", "arm64"], ["linux", "x64"], ["linux", "arm64"], ["win32", "x64"], ["win32", "arm64"]]) {
     const info = detectPlatform(platform, arch);
     await fsp.writeFile(path.join(assetsRoot, expectedAssetName(version, info)), `${info.key}\n`);

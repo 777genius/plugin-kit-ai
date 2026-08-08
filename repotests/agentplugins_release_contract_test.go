@@ -28,6 +28,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseWorkflow, "actions/attest@")
 	mustContain(t, releaseWorkflow, "gh release create")
 	mustAppearBefore(t, releaseWorkflow, "actions/attest@", "gh release create")
+	mustContain(t, releaseWorkflow, "^agentplugins-v[0-9]+\\.[0-9]+\\.[0-9]+$")
+	mustNotContain(t, releaseWorkflow, "--prerelease")
 	mustContain(t, releaseWorkflow, "release ${TAG} already exists; refusing to overwrite immutable assets")
 	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
 	mustContain(t, releaseWorkflow, "release commit must come from a merged pull request into main")
@@ -54,15 +56,14 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"grep -q 'E404'",
 		"unable to prove whether agentplugins already exists in npm",
 		"npm view agentplugins dist-tags --json",
-		"latest_before=${latest_before}",
-		"npm publish --access public --tag beta --provenance",
-		".beta == $version",
-		"= \"${LATEST_BEFORE}\"",
+		"npm publish --access public --tag latest --provenance",
+		".latest == $version",
 	} {
 		mustContain(t, npmWorkflow, want)
 	}
 	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
-	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag beta --provenance", "Verify exact published beta lifecycle from a clean project")
+	mustNotContain(t, npmWorkflow, "--tag beta")
+	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")
@@ -70,13 +71,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 
 	for _, want := range []string{
 		"attests all six binaries, `checksums.txt`, and",
-		"`release-manifest.json` before creating the public prerelease",
+		"`release-manifest.json` before creating the public release",
 		"requires a merged pull request into",
 		"Repository settings are not treated as the release proof",
 		"Only an npm `E404` is accepted as",
 		"proof that the package does not exist",
-		"`beta` dist-tag resolves to the exact published version",
-		"dist-tag is unchanged",
+		"`latest` dist-tag resolves to the exact published version",
 	} {
 		mustContain(t, runbook, want)
 	}
