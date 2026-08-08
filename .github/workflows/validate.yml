@@ -23,6 +23,8 @@ jobs:
       - run: python3 scripts/validate_client_evidence.py
       - run: for skill in plugins/*/skills/*; do agentskills validate "$skill"; done
       - run: python3 scripts/validate_catalog.py
+      - run: check-jsonschema --schemafile schemas/catalog-v1.schema.json catalog/v1/catalog.json
+      - run: python3 scripts/build_agentplugins_catalog.py --check
       - run: python3 scripts/build_openai_compat.py --check
       - run: python3 scripts/validate_openai_compat.py
       - name: Validate with OpenAI plugin-creator

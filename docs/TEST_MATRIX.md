@@ -36,3 +36,13 @@ tool call. `Direct harness` means MCP Inspector, not a client installation.
 The automated Codex record includes the public release ref and commit, workflow
 URL and commit, copy-ready reproduction commands, and a sanitized three-event
 transcript. All client records are under [`tests/e2e/results`](../tests/e2e/results).
+
+## Installer lifecycle
+
+| Installer | Catalog | Package add/remove | Client runtime | OAuth |
+| --- | --- | --- | --- | --- |
+| `agentplugins 0.1.0-beta.1-development` | 26/26 pinned | 26/26 passed in an isolated Cursor provider HOME | Not implied | Not tested |
+
+This row proves source resolution, package validation, transactional
+materialization, state receipts, digest guards, and removal. It does not claim
+that Cursor launched, discovered tools, called tools, or completed OAuth.
