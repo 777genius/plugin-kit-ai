@@ -10,6 +10,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	makefile := readRepoFile(t, root, "Makefile")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
 	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
 
@@ -65,15 +66,28 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"trusted publishing only supports existing packages",
 		".latest == $version",
 	} {
-		mustContain(t, npmWorkflow, want)
+		mustContain(t, npmPublishJob, want)
 	}
-	mustNotContain(t, npmWorkflow, "npm view agentplugins versions --json")
-	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
-	mustNotContain(t, npmWorkflow, "--tag beta")
-	mustNotContain(t, npmWorkflow, "bootstrap_publish")
-	mustNotContain(t, npmWorkflow, "NPM_TOKEN")
-	mustNotContain(t, npmWorkflow, "NODE_AUTH_TOKEN")
-	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
+	for _, want := range []string{
+		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
+		"npm audit signatures --json --include-attestations",
+		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
+	} {
+		mustContain(t, npmPublishJob, want)
+	}
+	for _, unwanted := range []string{
+		"npm view agentplugins versions --json",
+		"npm view agentplugins version >/dev/null",
+		"--tag beta",
+		"bootstrap_publish",
+		"NPM_TOKEN",
+		"NODE_AUTH_TOKEN",
+	} {
+		mustNotContain(t, npmPublishJob, unwanted)
+	}
+	mustAppearBefore(t, npmPublishJob, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
+	mustAppearBefore(t, npmPublishJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
+	mustAppearBefore(t, npmPublishJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")
@@ -102,4 +116,24 @@ func mustAppearBefore(t *testing.T, text, first, second string) {
 	if firstIndex < 0 || secondIndex < 0 || firstIndex >= secondIndex {
 		t.Fatalf("expected %q to appear before %q", first, second)
 	}
+}
+
+func yamlJob(t *testing.T, workflow, name string) string {
+	t.Helper()
+	marker := "\n  " + name + ":\n"
+	start := strings.Index(workflow, marker)
+	if start < 0 {
+		t.Fatalf("missing workflow job %q", name)
+	}
+
+	lines := strings.SplitAfter(workflow[start+1:], "\n")
+	var job strings.Builder
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if index > 0 && strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ") && strings.HasSuffix(trimmed, ":") {
+			break
+		}
+		job.WriteString(line)
+	}
+	return job.String()
 }

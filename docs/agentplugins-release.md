@@ -64,8 +64,10 @@ Use the same immutable asset workflow, temporarily open the publish-ready gate,
 then dispatch the npm workflow with the exact tag. Review and approve the
 `npm-agentplugins` environment deployment. The workflow must publish through
 GitHub OIDC with provenance and must pass the exact-version registry smoke
-through `add`, `info`, read-only `doctor`, no-change `update`, `remove`, and
-final absent-state verification in an isolated HOME.
+after an exact-version, scripts-disabled install verifies both the registry
+signature and SLSA provenance attestation. Only then may it run `add`, `info`,
+read-only `doctor`, no-change `update`, `remove`, and final absent-state
+verification in an isolated HOME.
 It must prove the `latest` dist-tag resolves to the exact published version and
 JSON output contains no absolute runner paths before the gate is returned to
 `false`.
