@@ -14,7 +14,6 @@ const DIGEST = /^[0-9a-f]{64}$/;
 const MAX_REDIRECTS = 5;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const LOCK_TIMEOUT_MS = 30_000;
-const DOWNLOAD_HOSTS = new Set(["github.com", "release-assets.githubusercontent.com"]);
 
 function loadRelease(packageRoot, platformInfo) {
   const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
@@ -68,13 +67,39 @@ async function validCachedBinary(file, expectedHash) {
 
 function validateDownloadURL(value) {
   const parsed = new URL(value);
-  if (parsed.protocol !== "https:" || parsed.port || !DOWNLOAD_HOSTS.has(parsed.hostname)) {
+  if (parsed.protocol !== "https:" || parsed.port) {
     throw new Error("binary download and every redirect must use an approved GitHub HTTPS host");
   }
   if (parsed.username || parsed.password) {
     throw new Error("binary download URL cannot contain credentials");
   }
-  return parsed;
+  const pathAndQuery = `${parsed.pathname}${parsed.search}`;
+  switch (parsed.hostname) {
+    case "github.com":
+      return { hostname: "github.com", path: pathAndQuery, url: parsed };
+    case "release-assets.githubusercontent.com":
+      return { hostname: "release-assets.githubusercontent.com", path: pathAndQuery, url: parsed };
+    default:
+      throw new Error("binary download and every redirect must use an approved GitHub HTTPS host");
+  }
+}
+
+function requestApprovedTarget(target, requestOptions) {
+  const options = {
+    ...requestOptions,
+    method: "GET",
+    path: target.path,
+    port: 443,
+    protocol: "https:"
+  };
+  switch (target.hostname) {
+    case "github.com":
+      return https.get({ ...options, hostname: "github.com" });
+    case "release-assets.githubusercontent.com":
+      return https.get({ ...options, hostname: "release-assets.githubusercontent.com" });
+    default:
+      throw new Error("binary download host was not validated");
+  }
 }
 
 async function downloadFile(value, destination, expected, options = {}, redirects = MAX_REDIRECTS) {
@@ -87,8 +112,8 @@ async function downloadFile(value, destination, expected, options = {}, redirect
       }
     };
     const request = typeof options.request === "function"
-      ? options.request(target, requestOptions)
-      : https.get(target, requestOptions);
+      ? options.request(target.url, requestOptions)
+      : requestApprovedTarget(target, requestOptions);
     request.setTimeout(DOWNLOAD_TIMEOUT_MS, () => request.destroy(new Error("binary download timed out")));
     request.once("error", reject);
     request.once("response", (response) => {
@@ -98,7 +123,7 @@ async function downloadFile(value, destination, expected, options = {}, redirect
           reject(new Error("too many binary download redirects"));
           return;
         }
-        const next = new URL(response.headers.location, target).toString();
+        const next = new URL(response.headers.location, target.url).toString();
         downloadFile(next, destination, expected, options, redirects - 1).then(resolve, reject);
         return;
       }

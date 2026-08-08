@@ -218,6 +218,30 @@ test("binary downloads reject non-GitHub hosts and custom ports before requestin
   assert.equal(fs.existsSync(destination), false);
 });
 
+test("a redirect to an unapproved host is rejected before a second request", async (t) => {
+  const endpoint = await listen(t, (_request, response) => {
+    response.writeHead(302, { location: "https://example.com/agentplugins" });
+    response.end();
+  });
+  const destination = path.join(os.tmpdir(), `agentplugins-hostile-redirect-${crypto.randomBytes(8).toString("hex")}`);
+  t.after(() => fsp.rm(destination, { force: true }));
+  let requests = 0;
+  await assert.rejects(
+    downloadFile("https://github.com/777genius/plugin-kit-ai/releases/download/test/binary", destination, {
+      size: BINARY.length,
+      sha256: crypto.createHash("sha256").update(BINARY).digest("hex")
+    }, {
+      request: (_target, options) => {
+        requests += 1;
+        return http.get(endpoint.url, options);
+      }
+    }),
+    /approved GitHub HTTPS host/
+  );
+  assert.equal(requests, 1);
+  assert.equal(fs.existsSync(destination), false);
+});
+
 test("a non-regular binary cache target is preserved", async (t) => {
   const fixture = await fixturePackage(t);
   const endpoint = await listen(t, (_request, response) => {
