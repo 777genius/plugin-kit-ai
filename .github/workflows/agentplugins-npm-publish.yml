@@ -1,0 +1,119 @@
+name: Agentplugins NPM Beta Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable beta release tag
+        required: true
+      bootstrap_publish:
+        description: One-time first publish with the protected NPM_TOKEN secret; must be false after trusted publishing is configured
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-agentplugins
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Install pinned npm with trusted publishing support
+        run: npm install --global npm@12.0.2
+      - name: Validate explicit beta publication gate
+        id: publish-gate
+        env:
+          TAG: ${{ inputs.tag }}
+          READY: ${{ vars.NPM_AGENTPLUGINS_PUBLISH_READY }}
+          BOOTSTRAP: ${{ inputs.bootstrap_publish }}
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]]; then
+            echo "invalid agentplugins beta tag: ${TAG}" >&2
+            exit 1
+          fi
+          test "${READY}" = "true"
+          git fetch --force origin main:refs/remotes/origin/main
+          head_commit="$(git rev-parse HEAD)"
+          test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
+          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
+          if npm view agentplugins version >/dev/null 2>&1; then
+            exists=true
+          else
+            exists=false
+          fi
+          if [[ "${BOOTSTRAP}" = "true" ]]; then
+            test "${exists}" = "false"
+            test -n "${NPM_BOOTSTRAP_TOKEN}"
+            echo "mode=bootstrap" >> "${GITHUB_OUTPUT}"
+          else
+            if [[ "${exists}" != "true" ]]; then
+              echo "agentplugins does not exist yet; the first publish requires bootstrap_publish=true and the protected NPM_TOKEN secret" >&2
+              exit 1
+            fi
+            echo "mode=trusted" >> "${GITHUB_OUTPUT}"
+          fi
+      - name: Download and verify all release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/agentplugins-assets"
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${RUNNER_TEMP}/agentplugins-assets"
+          cd "${RUNNER_TEMP}/agentplugins-assets"
+          test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
+          sha256sum --check checksums.txt
+          test "$(jq -r '.schema_version' release-manifest.json)" = "1"
+          test "$(jq -r '.tag' release-manifest.json)" = "${TAG}"
+          test "$(jq -r '.commit' release-manifest.json)" = "${{ steps.publish-gate.outputs.commit }}"
+          for asset in agentplugins_* checksums.txt release-manifest.json; do
+            gh attestation verify "${asset}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
+              --source-digest "${{ steps.publish-gate.outputs.commit }}"
+          done
+      - name: Stage exact npm package with embedded platform hashes
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#agentplugins-v}"
+          stage="${RUNNER_TEMP}/agentplugins-npm"
+          mkdir -p "${stage}"
+          cp -R npm/agentplugins/. "${stage}/"
+          node npm/agentplugins/scripts/stage-release.js "${stage}" "${RUNNER_TEMP}/agentplugins-assets" "${version}"
+          cd "${stage}"
+          npm test
+          npm pack --dry-run --ignore-scripts
+          AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-cache" node bin/agentplugins.js version | grep -Fx "agentplugins ${version}"
+      - name: Publish beta with provenance
+        working-directory: ${{ runner.temp }}/agentplugins-npm
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.publish-gate.outputs.mode == 'bootstrap' && secrets.NPM_TOKEN || '' }}
+        run: npm publish --access public --tag beta --provenance
+      - name: Verify exact published beta from a clean project
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#agentplugins-v}"
+          project="${RUNNER_TEMP}/agentplugins-registry-smoke"
+          mkdir -p "${project}"
+          cd "${project}"
+          npm init -y >/dev/null
+          AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-registry-cache" \
+            npm exec --yes --package="agentplugins@${version}" -- agentplugins version | grep -Fx "agentplugins ${version}"
