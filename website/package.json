@@ -31,7 +31,7 @@
     "docs:check": "pnpm run docs:gen && pnpm run docs:check-locale && pnpm run docs:check-model && pnpm run docs:check-public-boundary && pnpm run docs:check-drift && vitepress build && node ./tools/postbuild.mjs && pnpm run docs:check-output"
   },
   "devDependencies": {
-    "mermaid": "11.16.0",
+    "mermaid": "11.16.1",
     "playwright": "1.62.0",
     "typedoc": "0.28.20",
     "typedoc-plugin-markdown": "4.12.0",
