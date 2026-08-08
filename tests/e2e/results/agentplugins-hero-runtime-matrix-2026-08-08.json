@@ -1,120 +1,119 @@
 {
-  "clients": [
-    {
-      "name": "Codex CLI",
-      "version": "0.144.1",
-      "package_path": "isolated CODEX_HOME with local marketplace snapshot",
-      "checks": [
-        {
-          "plugin": "context7",
-          "scenario": "installed plugin calls resolve-library-id",
-          "status": "passed",
-          "result_marker": "/microsoft/playwright"
-        },
-        {
-          "plugin": "cloudflare-docs",
-          "scenario": "installed plugin searches official Workers documentation",
-          "status": "passed",
-          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
-        },
-        {
-          "plugin": "chrome-devtools",
-          "scenario": "installed plugin calls list_pages against a disposable browser",
-          "status": "passed",
-          "result_marker": "about:blank"
-        },
-        {
-          "plugin": "agent-code-navigator",
-          "scenario": "installed skill selects the exact-search route",
-          "status": "passed",
-          "result_marker": "rg; verify by opening matching source locations"
-        },
-        {
-          "plugin": "notion",
-          "scenario": "authenticated read-only search through the installed plugin",
-          "status": "auth_pending",
-          "detail": "Provider consent is tracked separately and is not counted as runtime success."
-        }
-      ]
-    },
-    {
-      "name": "Cursor Agent",
-      "version": "2026.07.09-a3815c0",
-      "package_path": "portable package loaded with the client's local plugin option",
-      "checks": [
-        {
-          "plugin": "context7",
-          "scenario": "loaded package calls resolve-library-id",
-          "status": "passed",
-          "result_marker": "/microsoft/playwright"
-        },
-        {
-          "plugin": "cloudflare-docs",
-          "scenario": "loaded package searches official Workers documentation",
-          "status": "passed",
-          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
-        },
-        {
-          "plugin": "chrome-devtools",
-          "scenario": "loaded package calls list_pages against a disposable browser",
-          "status": "passed",
-          "result_marker": "about:blank"
-        },
-        {
-          "plugin": "agent-code-navigator",
-          "scenario": "loaded skill selects the exact-search route",
-          "status": "passed",
-          "result_marker": "rg; open matching files"
-        },
-        {
-          "plugin": "notion",
-          "scenario": "authenticated read-only search through the loaded package",
-          "status": "auth_pending",
-          "detail": "The official provider consent screen was reached; success is not claimed before callback completion."
-        }
-      ]
-    },
-    {
-      "name": "Kiro CLI",
-      "version": "2.16.0",
-      "package_path": "workspace-scoped MCP imports and an exact isolated copy of the packaged skill",
-      "checks": [
-        {
-          "plugin": "context7",
-          "scenario": "workspace MCP calls resolve-library-id",
-          "status": "passed",
-          "result_marker": "/microsoft/playwright"
-        },
-        {
-          "plugin": "cloudflare-docs",
-          "scenario": "workspace MCP searches official Workers documentation",
-          "status": "passed",
-          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
-        },
-        {
-          "plugin": "chrome-devtools",
-          "scenario": "workspace MCP calls list_pages against a disposable browser",
-          "status": "passed",
-          "result_marker": "about:blank"
-        },
-        {
-          "plugin": "agent-code-navigator",
-          "scenario": "exact packaged skill resource selects the exact-search route",
-          "status": "passed",
-          "result_marker": "rg; open matching files"
-        },
-        {
-          "plugin": "notion",
-          "scenario": "authenticated read-only search",
-          "status": "auth_pending",
-          "detail": "Not run until client-specific provider consent is complete."
-        }
-      ]
-    }
-  ],
+  "client": "Codex CLI + Cursor Agent + Kiro CLI",
+  "version": "Codex 0.144.1; Cursor 2026.07.09-a3815c0; Kiro 2.16.0",
   "date": "2026-08-08",
   "evidence_type": "interactive_multi_client_runtime",
   "sandbox": "one fresh disposable project under /tmp; no real user project was opened",
+  "checks": [
+    {
+      "client": "Codex CLI",
+      "plugin": "context7",
+      "scenario": "Codex installed plugin calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "cloudflare-docs",
+      "scenario": "Codex installed plugin searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "chrome-devtools",
+      "scenario": "Codex installed plugin calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "agent-code-navigator",
+      "scenario": "Codex installed skill selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; verify by opening matching source locations"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "notion",
+      "scenario": "Codex authenticated read-only search through the installed plugin",
+      "status": "auth_required",
+      "installation_state": "auth_pending",
+      "detail": "Provider consent is tracked separately and is not counted as runtime success."
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "context7",
+      "scenario": "Cursor loaded package calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "cloudflare-docs",
+      "scenario": "Cursor loaded package searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "chrome-devtools",
+      "scenario": "Cursor loaded package calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "agent-code-navigator",
+      "scenario": "Cursor loaded skill selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; open matching files"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "notion",
+      "scenario": "Cursor authenticated read-only search through the loaded package",
+      "status": "auth_required",
+      "installation_state": "auth_pending",
+      "detail": "The official provider consent screen was reached; success is not claimed before callback completion."
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "context7",
+      "scenario": "Kiro workspace MCP calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "cloudflare-docs",
+      "scenario": "Kiro workspace MCP searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "chrome-devtools",
+      "scenario": "Kiro workspace MCP calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "agent-code-navigator",
+      "scenario": "Kiro exact packaged skill resource selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; open matching files"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "notion",
+      "scenario": "Kiro authenticated read-only search",
+      "status": "auth_required",
+      "installation_state": "auth_pending",
+      "detail": "Not run until client-specific provider consent is complete."
+    }
+  ],
   "summary": {
     "passed": 12,
     "planned": 15,
