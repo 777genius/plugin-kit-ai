@@ -1,0 +1,66 @@
+{
+  "client": "GitHub Copilot CLI native Agent Plugins lifecycle",
+  "version": "agentplugins 0.1.2; GitHub Copilot CLI 1.0.78",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T15:52:57Z",
+  "evidence_type": "automated_native_lifecycle",
+  "checks": [
+    {
+      "scenario": "five hero plugins install through managed local marketplaces",
+      "status": "passed",
+      "plugin_count": 5,
+      "results": [
+        {
+          "plugin": "context7",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "scenario": "Copilot reports every exact managed plugin ID",
+      "status": "passed",
+      "plugin_count": 5
+    },
+    {
+      "scenario": "agentplugins removes every plugin and managed marketplace",
+      "status": "passed",
+      "plugin_count": 5
+    },
+    {
+      "scenario": "tool runtime and OAuth",
+      "status": "skipped",
+      "reason": "tracked separately from package lifecycle"
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "authorization URLs",
+      "absolute temporary paths"
+    ]
+  }
+}

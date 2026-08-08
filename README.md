@@ -20,14 +20,14 @@ Context7 is an easy first choice. It finds current library documentation and
 requires no account:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 add context7
+npx --yes universal-agent-plugins@0.1.2 add context7
 ```
 
 The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. For scripts, be explicit:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 add context7 --target cursor --yes
+npx --yes universal-agent-plugins@0.1.2 add context7 --target cursor --yes
 ```
 
 Open a new chat or session in the client you selected and ask:
@@ -66,11 +66,11 @@ client-specific.
 
 | Client | Delivery | Activation |
 | --- | --- | --- |
-| Codex / ChatGPT | OpenAI compatibility package | Confirm in the app |
+| Codex / ChatGPT | OpenAI compatibility package | Follow the exact CLI or in-app install hint |
 | Cursor | Native Agent Plugin | Reload, then verify discovery |
-| GitHub Copilot CLI | Prepared native package | Run the shown install command and review trust |
-| VS Code | Copilot bridge or prepared package | Reload or confirm in UI |
-| Kiro | Native folder package | Import as a Power |
+| GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
+| VS Code | Shared Copilot plugin when its CLI is available | Automatic, otherwise the exact setting is shown |
+| Kiro | Native folder package | Follow the exact Power import hint |
 
 All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
@@ -81,7 +81,9 @@ Package lifecycle proof is broader than runtime proof: all 26 pass isolated
 materialization/removal, and the five starter plugins pass 25/25 add/remove
 flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Five
 starter plugins pass 15/15 real runtime checks across Codex, Cursor, and Kiro,
-including authenticated read-only Notion calls in all three clients.
+including authenticated read-only Notion calls in all three clients. The same
+five also pass automatic native install, verification, and cleanup in GitHub
+Copilot CLI with the released `agentplugins 0.1.2`.
 
 ## Safety
 
