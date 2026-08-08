@@ -82,6 +82,25 @@ def run_cli(
         ) from error
 
 
+def binary_version(
+    binary: Path, sandbox: Path, environment: dict[str, str]
+) -> str:
+    completed = subprocess.run(
+        [str(binary), "version"],
+        cwd=sandbox,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=CLI_TIMEOUT_SECONDS,
+    )
+    prefix = "agentplugins "
+    value = completed.stdout.strip()
+    if not value.startswith(prefix) or not value.removeprefix(prefix).strip():
+        raise RuntimeError(f"unexpected agentplugins version output: {value!r}")
+    return value.removeprefix(prefix).strip()
+
+
 def run(binary: Path) -> dict[str, object]:
     catalog = json.loads(CATALOG.read_text())
     names = [entry["name"] for entry in catalog["plugins"]]
@@ -90,6 +109,7 @@ def run(binary: Path) -> dict[str, object]:
         home = sandbox / "home"
         (home / ".cursor").mkdir(parents=True)
         environment = isolated_environment(sandbox)
+        version = binary_version(binary, sandbox, environment)
         for name in names:
             for command in ("add", "remove"):
                 completed = run_cli(
@@ -146,7 +166,7 @@ def run(binary: Path) -> dict[str, object]:
     observed = datetime.now(timezone.utc).replace(microsecond=0)
     return {
         "client": "agentplugins CLI isolated Cursor provider",
-        "version": "0.1.0-development",
+        "version": version,
         "date": observed.date().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
         "catalog_revision": catalog["revision"],
