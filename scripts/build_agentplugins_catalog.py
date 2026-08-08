@@ -110,7 +110,7 @@ def build(revision: str, published_at: str) -> dict[str, object]:
     entries = []
     for plugin_root in sorted(path for path in PLUGINS.iterdir() if path.is_dir()):
         manifest_path = plugin_root / "plugin.json"
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         name = str(manifest["name"])
         if name != plugin_root.name:
             raise ValueError(
@@ -148,6 +148,16 @@ def encoded(value: object) -> bytes:
 
 def ensure_plugins_match_revision(revision: str) -> None:
     validate_revision(revision)
+    resolved = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{revision}^{{commit}}"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if resolved.returncode != 0 or resolved.stdout.strip() != revision:
+        detail = (resolved.stderr or "revision is not a commit object").strip()
+        raise ValueError(f"catalog revision must resolve to the exact commit: {detail[:500]}")
     ancestor = subprocess.run(
         ["git", "merge-base", "--is-ancestor", revision, "HEAD"],
         cwd=ROOT,
@@ -163,6 +173,26 @@ def ensure_plugins_match_revision(revision: str) -> None:
     if ancestor.returncode != 0:
         detail = (ancestor.stderr or "git merge-base failed without stderr").strip()
         raise ValueError(f"could not verify catalog revision ancestry: {detail[:500]}")
+    status = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignored",
+            "--",
+            "plugins",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if status.returncode != 0:
+        detail = (status.stderr or "git status failed without stderr").strip()
+        raise ValueError(f"could not inspect the live plugin tree: {detail[:500]}")
+    if status.stdout.strip():
+        raise ValueError("plugins/ contains tracked changes, untracked paths, or ignored paths")
     result = subprocess.run(
         ["git", "diff", "--quiet", revision, "--", "plugins"],
         cwd=ROOT,

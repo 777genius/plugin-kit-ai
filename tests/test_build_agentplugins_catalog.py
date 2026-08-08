@@ -102,11 +102,15 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
                 builder.build("a" * 40, "2026-08-08T00:00:00Z")
 
     def test_git_diff_distinguishes_drift_from_execution_failure(self) -> None:
+        commit = SimpleNamespace(returncode=0, stdout="a" * 40 + "\n", stderr="")
+        success = SimpleNamespace(returncode=0, stdout="", stderr="")
         with mock.patch.object(
             builder.subprocess,
             "run",
             side_effect=[
-                SimpleNamespace(returncode=0, stderr=""),
+                commit,
+                success,
+                success,
                 SimpleNamespace(returncode=1, stderr=""),
             ],
         ), self.assertRaisesRegex(ValueError, "differs from"):
@@ -115,7 +119,9 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
             builder.subprocess,
             "run",
             side_effect=[
-                SimpleNamespace(returncode=0, stderr=""),
+                commit,
+                success,
+                success,
                 SimpleNamespace(returncode=128, stderr="fatal: bad object"),
             ],
         ), self.assertRaisesRegex(ValueError, "fatal: bad object"):
@@ -125,8 +131,31 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         with mock.patch.object(
             builder.subprocess,
             "run",
-            return_value=SimpleNamespace(returncode=1, stderr=""),
+            side_effect=[
+                SimpleNamespace(returncode=0, stdout="a" * 40 + "\n", stderr=""),
+                SimpleNamespace(returncode=1, stdout="", stderr=""),
+            ],
         ), self.assertRaisesRegex(ValueError, "must be an ancestor"):
+            builder.ensure_plugins_match_revision("a" * 40)
+
+    def test_catalog_revision_must_resolve_to_the_exact_commit(self) -> None:
+        with mock.patch.object(
+            builder.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=128, stdout="", stderr="fatal: bad object"),
+        ), self.assertRaisesRegex(ValueError, "must resolve to the exact commit"):
+            builder.ensure_plugins_match_revision("a" * 40)
+
+    def test_catalog_build_rejects_untracked_or_ignored_plugin_paths(self) -> None:
+        with mock.patch.object(
+            builder.subprocess,
+            "run",
+            side_effect=[
+                SimpleNamespace(returncode=0, stdout="a" * 40 + "\n", stderr=""),
+                SimpleNamespace(returncode=0, stdout="", stderr=""),
+                SimpleNamespace(returncode=0, stdout="?? plugins/demo/extra\n", stderr=""),
+            ],
+        ), self.assertRaisesRegex(ValueError, "untracked paths"):
             builder.ensure_plugins_match_revision("a" * 40)
 
 

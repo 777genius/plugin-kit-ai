@@ -119,6 +119,17 @@ def run(binary: Path) -> dict[str, object]:
         rejected = run_cli(binary, "remove", "context7", sandbox, environment, check=False)
         if rejected.returncode == 0:
             raise RuntimeError("digest guard accepted a modified managed package")
+        if "refusing silent removal" not in rejected.stderr or "artifact digest mismatch" not in rejected.stderr:
+            raise RuntimeError("tampered removal failed for an unexpected reason")
+        rejected_state = json.loads((sandbox / "state" / "state-v2.json").read_text())
+        rejected_context7 = next(
+            item for item in rejected_state["installations"] if item["declared_name"] == "context7"
+        )
+        rejected_binding = next(iter(rejected_context7["clients"].values()))
+        if rejected_binding["materialization"] != "materialized" or not Path(
+            rejected_binding["target_locator"]
+        ).is_dir():
+            raise RuntimeError("rejected removal did not preserve materialized state and target")
         tamper.unlink()
         run_cli(binary, "remove", "context7", sandbox, environment, check=True)
         state = json.loads((sandbox / "state" / "state-v2.json").read_text())
