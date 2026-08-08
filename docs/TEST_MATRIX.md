@@ -42,6 +42,7 @@ transcript. All client records are under [`tests/e2e/results`](../tests/e2e/resu
 | Installer | Catalog | Package add/remove | Client runtime | OAuth |
 | --- | --- | --- | --- | --- |
 | `agentplugins 0.1.0-beta.1-development` | 26/26 pinned | 26/26 passed in an isolated Cursor provider HOME | Not implied | Not tested |
+| `agentplugins 0.1.0-beta.1-development` hero matrix | 5 pinned hero packages | 25/25 add/remove flows across isolated Codex, Cursor, Copilot, VS Code, and Kiro projections | Not implied | Not tested |
 
 This row proves source resolution, package validation, transactional
 materialization, state receipts, digest guards, and removal. It does not claim

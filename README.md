@@ -30,17 +30,15 @@ than one is present, choose one from the prompt. For scripts, be explicit:
 npx agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
 ```
 
-Open a new Codex session and ask:
+Open a new chat or session in the client you selected and ask:
 
 ```text
 Use Context7 to find the current Playwright quick start and summarize it with source links.
 ```
 
 That's it. Every plugin is independent, so you never need to install the whole
-catalog or follow a chain of plugins.
-
-Every plugin is independent. Client activation and OAuth can still require a
-visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
+catalog or follow a chain of plugins. Client activation and OAuth can still
+require a visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
 
 ## All plugins
 
@@ -78,6 +76,11 @@ All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
 marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and the
 [compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
+
+Package lifecycle proof is broader than runtime proof: all 26 pass isolated
+transactional add/remove in Cursor, and the five starter plugins pass 25/25
+add/remove flows across isolated Codex, Cursor, Copilot, VS Code, and Kiro
+projections. Client launch, tool calls, and OAuth are reported separately.
 
 ## Safety
 
