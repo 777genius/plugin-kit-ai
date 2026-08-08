@@ -25,6 +25,9 @@ function loadRelease(packageRoot, platformInfo) {
   if (manifest.schema_version !== 1 || manifest.version !== version) {
     throw new Error("npm version and embedded binary manifest do not match");
   }
+  if (manifest.npm_package !== pkg.name) {
+    throw new Error("npm package name and embedded binary manifest do not match");
+  }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(manifest.repository || ""))) {
     throw new Error("embedded binary repository is invalid");
   }

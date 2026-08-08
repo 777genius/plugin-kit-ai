@@ -54,13 +54,21 @@ jobs:
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
           test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
+          package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
+          package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
+          if [[ ! "${package_name}" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then
+            echo "invalid npm package name in npm/agentplugins/package.json" >&2
+            exit 1
+          fi
+          test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"
+          echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
           registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
-          if npm view agentplugins versions --json >/dev/null 2>"${registry_error}"; then
+          if npm view "${package_name}" versions --json >/dev/null 2>"${registry_error}"; then
             exists=true
           elif grep -q 'E404' "${registry_error}"; then
             exists=false
           else
-            echo "unable to prove whether agentplugins already exists in npm" >&2
+            echo "unable to prove whether ${package_name} already exists in npm" >&2
             cat "${registry_error}" >&2
             exit 1
           fi
@@ -70,7 +78,7 @@ jobs:
             echo "mode=bootstrap" >> "${GITHUB_OUTPUT}"
           else
             if [[ "${exists}" != "true" ]]; then
-              echo "agentplugins does not exist yet; the first publish requires bootstrap_publish=true and the protected NPM_TOKEN secret" >&2
+              echo "${package_name} does not exist yet; the first publish requires bootstrap_publish=true and the protected NPM_TOKEN secret" >&2
               exit 1
             fi
             echo "mode=trusted" >> "${GITHUB_OUTPUT}"
@@ -115,6 +123,7 @@ jobs:
       - name: Verify exact published stable lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
+          NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
@@ -136,18 +145,18 @@ jobs:
           export GIT_TERMINAL_PROMPT=0
           printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
           run_agentplugins() {
-            npm exec --yes --package="agentplugins@${version}" -- agentplugins "$@"
+            npm exec --yes --package="${NPM_PACKAGE}@${version}" -- agentplugins "$@"
           }
           available=false
           for attempt in 1 2 3 4 5 6; do
             if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
-              dist_tags="$(npm view agentplugins dist-tags --json)"
+              dist_tags="$(npm view "${NPM_PACKAGE}" dist-tags --json)"
               if jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null; then
                 available=true
                 break
               fi
             fi
-            echo "waiting for agentplugins@${version} registry propagation (${attempt}/6)" >&2
+            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/6)" >&2
             sleep 10
           done
           test "${available}" = true
