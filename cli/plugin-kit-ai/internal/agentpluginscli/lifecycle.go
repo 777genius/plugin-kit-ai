@@ -414,6 +414,9 @@ func renderUpdateResult(writer io.Writer, format string, envelope domain.Package
 		for _, action := range result.Activation.UserActions {
 			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 		}
+		for _, action := range result.Activation.LocalActions {
+			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
+		}
 	}
 	return nil
 }
@@ -437,12 +440,18 @@ func renderRemoveResult(writer io.Writer, format string, installation domain.Ins
 		for _, action := range result.Deactivation.UserActions {
 			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 		}
+		for _, action := range result.Deactivation.LocalActions {
+			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
+		}
 		return nil
 	}
 	if result.Mutated {
 		_, _ = fmt.Fprintln(writer, "Removed the selected managed package.")
 	}
 	for _, action := range result.Deactivation.UserActions {
+		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
+	}
+	for _, action := range result.Deactivation.LocalActions {
 		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil

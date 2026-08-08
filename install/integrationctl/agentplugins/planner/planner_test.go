@@ -54,7 +54,7 @@ func TestPlannerUsesNativeCursorTargetAndDoesNotExposeItInJSON(t *testing.T) {
 	}
 }
 
-func TestPlannerKeepsVSCodeManualEvenWhenCopilotIsDetected(t *testing.T) {
+func TestPlannerPromotesVSCodeToReadyWhenCopilotIsDetected(t *testing.T) {
 	t.Parallel()
 	client := detectedClient(domain.ClientVSCode, filepath.Join(t.TempDir(), "Code", "User"))
 	withoutBridge := Planner{ManagedRoot: t.TempDir()}
@@ -77,8 +77,23 @@ func TestPlannerKeepsVSCodeManualEvenWhenCopilotIsDetected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bridged.Status != domain.PlanManualActivationRequired || bridged.PackageMode != domain.PackagePrepared || bridged.Activation != domain.ActivationManual {
+	if bridged.Status != domain.PlanReady || bridged.PackageMode != domain.PackagePrepared || bridged.Activation != domain.ActivationPrepared {
 		t.Fatalf("bridged plan = %+v", bridged)
+	}
+}
+
+func TestPlannerPromotesDetectedCopilotExecutableToReady(t *testing.T) {
+	t.Parallel()
+	client := detectedClient(domain.ClientCopilot, filepath.Join(t.TempDir(), ".copilot"))
+	client.ExecutablePath = "/test/bin/copilot"
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(
+		context.Background(), testEnvelope(), client, domain.ScopeUser, "demo-0123456789ab",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanReady || plan.Activation != domain.ActivationPrepared {
+		t.Fatalf("plan = %+v", plan)
 	}
 }
 

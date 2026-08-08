@@ -81,7 +81,7 @@ func run() error {
 		SourceResolver:  sourceadapter.Resolver{Runner: runner, DisableAliases: true},
 		PackageLoader:   loader.Loader{Registry: registry},
 		Stager:          providers.Stager{},
-		Activator:       providers.Activator{},
+		Activator:       providers.Activator{Runner: runner},
 		MutationLock:    processlock.Lock{Path: filepath.Join(dataRoot, "mutation.lock")},
 		HTTPClient:      hardenedHTTPClient(),
 		CatalogURL:      catalogURL,

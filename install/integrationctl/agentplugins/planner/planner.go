@@ -85,20 +85,43 @@ func (planner Planner) Plan(
 		plan.Activation = domain.ActivationFailed
 		plan.Warnings = append(plan.Warnings, "no_supported_components")
 	}
+	if plan.Status != domain.PlanUnsupported && planner.hasNativeCopilotBackend(client) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
-		plan.UserActions = append(plan.UserActions, "install the prepared marketplace plugin in Codex or ChatGPT")
+		plan.UserActions = append(plan.UserActions, "finish installation in Codex or ChatGPT Plugins, then start a new session")
 	case domain.ClientCursor:
 		plan.UserActions = append(plan.UserActions, "reload Cursor, then verify the plugin appears before using its components")
 	case domain.ClientCopilot:
-		plan.UserActions = append(plan.UserActions, fmt.Sprintf("run `copilot plugin install %s` and review the trust prompt", plan.ActivePath))
+		if strings.TrimSpace(client.ExecutablePath) != "" {
+			plan.UserActions = append(plan.UserActions, "agentplugins will install and verify the plugin through GitHub Copilot CLI automatically")
+		} else {
+			plan.UserActions = append(plan.UserActions, "GitHub Copilot CLI is required for automatic activation")
+		}
 	case domain.ClientKiro:
-		plan.UserActions = append(plan.UserActions, "import the prepared folder with Kiro: Powers > Add Custom Power > Import from folder")
+		plan.UserActions = append(plan.UserActions, "finish the prepared Power installation in Kiro")
 	case domain.ClientVSCode:
-		plan.UserActions = append(plan.UserActions, fmt.Sprintf("open VS Code's Agent Plugins UI, import %s, then verify the plugin appears", plan.ActivePath))
+		if strings.TrimSpace(planner.Detected[domain.ClientCopilot].ExecutablePath) != "" {
+			plan.UserActions = append(plan.UserActions, "agentplugins will install through GitHub Copilot CLI; VS Code discovers it automatically")
+		} else {
+			plan.UserActions = append(plan.UserActions, "register the prepared local plugin in VS Code after installation")
+		}
 	}
 	return plan, nil
+}
+
+func (planner Planner) hasNativeCopilotBackend(client domain.DetectedClient) bool {
+	switch client.ClientID {
+	case domain.ClientCopilot:
+		return strings.TrimSpace(client.ExecutablePath) != ""
+	case domain.ClientVSCode:
+		return strings.TrimSpace(planner.Detected[domain.ClientCopilot].ExecutablePath) != ""
+	default:
+		return false
+	}
 }
 
 func (planner Planner) ResolveTarget(

@@ -122,6 +122,14 @@ func (stager Stager) Stage(
 		if err := projectOpenAI(stagingPath, envelope, plan, hints); err != nil {
 			return domain.StagedDelivery{}, err
 		}
+		if err := projectCodexMarketplace(stagingPath, envelope, plan); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
+	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
+		if err := projectCopilotMarketplace(stagingPath, envelope, plan); err != nil {
+			return domain.StagedDelivery{}, err
+		}
 	}
 	artifact, err := stager.SnapshotBuilder.Build(ctx, stagingPath)
 	if err != nil {

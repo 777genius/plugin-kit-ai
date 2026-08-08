@@ -118,6 +118,11 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if err := rejectNativeNameCollision(state, installationID, input.Envelope.Manifest.Name, input.Client.ClientID); err != nil {
 		return result, err
 	}
+	if existing {
+		if err := rejectSharedCopilotBackendDuplicate(state.Installations[installationIndex], input.Client.ClientID); err != nil {
+			return result, err
+		}
+	}
 	clientBindingID := domain.ComputeClientBindingID(installationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
 	if existing {
 		if err := validatePackageTransition(state.Installations[installationIndex], input.Envelope); err != nil {
@@ -137,7 +142,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, previousClient, "update"); err != nil {
 			return result, err
 		}
-		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) {
+		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) && lifecycleConverged(previousClient) {
 			result.NoChange = true
 			return result, nil
 		}
@@ -199,6 +204,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			ClientID: delivery.ClientID, OwnedBase: delivery.OwnedBase, ActivePath: delivery.ActivePath,
 			ArtifactDigest: delivery.ArtifactDigest, NativeObjects: delivery.NativeObjects,
 		},
+		DeclaredName: input.Envelope.Manifest.Name, Replacing: replace,
 		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
 	})
 	result.Activation = outcome
@@ -219,6 +225,13 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		return result, activationErr
 	}
 	return result, nil
+}
+
+func lifecycleConverged(client domain.ClientBinding) bool {
+	if client.ClientID != string(domain.ClientCopilot) && client.ClientID != string(domain.ClientVSCode) {
+		return true
+	}
+	return client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled
 }
 
 func hasOAuthRequirement(envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
@@ -408,12 +421,34 @@ func rejectNativeNameCollision(state domain.StateFileV2, installationID, declare
 			continue
 		}
 		for _, client := range installation.Clients {
-			if client.ClientID == string(clientID) && client.Materialization != domain.MaterializationAbsent {
+			boundClientID := domain.ClientID(client.ClientID)
+			if sameNativeBackend(boundClientID, clientID) && client.Materialization != domain.MaterializationAbsent {
 				return fmt.Errorf("native client name collision for %q on %s; remove or rebind the existing source first", declaredName, clientID)
 			}
 		}
 	}
 	return nil
+}
+
+func rejectSharedCopilotBackendDuplicate(installation domain.Installation, requested domain.ClientID) error {
+	if !sameNativeBackend(requested, domain.ClientCopilot) {
+		return nil
+	}
+	for _, client := range installation.Clients {
+		bound := domain.ClientID(client.ClientID)
+		if bound != requested && sameNativeBackend(bound, requested) && client.Materialization != domain.MaterializationAbsent {
+			return fmt.Errorf("plugin is already installed through %s and is available in both GitHub Copilot CLI and VS Code", bound)
+		}
+	}
+	return nil
+}
+
+func sameNativeBackend(first, second domain.ClientID) bool {
+	if first == second {
+		return true
+	}
+	return (first == domain.ClientCopilot || first == domain.ClientVSCode) &&
+		(second == domain.ClientCopilot || second == domain.ClientVSCode)
 }
 
 func initialLifecycle(plan domain.DeliveryPlan) (domain.ActivationState, domain.VerificationState) {

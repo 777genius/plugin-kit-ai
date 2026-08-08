@@ -364,6 +364,48 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	}
 }
 
+func TestLifecycleConvergenceRetriesOnlyNativeCopilotBackends(t *testing.T) {
+	t.Parallel()
+	manual := domain.ClientBinding{Activation: domain.ActivationManual, Verification: domain.VerificationPackageValid}
+	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex, domain.ClientKiro} {
+		manual.ClientID = string(client)
+		if !lifecycleConverged(manual) {
+			t.Fatalf("manual lifecycle for %s should preserve normal no-change behavior", client)
+		}
+	}
+	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
+		manual.ClientID = string(client)
+		if lifecycleConverged(manual) {
+			t.Fatalf("manual lifecycle for %s should retry native activation", client)
+		}
+		manual.Activation = domain.ActivationActive
+		manual.Verification = domain.VerificationInstalled
+		if !lifecycleConverged(manual) {
+			t.Fatalf("installed lifecycle for %s should be converged", client)
+		}
+		manual.Activation = domain.ActivationManual
+		manual.Verification = domain.VerificationPackageValid
+	}
+}
+
+func TestCopilotAndVSCodeShareOneNativeBackend(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{Clients: map[string]domain.ClientBinding{
+		"copilot": {
+			ClientID: string(domain.ClientCopilot), Materialization: domain.MaterializationMaterialized,
+		},
+	}}
+	if err := rejectSharedCopilotBackendDuplicate(installation, domain.ClientVSCode); err == nil || !strings.Contains(err.Error(), "available in both") {
+		t.Fatalf("shared backend error = %v", err)
+	}
+	if err := rejectSharedCopilotBackendDuplicate(installation, domain.ClientCopilot); err != nil {
+		t.Fatalf("same target was rejected: %v", err)
+	}
+	if !sameNativeBackend(domain.ClientCopilot, domain.ClientVSCode) || sameNativeBackend(domain.ClientCursor, domain.ClientVSCode) {
+		t.Fatal("native backend family mapping is incorrect")
+	}
+}
+
 func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 	t.Parallel()
 	service, store, cursor := serviceFixture(t)

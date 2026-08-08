@@ -65,6 +65,8 @@ func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveRes
 		Client: input.Client, DeclaredName: installation.DeclaredName,
 		CurrentActivation: client.Activation, Interactive: input.Interactive,
 		ExternalUninstalled: input.ExternalUninstalled,
+		Confirmed:           input.Confirmed && !input.DryRun,
+		PhysicalArtifactID:  client.PhysicalArtifact,
 		BackendExecutable:   input.BackendExecutable,
 	})
 	result.Deactivation = deactivation

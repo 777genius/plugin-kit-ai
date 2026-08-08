@@ -92,7 +92,10 @@ type DeliveryPlan struct {
 	PhysicalArtifactID string              `json:"physical_artifact_id"`
 	Components         []ComponentDecision `json:"components,omitempty"`
 	UserActions        []string            `json:"user_actions,omitempty"`
-	Warnings           []string            `json:"warnings,omitempty"`
+	// LocalActions can contain operational paths and are rendered only in
+	// human-readable output. They must never be emitted by the public JSON API.
+	LocalActions []string `json:"-"`
+	Warnings     []string `json:"warnings,omitempty"`
 	// TargetRoot and ActivePath are intentionally excluded from public JSON.
 	TargetAnchor string `json:"-"`
 	TargetRoot   string `json:"-"`
@@ -130,6 +133,8 @@ type ActivationRequest struct {
 	Client            DetectedClient `json:"client"`
 	Plan              DeliveryPlan   `json:"plan"`
 	Delivery          StagedDelivery `json:"delivery"`
+	DeclaredName      string         `json:"declared_name"`
+	Replacing         bool           `json:"replacing"`
 	Interactive       bool           `json:"interactive"`
 	BackendExecutable string         `json:"-"`
 }
@@ -140,6 +145,7 @@ type ActivationOutcome struct {
 	Policy         PolicyState         `json:"policy"`
 	Verification   VerificationState   `json:"verification"`
 	UserActions    []string            `json:"user_actions,omitempty"`
+	LocalActions   []string            `json:"-"`
 }
 
 type DeactivationRequest struct {
@@ -148,6 +154,8 @@ type DeactivationRequest struct {
 	CurrentActivation   ActivationState `json:"current_activation"`
 	Interactive         bool            `json:"interactive"`
 	ExternalUninstalled bool            `json:"external_uninstalled"`
+	Confirmed           bool            `json:"confirmed"`
+	PhysicalArtifactID  string          `json:"physical_artifact_id"`
 	BackendExecutable   string          `json:"-"`
 }
 
@@ -156,4 +164,5 @@ type DeactivationOutcome struct {
 	ArtifactRemovalAllowed  bool            `json:"artifact_removal_allowed"`
 	ExternalRemovalComplete bool            `json:"external_removal_complete"`
 	UserActions             []string        `json:"user_actions,omitempty"`
+	LocalActions            []string        `json:"-"`
 }
