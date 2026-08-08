@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -47,6 +48,39 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
             self.assertRegex(plugin["tree_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertRegex(plugin["manifest_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertEqual(set(plugin["compatibility"]), {"codex", "cursor", "copilot", "vscode", "kiro"})
+
+    def test_runtime_tested_claims_match_pinned_hero_evidence(self) -> None:
+        current = json.loads((ROOT / "catalog" / "v1" / "catalog.json").read_text())
+        evidence = json.loads(
+            (ROOT / "tests" / "e2e" / "results" / "agentplugins-hero-runtime-matrix-2026-08-08.json").read_text()
+        )
+        comparison = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--quiet",
+                evidence["source"]["commit_sha"],
+                current["revision"],
+                "--",
+                "plugins",
+            ],
+            cwd=ROOT,
+            check=False,
+        )
+        self.assertEqual(comparison.returncode, 0, "runtime evidence does not match the catalog package tree")
+        client_ids = {"Codex CLI": "codex", "Cursor Agent": "cursor", "Kiro CLI": "kiro"}
+        evidenced = {
+            (check["plugin"], client_ids[check["client"]])
+            for check in evidence["checks"]
+            if check["status"] == "passed" and check["client"] in client_ids
+        }
+        claimed = {
+            (plugin["name"], client)
+            for plugin in current["plugins"]
+            for client, status in plugin["compatibility"].items()
+            if status["verification"] == "tested"
+        }
+        self.assertEqual(claimed, evidenced)
 
     def test_manifest_name_must_match_hashed_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

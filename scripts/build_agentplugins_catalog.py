@@ -27,7 +27,9 @@ CLIENT_PACKAGE = {
     "kiro": "native",
 }
 TESTED = {
-    "agent-code-navigator": {"codex"},
+    "agent-code-navigator": {"codex", "cursor", "kiro"},
+    "chrome-devtools": {"codex", "cursor", "kiro"},
+    "cloudflare-docs": {"codex", "cursor", "kiro"},
     "context7": {"codex", "cursor", "kiro"},
 }
 AUTH_NOT_REQUIRED = {
