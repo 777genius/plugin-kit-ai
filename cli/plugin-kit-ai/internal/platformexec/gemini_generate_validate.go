@@ -1,7 +1,7 @@
 package platformexec
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/777genius/plugin-kit-ai/cli/internal/pluginmodel"
 )
@@ -12,7 +12,7 @@ func validateGeminiRenderReady(root string, graph pluginmodel.PackageGraph, stat
 		return err
 	}
 	if failure, ok := firstDiagnosticMessage(diagnostics, SeverityFailure); ok {
-		return fmt.Errorf(failure)
+		return errors.New(failure)
 	}
 	return nil
 }
