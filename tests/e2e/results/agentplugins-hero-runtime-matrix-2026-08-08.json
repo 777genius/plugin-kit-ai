@@ -4,6 +4,31 @@
   "date": "2026-08-08",
   "evidence_type": "interactive_multi_client_runtime",
   "sandbox": "one fresh disposable project under /tmp; no real user project was opened",
+  "authentication_handling": "Existing client sessions were used only for model access. No credential value was read or recorded; the temporary Codex auth copy was removed immediately after the run.",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "commit_sha": "d3c3155285d37aa555615cf4301e3ab5eb347a17",
+    "catalog_digest": "sha256:207df0cd3932d305bbc265357d1a7f6b68ef314ff725629db6ebe27d4c403915"
+  },
+  "reproduction": {
+    "requirements": [
+      "fresh disposable project and client-specific test state",
+      "Codex CLI 0.144.1",
+      "Cursor Agent 2026.07.09-a3815c0",
+      "Kiro CLI 2.16.0",
+      "Node.js 24"
+    ],
+    "commands": [
+      "git clone https://github.com/777genius/universal-agent-plugins <sandbox-marketplace>",
+      "git -C <sandbox-marketplace> checkout d3c3155285d37aa555615cf4301e3ab5eb347a17",
+      "codex plugin marketplace add <sandbox-marketplace> --json",
+      "codex plugin add <plugin>@universal-agent-plugins --json",
+      "codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only <read-only-prompt>",
+      "cursor-agent --print --mode ask --force --sandbox enabled --trust --approve-mcps --plugin-dir <isolated-plugin-copy> <read-only-prompt>",
+      "kiro-cli mcp import --file <isolated-plugin-copy>/mcp.json workspace --force",
+      "kiro-cli chat --no-interactive --trust-all-tools --require-mcp-startup <read-only-prompt>"
+    ]
+  },
   "checks": [
     {
       "client": "Codex CLI",

@@ -34,7 +34,9 @@ in `plugins/docker-hub/mcp.json`.
   DevTools, and Agent Code Navigator in one disposable project. That is 12/12
   no-auth runtime checks across three clients. Notion remains `auth_pending`
   and is not counted as success before client-specific consent and a read-only
-  call complete.
+  call complete. The sanitized record is pinned to the exact source commit and
+  catalog digest in
+  [`agentplugins-hero-runtime-matrix-2026-08-08.json`](../tests/e2e/results/agentplugins-hero-runtime-matrix-2026-08-08.json).
 
 - Codex CLI 0.147.0 completed the release-gated public install on Linux: pinned
   `v0.1.1`, installed Context7 into a fresh `CODEX_HOME`, and called
