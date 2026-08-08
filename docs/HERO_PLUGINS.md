@@ -10,7 +10,7 @@ prompted.
 Install:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add agent-code-navigator
+npx universal-agent-plugins@0.1.2 add agent-code-navigator
 ```
 
 Try:
@@ -27,7 +27,7 @@ starting an MCP server or modifying the repository.
 Install:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add context7
+npx universal-agent-plugins@0.1.2 add context7
 ```
 
 Try:
@@ -44,7 +44,7 @@ documentation results.
 Install:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add cloudflare-docs
+npx universal-agent-plugins@0.1.2 add cloudflare-docs
 ```
 
 Try:
@@ -60,7 +60,7 @@ Expected: the public Streamable HTTP MCP server answers without an account.
 Install:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add chrome-devtools
+npx universal-agent-plugins@0.1.2 add chrome-devtools
 ```
 
 Try only in a fresh test project and browser profile:

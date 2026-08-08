@@ -3,14 +3,14 @@
 Install one Agent Plugins 1.0 package, not the whole catalog:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add context7
+npx universal-agent-plugins@0.1.2 add context7
 ```
 
 The CLI shows the exact package plan and asks before changing anything. If it
-finds several clients, select one. Automation must name one target explicitly:
+finds several clients, select one. You can also name the target directly:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 add context7 --target cursor --yes
+npx universal-agent-plugins@0.1.2 add context7 --target cursor
 ```
 
 Supported targets:
@@ -26,10 +26,10 @@ Supported targets:
 Lifecycle commands use the same explicit target:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.2 info context7
-npx --yes universal-agent-plugins@0.1.2 doctor context7
-npx --yes universal-agent-plugins@0.1.2 update context7 --target cursor --yes
-npx --yes universal-agent-plugins@0.1.2 remove context7 --target cursor --yes
+npx universal-agent-plugins@0.1.2 info context7
+npx universal-agent-plugins@0.1.2 doctor context7
+npx universal-agent-plugins@0.1.2 update context7 --target cursor
+npx universal-agent-plugins@0.1.2 remove context7 --target cursor
 ```
 
 `prepared`, `auth_pending`, and `manual_activation_required` are not reported as
