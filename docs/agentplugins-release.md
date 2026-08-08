@@ -8,11 +8,20 @@ the `latest` dist-tag without explicit owner approval for that exact version.
 - The release tag matches `agentplugins-vX.Y.Z-beta.N` and points to current
   `main`.
 - Required CI, CodeQL, dependency review, and vulnerability checks are green.
-- Catalog lifecycle and runtime evidence match the release commit.
+- A versioned `universal-agent-plugins` catalog release exists on its `main`,
+  its package revision is an ancestor of that release commit, and its lifecycle
+  and runtime evidence cover the released package trees.
+- The catalog embedded in the `agentplugins` binary is byte-identical to that
+  released catalog and its compiled SHA-256 pin matches.
 - `agentplugins-release` and `npm-agentplugins` require a reviewer and allow
   deployment only from `main`.
 - `NPM_AGENTPLUGINS_PUBLISH_READY` stays `false` until the exact publish is
   approved.
+
+For the first catalog release, merge its catalog PR with history preserved. If
+it is squash-merged or rebase-merged, regenerate the catalog from the resulting
+`main` commit, review the new digests, and resync this repository before either
+project is tagged.
 
 ## GitHub assets
 
