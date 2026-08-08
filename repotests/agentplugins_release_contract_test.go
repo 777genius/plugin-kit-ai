@@ -54,6 +54,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"if: ${{ !inputs.verify_only }}",
 		"environment: npm-agentplugins",
 		"id-token: write",
 		`package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"`,
@@ -68,7 +69,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 	for _, want := range []string{
 		"needs: publish",
-		`NPM_PACKAGE: ${{ needs.publish.outputs.package_name }}`,
+		"always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success')",
+		`ref: ${{ inputs.tag }}`,
+		"Resolve immutable verification target",
+		`NPM_PACKAGE: ${{ steps.verify-target.outputs.package_name }}`,
 		`npm view --prefer-online "${NPM_PACKAGE}@${version}" version`,
 		`npm view --prefer-online "${NPM_PACKAGE}@latest" version`,
 		`[[ "${latest_version}" = "${version}" ]]`,
@@ -79,6 +83,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	} {
 		mustContain(t, npmVerifyJob, want)
 	}
+	mustContain(t, npmWorkflow, "verify_only:")
+	mustContain(t, npmWorkflow, "Verify an existing public version without publishing")
 	for _, unwanted := range []string{
 		"npm view agentplugins versions --json",
 		"npm view agentplugins version >/dev/null",
@@ -91,6 +97,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 	mustNotContain(t, npmPublishJob, "Verify exact published stable lifecycle from a clean project")
 	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
+	mustNotContain(t, npmVerifyJob, "environment: npm-agentplugins")
+	mustNotContain(t, npmVerifyJob, "id-token: write")
+	mustAppearBefore(t, npmVerifyJob, "Resolve immutable verification target", `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
@@ -112,6 +121,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"publish through",
 		"GitHub OIDC with provenance",
 		"`latest` dist-tag resolves to the exact published version",
+		"returned to `false` immediately after the publish",
+		"dispatched with `verify_only=true`",
 	} {
 		mustContain(t, runbook, want)
 	}

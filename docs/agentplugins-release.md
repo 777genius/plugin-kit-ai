@@ -68,11 +68,16 @@ after an exact-version, scripts-disabled install verifies both the registry
 signature and SLSA provenance attestation. Only then may it run `add`, `info`,
 read-only `doctor`, no-change `update`, `remove`, and final absent-state
 verification in an isolated HOME.
-It must prove the `latest` dist-tag resolves to the exact published version and
-JSON output contains no absolute runner paths before the gate is returned to
-`false`. Registry verification runs as a separate job after publication, waits
-up to five minutes with online metadata refreshes, and can be retried without
-attempting to republish an immutable npm version.
+The publish-ready gate must be returned to `false` immediately after the publish
+job finishes, regardless of the verification result. Registry verification
+must still prove the `latest` dist-tag resolves to the exact published version
+and that JSON output contains no absolute runner paths. It runs as a separate
+job after publication, waits up to five minutes with online metadata refreshes,
+and can be retried without attempting to republish an immutable npm version.
+The same workflow can be dispatched with `verify_only=true` and the existing
+tag after publication. That mode skips the protected publish job entirely,
+does not require opening the publish-ready gate, and only runs the public
+registry and isolated lifecycle verification.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.

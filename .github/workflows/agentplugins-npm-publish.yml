@@ -6,12 +6,18 @@ on:
       tag:
         description: Existing immutable stable release tag
         required: true
+      verify_only:
+        description: Verify an existing public version without publishing
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
 jobs:
   publish:
+    if: ${{ !inputs.verify_only }}
     runs-on: ubuntu-latest
     environment: npm-agentplugins
     outputs:
@@ -109,22 +115,43 @@ jobs:
 
   verify:
     needs: publish
+    if: ${{ always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - name: Resolve immutable verification target
+        id: verify-target
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid agentplugins stable tag: ${TAG}" >&2
+            exit 1
+          fi
+          package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
+          package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
+          if [[ ! "${package_name}" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then
+            echo "invalid npm package name in npm/agentplugins/package.json" >&2
+            exit 1
+          fi
+          echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
       - name: Install pinned npm with provenance verification support
         run: npm install --global npm@12.0.2
       - name: Verify exact published stable lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
-          NPM_PACKAGE: ${{ needs.publish.outputs.package_name }}
+          NPM_PACKAGE: ${{ steps.verify-target.outputs.package_name }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
