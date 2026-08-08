@@ -1,0 +1,44 @@
+{
+  "name": "agentplugins",
+  "version": "0.0.0-development",
+  "description": "Independent community installer and lifecycle manager for the Agent Plugins 1.0 standard",
+  "license": "MIT",
+  "homepage": "https://github.com/777genius/plugin-kit-ai#install-agent-plugins-10",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/777genius/plugin-kit-ai.git",
+    "directory": "npm/agentplugins"
+  },
+  "bugs": {
+    "url": "https://github.com/777genius/plugin-kit-ai/issues"
+  },
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "codex",
+    "cursor",
+    "copilot",
+    "kiro",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": [
+    "LICENSE",
+    "README.md",
+    "assets.json",
+    "bin",
+    "lib"
+  ],
+  "bin": {
+    "agentplugins": "bin/agentplugins.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}

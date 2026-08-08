@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/atomicfile"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
@@ -48,45 +49,12 @@ func (OS) MutateFile(ctx context.Context, in ports.SafeFileMutationInput) (ports
 	}
 	restore := func() {
 		if exists {
-			_ = os.WriteFile(in.Path, original, os.FileMode(in.Mode))
+			_ = atomicfile.Write(in.Path, original, os.FileMode(in.Mode))
 			return
 		}
 		_ = os.Remove(in.Path)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(in.Path), filepath.Base(in.Path)+".tmp-*")
-	if err != nil {
-		if result.BackupPath != "" {
-			_ = os.Remove(result.BackupPath)
-		}
-		return ports.SafeFileMutationResult{}, domain.NewError(domain.ErrMutationApply, "create temp file for safe mutation", err)
-	}
-	tmpName := tmp.Name()
-	cleanupTmp := func() { _ = os.Remove(tmpName) }
-	if _, err := tmp.Write(next); err != nil {
-		_ = tmp.Close()
-		cleanupTmp()
-		if result.BackupPath != "" {
-			_ = os.Remove(result.BackupPath)
-		}
-		return ports.SafeFileMutationResult{}, domain.NewError(domain.ErrMutationApply, "write temp file for safe mutation", err)
-	}
-	if err := tmp.Chmod(os.FileMode(in.Mode)); err != nil {
-		_ = tmp.Close()
-		cleanupTmp()
-		if result.BackupPath != "" {
-			_ = os.Remove(result.BackupPath)
-		}
-		return ports.SafeFileMutationResult{}, domain.NewError(domain.ErrMutationApply, "chmod temp file for safe mutation", err)
-	}
-	if err := tmp.Close(); err != nil {
-		cleanupTmp()
-		if result.BackupPath != "" {
-			_ = os.Remove(result.BackupPath)
-		}
-		return ports.SafeFileMutationResult{}, domain.NewError(domain.ErrMutationApply, "close temp file for safe mutation", err)
-	}
-	if err := os.Rename(tmpName, in.Path); err != nil {
-		cleanupTmp()
+	if err := atomicfile.Write(in.Path, next, os.FileMode(in.Mode)); err != nil {
 		if result.BackupPath != "" {
 			_ = os.Remove(result.BackupPath)
 		}

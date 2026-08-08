@@ -30,6 +30,9 @@ func (a Adapter) applyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 }
 
 func (a Adapter) applyMarketplaceMaterialization(ctx context.Context, manifest domain.IntegrationManifest, integrationID, sourceRoot string, paths codexSurfacePaths, meta codexApplyMetadata) (ports.ApplyResult, error) {
+	if err := a.validateManagedPaths(integrationID, paths); err != nil {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Codex managed paths", err)
+	}
 	if err := a.syncManagedPlugin(ctx, manifest, sourceRoot, paths.PluginRoot); err != nil {
 		return ports.ApplyResult{}, err
 	}

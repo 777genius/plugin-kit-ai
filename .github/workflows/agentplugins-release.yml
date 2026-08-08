@@ -1,0 +1,207 @@
+name: Agentplugins Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact stable tag, for example agentplugins-v0.1.0
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
+    outputs:
+      commit: ${{ steps.identity.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.tag }}
+      - name: Verify exact stable tag and current main
+        id: identity
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid agentplugins stable tag: ${TAG}" >&2
+            exit 1
+          fi
+          git fetch --force origin main:refs/remotes/origin/main
+          head_commit="$(git rev-parse HEAD)"
+          test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
+          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
+      - name: Verify merged PR and required commit evidence
+        env:
+          COMMIT: ${{ steps.identity.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pull_requests="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${GITHUB_REPOSITORY}/commits/${COMMIT}/pulls")"
+          pr_head="$(jq -er \
+            '[.[] | select(.merged_at != null and .base.ref == "main")] | sort_by(.merged_at) | last | .head.sha' \
+            <<<"${pull_requests}")" || {
+              echo "release commit must come from a merged pull request into main" >&2
+              exit 1
+            }
+          commit_checks="$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/commits/${COMMIT}/check-runs?filter=latest&per_page=100")"
+          pr_checks="$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/commits/${pr_head}/check-runs?filter=latest&per_page=100")"
+          require_check() {
+            local payload="$1"
+            local name="$2"
+            if ! jq -e --arg name "${name}" \
+              'any(.[]?.check_runs[]?; .name == $name and .status == "completed" and .conclusion == "success")' \
+              <<<"${payload}" >/dev/null; then
+              echo "required successful check is missing: ${name}" >&2
+              exit 1
+            fi
+          }
+          require_check "${pr_checks}" dependency-review
+          for name in \
+            test \
+            docs-check \
+            'polyglot-smoke (ubuntu-latest)' \
+            'polyglot-smoke (windows-latest)' \
+            'analyze (go)' \
+            'analyze (javascript-typescript)' \
+            'govulncheck (root)' \
+            'govulncheck (cli)' \
+            'govulncheck (integrationctl)' \
+            'govulncheck (plugininstall)' \
+            'govulncheck (sdk)'; do
+            require_check "${commit_checks}" "${name}"
+          done
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.25.12
+          cache: false
+      - name: Test standard-first engine and CLI
+        run: |
+          go test ./install/integrationctl/agentplugins/... ./install/integrationctl/adapters/dirswap ./install/integrationctl/adapters/source
+          go test ./cli/plugin-kit-ai/internal/agentpluginscli ./cli/plugin-kit-ai/cmd/agentplugins
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Test npm bootstrap without install scripts
+        working-directory: npm/agentplugins
+        run: npm test && npm pack --dry-run --ignore-scripts
+
+  build:
+    needs: validate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
+          - goos: linux
+            goarch: amd64
+            suffix: ""
+          - goos: linux
+            goarch: arm64
+            suffix: ""
+          - goos: windows
+            goarch: amd64
+            suffix: .exe
+          - goos: windows
+            goarch: arm64
+            suffix: .exe
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate.outputs.commit }}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.25.12
+          cache: false
+      - name: Build exact-version binary
+        env:
+          TAG: ${{ inputs.tag }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          SUFFIX: ${{ matrix.suffix }}
+        working-directory: cli/plugin-kit-ai
+        run: |
+          version="${TAG#agentplugins-v}"
+          asset="agentplugins_${version}_${GOOS}_${GOARCH}${SUFFIX}"
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${version}" -o "${RUNNER_TEMP}/${asset}" ./cmd/agentplugins
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: agentplugins-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ runner.temp }}/agentplugins_*
+          if-no-files-found: error
+          retention-days: 3
+
+  publish-assets:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    environment: agentplugins-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.validate.outputs.commit }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: agentplugins-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/agentplugins-assets
+      - name: Prepare immutable stable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          FROZEN_COMMIT: ${{ needs.validate.outputs.commit }}
+        working-directory: ${{ runner.temp }}/agentplugins-assets
+        run: |
+          test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
+          git -C "${GITHUB_WORKSPACE}" fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "${TAG}")" = "${FROZEN_COMMIT}"
+          jq -n --arg tag "${TAG}" --arg commit "${FROZEN_COMMIT}" \
+            '{schema_version: 1, tag: $tag, commit: $commit}' > release-manifest.json
+          sha256sum agentplugins_* release-manifest.json > checksums.txt
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
+            exit 1
+          fi
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/agentplugins-assets/agentplugins_*
+            ${{ runner.temp }}/agentplugins-assets/checksums.txt
+            ${{ runner.temp }}/agentplugins-assets/release-manifest.json
+      - name: Publish attested immutable stable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        working-directory: ${{ runner.temp }}/agentplugins-assets
+        run: |
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
+            exit 1
+          fi
+          gh release create "${TAG}" agentplugins_* checksums.txt release-manifest.json \
+            --repo "${GITHUB_REPOSITORY}" --verify-tag \
+            --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes

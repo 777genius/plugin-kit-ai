@@ -37,8 +37,8 @@ func resolveSourceRef(sourceRef string) (ports.ResolvedSource, func(), error) {
 		return ports.ResolvedSource{}, nil, err
 	}
 	return resolved, func() {
-		if strings.TrimSpace(resolved.CleanupPath) != "" {
-			_ = os.RemoveAll(resolved.CleanupPath)
+		if resolved.Cleanup != nil {
+			_ = resolved.Cleanup()
 		}
 	}, nil
 }

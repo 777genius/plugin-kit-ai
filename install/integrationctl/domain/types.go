@@ -185,6 +185,7 @@ type JournalStep struct {
 }
 
 type OperationRecord struct {
+	SchemaVersion int           `json:"schema_version"`
 	OperationID   string        `json:"operation_id"`
 	Type          string        `json:"type"`
 	IntegrationID string        `json:"integration_id"`

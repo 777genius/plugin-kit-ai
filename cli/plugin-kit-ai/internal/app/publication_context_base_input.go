@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -26,7 +27,7 @@ func validatePublicationTargetInput(targetInput, unsupportedMessage string) (str
 func validatePublicationDestInput(destInput, missingDestMessage string) (string, error) {
 	dest := strings.TrimSpace(destInput)
 	if dest == "" {
-		return "", fmt.Errorf(missingDestMessage)
+		return "", errors.New(missingDestMessage)
 	}
 	return dest, nil
 }

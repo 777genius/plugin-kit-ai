@@ -24,7 +24,33 @@ check_pattern() {
   done
 
   local matches
-  matches="$(rg "${args[@]}" -- "${pattern}" . || true)"
+  local status
+  if command -v rg >/dev/null 2>&1; then
+    if matches="$(env RG_GUARD_DISABLE=1 RIPGREP_CONFIG_PATH= rg --no-config "${args[@]}" -- "${pattern}" .)"; then
+      status=0
+    else
+      status=$?
+    fi
+  else
+    local pathspecs=(
+      .
+      ':(exclude,glob)**/node_modules/**'
+      ':(exclude,glob)**/.git/**'
+      ':(exclude,glob)scripts/check-removed-contract-boundary.sh'
+    )
+    for exclude in "$@"; do
+      pathspecs+=(":(exclude,glob)${exclude}")
+    done
+    if matches="$(git grep --untracked --exclude-standard -n -E -e "${pattern}" -- "${pathspecs[@]}")"; then
+      status=0
+    else
+      status=$?
+    fi
+  fi
+  if [[ "$status" -gt 1 ]]; then
+    echo "removed-contract scan failed for ${label} with status ${status}" >&2
+    exit 1
+  fi
   if [[ -n "${matches}" ]]; then
     echo "forbidden ${label} references found:" >&2
     echo "${matches}" >&2

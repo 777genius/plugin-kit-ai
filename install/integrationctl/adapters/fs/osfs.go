@@ -3,8 +3,8 @@ package fs
 import (
 	"context"
 	"os"
-	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/atomicfile"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
@@ -15,34 +15,7 @@ func (OS) ReadFile(_ context.Context, path string) ([]byte, error) {
 }
 
 func (OS) WriteFileAtomic(_ context.Context, path string, data []byte, mode uint32) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	cleanup := func() { _ = os.Remove(tmpName) }
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		cleanup()
-		return err
-	}
-	if err := tmp.Chmod(os.FileMode(mode)); err != nil {
-		_ = tmp.Close()
-		cleanup()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		cleanup()
-		return err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		cleanup()
-		return err
-	}
-	return nil
+	return atomicfile.Write(path, data, os.FileMode(mode))
 }
 
 func (OS) MkdirAll(_ context.Context, path string, mode uint32) error {

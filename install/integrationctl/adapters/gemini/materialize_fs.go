@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/filetree"
 )
 
 func discoverFiles(root string) ([]string, error) {
@@ -35,7 +37,7 @@ func discoverFiles(root string) ([]string, error) {
 }
 
 func copyDirIfExists(src, dest string) error {
-	info, err := os.Stat(src)
+	info, err := os.Lstat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -45,31 +47,11 @@ func copyDirIfExists(src, dest string) error {
 	if !info.IsDir() {
 		return nil
 	}
-	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		return copyFile(path, target)
-	})
+	return filetree.CopyDir(src, dest)
 }
 
 func copyFile(src, dest string) error {
-	body, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(dest, body, 0o644)
+	return filetree.CopyFile(src, dest)
 }
 
 func isYAMLPath(rel string) bool {

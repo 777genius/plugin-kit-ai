@@ -11,10 +11,11 @@ import (
 )
 
 type Adapter struct {
-	FS          ports.FileSystem
-	SafeMutator ports.SafeFileMutator
-	ProjectRoot string
-	UserHome    string
+	FS                   ports.FileSystem
+	SafeMutator          ports.SafeFileMutator
+	ProjectRoot          string
+	UserHome             string
+	managedConfigPathsFn func(string) []string
 }
 
 type packageMeta struct {

@@ -1,0 +1,172 @@
+name: Agentplugins NPM Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing immutable stable release tag
+        required: true
+      bootstrap_publish:
+        description: One-time first publish with the protected NPM_TOKEN secret; must be false after trusted publishing is configured
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-agentplugins
+    permissions:
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Install pinned npm with trusted publishing support
+        run: npm install --global npm@12.0.2
+      - name: Validate explicit stable publication gate
+        id: publish-gate
+        env:
+          TAG: ${{ inputs.tag }}
+          READY: ${{ vars.NPM_AGENTPLUGINS_PUBLISH_READY }}
+          BOOTSTRAP: ${{ inputs.bootstrap_publish }}
+          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid agentplugins stable tag: ${TAG}" >&2
+            exit 1
+          fi
+          test "${READY}" = "true"
+          git fetch --force origin main:refs/remotes/origin/main
+          head_commit="$(git rev-parse HEAD)"
+          test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
+          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
+          registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
+          if npm view agentplugins versions --json >/dev/null 2>"${registry_error}"; then
+            exists=true
+          elif grep -q 'E404' "${registry_error}"; then
+            exists=false
+          else
+            echo "unable to prove whether agentplugins already exists in npm" >&2
+            cat "${registry_error}" >&2
+            exit 1
+          fi
+          if [[ "${BOOTSTRAP}" = "true" ]]; then
+            test "${exists}" = "false"
+            test -n "${NPM_BOOTSTRAP_TOKEN}"
+            echo "mode=bootstrap" >> "${GITHUB_OUTPUT}"
+          else
+            if [[ "${exists}" != "true" ]]; then
+              echo "agentplugins does not exist yet; the first publish requires bootstrap_publish=true and the protected NPM_TOKEN secret" >&2
+              exit 1
+            fi
+            echo "mode=trusted" >> "${GITHUB_OUTPUT}"
+          fi
+      - name: Download and verify all release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          mkdir -p "${RUNNER_TEMP}/agentplugins-assets"
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${RUNNER_TEMP}/agentplugins-assets"
+          cd "${RUNNER_TEMP}/agentplugins-assets"
+          test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
+          sha256sum --check checksums.txt
+          test "$(jq -r '.schema_version' release-manifest.json)" = "1"
+          test "$(jq -r '.tag' release-manifest.json)" = "${TAG}"
+          test "$(jq -r '.commit' release-manifest.json)" = "${{ steps.publish-gate.outputs.commit }}"
+          for asset in agentplugins_* checksums.txt release-manifest.json; do
+            gh attestation verify "${asset}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
+              --source-digest "${{ steps.publish-gate.outputs.commit }}"
+          done
+      - name: Stage exact npm package with embedded platform hashes
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#agentplugins-v}"
+          stage="${RUNNER_TEMP}/agentplugins-npm"
+          mkdir -p "${stage}"
+          cp -R npm/agentplugins/. "${stage}/"
+          node npm/agentplugins/scripts/stage-release.js "${stage}" "${RUNNER_TEMP}/agentplugins-assets" "${version}"
+          cd "${stage}"
+          npm test
+          npm pack --dry-run --ignore-scripts
+          AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-cache" node bin/agentplugins.js version | grep -Fx "agentplugins ${version}"
+      - name: Publish stable release with provenance
+        working-directory: ${{ runner.temp }}/agentplugins-npm
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.publish-gate.outputs.mode == 'bootstrap' && secrets.NPM_TOKEN || '' }}
+        run: npm publish --access public --tag latest --provenance
+      - name: Verify exact published stable lifecycle from a clean project
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          version="${TAG#agentplugins-v}"
+          project="${RUNNER_TEMP}/agentplugins-registry-smoke"
+          test_home="${project}/home"
+          mkdir -p "${project}" "${test_home}/.cursor" "${project}/tmp"
+          cd "${project}" || exit 1
+          npm init -y >/dev/null
+          export HOME="${test_home}"
+          export USERPROFILE="${test_home}"
+          export XDG_CONFIG_HOME="${project}/config"
+          export XDG_CACHE_HOME="${project}/cache"
+          export AGENTPLUGINS_HOME="${project}/state"
+          export AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-registry-cache"
+          export NPM_CONFIG_CACHE="${project}/npm-cache"
+          export NPM_CONFIG_USERCONFIG="${test_home}/.npmrc"
+          export TMPDIR="${project}/tmp"
+          export GIT_CONFIG_GLOBAL="${test_home}/.gitconfig"
+          export GIT_CONFIG_NOSYSTEM=1
+          export GIT_TERMINAL_PROMPT=0
+          printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
+          run_agentplugins() {
+            npm exec --yes --package="agentplugins@${version}" -- agentplugins "$@"
+          }
+          available=false
+          for attempt in 1 2 3 4 5 6; do
+            if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
+              dist_tags="$(npm view agentplugins dist-tags --json)"
+              if jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null; then
+                available=true
+                break
+              fi
+            fi
+            echo "waiting for agentplugins@${version} registry propagation (${attempt}/6)" >&2
+            sleep 10
+          done
+          test "${available}" = true
+          run_agentplugins add context7 --target cursor --yes --format json > add.json
+          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true' add.json
+          run_agentplugins info context7 --format json > info.json
+          jq -e '.schema_version == 1 and .command == "info" and .data.name == "context7"' info.json
+          state_before_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
+          run_agentplugins doctor context7 --format json > doctor.json
+          state_after_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
+          test "${state_before_doctor}" = "${state_after_doctor}"
+          jq -e '.schema_version == 1 and .command == "doctor" and .data.read_only == true' doctor.json
+          run_agentplugins update context7 --target cursor --yes --format json > update.json
+          jq -e '.schema_version == 1 and .command == "update" and .data.result.no_change == true and .data.result.mutated == false' update.json
+          run_agentplugins remove context7 --target cursor --yes --format json > remove.json
+          jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
+          run_agentplugins info context7 --format json > removed.json
+          jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json
+          if grep -F "${RUNNER_TEMP}" add.json info.json doctor.json update.json remove.json removed.json; then
+            echo "agentplugins JSON output leaked an absolute runner path" >&2
+            exit 1
+          fi

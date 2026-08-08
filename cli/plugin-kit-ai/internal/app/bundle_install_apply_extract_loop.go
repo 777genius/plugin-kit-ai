@@ -6,6 +6,7 @@ import (
 )
 
 func extractBundleArchive(tr *tar.Reader, dest string) error {
+	policy := newBundleArchivePolicy()
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -14,7 +15,7 @@ func extractBundleArchive(tr *tar.Reader, dest string) error {
 		if err != nil {
 			return err
 		}
-		if err := extractBundleArchiveEntry(tr, dest, hdr); err != nil {
+		if err := extractBundleArchiveEntry(tr, dest, hdr, policy); err != nil {
 			return err
 		}
 	}

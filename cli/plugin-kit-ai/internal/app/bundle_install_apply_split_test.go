@@ -37,7 +37,7 @@ func TestExtractBundleArchiveEntryRejectsUnsupportedType(t *testing.T) {
 
 	var buf bytes.Buffer
 	tr := tar.NewReader(&buf)
-	err := extractBundleArchiveEntry(tr, t.TempDir(), &tar.Header{Name: "demo", Typeflag: tar.TypeSymlink})
+	err := extractBundleArchiveEntry(tr, t.TempDir(), &tar.Header{Name: "demo", Typeflag: tar.TypeSymlink}, newBundleArchivePolicy())
 	if err == nil || !strings.Contains(err.Error(), "symlink entry") {
 		t.Fatalf("error = %v", err)
 	}

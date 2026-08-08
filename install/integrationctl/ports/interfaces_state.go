@@ -7,14 +7,23 @@ import (
 )
 
 type ResolvedSource struct {
-	Kind         string
-	Requested    domain.RequestedSourceRef
-	Resolved     domain.ResolvedSourceRef
-	LocalPath    string
-	CleanupPath  string
-	SourceDigest string
-	ImportRoots  []string
-	FailureClass string
+	Kind      string
+	Requested domain.RequestedSourceRef
+	Resolved  domain.ResolvedSourceRef
+	LocalPath string
+	// Structured provenance fields let standard-first consumers preserve a
+	// stable source identity while tracking the immutable resolved revision.
+	CanonicalSource  string
+	Repository       string
+	PackageSubpath   string
+	ResolvedRevision string
+	// Cleanup is an opaque, resolver-owned capability. Callers must never
+	// construct cleanup paths from package or persisted state data.
+	Cleanup         func() error
+	SourceDigest    string
+	ExecutableFiles []string
+	ImportRoots     []string
+	FailureClass    string
 }
 
 type SourceResolver interface {

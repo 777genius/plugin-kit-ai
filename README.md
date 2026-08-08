@@ -13,6 +13,32 @@ Build one plugin and ship it to many AI agents.
 `plugin-kit-ai` keeps authored source under `plugin/`, generates the supported outputs you need, and helps you validate the repo before handoff.
 The honest promise is `one repo / many supported outputs`, not fake parity everywhere.
 
+## Install Agent Plugins 1.0
+
+Want to use a plugin rather than author one? `agentplugins` is the standard-first
+installer built on this repository's lifecycle engine:
+
+```bash
+npx --yes agentplugins@0.1.0 add context7
+```
+
+It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
+or installs one explicit target at a time across Codex/ChatGPT, Cursor, GitHub
+Copilot/VS Code, and Kiro. The beta supports user scope; client-native limits are
+reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
+
+```bash
+npx --yes agentplugins@0.1.0 add context7 --dry-run --target cursor
+npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
+```
+
+`agentplugins` is an independent community installer, not an official OpenAI
+CLI. OAuth and trust prompts remain under the user's client. Prepared,
+auth-pending, and manual-activation states are never labelled installed.
+
+This is separate from the `plugin-kit-ai` authoring flow below: `plugin.json`
+and legacy `plugin/plugin.yaml` are never merged or silently converted.
+
 Docs site:
 
 - overview: [plugin-kit-ai documentation](https://777genius.github.io/plugin-kit-ai/docs/en/)

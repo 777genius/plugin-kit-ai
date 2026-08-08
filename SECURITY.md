@@ -1,8 +1,8 @@
 # Security
 
-For vulnerability reports, use GitHub Security Advisories if they are enabled
-for this repository, or contact the maintainers privately. Do not open a
-public issue for undisclosed security problems.
+For vulnerability reports, use the repository's
+[GitHub Security Advisories private report](https://github.com/777genius/plugin-kit-ai/security/advisories/new).
+Do not open a public issue for undisclosed security problems.
 
 When reviewing plugin behavior, treat hook stdin, path-like fields, tool
 arguments, prompts, and any generated native config as untrusted input until it

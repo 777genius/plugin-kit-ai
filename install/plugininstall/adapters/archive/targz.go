@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/plugininstall/domain"
@@ -20,6 +20,134 @@ var _ ports.ArchiveExtractor = (*TarGzExtractor)(nil)
 
 var skipRootNames = map[string]struct{}{
 	"readme": {}, "readme.md": {}, "license": {}, "copying": {},
+}
+
+const (
+	maxArchiveEntries       = 10_000
+	maxArchiveFileBytes     = int64(256 << 20)
+	maxArchiveExpandedBytes = int64(512 << 20)
+	maxArchivePathDepth     = 64
+)
+
+var windowsReservedArchiveNames = map[string]struct{}{
+	"CON": {}, "PRN": {}, "AUX": {}, "NUL": {}, "CLOCK$": {},
+	"COM1": {}, "COM2": {}, "COM3": {}, "COM4": {}, "COM5": {}, "COM6": {}, "COM7": {}, "COM8": {}, "COM9": {},
+	"LPT1": {}, "LPT2": {}, "LPT3": {}, "LPT4": {}, "LPT5": {}, "LPT6": {}, "LPT7": {}, "LPT8": {}, "LPT9": {},
+}
+
+type archivePolicy struct {
+	entries       int
+	expandedBytes int64
+	paths         map[string]archivePath
+}
+
+type archivePath struct {
+	name      string
+	directory bool
+	explicit  bool
+}
+
+func newArchivePolicy() *archivePolicy {
+	return &archivePolicy{paths: map[string]archivePath{}}
+}
+
+func (policy *archivePolicy) validate(header *tar.Header) (string, error) {
+	policy.entries++
+	if policy.entries > maxArchiveEntries {
+		return "", fmt.Errorf("archive: exceeds %d entries", maxArchiveEntries)
+	}
+	raw := header.Name
+	if header.Typeflag == tar.TypeDir {
+		raw = strings.TrimSuffix(raw, "/")
+	}
+	clean := path.Clean(raw)
+	if raw == "" || clean == "." || clean != raw || path.IsAbs(raw) || clean == ".." ||
+		strings.HasPrefix(clean, "../") || strings.ContainsAny(raw, "\\\x00") {
+		return "", fmt.Errorf("archive: invalid path %s", header.Name)
+	}
+	segments := strings.Split(clean, "/")
+	if len(segments) > maxArchivePathDepth {
+		return "", fmt.Errorf("archive: path exceeds %d segments", maxArchivePathDepth)
+	}
+	for _, segment := range segments {
+		if err := validatePortableArchiveSegment(segment); err != nil {
+			return "", fmt.Errorf("archive: invalid path %s: %w", header.Name, err)
+		}
+	}
+	if err := policy.registerPath(clean, header.Typeflag == tar.TypeDir); err != nil {
+		return "", err
+	}
+	if header.Size < 0 || header.Size > maxArchiveFileBytes {
+		return "", fmt.Errorf("archive: unreasonable file size for %s", clean)
+	}
+	if header.Size > maxArchiveExpandedBytes-policy.expandedBytes {
+		return "", fmt.Errorf("archive: expanded contents exceed %d bytes", maxArchiveExpandedBytes)
+	}
+	policy.expandedBytes += header.Size
+	switch header.Typeflag {
+	case tar.TypeDir:
+		if header.Size != 0 {
+			return "", fmt.Errorf("archive: directory %s has a non-zero size", clean)
+		}
+	case tar.TypeReg:
+		// Accepted after path, duplicate, and expansion checks above.
+	case tar.TypeSymlink, tar.TypeLink:
+		return "", fmt.Errorf("archive: symlinks/hardlinks are not allowed")
+	default:
+		return "", fmt.Errorf("archive: special files are not allowed")
+	}
+	return clean, nil
+}
+
+func (policy *archivePolicy) registerPath(name string, directory bool) error {
+	parts := strings.Split(name, "/")
+	current := ""
+	for index, part := range parts {
+		if current == "" {
+			current = part
+		} else {
+			current += "/" + part
+		}
+		key := strings.ToLower(current)
+		existing, found := policy.paths[key]
+		if found && existing.name != current {
+			return fmt.Errorf("archive: duplicate or case-colliding entries %q and %q", existing.name, current)
+		}
+		leaf := index == len(parts)-1
+		if found && !existing.directory && (!leaf || directory) {
+			return fmt.Errorf("archive: file/directory conflict at %q", current)
+		}
+		if !leaf {
+			if !found {
+				policy.paths[key] = archivePath{name: current, directory: true}
+			}
+			continue
+		}
+		if found && existing.explicit {
+			return fmt.Errorf("archive: duplicate or case-colliding entries %q and %q", existing.name, current)
+		}
+		if found && existing.directory && !directory {
+			return fmt.Errorf("archive: file/directory conflict at %q", current)
+		}
+		policy.paths[key] = archivePath{name: current, directory: directory, explicit: true}
+	}
+	return nil
+}
+
+func validatePortableArchiveSegment(segment string) error {
+	if segment == "" || len(segment) > 255 || strings.HasSuffix(segment, " ") || strings.HasSuffix(segment, ".") {
+		return fmt.Errorf("non-portable path segment")
+	}
+	for _, char := range segment {
+		if char < 0x20 || char > 0x7e || strings.ContainsRune(`\/:*?"<>|`, char) {
+			return fmt.Errorf("non-portable path segment")
+		}
+	}
+	base := strings.ToUpper(strings.SplitN(segment, ".", 2)[0])
+	if _, reserved := windowsReservedArchiveNames[base]; reserved {
+		return fmt.Errorf("Windows reserved path segment")
+	}
+	return nil
 }
 
 func skipName(base string) bool {
@@ -42,6 +170,7 @@ func (TarGzExtractor) ExtractRootExecutable(ctx context.Context, r io.Reader) (n
 	defer zr.Close()
 
 	tr := tar.NewReader(zr)
+	policy := newArchivePolicy()
 	var candidates []struct {
 		name string
 		data []byte
@@ -60,21 +189,12 @@ func (TarGzExtractor) ExtractRootExecutable(ctx context.Context, r io.Reader) (n
 		if err != nil {
 			return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: corrupt tar: "+err.Error())
 		}
+		clean, policyErr := policy.validate(hdr)
+		if policyErr != nil {
+			return "", nil, domain.NewError(domain.ExitAmbiguous, policyErr.Error())
+		}
 		if hdr.Typeflag == tar.TypeDir {
 			continue
-		}
-		if hdr.Typeflag == tar.TypeSymlink || hdr.Typeflag == tar.TypeLink {
-			return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: symlinks/hardlinks are not allowed")
-		}
-		if hdr.Typeflag != tar.TypeReg {
-			if _, skipErr := io.CopyN(io.Discard, tr, hdr.Size); skipErr != nil {
-				return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: skip entry: "+skipErr.Error())
-			}
-			continue
-		}
-		clean := filepath.ToSlash(filepath.Clean(hdr.Name))
-		if clean == "." || strings.HasPrefix(clean, "..") || strings.Contains(clean, "/../") {
-			return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: invalid path "+hdr.Name)
 		}
 		if strings.Contains(clean, "/") {
 			if _, skipErr := io.CopyN(io.Discard, tr, hdr.Size); skipErr != nil {
@@ -82,15 +202,12 @@ func (TarGzExtractor) ExtractRootExecutable(ctx context.Context, r io.Reader) (n
 			}
 			continue
 		}
-		base := filepath.Base(clean)
+		base := path.Base(clean)
 		if skipName(base) {
 			if _, skipErr := io.CopyN(io.Discard, tr, hdr.Size); skipErr != nil {
 				return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: skip file: "+skipErr.Error())
 			}
 			continue
-		}
-		if hdr.Size < 0 || hdr.Size > 512<<20 {
-			return "", nil, domain.NewError(domain.ExitAmbiguous, "archive: unreasonable file size for "+base)
 		}
 		buf := make([]byte, hdr.Size)
 		if _, err := io.ReadFull(tr, buf); err != nil {

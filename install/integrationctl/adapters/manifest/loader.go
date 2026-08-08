@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/authoredpath"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 	"gopkg.in/yaml.v3"
@@ -39,6 +40,9 @@ func (Loader) Load(_ context.Context, source ports.ResolvedSource) (domain.Integ
 	}
 	if strings.TrimSpace(raw.Name) == "" || strings.TrimSpace(raw.Version) == "" || strings.TrimSpace(raw.Description) == "" {
 		return domain.IntegrationManifest{}, domain.NewError(domain.ErrManifestLoad, "plugin.yaml requires name, version, description", nil)
+	}
+	if err := pathpolicy.ValidateLeafID(raw.Name); err != nil {
+		return domain.IntegrationManifest{}, domain.NewError(domain.ErrManifestLoad, "plugin.yaml name is not a safe portable identifier", err)
 	}
 	if len(raw.Targets) == 0 {
 		return domain.IntegrationManifest{}, domain.NewError(domain.ErrManifestLoad, "plugin.yaml targets must not be empty", nil)

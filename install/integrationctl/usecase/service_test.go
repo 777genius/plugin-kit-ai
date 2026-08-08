@@ -466,7 +466,7 @@ func TestAddNonDryRunAllowsMaterializedGitSourceAndCleansTempRoot(t *testing.T) 
 				Requested:   domain.RequestedSourceRef{Kind: "git_url", Value: ref.Raw},
 				Resolved:    domain.ResolvedSourceRef{Kind: "git_commit", Value: ref.Raw + "@abc123"},
 				LocalPath:   sourceRoot,
-				CleanupPath: materializedRoot,
+				Cleanup:     func() error { return os.RemoveAll(materializedRoot) },
 				ImportRoots: []string{materializedRoot},
 			}, nil
 		}},
@@ -744,7 +744,7 @@ func TestUpdateDryRunCleansMaterializedResolvedSource(t *testing.T) {
 			Requested:   domain.RequestedSourceRef{Kind: "git_url", Value: ref.Raw},
 			Resolved:    domain.ResolvedSourceRef{Kind: "git_commit", Value: ref.Raw + "@def456"},
 			LocalPath:   materializedPlugin,
-			CleanupPath: materializedRoot,
+			Cleanup:     func() error { return os.RemoveAll(materializedRoot) },
 			ImportRoots: []string{materializedRoot},
 		}, nil
 	}}

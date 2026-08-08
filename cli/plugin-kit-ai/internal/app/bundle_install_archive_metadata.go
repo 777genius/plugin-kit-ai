@@ -1,33 +1,21 @@
 package app
 
 import (
-	"archive/tar"
 	"encoding/json"
 	"fmt"
 	"io"
 )
 
-func readBundleArchiveMetadataEntry(tr *tar.Reader) (exportMetadata, bool, error) {
-	hdr, err := tr.Next()
-	if err == io.EOF {
-		return exportMetadata{}, true, fmt.Errorf("bundle install requires .plugin-kit-ai-export.json in archive root")
-	}
+func readBundleArchiveMetadataEntry(reader io.Reader, expectedSize int64) (exportMetadata, error) {
+	body, err := io.ReadAll(io.LimitReader(reader, expectedSize+1))
 	if err != nil {
-		return exportMetadata{}, true, err
+		return exportMetadata{}, err
 	}
-	name, err := validateBundleHeader(hdr)
-	if err != nil {
-		return exportMetadata{}, true, err
-	}
-	if hdr.Typeflag == tar.TypeDir || name != ".plugin-kit-ai-export.json" {
-		return exportMetadata{}, false, nil
-	}
-	body, err := io.ReadAll(tr)
-	if err != nil {
-		return exportMetadata{}, true, err
+	if int64(len(body)) != expectedSize {
+		return exportMetadata{}, fmt.Errorf("bundle install metadata changed size while reading")
 	}
 	metadata, err := decodeBundleArchiveMetadata(body)
-	return metadata, true, err
+	return metadata, err
 }
 
 func decodeBundleArchiveMetadata(body []byte) (exportMetadata, error) {

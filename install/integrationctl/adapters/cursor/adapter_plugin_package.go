@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/filetree"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
@@ -20,6 +20,16 @@ const (
 
 func (a Adapter) targetPluginRoot(integrationID string) string {
 	return filepath.Join(a.userHome(), ".cursor", "plugins", "local", integrationID)
+}
+
+func (a Adapter) validatePluginRoot(integrationID, pluginRoot string) error {
+	if err := pathpolicy.ValidateLeafID(integrationID); err != nil {
+		return fmt.Errorf("invalid Cursor integration id: %w", err)
+	}
+	if err := pathpolicy.RequireExactPath(a.targetPluginRoot(integrationID), pluginRoot); err != nil {
+		return fmt.Errorf("unsafe Cursor plugin root: %w", err)
+	}
+	return nil
 }
 
 func shouldUsePluginPackage(manifest domain.IntegrationManifest, sourceRoot string) bool {
@@ -44,6 +54,9 @@ func cursorPluginPackageExists(sourceRoot string) bool {
 func (a Adapter) syncManagedPlugin(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot, pluginRoot string) error {
 	_ = ctx
 	_ = manifest
+	if err := a.validatePluginRoot(manifest.IntegrationID, pluginRoot); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "validate Cursor managed plugin root", err)
+	}
 	root := filepath.Clean(sourceRoot)
 	if !cursorPluginPackageExists(root) {
 		return domain.NewError(domain.ErrMutationApply, "Cursor plugin package requires .cursor-plugin/plugin.json", nil)
@@ -266,49 +279,13 @@ func rewriteCursorPackagePath(value, sourceRoot string, rewriteRelative bool) st
 }
 
 func copyPathIfExists(src, dest string) (bool, error) {
-	info, err := os.Stat(src)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	if info.IsDir() {
-		if err := copyDir(src, dest); err != nil {
-			return false, err
-		}
-		return true, nil
-	}
-	if err := copyFile(src, dest); err != nil {
-		return false, err
-	}
-	return true, nil
+	return filetree.CopyPathIfExists(src, dest)
 }
 
 func copyDir(src, dest string) error {
-	return filepath.WalkDir(src, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dest, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		return copyFile(path, target)
-	})
+	return filetree.CopyDir(src, dest)
 }
 
 func copyFile(src, dest string) error {
-	body, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(dest, body, 0o644)
+	return filetree.CopyFile(src, dest)
 }

@@ -25,7 +25,7 @@ func (a Adapter) applyUpdate(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		return a.applyPluginPackage(ctx, in)
 	}
 	if root := ownedPluginRootFromRecord(in.Record); root != "" {
-		if err := removePluginRoot(root); err != nil {
+		if err := a.removePluginRoot(in.Record.IntegrationID, root); err != nil {
 			return ports.ApplyResult{}, err
 		}
 	}
@@ -161,9 +161,12 @@ func ownedPluginRootFromRecord(record *domain.InstallationRecord) string {
 	return ownedPluginRoot(target.OwnedNativeObjects)
 }
 
-func removePluginRoot(path string) error {
+func (a Adapter) removePluginRoot(integrationID, path string) error {
 	if path == "" {
 		return nil
+	}
+	if err := a.validatePluginRoot(integrationID, path); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "validate Cursor managed plugin root", err)
 	}
 	if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 		return domain.NewError(domain.ErrMutationApply, "remove Cursor managed plugin root", err)

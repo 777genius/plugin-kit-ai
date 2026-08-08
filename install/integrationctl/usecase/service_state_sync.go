@@ -1,25 +1,33 @@
 package usecase
 
 import (
+	"crypto/sha256"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
+var operationSequence atomic.Uint64
+
 func operationID(prefix, integrationID string, t time.Time) string {
-	return fmt.Sprintf("%s_%s_%d", prefix, sanitizeID(integrationID), t.Unix())
+	prefix = sanitizeID(prefix)
+	if len(prefix) > 12 {
+		prefix = prefix[:12]
+	}
+	sum := sha256.Sum256([]byte(integrationID))
+	return fmt.Sprintf("%s_%x_%d_%d", prefix, sum[:6], t.UnixNano(), operationSequence.Add(1))
 }
 
 func cleanupResolvedSource(source ports.ResolvedSource) {
-	if strings.TrimSpace(source.CleanupPath) == "" {
+	if source.Cleanup == nil {
 		return
 	}
-	_ = os.RemoveAll(source.CleanupPath)
+	_ = source.Cleanup()
 }
 
 func cleanupPlannedExisting(items []plannedExistingTarget) {
