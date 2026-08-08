@@ -6,7 +6,7 @@ Community Agent Plugin for repository, issue, pull request, review, and search w
 ## Install
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add github
+npx --yes agentplugins@0.1.0-beta.1 add github
 ```
 <!-- agentplugins-install:end -->
 

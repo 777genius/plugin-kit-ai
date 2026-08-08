@@ -6,7 +6,7 @@ Community package for the official Sentry hosted MCP plugin for human-in-the-loo
 ## Install
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add sentry
+npx --yes agentplugins@0.1.0-beta.1 add sentry
 ```
 <!-- agentplugins-install:end -->
 

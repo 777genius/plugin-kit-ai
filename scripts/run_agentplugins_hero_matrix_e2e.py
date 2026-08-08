@@ -59,6 +59,7 @@ def run(binary: Path) -> dict[str, object]:
             )
             for plugin in HERO_PLUGINS:
                 for command in ("add", "remove"):
+                    extra = ["--external-uninstalled"] if command == "remove" and target in {"copilot", "vscode"} else []
                     completed = subprocess.run(
                         [
                             str(binary),
@@ -69,6 +70,7 @@ def run(binary: Path) -> dict[str, object]:
                             "--yes",
                             "--format",
                             "json",
+                            *extra,
                         ],
                         cwd=sandbox,
                         env=environment,

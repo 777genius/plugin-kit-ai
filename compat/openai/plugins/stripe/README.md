@@ -6,7 +6,7 @@ Community package for the official Stripe hosted MCP plugin for payments, billin
 ## Install
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add stripe
+npx --yes agentplugins@0.1.0-beta.1 add stripe
 ```
 <!-- agentplugins-install:end -->
 

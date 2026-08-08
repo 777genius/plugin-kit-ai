@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from build_openai_compat import OPENAI_MCP_AUTH
+from portable_paths import validate_tree
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,7 @@ def sha256(value: bytes) -> str:
 
 
 def package_tree_digest(root: Path) -> str:
+    validate_tree(root)
     entries: list[tuple[str, Path, bool]] = []
     for path in root.rglob("*"):
         relative = path.relative_to(root).as_posix()

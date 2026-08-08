@@ -20,14 +20,14 @@ Context7 is an easy first choice. It finds current library documentation and
 requires no account:
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add context7
+npx --yes agentplugins@0.1.0-beta.1 add context7
 ```
 
 The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. For scripts, be explicit:
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
+npx --yes agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
 ```
 
 Open a new chat or session in the client you selected and ask:
@@ -67,8 +67,8 @@ client-specific.
 | Client | Delivery | Activation |
 | --- | --- | --- |
 | Codex / ChatGPT | OpenAI compatibility package | Confirm in the app |
-| Cursor | Native Agent Plugin | Automatic package activation |
-| GitHub Copilot CLI | Native Agent Plugin | Copilot trust prompt |
+| Cursor | Native Agent Plugin | Reload, then verify discovery |
+| GitHub Copilot CLI | Prepared native package | Run the shown install command and review trust |
 | VS Code | Copilot bridge or prepared package | Reload or confirm in UI |
 | Kiro | Native folder package | Import as a Power |
 
@@ -78,7 +78,7 @@ marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and th
 [compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
-transactional add/remove in Cursor, and the five starter plugins pass 25/25
+materialization/removal in a Cursor provider layout, and the five starter plugins pass 25/25
 add/remove flows across isolated Codex, Cursor, Copilot, VS Code, and Kiro
 projections. Client launch, tool calls, and OAuth are reported separately.
 

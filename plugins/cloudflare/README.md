@@ -6,7 +6,7 @@ Community package for the official Cloudflare API MCP plugin for token-efficient
 ## Install
 
 ```bash
-npx agentplugins@0.1.0-beta.1 add cloudflare
+npx --yes agentplugins@0.1.0-beta.1 add cloudflare
 ```
 <!-- agentplugins-install:end -->
 

@@ -47,6 +47,38 @@ def run(binary: Path) -> dict[str, object]:
                     raise RuntimeError(f"{name}: invalid {command} JSON envelope")
                 if value.get("data", {}).get("result", {}).get("mutated") is not True:
                     raise RuntimeError(f"{name}: {command} did not commit a mutation")
+                state = json.loads((sandbox / "state" / "state-v2.json").read_text())
+                installation = next(item for item in state["installations"] if item["declared_name"] == name)
+                binding = next(iter(installation["clients"].values()))
+                receipt = binding["receipts"][-1]
+                expected_sequence = 1 if command == "add" else 2
+                if receipt.get("phase") != "committed" or receipt.get("sequence") != expected_sequence:
+                    raise RuntimeError(f"{name}: invalid committed {command} receipt")
+                if command == "add" and not receipt.get("after_digest", "").startswith("sha256:"):
+                    raise RuntimeError(f"{name}: add receipt omitted artifact digest")
+
+        # One negative case proves the remove path checks the currently managed
+        # directory digest instead of trusting state alone.
+        subprocess.run(
+            [str(binary), "add", "context7", "--target", "cursor", "--yes", "--format", "json"],
+            cwd=sandbox, env=environment, check=True, capture_output=True, text=True,
+        )
+        state = json.loads((sandbox / "state" / "state-v2.json").read_text())
+        context7 = next(item for item in state["installations"] if item["declared_name"] == "context7")
+        binding = next(iter(context7["clients"].values()))
+        tamper = Path(binding["target_locator"]) / "unexpected-user-file.txt"
+        tamper.write_text("must block removal")
+        rejected = subprocess.run(
+            [str(binary), "remove", "context7", "--target", "cursor", "--yes", "--format", "json"],
+            cwd=sandbox, env=environment, check=False, capture_output=True, text=True,
+        )
+        if rejected.returncode == 0:
+            raise RuntimeError("digest guard accepted a modified managed package")
+        tamper.unlink()
+        subprocess.run(
+            [str(binary), "remove", "context7", "--target", "cursor", "--yes", "--format", "json"],
+            cwd=sandbox, env=environment, check=True, capture_output=True, text=True,
+        )
         state = json.loads((sandbox / "state" / "state-v2.json").read_text())
         active = [
             installation["declared_name"]
@@ -67,7 +99,8 @@ def run(binary: Path) -> dict[str, object]:
         "checks": [
             {"scenario": "resolve all short names from the pinned catalog", "status": "passed", "plugin_count": len(names)},
             {"scenario": "transactional add for every catalog package", "status": "passed", "plugin_count": len(names)},
-            {"scenario": "digest-guarded remove for every catalog package", "status": "passed", "plugin_count": len(names)},
+            {"scenario": "committed receipt sequence and artifact digest for every add/remove", "status": "passed", "plugin_count": len(names)},
+            {"scenario": "tampered managed package blocks removal", "status": "passed", "plugin_count": 1},
             {"scenario": "tool runtime and OAuth", "status": "skipped", "reason": "tracked separately from package lifecycle"},
         ],
         "secrets_recorded": False,
