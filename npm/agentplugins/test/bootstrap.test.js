@@ -20,11 +20,11 @@ async function fixturePackage(t, binary = BINARY) {
   t.after(() => fsp.rm(root, { recursive: true, force: true }));
   const platformInfo = detectPlatform("linux", "x64");
   const file = expectedAssetName(VERSION, platformInfo);
-  await fsp.writeFile(path.join(root, "package.json"), JSON.stringify({ name: "agentplugins", version: VERSION }));
+  await fsp.writeFile(path.join(root, "package.json"), JSON.stringify({ name: "universal-agent-plugins", version: VERSION }));
   await fsp.writeFile(path.join(root, "assets.json"), JSON.stringify({
     schema_version: 1,
     version: VERSION,
-    npm_package: "agentplugins",
+    npm_package: "universal-agent-plugins",
     repository: "777genius/plugin-kit-ai",
     tag: `agentplugins-v${VERSION}`,
     assets: {
@@ -152,7 +152,7 @@ test("development metadata cannot download a release binary", async (t) => {
   const packageRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "agentplugins-development-package-"));
   t.after(() => fsp.rm(packageRoot, { recursive: true, force: true }));
   await fsp.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({
-    name: "agentplugins",
+    name: "universal-agent-plugins",
     version: "0.0.0-development"
   }));
   await fsp.writeFile(path.join(packageRoot, "assets.json"), "{}\n");

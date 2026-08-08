@@ -1,4 +1,4 @@
-# Agentplugins 0.1.0 release
+# Agentplugins stable release
 
 This runbook is for maintainers. Do not create a release, publish npm, or change
 the `latest` dist-tag without explicit owner approval for that exact version.

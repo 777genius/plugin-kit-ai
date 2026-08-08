@@ -1,7 +1,7 @@
 {
-  "name": "agentplugins",
+  "name": "universal-agent-plugins",
   "version": "0.0.0-development",
-  "description": "Independent community installer and lifecycle manager for the Agent Plugins 1.0 standard",
+  "description": "Universal community installer and lifecycle manager for Agent Plugins 1.0",
   "license": "MIT",
   "homepage": "https://github.com/777genius/plugin-kit-ai#install-agent-plugins-10",
   "repository": {
@@ -14,6 +14,7 @@
   },
   "keywords": [
     "agent-plugins",
+    "universal-agent-plugins",
     "ai-agents",
     "codex",
     "cursor",

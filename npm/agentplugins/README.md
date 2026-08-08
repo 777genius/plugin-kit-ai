@@ -1,13 +1,13 @@
-# agentplugins
+# Universal Agent Plugins
 
 Install and manage portable Agent Plugins 1.0 packages across Codex/ChatGPT,
 Cursor, GitHub Copilot/VS Code, and Kiro.
 
 ```bash
-npx --yes agentplugins@0.1.0 add context7
+npx --yes universal-agent-plugins@0.1.1 add context7
 ```
 
-`agentplugins` is an independent community CLI built in
+`universal-agent-plugins` is an independent community CLI built in
 [`plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai). It is not an
 official OpenAI or Agent Plugins project and is not affiliated with
 `sigilco/agentplugins` or `@agentplugins/cli`. Agent Plugins 1.0 defines the
@@ -20,22 +20,37 @@ tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
 
 ```bash
-npx --yes agentplugins@0.1.0 doctor
-npx --yes agentplugins@0.1.0 list
-npx --yes agentplugins@0.1.0 add context7 --dry-run --target cursor
-npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
-npx --yes agentplugins@0.1.0 update context7 --target cursor --yes
-npx --yes agentplugins@0.1.0 remove context7 --target cursor --yes
+npx --yes universal-agent-plugins@0.1.1 doctor
+npx --yes universal-agent-plugins@0.1.1 list
+npx --yes universal-agent-plugins@0.1.1 add context7 --dry-run --target cursor
+npx --yes universal-agent-plugins@0.1.1 add context7 --target cursor --yes
+npx --yes universal-agent-plugins@0.1.1 update context7 --target cursor --yes
+npx --yes universal-agent-plugins@0.1.1 remove context7 --target cursor --yes
 ```
 
+Short names resolve through the pinned
+[`universal-agent-plugins`](https://github.com/777genius/universal-agent-plugins)
+catalog. You can also install a different valid Agent Plugins 1.0 package from
+a local directory or an exact GitHub source:
+
+```bash
+npx --yes universal-agent-plugins@0.1.1 add ./my-plugin --target cursor --yes
+npx --yes universal-agent-plugins@0.1.1 add owner/repo@commit//plugins/my-plugin --target cursor --yes
+```
+
+The package must have a root `plugin.json` using the supported Agent Plugins
+1.0 schema. Optional root `mcp.json` and `skills/*/SKILL.md` components are
+installed only where the selected client supports them. The downloaded binary
+and installed command remain `agentplugins`.
+
 Each mutation changes one selected client. `--yes` never means install
-everywhere. v0.1.0 supports user scope and reports whether a client can install
+everywhere. v0.1 supports user scope and reports whether a client can install
 automatically or requires manual activation. For older `plugin-kit-ai` installations, run the explicit migration
 before the first standard installation:
 
 ```bash
-npx --yes agentplugins@0.1.0 migrate-state --dry-run
-npx --yes agentplugins@0.1.0 migrate-state --yes
+npx --yes universal-agent-plugins@0.1.1 migrate-state --dry-run
+npx --yes universal-agent-plugins@0.1.1 migrate-state --yes
 ```
 
 The migration validates the complete State v2 result, creates a byte-for-byte

@@ -17,7 +17,7 @@ test("release staging embeds every exact platform asset hash", async (t) => {
   await fsp.mkdir(packageRoot);
   await fsp.mkdir(assetsRoot);
   await fsp.writeFile(path.join(packageRoot, "package.json"), JSON.stringify({
-    name: "agentplugins",
+    name: "universal-agent-plugins",
     version: "0.0.0-development",
     bin: { agentplugins: "bin/agentplugins.js" }
   }));
@@ -28,7 +28,7 @@ test("release staging embeds every exact platform asset hash", async (t) => {
   }
   const manifest = stage(packageRoot, assetsRoot, version);
   assert.equal(manifest.version, version);
-  assert.equal(manifest.npm_package, "agentplugins");
+  assert.equal(manifest.npm_package, "universal-agent-plugins");
   assert.equal(Object.keys(manifest.assets).length, 6);
   for (const asset of Object.values(manifest.assets)) {
     assert.match(asset.sha256, /^[0-9a-f]{64}$/);
@@ -41,6 +41,7 @@ test("release staging embeds every exact platform asset hash", async (t) => {
 test("npm distribution name is independent from the agentplugins binary name", () => {
   for (const name of [
     "agentplugins",
+    "universal-agent-plugins",
     "agentplugins-cli",
     "@ilyazelenko/agentplugins",
     "@777genius/agentplugins"
