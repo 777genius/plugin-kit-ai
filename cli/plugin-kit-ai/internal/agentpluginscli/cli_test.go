@@ -24,6 +24,18 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 )
 
+func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	stdout, _, err := fixture.execute(true, "--help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout, "--yes") {
+		t.Fatalf("user-facing help exposed the automation-only flag: %s", stdout)
+	}
+}
+
 func TestAddListAndInfoProduceVersionedPathRedactedJSON(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
