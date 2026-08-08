@@ -1,21 +1,16 @@
 # Four optional plugins to try first
 
-These examples avoid account credentials and are designed to prove the package
-flow before a user connects a private service. Choose one example. They are
-independent alternatives, not sequential installation steps.
-
-Add the release-pinned catalog once:
-
-```bash
-codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
-```
+These examples avoid account credentials. Choose one: they are independent
+alternatives, not sequential steps. The CLI detects Codex/ChatGPT, Cursor,
+GitHub Copilot/VS Code, and Kiro; if several are installed, choose one when
+prompted.
 
 ## 1. Agent Code Navigator
 
 Install:
 
 ```bash
-codex plugin add agent-code-navigator@universal-agent-plugins
+npx --yes agentplugins@0.1.0-beta.1 add agent-code-navigator
 ```
 
 Try:
@@ -32,7 +27,7 @@ starting an MCP server or modifying the repository.
 Install:
 
 ```bash
-codex plugin add context7@universal-agent-plugins
+npx --yes agentplugins@0.1.0-beta.1 add context7
 ```
 
 Try:
@@ -49,7 +44,7 @@ documentation results.
 Install:
 
 ```bash
-codex plugin add cloudflare-docs@universal-agent-plugins
+npx --yes agentplugins@0.1.0-beta.1 add cloudflare-docs
 ```
 
 Try:
@@ -65,7 +60,7 @@ Expected: the public Streamable HTTP MCP server answers without an account.
 Install:
 
 ```bash
-codex plugin add chrome-devtools@universal-agent-plugins
+npx --yes agentplugins@0.1.0-beta.1 add chrome-devtools
 ```
 
 Try only in a fresh test project and browser profile:
