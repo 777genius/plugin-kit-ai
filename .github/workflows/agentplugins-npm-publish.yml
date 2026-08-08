@@ -1,4 +1,4 @@
-name: Agentplugins NPM Publish
+name: Agentplugins NPM Provenance Bootstrap
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ on:
         description: Existing immutable stable release tag
         required: true
       bootstrap_publish:
-        description: One-time first publish with the protected NPM_TOKEN secret; must be false after trusted publishing is configured
+        description: Compatibility input; this diagnostic workflow never publishes
         required: true
         type: boolean
         default: false
@@ -16,9 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  provenance:
     runs-on: ubuntu-latest
-    environment: npm-agentplugins
     permissions:
       contents: read
       id-token: write
@@ -34,21 +33,17 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - name: Install pinned npm with trusted publishing support
+      - name: Install pinned npm with provenance support
         run: npm install --global npm@12.0.2
-      - name: Validate explicit stable publication gate
-        id: publish-gate
+      - name: Validate immutable stable release
+        id: release
         env:
           TAG: ${{ inputs.tag }}
-          READY: ${{ vars.NPM_AGENTPLUGINS_PUBLISH_READY }}
-          BOOTSTRAP: ${{ inputs.bootstrap_publish }}
-          NPM_BOOTSTRAP_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
-          test "${READY}" = "true"
           git fetch --force origin main:refs/remotes/origin/main
           head_commit="$(git rev-parse HEAD)"
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
@@ -56,33 +51,12 @@ jobs:
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
           package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
           package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
-          if [[ ! "${package_name}" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then
-            echo "invalid npm package name in npm/agentplugins/package.json" >&2
+          if [[ ! "${package_name}" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then
+            echo "invalid unscoped npm package name" >&2
             exit 1
           fi
           test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"
           echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
-          registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
-          if npm view "${package_name}" versions --json >/dev/null 2>"${registry_error}"; then
-            exists=true
-          elif grep -q 'E404' "${registry_error}"; then
-            exists=false
-          else
-            echo "unable to prove whether ${package_name} already exists in npm" >&2
-            cat "${registry_error}" >&2
-            exit 1
-          fi
-          if [[ "${BOOTSTRAP}" = "true" ]]; then
-            test "${exists}" = "false"
-            test -n "${NPM_BOOTSTRAP_TOKEN}"
-            echo "mode=bootstrap" >> "${GITHUB_OUTPUT}"
-          else
-            if [[ "${exists}" != "true" ]]; then
-              echo "${package_name} does not exist yet; the first publish requires bootstrap_publish=true and the protected NPM_TOKEN secret" >&2
-              exit 1
-            fi
-            echo "mode=trusted" >> "${GITHUB_OUTPUT}"
-          fi
       - name: Download and verify all release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -93,14 +67,14 @@ jobs:
           cd "${RUNNER_TEMP}/agentplugins-assets"
           test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
           sha256sum --check checksums.txt
-          test "$(jq -r '.schema_version' release-manifest.json)" = "1"
+          test "$(jq -r '.schema_version' release-manifest.json)" = 1
           test "$(jq -r '.tag' release-manifest.json)" = "${TAG}"
-          test "$(jq -r '.commit' release-manifest.json)" = "${{ steps.publish-gate.outputs.commit }}"
+          test "$(jq -r '.commit' release-manifest.json)" = "${{ steps.release.outputs.commit }}"
           for asset in agentplugins_* checksums.txt release-manifest.json; do
             gh attestation verify "${asset}" \
               --repo "${GITHUB_REPOSITORY}" \
               --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
-              --source-digest "${{ steps.publish-gate.outputs.commit }}"
+              --source-digest "${{ steps.release.outputs.commit }}"
           done
       - name: Stage exact npm package with embedded platform hashes
         env:
@@ -115,67 +89,71 @@ jobs:
           npm test
           npm pack --dry-run --ignore-scripts
           AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-cache" node bin/agentplugins.js version | grep -Fx "agentplugins ${version}"
-      - name: Publish stable release with provenance
-        working-directory: ${{ runner.temp }}/agentplugins-npm
-        env:
-          NODE_AUTH_TOKEN: ${{ steps.publish-gate.outputs.mode == 'bootstrap' && secrets.NPM_TOKEN || '' }}
-        run: npm publish --access public --tag latest --provenance
-      - name: Verify exact published stable lifecycle from a clean project
+      - name: Pack exact tarball and generate signed provenance
         env:
           TAG: ${{ inputs.tag }}
-          NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}
+          NPM_PACKAGE: ${{ steps.release.outputs.package_name }}
+          SOURCE_COMMIT: ${{ steps.release.outputs.commit }}
         run: |
           version="${TAG#agentplugins-v}"
-          project="${RUNNER_TEMP}/agentplugins-registry-smoke"
-          test_home="${project}/home"
-          mkdir -p "${project}" "${test_home}/.cursor" "${project}/tmp"
-          cd "${project}" || exit 1
-          npm init -y >/dev/null
-          export HOME="${test_home}"
-          export USERPROFILE="${test_home}"
-          export XDG_CONFIG_HOME="${project}/config"
-          export XDG_CACHE_HOME="${project}/cache"
-          export AGENTPLUGINS_HOME="${project}/state"
-          export AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-registry-cache"
-          export NPM_CONFIG_CACHE="${project}/npm-cache"
-          export NPM_CONFIG_USERCONFIG="${test_home}/.npmrc"
-          export TMPDIR="${project}/tmp"
-          export GIT_CONFIG_GLOBAL="${test_home}/.gitconfig"
-          export GIT_CONFIG_NOSYSTEM=1
-          export GIT_TERMINAL_PROMPT=0
-          printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
-          run_agentplugins() {
-            npm exec --yes --package="${NPM_PACKAGE}@${version}" -- agentplugins "$@"
+          artifact="${RUNNER_TEMP}/agentplugins-provenance"
+          mkdir -p "${artifact}"
+          cd "${RUNNER_TEMP}/agentplugins-npm"
+          tarball_name="$(npm pack --json --ignore-scripts | jq -r '.[0].filename')"
+          tarball="${artifact}/${tarball_name}"
+          mv "${tarball_name}" "${tarball}"
+          bundle="${artifact}/${tarball_name}.sigstore"
+          export NPM_ROOT="$(npm root --global)"
+          export GITHUB_SHA="${SOURCE_COMMIT}"
+          export GITHUB_REF="refs/tags/${TAG}"
+          node - "${tarball}" "${bundle}" "${NPM_PACKAGE}" "${version}" <<'NODE'
+          const crypto = require('node:crypto')
+          const fs = require('node:fs/promises')
+          const path = require('node:path')
+
+          const [tarballPath, bundlePath, packageName, packageVersion] = process.argv.slice(2)
+          const provenanceModule = path.join(
+            process.env.NPM_ROOT,
+            'npm/node_modules/libnpmpublish/lib/provenance.js'
+          )
+          const { generateProvenance, verifyProvenance } = require(provenanceModule)
+
+          const run = async () => {
+            const tarball = await fs.readFile(tarballPath)
+            const subject = {
+              name: `pkg:npm/${packageName}@${packageVersion}`,
+              digest: { sha512: crypto.createHash('sha512').update(tarball).digest('hex') },
+            }
+            const bundle = await generateProvenance([subject], {})
+            await fs.writeFile(bundlePath, `${JSON.stringify(bundle)}\n`, { mode: 0o600 })
+            await verifyProvenance(subject, bundlePath)
+            const statement = JSON.parse(
+              Buffer.from(bundle.dsseEnvelope.payload, 'base64').toString('utf8')
+            )
+            await fs.writeFile(
+              `${bundlePath}.statement.json`,
+              `${JSON.stringify(statement, null, 2)}\n`
+            )
           }
-          available=false
-          for attempt in 1 2 3 4 5 6; do
-            if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
-              dist_tags="$(npm view "${NPM_PACKAGE}" dist-tags --json)"
-              if jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null; then
-                available=true
-                break
-              fi
-            fi
-            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/6)" >&2
-            sleep 10
-          done
-          test "${available}" = true
-          run_agentplugins add context7 --target cursor --yes --format json > add.json
-          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true' add.json
-          run_agentplugins info context7 --format json > info.json
-          jq -e '.schema_version == 1 and .command == "info" and .data.name == "context7"' info.json
-          state_before_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
-          run_agentplugins doctor context7 --format json > doctor.json
-          state_after_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
-          test "${state_before_doctor}" = "${state_after_doctor}"
-          jq -e '.schema_version == 1 and .command == "doctor" and .data.read_only == true' doctor.json
-          run_agentplugins update context7 --target cursor --yes --format json > update.json
-          jq -e '.schema_version == 1 and .command == "update" and .data.result.no_change == true and .data.result.mutated == false' update.json
-          run_agentplugins remove context7 --target cursor --yes --format json > remove.json
-          jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
-          run_agentplugins info context7 --format json > removed.json
-          jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json
-          if grep -F "${RUNNER_TEMP}" add.json info.json doctor.json update.json remove.json removed.json; then
-            echo "agentplugins JSON output leaked an absolute runner path" >&2
-            exit 1
-          fi
+
+          run().catch((error) => {
+            console.error(error)
+            process.exitCode = 1
+          })
+          NODE
+          statement="${bundle}.statement.json"
+          test "$(jq -r '.subject[0].name' "${statement}")" = "pkg:npm/${NPM_PACKAGE}@${version}"
+          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit' "${statement}")" = "${SOURCE_COMMIT}"
+          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].uri' "${statement}")" = "git+https://github.com/${GITHUB_REPOSITORY}@refs/tags/${TAG}"
+          sha1sum "${tarball}" > "${artifact}/SHA1SUMS"
+          sha512sum "${tarball}" > "${artifact}/SHA512SUMS"
+          printf 'source_commit=%s\nsource_ref=refs/tags/%s\nworkflow_run=%s\n' \
+            "${SOURCE_COMMIT}" "${TAG}" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            > "${artifact}/manifest.txt"
+      - name: Upload exact tarball and signed provenance
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: universal-agent-plugins-provenance
+          path: ${{ runner.temp }}/agentplugins-provenance
+          if-no-files-found: error
+          retention-days: 1
