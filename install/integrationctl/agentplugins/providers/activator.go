@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
@@ -110,15 +111,15 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		outcome.UserActions = append(outcome.UserActions, "finish installation in Codex or ChatGPT Plugins, then start a new session")
 		marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
 		outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf(
-			"Codex CLI: run `codex plugin marketplace add %q --json`, then `codex plugin add %q --json`; ChatGPT/Codex app: open Plugins > Personal and install %s",
-			request.Delivery.ActivePath, request.DeclaredName+"@"+marketplace, request.DeclaredName,
+			"Codex CLI: run `codex plugin marketplace add %s --json`, then `codex plugin add %s --json`; ChatGPT/Codex app: open Plugins > Personal and install %s",
+			shellQuoteForHint(request.Delivery.ActivePath), request.DeclaredName+"@"+marketplace, request.DeclaredName,
 		))
 		return outcome, nil
 	case domain.ClientKiro:
 		outcome.Activation = domain.ActivationManual
 		outcome.UserActions = append(outcome.UserActions, "finish the prepared Power installation in Kiro")
 		outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf(
-			"Kiro: Powers > Add Custom Power > Import power from a folder > select %q > Install",
+			"Kiro: Powers > Add Custom Power > Import power from a folder > select %s > Install",
 			request.Delivery.ActivePath,
 		))
 		return outcome, nil
@@ -211,4 +212,11 @@ func (activator Activator) runCopilotResult(ctx context.Context, executable stri
 func commandOutputContains(result legacyports.CommandResult, fragment string) bool {
 	output := string(result.Stdout) + "\n" + string(result.Stderr)
 	return strings.Contains(strings.ToLower(output), strings.ToLower(fragment))
+}
+
+func shellQuoteForHint(value string) string {
+	if runtime.GOOS == "windows" {
+		return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
