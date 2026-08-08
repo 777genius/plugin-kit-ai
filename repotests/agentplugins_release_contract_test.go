@@ -70,8 +70,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"needs: publish",
 		`NPM_PACKAGE: ${{ needs.publish.outputs.package_name }}`,
 		`npm view --prefer-online "${NPM_PACKAGE}@${version}" version`,
-		`npm view --prefer-online "${NPM_PACKAGE}" dist-tags --json`,
-		".latest == $version",
+		`npm view --prefer-online "${NPM_PACKAGE}@latest" version`,
+		`[[ "${latest_version}" = "${version}" ]]`,
 		"max_attempts=30",
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
@@ -92,7 +92,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmPublishJob, "Verify exact published stable lifecycle from a clean project")
 	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
-	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}" dist-tags --json`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
