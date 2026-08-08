@@ -52,6 +52,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"environment: npm-agentplugins",
+		"id-token: write",
 		`package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"`,
 		`test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"`,
 		`npm view "${package_name}" versions --json`,
@@ -60,6 +62,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}`,
 		`npm view "${NPM_PACKAGE}" dist-tags --json`,
 		"npm publish --access public --tag latest --provenance",
+		"trusted publishing only supports existing packages",
 		".latest == $version",
 	} {
 		mustContain(t, npmWorkflow, want)
@@ -67,6 +70,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmWorkflow, "npm view agentplugins versions --json")
 	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
 	mustNotContain(t, npmWorkflow, "--tag beta")
+	mustNotContain(t, npmWorkflow, "bootstrap_publish")
+	mustNotContain(t, npmWorkflow, "NPM_TOKEN")
+	mustNotContain(t, npmWorkflow, "NODE_AUTH_TOKEN")
 	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
@@ -78,8 +84,11 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"`release-manifest.json` before creating the public release",
 		"requires a merged pull request into",
 		"Repository settings are not treated as the release proof",
-		"Only an npm `E404` is accepted as",
-		"proof that the package does not exist",
+		"short-lived bootstrap",
+		"disallow bypass-2FA tokens",
+		"Do not add a bootstrap token back",
+		"publish through",
+		"GitHub OIDC with provenance",
 		"`latest` dist-tag resolves to the exact published version",
 	} {
 		mustContain(t, runbook, want)
