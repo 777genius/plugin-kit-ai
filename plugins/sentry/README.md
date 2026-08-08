@@ -2,6 +2,14 @@
 
 Community package for the official Sentry hosted MCP plugin for human-in-the-loop debugging, issue triage, and incident workflows through Sentry's remote MCP service.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx agentplugins@0.1.0-beta.1 add sentry
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Sentry.
 
 - Component: MCP server

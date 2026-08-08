@@ -2,6 +2,14 @@
 
 Local HubSpot Developer MCP integration for project scaffolding, CMS, builds, logs, and app workflows via the HubSpot CLI.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx agentplugins@0.1.0-beta.1 add hubspot-developer
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from HubSpot Developer.
 
 - Component: MCP server

@@ -16,12 +16,18 @@ This repository contains 26 open-source plugins packaged for the
 
 ## Try one plugin
 
-Context7 is an easy first choice. It finds up-to-date library documentation and
-requires no account. With a current Codex CLI and Node.js installed, run:
+Context7 is an easy first choice. It finds current library documentation and
+requires no account:
 
 ```bash
-codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
-codex plugin add context7@universal-agent-plugins
+npx agentplugins@0.1.0-beta.1 add context7
+```
+
+The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
+than one is present, choose one from the prompt. For scripts, be explicit:
+
+```bash
+npx agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
 ```
 
 Open a new Codex session and ask:
@@ -33,8 +39,8 @@ Use Context7 to find the current Playwright quick start and summarize it with so
 That's it. Every plugin is independent, so you never need to install the whole
 catalog or follow a chain of plugins.
 
-Not using Codex? Choose Cursor, Kiro, ChatGPT, VS Code, or GitHub Copilot in the
-[client setup guide](docs/QUICKSTART.md).
+Every plugin is independent. Client activation and OAuth can still require a
+visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
 
 ## All plugins
 
@@ -60,11 +66,13 @@ Agent Plugins 1.0 gives every package a shared structure. Compatible clients can
 reuse the parts they support, while installation, permissions, and OAuth remain
 client-specific.
 
-| Client | Context7 check |
-| --- | --- |
-| Codex | Public marketplace install and real tool call |
-| Cursor | Local plugin load |
-| Kiro | Folder import |
+| Client | Delivery | Activation |
+| --- | --- | --- |
+| Codex / ChatGPT | OpenAI compatibility package | Confirm in the app |
+| Cursor | Native Agent Plugin | Automatic package activation |
+| GitHub Copilot CLI | Native Agent Plugin | Copilot trust prompt |
+| VS Code | Copilot bridge or prepared package | Reload or confirm in UI |
+| Kiro | Native folder package | Import as a Power |
 
 All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
