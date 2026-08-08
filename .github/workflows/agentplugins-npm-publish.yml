@@ -99,7 +99,9 @@ jobs:
           artifact="${RUNNER_TEMP}/agentplugins-provenance"
           mkdir -p "${artifact}"
           cd "${RUNNER_TEMP}/agentplugins-npm"
-          tarball_name="$(npm pack --json --ignore-scripts | jq -r '.[0].filename')"
+          tarball_name="$(npm pack --json --ignore-scripts | jq -r 'if type == "array" then .[0].filename else .filename end')"
+          test -n "${tarball_name}"
+          test "${tarball_name}" != null
           tarball="${artifact}/${tarball_name}"
           mv "${tarball_name}" "${tarball}"
           bundle="${artifact}/${tarball_name}.sigstore"
