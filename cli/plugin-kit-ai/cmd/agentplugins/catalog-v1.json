@@ -25,7 +25,7 @@
         },
         "cursor": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         },
         "copilot": {
@@ -40,7 +40,7 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         }
       }
@@ -98,12 +98,12 @@
       "compatibility": {
         "codex": {
           "package": "projected",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         },
         "cursor": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         },
         "copilot": {
@@ -118,7 +118,7 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         }
       }
@@ -215,12 +215,12 @@
       "compatibility": {
         "codex": {
           "package": "projected",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         },
         "cursor": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         },
         "copilot": {
@@ -235,7 +235,7 @@
         },
         "kiro": {
           "package": "native",
-          "verification": "schema_only",
+          "verification": "tested",
           "authentication": "not_required"
         }
       }
