@@ -24,12 +24,23 @@ check_rg_matches() {
   shift 3
   local files=("$@")
   local out
+  local status
   if command -v rg >/dev/null 2>&1; then
-    out="$(rg -n -o -- "$pattern" "${files[@]}" || true)"
+    if out="$(env RG_GUARD_DISABLE=1 RIPGREP_CONFIG_PATH= rg --no-config -n -o -- "$pattern" "${files[@]}")"; then
+      status=0
+    else
+      status=$?
+    fi
   else
-    out="$(
-      grep -n -E -o -- "$pattern" "${files[@]}" 2>/dev/null || true
-    )"
+    if out="$(grep -n -E -o -- "$pattern" "${files[@]}" 2>/dev/null)"; then
+      status=0
+    else
+      status=$?
+    fi
+  fi
+  if [[ "$status" -gt 1 ]]; then
+    echo "version sync scan failed for ${label} with status ${status}" >&2
+    exit 1
   fi
   if [[ -z "$out" ]]; then
     echo "version sync check found no matches for ${label}" >&2

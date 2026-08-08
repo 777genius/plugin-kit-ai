@@ -24,7 +24,16 @@ check_pattern() {
   done
 
   local matches
-  matches="$(rg "${args[@]}" -- "${pattern}" . || true)"
+  local status
+  if matches="$(env RG_GUARD_DISABLE=1 RIPGREP_CONFIG_PATH= rg --no-config "${args[@]}" -- "${pattern}" .)"; then
+    status=0
+  else
+    status=$?
+  fi
+  if [[ "$status" -gt 1 ]]; then
+    echo "removed-contract scan failed for ${label} with status ${status}" >&2
+    exit 1
+  fi
   if [[ -n "${matches}" ]]; then
     echo "forbidden ${label} references found:" >&2
     echo "${matches}" >&2
