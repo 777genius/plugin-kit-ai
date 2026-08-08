@@ -30,9 +30,11 @@ project is tagged.
 2. Dispatch `Agentplugins Release Assets` with the exact tag.
 3. Review the frozen commit and approve the `agentplugins-release`
    environment deployment.
-4. Verify the prerelease contains six platform binaries, `checksums.txt`, and
+4. Confirm the workflow attests all six binaries, `checksums.txt`, and
+   `release-manifest.json` before creating the public prerelease.
+5. Verify the prerelease contains six platform binaries, `checksums.txt`, and
    `release-manifest.json`.
-5. Verify GitHub attestations before allowing npm publication.
+6. Verify GitHub attestations before allowing npm publication.
 
 The workflow refuses an existing release instead of replacing immutable
 assets.
@@ -49,15 +51,19 @@ does not exist yet.
 3. Dispatch `Agentplugins NPM Beta Publish` with the exact tag and
    `bootstrap_publish=true`.
 4. Review the exact tag and approve the `npm-agentplugins` deployment.
-5. Confirm the workflow stages the exact npm package, verifies all embedded
+5. Confirm the registry preflight succeeds. Only an npm `E404` is accepted as
+   proof that the package does not exist; network, authentication, and other
+   registry errors fail closed.
+6. Confirm the workflow stages the exact npm package, verifies all embedded
    platform hashes, runs its tests, and exercises the verified release binary.
-6. Confirm the post-publish clean-project smoke runs the exact registry version
+7. Confirm the post-publish clean-project smoke runs the exact registry version
    through `add`, `info`, read-only `doctor`, no-change `update`, `remove`, and
-   final absent-state verification in an isolated HOME. The smoke must also
-   reject absolute runner-path leakage in JSON output.
-7. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
+   final absent-state verification in an isolated HOME. It must prove the
+   `beta` dist-tag resolves to the exact published version, the `latest`
+   dist-tag is unchanged, and JSON output contains no absolute runner paths.
+8. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
    bootstrap token.
-8. Configure npm trusted publishing for repository
+9. Configure npm trusted publishing for repository
    `777genius/plugin-kit-ai` and workflow
    `.github/workflows/agentplugins-npm-publish.yml`.
 
