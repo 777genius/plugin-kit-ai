@@ -22,7 +22,11 @@ func extractBundleArchiveEntry(tr *tar.Reader, dest string, hdr *tar.Header, pol
 	if err != nil {
 		return err
 	}
-	target := filepath.Join(dest, filepath.FromSlash(name))
+	localName := filepath.FromSlash(name)
+	if !filepath.IsLocal(localName) {
+		return fmt.Errorf("bundle install refuses non-local archive path %q", name)
+	}
+	target := filepath.Join(dest, localName)
 	switch hdr.Typeflag {
 	case tar.TypeDir:
 		return os.MkdirAll(target, 0o755)
