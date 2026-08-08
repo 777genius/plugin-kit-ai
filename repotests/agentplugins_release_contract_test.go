@@ -11,6 +11,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
+	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
 	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
 
@@ -60,21 +61,23 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm view "${package_name}" versions --json`,
 		"grep -q 'E404'",
 		"unable to prove whether ${package_name} already exists in npm",
-		`NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}`,
-		`npm view "${NPM_PACKAGE}@${version}" version`,
-		`npm view "${NPM_PACKAGE}" dist-tags --json`,
 		"npm publish --access public --tag latest --provenance",
 		"trusted publishing only supports existing packages",
-		".latest == $version",
 	} {
 		mustContain(t, npmPublishJob, want)
 	}
 	for _, want := range []string{
+		"needs: publish",
+		`NPM_PACKAGE: ${{ needs.publish.outputs.package_name }}`,
+		`npm view --prefer-online "${NPM_PACKAGE}@${version}" version`,
+		`npm view --prefer-online "${NPM_PACKAGE}" dist-tags --json`,
+		".latest == $version",
+		"max_attempts=30",
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
 	} {
-		mustContain(t, npmPublishJob, want)
+		mustContain(t, npmVerifyJob, want)
 	}
 	for _, unwanted := range []string{
 		"npm view agentplugins versions --json",
@@ -84,14 +87,15 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"NPM_TOKEN",
 		"NODE_AUTH_TOKEN",
 	} {
-		mustNotContain(t, npmPublishJob, unwanted)
+		mustNotContain(t, npmWorkflow, unwanted)
 	}
-	mustAppearBefore(t, npmPublishJob, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
-	mustAppearBefore(t, npmPublishJob, `npm view "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
-	mustAppearBefore(t, npmPublishJob, `npm view "${NPM_PACKAGE}" dist-tags --json`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
-	mustAppearBefore(t, npmPublishJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
-	mustAppearBefore(t, npmPublishJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
-	mustAppearBefore(t, npmPublishJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
+	mustNotContain(t, npmPublishJob, "Verify exact published stable lifecycle from a clean project")
+	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
+	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}" dist-tags --json`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
+	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")

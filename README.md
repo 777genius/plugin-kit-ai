@@ -19,7 +19,7 @@ Want to use a plugin rather than author one? `universal-agent-plugins` is the
 standard-first npm installer built on this repository's lifecycle engine:
 
 ```bash
-npx universal-agent-plugins@0.1.3 add context7
+npx universal-agent-plugins@0.1.4 add context7
 ```
 
 It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
@@ -35,8 +35,8 @@ required client confirmation and receive an exact, path-specific next step in
 human-readable output.
 
 ```bash
-npx universal-agent-plugins@0.1.3 add context7 --dry-run --target cursor
-npx universal-agent-plugins@0.1.3 add context7 --target cursor
+npx universal-agent-plugins@0.1.4 add context7 --dry-run --target cursor
+npx universal-agent-plugins@0.1.4 add context7 --target cursor
 ```
 
 Short names resolve through the pinned catalog, while a local directory or an
