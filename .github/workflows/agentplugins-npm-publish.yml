@@ -14,6 +14,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: npm-agentplugins
+    outputs:
+      package_name: ${{ steps.publish-gate.outputs.package_name }}
     permissions:
       contents: read
       id-token: write
@@ -104,10 +106,25 @@ jobs:
       - name: Publish stable release with provenance
         working-directory: ${{ runner.temp }}/agentplugins-npm
         run: npm publish --access public --tag latest --provenance
+
+  verify:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Install pinned npm with provenance verification support
+        run: npm install --global npm@12.0.2
       - name: Verify exact published stable lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
-          NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}
+          NPM_PACKAGE: ${{ needs.publish.outputs.package_name }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
@@ -129,15 +146,16 @@ jobs:
           export GIT_TERMINAL_PROMPT=0
           printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
           available=false
-          for attempt in 1 2 3 4 5 6; do
-            published_version="$(npm view "${NPM_PACKAGE}@${version}" version 2>/dev/null || true)"
-            dist_tags="$(npm view "${NPM_PACKAGE}" dist-tags --json 2>/dev/null || true)"
+          max_attempts=30
+          for attempt in $(seq 1 "${max_attempts}"); do
+            published_version="$(npm view --prefer-online "${NPM_PACKAGE}@${version}" version 2>/dev/null || true)"
+            dist_tags="$(npm view --prefer-online "${NPM_PACKAGE}" dist-tags --json 2>/dev/null || true)"
             if [[ "${published_version}" = "${version}" ]] && \
               jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null 2>&1; then
               available=true
               break
             fi
-            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/6)" >&2
+            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/${max_attempts})" >&2
             sleep 10
           done
           test "${available}" = true

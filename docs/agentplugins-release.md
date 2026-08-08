@@ -70,7 +70,9 @@ read-only `doctor`, no-change `update`, `remove`, and final absent-state
 verification in an isolated HOME.
 It must prove the `latest` dist-tag resolves to the exact published version and
 JSON output contains no absolute runner paths before the gate is returned to
-`false`.
+`false`. Registry verification runs as a separate job after publication, waits
+up to five minutes with online metadata refreshes, and can be retried without
+attempting to republish an immutable npm version.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.
