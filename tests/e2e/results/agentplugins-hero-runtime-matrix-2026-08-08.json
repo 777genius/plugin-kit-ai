@@ -10,8 +10,8 @@
     "commit_sha": "d3c3155285d37aa555615cf4301e3ab5eb347a17",
     "catalog_digest": "sha256:207df0cd3932d305bbc265357d1a7f6b68ef314ff725629db6ebe27d4c403915",
     "runtime_equivalence": {
-      "catalog_revision": "cd771968ae14ecd7457e3cb22dcf30eb3c2e2c30",
-      "catalog_digest": "sha256:5cf41a305b23310ceb2162e8ef6e9bead00ab6c79b8eb92ae92bcb6e62eb7f57",
+      "catalog_revision": "85bdea44799f2970c20b51d675f6d365fee3dbef",
+      "catalog_digest": "sha256:b1e3efcdc7bd3fc5cc64c959f96964818b1cbfd815cbd125045c02757c767c30",
       "allowed_delta": "plugins/*/README.md",
       "reason": "Only copy-ready install documentation changed; the current full package trees pass separate lifecycle evidence."
     }
