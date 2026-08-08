@@ -269,6 +269,42 @@ func TestRebindIsPlanFirstAndRequiresRemovedTargets(t *testing.T) {
 	}
 }
 
+func TestHumanBindingPlanShowsCompleteReviewedDiff(t *testing.T) {
+	t.Parallel()
+	var output bytes.Buffer
+	renderHumanBindingPlan(&output, usecase.BindingChangePlan{
+		OldName: "legacy-demo", NewName: "standard-demo",
+		OldSource: usecase.ProvenanceSummary{
+			Kind: "github", Repository: "example/legacy", PackageSubpath: "plugins/demo",
+			ResolvedRevision: "old-revision", TreeDigest: "sha256:old-tree",
+		},
+		NewSource: usecase.ProvenanceSummary{
+			Kind: "github", Repository: "example/standard", PackageSubpath: "plugins/demo",
+			ResolvedRevision: "new-revision", TreeDigest: "sha256:new-tree",
+		},
+		OldFormat:     usecase.FormatSummary{FormatID: domain.FormatIDLegacyV1, SchemaURI: "plugin.yaml/v1"},
+		NewFormat:     usecase.FormatSummary{FormatID: domain.FormatIDAgentPluginsV1, SchemaURI: domain.PluginSchemaV1},
+		OldComponents: domain.ComponentInventory{Skills: []string{"old-skill"}},
+		NewComponents: domain.ComponentInventory{
+			MCPPresent: true, MCPEnabled: true, MCPServers: []string{"docs"},
+			Skills: []string{"new-skill"}, Extensions: []string{"com.example.client"},
+		},
+		NativeObjectCount: 2,
+	})
+	for _, expected := range []string{
+		"Schema: plugin.yaml/v1 -> " + domain.PluginSchemaV1,
+		"example/legacy//plugins/demo@old-revision#sha256:old-tree",
+		"example/standard//plugins/demo@new-revision#sha256:new-tree",
+		"Components: mcp=absent skills=[old-skill] extensions=[] -> mcp=enabled[docs] skills=[new-skill] extensions=[com.example.client]",
+		"Native objects: 2",
+		"PLUGIN_DATA: not transferred",
+	} {
+		if !strings.Contains(output.String(), expected) {
+			t.Fatalf("output omitted %q: %s", expected, output.String())
+		}
+	}
+}
+
 func TestMigrateStateIsExplicitPlanFirstAndPathRedacted(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, nil)

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
@@ -145,7 +148,10 @@ func renderBindingChange(writer io.Writer, format, commandName string, result us
 func renderHumanBindingPlan(writer io.Writer, plan usecase.BindingChangePlan) {
 	_, _ = fmt.Fprintf(writer, "Plugin: %s -> %s\n", plan.OldName, plan.NewName)
 	_, _ = fmt.Fprintf(writer, "Format: %s -> %s\n", plan.OldFormat.FormatID, plan.NewFormat.FormatID)
+	_, _ = fmt.Fprintf(writer, "Schema: %s -> %s\n", plan.OldFormat.SchemaURI, plan.NewFormat.SchemaURI)
 	_, _ = fmt.Fprintf(writer, "Source: %s -> %s\n", provenanceLabel(plan.OldSource), provenanceLabel(plan.NewSource))
+	_, _ = fmt.Fprintf(writer, "Components: %s -> %s\n", componentInventoryLabel(plan.OldComponents), componentInventoryLabel(plan.NewComponents))
+	_, _ = fmt.Fprintf(writer, "Native objects: %d\n", plan.NativeObjectCount)
 	_, _ = fmt.Fprintln(writer, "PLUGIN_DATA: not transferred")
 	for _, target := range plan.Targets {
 		_, _ = fmt.Fprintf(writer, "  %s/%s: %s\n", target.ClientID, target.Scope, target.Decision)
@@ -156,12 +162,49 @@ func renderHumanBindingPlan(writer io.Writer, plan usecase.BindingChangePlan) {
 }
 
 func provenanceLabel(source usecase.ProvenanceSummary) string {
+	value := source.Kind
 	if source.Repository != "" {
-		value := source.Repository
+		value = source.Repository
 		if source.PackageSubpath != "" {
 			value += "//" + source.PackageSubpath
 		}
-		return value
 	}
-	return source.Kind
+	if source.ResolvedRevision != "" {
+		value += "@" + source.ResolvedRevision
+	}
+	if source.TreeDigest != "" {
+		value += "#" + source.TreeDigest
+	}
+	return value
+}
+
+func componentInventoryLabel(inventory domain.ComponentInventory) string {
+	parts := make([]string, 0, 6)
+	if inventory.MCPPresent {
+		state := "disabled"
+		if inventory.MCPEnabled {
+			state = "enabled"
+		}
+		parts = append(parts, "mcp="+state+"["+sortedList(inventory.MCPServers)+"]")
+	} else {
+		parts = append(parts, "mcp=absent")
+	}
+	parts = append(parts, "skills=["+sortedList(inventory.Skills)+"]")
+	parts = append(parts, "extensions=["+sortedList(inventory.Extensions)+"]")
+	if len(inventory.InvalidMCPServer) > 0 {
+		parts = append(parts, "invalid_mcp=["+sortedList(inventory.InvalidMCPServer)+"]")
+	}
+	if len(inventory.InvalidSkills) > 0 {
+		parts = append(parts, "invalid_skills=["+sortedList(inventory.InvalidSkills)+"]")
+	}
+	if inventory.InvalidSkillsRoot {
+		parts = append(parts, "invalid_skills_root=true")
+	}
+	return strings.Join(parts, " ")
+}
+
+func sortedList(values []string) string {
+	copyValues := append([]string(nil), values...)
+	sort.Strings(copyValues)
+	return strings.Join(copyValues, ",")
 }
