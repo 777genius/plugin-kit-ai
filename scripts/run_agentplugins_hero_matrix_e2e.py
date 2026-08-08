@@ -27,7 +27,7 @@ HERO_PLUGINS = (
 CLIENTS = ("codex", "cursor", "copilot", "vscode", "kiro")
 COPIED_CLIENTS = {"codex", "copilot", "vscode", "kiro"}
 CLI_TIMEOUT_SECONDS = 120
-EXPECTED_CLI_VERSION = "0.1.1"
+EXPECTED_CLI_VERSION = "0.1.2"
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"

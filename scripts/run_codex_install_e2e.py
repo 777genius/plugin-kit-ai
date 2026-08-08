@@ -373,7 +373,7 @@ def run_e2e(marketplace_ref: str, require_ci_metadata: bool) -> dict[str, Any]:
 def main() -> int:
     """Parse arguments, run E2E, and write sanitized structured evidence."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--marketplace-ref", default="v0.1.1")
+    parser.add_argument("--marketplace-ref", default="v0.1.5")
     parser.add_argument("--output", type=Path, default=Path("/tmp/codex-install-e2e.json"))
     parser.add_argument("--require-ci-metadata", action="store_true")
     args = parser.parse_args()

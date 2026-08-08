@@ -6,7 +6,7 @@ on:
       marketplace_ref:
         description: Public marketplace Git ref to install
         required: false
-        default: v0.1.1
+        default: v0.1.5
   schedule:
     - cron: "17 6 * * 1"
   push:
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
-      MARKETPLACE_REF: ${{ github.event.inputs.marketplace_ref || (github.ref_type == 'tag' && github.ref_name) || 'v0.1.1' }}
+      MARKETPLACE_REF: ${{ github.event.inputs.marketplace_ref || (github.ref_type == 'tag' && github.ref_name) || 'v0.1.5' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -78,11 +78,55 @@ jobs:
           path: /tmp/codex-install-e2e.json
           retention-days: 30
 
+  copilot-native-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AGENTPLUGINS_VERSION: "0.1.2"
+      COPILOT_VERSION: "1.0.78"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Install pinned Agent Plugins and Copilot CLIs
+        run: >-
+          npm install --global
+          "universal-agent-plugins@${AGENTPLUGINS_VERSION}"
+          "@github/copilot@${COPILOT_VERSION}"
+      - name: Run native Copilot lifecycle E2E
+        env:
+          CATALOG_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/catalog/v1/catalog.json
+        run: |
+          catalog_digest="sha256:$(sha256sum catalog/v1/catalog.json | cut -d ' ' -f 1)"
+          python3 scripts/run_agentplugins_copilot_native_e2e.py \
+            --binary "$(command -v agentplugins)" \
+            --expected-version "${AGENTPLUGINS_VERSION}" \
+            --copilot-binary "$(command -v copilot)" \
+            --expected-copilot-version "${COPILOT_VERSION}" \
+            --catalog-url "${CATALOG_URL}" \
+            --catalog-digest "${catalog_digest}" \
+            --output /tmp/copilot-native-e2e.json
+      - name: Validate sanitized evidence
+        run: |
+          python3 -m pip install check-jsonschema==0.37.4
+          check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json /tmp/copilot-native-e2e.json
+          python3 scripts/validate_client_evidence.py --file /tmp/copilot-native-e2e.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: copilot-native-evidence-${{ github.run_id }}
+          path: /tmp/copilot-native-e2e.json
+          retention-days: 30
+
   publish-release:
     if: github.ref_type == 'tag'
     needs:
       - public-read-flows
       - codex-marketplace-install
+      - copilot-native-lifecycle
     runs-on: ubuntu-latest
     permissions:
       contents: write
