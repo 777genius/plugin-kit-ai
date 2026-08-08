@@ -6,7 +6,7 @@ Community package for the official Docker Hub MCP plugin for repository, image, 
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0 add docker-hub
+npx --yes universal-agent-plugins@0.1.1 add docker-hub
 ```
 <!-- agentplugins-install:end -->
 
