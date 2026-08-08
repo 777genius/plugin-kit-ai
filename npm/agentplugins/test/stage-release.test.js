@@ -53,10 +53,12 @@ test("npm distribution name is independent from the agentplugins binary name", (
 });
 
 test("release staging rejects unsafe package metadata", () => {
-  assert.throws(
-    () => validatePackageMetadata({ name: "AgentPlugins", bin: { agentplugins: "bin/agentplugins.js" } }),
-    /package name is invalid/
-  );
+  for (const name of ["AgentPlugins", " agentplugins ", 123, null]) {
+    assert.throws(
+      () => validatePackageMetadata({ name, bin: { agentplugins: "bin/agentplugins.js" } }),
+      /package name is invalid/
+    );
+  }
   assert.throws(
     () => validatePackageMetadata({ name: "agentplugins-cli", bin: { other: "bin/agentplugins.js" } }),
     /must expose the agentplugins binary/

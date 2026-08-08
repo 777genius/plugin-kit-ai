@@ -23,10 +23,11 @@ function sha256(file) {
 }
 
 function validatePackageMetadata(pkg) {
-  const packageName = String(pkg.name || "").trim();
-  if (!NPM_PACKAGE_NAME.test(packageName) || packageName.length > 214) {
+  if (!pkg || typeof pkg !== "object" || typeof pkg.name !== "string" ||
+      !NPM_PACKAGE_NAME.test(pkg.name) || pkg.name.length > 214) {
     throw new Error("staged npm package name is invalid");
   }
+  const packageName = pkg.name;
   if (!pkg.bin || pkg.bin.agentplugins !== "bin/agentplugins.js") {
     throw new Error("staged npm package must expose the agentplugins binary");
   }
