@@ -32,6 +32,8 @@ def isolated_environment(sandbox: Path) -> dict[str, str]:
         "SSL_CERT_FILE",
         "SSL_CERT_DIR",
         "NODE_EXTRA_CA_CERTS",
+        "AGENTPLUGINS_CATALOG_URL",
+        "AGENTPLUGINS_CATALOG_DIGEST",
     )
     environment = {name: os.environ[name] for name in allowed if name in os.environ}
     temp_dir = sandbox / "tmp"
