@@ -3,8 +3,8 @@
   "schema_version": 1,
   "catalog_version": "0.1.0",
   "repository": "777genius/universal-agent-plugins",
-  "revision": "15cdcb50415df155d6100ea575e3fcbfd7ed3629",
-  "published_at": "2026-08-08T00:15:00Z",
+  "revision": "9604435e9df58f2735e1706040c2c1b889fc3713",
+  "published_at": "2026-08-08T01:30:00Z",
   "plugins": [
     {
       "name": "agent-code-navigator",
