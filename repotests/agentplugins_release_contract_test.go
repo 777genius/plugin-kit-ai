@@ -28,6 +28,25 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseWorkflow, "gh release create")
 	mustAppearBefore(t, releaseWorkflow, "actions/attest@", "gh release create")
 	mustContain(t, releaseWorkflow, "release ${TAG} already exists; refusing to overwrite immutable assets")
+	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
+	mustContain(t, releaseWorkflow, "release commit must come from a merged pull request into main")
+	mustContain(t, releaseWorkflow, "check-runs?filter=latest&per_page=100")
+	for _, name := range []string{
+		"dependency-review",
+		"test",
+		"docs-check",
+		"polyglot-smoke (ubuntu-latest)",
+		"polyglot-smoke (windows-latest)",
+		"analyze (go)",
+		"analyze (javascript-typescript)",
+		"govulncheck (root)",
+		"govulncheck (cli)",
+		"govulncheck (integrationctl)",
+		"govulncheck (plugininstall)",
+		"govulncheck (sdk)",
+	} {
+		mustContain(t, releaseWorkflow, name)
+	}
 
 	for _, want := range []string{
 		"npm view agentplugins versions --json",
@@ -47,6 +66,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	for _, want := range []string{
 		"attests all six binaries, `checksums.txt`, and",
 		"`release-manifest.json` before creating the public prerelease",
+		"requires a merged pull request into",
+		"Repository settings are not treated as the release proof",
 		"Only an npm `E404` is accepted as",
 		"proof that the package does not exist",
 		"`beta` dist-tag resolves to the exact published version",

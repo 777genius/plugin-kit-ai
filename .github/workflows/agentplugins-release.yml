@@ -13,6 +13,10 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+      pull-requests: read
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
     steps:
@@ -35,6 +39,48 @@ jobs:
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
           test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
+      - name: Verify merged PR and required commit evidence
+        env:
+          COMMIT: ${{ steps.identity.outputs.commit }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pull_requests="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${GITHUB_REPOSITORY}/commits/${COMMIT}/pulls")"
+          pr_head="$(jq -er \
+            '[.[] | select(.merged_at != null and .base.ref == "main")] | sort_by(.merged_at) | last | .head.sha' \
+            <<<"${pull_requests}")" || {
+              echo "release commit must come from a merged pull request into main" >&2
+              exit 1
+            }
+          commit_checks="$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/commits/${COMMIT}/check-runs?filter=latest&per_page=100")"
+          pr_checks="$(gh api --paginate --slurp \
+            "repos/${GITHUB_REPOSITORY}/commits/${pr_head}/check-runs?filter=latest&per_page=100")"
+          require_check() {
+            local payload="$1"
+            local name="$2"
+            if ! jq -e --arg name "${name}" \
+              'any(.[]?.check_runs[]?; .name == $name and .status == "completed" and .conclusion == "success")' \
+              <<<"${payload}" >/dev/null; then
+              echo "required successful check is missing: ${name}" >&2
+              exit 1
+            fi
+          }
+          require_check "${pr_checks}" dependency-review
+          for name in \
+            test \
+            docs-check \
+            'polyglot-smoke (ubuntu-latest)' \
+            'polyglot-smoke (windows-latest)' \
+            'analyze (go)' \
+            'analyze (javascript-typescript)' \
+            'govulncheck (root)' \
+            'govulncheck (cli)' \
+            'govulncheck (integrationctl)' \
+            'govulncheck (plugininstall)' \
+            'govulncheck (sdk)'; do
+            require_check "${commit_checks}" "${name}"
+          done
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.25.12

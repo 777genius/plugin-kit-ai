@@ -8,6 +8,10 @@ the `latest` dist-tag without explicit owner approval for that exact version.
 - The release tag matches `agentplugins-vX.Y.Z-beta.N` and points to current
   `main`.
 - Required CI, CodeQL, dependency review, and vulnerability checks are green.
+- The release workflow independently requires a merged pull request into
+  `main`, successful dependency review on its head, and successful post-merge
+  Required, docs, CodeQL, platform smoke, and vulnerability checks on the exact
+  tagged commit. Repository settings are not treated as the release proof.
 - A versioned `universal-agent-plugins` catalog release exists on its `main`,
   its package revision is an ancestor of that release commit, and its lifecycle
   and runtime evidence cover the released package trees.
