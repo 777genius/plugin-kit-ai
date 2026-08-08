@@ -38,3 +38,14 @@ func openSnapshotRegular(root, rel string) (*os.File, error) {
 	}
 	return file, nil
 }
+
+func requireSingleLink(file *os.File) error {
+	var info unix.Stat_t
+	if err := unix.Fstat(int(file.Fd()), &info); err != nil {
+		return fmt.Errorf("inspect hardlink count: %w", err)
+	}
+	if info.Nlink != 1 {
+		return fmt.Errorf("hardlinks are not allowed")
+	}
+	return nil
+}

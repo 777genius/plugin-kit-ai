@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sys/windows"
 )
 
 func openSnapshotRegular(root, rel string) (*os.File, error) {
@@ -35,4 +37,15 @@ func openSnapshotRegular(root, rel string) (*os.File, error) {
 		}
 	}
 	return file, nil
+}
+
+func requireSingleLink(file *os.File) error {
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(windows.Handle(file.Fd()), &info); err != nil {
+		return fmt.Errorf("inspect hardlink count: %w", err)
+	}
+	if info.NumberOfLinks != 1 {
+		return fmt.Errorf("hardlinks are not allowed")
+	}
+	return nil
 }

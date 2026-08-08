@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -91,6 +92,19 @@ func TestBuildRejectsSymlink(t *testing.T) {
 	}
 	if _, err := (Builder{}).Build(context.Background(), source); err == nil {
 		t.Fatal("symlink accepted")
+	}
+}
+
+func TestBuildRejectsHardlinks(t *testing.T) {
+	t.Parallel()
+	source := t.TempDir()
+	original := filepath.Join(source, "original")
+	mustWrite(t, original, []byte("data"), 0o644)
+	if err := os.Link(original, filepath.Join(source, "second-link")); err != nil {
+		t.Skipf("hardlinks unavailable: %v", err)
+	}
+	if _, err := (Builder{}).Build(context.Background(), source); err == nil || !strings.Contains(err.Error(), "hardlinks are not allowed") {
+		t.Fatalf("hardlink error = %v", err)
 	}
 }
 

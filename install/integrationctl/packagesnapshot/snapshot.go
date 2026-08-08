@@ -264,6 +264,9 @@ func copyRegularFile(sourceRoot string, item entry, destination string, executab
 	if !openedInfo.Mode().IsRegular() || item.info == nil || !item.info.Mode().IsRegular() || !os.SameFile(openedInfo, item.info) {
 		return 0, fmt.Errorf("snapshot source file %q changed identity while opening", item.rel)
 	}
+	if err := requireSingleLink(source); err != nil {
+		return 0, fmt.Errorf("snapshot source file %q: %w", item.rel, err)
+	}
 	mode := os.FileMode(0o600)
 	if executable {
 		mode = 0o700
