@@ -37,6 +37,9 @@ in `plugins/docker-hub/mcp.json`.
   synthetic read-only search, bringing the hero matrix to 15/15. The sanitized
   records are pinned to exact source commits in
   [`agentplugins-hero-runtime-matrix-2026-08-08.json`](../tests/e2e/results/agentplugins-hero-runtime-matrix-2026-08-08.json).
+  A fail-closed test proves the stable catalog differs from those tested package
+  trees only in `plugins/*/README.md`; separate 26/26 and 25/25 lifecycle runs
+  cover the complete current package trees.
 
 - Codex CLI 0.147.0 completed the release-gated public install on Linux: pinned
   `v0.1.1`, installed Context7 into a fresh `CODEX_HOME`, and called

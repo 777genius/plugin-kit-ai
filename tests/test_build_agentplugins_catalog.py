@@ -54,20 +54,46 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         evidence = json.loads(
             (ROOT / "tests" / "e2e" / "results" / "agentplugins-hero-runtime-matrix-2026-08-08.json").read_text()
         )
-        comparison = subprocess.run(
-            [
-                "git",
-                "diff",
-                "--quiet",
-                evidence["source"]["commit_sha"],
-                current["revision"],
-                "--",
-                "plugins",
-            ],
-            cwd=ROOT,
-            check=False,
+        catalog_bytes = (ROOT / "catalog" / "v1" / "catalog.json").read_bytes()
+        equivalence = evidence["source"]["runtime_equivalence"]
+        self.assertEqual(equivalence["catalog_revision"], current["revision"])
+        self.assertEqual(
+            equivalence["catalog_digest"],
+            "sha256:" + hashlib.sha256(catalog_bytes).hexdigest(),
         )
-        self.assertEqual(comparison.returncode, 0, "runtime evidence does not match the catalog package tree")
+        self.assertEqual(equivalence["allowed_delta"], "plugins/*/README.md")
+
+        evidence_revisions = {
+            check.get("source_commit", evidence["source"]["commit_sha"])
+            for check in evidence["checks"]
+            if check["status"] == "passed"
+        }
+        for revision in evidence_revisions:
+            ancestor = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", revision, current["revision"]],
+                cwd=ROOT,
+                check=False,
+            )
+            self.assertEqual(ancestor.returncode, 0, "runtime evidence commit is not an ancestor of the catalog revision")
+            comparison = subprocess.run(
+                [
+                    "git",
+                    "diff",
+                    "--quiet",
+                    revision,
+                    current["revision"],
+                    "--",
+                    "plugins",
+                    ":(glob,exclude)plugins/*/README.md",
+                ],
+                cwd=ROOT,
+                check=False,
+            )
+            self.assertEqual(
+                comparison.returncode,
+                0,
+                "runtime-bearing package files differ from the tested evidence commit",
+            )
         client_ids = {"Codex CLI": "codex", "Cursor Agent": "cursor", "Kiro CLI": "kiro"}
         evidenced = {
             (check["plugin"], client_ids[check["client"]])

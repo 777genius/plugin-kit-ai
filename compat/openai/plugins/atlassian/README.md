@@ -6,7 +6,7 @@ Community package for the official Atlassian Rovo MCP plugin for Jira, Confluenc
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add atlassian
+npx --yes agentplugins@0.1.0 add atlassian
 ```
 <!-- agentplugins-install:end -->
 
