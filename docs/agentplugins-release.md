@@ -40,10 +40,15 @@ does not exist yet.
 3. Dispatch `Agentplugins NPM Beta Publish` with the exact tag and
    `bootstrap_publish=true`.
 4. Review the exact tag and approve the `npm-agentplugins` deployment.
-5. Confirm the workflow's clean-project exact-version smoke passes.
-6. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
+5. Confirm the workflow stages the exact npm package, verifies all embedded
+   platform hashes, runs its tests, and exercises the verified release binary.
+6. Confirm the post-publish clean-project smoke runs the exact registry version
+   through `add`, `info`, read-only `doctor`, no-change `update`, `remove`, and
+   final absent-state verification in an isolated HOME. The smoke must also
+   reject absolute runner-path leakage in JSON output.
+7. Immediately set `NPM_AGENTPLUGINS_PUBLISH_READY=false` and remove the
    bootstrap token.
-7. Configure npm trusted publishing for repository
+8. Configure npm trusted publishing for repository
    `777genius/plugin-kit-ai` and workflow
    `.github/workflows/agentplugins-npm-publish.yml`.
 
