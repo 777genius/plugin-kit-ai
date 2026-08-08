@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,9 @@ HERO_PLUGINS = (
     "chrome-devtools",
 )
 COPILOT_VERSION_PATTERN = re.compile(r"GitHub Copilot CLI ([0-9]+\.[0-9]+\.[0-9]+)\.")
+COPILOT_PLUGIN_ENTRY_PATTERN = re.compile(
+    r"^\s*•\s+(?P<plugin_id>[^\s]+)\s+\([^\r\n)]+\)\s*$"
+)
 
 
 def isolated_environment(
@@ -127,6 +131,15 @@ def agentplugins_json(
     return value
 
 
+def copilot_plugin_ids(output: str) -> set[str]:
+    """Parse complete installed-plugin rows from Copilot's text output."""
+    return {
+        match.group("plugin_id")
+        for line in output.splitlines()
+        if (match := COPILOT_PLUGIN_ENTRY_PATTERN.fullmatch(line)) is not None
+    }
+
+
 def run(
     binary: Path,
     expected_version: str,
@@ -176,11 +189,21 @@ def run(
             ):
                 raise RuntimeError(f"{plugin}: native activation was not verified")
 
+            physical_artifact_id = added.get("plan", {}).get("physical_artifact_id")
+            if not isinstance(physical_artifact_id, str) or not physical_artifact_id:
+                raise RuntimeError(f"{plugin}: physical artifact identity was omitted")
+            marketplace = "agentplugins-" + hashlib.sha256(
+                physical_artifact_id.encode()
+            ).hexdigest()[:12]
+            expected_plugin_id = f"{plugin}@{marketplace}"
+
             installed = command(
                 [str(copilot_binary), "plugin", "list"], sandbox, environment
             ).stdout
-            if plugin not in installed or "@agentplugins-" not in installed:
-                raise RuntimeError(f"{plugin}: Copilot did not report the managed plugin")
+            if expected_plugin_id not in copilot_plugin_ids(installed):
+                raise RuntimeError(
+                    f"{plugin}: Copilot did not report {expected_plugin_id}"
+                )
 
             removed = agentplugins_json(
                 binary, "remove", plugin, sandbox, environment
@@ -200,7 +223,10 @@ def run(
                 sandbox,
                 environment,
             ).stdout
-            if plugin in remaining_plugins or "agentplugins-" in remaining_marketplaces:
+            if (
+                expected_plugin_id in copilot_plugin_ids(remaining_plugins)
+                or marketplace in remaining_marketplaces
+            ):
                 raise RuntimeError(f"{plugin}: managed Copilot state remained after remove")
             results.append({"plugin": plugin, "status": "passed"})
 
