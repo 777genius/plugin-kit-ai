@@ -90,9 +90,20 @@ jobs:
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          --repo "$GITHUB_REPOSITORY"
-          --verify-tag
-          --generate-notes
-          --title "$GITHUB_REF_NAME"
+        run: |
+          if release_state=$(gh release view "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json tagName,isDraft \
+            --jq '[.tagName, .isDraft] | @tsv' 2>/dev/null); then
+            IFS=$'\t' read -r release_tag release_is_draft <<<"$release_state"
+            test "$release_tag" = "$GITHUB_REF_NAME"
+            test "$release_is_draft" = "false"
+            echo "Release $GITHUB_REF_NAME already exists and is published."
+            exit 0
+          fi
+
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "$GITHUB_REF_NAME"
