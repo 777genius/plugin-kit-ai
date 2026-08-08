@@ -4,7 +4,7 @@ Install and manage portable Agent Plugins 1.0 packages across Codex/ChatGPT,
 Cursor, GitHub Copilot/VS Code, and Kiro.
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 add context7
+npx universal-agent-plugins@0.1.3 add context7
 ```
 
 `universal-agent-plugins` is an independent community CLI built in
@@ -20,12 +20,12 @@ tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 doctor
-npx --yes universal-agent-plugins@0.1.1 list
-npx --yes universal-agent-plugins@0.1.1 add context7 --dry-run --target cursor
-npx --yes universal-agent-plugins@0.1.1 add context7 --target cursor --yes
-npx --yes universal-agent-plugins@0.1.1 update context7 --target cursor --yes
-npx --yes universal-agent-plugins@0.1.1 remove context7 --target cursor --yes
+npx universal-agent-plugins@0.1.3 doctor
+npx universal-agent-plugins@0.1.3 list
+npx universal-agent-plugins@0.1.3 add context7 --dry-run --target cursor
+npx universal-agent-plugins@0.1.3 add context7 --target cursor
+npx universal-agent-plugins@0.1.3 update context7 --target cursor
+npx universal-agent-plugins@0.1.3 remove context7 --target cursor
 ```
 
 For GitHub Copilot CLI, `agentplugins` performs the native install, update, and
@@ -40,8 +40,8 @@ catalog. You can also install a different valid Agent Plugins 1.0 package from
 a local directory or an exact GitHub source:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 add ./my-plugin --target cursor --yes
-npx --yes universal-agent-plugins@0.1.1 add owner/repo@commit//plugins/my-plugin --target cursor --yes
+npx universal-agent-plugins@0.1.3 add ./my-plugin --target cursor
+npx universal-agent-plugins@0.1.3 add owner/repo@commit//plugins/my-plugin --target cursor
 ```
 
 The package must have a root `plugin.json` using the supported Agent Plugins
@@ -49,15 +49,14 @@ The package must have a root `plugin.json` using the supported Agent Plugins
 installed only where the selected client supports them. The downloaded binary
 and installed command remain `agentplugins`.
 
-Each mutation changes one selected client. `--yes` never means install
-everywhere. v0.1 supports user scope and reports whether a client can install
-automatically or requires manual activation. For older `plugin-kit-ai`
-installations, run the explicit migration before the first standard
-installation:
+Each mutation changes one selected client and asks before changing it. v0.1
+supports user scope and reports whether a client can install automatically or
+requires manual activation. For older `plugin-kit-ai` installations, run the
+explicit migration before the first standard installation:
 
 ```bash
-npx --yes universal-agent-plugins@0.1.1 migrate-state --dry-run
-npx --yes universal-agent-plugins@0.1.1 migrate-state --yes
+npx universal-agent-plugins@0.1.3 migrate-state --dry-run
+npx universal-agent-plugins@0.1.3 migrate-state
 ```
 
 The migration validates the complete State v2 result, creates a byte-for-byte

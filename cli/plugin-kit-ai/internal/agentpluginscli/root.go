@@ -23,6 +23,7 @@ func NewRoot(app App) *cobra.Command {
 	flags.StringVar(&opts.scope, "scope", "user", "installation scope: user or project")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
 	flags.BoolVar(&opts.yes, "yes", false, "confirm this selected target without installing everywhere")
+	_ = flags.MarkHidden("yes")
 	flags.StringVar(&opts.format, "format", "human", "output format: human or json")
 	flags.BoolVar(&opts.noColor, "no-color", false, "disable color output")
 
