@@ -1,6 +1,8 @@
 package app
 
 import (
+	"archive/tar"
+	"fmt"
 	"io"
 )
 
@@ -11,12 +13,23 @@ func inspectBundleArchive(archivePath string) (exportMetadata, error) {
 	}
 	defer closer()
 
+	policy := newBundleArchivePolicy()
 	for {
-		metadata, done, err := readBundleArchiveMetadataEntry(tr)
-		if done || err != nil {
-			return metadata, err
+		header, err := tr.Next()
+		if err == io.EOF {
+			return exportMetadata{}, fmt.Errorf("bundle install requires .plugin-kit-ai-export.json in archive root")
 		}
-		if _, err := io.Copy(io.Discard, tr); err != nil {
+		if err != nil {
+			return exportMetadata{}, err
+		}
+		name, err := policy.validate(header)
+		if err != nil {
+			return exportMetadata{}, err
+		}
+		if header.Typeflag == tar.TypeReg && name == ".plugin-kit-ai-export.json" {
+			return readBundleArchiveMetadataEntry(tr, header.Size)
+		}
+		if _, err := io.CopyN(io.Discard, tr, header.Size); err != nil {
 			return exportMetadata{}, err
 		}
 	}
