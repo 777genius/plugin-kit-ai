@@ -10,6 +10,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	makefile := readRepoFile(t, root, "Makefile")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
 	runbook := readRepoFile(t, root, "docs", "agentplugins-release.md")
 
 	for _, want := range []string{
@@ -62,6 +63,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
 	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag beta --provenance", "Verify exact published beta lifecycle from a clean project")
+
+	mustContain(t, removedBoundaryScript, "if command -v rg")
+	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")
+	mustContain(t, removedBoundaryScript, "removed-contract scan failed")
 
 	for _, want := range []string{
 		"attests all six binaries, `checksums.txt`, and",
