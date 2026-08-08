@@ -52,15 +52,19 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"npm view agentplugins versions --json",
+		`package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"`,
+		`test "$(node -p 'require("./npm/agentplugins/package.json").bin.agentplugins')" = "bin/agentplugins.js"`,
+		`npm view "${package_name}" versions --json`,
 		"grep -q 'E404'",
-		"unable to prove whether agentplugins already exists in npm",
-		"npm view agentplugins dist-tags --json",
+		"unable to prove whether ${package_name} already exists in npm",
+		`NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}`,
+		`npm view "${NPM_PACKAGE}" dist-tags --json`,
 		"npm publish --access public --tag latest --provenance",
 		".latest == $version",
 	} {
 		mustContain(t, npmWorkflow, want)
 	}
+	mustNotContain(t, npmWorkflow, "npm view agentplugins versions --json")
 	mustNotContain(t, npmWorkflow, "npm view agentplugins version >/dev/null")
 	mustNotContain(t, npmWorkflow, "--tag beta")
 	mustAppearBefore(t, npmWorkflow, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")

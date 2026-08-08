@@ -24,6 +24,7 @@ async function fixturePackage(t, binary = BINARY) {
   await fsp.writeFile(path.join(root, "assets.json"), JSON.stringify({
     schema_version: 1,
     version: VERSION,
+    npm_package: "agentplugins",
     repository: "777genius/plugin-kit-ai",
     tag: `agentplugins-v${VERSION}`,
     assets: {
@@ -158,6 +159,16 @@ test("development metadata cannot download a release binary", async (t) => {
   assert.throws(
     () => loadRelease(packageRoot, detectPlatform("linux", "x64")),
     /development npm package/
+  );
+});
+
+test("embedded release manifest is pinned to the npm distribution name", async (t) => {
+  const fixture = await fixturePackage(t);
+  const pkgPath = path.join(fixture.root, "package.json");
+  await fsp.writeFile(pkgPath, JSON.stringify({ name: "agentplugins-cli", version: VERSION }));
+  assert.throws(
+    () => loadRelease(fixture.root, detectPlatform("linux", "x64")),
+    /npm package name and embedded binary manifest do not match/
   );
 });
 

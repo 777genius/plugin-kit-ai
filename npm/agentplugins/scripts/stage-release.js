@@ -8,6 +8,7 @@ const path = require("node:path");
 const { detectPlatform, expectedAssetName } = require("../lib/platform");
 
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const NPM_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const PLATFORMS = [
   ["darwin", "x64"],
   ["darwin", "arm64"],
@@ -21,15 +22,25 @@ function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+function validatePackageMetadata(pkg) {
+  if (!pkg || typeof pkg !== "object" || typeof pkg.name !== "string" ||
+      !NPM_PACKAGE_NAME.test(pkg.name) || pkg.name.length > 214) {
+    throw new Error("staged npm package name is invalid");
+  }
+  const packageName = pkg.name;
+  if (!pkg.bin || pkg.bin.agentplugins !== "bin/agentplugins.js") {
+    throw new Error("staged npm package must expose the agentplugins binary");
+  }
+  return packageName;
+}
+
 function stage(packageRoot, assetRoot, version) {
   if (!VERSION.test(version)) {
     throw new Error(`invalid release version: ${version}`);
   }
   const pkgPath = path.join(packageRoot, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  if (pkg.name !== "agentplugins") {
-    throw new Error("staged npm package name must be agentplugins");
-  }
+  const packageName = validatePackageMetadata(pkg);
   pkg.version = version;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   const assets = {};
@@ -46,6 +57,7 @@ function stage(packageRoot, assetRoot, version) {
   const manifest = {
     schema_version: 1,
     version,
+    npm_package: packageName,
     repository: "777genius/plugin-kit-ai",
     tag: `agentplugins-v${version}`,
     assets
@@ -72,4 +84,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { stage };
+module.exports = { stage, validatePackageMetadata };
