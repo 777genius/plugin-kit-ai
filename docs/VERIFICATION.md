@@ -32,10 +32,10 @@ in `plugins/docker-hub/mcp.json`.
 - Codex CLI 0.144.1, Cursor Agent 2026.07.09, and Kiro CLI 2.16.0 each
   completed real agent-to-plugin checks for Context7, Cloudflare Docs, Chrome
   DevTools, and Agent Code Navigator in one disposable project. That is 12/12
-  no-auth runtime checks across three clients. Notion remains `auth_pending`
-  and is not counted as success before client-specific consent and a read-only
-  call complete. The sanitized record is pinned to the exact source commit and
-  catalog digest in
+  no-auth runtime checks across three clients. Codex CLI 0.144.1, Cursor Agent
+  2026.08.04, and Kiro CLI 2.16.0 then each completed Notion OAuth and one
+  synthetic read-only search, bringing the hero matrix to 15/15. The sanitized
+  records are pinned to exact source commits in
   [`agentplugins-hero-runtime-matrix-2026-08-08.json`](../tests/e2e/results/agentplugins-hero-runtime-matrix-2026-08-08.json).
 
 - Codex CLI 0.147.0 completed the release-gated public install on Linux: pinned
@@ -90,9 +90,9 @@ handshake behavior, OAuth compatibility, account scoping, or tool correctness.
 
 No destructive tool, write operation, or real user project was used. Successful
 Notion OAuth consent was completed interactively on a user-approved personal
-workspace, followed by one synthetic read-only search, immediate client cleanup,
-and a provider-side revocation check. Provider cleanup remains explicitly partial
-for the reason recorded above.
+workspace, followed by synthetic read-only searches and immediate client-side
+credential cleanup. Provider cleanup remains explicitly partial because Notion
+did not expose a safe granular revoke that could not affect an unrelated client.
 Evidence excludes credentials, account/workspace identity, cookies, OAuth codes,
 state, tokens, page titles, and page content. Automated and repeatable OAuth
 tests must use a dedicated test account or workspace.

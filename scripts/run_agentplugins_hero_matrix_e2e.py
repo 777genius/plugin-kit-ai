@@ -96,7 +96,7 @@ def run(binary: Path) -> dict[str, object]:
     observed = datetime.now(timezone.utc).replace(microsecond=0)
     return {
         "client": "agentplugins CLI isolated multi-client package projections",
-        "version": "0.1.0-beta.1-development",
+        "version": "0.1.0-development",
         "date": date.today().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
         "catalog_revision": catalog["revision"],

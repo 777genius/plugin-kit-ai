@@ -6,7 +6,7 @@ Community package for the official Heroku hosted MCP plugin for apps, add-ons, l
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add heroku
+npx --yes agentplugins@0.1.0 add heroku
 ```
 <!-- agentplugins-install:end -->
 

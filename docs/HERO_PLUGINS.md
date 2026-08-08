@@ -10,7 +10,7 @@ prompted.
 Install:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add agent-code-navigator
+npx --yes agentplugins@0.1.0 add agent-code-navigator
 ```
 
 Try:
@@ -27,7 +27,7 @@ starting an MCP server or modifying the repository.
 Install:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add context7
+npx --yes agentplugins@0.1.0 add context7
 ```
 
 Try:
@@ -44,7 +44,7 @@ documentation results.
 Install:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add cloudflare-docs
+npx --yes agentplugins@0.1.0 add cloudflare-docs
 ```
 
 Try:
@@ -60,7 +60,7 @@ Expected: the public Streamable HTTP MCP server answers without an account.
 Install:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add chrome-devtools
+npx --yes agentplugins@0.1.0 add chrome-devtools
 ```
 
 Try only in a fresh test project and browser profile:

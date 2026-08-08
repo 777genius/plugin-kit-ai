@@ -62,9 +62,12 @@
       "client": "Codex CLI",
       "plugin": "notion",
       "scenario": "Codex authenticated read-only search through the installed plugin",
-      "status": "auth_required",
-      "installation_state": "auth_pending",
-      "detail": "Provider consent is tracked separately and is not counted as runtime success."
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_RUNTIME_OK",
+      "detail": "OAuth consent and one synthetic read-only search completed in a fresh disposable Codex profile; no workspace content was returned.",
+      "evidence": "codex-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
     },
     {
       "client": "Cursor Agent",
@@ -98,9 +101,12 @@
       "client": "Cursor Agent",
       "plugin": "notion",
       "scenario": "Cursor authenticated read-only search through the loaded package",
-      "status": "auth_required",
-      "installation_state": "auth_pending",
-      "detail": "The official provider consent screen was reached; success is not claimed before callback completion."
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_CURSOR_RUNTIME_OK",
+      "detail": "OAuth consent and one synthetic read-only search completed with disposable Cursor MCP state; no workspace content was returned.",
+      "evidence": "cursor-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
     },
     {
       "client": "Kiro CLI",
@@ -134,15 +140,18 @@
       "client": "Kiro CLI",
       "plugin": "notion",
       "scenario": "Kiro authenticated read-only search",
-      "status": "auth_required",
-      "installation_state": "auth_pending",
-      "detail": "Not run until client-specific provider consent is complete."
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_KIRO_RUNTIME_OK",
+      "detail": "OAuth consent and one direct synthetic notion-search completed with disposable Kiro project state; no workspace content was returned.",
+      "evidence": "kiro-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
     }
   ],
   "summary": {
-    "passed": 12,
+    "passed": 15,
     "planned": 15,
-    "oauth_successes": 0
+    "oauth_successes": 3
   },
   "secrets_recorded": false,
   "real_user_project_used": false,

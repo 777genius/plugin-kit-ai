@@ -1,0 +1,56 @@
+{
+  "client": "Kiro CLI",
+  "version": "2.16.0",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T07:56:20Z",
+  "evidence_type": "interactive_oauth_runtime",
+  "sandbox": "fresh disposable KIRO_HOME and project under /tmp",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "commit_sha": "c1619c77c040432c7080c01c5fcaf53b7cec0148",
+    "plugin": "notion",
+    "plugin_version": "0.1.0"
+  },
+  "checks": [
+    {
+      "scenario": "import the packaged Notion MCP declaration into a disposable Kiro project",
+      "status": "passed"
+    },
+    {
+      "scenario": "complete Kiro /mcp auth notion with explicit user consent",
+      "status": "passed"
+    },
+    {
+      "scenario": "run one authenticated read-only Notion search through Kiro CLI",
+      "status": "passed",
+      "result_marker": "NOTION_KIRO_RUNTIME_OK",
+      "detail": "Kiro directly called notion-search with the exact synthetic probe; no workspace content was returned."
+    }
+  ],
+  "authentication_handling": "The existing Kiro model session was reused while project and KIRO_HOME state stayed disposable. No credential value was read or recorded.",
+  "cleanup": {
+    "temporary_credentials_removed": true,
+    "temporary_project_removed": true,
+    "provider_grant_revoked": false
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output",
+      "page titles",
+      "workspace content"
+    ]
+  }
+}

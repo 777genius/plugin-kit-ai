@@ -20,14 +20,14 @@ Context7 is an easy first choice. It finds current library documentation and
 requires no account:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add context7
+npx --yes agentplugins@0.1.0 add context7
 ```
 
 The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. For scripts, be explicit:
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add context7 --target cursor --yes
+npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
 ```
 
 Open a new chat or session in the client you selected and ask:
@@ -79,9 +79,9 @@ marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and th
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
 materialization/removal, and the five starter plugins pass 25/25 add/remove
-flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Four
-no-auth starter plugins also pass 12/12 real runtime checks across Codex,
-Cursor, and Kiro; Notion OAuth remains tracked separately.
+flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Five
+starter plugins pass 15/15 real runtime checks across Codex, Cursor, and Kiro,
+including authenticated read-only Notion calls in all three clients.
 
 ## Safety
 

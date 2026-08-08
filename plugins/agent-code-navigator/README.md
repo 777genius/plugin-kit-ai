@@ -6,7 +6,7 @@ Route code discovery across exact search, semantic search, LSP navigation, and c
 ## Install
 
 ```bash
-npx --yes agentplugins@0.1.0-beta.1 add agent-code-navigator
+npx --yes agentplugins@0.1.0 add agent-code-navigator
 ```
 <!-- agentplugins-install:end -->
 

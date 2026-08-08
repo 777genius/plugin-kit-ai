@@ -31,6 +31,7 @@ TESTED = {
     "chrome-devtools": {"codex", "cursor", "kiro"},
     "cloudflare-docs": {"codex", "cursor", "kiro"},
     "context7": {"codex", "cursor", "kiro"},
+    "notion": {"codex", "cursor", "kiro"},
 }
 AUTH_NOT_REQUIRED = {
     "agent-code-navigator",
@@ -120,7 +121,7 @@ def build(revision: str, published_at: str) -> dict[str, object]:
             "name": name,
             "version": manifest["version"],
             "agent_plugins_schema": manifest["$schema"],
-            "minimum_cli_version": "0.1.0-beta.1",
+            "minimum_cli_version": "0.1.0",
             "source_path": f"plugins/{plugin_root.name}",
             "tree_digest": package_tree_digest(plugin_root),
             "manifest_digest": sha256(manifest_path.read_bytes()),
