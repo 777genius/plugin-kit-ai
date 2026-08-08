@@ -39,6 +39,11 @@ AUTH_NOT_REQUIRED = {
 }
 
 
+def validate_revision(revision: str) -> None:
+    if len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision):
+        raise ValueError("revision must be a lowercase 40-character commit SHA")
+
+
 def sha256(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
@@ -99,19 +104,22 @@ def auth_hints(name: str, plugin_root: Path) -> dict[str, object]:
 
 
 def build(revision: str, published_at: str) -> dict[str, object]:
-    if len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision):
-        raise ValueError("revision must be a lowercase 40-character commit SHA")
+    validate_revision(revision)
     entries = []
     for plugin_root in sorted(path for path in PLUGINS.iterdir() if path.is_dir()):
         manifest_path = plugin_root / "plugin.json"
         manifest = json.loads(manifest_path.read_text())
         name = str(manifest["name"])
+        if name != plugin_root.name:
+            raise ValueError(
+                f"manifest name {name!r} does not match directory {plugin_root.name!r}"
+            )
         entry: dict[str, object] = {
             "name": name,
             "version": manifest["version"],
             "agent_plugins_schema": manifest["$schema"],
             "minimum_cli_version": "0.1.0-beta.1",
-            "source_path": f"plugins/{name}",
+            "source_path": f"plugins/{plugin_root.name}",
             "tree_digest": package_tree_digest(plugin_root),
             "manifest_digest": sha256(manifest_path.read_bytes()),
             "components": components(plugin_root, manifest),
@@ -137,13 +145,19 @@ def encoded(value: object) -> bytes:
 
 
 def ensure_plugins_match_revision(revision: str) -> None:
+    validate_revision(revision)
     result = subprocess.run(
         ["git", "diff", "--quiet", revision, "--", "plugins"],
         cwd=ROOT,
         check=False,
+        capture_output=True,
+        text=True,
     )
-    if result.returncode != 0:
+    if result.returncode == 1:
         raise ValueError("plugins/ differs from the pinned catalog revision")
+    if result.returncode != 0:
+        detail = (result.stderr or "git diff failed without stderr").strip()
+        raise ValueError(f"could not compare plugins/ with pinned revision: {detail[:500]}")
 
 
 def main() -> int:

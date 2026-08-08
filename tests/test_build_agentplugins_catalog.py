@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +47,39 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
             self.assertRegex(plugin["tree_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertRegex(plugin["manifest_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertEqual(set(plugin["compatibility"]), {"codex", "cursor", "copilot", "vscode", "kiro"})
+
+    def test_manifest_name_must_match_hashed_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            plugins = Path(tmp)
+            package = plugins / "actual-directory"
+            package.mkdir()
+            (package / "plugin.json").write_text(
+                json.dumps(
+                    {
+                        "$schema": builder.PLUGIN_SCHEMA,
+                        "name": "different-name",
+                        "version": "1.0.0",
+                    }
+                )
+            )
+            with mock.patch.object(builder, "PLUGINS", plugins), self.assertRaisesRegex(
+                ValueError, "does not match directory"
+            ):
+                builder.build("a" * 40, "2026-08-08T00:00:00Z")
+
+    def test_git_diff_distinguishes_drift_from_execution_failure(self) -> None:
+        with mock.patch.object(
+            builder.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=1, stderr=""),
+        ), self.assertRaisesRegex(ValueError, "differs from"):
+            builder.ensure_plugins_match_revision("a" * 40)
+        with mock.patch.object(
+            builder.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=128, stderr="fatal: bad object"),
+        ), self.assertRaisesRegex(ValueError, "fatal: bad object"):
+            builder.ensure_plugins_match_revision("a" * 40)
 
 
 if __name__ == "__main__":

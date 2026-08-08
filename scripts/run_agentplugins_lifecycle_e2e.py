@@ -8,12 +8,76 @@ import json
 import os
 import subprocess
 import tempfile
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog" / "v1" / "catalog.json"
+CLI_TIMEOUT_SECONDS = 120
+
+
+def isolated_environment(sandbox: Path) -> dict[str, str]:
+    """Build a client environment without inheriting host credentials."""
+    allowed = (
+        "PATH",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TZ",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+        "SSL_CERT_FILE",
+        "SSL_CERT_DIR",
+        "NODE_EXTRA_CA_CERTS",
+    )
+    environment = {name: os.environ[name] for name in allowed if name in os.environ}
+    temp_dir = sandbox / "tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    environment.update(
+        {
+            "HOME": str(sandbox / "home"),
+            "USERPROFILE": str(sandbox / "home"),
+            "XDG_CONFIG_HOME": str(sandbox / "config"),
+            "XDG_CACHE_HOME": str(sandbox / "cache"),
+            "AGENTPLUGINS_HOME": str(sandbox / "state"),
+            "TMPDIR": str(temp_dir),
+            "TMP": str(temp_dir),
+            "TEMP": str(temp_dir),
+            "GIT_CONFIG_GLOBAL": str(sandbox / "home" / ".gitconfig"),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "CI": "true",
+        }
+    )
+    return environment
+
+
+def run_cli(
+    binary: Path,
+    command: str,
+    name: str,
+    sandbox: Path,
+    environment: dict[str, str],
+    *,
+    check: bool,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            [str(binary), command, name, "--target", "cursor", "--yes", "--format", "json"],
+            cwd=sandbox,
+            env=environment,
+            check=check,
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            f"{name}: {command} timed out after {CLI_TIMEOUT_SECONDS}s"
+        ) from error
 
 
 def run(binary: Path) -> dict[str, object]:
@@ -23,24 +87,11 @@ def run(binary: Path) -> dict[str, object]:
         sandbox = Path(temporary)
         home = sandbox / "home"
         (home / ".cursor").mkdir(parents=True)
-        environment = dict(os.environ)
-        environment.update(
-            {
-                "HOME": str(home),
-                "USERPROFILE": str(home),
-                "XDG_CONFIG_HOME": str(sandbox / "config"),
-                "AGENTPLUGINS_HOME": str(sandbox / "state"),
-            }
-        )
+        environment = isolated_environment(sandbox)
         for name in names:
             for command in ("add", "remove"):
-                completed = subprocess.run(
-                    [str(binary), command, name, "--target", "cursor", "--yes", "--format", "json"],
-                    cwd=sandbox,
-                    env=environment,
-                    check=True,
-                    capture_output=True,
-                    text=True,
+                completed = run_cli(
+                    binary, command, name, sandbox, environment, check=True
                 )
                 value = json.loads(completed.stdout)
                 if value.get("schema_version") != 1 or value.get("command") != command:
@@ -59,26 +110,17 @@ def run(binary: Path) -> dict[str, object]:
 
         # One negative case proves the remove path checks the currently managed
         # directory digest instead of trusting state alone.
-        subprocess.run(
-            [str(binary), "add", "context7", "--target", "cursor", "--yes", "--format", "json"],
-            cwd=sandbox, env=environment, check=True, capture_output=True, text=True,
-        )
+        run_cli(binary, "add", "context7", sandbox, environment, check=True)
         state = json.loads((sandbox / "state" / "state-v2.json").read_text())
         context7 = next(item for item in state["installations"] if item["declared_name"] == "context7")
         binding = next(iter(context7["clients"].values()))
         tamper = Path(binding["target_locator"]) / "unexpected-user-file.txt"
         tamper.write_text("must block removal")
-        rejected = subprocess.run(
-            [str(binary), "remove", "context7", "--target", "cursor", "--yes", "--format", "json"],
-            cwd=sandbox, env=environment, check=False, capture_output=True, text=True,
-        )
+        rejected = run_cli(binary, "remove", "context7", sandbox, environment, check=False)
         if rejected.returncode == 0:
             raise RuntimeError("digest guard accepted a modified managed package")
         tamper.unlink()
-        subprocess.run(
-            [str(binary), "remove", "context7", "--target", "cursor", "--yes", "--format", "json"],
-            cwd=sandbox, env=environment, check=True, capture_output=True, text=True,
-        )
+        run_cli(binary, "remove", "context7", sandbox, environment, check=True)
         state = json.loads((sandbox / "state" / "state-v2.json").read_text())
         active = [
             installation["declared_name"]
@@ -92,7 +134,7 @@ def run(binary: Path) -> dict[str, object]:
     return {
         "client": "agentplugins CLI isolated Cursor provider",
         "version": "0.1.0-beta.1-development",
-        "date": date.today().isoformat(),
+        "date": observed.date().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
         "catalog_revision": catalog["revision"],
         "catalog_digest": "sha256:" + __import__("hashlib").sha256(CATALOG.read_bytes()).hexdigest(),
