@@ -3,7 +3,6 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
-const http = require("node:http");
 const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
@@ -15,6 +14,7 @@ const DIGEST = /^[0-9a-f]{64}$/;
 const MAX_REDIRECTS = 5;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const LOCK_TIMEOUT_MS = 30_000;
+const DOWNLOAD_HOSTS = new Set(["github.com", "release-assets.githubusercontent.com"]);
 
 function loadRelease(packageRoot, platformInfo) {
   const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
@@ -66,11 +66,10 @@ async function validCachedBinary(file, expectedHash) {
   }
 }
 
-function validateDownloadURL(value, allowLoopbackHTTP) {
+function validateDownloadURL(value) {
   const parsed = new URL(value);
-  const loopback = parsed.hostname === "127.0.0.1" || parsed.hostname === "::1" || parsed.hostname === "localhost";
-  if (parsed.protocol !== "https:" && !(allowLoopbackHTTP && parsed.protocol === "http:" && loopback)) {
-    throw new Error("binary download and every redirect must use HTTPS");
+  if (parsed.protocol !== "https:" || parsed.port || !DOWNLOAD_HOSTS.has(parsed.hostname)) {
+    throw new Error("binary download and every redirect must use an approved GitHub HTTPS host");
   }
   if (parsed.username || parsed.password) {
     throw new Error("binary download URL cannot contain credentials");
@@ -79,15 +78,17 @@ function validateDownloadURL(value, allowLoopbackHTTP) {
 }
 
 async function downloadFile(value, destination, expected, options = {}, redirects = MAX_REDIRECTS) {
-  const target = validateDownloadURL(value, options.allowLoopbackHTTP === true);
-  const transport = target.protocol === "https:" ? https : http;
+  const target = validateDownloadURL(value);
   await new Promise((resolve, reject) => {
-    const request = transport.get(target, {
+    const requestOptions = {
       headers: {
         Accept: "application/octet-stream",
         "User-Agent": "agentplugins-npm-bootstrap"
       }
-    });
+    };
+    const request = typeof options.request === "function"
+      ? options.request(target, requestOptions)
+      : https.get(target, requestOptions);
     request.setTimeout(DOWNLOAD_TIMEOUT_MS, () => request.destroy(new Error("binary download timed out")));
     request.once("error", reject);
     request.once("response", (response) => {
@@ -271,7 +272,7 @@ async function ensureBinary(options = {}) {
   if (await validCachedBinary(binaryPath, release.asset.sha256)) {
     return { binaryPath, version: release.version, cacheHit: true };
   }
-  const releaseBase = options.releaseBaseURL || `https://github.com/${release.manifest.repository}/releases/download/${release.manifest.tag}`;
+  const releaseBase = `https://github.com/${release.manifest.repository}/releases/download/${release.manifest.tag}`;
   const url = `${String(releaseBase).replace(/\/$/, "")}/${encodeURIComponent(release.asset.file)}`;
   const temporary = path.join(os.tmpdir(), `agentplugins-download-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
   try {

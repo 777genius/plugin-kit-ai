@@ -45,6 +45,10 @@ async function listen(t, handler) {
   return { server, url: `http://127.0.0.1:${address.port}` };
 }
 
+function requestThrough(endpoint) {
+  return (_target, options) => http.get(endpoint, options);
+}
+
 test("cold, warm, corrupted, and concurrent cache paths stay verified", async (t) => {
   const fixture = await fixturePackage(t);
   let requests = 0;
@@ -59,8 +63,7 @@ test("cold, warm, corrupted, and concurrent cache paths stay verified", async (t
   const options = {
     packageRoot: fixture.root,
     cacheRoot: cache,
-    releaseBaseURL: endpoint.url,
-    allowLoopbackHTTP: true,
+    request: requestThrough(endpoint.url),
     platform: "linux",
     arch: "x64"
   };
@@ -87,8 +90,7 @@ test("offline cold cache fails without creating the cache", async (t) => {
     ensureBinary({
       packageRoot: fixture.root,
       cacheRoot: cache,
-      releaseBaseURL: unavailable,
-      allowLoopbackHTTP: true,
+      request: requestThrough(unavailable),
       platform: "linux",
       arch: "x64"
     }),
@@ -106,7 +108,7 @@ test("redirected public download never inherits GITHUB_TOKEN", async (t) => {
     response.end(fixture.binary);
   });
   const redirect = await listen(t, (_request, response) => {
-    response.writeHead(302, { location: `${target.url}/${fixture.file}` });
+    response.writeHead(302, { location: `https://release-assets.githubusercontent.com/download/${fixture.file}` });
     response.end();
   });
   const previous = process.env.GITHUB_TOKEN;
@@ -120,8 +122,7 @@ test("redirected public download never inherits GITHUB_TOKEN", async (t) => {
   await ensureBinary({
     packageRoot: fixture.root,
     cacheRoot: cache,
-    releaseBaseURL: redirect.url,
-    allowLoopbackHTTP: true,
+    request: (url, options) => http.get(url.hostname === "github.com" ? redirect.url : target.url, options),
     platform: "linux",
     arch: "x64"
   });
@@ -185,13 +186,35 @@ test("download verification closes the destination before rejecting", async (t) 
   const destination = path.join(os.tmpdir(), `agentplugins-bad-download-${crypto.randomBytes(8).toString("hex")}`);
   t.after(() => fsp.rm(destination, { force: true }));
   await assert.rejects(
-    downloadFile(`${endpoint.url}/binary`, destination, {
+    downloadFile("https://github.com/777genius/plugin-kit-ai/releases/download/test/binary", destination, {
       size: BINARY.length,
       sha256: "0".repeat(64)
-    }, { allowLoopbackHTTP: true }),
+    }, { request: requestThrough(endpoint.url) }),
     /SHA-256 verification/
   );
   await fsp.rm(destination);
+  assert.equal(fs.existsSync(destination), false);
+});
+
+test("binary downloads reject non-GitHub hosts and custom ports before requesting", async () => {
+  const destination = path.join(os.tmpdir(), `agentplugins-rejected-download-${crypto.randomBytes(8).toString("hex")}`);
+  const expected = { size: BINARY.length, sha256: crypto.createHash("sha256").update(BINARY).digest("hex") };
+  let requested = false;
+  const options = {
+    request: () => {
+      requested = true;
+      throw new Error("request must not run");
+    }
+  };
+  await assert.rejects(
+    downloadFile("https://example.com/agentplugins", destination, expected, options),
+    /approved GitHub HTTPS host/
+  );
+  await assert.rejects(
+    downloadFile("https://github.com:444/agentplugins", destination, expected, options),
+    /approved GitHub HTTPS host/
+  );
+  assert.equal(requested, false);
   assert.equal(fs.existsSync(destination), false);
 });
 
@@ -209,8 +232,7 @@ test("a non-regular binary cache target is preserved", async (t) => {
   await assert.rejects(ensureBinary({
     packageRoot: fixture.root,
     cacheRoot: cache,
-    releaseBaseURL: endpoint.url,
-    allowLoopbackHTTP: true,
+    request: requestThrough(endpoint.url),
     platform: "linux",
     arch: "x64"
   }), /not a regular file/);
