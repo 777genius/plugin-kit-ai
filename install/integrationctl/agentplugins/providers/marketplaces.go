@@ -51,7 +51,7 @@ func projectCodexMarketplace(root string, envelope domain.PackageEnvelope, plan 
 			"name": envelope.Manifest.Name,
 			"source": map[string]any{
 				"source": "local",
-				"path":   ".",
+				"path":   "./",
 			},
 			"policy": map[string]any{
 				"installation":   "AVAILABLE",

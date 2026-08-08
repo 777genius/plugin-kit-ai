@@ -53,7 +53,7 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	}
 	plugins := codexMarketplace["plugins"].([]any)
 	source := plugins[0].(map[string]any)["source"].(map[string]any)
-	if source["source"] != "local" || source["path"] != "." {
+	if source["source"] != "local" || source["path"] != "./" {
 		t.Fatalf("Codex marketplace source = %+v", source)
 	}
 	standardMCP := readObject(t, filepath.Join(delivery.StagingPath, "mcp.json"))
