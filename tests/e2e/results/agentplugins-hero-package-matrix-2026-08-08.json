@@ -2,7 +2,7 @@
   "client": "agentplugins CLI isolated multi-client package projections",
   "version": "0.1.1",
   "date": "2026-08-08",
-  "observed_at_utc": "2026-08-08T11:56:04Z",
+  "observed_at_utc": "2026-08-08T12:26:20Z",
   "catalog_revision": "7c455ed6436a880e421a9d069fb70ac65be7d980",
   "catalog_digest": "sha256:f4b315c8a442607075bb2940b4b88c5da338f67d97eed27358e078744ba0d707",
   "checks": [

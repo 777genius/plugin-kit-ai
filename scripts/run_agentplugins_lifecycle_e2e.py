@@ -6,18 +6,50 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog" / "v1" / "catalog.json"
 CLI_TIMEOUT_SECONDS = 120
+EXPECTED_CLI_VERSION = "0.1.1"
+SEMVER_PATTERN = re.compile(
+    r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
+CATALOG_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
 
 
-def isolated_environment(sandbox: Path) -> dict[str, str]:
+def catalog_environment(catalog_url: str, catalog_digest: str) -> dict[str, str]:
+    parsed = urlsplit(catalog_url)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError(
+            "catalog URL must be public HTTPS without credentials, query, or fragment"
+        )
+    if not CATALOG_DIGEST_PATTERN.fullmatch(catalog_digest):
+        raise ValueError("catalog digest must be lowercase sha256:<64 hex>")
+    return {
+        "AGENTPLUGINS_CATALOG_URL": catalog_url,
+        "AGENTPLUGINS_CATALOG_DIGEST": catalog_digest,
+    }
+
+
+def isolated_environment(
+    sandbox: Path, catalog_url: str, catalog_digest: str
+) -> dict[str, str]:
     """Build a client environment without inheriting host credentials."""
     allowed = (
         "PATH",
@@ -32,8 +64,6 @@ def isolated_environment(sandbox: Path) -> dict[str, str]:
         "SSL_CERT_FILE",
         "SSL_CERT_DIR",
         "NODE_EXTRA_CA_CERTS",
-        "AGENTPLUGINS_CATALOG_URL",
-        "AGENTPLUGINS_CATALOG_DIGEST",
     )
     environment = {name: os.environ[name] for name in allowed if name in os.environ}
     temp_dir = sandbox / "tmp"
@@ -54,6 +84,7 @@ def isolated_environment(sandbox: Path) -> dict[str, str]:
             "CI": "true",
         }
     )
+    environment.update(catalog_environment(catalog_url, catalog_digest))
     return environment
 
 
@@ -83,7 +114,10 @@ def run_cli(
 
 
 def binary_version(
-    binary: Path, sandbox: Path, environment: dict[str, str]
+    binary: Path,
+    sandbox: Path,
+    environment: dict[str, str],
+    expected_version: str,
 ) -> str:
     completed = subprocess.run(
         [str(binary), "version"],
@@ -96,20 +130,30 @@ def binary_version(
     )
     prefix = "agentplugins "
     value = completed.stdout.strip()
-    if not value.startswith(prefix) or not value.removeprefix(prefix).strip():
+    version = value.removeprefix(prefix).strip() if value.startswith(prefix) else ""
+    if not SEMVER_PATTERN.fullmatch(version):
         raise RuntimeError(f"unexpected agentplugins version output: {value!r}")
-    return value.removeprefix(prefix).strip()
+    if version != expected_version:
+        raise RuntimeError(
+            f"agentplugins version {version!r} does not match expected {expected_version!r}"
+        )
+    return version
 
 
-def run(binary: Path) -> dict[str, object]:
+def run(
+    binary: Path,
+    expected_version: str,
+    catalog_url: str,
+    catalog_digest: str,
+) -> dict[str, object]:
     catalog = json.loads(CATALOG.read_text())
     names = [entry["name"] for entry in catalog["plugins"]]
     with tempfile.TemporaryDirectory(prefix="agentplugins-lifecycle-e2e-") as temporary:
         sandbox = Path(temporary)
         home = sandbox / "home"
         (home / ".cursor").mkdir(parents=True)
-        environment = isolated_environment(sandbox)
-        version = binary_version(binary, sandbox, environment)
+        environment = isolated_environment(sandbox, catalog_url, catalog_digest)
+        version = binary_version(binary, sandbox, environment, expected_version)
         for name in names:
             for command in ("add", "remove"):
                 completed = run_cli(
@@ -127,8 +171,19 @@ def run(binary: Path) -> dict[str, object]:
                 expected_sequence = 1 if command == "add" else 2
                 if receipt.get("phase") != "committed" or receipt.get("sequence") != expected_sequence:
                     raise RuntimeError(f"{name}: invalid committed {command} receipt")
-                if command == "add" and not receipt.get("after_digest", "").startswith("sha256:"):
-                    raise RuntimeError(f"{name}: add receipt omitted artifact digest")
+                if command == "add":
+                    if not receipt.get("after_digest", "").startswith("sha256:"):
+                        raise RuntimeError(f"{name}: add receipt omitted artifact digest")
+                else:
+                    add_receipt = binding["receipts"][-2]
+                    if receipt.get("before_digest") != add_receipt.get("after_digest"):
+                        raise RuntimeError(
+                            f"{name}: remove receipt did not preserve the installed digest"
+                        )
+                    if receipt.get("after_digest") not in (None, ""):
+                        raise RuntimeError(
+                            f"{name}: remove receipt retained an absent artifact digest"
+                        )
 
         # One negative case proves the remove path checks the currently managed
         # directory digest instead of trusting state alone.
@@ -174,7 +229,7 @@ def run(binary: Path) -> dict[str, object]:
         "checks": [
             {"scenario": "resolve all short names from the pinned catalog", "status": "passed", "plugin_count": len(names)},
             {"scenario": "transactional add for every catalog package", "status": "passed", "plugin_count": len(names)},
-            {"scenario": "committed receipt sequence and artifact digest for every add/remove", "status": "passed", "plugin_count": len(names)},
+            {"scenario": "committed receipt sequence and transition digests for every add/remove", "status": "passed", "plugin_count": len(names)},
             {"scenario": "tampered managed package blocks removal", "status": "passed", "plugin_count": 1},
             {"scenario": "tool runtime and OAuth", "status": "skipped", "reason": "tracked separately from package lifecycle"},
         ],
@@ -199,9 +254,19 @@ def run(binary: Path) -> dict[str, object]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
+    parser.add_argument("--expected-version", default=EXPECTED_CLI_VERSION)
+    parser.add_argument("--catalog-url", required=True)
+    parser.add_argument("--catalog-digest", required=True)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    result = run(args.binary.resolve())
+    if not SEMVER_PATTERN.fullmatch(args.expected_version):
+        parser.error("--expected-version must be a semantic version")
+    result = run(
+        args.binary.resolve(),
+        args.expected_version,
+        args.catalog_url,
+        args.catalog_digest,
+    )
     body = json.dumps(result, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

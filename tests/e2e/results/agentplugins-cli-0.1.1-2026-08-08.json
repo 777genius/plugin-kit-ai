@@ -2,7 +2,7 @@
   "client": "agentplugins CLI isolated Cursor provider",
   "version": "0.1.1",
   "date": "2026-08-08",
-  "observed_at_utc": "2026-08-08T11:54:26Z",
+  "observed_at_utc": "2026-08-08T12:24:37Z",
   "catalog_revision": "7c455ed6436a880e421a9d069fb70ac65be7d980",
   "catalog_digest": "sha256:f4b315c8a442607075bb2940b4b88c5da338f67d97eed27358e078744ba0d707",
   "checks": [
@@ -17,7 +17,7 @@
       "plugin_count": 26
     },
     {
-      "scenario": "committed receipt sequence and artifact digest for every add/remove",
+      "scenario": "committed receipt sequence and transition digests for every add/remove",
       "status": "passed",
       "plugin_count": 26
     },
