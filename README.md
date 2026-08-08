@@ -78,9 +78,10 @@ marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and th
 [compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
-materialization/removal in a Cursor provider layout, and the five starter plugins pass 25/25
-add/remove flows across isolated Codex, Cursor, Copilot, VS Code, and Kiro
-projections. Client launch, tool calls, and OAuth are reported separately.
+materialization/removal, and the five starter plugins pass 25/25 add/remove
+flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Four
+no-auth starter plugins also pass 12/12 real runtime checks across Codex,
+Cursor, and Kiro; Notion OAuth remains tracked separately.
 
 ## Safety
 

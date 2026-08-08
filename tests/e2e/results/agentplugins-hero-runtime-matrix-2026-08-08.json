@@ -1,0 +1,143 @@
+{
+  "clients": [
+    {
+      "name": "Codex CLI",
+      "version": "0.144.1",
+      "package_path": "isolated CODEX_HOME with local marketplace snapshot",
+      "checks": [
+        {
+          "plugin": "context7",
+          "scenario": "installed plugin calls resolve-library-id",
+          "status": "passed",
+          "result_marker": "/microsoft/playwright"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "scenario": "installed plugin searches official Workers documentation",
+          "status": "passed",
+          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "scenario": "installed plugin calls list_pages against a disposable browser",
+          "status": "passed",
+          "result_marker": "about:blank"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "scenario": "installed skill selects the exact-search route",
+          "status": "passed",
+          "result_marker": "rg; verify by opening matching source locations"
+        },
+        {
+          "plugin": "notion",
+          "scenario": "authenticated read-only search through the installed plugin",
+          "status": "auth_pending",
+          "detail": "Provider consent is tracked separately and is not counted as runtime success."
+        }
+      ]
+    },
+    {
+      "name": "Cursor Agent",
+      "version": "2026.07.09-a3815c0",
+      "package_path": "portable package loaded with the client's local plugin option",
+      "checks": [
+        {
+          "plugin": "context7",
+          "scenario": "loaded package calls resolve-library-id",
+          "status": "passed",
+          "result_marker": "/microsoft/playwright"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "scenario": "loaded package searches official Workers documentation",
+          "status": "passed",
+          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "scenario": "loaded package calls list_pages against a disposable browser",
+          "status": "passed",
+          "result_marker": "about:blank"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "scenario": "loaded skill selects the exact-search route",
+          "status": "passed",
+          "result_marker": "rg; open matching files"
+        },
+        {
+          "plugin": "notion",
+          "scenario": "authenticated read-only search through the loaded package",
+          "status": "auth_pending",
+          "detail": "The official provider consent screen was reached; success is not claimed before callback completion."
+        }
+      ]
+    },
+    {
+      "name": "Kiro CLI",
+      "version": "2.16.0",
+      "package_path": "workspace-scoped MCP imports and an exact isolated copy of the packaged skill",
+      "checks": [
+        {
+          "plugin": "context7",
+          "scenario": "workspace MCP calls resolve-library-id",
+          "status": "passed",
+          "result_marker": "/microsoft/playwright"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "scenario": "workspace MCP searches official Workers documentation",
+          "status": "passed",
+          "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "scenario": "workspace MCP calls list_pages against a disposable browser",
+          "status": "passed",
+          "result_marker": "about:blank"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "scenario": "exact packaged skill resource selects the exact-search route",
+          "status": "passed",
+          "result_marker": "rg; open matching files"
+        },
+        {
+          "plugin": "notion",
+          "scenario": "authenticated read-only search",
+          "status": "auth_pending",
+          "detail": "Not run until client-specific provider consent is complete."
+        }
+      ]
+    }
+  ],
+  "date": "2026-08-08",
+  "evidence_type": "interactive_multi_client_runtime",
+  "sandbox": "one fresh disposable project under /tmp; no real user project was opened",
+  "summary": {
+    "passed": 12,
+    "planned": 15,
+    "oauth_successes": 0
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output",
+      "page titles",
+      "workspace content"
+    ]
+  }
+}

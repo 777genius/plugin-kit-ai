@@ -1,6 +1,6 @@
 # Verification record
 
-Date: 2026-08-07.
+Date: 2026-08-08.
 
 ## Package conformance
 
@@ -28,6 +28,13 @@ The Docker Hub package is pinned to the multi-architecture OCI digest recorded
 in `plugins/docker-hub/mcp.json`.
 
 ## Runtime E2E
+
+- Codex CLI 0.144.1, Cursor Agent 2026.07.09, and Kiro CLI 2.16.0 each
+  completed real agent-to-plugin checks for Context7, Cloudflare Docs, Chrome
+  DevTools, and Agent Code Navigator in one disposable project. That is 12/12
+  no-auth runtime checks across three clients. Notion remains `auth_pending`
+  and is not counted as success before client-specific consent and a read-only
+  call complete.
 
 - Codex CLI 0.147.0 completed the release-gated public install on Linux: pinned
   `v0.1.1`, installed Context7 into a fresh `CODEX_HOME`, and called
