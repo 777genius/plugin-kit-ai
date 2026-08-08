@@ -194,6 +194,9 @@ func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result u
 	for _, action := range result.Plan.UserActions {
 		_, _ = fmt.Fprintf(writer, "  Next: %s\n", action)
 	}
+	for _, action := range result.Plan.LocalActions {
+		_, _ = fmt.Fprintf(writer, "  Next: %s\n", action)
+	}
 	return nil
 }
 
@@ -225,6 +228,9 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 			_, _ = fmt.Fprintln(writer, "Package prepared. Activation is not complete yet.")
 		}
 		for _, action := range result.Activation.UserActions {
+			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
+		}
+		for _, action := range result.Activation.LocalActions {
 			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 		}
 	}

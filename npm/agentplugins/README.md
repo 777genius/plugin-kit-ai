@@ -28,6 +28,12 @@ npx --yes universal-agent-plugins@0.1.1 update context7 --target cursor --yes
 npx --yes universal-agent-plugins@0.1.1 remove context7 --target cursor --yes
 ```
 
+For GitHub Copilot CLI, `agentplugins` performs the native install, update, and
+remove automatically through a managed local marketplace. VS Code discovers
+the same installation automatically, so selecting either target once is
+enough. Codex/ChatGPT and Kiro print one exact, path-specific next step when
+their client UI must finish the installation.
+
 Short names resolve through the pinned
 [`universal-agent-plugins`](https://github.com/777genius/universal-agent-plugins)
 catalog. You can also install a different valid Agent Plugins 1.0 package from
@@ -45,8 +51,9 @@ and installed command remain `agentplugins`.
 
 Each mutation changes one selected client. `--yes` never means install
 everywhere. v0.1 supports user scope and reports whether a client can install
-automatically or requires manual activation. For older `plugin-kit-ai` installations, run the explicit migration
-before the first standard installation:
+automatically or requires manual activation. For older `plugin-kit-ai`
+installations, run the explicit migration before the first standard
+installation:
 
 ```bash
 npx --yes universal-agent-plugins@0.1.1 migrate-state --dry-run

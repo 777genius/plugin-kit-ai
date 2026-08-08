@@ -27,6 +27,13 @@ or installs one explicit target at a time across Codex/ChatGPT, Cursor, GitHub
 Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
 
+When GitHub Copilot CLI is detected, `agentplugins` installs, updates, and
+removes the plugin automatically through a managed local marketplace. VS Code
+discovers that installation automatically, so selecting either Copilot or VS
+Code once is enough. Codex/ChatGPT and Kiro keep their
+required client confirmation and receive an exact, path-specific next step in
+human-readable output.
+
 ```bash
 npx --yes universal-agent-plugins@0.1.1 add context7 --dry-run --target cursor
 npx --yes universal-agent-plugins@0.1.1 add context7 --target cursor --yes
@@ -38,8 +45,8 @@ valid Agent Plugins 1.0 package directly. The installed command is
 `agentplugins`.
 
 `universal-agent-plugins` is an independent community installer, not an official OpenAI
-CLI. OAuth and trust prompts remain under the user's client. Prepared,
-auth-pending, and manual-activation states are never labelled installed.
+CLI. OAuth and required client confirmations remain under the user's client.
+Prepared, auth-pending, and manual-activation states are never labelled installed.
 
 This is separate from the `plugin-kit-ai` authoring flow below: `plugin.json`
 and legacy `plugin/plugin.yaml` are never merged or silently converted.

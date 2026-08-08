@@ -2,56 +2,136 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
-func TestActivatorKeepsCopilotManualEvenWhenCallerHasATerminal(t *testing.T) {
+type recordingRunner struct {
+	commands []legacyports.Command
+	run      func(legacyports.Command) legacyports.CommandResult
+}
+
+func (runner *recordingRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
+	runner.commands = append(runner.commands, command)
+	if runner.run != nil {
+		return runner.run(command), nil
+	}
+	return legacyports.CommandResult{}, nil
+}
+
+func TestActivatorInstallsCopilotAndVSCodeThroughManagedMarketplace(t *testing.T) {
 	t.Parallel()
-	for _, interactive := range []bool{false, true} {
-		request := activationRequest(t, domain.ClientCopilot)
-		request.Interactive = interactive
-		outcome, err := (Activator{}).Activate(context.Background(), request)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid {
-			t.Fatalf("outcome = %+v", outcome)
-		}
-		if len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], "copilot plugin install") {
-			t.Fatalf("actions = %+v", outcome.UserActions)
-		}
+	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
+		client := client
+		t.Run(string(client), func(t *testing.T) {
+			runner := &recordingRunner{}
+			request := activationRequest(t, client)
+			request.BackendExecutable = "/test/bin/copilot"
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || len(outcome.UserActions) != 0 {
+				t.Fatalf("outcome = %+v", outcome)
+			}
+			marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+			want := [][]string{
+				{"/test/bin/copilot", "plugin", "marketplace", "add", request.Delivery.ActivePath},
+				{"/test/bin/copilot", "plugin", "install", "demo@" + marketplace},
+			}
+			if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+				t.Fatalf("commands = %#v, want %#v", got, want)
+			}
+		})
 	}
 }
 
-func TestActivatorDoesNotOfferCopilotCommandForVSCodeOnlyTarget(t *testing.T) {
+func TestActivatorUpdateRecoversMissingMarketplaceAndPlugin(t *testing.T) {
 	t.Parallel()
-	request := activationRequest(t, domain.ClientVSCode)
-	outcome, err := (Activator{}).Activate(context.Background(), request)
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		joined := strings.Join(command.Argv, " ")
+		if strings.Contains(joined, "marketplace update") || strings.Contains(joined, "plugin update") {
+			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("missing")}
+		}
+		return legacyports.CommandResult{}
+	}}
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	request.Replacing = true
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Activation != domain.ActivationManual || len(outcome.UserActions) != 1 || strings.Contains(outcome.UserActions[0], "copilot plugin") || !strings.Contains(outcome.UserActions[0], "VS Code") {
+	if outcome.Activation != domain.ActivationActive {
 		t.Fatalf("outcome = %+v", outcome)
+	}
+	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	want := [][]string{
+		{"/test/bin/copilot", "plugin", "marketplace", "update", marketplace},
+		{"/test/bin/copilot", "plugin", "marketplace", "add", request.Delivery.ActivePath},
+		{"/test/bin/copilot", "plugin", "update", "demo@" + marketplace},
+		{"/test/bin/copilot", "plugin", "install", "demo@" + marketplace},
+	}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
 	}
 }
 
-func TestActivatorKeepsUIOnlyClientsInManualActivationState(t *testing.T) {
+func TestActivatorCleansNewMarketplaceWhenPluginInstallFails(t *testing.T) {
 	t.Parallel()
-	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientKiro} {
-		request := activationRequest(t, client)
-		request.Interactive = true
-		outcome, err := (Activator{}).Activate(context.Background(), request)
-		if err != nil {
-			t.Fatal(err)
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		if strings.Contains(strings.Join(command.Argv, " "), "plugin install") {
+			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("install failed")}
 		}
-		if outcome.Activation != domain.ActivationManual {
-			t.Fatalf("client %s outcome = %+v", client, outcome)
-		}
+		return legacyports.CommandResult{}
+	}}
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
+		t.Fatal("failed install unexpectedly succeeded")
+	}
+	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	want := [][]string{
+		{"/test/bin/copilot", "plugin", "marketplace", "add", request.Delivery.ActivePath},
+		{"/test/bin/copilot", "plugin", "install", "demo@" + marketplace},
+		{"/test/bin/copilot", "plugin", "marketplace", "remove", marketplace},
+	}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestActivatorUsesPathSpecificManualHintsWithoutLeakingThemToJSON(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientKiro, domain.ClientVSCode} {
+		client := client
+		t.Run(string(client), func(t *testing.T) {
+			request := activationRequest(t, client)
+			outcome, err := (Activator{}).Activate(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if outcome.Activation != domain.ActivationManual || len(outcome.UserActions) != 1 || len(outcome.LocalActions) != 1 {
+				t.Fatalf("outcome = %+v", outcome)
+			}
+			if !strings.Contains(outcome.LocalActions[0], request.Delivery.ActivePath) {
+				t.Fatalf("local action = %q", outcome.LocalActions[0])
+			}
+			body, err := json.Marshal(outcome)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(body), request.Delivery.ActivePath) {
+				t.Fatalf("public JSON leaked local path: %s", body)
+			}
+		})
 	}
 }
 
@@ -67,44 +147,76 @@ func TestActivatorKeepsCursorManualUntilClientDiscoveryIsVerified(t *testing.T) 
 	}
 }
 
-func TestDeactivatorNeverRemovesCopilotPackageBeforeManualClientUninstall(t *testing.T) {
+func TestDeactivatorPreviewsThenRemovesNativeCopilotLifecycle(t *testing.T) {
 	t.Parallel()
-	for _, activation := range []domain.ActivationState{domain.ActivationManual, domain.ActivationActive} {
-		for _, interactive := range []bool{false, true} {
-			outcome, err := (Activator{}).Deactivate(context.Background(), domain.DeactivationRequest{
-				Client: domain.DetectedClient{ClientID: domain.ClientCopilot}, DeclaredName: "demo",
-				CurrentActivation: activation, Interactive: interactive,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if outcome.ArtifactRemovalAllowed || outcome.Activation != domain.ActivationManual || outcome.ExternalRemovalComplete {
-				t.Fatalf("outcome = %+v", outcome)
-			}
-			if len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], "copilot plugin uninstall demo") {
-				t.Fatalf("actions = %+v", outcome.UserActions)
-			}
-		}
+	runner := &recordingRunner{}
+	request := domain.DeactivationRequest{
+		Client: domain.DetectedClient{ClientID: domain.ClientCopilot}, DeclaredName: "demo",
+		CurrentActivation: domain.ActivationActive, BackendExecutable: "/test/bin/copilot",
+		PhysicalArtifactID: "demo-0123456789ab",
+	}
+	preview, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.ArtifactRemovalAllowed || preview.ExternalRemovalComplete || len(runner.commands) != 0 {
+		t.Fatalf("preview = %+v, commands = %+v", preview, runner.commands)
+	}
+	request.Confirmed = true
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	want := [][]string{
+		{"/test/bin/copilot", "plugin", "uninstall", "demo@" + managedMarketplaceName(request.PhysicalArtifactID)},
+		{"/test/bin/copilot", "plugin", "marketplace", "remove", managedMarketplaceName(request.PhysicalArtifactID)},
+	}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
 	}
 }
 
-func TestDeactivatorAllowsCopiedArtifactRemovalAfterExplicitExternalUninstall(t *testing.T) {
+func TestDeactivatorTreatsAlreadyAbsentNativeObjectsAsRemoved(t *testing.T) {
 	t.Parallel()
-	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientKiro, domain.ClientCopilot, domain.ClientVSCode} {
-		outcome, err := (Activator{}).Deactivate(context.Background(), domain.DeactivationRequest{
-			Client: domain.DetectedClient{ClientID: client}, DeclaredName: "demo",
-			CurrentActivation: domain.ActivationManual, ExternalUninstalled: true,
-		})
-		if err != nil {
-			t.Fatal(err)
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		if strings.Contains(strings.Join(command.Argv, " "), "marketplace remove") {
+			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte(`Marketplace "demo" is not registered`)}
 		}
-		if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete || len(outcome.UserActions) != 0 {
-			t.Fatalf("client %s outcome = %+v", client, outcome)
-		}
+		return legacyports.CommandResult{ExitCode: 1, Stderr: []byte(`Plugin "demo" is not installed`)}
+	}}
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), domain.DeactivationRequest{
+		Client: domain.DetectedClient{ClientID: domain.ClientVSCode}, DeclaredName: "demo",
+		CurrentActivation: domain.ActivationActive, BackendExecutable: "/test/bin/copilot",
+		PhysicalArtifactID: "demo-0123456789ab", Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete {
+		t.Fatalf("outcome = %+v", outcome)
 	}
 }
 
-func TestDeactivatorPreservesCopiedClientArtifactUntilExternalUninstallIsAcknowledged(t *testing.T) {
+func TestDeactivatorDoesNotClaimManualCopilotLifecycle(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{}
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), domain.DeactivationRequest{
+		Client: domain.DetectedClient{ClientID: domain.ClientCopilot}, DeclaredName: "demo",
+		CurrentActivation: domain.ActivationManual, BackendExecutable: "/test/bin/copilot",
+		PhysicalArtifactID: "demo-0123456789ab", Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.ArtifactRemovalAllowed || len(outcome.UserActions) != 1 || len(runner.commands) != 0 {
+		t.Fatalf("outcome = %+v, commands = %+v", outcome, runner.commands)
+	}
+}
+
+func TestDeactivatorPreservesManualClientArtifactsUntilAcknowledged(t *testing.T) {
 	t.Parallel()
 	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientKiro, domain.ClientVSCode} {
 		outcome, err := (Activator{}).Deactivate(context.Background(), domain.DeactivationRequest{
@@ -131,10 +243,20 @@ func activationRequest(t *testing.T, client domain.ClientID) domain.ActivationRe
 		t.Fatal(err)
 	}
 	return domain.ActivationRequest{
-		Client: domain.DetectedClient{ClientID: client, Status: domain.DetectionDetected},
+		Client:       domain.DetectedClient{ClientID: client, Status: domain.DetectionDetected},
+		DeclaredName: "demo",
 		Plan: domain.DeliveryPlan{
-			ClientID: client, ActivePath: active, Authentication: domain.AuthenticationNotChecked,
+			ClientID: client, ActivePath: active, PhysicalArtifactID: "demo-0123456789ab",
+			Authentication: domain.AuthenticationNotChecked,
 		},
 		Delivery: domain.StagedDelivery{ClientID: client, OwnedBase: base, ActivePath: active},
 	}
+}
+
+func commandArgv(commands []legacyports.Command) [][]string {
+	result := make([][]string, 0, len(commands))
+	for _, command := range commands {
+		result = append(result, command.Argv)
+	}
+	return result
 }

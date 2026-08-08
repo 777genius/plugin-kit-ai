@@ -47,10 +47,44 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	if notion["type"] != "http" || notion["oauth_resource"] != "https://mcp.notion.com" {
 		t.Fatalf("OpenAI MCP = %+v", notion)
 	}
+	codexMarketplace := readObject(t, filepath.Join(delivery.StagingPath, ".agents", "plugins", "marketplace.json"))
+	if codexMarketplace["name"] != managedMarketplaceName(plan.PhysicalArtifactID) {
+		t.Fatalf("Codex marketplace = %+v", codexMarketplace)
+	}
+	plugins := codexMarketplace["plugins"].([]any)
+	source := plugins[0].(map[string]any)["source"].(map[string]any)
+	if source["source"] != "local" || source["path"] != "./" {
+		t.Fatalf("Codex marketplace source = %+v", source)
+	}
 	standardMCP := readObject(t, filepath.Join(delivery.StagingPath, "mcp.json"))
 	standardServers := standardMCP["mcpServers"].(map[string]any)
 	if _, exists := standardServers["broken"]; exists {
 		t.Fatal("invalid MCP server survived staging")
+	}
+}
+
+func TestStagerBuildsManagedCopilotMarketplaceForCopilotAndVSCode(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
+		client := client
+		t.Run(string(client), func(t *testing.T) {
+			envelope := stagingEnvelope(t)
+			plan := stagingPlan(t, client, domain.PackageNative)
+			delivery, err := (Stager{}).Stage(context.Background(), envelope, plan, "operation-"+string(client), domain.CompatibilityHints{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			marketplace := readObject(t, filepath.Join(delivery.StagingPath, ".github", "plugin", "marketplace.json"))
+			if marketplace["name"] != managedMarketplaceName(plan.PhysicalArtifactID) {
+				t.Fatalf("marketplace = %+v", marketplace)
+			}
+			plugins := marketplace["plugins"].([]any)
+			plugin := plugins[0].(map[string]any)
+			if plugin["name"] != "demo" || plugin["source"] != "." || plugin["version"] != "1.0.0" {
+				t.Fatalf("plugin entry = %+v", plugin)
+			}
+			assertMissing(t, filepath.Join(envelope.SnapshotRoot, ".github"))
+		})
 	}
 }
 
