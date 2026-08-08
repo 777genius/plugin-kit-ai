@@ -128,6 +128,19 @@ jobs:
           export GIT_CONFIG_NOSYSTEM=1
           export GIT_TERMINAL_PROMPT=0
           printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
+          available=false
+          for attempt in 1 2 3 4 5 6; do
+            published_version="$(npm view "${NPM_PACKAGE}@${version}" version 2>/dev/null || true)"
+            dist_tags="$(npm view "${NPM_PACKAGE}" dist-tags --json 2>/dev/null || true)"
+            if [[ "${published_version}" = "${version}" ]] && \
+              jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null 2>&1; then
+              available=true
+              break
+            fi
+            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/6)" >&2
+            sleep 10
+          done
+          test "${available}" = true
           npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"
           npm audit signatures --json --include-attestations > audit-signatures.json
           jq -e --arg package "${NPM_PACKAGE}" --arg version "${version}" '
@@ -142,19 +155,7 @@ jobs:
           run_agentplugins() {
             npm exec --yes --package="${NPM_PACKAGE}@${version}" -- agentplugins "$@"
           }
-          available=false
-          for attempt in 1 2 3 4 5 6; do
-            if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
-              dist_tags="$(npm view "${NPM_PACKAGE}" dist-tags --json)"
-              if jq -e --arg version "${version}" '.latest == $version' <<<"${dist_tags}" >/dev/null; then
-                available=true
-                break
-              fi
-            fi
-            echo "waiting for ${NPM_PACKAGE}@${version} registry propagation (${attempt}/6)" >&2
-            sleep 10
-          done
-          test "${available}" = true
+          run_agentplugins version | grep -Fx "agentplugins ${version}"
           run_agentplugins add context7 --target cursor --yes --format json > add.json
           jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true' add.json
           run_agentplugins info context7 --format json > info.json

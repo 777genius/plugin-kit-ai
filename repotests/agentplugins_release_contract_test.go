@@ -61,6 +61,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"grep -q 'E404'",
 		"unable to prove whether ${package_name} already exists in npm",
 		`NPM_PACKAGE: ${{ steps.publish-gate.outputs.package_name }}`,
+		`npm view "${NPM_PACKAGE}@${version}" version`,
 		`npm view "${NPM_PACKAGE}" dist-tags --json`,
 		"npm publish --access public --tag latest --provenance",
 		"trusted publishing only supports existing packages",
@@ -86,6 +87,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustNotContain(t, npmPublishJob, unwanted)
 	}
 	mustAppearBefore(t, npmPublishJob, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
+	mustAppearBefore(t, npmPublishJob, `npm view "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmPublishJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmPublishJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 
