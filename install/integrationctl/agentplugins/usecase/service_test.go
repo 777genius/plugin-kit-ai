@@ -418,6 +418,74 @@ func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 	}
 }
 
+func TestPartialMultiClientUpdateFailurePreservesIndependentRevisions(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	codex := domain.DetectedClient{
+		ClientID: domain.ClientCodex, Status: domain.DetectionDetected,
+		ConfigRoot: filepath.Join(t.TempDir(), ".codex"),
+	}
+
+	firstCursor := addInput(t, cursor, "https://example.com/partial-update")
+	firstCursor.Confirmed = true
+	firstCursor.OperationID = "operation-partial-cursor-v1"
+	cursorInstalled, err := service.Add(context.Background(), firstCursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstCodex := addInput(t, codex, "https://example.com/partial-update")
+	firstCodex.Confirmed = true
+	firstCodex.OperationID = "operation-partial-codex-v1"
+	codexInstalled, err := service.Add(context.Background(), firstCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	updateCursor := addInput(t, cursor, "https://example.com/partial-update")
+	setEnvelopeVersion(t, &updateCursor.Envelope, "2.0.0", "sha256:partial-tree-v2", "sha256:partial-manifest-v2")
+	updateCursor.Confirmed = true
+	updateCursor.OperationID = "operation-partial-cursor-v2"
+	if result, updateErr := service.Update(context.Background(), updateCursor); updateErr != nil || !result.Mutated {
+		t.Fatalf("cursor update = %+v, err=%v", result, updateErr)
+	}
+
+	userFile := filepath.Join(codexInstalled.Plan.ActivePath, "user-note.txt")
+	if err := os.WriteFile(userFile, []byte("preserve me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	updateCodex := addInput(t, codex, "https://example.com/partial-update")
+	setEnvelopeVersion(t, &updateCodex.Envelope, "2.0.0", "sha256:partial-tree-v2", "sha256:partial-manifest-v2")
+	updateCodex.Confirmed = true
+	updateCodex.OperationID = "operation-partial-codex-v2"
+	if _, err := service.Update(context.Background(), updateCodex); err == nil || !strings.Contains(err.Error(), "refusing silent update") {
+		t.Fatalf("codex update error = %v", err)
+	}
+
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := state.Installations[0]
+	if revision := revisionForClient(t, installation, domain.ClientCursor); revision.Version != "2.0.0" || revision.TreeDigest != "sha256:partial-tree-v2" {
+		t.Fatalf("cursor revision = %+v", revision)
+	}
+	if revision := revisionForClient(t, installation, domain.ClientCodex); revision.Version != "1.0.0" || revision.TreeDigest != "sha256:source-tree" {
+		t.Fatalf("codex revision advanced after failed update: %+v", revision)
+	}
+
+	cursorManifest, err := os.ReadFile(filepath.Join(cursorInstalled.Plan.ActivePath, "plugin.json"))
+	if err != nil || !strings.Contains(string(cursorManifest), "2.0.0") {
+		t.Fatalf("cursor manifest = %q, err=%v", cursorManifest, err)
+	}
+	codexManifest, err := os.ReadFile(filepath.Join(codexInstalled.Plan.ActivePath, "plugin.json"))
+	if err != nil || !strings.Contains(string(codexManifest), "1.0.0") {
+		t.Fatalf("codex manifest = %q, err=%v", codexManifest, err)
+	}
+	if body, err := os.ReadFile(userFile); err != nil || string(body) != "preserve me" {
+		t.Fatalf("user file = %q, err=%v", body, err)
+	}
+}
+
 func TestAddNewTargetEnforcesExistingPackageIdentity(t *testing.T) {
 	t.Parallel()
 	service, _, cursor := serviceFixture(t)
