@@ -107,14 +107,58 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ steps.publish-gate.outputs.mode == 'bootstrap' && secrets.NPM_TOKEN || '' }}
         run: npm publish --access public --tag beta --provenance
-      - name: Verify exact published beta from a clean project
+      - name: Verify exact published beta lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
-          mkdir -p "${project}"
-          cd "${project}"
+          test_home="${project}/home"
+          mkdir -p "${project}" "${test_home}/.cursor" "${project}/tmp"
+          cd "${project}" || exit 1
           npm init -y >/dev/null
-          AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-registry-cache" \
-            npm exec --yes --package="agentplugins@${version}" -- agentplugins version | grep -Fx "agentplugins ${version}"
+          export HOME="${test_home}"
+          export USERPROFILE="${test_home}"
+          export XDG_CONFIG_HOME="${project}/config"
+          export XDG_CACHE_HOME="${project}/cache"
+          export AGENTPLUGINS_HOME="${project}/state"
+          export AGENTPLUGINS_CACHE_DIR="${RUNNER_TEMP}/agentplugins-registry-cache"
+          export NPM_CONFIG_CACHE="${project}/npm-cache"
+          export NPM_CONFIG_USERCONFIG="${test_home}/.npmrc"
+          export TMPDIR="${project}/tmp"
+          export GIT_CONFIG_GLOBAL="${test_home}/.gitconfig"
+          export GIT_CONFIG_NOSYSTEM=1
+          export GIT_TERMINAL_PROMPT=0
+          printf '%s\n' 'registry=https://registry.npmjs.org/' > "${NPM_CONFIG_USERCONFIG}"
+          run_agentplugins() {
+            npm exec --yes --package="agentplugins@${version}" -- agentplugins "$@"
+          }
+          available=false
+          for attempt in 1 2 3 4 5 6; do
+            if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
+              available=true
+              break
+            fi
+            echo "waiting for agentplugins@${version} registry propagation (${attempt}/6)" >&2
+            sleep 10
+          done
+          test "${available}" = true
+          run_agentplugins add context7 --target cursor --yes --format json > add.json
+          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true' add.json
+          run_agentplugins info context7 --format json > info.json
+          jq -e '.schema_version == 1 and .command == "info" and .data.name == "context7"' info.json
+          state_before_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
+          run_agentplugins doctor context7 --format json > doctor.json
+          state_after_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
+          test "${state_before_doctor}" = "${state_after_doctor}"
+          jq -e '.schema_version == 1 and .command == "doctor" and .data.read_only == true' doctor.json
+          run_agentplugins update context7 --target cursor --yes --format json > update.json
+          jq -e '.schema_version == 1 and .command == "update" and .data.result.no_change == true and .data.result.mutated == false' update.json
+          run_agentplugins remove context7 --target cursor --yes --format json > remove.json
+          jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
+          run_agentplugins info context7 --format json > removed.json
+          jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json
+          if grep -F "${RUNNER_TEMP}" add.json info.json doctor.json update.json remove.json removed.json; then
+            echo "agentplugins JSON output leaked an absolute runner path" >&2
+            exit 1
+          fi
