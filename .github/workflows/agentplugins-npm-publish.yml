@@ -112,8 +112,6 @@ jobs:
           mv "${tarball_name}" "${tarball}"
           bundle="${artifact}/${tarball_name}.sigstore"
           export NPM_ROOT="$(npm root --global)"
-          export GITHUB_SHA="${SOURCE_COMMIT}"
-          export GITHUB_REF="refs/tags/${TAG}"
           node - "${tarball}" "${bundle}" "${NPM_PACKAGE}" "${version}" <<'NODE'
           const crypto = require('node:crypto')
           const fs = require('node:fs/promises')
@@ -151,12 +149,14 @@ jobs:
           NODE
           statement="${bundle}.statement.json"
           test "$(jq -r '.subject[0].name' "${statement}")" = "pkg:npm/${NPM_PACKAGE}@${version}"
-          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit' "${statement}")" = "${SOURCE_COMMIT}"
-          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].uri' "${statement}")" = "git+https://github.com/${GITHUB_REPOSITORY}@refs/tags/${TAG}"
-          sha1sum "${tarball}" > "${artifact}/SHA1SUMS"
-          sha512sum "${tarball}" > "${artifact}/SHA512SUMS"
-          printf 'source_commit=%s\nsource_ref=refs/tags/%s\nworkflow_run=%s\n' \
-            "${SOURCE_COMMIT}" "${TAG}" "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].digest.gitCommit' "${statement}")" = "${GITHUB_SHA}"
+          test "$(jq -r '.predicate.buildDefinition.resolvedDependencies[0].uri' "${statement}")" = "git+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}@${GITHUB_REF}"
+          cd "${artifact}"
+          sha1sum "${tarball_name}" > SHA1SUMS
+          sha512sum "${tarball_name}" > SHA512SUMS
+          printf 'release_commit=%s\nrelease_ref=refs/tags/%s\nworkflow_commit=%s\nworkflow_ref=%s\nworkflow_run=%s\n' \
+            "${SOURCE_COMMIT}" "${TAG}" "${GITHUB_SHA}" "${GITHUB_REF}" \
+            "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             > "${artifact}/manifest.txt"
       - name: Upload exact tarball and signed provenance
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
