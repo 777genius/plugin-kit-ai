@@ -2,9 +2,9 @@
   "client": "agentplugins CLI isolated Cursor provider",
   "version": "0.1.0-beta.1-development",
   "date": "2026-08-08",
-  "observed_at_utc": "2026-08-08T01:32:33Z",
+  "observed_at_utc": "2026-08-08T03:40:18Z",
   "catalog_revision": "9604435e9df58f2735e1706040c2c1b889fc3713",
-  "catalog_digest": "sha256:207df0cd3932d305bbc265357d1a7f6b68ef314ff725629db6ebe27d4c403915",
+  "catalog_digest": "sha256:9afbe030af8c560747d7c77ac25ce9c4e933696a08a452e5c25a5479e43b475e",
   "checks": [
     {
       "scenario": "resolve all short names from the pinned catalog",
