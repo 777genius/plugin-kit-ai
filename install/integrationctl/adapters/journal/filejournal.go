@@ -1,14 +1,20 @@
 package journal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
+
+const journalSchemaVersion = 1
 
 type FileJournal struct {
 	FS      ports.FileSystem
@@ -16,6 +22,17 @@ type FileJournal struct {
 }
 
 func (j FileJournal) Start(ctx context.Context, op domain.OperationRecord) error {
+	path, err := j.path(op.OperationID)
+	if err != nil {
+		return err
+	}
+	info, err := j.FS.Stat(ctx, path)
+	if err != nil {
+		return err
+	}
+	if info.Exists {
+		return domain.NewError(domain.ErrStateConflict, "operation journal already exists", nil)
+	}
 	return j.write(ctx, op)
 }
 
@@ -52,7 +69,7 @@ func (j FileJournal) ListOpen(ctx context.Context) ([]domain.OperationRecord, er
 		}
 		op, err := j.read(ctx, trimExt(entry.Name()))
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("read operation journal %s: %w", entry.Name(), err)
 		}
 		if op.Status != "committed" && op.Status != "rolled_back" {
 			out = append(out, op)
@@ -62,18 +79,52 @@ func (j FileJournal) ListOpen(ctx context.Context) ([]domain.OperationRecord, er
 }
 
 func (j FileJournal) read(ctx context.Context, operationID string) (domain.OperationRecord, error) {
-	data, err := j.FS.ReadFile(ctx, j.path(operationID))
+	path, err := j.path(operationID)
 	if err != nil {
 		return domain.OperationRecord{}, err
 	}
-	var op domain.OperationRecord
-	if err := json.Unmarshal(data, &op); err != nil {
+	data, err := j.FS.ReadFile(ctx, path)
+	if err != nil {
 		return domain.OperationRecord{}, err
+	}
+	var header struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if err := json.Unmarshal(data, &header); err != nil {
+		return domain.OperationRecord{}, domain.NewError(domain.ErrStateConflict, "decode operation journal", err)
+	}
+	if header.SchemaVersion != 0 && header.SchemaVersion != journalSchemaVersion {
+		return domain.OperationRecord{}, domain.NewError(domain.ErrStateConflict, fmt.Sprintf("unsupported operation journal schema_version %d", header.SchemaVersion), nil)
+	}
+	var op domain.OperationRecord
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&op); err != nil {
+		return domain.OperationRecord{}, domain.NewError(domain.ErrStateConflict, "decode operation journal", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return domain.OperationRecord{}, domain.NewError(domain.ErrStateConflict, "operation journal contains trailing JSON values", err)
+	}
+	if op.SchemaVersion == 0 {
+		op.SchemaVersion = journalSchemaVersion
+	}
+	if err := pathpolicy.ValidateLeafID(op.OperationID); err != nil {
+		return domain.OperationRecord{}, domain.NewError(domain.ErrStateConflict, "operation journal has unsafe operation id", err)
 	}
 	return op, nil
 }
 
 func (j FileJournal) write(ctx context.Context, op domain.OperationRecord) error {
+	path, err := j.path(op.OperationID)
+	if err != nil {
+		return err
+	}
+	if op.SchemaVersion == 0 {
+		op.SchemaVersion = journalSchemaVersion
+	}
+	if op.SchemaVersion != journalSchemaVersion {
+		return domain.NewError(domain.ErrStateConflict, fmt.Sprintf("refusing to write unsupported operation journal schema_version %d", op.SchemaVersion), nil)
+	}
 	if err := j.FS.MkdirAll(ctx, j.BaseDir, 0o755); err != nil {
 		return err
 	}
@@ -82,10 +133,13 @@ func (j FileJournal) write(ctx context.Context, op domain.OperationRecord) error
 		return err
 	}
 	data = append(data, '\n')
-	return j.FS.WriteFileAtomic(ctx, j.path(op.OperationID), data, 0o644)
+	return j.FS.WriteFileAtomic(ctx, path, data, 0o644)
 }
 
-func (j FileJournal) path(operationID string) string {
-	return filepath.Join(j.BaseDir, operationID+".json")
+func (j FileJournal) path(operationID string) (string, error) {
+	if err := pathpolicy.ValidateLeafID(operationID); err != nil {
+		return "", domain.NewError(domain.ErrStateConflict, "unsafe operation journal id", err)
+	}
+	return filepath.Join(j.BaseDir, operationID+".json"), nil
 }
 func trimExt(name string) string { return name[:len(name)-len(filepath.Ext(name))] }

@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +14,30 @@ import (
 
 func (a Adapter) extensionDir(name string) string {
 	return filepath.Join(a.userHome(), ".gemini", "extensions", name)
+}
+
+func (a Adapter) validateExtensionDir(name, candidate string) error {
+	if err := pathpolicy.ValidateLeafID(name); err != nil {
+		return fmt.Errorf("invalid Gemini integration id: %w", err)
+	}
+	if err := pathpolicy.RequireExactPath(a.extensionDir(name), candidate); err != nil {
+		return fmt.Errorf("unsafe Gemini extension dir: %w", err)
+	}
+	return nil
+}
+
+func (a Adapter) managedSourceRoot(name string) string {
+	return filepath.Join(a.userHome(), ".plugin-kit-ai", "materialized", "gemini", name)
+}
+
+func (a Adapter) validateManagedSourceRoot(name, candidate string) error {
+	if err := pathpolicy.ValidateLeafID(name); err != nil {
+		return fmt.Errorf("invalid Gemini integration id: %w", err)
+	}
+	if err := pathpolicy.RequireExactPath(a.managedSourceRoot(name), candidate); err != nil {
+		return fmt.Errorf("unsafe Gemini managed source root: %w", err)
+	}
+	return nil
 }
 
 func scopeFromInspectInput(in ports.InspectInput) string {

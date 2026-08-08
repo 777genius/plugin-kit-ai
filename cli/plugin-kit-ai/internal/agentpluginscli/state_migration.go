@@ -1,0 +1,115 @@
+package agentpluginscli
+
+import (
+	"context"
+	"fmt"
+	"io"
+
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
+	"github.com/spf13/cobra"
+)
+
+func newMigrateStateCommand(app App, opts *options) *cobra.Command {
+	return &cobra.Command{
+		Use:   "migrate-state",
+		Short: "Explicitly migrate legacy plugin-kit-ai state into State v2",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateCommonOptions(opts); err != nil {
+				return err
+			}
+			return runMigrateState(cmd.Context(), cmd, app, opts)
+		},
+	}
+}
+
+func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *options) error {
+	if app.StateMigrator == nil {
+		return fmt.Errorf("legacy state migration is not configured")
+	}
+	plan, err := app.StateMigrator.Plan()
+	if err != nil {
+		return err
+	}
+	if opts.dryRun {
+		return renderStateMigration(cmd.OutOrStdout(), opts.format, plan, statemigration.Report{}, true)
+	}
+	if !app.Terminal && !opts.yes {
+		return fmt.Errorf("non-interactive state migration requires --yes")
+	}
+	if opts.format == "human" {
+		renderStateMigrationPlan(cmd.OutOrStdout(), plan)
+	}
+	confirmed := opts.yes
+	if !confirmed && opts.format == "human" && app.Terminal {
+		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Create a backup and migrate this state? [y/N]")
+		if err != nil {
+			return err
+		}
+	}
+	if !confirmed {
+		if opts.format == "json" {
+			return renderStateMigration(cmd.OutOrStdout(), opts.format, plan, statemigration.Report{}, false)
+		}
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
+		return nil
+	}
+	if app.MutationLock == nil {
+		return fmt.Errorf("agentplugins mutation lock is required")
+	}
+	release, err := app.MutationLock.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = release() }()
+	if app.LegacyStateLock == nil {
+		return fmt.Errorf("legacy state lock is required")
+	}
+	legacyRelease, err := app.LegacyStateLock.Acquire(ctx, "state")
+	if err != nil {
+		return fmt.Errorf("acquire legacy state lock: %w", err)
+	}
+	defer func() { _ = legacyRelease() }()
+	kernel := transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory}
+	if err := kernel.Recover(ctx); err != nil {
+		return fmt.Errorf("recover interrupted mutation before state migration: %w", err)
+	}
+	report, err := app.StateMigrator.MigrateExpected(plan.LegacyDigest)
+	if err != nil {
+		return err
+	}
+	return renderStateMigration(cmd.OutOrStdout(), opts.format, plan, report, false)
+}
+
+func renderStateMigration(writer io.Writer, format string, plan statemigration.Plan, report statemigration.Report, dryRun bool) error {
+	data := struct {
+		DryRun        bool `json:"dry_run"`
+		Installations int  `json:"installations"`
+		NeedsRebind   int  `json:"needs_rebind"`
+		Migrated      int  `json:"migrated"`
+		BackupCreated bool `json:"backup_created"`
+	}{
+		DryRun: dryRun, Installations: plan.Installations, NeedsRebind: plan.NeedsRebind,
+		Migrated: report.Migrated, BackupCreated: report.BackupPath != "",
+	}
+	if format == "json" {
+		return writeJSONOutput(writer, "migrate-state", data)
+	}
+	if dryRun {
+		renderStateMigrationPlan(writer, plan)
+		return nil
+	}
+	_, _ = fmt.Fprintf(writer, "Migrated %d legacy installation(s); backup created before State v2 commit.\n", report.Migrated)
+	if report.NeedsRebind > 0 {
+		_, _ = fmt.Fprintf(writer, "%d installation(s) require explicit rebind before update.\n", report.NeedsRebind)
+	}
+	_, _ = fmt.Fprintln(writer, "Legacy packages remain removable with plugin-kit-ai integrations remove.")
+	return nil
+}
+
+func renderStateMigrationPlan(writer io.Writer, plan statemigration.Plan) {
+	_, _ = fmt.Fprintf(writer, "Legacy installations: %d\n", plan.Installations)
+	_, _ = fmt.Fprintf(writer, "Require rebind: %d\n", plan.NeedsRebind)
+	_, _ = fmt.Fprintln(writer, "The legacy state remains unchanged and is backed up before State v2 is committed.")
+}

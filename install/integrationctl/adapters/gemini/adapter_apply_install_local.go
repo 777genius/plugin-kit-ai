@@ -12,7 +12,10 @@ import (
 
 func (a Adapter) syncManagedLocalSource(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot string) (string, error) {
 	root := filepath.Clean(sourceRoot)
-	managedRoot := filepath.Join(a.userHome(), ".plugin-kit-ai", "materialized", "gemini", manifest.IntegrationID)
+	managedRoot := a.managedSourceRoot(manifest.IntegrationID)
+	if err := a.validateManagedSourceRoot(manifest.IntegrationID, managedRoot); err != nil {
+		return "", domain.NewError(domain.ErrMutationApply, "validate Gemini managed source root", err)
+	}
 	tmpRoot, err := a.prepareManagedSourceTempRoot(managedRoot, manifest.IntegrationID)
 	if err != nil {
 		return "", err
@@ -60,6 +63,9 @@ func (a Adapter) activateManagedLocalInstall(managedRoot, name string) error {
 		return domain.NewError(domain.ErrMutationApply, "Gemini local projection requires managed source root", nil)
 	}
 	extensionDir := a.extensionDir(name)
+	if err := a.validateExtensionDir(name, extensionDir); err != nil {
+		return domain.NewError(domain.ErrMutationApply, "validate Gemini extension dir", err)
+	}
 	tmpRoot, err := a.prepareExtensionTempRoot(extensionDir, name)
 	if err != nil {
 		return err

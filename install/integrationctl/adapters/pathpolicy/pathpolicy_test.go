@@ -3,6 +3,8 @@ package pathpolicy
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
@@ -96,5 +98,75 @@ func TestProtectionForScope(t *testing.T) {
 	}
 	if got := ProtectionForScope("user"); got != domain.ProtectionUserMutable {
 		t.Fatalf("ProtectionForScope(user) = %q", got)
+	}
+}
+
+func TestValidateLeafID(t *testing.T) {
+	t.Parallel()
+	for _, valid := range []string{"context7", "agent-code-navigator", "legacy_name", "v1.2"} {
+		if err := ValidateLeafID(valid); err != nil {
+			t.Errorf("ValidateLeafID(%q): %v", valid, err)
+		}
+	}
+	for _, invalid := range []string{"", ".", "..", "../escape", `..\\escape`, "/tmp/escape", `C:\\escape`, "name..part", "name.", "CON", "nul.txt", "has space"} {
+		if err := ValidateLeafID(invalid); err == nil {
+			t.Errorf("ValidateLeafID(%q) succeeded, want rejection", invalid)
+		}
+	}
+}
+
+func TestValidatePortablePathSegmentRejectsOverlongUTF16Name(t *testing.T) {
+	t.Parallel()
+	if err := ValidatePortablePathSegment(strings.Repeat("a", 256)); err == nil {
+		t.Fatal("256-code-unit path segment was accepted")
+	}
+}
+
+func TestRequireContainedChild(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	base := filepath.Join(root, "managed")
+	child := filepath.Join(base, "plugins", "context7")
+	if err := RequireContainedChild(base, child); err != nil {
+		t.Fatalf("contained child rejected: %v", err)
+	}
+	for _, path := range []string{base, root, filepath.Join(root, "outside")} {
+		if err := RequireContainedChild(base, path); err == nil {
+			t.Errorf("RequireContainedChild(%q, %q) succeeded, want rejection", base, path)
+		}
+	}
+}
+
+func TestRequireContainedChildRejectsSymlinkAncestor(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation is not generally available without elevated privileges")
+	}
+	root := t.TempDir()
+	base := filepath.Join(root, "managed")
+	outside := filepath.Join(root, "outside")
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(base, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := RequireContainedChild(base, filepath.Join(base, "link", "victim")); err == nil {
+		t.Fatal("symlink ancestor accepted")
+	}
+}
+
+func TestRequireExactPath(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	expected := filepath.Join(root, "managed", "context7")
+	if err := RequireExactPath(expected, expected); err != nil {
+		t.Fatalf("exact path rejected: %v", err)
+	}
+	if err := RequireExactPath(expected, filepath.Join(root, "outside")); err == nil {
+		t.Fatal("different path accepted")
 	}
 }

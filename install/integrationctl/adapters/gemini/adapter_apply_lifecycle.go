@@ -70,6 +70,15 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if name == "" {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Gemini remove requires integration identity", nil)
 	}
+	if err := a.validateExtensionDir(name, a.extensionDir(name)); err != nil {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Gemini extension dir", err)
+	}
+	materializedRoot := materializedRootFromRecord(*in.Record)
+	if materializedRoot != "" {
+		if err := a.validateManagedSourceRoot(name, materializedRoot); err != nil {
+			return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Gemini managed source root", err)
+		}
+	}
 	metadata := map[string]any{
 		"extension_name": name,
 	}
@@ -85,7 +94,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 		}
 		metadata["remove_argv"] = argv
 	}
-	if materializedRoot := materializedRootFromRecord(*in.Record); materializedRoot != "" {
+	if materializedRoot != "" {
 		if err := os.RemoveAll(materializedRoot); err != nil && !os.IsNotExist(err) {
 			return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "remove managed Gemini source root", err)
 		}

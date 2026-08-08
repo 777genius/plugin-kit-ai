@@ -2,10 +2,10 @@ package claude
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/filetree"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/domain"
 )
 
@@ -28,41 +28,11 @@ func copyNativeClaudePackage(sourceRoot, destRoot string) error {
 }
 
 func copyPathIfExists(src, dest string) (bool, error) {
-	info, err := os.Stat(src)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	if info.IsDir() {
-		return true, filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			rel, err := filepath.Rel(src, path)
-			if err != nil {
-				return err
-			}
-			target := filepath.Join(dest, rel)
-			if d.IsDir() {
-				return os.MkdirAll(target, 0o755)
-			}
-			return copyFile(path, target)
-		})
-	}
-	return true, copyFile(src, dest)
+	return filetree.CopyPathIfExists(src, dest)
 }
 
 func copyFile(src, dest string) error {
-	body, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(dest, body, 0o644)
+	return filetree.CopyFile(src, dest)
 }
 
 func marshalJSON(value any) ([]byte, error) {

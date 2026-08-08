@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -61,6 +62,16 @@ func protectionForScope(scope string) domain.ProtectionClass {
 
 func managedMarketplaceRoot(home, integrationID string) string {
 	return filepath.Join(home, ".plugin-kit-ai", "materialized", "claude", integrationID)
+}
+
+func (a Adapter) validateManagedMarketplaceRoot(integrationID, candidate string) error {
+	if err := pathpolicy.ValidateLeafID(integrationID); err != nil {
+		return fmt.Errorf("invalid Claude integration id: %w", err)
+	}
+	if err := pathpolicy.RequireExactPath(managedMarketplaceRoot(a.userHome(), integrationID), candidate); err != nil {
+		return fmt.Errorf("unsafe Claude managed marketplace root: %w", err)
+	}
+	return nil
 }
 
 func managedMarketplaceName(integrationID string) string {

@@ -202,6 +202,7 @@ func TestApplyRemoveDeletesCursorPluginRoot(t *testing.T) {
 
 	adapter := Adapter{FS: fsadapter.OS{}, UserHome: userHome}
 	record := domain.InstallationRecord{
+		IntegrationID: "agent-code-navigator",
 		Targets: map[domain.TargetID]domain.TargetInstallation{
 			domain.TargetCursor: {
 				TargetID: domain.TargetCursor,

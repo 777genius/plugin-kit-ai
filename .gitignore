@@ -1,6 +1,8 @@
 bin/
 !npm/plugin-kit-ai/bin/
 !npm/plugin-kit-ai/bin/plugin-kit-ai.js
+!npm/agentplugins/bin/
+!npm/agentplugins/bin/agentplugins.js
 !examples/starters/**/bin/
 !examples/starters/**/bin/*
 !examples/local/**/bin/

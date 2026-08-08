@@ -47,6 +47,20 @@ func TestLoadKeepsLegacyCursorMCPDeliveryWithoutPackage(t *testing.T) {
 	}
 }
 
+func TestLoaderRejectsUnsafeIntegrationNames(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"../escape", "/tmp/escape", `C:\\escape`, "CON", "name..part"} {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			mustWriteManifestTestFile(t, filepath.Join(root, "plugin", "plugin.yaml"), "api_version: v1\nname: "+name+"\nversion: 0.1.0\ndescription: test\ntargets:\n  - cursor\n")
+			if _, err := (Loader{}).Load(context.Background(), ports.ResolvedSource{LocalPath: root}); err == nil {
+				t.Fatalf("unsafe name %q accepted", name)
+			}
+		})
+	}
+}
+
 func mustWriteManifestTestFile(t *testing.T, path, body string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

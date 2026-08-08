@@ -16,6 +16,9 @@ func (a Adapter) applyRemove(in ports.ApplyInput) (ports.ApplyResult, error) {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Codex target is missing from installation record", nil)
 	}
 	paths := a.pathsForRecord(*in.Record)
+	if err := a.validateManagedPaths(in.Record.IntegrationID, paths); err != nil {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Codex managed paths", err)
+	}
 	if err := removeMarketplaceEntry(paths.CatalogPath, in.Record.IntegrationID); err != nil {
 		return ports.ApplyResult{}, err
 	}

@@ -1,6 +1,7 @@
 package cursor
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +33,14 @@ func (a Adapter) targetConfigPath(scope string, workspaceRoot string) string {
 		return filepath.Join(a.projectRoot(workspaceRoot), ".cursor", "mcp.json")
 	}
 	return filepath.Join(a.userHome(), ".cursor", "mcp.json")
+}
+
+func (a Adapter) validateConfigPath(scope, workspaceRoot, candidate string) error {
+	expected := a.targetConfigPath(scope, workspaceRoot)
+	if err := pathpolicy.RequireExactPath(expected, candidate); err != nil {
+		return fmt.Errorf("unsafe Cursor MCP config path: %w", err)
+	}
+	return nil
 }
 
 func (a Adapter) projectRoot(workspaceRoot string) string {

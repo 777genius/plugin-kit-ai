@@ -15,10 +15,14 @@ func (a Adapter) applyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if !ok {
 		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Cursor target is missing from installation record", nil)
 	}
+	docPath := configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
+	if err := a.validateConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record), docPath); err != nil {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Cursor MCP config path", err)
+	}
 	pluginRoot := ownedPluginRoot(target.OwnedNativeObjects)
 	removedPluginRoot := false
 	if pluginRoot != "" {
-		if err := removePluginRoot(pluginRoot); err != nil {
+		if err := a.removePluginRoot(in.Record.IntegrationID, pluginRoot); err != nil {
 			return ports.ApplyResult{}, err
 		}
 		removedPluginRoot = true
@@ -39,7 +43,6 @@ func (a Adapter) applyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 			AdapterMetadata: meta,
 		}, nil
 	}
-	docPath := configPathFromTarget(target, a.targetConfigPath(in.Record.Policy.Scope, workspaceRootFromRecord(*in.Record)))
 	doc, wrapped, originalBody, err := a.readDocument(ctx, docPath)
 	if err != nil {
 		return ports.ApplyResult{}, err

@@ -18,37 +18,58 @@ func (r Resolver) runner() ports.ProcessRunner {
 	return process.OS{}
 }
 
-func (r Resolver) cloneGitHub(ctx context.Context, ownerRepo, subdir, gitRef string) (string, string, error) {
+type clonedSource struct {
+	PackageRoot string
+	CleanupRoot string
+	Commit      string
+}
+
+func (source clonedSource) cleanup() error {
+	if strings.TrimSpace(source.CleanupRoot) == "" {
+		return nil
+	}
+	return os.RemoveAll(source.CleanupRoot)
+}
+
+func (r Resolver) cloneGitHub(ctx context.Context, ownerRepo, subdir, gitRef string) (clonedSource, error) {
 	return r.clone(ctx, "https://github.com/"+ownerRepo+".git", subdir, gitRef)
 }
 
-func (r Resolver) cloneURL(ctx context.Context, raw string, gitRef string) (string, string, error) {
+func (r Resolver) cloneURL(ctx context.Context, raw string, gitRef string) (clonedSource, error) {
 	return r.clone(ctx, raw, "", gitRef)
 }
 
-func (r Resolver) clone(ctx context.Context, repoURL, subdir, gitRef string) (string, string, error) {
+func (r Resolver) clone(ctx context.Context, repoURL, subdir, gitRef string) (clonedSource, error) {
+	normalizedSubdir := ""
+	if strings.TrimSpace(subdir) != "" {
+		var err error
+		normalizedSubdir, err = normalizePackageSubdir(subdir)
+		if err != nil {
+			return clonedSource{}, err
+		}
+	}
 	tmp, err := os.MkdirTemp("", "integrationctl-source-*")
 	if err != nil {
-		return "", "", err
+		return clonedSource{}, err
 	}
 	cloneResult, err := r.runner().Run(ctx, ports.Command{
-		Argv: []string{"git", "clone", "--depth", "1", repoURL, tmp},
+		Argv: []string{"git", "clone", "--depth", "1", "--", repoURL, tmp},
 	})
 	if err != nil {
 		_ = os.RemoveAll(tmp)
 		if isCommandNotFound(err) {
-			return "", "", fmt.Errorf("git not found")
+			return clonedSource{}, fmt.Errorf("git not found")
 		}
-		return "", "", err
+		return clonedSource{}, err
 	}
 	if cloneResult.ExitCode != 0 {
 		_ = os.RemoveAll(tmp)
-		return "", "", fmt.Errorf("git clone failed: %s", commandOutput(cloneResult))
+		return clonedSource{}, fmt.Errorf("git clone failed: %s", commandOutput(cloneResult))
 	}
 	if strings.TrimSpace(gitRef) != "" {
 		if err := r.checkoutRef(ctx, tmp, gitRef); err != nil {
 			_ = os.RemoveAll(tmp)
-			return "", "", err
+			return clonedSource{}, err
 		}
 	}
 	revResult, err := r.runner().Run(ctx, ports.Command{
@@ -57,23 +78,31 @@ func (r Resolver) clone(ctx context.Context, repoURL, subdir, gitRef string) (st
 	if err != nil {
 		_ = os.RemoveAll(tmp)
 		if isCommandNotFound(err) {
-			return "", "", fmt.Errorf("git not found")
+			return clonedSource{}, fmt.Errorf("git not found")
 		}
-		return "", "", err
+		return clonedSource{}, err
 	}
 	if revResult.ExitCode != 0 {
 		_ = os.RemoveAll(tmp)
-		return "", "", fmt.Errorf("git rev-parse failed: %s", commandOutput(revResult))
+		return clonedSource{}, fmt.Errorf("git rev-parse failed: %s", commandOutput(revResult))
 	}
 	root := tmp
-	if subdir != "" {
-		root = filepath.Join(tmp, subdir)
+	if normalizedSubdir != "" {
+		root = filepath.Join(tmp, filepath.FromSlash(normalizedSubdir))
+		if err := validateContainedDirectory(tmp, root); err != nil {
+			_ = os.RemoveAll(tmp)
+			return clonedSource{}, fmt.Errorf("unsafe source subdir %q: %w", normalizedSubdir, err)
+		}
 	}
-	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+	if info, err := os.Lstat(root); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		_ = os.RemoveAll(tmp)
-		return "", "", fmt.Errorf("source subdir not found: %s", subdir)
+		return clonedSource{}, fmt.Errorf("source subdir not found: %s", normalizedSubdir)
 	}
-	return root, strings.TrimSpace(string(revResult.Stdout)), nil
+	return clonedSource{
+		PackageRoot: root,
+		CleanupRoot: tmp,
+		Commit:      strings.TrimSpace(string(revResult.Stdout)),
+	}, nil
 }
 
 func (r Resolver) checkoutRef(ctx context.Context, repoRoot, gitRef string) error {

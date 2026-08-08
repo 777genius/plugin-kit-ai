@@ -12,6 +12,9 @@ import (
 func (a Adapter) syncManagedMarketplace(ctx context.Context, manifest domain.IntegrationManifest, sourceRoot string) (string, string, string, error) {
 	root := filepath.Clean(sourceRoot)
 	managedRoot := managedMarketplaceRoot(a.userHome(), manifest.IntegrationID)
+	if err := a.validateManagedMarketplaceRoot(manifest.IntegrationID, managedRoot); err != nil {
+		return "", "", "", domain.NewError(domain.ErrMutationApply, "validate Claude managed marketplace root", err)
+	}
 	parent := filepath.Dir(managedRoot)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return "", "", "", domain.NewError(domain.ErrMutationApply, "prepare Claude managed marketplace parent", err)

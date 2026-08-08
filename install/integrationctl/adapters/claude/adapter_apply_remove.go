@@ -37,9 +37,22 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if marketplaceName == "" {
 		marketplaceName = managedMarketplaceName(in.Record.IntegrationID)
 	}
+	expectedMarketplaceName := managedMarketplaceName(in.Record.IntegrationID)
+	if marketplaceName != expectedMarketplaceName {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Claude marketplace identity does not match the managed installation", nil)
+	}
 	pluginRef := pluginRefFromRecord(*in.Record)
 	if pluginRef == "" {
 		pluginRef = in.Record.IntegrationID + "@" + marketplaceName
+	}
+	if pluginRef != in.Record.IntegrationID+"@"+expectedMarketplaceName {
+		return ports.ApplyResult{}, domain.NewError(domain.ErrStateConflict, "Claude plugin reference does not match the managed installation", nil)
+	}
+	materializedRoot := materializedRootFromRecord(*in.Record)
+	if materializedRoot != "" {
+		if err := a.validateManagedMarketplaceRoot(in.Record.IntegrationID, materializedRoot); err != nil {
+			return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "validate Claude managed marketplace root", err)
+		}
 	}
 	uninstallArgv := scopedPluginArgv([]string{"claude", "plugin", "uninstall", pluginRef}, in.Record.Policy.Scope)
 	if err := a.runClaude(ctx, uninstallArgv, commandDir); err != nil {
@@ -49,7 +62,7 @@ func (a Adapter) ApplyRemove(ctx context.Context, in ports.ApplyInput) (ports.Ap
 	if err := a.runClaude(ctx, removeMarketplaceArgv, commandDir); err != nil {
 		return ports.ApplyResult{}, err
 	}
-	if materializedRoot := materializedRootFromRecord(*in.Record); materializedRoot != "" {
+	if materializedRoot != "" {
 		if err := os.RemoveAll(materializedRoot); err != nil && !os.IsNotExist(err) {
 			return ports.ApplyResult{}, domain.NewError(domain.ErrMutationApply, "remove Claude managed marketplace root", err)
 		}
