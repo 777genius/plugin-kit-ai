@@ -23,6 +23,7 @@ HERO_PLUGINS = (
     "chrome-devtools",
 )
 CLIENTS = ("codex", "cursor", "copilot", "vscode", "kiro")
+COPIED_CLIENTS = {"codex", "copilot", "vscode", "kiro"}
 
 
 def prepare_client(home: Path, target: str) -> None:
@@ -59,7 +60,7 @@ def run(binary: Path) -> dict[str, object]:
             )
             for plugin in HERO_PLUGINS:
                 for command in ("add", "remove"):
-                    extra = ["--external-uninstalled"] if command == "remove" and target in {"copilot", "vscode"} else []
+                    extra = ["--external-uninstalled"] if command == "remove" and target in COPIED_CLIENTS else []
                     completed = subprocess.run(
                         [
                             str(binary),
