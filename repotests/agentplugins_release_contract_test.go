@@ -88,6 +88,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 	mustAppearBefore(t, npmPublishJob, "npm publish --access public --tag latest --provenance", "Verify exact published stable lifecycle from a clean project")
 	mustAppearBefore(t, npmPublishJob, `npm view "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmPublishJob, `npm view "${NPM_PACKAGE}" dist-tags --json`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
+	mustAppearBefore(t, npmPublishJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmPublishJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmPublishJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
 
