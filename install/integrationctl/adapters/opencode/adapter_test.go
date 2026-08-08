@@ -299,11 +299,12 @@ func TestInspectManagedSurfaceLayerMarksReadOnlySourceAccess(t *testing.T) {
 	managedPath := filepath.Join(root, "managed-opencode.json")
 	mustWriteOpenCodeFile(t, managedPath, "{}\n")
 
-	prev := managedConfigPathsFunc
-	managedConfigPathsFunc = func(string) []string { return []string{managedPath} }
-	t.Cleanup(func() { managedConfigPathsFunc = prev })
-
-	adapter := Adapter{FS: fsadapter.OS{}, ProjectRoot: t.TempDir(), UserHome: t.TempDir()}
+	adapter := Adapter{
+		FS:                   fsadapter.OS{},
+		ProjectRoot:          t.TempDir(),
+		UserHome:             t.TempDir(),
+		managedConfigPathsFn: func(string) []string { return []string{managedPath} },
+	}
 	restrictions, sourceAccess, managedPaths := adapter.inspectManagedSurfaceLayer()
 	if len(restrictions) != 1 || restrictions[0] != domain.RestrictionReadOnlyNativeLayer {
 		t.Fatalf("restrictions = %#v", restrictions)

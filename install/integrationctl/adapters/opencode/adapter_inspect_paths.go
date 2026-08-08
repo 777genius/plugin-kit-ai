@@ -9,8 +9,6 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 )
 
-var managedConfigPathsFunc = managedConfigPathsDefault
-
 func (a Adapter) inspectSurfacePaths(scope string, workspaceRoot string) (string, []string) {
 	if strings.EqualFold(strings.TrimSpace(scope), "project") {
 		root := a.effectiveProjectRoot(workspaceRoot)
@@ -29,7 +27,10 @@ func (a Adapter) inspectSurfacePaths(scope string, workspaceRoot string) (string
 }
 
 func (a Adapter) managedConfigPaths() []string {
-	return managedConfigPathsFunc(a.userHome())
+	if a.managedConfigPathsFn != nil {
+		return a.managedConfigPathsFn(a.userHome())
+	}
+	return managedConfigPathsDefault(a.userHome())
 }
 
 func managedConfigPathsDefault(userHome string) []string {
