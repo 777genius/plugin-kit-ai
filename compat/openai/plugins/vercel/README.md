@@ -2,6 +2,14 @@
 
 Community package for the official Vercel hosted MCP plugin for project, deployment, log, and documentation workflows through Vercel's remote MCP service.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx agentplugins@0.1.0-beta.1 add vercel
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Vercel.
 
 - Component: MCP server

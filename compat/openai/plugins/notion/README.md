@@ -2,6 +2,14 @@
 
 Community package for the official Notion hosted MCP plugin for user-authorized workspace access. Search pages, read docs, edit content, and work with Notion knowledge directly from AI agents.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx agentplugins@0.1.0-beta.1 add notion
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Notion.
 
 - Component: MCP server
