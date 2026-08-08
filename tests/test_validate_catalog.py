@@ -127,6 +127,14 @@ class CatalogValidatorTests(unittest.TestCase):
             with self.assertRaises(validator.ValidationError):
                 validator.validate_catalog(root)
 
+    def test_windows_incompatible_package_path_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugin = self.make_plugin(root)
+            (plugin / "CON").write_text("not portable")
+            with self.assertRaises(validator.ValidationError):
+                validator.validate_catalog(root)
+
 
 if __name__ == "__main__":
     unittest.main()

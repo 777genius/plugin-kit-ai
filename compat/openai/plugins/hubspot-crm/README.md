@@ -2,6 +2,14 @@
 
 Community package for the official HubSpot remote MCP integration for beta, read-only CRM object access through HubSpot's hosted MCP server.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add hubspot-crm
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from HubSpot CRM.
 
 - Component: MCP server

@@ -2,6 +2,14 @@
 
 Portable Agent Plugins package for Chrome DevTools MCP. Inspect pages, automate flows, analyze performance, and debug browser state.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add chrome-devtools
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Chrome DevTools.
 
 - Component: MCP server

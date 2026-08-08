@@ -2,6 +2,14 @@
 
 Community package for the official Cloudflare hosted MCP plugin for up-to-date Cloudflare documentation and reference lookups through Cloudflare's remote documentation server.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add cloudflare-docs
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Cloudflare Docs.
 
 - Component: MCP server

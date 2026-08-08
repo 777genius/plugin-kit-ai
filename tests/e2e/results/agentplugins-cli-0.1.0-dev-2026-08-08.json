@@ -1,0 +1,50 @@
+{
+  "client": "agentplugins CLI isolated Cursor provider",
+  "version": "0.1.0-development",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T08:04:47Z",
+  "catalog_revision": "e201a0a1f8b3894862f69267e14994b2d9f7fd51",
+  "catalog_digest": "sha256:5578f1d46dd22cd68da233ab7c38e353955b285dc4be3bff5006bdfbb8436f03",
+  "checks": [
+    {
+      "scenario": "resolve all short names from the pinned catalog",
+      "status": "passed",
+      "plugin_count": 26
+    },
+    {
+      "scenario": "transactional add for every catalog package",
+      "status": "passed",
+      "plugin_count": 26
+    },
+    {
+      "scenario": "committed receipt sequence and artifact digest for every add/remove",
+      "status": "passed",
+      "plugin_count": 26
+    },
+    {
+      "scenario": "tampered managed package blocks removal",
+      "status": "passed",
+      "plugin_count": 1
+    },
+    {
+      "scenario": "tool runtime and OAuth",
+      "status": "skipped",
+      "reason": "tracked separately from package lifecycle"
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "authorization URLs",
+      "absolute temporary paths"
+    ]
+  }
+}

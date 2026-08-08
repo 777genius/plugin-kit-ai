@@ -2,6 +2,14 @@
 
 Portable Agent Plugins package for Context7. Pull up-to-date, version-specific documentation and code examples directly from source repositories into agent context.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add context7
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Context7.
 
 - Component: MCP server

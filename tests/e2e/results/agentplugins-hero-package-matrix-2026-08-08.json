@@ -1,0 +1,162 @@
+{
+  "client": "agentplugins CLI isolated multi-client package projections",
+  "version": "0.1.0-development",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T08:04:38Z",
+  "catalog_revision": "e201a0a1f8b3894862f69267e14994b2d9f7fd51",
+  "catalog_digest": "sha256:5578f1d46dd22cd68da233ab7c38e353955b285dc4be3bff5006bdfbb8436f03",
+  "checks": [
+    {
+      "scenario": "five hero packages add/remove across five client projections",
+      "status": "passed",
+      "package_lifecycle_flows": 25,
+      "results": [
+        {
+          "plugin": "context7",
+          "client": "codex",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "client": "codex",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "client": "codex",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "client": "codex",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "client": "codex",
+          "status": "passed"
+        },
+        {
+          "plugin": "context7",
+          "client": "cursor",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "client": "cursor",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "client": "cursor",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "client": "cursor",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "client": "cursor",
+          "status": "passed"
+        },
+        {
+          "plugin": "context7",
+          "client": "copilot",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "client": "copilot",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "client": "copilot",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "client": "copilot",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "client": "copilot",
+          "status": "passed"
+        },
+        {
+          "plugin": "context7",
+          "client": "vscode",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "client": "vscode",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "client": "vscode",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "client": "vscode",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "client": "vscode",
+          "status": "passed"
+        },
+        {
+          "plugin": "context7",
+          "client": "kiro",
+          "status": "passed"
+        },
+        {
+          "plugin": "cloudflare-docs",
+          "client": "kiro",
+          "status": "passed"
+        },
+        {
+          "plugin": "agent-code-navigator",
+          "client": "kiro",
+          "status": "passed"
+        },
+        {
+          "plugin": "notion",
+          "client": "kiro",
+          "status": "passed"
+        },
+        {
+          "plugin": "chrome-devtools",
+          "client": "kiro",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "scenario": "client process launch, tool runtime, and OAuth",
+      "status": "skipped",
+      "reason": "package projection evidence is intentionally separate from runtime evidence"
+    }
+  ],
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "authorization URLs",
+      "absolute temporary paths"
+    ]
+  }
+}

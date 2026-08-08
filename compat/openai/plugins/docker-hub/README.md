@@ -2,6 +2,14 @@
 
 Community package for the official Docker Hub MCP plugin for repository, image, and Docker Hub workflows through Docker's containerized stdio server.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add docker-hub
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Docker Hub.
 
 - Component: MCP server

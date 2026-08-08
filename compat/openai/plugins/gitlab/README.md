@@ -2,6 +2,14 @@
 
 Portable Agent Plugins package for GitLab MCP. Inspect projects, issues, merge requests, and related DevOps workflows through GitLab's HTTP server.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add gitlab
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from GitLab.
 
 - Component: MCP server

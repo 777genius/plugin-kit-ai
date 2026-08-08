@@ -1,0 +1,57 @@
+{
+  "client": "Cursor Agent",
+  "version": "2026.08.04-aaa8809",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T07:48:16Z",
+  "evidence_type": "interactive_oauth_runtime",
+  "sandbox": "fresh disposable project, MCP data directory, and config under /tmp",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "commit_sha": "c1619c77c040432c7080c01c5fcaf53b7cec0148",
+    "plugin": "notion",
+    "plugin_version": "0.1.0"
+  },
+  "checks": [
+    {
+      "scenario": "load the Notion MCP declaration in a disposable Cursor project",
+      "status": "passed"
+    },
+    {
+      "scenario": "complete provider OAuth with explicit user consent",
+      "status": "passed",
+      "result_marker": "notion: ready"
+    },
+    {
+      "scenario": "run one authenticated read-only Notion search through Cursor Agent",
+      "status": "passed",
+      "result_marker": "NOTION_CURSOR_RUNTIME_OK",
+      "detail": "The exact synthetic probe returned no workspace content; no page was opened or modified."
+    }
+  ],
+  "authentication_handling": "The existing Cursor model session was reused while MCP state stayed in a disposable data directory. No credential value was read or recorded.",
+  "cleanup": {
+    "temporary_credentials_removed": true,
+    "temporary_project_removed": true,
+    "provider_grant_revoked": false
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output",
+      "page titles",
+      "workspace content"
+    ]
+  }
+}

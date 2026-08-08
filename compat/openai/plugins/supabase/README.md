@@ -2,6 +2,14 @@
 
 Community package for the official Supabase MCP integration for development and database operations from agent workflows.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add supabase
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Supabase.
 
 - Component: MCP server

@@ -16,25 +16,29 @@ This repository contains 26 open-source plugins packaged for the
 
 ## Try one plugin
 
-Context7 is an easy first choice. It finds up-to-date library documentation and
-requires no account. With a current Codex CLI and Node.js installed, run:
+Context7 is an easy first choice. It finds current library documentation and
+requires no account:
 
 ```bash
-codex plugin marketplace add 777genius/universal-agent-plugins --ref v0.1.1
-codex plugin add context7@universal-agent-plugins
+npx --yes agentplugins@0.1.0 add context7
 ```
 
-Open a new Codex session and ask:
+The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
+than one is present, choose one from the prompt. For scripts, be explicit:
+
+```bash
+npx --yes agentplugins@0.1.0 add context7 --target cursor --yes
+```
+
+Open a new chat or session in the client you selected and ask:
 
 ```text
 Use Context7 to find the current Playwright quick start and summarize it with source links.
 ```
 
 That's it. Every plugin is independent, so you never need to install the whole
-catalog or follow a chain of plugins.
-
-Not using Codex? Choose Cursor, Kiro, ChatGPT, VS Code, or GitHub Copilot in the
-[client setup guide](docs/QUICKSTART.md).
+catalog or follow a chain of plugins. Client activation and OAuth can still
+require a visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
 
 ## All plugins
 
@@ -60,16 +64,24 @@ Agent Plugins 1.0 gives every package a shared structure. Compatible clients can
 reuse the parts they support, while installation, permissions, and OAuth remain
 client-specific.
 
-| Client | Context7 check |
-| --- | --- |
-| Codex | Public marketplace install and real tool call |
-| Cursor | Local plugin load |
-| Kiro | Folder import |
+| Client | Delivery | Activation |
+| --- | --- | --- |
+| Codex / ChatGPT | OpenAI compatibility package | Confirm in the app |
+| Cursor | Native Agent Plugin | Reload, then verify discovery |
+| GitHub Copilot CLI | Prepared native package | Run the shown install command and review trust |
+| VS Code | Copilot bridge or prepared package | Reload or confirm in UI |
+| Kiro | Native folder package | Import as a Power |
 
 All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
 marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and the
 [compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
+
+Package lifecycle proof is broader than runtime proof: all 26 pass isolated
+materialization/removal, and the five starter plugins pass 25/25 add/remove
+flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Five
+starter plugins pass 15/15 real runtime checks across Codex, Cursor, and Kiro,
+including authenticated read-only Notion calls in all three clients.
 
 ## Safety
 

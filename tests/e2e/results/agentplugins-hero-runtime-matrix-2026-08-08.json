@@ -1,0 +1,182 @@
+{
+  "client": "Codex CLI + Cursor Agent + Kiro CLI",
+  "version": "Codex 0.144.1; Cursor 2026.07.09-a3815c0; Kiro 2.16.0",
+  "date": "2026-08-08",
+  "evidence_type": "interactive_multi_client_runtime",
+  "sandbox": "one fresh disposable project under /tmp; no real user project was opened",
+  "authentication_handling": "Existing client sessions were used only for model access. No credential value was read or recorded; the temporary Codex auth copy was removed immediately after the run.",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "commit_sha": "d3c3155285d37aa555615cf4301e3ab5eb347a17",
+    "catalog_digest": "sha256:207df0cd3932d305bbc265357d1a7f6b68ef314ff725629db6ebe27d4c403915",
+    "runtime_equivalence": {
+      "catalog_revision": "e201a0a1f8b3894862f69267e14994b2d9f7fd51",
+      "catalog_digest": "sha256:5578f1d46dd22cd68da233ab7c38e353955b285dc4be3bff5006bdfbb8436f03",
+      "allowed_delta": "plugins/*/README.md",
+      "reason": "Only copy-ready install documentation changed; the current full package trees pass separate lifecycle evidence."
+    }
+  },
+  "reproduction": {
+    "requirements": [
+      "fresh disposable project and client-specific test state",
+      "Codex CLI 0.144.1",
+      "Cursor Agent 2026.07.09-a3815c0",
+      "Kiro CLI 2.16.0",
+      "Node.js 24"
+    ],
+    "commands": [
+      "git clone https://github.com/777genius/universal-agent-plugins <sandbox-marketplace>",
+      "git -C <sandbox-marketplace> checkout d3c3155285d37aa555615cf4301e3ab5eb347a17",
+      "codex plugin marketplace add <sandbox-marketplace> --json",
+      "codex plugin add <plugin>@universal-agent-plugins --json",
+      "codex exec --ephemeral --ignore-user-config --ignore-rules --sandbox read-only <read-only-prompt>",
+      "cursor-agent --print --mode ask --force --sandbox enabled --trust --approve-mcps --plugin-dir <isolated-plugin-copy> <read-only-prompt>",
+      "kiro-cli mcp import --file <isolated-plugin-copy>/mcp.json workspace --force",
+      "kiro-cli chat --no-interactive --trust-all-tools --require-mcp-startup <read-only-prompt>"
+    ]
+  },
+  "checks": [
+    {
+      "client": "Codex CLI",
+      "plugin": "context7",
+      "scenario": "Codex installed plugin calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "cloudflare-docs",
+      "scenario": "Codex installed plugin searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "chrome-devtools",
+      "scenario": "Codex installed plugin calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "agent-code-navigator",
+      "scenario": "Codex installed skill selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; verify by opening matching source locations"
+    },
+    {
+      "client": "Codex CLI",
+      "plugin": "notion",
+      "scenario": "Codex authenticated read-only search through the installed plugin",
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_RUNTIME_OK",
+      "detail": "OAuth consent and one synthetic read-only search completed in a fresh disposable Codex profile; no workspace content was returned.",
+      "evidence": "codex-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "context7",
+      "scenario": "Cursor loaded package calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "cloudflare-docs",
+      "scenario": "Cursor loaded package searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "chrome-devtools",
+      "scenario": "Cursor loaded package calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "agent-code-navigator",
+      "scenario": "Cursor loaded skill selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; open matching files"
+    },
+    {
+      "client": "Cursor Agent",
+      "plugin": "notion",
+      "scenario": "Cursor authenticated read-only search through the loaded package",
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_CURSOR_RUNTIME_OK",
+      "detail": "OAuth consent and one synthetic read-only search completed with disposable Cursor MCP state; no workspace content was returned.",
+      "evidence": "cursor-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "context7",
+      "scenario": "Kiro workspace MCP calls resolve-library-id",
+      "status": "passed",
+      "result_marker": "/microsoft/playwright"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "cloudflare-docs",
+      "scenario": "Kiro workspace MCP searches official Workers documentation",
+      "status": "passed",
+      "result_marker": "https://developers.cloudflare.com/workers/configuration/environment-variables/"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "chrome-devtools",
+      "scenario": "Kiro workspace MCP calls list_pages against a disposable browser",
+      "status": "passed",
+      "result_marker": "about:blank"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "agent-code-navigator",
+      "scenario": "Kiro exact packaged skill resource selects the exact-search route",
+      "status": "passed",
+      "result_marker": "rg; open matching files"
+    },
+    {
+      "client": "Kiro CLI",
+      "plugin": "notion",
+      "scenario": "Kiro authenticated read-only search",
+      "status": "passed",
+      "installation_state": "authenticated",
+      "result_marker": "NOTION_KIRO_RUNTIME_OK",
+      "detail": "OAuth consent and one direct synthetic notion-search completed with disposable Kiro project state; no workspace content was returned.",
+      "evidence": "kiro-notion-oauth-2026-08-08.json",
+      "source_commit": "c1619c77c040432c7080c01c5fcaf53b7cec0148"
+    }
+  ],
+  "summary": {
+    "passed": 15,
+    "planned": 15,
+    "oauth_successes": 3
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output",
+      "page titles",
+      "workspace content"
+    ]
+  }
+}

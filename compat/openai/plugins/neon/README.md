@@ -2,6 +2,14 @@
 
 Community package for the official Neon hosted MCP plugin for database, branch, and project workflows through Neon's remote MCP server.
 
+<!-- agentplugins-install:start -->
+## Install
+
+```bash
+npx --yes agentplugins@0.1.0 add neon
+```
+<!-- agentplugins-install:end -->
+
 This is an independent community package for [Agent Plugins 1.0](https://agent-plugins.org/specification). It is not an endorsement or an official package from Neon.
 
 - Component: MCP server

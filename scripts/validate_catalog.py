@@ -9,6 +9,9 @@ import sys
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from portable_paths import validate_tree
+
 
 PLUGIN_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 MCP_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json"
@@ -220,6 +223,10 @@ def validate_skills(plugin_root: Path) -> int:
 
 def validate_plugin(plugin_root: Path) -> tuple[int, int]:
     require(not plugin_root.is_symlink(), f"{plugin_root}: plugin root cannot be a symlink")
+    try:
+        validate_tree(plugin_root)
+    except ValueError as exc:
+        raise ValidationError(f"{plugin_root}: {exc}") from exc
     for path in plugin_root.rglob("*"):
         require(not path.is_symlink(), f"{path}: symlinks are forbidden in portable packages")
     validate_plugin_manifest(plugin_root)

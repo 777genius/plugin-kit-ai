@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json",
+  "title": "Universal Agent Plugins catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "catalog_version",
+    "repository",
+    "revision",
+    "published_at",
+    "plugins"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json"
+    },
+    "schema_version": { "const": 1 },
+    "catalog_version": { "$ref": "#/$defs/semver" },
+    "repository": {
+      "const": "777genius/universal-agent-plugins"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/plugin" }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "verification", "authentication"],
+      "properties": {
+        "package": {
+          "enum": ["native", "projected", "prepared", "unsupported"]
+        },
+        "verification": {
+          "enum": ["tested", "schema_only", "not_tested"]
+        },
+        "authentication": {
+          "enum": ["not_required", "required", "unknown"]
+        }
+      }
+    },
+    "auth_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oauth_resource": {
+          "type": "string",
+          "format": "uri"
+        },
+        "bearer_token_env_var": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      },
+      "anyOf": [
+        { "required": ["oauth_resource"] },
+        { "required": ["bearer_token_env_var"] }
+      ]
+    },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "agent_plugins_schema",
+        "minimum_cli_version",
+        "source_path",
+        "tree_digest",
+        "manifest_digest",
+        "components",
+        "compatibility"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+          "maxLength": 64
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "agent_plugins_schema": {
+          "const": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+        },
+        "minimum_cli_version": { "$ref": "#/$defs/semver" },
+        "source_path": {
+          "type": "string",
+          "pattern": "^plugins/[a-z0-9][a-z0-9.-]*$"
+        },
+        "tree_digest": { "$ref": "#/$defs/digest" },
+        "manifest_digest": { "$ref": "#/$defs/digest" },
+        "components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["skills", "mcp", "extensions"] }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codex", "cursor", "copilot", "vscode", "kiro"],
+          "properties": {
+            "codex": { "$ref": "#/$defs/compatibility" },
+            "cursor": { "$ref": "#/$defs/compatibility" },
+            "copilot": { "$ref": "#/$defs/compatibility" },
+            "vscode": { "$ref": "#/$defs/compatibility" },
+            "kiro": { "$ref": "#/$defs/compatibility" }
+          }
+        },
+        "openai_mcp_auth": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/auth_hint" }
+        }
+      }
+    }
+  }
+}

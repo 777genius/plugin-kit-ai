@@ -1,0 +1,56 @@
+{
+  "client": "Codex CLI",
+  "version": "0.144.1",
+  "date": "2026-08-08",
+  "observed_at_utc": "2026-08-08T07:40:16Z",
+  "evidence_type": "interactive_oauth_runtime",
+  "sandbox": "fresh disposable HOME, CODEX_HOME, and project under /tmp",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "commit_sha": "c1619c77c040432c7080c01c5fcaf53b7cec0148",
+    "plugin": "notion",
+    "plugin_version": "0.1.0"
+  },
+  "checks": [
+    {
+      "scenario": "add local marketplace and install notion",
+      "status": "passed"
+    },
+    {
+      "scenario": "complete provider OAuth with explicit user consent",
+      "status": "passed",
+      "result_marker": "auth_status=o_auth"
+    },
+    {
+      "scenario": "run one authenticated read-only Notion search through the installed plugin",
+      "status": "passed",
+      "result_marker": "NOTION_RUNTIME_OK",
+      "detail": "The exact synthetic probe returned no workspace content; no page was opened or modified."
+    }
+  ],
+  "cleanup": {
+    "temporary_credentials_removed": true,
+    "temporary_project_removed": true,
+    "provider_grant_revoked": false
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "authorization URLs",
+      "absolute temporary paths",
+      "raw tool output",
+      "page titles",
+      "workspace content"
+    ]
+  }
+}
