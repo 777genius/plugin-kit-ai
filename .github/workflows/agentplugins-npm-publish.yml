@@ -54,10 +54,17 @@ jobs:
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
           test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
-          if npm view agentplugins version >/dev/null 2>&1; then
+          registry_error="${RUNNER_TEMP}/agentplugins-npm-view.err"
+          latest_before=""
+          if npm view agentplugins versions --json >/dev/null 2>"${registry_error}"; then
             exists=true
-          else
+            latest_before="$(npm view agentplugins dist-tags --json | jq -r '.latest // ""')"
+          elif grep -q 'E404' "${registry_error}"; then
             exists=false
+          else
+            echo "unable to prove whether agentplugins already exists in npm" >&2
+            cat "${registry_error}" >&2
+            exit 1
           fi
           if [[ "${BOOTSTRAP}" = "true" ]]; then
             test "${exists}" = "false"
@@ -70,6 +77,7 @@ jobs:
             fi
             echo "mode=trusted" >> "${GITHUB_OUTPUT}"
           fi
+          echo "latest_before=${latest_before}" >> "${GITHUB_OUTPUT}"
       - name: Download and verify all release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,6 +118,7 @@ jobs:
       - name: Verify exact published beta lifecycle from a clean project
         env:
           TAG: ${{ inputs.tag }}
+          LATEST_BEFORE: ${{ steps.publish-gate.outputs.latest_before }}
         run: |
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
@@ -136,8 +145,12 @@ jobs:
           available=false
           for attempt in 1 2 3 4 5 6; do
             if run_agentplugins version | grep -Fx "agentplugins ${version}"; then
-              available=true
-              break
+              dist_tags="$(npm view agentplugins dist-tags --json)"
+              if jq -e --arg version "${version}" '.beta == $version' <<<"${dist_tags}" >/dev/null &&
+                test "$(jq -r '.latest // ""' <<<"${dist_tags}")" = "${LATEST_BEFORE}"; then
+                available=true
+                break
+              fi
             fi
             echo "waiting for agentplugins@${version} registry propagation (${attempt}/6)" >&2
             sleep 10

@@ -123,7 +123,7 @@ jobs:
           pattern: agentplugins-*
           merge-multiple: true
           path: ${{ runner.temp }}/agentplugins-assets
-      - name: Verify and publish immutable beta assets
+      - name: Prepare immutable beta assets
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -140,12 +140,22 @@ jobs:
             echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
             exit 1
           fi
-          gh release create "${TAG}" agentplugins_* checksums.txt release-manifest.json \
-            --repo "${GITHUB_REPOSITORY}" --verify-tag --prerelease \
-            --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
             ${{ runner.temp }}/agentplugins-assets/agentplugins_*
             ${{ runner.temp }}/agentplugins-assets/checksums.txt
             ${{ runner.temp }}/agentplugins-assets/release-manifest.json
+      - name: Publish attested immutable beta assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        working-directory: ${{ runner.temp }}/agentplugins-assets
+        run: |
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
+            exit 1
+          fi
+          gh release create "${TAG}" agentplugins_* checksums.txt release-manifest.json \
+            --repo "${GITHUB_REPOSITORY}" --verify-tag --prerelease \
+            --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes
