@@ -4,7 +4,7 @@ Install and manage portable Agent Plugins 1.0 packages across Codex/ChatGPT,
 Cursor, GitHub Copilot/VS Code, and Kiro.
 
 ```bash
-npx universal-agent-plugins@0.1.4 add context7
+npx universal-agent-plugins add context7
 ```
 
 `universal-agent-plugins` is an independent community CLI built in
@@ -20,12 +20,12 @@ tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
 
 ```bash
-npx universal-agent-plugins@0.1.4 doctor
-npx universal-agent-plugins@0.1.4 list
-npx universal-agent-plugins@0.1.4 add context7 --dry-run --target cursor
-npx universal-agent-plugins@0.1.4 add context7 --target cursor
-npx universal-agent-plugins@0.1.4 update context7 --target cursor
-npx universal-agent-plugins@0.1.4 remove context7 --target cursor
+npx universal-agent-plugins doctor
+npx universal-agent-plugins list
+npx universal-agent-plugins add context7 --dry-run --target cursor
+npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins update context7 --target cursor
+npx universal-agent-plugins remove context7 --target cursor
 ```
 
 For GitHub Copilot CLI, `agentplugins` performs the native install, update, and
@@ -40,8 +40,8 @@ catalog. You can also install a different valid Agent Plugins 1.0 package from
 a local directory or an exact GitHub source:
 
 ```bash
-npx universal-agent-plugins@0.1.4 add ./my-plugin --target cursor
-npx universal-agent-plugins@0.1.4 add owner/repo@commit//plugins/my-plugin --target cursor
+npx universal-agent-plugins add ./my-plugin --target cursor
+npx universal-agent-plugins add owner/repo@commit//plugins/my-plugin --target cursor
 ```
 
 The package must have a root `plugin.json` using the supported Agent Plugins
@@ -55,8 +55,8 @@ requires manual activation. For older `plugin-kit-ai` installations, run the
 explicit migration before the first standard installation:
 
 ```bash
-npx universal-agent-plugins@0.1.4 migrate-state --dry-run
-npx universal-agent-plugins@0.1.4 migrate-state
+npx universal-agent-plugins migrate-state --dry-run
+npx universal-agent-plugins migrate-state
 ```
 
 The migration validates the complete State v2 result, creates a byte-for-byte
