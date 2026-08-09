@@ -18,7 +18,9 @@ the `latest` dist-tag without explicit owner approval for that exact version.
 - The catalog embedded in the `agentplugins` binary is byte-identical to that
   released catalog and its compiled SHA-256 pin matches.
 - `agentplugins-release` and `npm-agentplugins` require a reviewer and allow
-  deployment only from `main`.
+  deployment only from `main`. Dispatch both workflows from the exact `main`
+  commit referenced by the release tag; their source-commit guards reject a
+  newer or older workflow revision.
 - npm trusted publishing is bound to repository `777genius/plugin-kit-ai`,
   workflow `agentplugins-npm-publish.yml`, environment `npm-agentplugins`, and
   the `npm publish` permission.
@@ -39,9 +41,13 @@ project is tagged.
    environment deployment.
 4. Confirm the workflow attests all six binaries, `checksums.txt`, and
    `release-manifest.json` before creating the non-public draft.
-5. Confirm the authenticated platform-proof workflow downloads that exact
-   draft and succeeds on all six native targets. Until the matrix aggregates
-   successfully, no public GitHub Release may exist.
+5. Confirm the read-only platform-proof workflow receives the same-run frozen
+   asset artifact and succeeds on all six native targets. For a draft it cold
+   bootstraps the npm launcher from the exact local asset only after matching
+   the embedded filename, size, and SHA-256; no GitHub token reaches the
+   launcher or released binary. It then proves a warm-cache invocation with
+   the local proof source removed. Until the matrix aggregates successfully,
+   no public GitHub Release may exist.
 6. After all six proofs are green, approve the promotion deployment. Confirm
    it reverifies the draft identity, manifest, assets, and attestations.
    It promotes that exact draft only after all six native platform proofs succeed.
@@ -57,6 +63,11 @@ non-public. Fix the proof defect and rerun the same tag to resume. If draft
 creation itself was interrupted and left an incomplete or non-matching draft,
 an owner must verify that it was never public, delete only that draft release
 (not the tag), and rerun. Never edit or replace assets in place.
+
+For a schema-v1 historical platform audit, dispatch `Agentplugins Platform
+Proof` with `--ref <exact-tag>` and `allow_legacy_manifest=true`. The workflow
+must already exist at that tag, and its source SHA must equal the audited tag
+commit; current `main` is never allowed to impersonate a historical harness.
 
 ## Bootstrap publication record
 
@@ -80,6 +91,8 @@ after an exact-version, scripts-disabled install verifies both the registry
 signature and SLSA provenance attestation. Only then may it run `add`, `info`,
 read-only `doctor`, no-change `update`, `remove`, and final absent-state
 verification in an isolated HOME.
+The public-release platform proof uses a cold cache without the local draft
+override and therefore proves the normal anonymous GitHub release download.
 The publish-ready gate must be returned to `false` immediately after the publish
 job finishes, regardless of the verification result. Registry verification
 must still prove the `latest` dist-tag resolves to the exact published version

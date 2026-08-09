@@ -31,6 +31,8 @@ jobs:
         id: identity
         env:
           TAG: ${{ inputs.tag }}
+          WORKFLOW_COMMIT: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
@@ -38,6 +40,11 @@ jobs:
           fi
           git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           commit="$(git rev-parse HEAD)"
+          test "${WORKFLOW_REF}" = "refs/heads/main"
+          if [[ "${WORKFLOW_COMMIT}" != "${commit}" ]]; then
+            echo "npm publish workflow source does not match the exact tagged main commit" >&2
+            exit 1
+          fi
           test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"
           test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${commit}" >> "${GITHUB_OUTPUT}"

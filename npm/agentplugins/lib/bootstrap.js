@@ -14,6 +14,7 @@ const DIGEST = /^[0-9a-f]{64}$/;
 const MAX_REDIRECTS = 5;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const LOCK_TIMEOUT_MS = 30_000;
+const PROOF_MODE = "local-frozen-release-asset-v1";
 
 function loadRelease(packageRoot, platformInfo) {
   const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
@@ -65,6 +66,24 @@ async function validCachedBinary(file, expectedHash) {
       return false;
     }
     throw error;
+  }
+}
+
+function localProofAsset(environment = {}) {
+  const mode = String(environment.AGENTPLUGINS_INTERNAL_PROOF_MODE || "").trim();
+  const file = String(environment.AGENTPLUGINS_INTERNAL_PROOF_BINARY || "").trim();
+  if (!mode && !file) return "";
+  if (mode !== PROOF_MODE || !file || !path.isAbsolute(file)) {
+    throw new Error("internal proof bootstrap requires an absolute frozen release asset and exact proof mode");
+  }
+  return file;
+}
+
+async function verifyLocalProofAsset(file, expected) {
+  const stat = await fsp.lstat(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== expected.size ||
+      await sha256File(file) !== expected.sha256) {
+    throw new Error("internal proof release asset does not match embedded size and SHA-256 metadata");
   }
 }
 
@@ -300,6 +319,21 @@ async function ensureBinary(options = {}) {
   if (await validCachedBinary(binaryPath, release.asset.sha256)) {
     return { binaryPath, version: release.version, cacheHit: true };
   }
+  const proofAsset = localProofAsset(options.environment || process.env);
+  if (proofAsset) {
+    try {
+      if (path.basename(proofAsset) !== release.asset.file) {
+        throw new Error("internal proof release asset filename does not match embedded metadata");
+      }
+      await verifyLocalProofAsset(proofAsset, release.asset);
+      await installVerifiedBinary(proofAsset, binaryPath, release, platformInfo);
+      return { binaryPath, version: release.version, cacheHit: false, source: "local_frozen_asset" };
+    } catch (error) {
+      const cold = !(await validCachedBinary(binaryPath, release.asset.sha256));
+      const suffix = cold ? " No client or plugin files were changed." : "";
+      throw new Error(`unable to obtain agentplugins ${release.version}: ${error.message}.${suffix}`);
+    }
+  }
   const releaseBase = `https://github.com/${release.manifest.repository}/releases/download/${release.manifest.tag}`;
   const url = `${String(releaseBase).replace(/\/$/, "")}/${encodeURIComponent(release.asset.file)}`;
   const temporary = path.join(os.tmpdir(), `agentplugins-download-${process.pid}-${crypto.randomBytes(8).toString("hex")}`);
@@ -324,11 +358,13 @@ function formatBootstrapError(error, version = "this exact version") {
 }
 
 module.exports = {
+  PROOF_MODE,
   acquireLock,
   downloadFile,
   ensureBinary,
   formatBootstrapError,
   loadRelease,
+  localProofAsset,
   sha256File,
   validCachedBinary
 };

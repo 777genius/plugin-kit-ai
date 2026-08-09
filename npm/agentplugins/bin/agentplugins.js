@@ -15,7 +15,10 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  const child = spawn(resolved.binaryPath, process.argv.slice(2), { stdio: "inherit" });
+  const childEnvironment = { ...process.env };
+  delete childEnvironment.AGENTPLUGINS_INTERNAL_PROOF_MODE;
+  delete childEnvironment.AGENTPLUGINS_INTERNAL_PROOF_BINARY;
+  const child = spawn(resolved.binaryPath, process.argv.slice(2), { stdio: "inherit", env: childEnvironment });
   child.once("error", (error) => {
     process.stderr.write(`agentplugins npm launcher: ${error.message}\n`);
     process.exitCode = 1;

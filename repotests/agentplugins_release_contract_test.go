@@ -12,6 +12,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
 	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
 	platformPrepareJob := yamlJob(t, platformWorkflow, "prepare")
+	platformNativeJob := yamlJob(t, platformWorkflow, "native-runtime")
 	platformCompleteJob := yamlJob(t, platformWorkflow, "proof-complete")
 	releaseDraftJob := yamlJob(t, releaseWorkflow, "stage-draft")
 	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
@@ -65,6 +66,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml", "gh release edit")
 	mustContain(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
 	mustContain(t, releaseWorkflow, "expected_commit: ${{ needs.validate.outputs.commit }}")
+	mustContain(t, releaseWorkflow, `test "${WORKFLOW_REF}" = "refs/heads/main"`)
+	mustContain(t, releaseWorkflow, "release workflow source does not match the exact tagged main commit")
 	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
 	mustContain(t, releaseWorkflow, "release commit must come from a merged pull request into main")
 	mustContain(t, releaseWorkflow, "check-runs?filter=latest&per_page=100")
@@ -87,6 +90,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 
 	mustContain(t, npmReleaseIdentityJob, "if: ${{ !inputs.verify_only }}")
 	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"`)
+	mustContain(t, npmReleaseIdentityJob, `test "${WORKFLOW_REF}" = "refs/heads/main"`)
+	mustContain(t, npmReleaseIdentityJob, "npm publish workflow source does not match the exact tagged main commit")
 	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
 	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
 	mustContain(t, npmPlatformProofJob, "needs: release-identity")
@@ -176,6 +181,11 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"Aggregate all six native platform proofs",
 		"draft proof requires caller-staged release assets",
 		"Download caller-staged draft assets",
+		"bootstrap_mode:",
+		"local_frozen_asset",
+		"public_release_download",
+		"platform proof workflow source does not match the frozen release commit",
+		"historical audit must be dispatched with --ref ${TAG}",
 		".isDraft == false and .isPrerelease == false and .tagName == $tag",
 		`git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`,
 		`git -C release-source rev-list -n 1 "refs/tags/${TAG}"`,
@@ -189,8 +199,20 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`[[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]`,
 		`if [[ "${commit}" != "${EXPECTED_COMMIT}" ]]`,
 		"release tag commit does not match the caller's frozen commit",
+		"ref: ${{ inputs.expected_commit }}",
+		"agentplugins-proof-bundle",
+		"release-assets",
 	} {
 		mustContain(t, platformPrepareJob, want)
+	}
+	for _, want := range []string{
+		"ref: ${{ inputs.expected_commit }}",
+		`test "$(git rev-parse HEAD)" = "${{ inputs.expected_commit }}"`,
+		"needs.prepare.outputs.bootstrap_mode",
+		"release_assets=\"-\"",
+		"npm/agentplugins/scripts/platform-proof.js",
+	} {
+		mustContain(t, platformNativeJob, want)
 	}
 	for _, want := range []string{
 		"Download all native platform proofs",
@@ -199,6 +221,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		".schema_version == 1",
 		".release_version == $version",
 		".proofs.isolated_add_update_remove == $lifecycle",
+		`.bootstrap_source == $bootstrap_mode`,
+		`.proofs.local_frozen_asset_bootstrap == ($bootstrap_mode == "local_frozen_asset")`,
+		`.proofs.anonymous_public_release_download == ($bootstrap_mode == "public_release_download")`,
+		".proofs.warm_cache_without_proof_source == true",
 	} {
 		mustContain(t, platformCompleteJob, want)
 	}
@@ -232,6 +258,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"schema-v2 six-platform proof",
 		"not require the tag to point to current `main`",
 		"public registry, provenance, and isolated",
+		"same-run frozen",
+		"normal anonymous GitHub release download",
 	} {
 		mustContain(t, runbook, want)
 	}

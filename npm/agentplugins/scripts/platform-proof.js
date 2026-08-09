@@ -6,6 +6,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
+const { PROOF_MODE } = require("../lib/bootstrap");
+
+const COMMIT = /^[0-9a-f]{40}$/;
+const BOOTSTRAP_MODES = new Set(["local_frozen_asset", "public_release_download"]);
 
 function fail(message) {
   throw new Error(message);
@@ -49,6 +53,31 @@ function parseLifecycle(value) {
   return value === "true";
 }
 
+function parseBootstrapMode(value) {
+  if (!BOOTSTRAP_MODES.has(value)) {
+    fail("bootstrap mode must be exactly local_frozen_asset or public_release_download");
+  }
+  return value;
+}
+
+function frozenReleaseAsset(releaseAssetsRoot, expectedCommit, version, expectedTarget, pinned) {
+  if (!COMMIT.test(expectedCommit)) fail("expected commit must be an exact lowercase 40-character commit");
+  const root = path.resolve(releaseAssetsRoot);
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "release-manifest.json"), "utf8"));
+  const asset = manifest.assets?.[expectedTarget];
+  if (manifest.schema_version !== 2 || manifest.version !== version ||
+      manifest.tag !== `agentplugins-v${version}` || manifest.commit !== expectedCommit ||
+      !asset || asset.file !== pinned.file || asset.size !== pinned.size || asset.sha256 !== pinned.sha256) {
+    fail("frozen release manifest does not match the npm package pin and exact release identity");
+  }
+  const file = path.join(root, asset.file);
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== pinned.size || sha256(file) !== pinned.sha256) {
+    fail("frozen release binary does not match the npm package size and SHA-256 pin");
+  }
+  return file;
+}
+
 function lifecycleCommands(synthetic) {
   return [
     ["add", synthetic, "--target", "cursor"],
@@ -59,11 +88,13 @@ function lifecycleCommands(synthetic) {
 }
 
 function main() {
-  const [tarballArg, version, expectedTarget, lifecycleArg, resultArg] = process.argv.slice(2);
-  if (!tarballArg || !version || !expectedTarget || !lifecycleArg || !resultArg) {
-    fail("usage: platform-proof.js <npm-tarball> <version> <os-arch> <true|false> <result-json>");
+  const [tarballArg, version, expectedTarget, lifecycleArg, resultArg, expectedCommit, bootstrapModeArg, releaseAssetsArg] = process.argv.slice(2);
+  if (!tarballArg || !version || !expectedTarget || !lifecycleArg || !resultArg || !expectedCommit || !bootstrapModeArg || !releaseAssetsArg) {
+    fail("usage: platform-proof.js <npm-tarball> <version> <os-arch> <true|false> <result-json> <expected-commit> <local_frozen_asset|public_release_download> <release-assets-dir|->");
   }
   const lifecycle = parseLifecycle(lifecycleArg);
+  const bootstrapMode = parseBootstrapMode(bootstrapModeArg);
+  if (!COMMIT.test(expectedCommit)) fail("expected commit must be an exact lowercase 40-character commit");
   const osNames = { darwin: "darwin", linux: "linux", win32: "windows" };
   const archNames = { x64: "amd64", arm64: "arm64" };
   const actualTarget = `${osNames[process.platform] || process.platform}-${archNames[process.arch] || process.arch}`;
@@ -112,7 +143,7 @@ function main() {
     TEMP: temporary,
     TMP: temporary
   });
-  for (const name of ["CODEX_HOME", "CLAUDE_CONFIG_DIR", "CURSOR_CONFIG_DIR", "NPM_TOKEN", "NODE_AUTH_TOKEN"]) {
+  for (const name of ["CODEX_HOME", "CLAUDE_CONFIG_DIR", "CURSOR_CONFIG_DIR", "NPM_TOKEN", "NODE_AUTH_TOKEN", "GITHUB_TOKEN", "GH_TOKEN"]) {
     delete env[name];
   }
   fs.writeFileSync(env.NPM_CONFIG_USERCONFIG, "registry=https://registry.npmjs.org/\n");
@@ -136,6 +167,16 @@ function main() {
   if (!pinned || manifest.version !== version) fail(`tarball has no exact pin for ${expectedTarget}`);
   if (fs.existsSync(cache)) fail("binary cache was not cold before the launcher ran");
 
+  if (bootstrapMode === "local_frozen_asset") {
+    if (releaseAssetsArg === "-") fail("local frozen asset bootstrap requires the same-run release assets directory");
+    env.AGENTPLUGINS_INTERNAL_PROOF_MODE = PROOF_MODE;
+    env.AGENTPLUGINS_INTERNAL_PROOF_BINARY = frozenReleaseAsset(
+      releaseAssetsArg, expectedCommit, version, expectedTarget, pinned
+    );
+  } else if (releaseAssetsArg !== "-") {
+    fail("public release bootstrap must not receive a local proof asset directory");
+  }
+
   const shim = path.join(project, "node_modules", ".bin", process.platform === "win32" ? "agentplugins.cmd" : "agentplugins");
   if (!fs.existsSync(shim)) fail("npm did not create the agentplugins executable shim");
   const launcher = path.join(packageRoot, "bin", "agentplugins.js");
@@ -145,6 +186,8 @@ function main() {
 
   const versionOutput = invoke(["version"]).trim();
   if (versionOutput !== `agentplugins ${version}`) fail(`unexpected version output: ${versionOutput}`);
+  delete env.AGENTPLUGINS_INTERNAL_PROOF_MODE;
+  delete env.AGENTPLUGINS_INTERNAL_PROOF_BINARY;
   const binaryName = process.platform === "win32" ? "agentplugins.exe" : "agentplugins";
   const binaryPath = path.join(cache, version, expectedTarget, binaryName);
   const stat = fs.lstatSync(binaryPath);
@@ -192,9 +235,12 @@ function main() {
     execution: "native-runtime-e2e",
     release_version: version,
     npm_tarball: path.basename(tarball),
+    bootstrap_source: bootstrapMode,
     proofs: {
       npm_install_ignore_scripts: true,
       launcher_cold_bootstrap: true,
+      local_frozen_asset_bootstrap: bootstrapMode === "local_frozen_asset",
+      anonymous_public_release_download: bootstrapMode === "public_release_download",
       embedded_sha256_and_size: true,
       released_binary_executed: true,
       version: true,
@@ -202,6 +248,7 @@ function main() {
       doctor_read_only: true,
       synthetic_add_dry_run: true,
       warm_cache: true,
+      warm_cache_without_proof_source: true,
       isolated_add_update_remove: lifecycle
     }
   };
@@ -220,4 +267,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { lifecycleCommands, npmInvocation, parseLifecycle };
+module.exports = { frozenReleaseAsset, lifecycleCommands, npmInvocation, parseBootstrapMode, parseLifecycle };

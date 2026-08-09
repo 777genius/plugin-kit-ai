@@ -78,6 +78,9 @@ on:
       gate_eligible:
         description: Whether the release uses the strict publish-gate manifest
         value: ${{ jobs.prepare.outputs.gate_eligible }}
+      bootstrap_mode:
+        description: Exact cold-bootstrap evidence source used by native jobs
+        value: ${{ jobs.prepare.outputs.bootstrap_mode }}
 
 permissions:
   contents: read
@@ -97,18 +100,20 @@ jobs:
       tarball_artifact: ${{ steps.prepare.outputs.tarball_artifact }}
       tarball_file: ${{ steps.prepare.outputs.tarball_file }}
       gate_eligible: ${{ steps.prepare.outputs.gate_eligible }}
+      bootstrap_mode: ${{ steps.prepare.outputs.bootstrap_mode }}
     steps:
       - name: Check out platform proof tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.expected_commit }}
           path: proof-tools
       - name: Check out exact release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ inputs.tag }}
+          ref: ${{ inputs.expected_commit }}
           path: release-source
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -130,6 +135,7 @@ jobs:
           REQUIRE_DRAFT: ${{ inputs.require_draft }}
           EXPECTED_ASSET_SET_DIGEST: ${{ inputs.expected_asset_set_digest }}
           RELEASE_ASSETS_ARTIFACT: ${{ inputs.release_assets_artifact }}
+          WORKFLOW_COMMIT: ${{ github.sha }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
@@ -139,6 +145,14 @@ jobs:
             echo "expected_commit must be an exact lowercase 40-character commit" >&2
             exit 1
           fi
+          if [[ "${WORKFLOW_COMMIT}" != "${EXPECTED_COMMIT}" ]]; then
+            if [[ "${ALLOW_LEGACY}" = "true" ]]; then
+              echo "historical audit must be dispatched with --ref ${TAG}; the platform-proof workflow must exist at that exact tag" >&2
+            fi
+            echo "platform proof workflow source does not match the frozen release commit" >&2
+            exit 1
+          fi
+          test "$(git -C proof-tools rev-parse HEAD)" = "${EXPECTED_COMMIT}"
           commit="$(git -C release-source rev-parse HEAD)"
           git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
           tag_commit="$(git -C release-source rev-list -n 1 "refs/tags/${TAG}")"
@@ -207,19 +221,30 @@ jobs:
           package_name="$(node -p 'require(process.argv[1]).name' "${stage}/package.json")"
           tarball_artifact="agentplugins-npm-${version}"
           gate_eligible="$(jq -r '.gate_eligible' "${RUNNER_TEMP}/verified-release.json")"
+          bootstrap_mode="public_release_download"
+          if [[ -n "${RELEASE_ASSETS_ARTIFACT}" ]]; then
+            bootstrap_mode="local_frozen_asset"
+          fi
           echo "commit=${commit}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
           echo "tarball_artifact=${tarball_artifact}" >> "${GITHUB_OUTPUT}"
           echo "tarball_file=${tarball_file}" >> "${GITHUB_OUTPUT}"
           echo "gate_eligible=${gate_eligible}" >> "${GITHUB_OUTPUT}"
-          cp "${tarball}" "${RUNNER_TEMP}/${tarball_file}"
+          echo "bootstrap_mode=${bootstrap_mode}" >> "${GITHUB_OUTPUT}"
+          proof_bundle="${RUNNER_TEMP}/agentplugins-proof-bundle"
+          mkdir -p "${proof_bundle}"
+          cp "${tarball}" "${proof_bundle}/${tarball_file}"
+          cp "${RUNNER_TEMP}/verified-release.json" "${proof_bundle}/verified-release.json"
+          if [[ "${bootstrap_mode}" = "local_frozen_asset" ]]; then
+            mkdir -p "${proof_bundle}/release-assets"
+            cp "${assets}"/agentplugins_* "${assets}/checksums.txt" "${assets}/release-manifest.json" \
+              "${proof_bundle}/release-assets/"
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
         with:
           name: ${{ steps.prepare.outputs.tarball_artifact }}
-          path: |
-            ${{ runner.temp }}/${{ steps.prepare.outputs.tarball_file }}
-            ${{ runner.temp }}/verified-release.json
+          path: ${{ runner.temp }}/agentplugins-proof-bundle/
           if-no-files-found: error
           retention-days: 7
 
@@ -255,6 +280,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.expected_commit }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -266,12 +292,21 @@ jobs:
       - name: Run native npm launcher and released binary proof
         shell: bash
         run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.expected_commit }}"
+          release_assets="-"
+          if [[ "${{ needs.prepare.outputs.bootstrap_mode }}" = "local_frozen_asset" ]]; then
+            release_assets="${{ runner.temp }}/agentplugins-proof-package/release-assets"
+            test -d "${release_assets}"
+          fi
           node npm/agentplugins/scripts/platform-proof.js \
             "${{ runner.temp }}/agentplugins-proof-package/${{ needs.prepare.outputs.tarball_file }}" \
             "${{ needs.prepare.outputs.version }}" \
             "${{ matrix.target }}" \
             "${{ matrix.lifecycle }}" \
-            "${{ runner.temp }}/agentplugins-proof-${{ matrix.target }}.json"
+            "${{ runner.temp }}/agentplugins-proof-${{ matrix.target }}.json" \
+            "${{ inputs.expected_commit }}" \
+            "${{ needs.prepare.outputs.bootstrap_mode }}" \
+            "${release_assets}"
       - name: Upload machine-readable native proof
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
@@ -294,6 +329,7 @@ jobs:
       - name: Validate exactly one proof for every native target
         env:
           EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
+          EXPECTED_BOOTSTRAP_MODE: ${{ needs.prepare.outputs.bootstrap_mode }}
         shell: bash
         run: |
           root="${RUNNER_TEMP}/agentplugins-native-proofs"
@@ -324,13 +360,17 @@ jobs:
             jq -e \
               --arg target "${target}" \
               --arg version "${EXPECTED_VERSION}" \
+              --arg bootstrap_mode "${EXPECTED_BOOTSTRAP_MODE}" \
               --argjson lifecycle "${lifecycle}" \
               '.schema_version == 1 and
                .target == $target and
                .release_version == $version and
                .execution == "native-runtime-e2e" and
+               .bootstrap_source == $bootstrap_mode and
                .proofs.npm_install_ignore_scripts == true and
                .proofs.launcher_cold_bootstrap == true and
+               .proofs.local_frozen_asset_bootstrap == ($bootstrap_mode == "local_frozen_asset") and
+               .proofs.anonymous_public_release_download == ($bootstrap_mode == "public_release_download") and
                .proofs.embedded_sha256_and_size == true and
                .proofs.released_binary_executed == true and
                .proofs.version == true and
@@ -338,6 +378,7 @@ jobs:
                .proofs.doctor_read_only == true and
                .proofs.synthetic_add_dry_run == true and
                .proofs.warm_cache == true and
+               .proofs.warm_cache_without_proof_source == true and
                .proofs.isolated_add_update_remove == $lifecycle' \
               "${matches[0]}" >/dev/null
           done
