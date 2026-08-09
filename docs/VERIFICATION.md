@@ -1,6 +1,6 @@
 # Verification record
 
-Updated: 2026-08-09.
+Updated: 2026-08-10.
 
 ## Package conformance
 

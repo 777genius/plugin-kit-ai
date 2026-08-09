@@ -1,6 +1,6 @@
 # Plugin verification matrix
 
-Updated on 2026-08-09. Each column is independent: a schema pass is not an
+Updated on 2026-08-10. Each column is independent: a schema pass is not an
 install, an auth challenge is not OAuth success, and tool discovery is not a
 tool call. `Direct harness` means MCP Inspector, not a client installation.
 
@@ -11,7 +11,7 @@ tool call. `Direct harness` means MCP Inspector, not a client installation.
 | `chrome-devtools` | Pass | Codex; Cursor local load; Kiro workspace | `list_pages` | Local browser, not OAuth | Codex; Cursor; Kiro; direct harness |
 | `cloudflare` | Pass | No | No | Required - not tested | None |
 | `cloudflare-bindings` | Pass | No | No | Required - not tested | None |
-| `cloudflare-docs` | Pass | Codex; Cursor local load; Kiro workspace; ChatGPT direct connection only | `search_cloudflare_documentation` | None | Codex; Cursor; Kiro; ChatGPT direct; direct harness |
+| `cloudflare-docs` | Pass | Codex; Cursor local load; Kiro workspace | `search_cloudflare_documentation` | None | Codex; Cursor; Kiro; ChatGPT direct; direct harness |
 | `cloudflare-observability` | Pass | No | No | Required - not tested | None |
 | `cloudflare-radar` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
 | `context7` | Pass | Codex; Kiro import; Cursor local load | `resolve-library-id`; `query-docs` | None | Codex; Kiro; Cursor; direct harness |

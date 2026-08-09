@@ -1,6 +1,6 @@
 # Client compatibility
 
-Verified on 2026-08-07. "Supported" comes from the Agent Plugins project;
+Verified on 2026-08-10. "Supported" comes from the Agent Plugins project;
 "local test" records what was actually available on the test machine.
 
 | Client | Agent Plugins 1.0 components | Local availability | Verification |
