@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
+	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
@@ -40,7 +43,7 @@ func TestAddListAndInfoProduceVersionedPathRedactedJSON(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
 	plugin := writeCLIPlugin(t)
-	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes", "--format", "json")
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,29 +77,62 @@ func TestAddListAndInfoProduceVersionedPathRedactedJSON(t *testing.T) {
 	}
 }
 
-func TestNonInteractiveAddRequiresOneExplicitTargetAndYes(t *testing.T) {
+func TestAutomatedAddRequiresExplicitTargetButNotYes(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{
 		fixtureClient(t, domain.ClientCursor), fixtureClient(t, domain.ClientCodex),
 	})
 	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin); err == nil || !strings.Contains(err.Error(), "requires --target") {
+		t.Fatalf("missing-target error = %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("missing-target command mutated state: %+v", state)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatalf("explicit-target add without --yes failed: %v", err)
+	}
+}
+
+func TestTTYYesNeverBypassesExplicitStandardTargetGuards(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(true, "add", plugin, "--yes"); err == nil || !strings.Contains(err.Error(), "requires --target") {
+		t.Fatalf("TTY add --yes missing-target error = %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("TTY add --yes without target mutated state: %+v", state)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
 	for name, args := range map[string][]string{
-		"missing_target": {"add", plugin, "--yes"},
-		"missing_yes":    {"add", plugin, "--target", "cursor"},
+		"update": {"update", "demo", "--yes"},
+		"remove": {"remove", "demo", "--yes"},
+		"repair": {"repair", "demo", "--yes"},
 	} {
 		name, args := name, args
 		t.Run(name, func(t *testing.T) {
-			if _, _, err := fixture.execute(false, args...); err == nil {
-				t.Fatal("unsafe non-interactive add succeeded")
-			}
-			state, err := fixture.store.Load()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(state.Installations) != 0 {
-				t.Fatalf("state mutated: %+v", state)
+			if _, _, err := fixture.execute(true, args...); err == nil || !strings.Contains(err.Error(), "requires --target") {
+				t.Fatalf("TTY %s --yes missing-target error = %v", name, err)
 			}
 		})
+	}
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyCLIClient(state.Installations[0]); binding.Materialization != domain.MaterializationMaterialized || len(binding.Receipts) != 1 {
+		t.Fatalf("TTY --yes without target mutated standard lifecycle state: %+v", binding)
 	}
 }
 
@@ -125,6 +161,276 @@ func TestDryRunAndDoctorAreStrictlyReadOnly(t *testing.T) {
 	}
 }
 
+func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if err := os.WriteFile(filepath.Join(binding.TargetLocator, "unexpected.txt"), []byte("tampered"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output struct {
+		Data struct {
+			Findings []doctorFinding `json:"findings"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, finding := range output.Data.Findings {
+		if finding.Status == "degraded" && finding.RecoveryAction == "" {
+			t.Fatalf("degraded finding has no recovery: %+v", finding)
+		}
+		if finding.Code == "managed_directory_changed" {
+			found = true
+			if finding.InstallationName != "demo" || finding.InstallationID == "" || finding.ClientID != "cursor" {
+				t.Fatalf("managed finding scope = %+v", finding)
+			}
+			if finding.RecoveryAction != "run `agentplugins repair "+finding.InstallationID+" --target cursor`" {
+				t.Fatalf("managed finding recovery = %q", finding.RecoveryAction)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("managed integrity finding missing: %+v", output.Data.Findings)
+	}
+}
+
+func TestDoctorBlocksRepairForExcludedOwnershipMarker(t *testing.T) {
+	t.Parallel()
+	for _, marker := range []string{".git", ".plugin-kit-ai.lock"} {
+		t.Run(marker, func(t *testing.T) {
+			fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+			plugin := writeCLIPlugin(t)
+			if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+				t.Fatal(err)
+			}
+			state, err := fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyCLIClient(state.Installations[0])
+			markerPath := filepath.Join(binding.TargetLocator, marker)
+			if marker == ".git" {
+				if err := os.Mkdir(markerPath, 0o700); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(markerPath, []byte("excluded"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			stdout, _, err := fixture.execute(false, "doctor", state.Installations[0].InstallationID, "--format", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output struct {
+				Data struct {
+					Findings []doctorFinding `json:"findings"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+				t.Fatal(err)
+			}
+			for _, finding := range output.Data.Findings {
+				if finding.Code != "excluded_ownership_marker" {
+					continue
+				}
+				if finding.Status != "unknown" || finding.InstallationID != state.Installations[0].InstallationID ||
+					!strings.Contains(finding.RecoveryAction, "manually review and remove") || strings.Contains(finding.RecoveryAction, "agentplugins repair") {
+					t.Fatalf("excluded marker finding = %+v", finding)
+				}
+				return
+			}
+			t.Fatalf("excluded ownership marker finding missing: %+v", output.Data.Findings)
+		})
+	}
+}
+
+func TestDoctorRecoveryIncludesProjectScopeAndExactTarget(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{InstallationID: "00000000-0000-4000-8000-000000000001", DeclaredName: "demo"}
+	binding := domain.ClientBinding{ClientID: "cursor", Scope: string(domain.ScopeProject)}
+	if got := repairAction(installation, binding); got != "run `agentplugins repair 00000000-0000-4000-8000-000000000001 --target cursor --scope project`" {
+		t.Fatalf("project repair action = %q", got)
+	}
+}
+
+func TestRepairSourcePinsSelectedClientRevision(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{Source: domain.SourceBinding{
+		Repository: "acme/plugins", PackageSubpath: "plugins/demo", ResolvedRevision: "moving-head",
+	}}
+	binding := domain.ClientBinding{PackageRevision: &domain.ClientPackageRevision{ResolvedRevision: "client-commit"}}
+	got, err := repairSource(installation, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "github:acme/plugins@client-commit//plugins/demo" {
+		t.Fatalf("repair source = %q", got)
+	}
+	binding.PackageRevision.ResolvedRevision = ""
+	if _, err := repairSource(installation, binding); err == nil || !strings.Contains(err.Error(), "moving source") {
+		t.Fatalf("unpinned repair error = %v", err)
+	}
+}
+
+func TestDoctorScopesPendingRecoveryAndRendersIdentity(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationPending
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := fixture.store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installationID := state.Installations[0].InstallationID
+	for _, expected := range []string{
+		"Installation: demo (" + installationID + ")",
+		"Client: cursor",
+		"complete the displayed external activation step, then rerun the same `agentplugins add ... --target cursor` command",
+		"complete the displayed external authentication step, then rerun the same `agentplugins add ... --target cursor` command",
+	} {
+		if !strings.Contains(stdout, expected) {
+			t.Fatalf("doctor output omitted %q:\n%s", expected, stdout)
+		}
+	}
+	if strings.Contains(stdout, "then rerun doctor") {
+		t.Fatalf("pending lifecycle recovery incorrectly recommends doctor:\n%s", stdout)
+	}
+}
+
+func TestDoctorBlocksAutomaticMutationForMissingPhysicalIdentity(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.PhysicalArtifact = ""
+		state.Installations[0].Clients[key] = binding
+	}
+	findings := doctorFindings(context.Background(), fixture.app, fixture.app.Detector.(staticDetector).clients, state, nil, &state.Installations[0])
+	var found doctorFinding
+	for _, finding := range findings {
+		if finding.Code == "managed_target_unverifiable" {
+			found = finding
+		}
+	}
+	if found.Code == "" || !strings.Contains(found.RecoveryAction, "automatic mutation is intentionally blocked") {
+		t.Fatalf("missing identity recovery = %+v", findings)
+	}
+	if strings.Contains(found.RecoveryAction, "update") || strings.Contains(found.RecoveryAction, "remove") {
+		t.Fatalf("blocked identity recovery invented a refusing mutation: %+v", found)
+	}
+}
+
+func TestDoctorDoesNotRequireCopilotCLIForVSCodeBinding(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientVSCode)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "vscode", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout, "copilot_cli_missing") {
+		t.Fatalf("VS Code binding incorrectly required Copilot CLI: %s", stdout)
+	}
+}
+
+func TestDoctorDoesNotReportMissingCopilotCLIWhenCopilotIsNotVisible(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCopilot)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	fixture.app.Detector = staticDetector{}
+	var stdout, stderr bytes.Buffer
+	app := fixture.app
+	app.Output = &stdout
+	app.ErrorOutput = &stderr
+	command := NewRoot(app)
+	command.SetArgs([]string{"doctor", "demo", "--format", "json"})
+	if err := command.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "client_not_visible") || strings.Contains(stdout.String(), "copilot_cli_missing") {
+		t.Fatalf("invisible Copilot findings = %s", stdout.String())
+	}
+}
+
+func TestDoctorDoesNotCallVerifierFailureChangedContent(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	fixture.app.Stager = failingVerifyStager{err: errors.New("temporary verifier unavailable")}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "managed_integrity_check_failed") || strings.Contains(stdout, "managed_directory_changed") {
+		t.Fatalf("verification infrastructure error was mislabeled: %s", stdout)
+	}
+}
+
+func TestDoctorSkipsClientWarningsForAbsentBinding(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Materialization = domain.MaterializationAbsent
+		state.Installations[0].Clients[key] = binding
+	}
+	findings := doctorFindings(context.Background(), fixture.app, nil, state, nil, &state.Installations[0])
+	for _, finding := range findings {
+		if finding.ClientID != "" {
+			t.Fatalf("absent binding produced client finding: %+v", finding)
+		}
+	}
+}
+
 func TestHumanCodexFlowNeverClaimsPreparedPackageIsInstalled(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})
@@ -135,6 +441,334 @@ func TestHumanCodexFlowNeverClaimsPreparedPackageIsInstalled(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "Package prepared") || strings.Contains(stdout, "Installed and verified") {
 		t.Fatalf("human output overclaimed activation: %s", stdout)
+	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, fixture.root) || !strings.Contains(stdout, "verify") {
+		t.Fatalf("human output must contain one path-bearing verification step: %s", stdout)
+	}
+}
+
+func TestRepeatedAddResumesManualLifecycleWithoutAnotherReceipt(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, "verify") || !strings.Contains(stdout, "plugins/local") {
+		t.Fatalf("resume output = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipts := onlyCLIClient(state.Installations[0]).Receipts; len(receipts) != 1 {
+		t.Fatalf("resume created another materialization receipt: %+v", receipts)
+	}
+}
+
+func TestInitialInteractiveAddPromptsForApplyBeforeLifecycle(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "n\n", "add", plugin, "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Apply this plan? [y/N]") || strings.Contains(stdout, "Have you completed activation") || strings.Contains(stdout, "authentication, or reviewed") {
+		t.Fatalf("initial prompt order = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("declined plan materialized state: %+v", state)
+	}
+}
+
+func TestInteractiveActivationYesAuthNoKeepsIndependentResumableState(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "y\ny\nn\n", "add", plugin, "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply := strings.Index(stdout, "Apply this plan? [y/N]")
+	activation := strings.Index(stdout, "Have you completed activation")
+	auth := strings.Index(stdout, "Have you completed required authentication")
+	if apply < 0 || activation <= apply || auth <= activation {
+		t.Fatalf("interactive prompt order = %q", stdout)
+	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, "Activation is user-attested") {
+		t.Fatalf("interactive next action or attestation output = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled || binding.Authentication != domain.AuthenticationNotChecked {
+		t.Fatalf("declined auth state = %+v", binding)
+	}
+}
+
+func TestCLICompletionFlagsRequirePriorMaterialization(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	_, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes", "--activation-complete", "--auth-complete")
+	if err == nil || !strings.Contains(err.Error(), "already materialized") {
+		t.Fatalf("fresh completion error = %v", err)
+	}
+}
+
+func TestCLIAddAndUpdatePersistConvergedNegativeObservationBeforeConfirmation(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptCount := len(onlyCLIClient(state.Installations[0]).Receipts)
+
+	for _, command := range []string{"add", "update"} {
+		for _, yes := range []bool{false, true} {
+			state, err = fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, binding := range state.Installations[0].Clients {
+				binding.Activation = domain.ActivationActive
+				binding.Authentication = domain.AuthenticationNotRequired
+				binding.Verification = domain.VerificationInstalled
+				state.Installations[0].Clients[key] = binding
+			}
+			if err := fixture.store.Save(state); err != nil {
+				t.Fatal(err)
+			}
+			observer := &cliObservedActivator{outcome: domain.ActivationOutcome{
+				Activation: domain.ActivationFailed, Authentication: domain.AuthenticationNotRequired,
+				Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed, AuthoritativeObservation: true,
+			}, err: errors.New("recognized negative client evidence")}
+			fixture.app.Activator = observer
+			selector := plugin
+			if command == "update" {
+				selector = "demo"
+			}
+			args := []string{command, selector, "--target", "copilot"}
+			if yes {
+				args = append(args, "--yes")
+			}
+			stdout, _, commandErr := fixture.execute(true, args...)
+			if commandErr == nil || !strings.Contains(commandErr.Error(), "recognized negative client evidence") {
+				t.Fatalf("%s yes=%t error=%v output=%q", command, yes, commandErr, stdout)
+			}
+			if observer.calls != 1 || strings.Contains(stdout, "Apply this") {
+				t.Fatalf("%s yes=%t verifier calls=%d output=%q", command, yes, observer.calls, stdout)
+			}
+			state, err = fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyCLIClient(state.Installations[0])
+			if binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed || len(binding.Receipts) != receiptCount {
+				t.Fatalf("%s yes=%t state=%+v", command, yes, binding)
+			}
+		}
+	}
+}
+
+func TestInteractiveUnknownCopilotOutputReverifiesBeforeAttestation(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	runner := &cliCommandRunner{}
+	fixture.app.Activator = providers.Activator{Runner: runner}
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "y\ny\nn\n", "add", plugin, "--target", "copilot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.calls == 0 || !strings.Contains(stdout, "output contract was not recognized") {
+		t.Fatalf("unknown-output path did not execute verifier or show recovery: calls=%d output=%q", runner.calls, stdout)
+	}
+	if !strings.Contains(stdout, "Have you completed activation") || !strings.Contains(stdout, "Activation is user-attested") {
+		t.Fatalf("unknown observable output did not complete usable attestation flow: %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled {
+		t.Fatalf("attested output state = %+v", binding)
+	}
+	if runner.calls != 4 {
+		t.Fatalf("runner calls = %d, want 4 (activation commands plus retry verifier)", runner.calls)
+	}
+}
+
+func TestInteractiveUnknownRetryRecognizedNegativeFailsClosed(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	runner := &cliCommandRunner{run: func(call int, command legacyports.Command) legacyports.CommandResult {
+		if strings.HasSuffix(strings.Join(command.Argv, " "), "plugin list") && call >= 4 {
+			return legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  No plugins installed.")}
+		}
+		return legacyports.CommandResult{}
+	}}
+	fixture.app.Activator = providers.Activator{Runner: runner}
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "y\ny\n", "add", plugin, "--target", "copilot")
+	if err == nil || !strings.Contains(err.Error(), "recognized negative client evidence") {
+		t.Fatalf("retry err=%v output=%q", err, stdout)
+	}
+	if runner.calls != 4 {
+		t.Fatalf("runner calls = %d, want 4", runner.calls)
+	}
+	state, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
+		t.Fatalf("recognized negative retry state = %+v", binding)
+	}
+}
+
+func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := onlyCLIClient(state.Installations[0]).TargetLocator
+	if err := os.RemoveAll(target); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "repair", "demo", "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "repaired from the exact installed revision") {
+		t.Fatalf("repair output = %q", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
+		t.Fatalf("repaired package: %v", err)
+	}
+}
+
+func TestInteractiveRepairUsesOneReaderForTargetAndConfirmation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex),
+		fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+	for _, target := range []string{"codex", "cursor"} {
+		if _, _, err := fixture.execute(false, "add", plugin, "--target", target, "--yes"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codexTarget string
+	for _, binding := range state.Installations[0].Clients {
+		if binding.ClientID == string(domain.ClientCodex) {
+			codexTarget = binding.TargetLocator
+		}
+	}
+	if err := os.RemoveAll(codexTarget); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.executeInput(true, "1\ny\n", "repair", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Choose one target:") || !strings.Contains(stdout, "Repair the managed package") {
+		t.Fatalf("repair prompts = %q", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(codexTarget, "plugin.json")); err != nil {
+		t.Fatalf("selected target was not repaired: %v", err)
+	}
+}
+
+func TestJSONRepairAutoConfirmsWithoutYes(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := onlyCLIClient(state.Installations[0]).TargetLocator
+	if err := os.RemoveAll(target); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(true, "repair", "demo", "--target", "cursor", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertVersionedJSON(t, stdout, "repair")
+	if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
+		t.Fatalf("JSON repair without --yes did not restore target: %v", err)
+	}
+}
+
+func TestRepairReturnsOutputErrors(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(onlyCLIClient(state.Installations[0]).TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	app := fixture.app
+	app.Input = strings.NewReader("n\n")
+	app.Output = alwaysErrorWriter{}
+	app.ErrorOutput = io.Discard
+	app.Terminal = true
+	command := NewRoot(app)
+	command.SetArgs([]string{"repair", "demo", "--target", "cursor"})
+	if err := command.ExecuteContext(context.Background()); err == nil || !strings.Contains(err.Error(), "synthetic output failure") {
+		t.Fatalf("repair output error = %v", err)
+	}
+}
+
+func TestChatGPTTargetIsNotAliasedToCodexCLI(t *testing.T) {
+	t.Parallel()
+	if got := normalizeTarget("chatgpt"); got == domain.ClientCodex {
+		t.Fatalf("ChatGPT GUI target was aliased to Codex CLI: %s", got)
 	}
 }
 
@@ -156,14 +790,21 @@ func TestHumanOutputNeverCallsAuthPendingPackageInstalled(t *testing.T) {
 	}
 }
 
-func TestMultipleDetectedClientsAreNeverSelectedByYesAlone(t *testing.T) {
+func TestTTYYesWithMultipleDetectedClientsRequiresExplicitTarget(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{
 		fixtureClient(t, domain.ClientCursor), fixtureClient(t, domain.ClientCodex),
 	})
 	plugin := writeCLIPlugin(t)
-	if _, _, err := fixture.execute(true, "add", plugin, "--yes"); err == nil || !strings.Contains(err.Error(), "choose exactly one") {
-		t.Fatalf("multiple-client error = %v", err)
+	if _, _, err := fixture.execute(true, "add", plugin, "--yes"); err == nil || !strings.Contains(err.Error(), "requires --target") {
+		t.Fatalf("missing-target error = %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("TTY --yes without an explicit target mutated state: %+v", state)
 	}
 }
 
@@ -182,7 +823,7 @@ func TestUpdateAndRemoveCompleteLifecycleWithVersionedRedactedJSON(t *testing.T)
 	if err := os.WriteFile(manifest, []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	stdout, _, err := fixture.execute(false, "update", "demo", "--target", "cursor", "--yes", "--format", "json")
+	stdout, _, err := fixture.execute(false, "update", "demo", "--target", "cursor", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +839,7 @@ func TestUpdateAndRemoveCompleteLifecycleWithVersionedRedactedJSON(t *testing.T)
 	if state.Installations[0].Package.Version != "2.0.0" || len(binding.Receipts) != 2 {
 		t.Fatalf("updated state = %+v", state.Installations[0])
 	}
-	stdout, _, err = fixture.execute(false, "remove", "demo", "--target", "cursor", "--yes", "--format", "json")
+	stdout, _, err = fixture.execute(false, "remove", "demo", "--target", "cursor", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,18 +857,16 @@ func TestUpdateAndRemoveCompleteLifecycleWithVersionedRedactedJSON(t *testing.T)
 	}
 }
 
-func TestNonInteractiveUpdateAndRemoveRequireExplicitTargetAndYes(t *testing.T) {
+func TestAutomatedUpdateAndRemoveRequireExplicitTargetButNotYes(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
 	plugin := writeCLIPlugin(t)
-	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
 		t.Fatal(err)
 	}
 	for name, args := range map[string][]string{
-		"update_missing_target": {"update", "demo", "--yes"},
-		"update_missing_yes":    {"update", "demo", "--target", "cursor"},
-		"remove_missing_target": {"remove", "demo", "--yes"},
-		"remove_missing_yes":    {"remove", "demo", "--target", "cursor"},
+		"update_missing_target": {"update", "demo"},
+		"remove_missing_target": {"remove", "demo"},
 	} {
 		name, args := name, args
 		t.Run(name, func(t *testing.T) {
@@ -243,6 +882,12 @@ func TestNonInteractiveUpdateAndRemoveRequireExplicitTargetAndYes(t *testing.T) 
 	if binding := onlyCLIClient(state.Installations[0]); binding.Materialization != domain.MaterializationMaterialized || len(binding.Receipts) != 1 {
 		t.Fatalf("unsafe command mutated state: %+v", binding)
 	}
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "cursor"); err != nil {
+		t.Fatalf("explicit-target update without --yes failed: %v", err)
+	}
+	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "cursor"); err != nil {
+		t.Fatalf("explicit-target remove without --yes failed: %v", err)
+	}
 }
 
 func TestRebindIsPlanFirstAndRequiresRemovedTargets(t *testing.T) {
@@ -250,7 +895,7 @@ func TestRebindIsPlanFirstAndRequiresRemovedTargets(t *testing.T) {
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
 	first := writeCLIPlugin(t)
 	second := writeCLIPlugin(t)
-	if _, _, err := fixture.execute(false, "add", first, "--target", "cursor", "--yes"); err != nil {
+	if _, _, err := fixture.execute(false, "add", first, "--target", "cursor"); err != nil {
 		t.Fatal(err)
 	}
 	stdout, _, err := fixture.execute(false, "rebind", "demo", second, "--dry-run", "--format", "json")
@@ -261,13 +906,13 @@ func TestRebindIsPlanFirstAndRequiresRemovedTargets(t *testing.T) {
 	if strings.Contains(stdout, fixture.root) {
 		t.Fatalf("rebind plan leaked sandbox path: %s", stdout)
 	}
-	if _, _, err := fixture.execute(false, "rebind", "demo", second, "--yes"); err == nil || !strings.Contains(err.Error(), "blocked") {
+	if _, _, err := fixture.execute(false, "rebind", "demo", second); err == nil || !strings.Contains(err.Error(), "blocked") {
 		t.Fatalf("materialized rebind error = %v", err)
 	}
-	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "cursor", "--yes"); err != nil {
+	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "cursor"); err != nil {
 		t.Fatal(err)
 	}
-	stdout, _, err = fixture.execute(false, "rebind", "demo", second, "--yes", "--format", "json")
+	stdout, _, err = fixture.execute(false, "rebind", "demo", second, "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +986,7 @@ func TestMigrateStateIsExplicitPlanFirstAndPathRedacted(t *testing.T) {
 	if _, err := os.Stat(fixture.store.Path); !os.IsNotExist(err) {
 		t.Fatalf("dry-run created state v2: %v", err)
 	}
-	stdout, _, err = fixture.execute(false, "migrate-state", "--yes", "--format", "json")
+	stdout, _, err = fixture.execute(false, "migrate-state", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,10 +1021,13 @@ func TestLegacyRemovalRequiresExplicitAllTargetAndReconcilesV2(t *testing.T) {
 	if err := fixture.store.Save(state); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := fixture.execute(false, "remove", "legacy-demo", "--yes"); err == nil || !strings.Contains(err.Error(), "legacy-all") {
+	if _, _, err := fixture.execute(true, "remove", "legacy-demo", "--yes"); err == nil || !strings.Contains(err.Error(), "legacy-all") {
+		t.Fatalf("unsafe legacy TTY --yes removal error = %v", err)
+	}
+	if _, _, err := fixture.execute(false, "remove", "legacy-demo"); err == nil || !strings.Contains(err.Error(), "legacy-all") {
 		t.Fatalf("unsafe legacy non-TTY removal error = %v", err)
 	}
-	stdout, _, err := fixture.execute(false, "remove", "legacy-demo", "--target", "legacy-all", "--yes", "--format", "json")
+	stdout, _, err := fixture.execute(false, "remove", "legacy-demo", "--target", "legacy-all", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,6 +1048,12 @@ type cliFixture struct {
 	app        App
 	store      statev2.Store
 	operations string
+}
+
+type alwaysErrorWriter struct{}
+
+func (alwaysErrorWriter) Write([]byte) (int, error) {
+	return 0, errors.New("synthetic output failure")
 }
 
 func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
@@ -428,9 +1082,13 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 }
 
 func (fixture cliFixture) execute(terminal bool, args ...string) (string, string, error) {
+	return fixture.executeInput(terminal, "", args...)
+}
+
+func (fixture cliFixture) executeInput(terminal bool, input string, args ...string) (string, string, error) {
 	var stdout, stderr bytes.Buffer
 	app := fixture.app
-	app.Input = strings.NewReader("")
+	app.Input = strings.NewReader(input)
 	app.Output = &stdout
 	app.ErrorOutput = &stderr
 	app.Terminal = terminal
@@ -444,8 +1102,52 @@ type staticDetector struct {
 	clients []domain.DetectedClient
 }
 
+type failingVerifyStager struct {
+	err error
+}
+
+func (failingVerifyStager) Stage(context.Context, domain.PackageEnvelope, domain.DeliveryPlan, string, domain.CompatibilityHints) (domain.StagedDelivery, error) {
+	return domain.StagedDelivery{}, errors.New("unexpected stage")
+}
+
+func (failingVerifyStager) Discard(context.Context, domain.StagedDelivery) error {
+	return errors.New("unexpected discard")
+}
+
+func (stager failingVerifyStager) Verify(context.Context, string, string) error {
+	return stager.err
+}
+
 type cliLegacyLifecycleStub struct {
 	exists bool
+}
+
+type cliObservedActivator struct {
+	outcome domain.ActivationOutcome
+	err     error
+	calls   int
+}
+
+func (activator *cliObservedActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
+	activator.calls++
+	return activator.outcome, activator.err
+}
+
+func (*cliObservedActivator) Deactivate(context.Context, domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
+	return domain.DeactivationOutcome{}, errors.New("unexpected deactivation")
+}
+
+type cliCommandRunner struct {
+	calls int
+	run   func(int, legacyports.Command) legacyports.CommandResult
+}
+
+func (runner *cliCommandRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
+	runner.calls++
+	if runner.run != nil {
+		return runner.run(runner.calls, command), nil
+	}
+	return legacyports.CommandResult{}, nil
 }
 
 func (stub *cliLegacyLifecycleStub) Exists(context.Context, string) (bool, error) {

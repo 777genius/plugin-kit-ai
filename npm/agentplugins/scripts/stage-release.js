@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const { detectPlatform, expectedAssetName } = require("../lib/platform");
+const { verifyRelease } = require("./release-assets");
 
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const NPM_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -34,10 +35,11 @@ function validatePackageMetadata(pkg) {
   return packageName;
 }
 
-function stage(packageRoot, assetRoot, version) {
+function stage(packageRoot, assetRoot, version, commit, options = {}) {
   if (!VERSION.test(version)) {
     throw new Error(`invalid release version: ${version}`);
   }
+  verifyRelease(assetRoot, `agentplugins-v${version}`, commit, options);
   const pkgPath = path.join(packageRoot, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
   const packageName = validatePackageMetadata(pkg);
@@ -67,11 +69,13 @@ function stage(packageRoot, assetRoot, version) {
 }
 
 function main() {
-  const [packageRoot, assetRoot, version] = process.argv.slice(2);
-  if (!packageRoot || !assetRoot || !version) {
-    throw new Error("usage: stage-release.js <package-root> <asset-root> <version>");
+  const [packageRoot, assetRoot, version, commit, policy] = process.argv.slice(2);
+  if (!packageRoot || !assetRoot || !version || !commit) {
+    throw new Error("usage: stage-release.js <package-root> <asset-root> <version> <commit> [allow-legacy-v1]");
   }
-  const manifest = stage(path.resolve(packageRoot), path.resolve(assetRoot), version);
+  const manifest = stage(path.resolve(packageRoot), path.resolve(assetRoot), version, commit, {
+    allowLegacyManifest: policy === "allow-legacy-v1"
+  });
   process.stdout.write(`Staged agentplugins ${manifest.version} with ${Object.keys(manifest.assets).length} pinned assets\n`);
 }
 

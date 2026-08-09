@@ -10,6 +10,15 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	makefile := readRepoFile(t, root, "Makefile")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
+	platformPrepareJob := yamlJob(t, platformWorkflow, "prepare")
+	platformNativeJob := yamlJob(t, platformWorkflow, "native-runtime")
+	platformCompleteJob := yamlJob(t, platformWorkflow, "proof-complete")
+	releaseDraftJob := yamlJob(t, releaseWorkflow, "stage-draft")
+	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
+	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
+	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
+	npmPlatformProofJob := yamlJob(t, npmWorkflow, "platform-proof")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
@@ -32,7 +41,33 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, releaseWorkflow, "actions/attest@", "gh release create")
 	mustContain(t, releaseWorkflow, "^agentplugins-v[0-9]+\\.[0-9]+\\.[0-9]+$")
 	mustNotContain(t, releaseWorkflow, "--prerelease")
-	mustContain(t, releaseWorkflow, "release ${TAG} already exists; refusing to overwrite immutable assets")
+	mustContain(t, releaseDraftJob, "exact resumable draft; refusing to overwrite immutable assets")
+	mustContain(t, releaseDraftJob, "--draft")
+	mustContain(t, releaseDraftJob, "existing draft asset differs from the frozen build")
+	mustContain(t, releaseDraftJob, "gh api graphql")
+	mustContain(t, releaseDraftJob, ".data.repository.release")
+	mustContain(t, releaseDraftJob, "Share frozen draft assets with the read-only proof workflow")
+	mustContain(t, releaseDraftJob, "assets_artifact=agentplugins-draft-assets-${FROZEN_COMMIT}")
+	mustNotContain(t, releaseDraftJob, "target_commitish")
+	mustContain(t, releaseProofJob, "needs: [validate, stage-draft]")
+	mustContain(t, releaseProofJob, "contents: read")
+	mustContain(t, releaseProofJob, "require_draft: true")
+	mustContain(t, releaseProofJob, "expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}")
+	mustContain(t, releaseProofJob, "release_assets_artifact: ${{ needs.stage-draft.outputs.assets_artifact }}")
+	mustContain(t, releasePromoteJob, "needs: [validate, stage-draft, platform-proof]")
+	mustContain(t, releasePromoteJob, "EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}")
+	mustContain(t, releasePromoteJob, "gh release edit \"${TAG}\"")
+	mustContain(t, releasePromoteJob, "--draft=false")
+	mustContain(t, releasePromoteJob, `git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`)
+	mustContain(t, releasePromoteJob, `git rev-list -n 1 "refs/tags/${TAG}"`)
+	mustContain(t, releasePromoteJob, "gh api graphql")
+	mustNotContain(t, releasePromoteJob, "target_commitish")
+	mustAppearBefore(t, releaseWorkflow, "gh release create", "gh release edit")
+	mustAppearBefore(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml", "gh release edit")
+	mustContain(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
+	mustContain(t, releaseWorkflow, "expected_commit: ${{ needs.validate.outputs.commit }}")
+	mustContain(t, releaseWorkflow, `test "${WORKFLOW_REF}" = "refs/heads/main"`)
+	mustContain(t, releaseWorkflow, "release workflow source does not match the exact tagged main commit")
 	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
 	mustContain(t, releaseWorkflow, "release commit must come from a merged pull request into main")
 	mustContain(t, releaseWorkflow, "check-runs?filter=latest&per_page=100")
@@ -53,7 +88,18 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, releaseWorkflow, name)
 	}
 
+	mustContain(t, npmReleaseIdentityJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"`)
+	mustContain(t, npmReleaseIdentityJob, `test "${WORKFLOW_REF}" = "refs/heads/main"`)
+	mustContain(t, npmReleaseIdentityJob, "npm publish workflow source does not match the exact tagged main commit")
+	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
+	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
+	mustContain(t, npmPlatformProofJob, "needs: release-identity")
+	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
+	mustContain(t, npmPlatformProofJob, "contents: read")
 	for _, want := range []string{
+		"needs: [release-identity, platform-proof]",
 		"if: ${{ !inputs.verify_only }}",
 		"environment: npm-agentplugins",
 		"id-token: write",
@@ -80,6 +126,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
+		`run_agentplugins add "${synthetic}" --target cursor --format json > add.json`,
+		`run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`,
+		`.data.result.activation.authentication == "not_checked"`,
+		`.data.result.activation.activation_attested == true`,
+		`.data.result.activation.authentication_attested == true`,
+		`.data.result.no_change == true and .data.result.mutated == false`,
 	} {
 		mustContain(t, npmVerifyJob, want)
 	}
@@ -99,12 +151,89 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
 	mustNotContain(t, npmVerifyJob, "environment: npm-agentplugins")
 	mustNotContain(t, npmVerifyJob, "id-token: write")
+	mustNotContain(t, npmVerifyJob, "platform-proof")
+	mustNotContain(t, npmVerifyJob, "--target cursor --yes")
 	mustAppearBefore(t, npmVerifyJob, "Resolve immutable verification target", `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json`)
+
+	for _, want := range []string{
+		"workflow_call:",
+		"allow_legacy_manifest:",
+		"Audit a schema-v1 historical release; never eligible as an npm publish gate",
+		"native runtime E2E (${{ matrix.target }})",
+		"target: darwin-amd64",
+		"target: darwin-arm64",
+		"target: linux-amd64",
+		"target: linux-arm64",
+		"target: windows-amd64",
+		"target: windows-arm64",
+		"macos-15-intel",
+		"ubuntu-24.04-arm",
+		"windows-11-arm",
+		"platform-proof.js",
+		"verified-release.json",
+		"Aggregate all six native platform proofs",
+		"draft proof requires caller-staged release assets",
+		"Download caller-staged draft assets",
+		"bootstrap_mode:",
+		"local_frozen_asset",
+		"public_release_download",
+		"platform proof workflow source does not match the frozen release commit",
+		"historical audit must be dispatched with --ref ${TAG}",
+		".isDraft == false and .isPrerelease == false and .tagName == $tag",
+		`git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`,
+		`git -C release-source rev-list -n 1 "refs/tags/${TAG}"`,
+	} {
+		mustContain(t, platformWorkflow, want)
+	}
+	for _, want := range []string{
+		"contents: read",
+		"attestations: read",
+		"caller-staged assets are only valid for draft proof",
+		`[[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]`,
+		`if [[ "${commit}" != "${EXPECTED_COMMIT}" ]]`,
+		"release tag commit does not match the caller's frozen commit",
+		"ref: ${{ inputs.expected_commit }}",
+		"agentplugins-proof-bundle",
+		"release-assets",
+	} {
+		mustContain(t, platformPrepareJob, want)
+	}
+	for _, want := range []string{
+		"ref: ${{ inputs.expected_commit }}",
+		`test "$(git rev-parse HEAD)" = "${{ inputs.expected_commit }}"`,
+		"needs.prepare.outputs.bootstrap_mode",
+		"release_assets=\"-\"",
+		"npm/agentplugins/scripts/platform-proof.js",
+	} {
+		mustContain(t, platformNativeJob, want)
+	}
+	for _, want := range []string{
+		"Download all native platform proofs",
+		"expected exactly six machine-readable platform proofs",
+		"expected exactly one machine-readable proof for ${target}",
+		".schema_version == 1",
+		".release_version == $version",
+		".proofs.isolated_add_update_remove == $lifecycle",
+		`.bootstrap_source == $bootstrap_mode`,
+		`.proofs.local_frozen_asset_bootstrap == ($bootstrap_mode == "local_frozen_asset")`,
+		`.proofs.anonymous_public_release_download == ($bootstrap_mode == "public_release_download")`,
+		".proofs.warm_cache_without_proof_source == true",
+	} {
+		mustContain(t, platformCompleteJob, want)
+	}
+	mustNotContain(t, platformWorkflow, "target_commitish")
+	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)
+	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
+	mustContain(t, npmWorkflow, "test \"${{ needs.platform-proof.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")
+	mustNotContain(t, npmWorkflow, "add context7")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")
@@ -112,7 +241,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 
 	for _, want := range []string{
 		"attests all six binaries, `checksums.txt`, and",
-		"`release-manifest.json` before creating the public release",
+		"`release-manifest.json` before creating the non-public draft",
+		"promotes that exact draft only after all six native platform proofs succeed",
 		"requires a merged pull request into",
 		"Repository settings are not treated as the release proof",
 		"short-lived bootstrap",
@@ -123,6 +253,13 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"`latest` dist-tag resolves to the exact published version",
 		"returned to `false` immediately after the publish",
 		"dispatched with `verify_only=true`",
+		"historical tag after publication",
+		"skips release identity",
+		"schema-v2 six-platform proof",
+		"not require the tag to point to current `main`",
+		"public registry, provenance, and isolated",
+		"same-run frozen",
+		"normal anonymous GitHub release download",
 	} {
 		mustContain(t, runbook, want)
 	}

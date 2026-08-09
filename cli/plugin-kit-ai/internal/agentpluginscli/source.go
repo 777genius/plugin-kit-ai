@@ -89,8 +89,22 @@ func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, erro
 		if envelope.TreeDigest != catalogResolution.Entry.TreeDigest || envelope.ManifestDigest != catalogResolution.Entry.ManifestDigest {
 			return fail(fmt.Errorf("catalog package digest mismatch"))
 		}
+		evidence := catalogResolution.Evidence
+		evidence.Compatibility = cloneCatalogCompatibility(evidence.Compatibility)
+		envelope.CatalogEvidence = &evidence
 	}
 	return loadedPackage{envelope: envelope, hints: hints, cleanup: cleanup}, nil
+}
+
+func cloneCatalogCompatibility(source map[string]domain.CatalogCompatibility) map[string]domain.CatalogCompatibility {
+	if len(source) == 0 {
+		return nil
+	}
+	result := make(map[string]domain.CatalogCompatibility, len(source))
+	for client, compatibility := range source {
+		result[client] = compatibility
+	}
+	return result
 }
 
 func (app App) resolveCatalogName(ctx context.Context, name string) (domain.CatalogResolution, error) {

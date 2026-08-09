@@ -27,6 +27,14 @@ var (
 	namePattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,63}$`)
 )
 
+var requiredCompatibility = map[string]string{
+	string(domain.ClientCodex):   "projected",
+	string(domain.ClientCursor):  "native",
+	string(domain.ClientCopilot): "native",
+	string(domain.ClientVSCode):  "prepared",
+	string(domain.ClientKiro):    "native",
+}
+
 type Loader struct {
 	CurrentCLIVersion string
 }
@@ -75,7 +83,20 @@ func (loaded Loaded) Resolve(name string) (domain.CatalogResolution, error) {
 		Entry:           entry,
 		SourceReference: fmt.Sprintf("%s@%s//%s", loaded.Catalog.Repository, loaded.Catalog.Revision, entry.SourcePath),
 		CatalogDigest:   loaded.Digest,
-		Hints:           domain.CompatibilityHints{OpenAIMCPAuth: cloneAuthHints(entry.OpenAIMCPAuth)},
+		Hints: domain.CompatibilityHints{
+			Compatibility: cloneCompatibility(entry.Compatibility),
+			OpenAIMCPAuth: cloneAuthHints(entry.OpenAIMCPAuth),
+		},
+		Evidence: domain.CatalogEvidence{
+			SchemaVersion:      loaded.Catalog.SchemaVersion,
+			CatalogVersion:     loaded.Catalog.CatalogVersion,
+			Repository:         loaded.Catalog.Repository,
+			Revision:           loaded.Catalog.Revision,
+			Digest:             loaded.Digest,
+			MinimumCLIVersion:  entry.MinimumCLIVersion,
+			AgentPluginsSchema: entry.AgentPluginsSchema,
+			Compatibility:      cloneCompatibility(entry.Compatibility),
+		},
 	}, nil
 }
 
@@ -137,10 +158,23 @@ func validatePlugin(plugin domain.CatalogPlugin) error {
 		}
 		components[component] = struct{}{}
 	}
-	for client, compatibility := range plugin.Compatibility {
-		if strings.TrimSpace(client) == "" || !validPackageCompatibility(compatibility.Package) ||
+	if len(plugin.Compatibility) != len(requiredCompatibility) {
+		return fmt.Errorf("plugin %q compatibility must contain exactly codex, cursor, copilot, vscode, and kiro", plugin.Name)
+	}
+	var authentication domain.AuthenticationRequirement
+	for client, expectedPackage := range requiredCompatibility {
+		compatibility, ok := plugin.Compatibility[client]
+		if !ok {
+			return fmt.Errorf("plugin %q compatibility is missing %q", plugin.Name, client)
+		}
+		if compatibility.Package != expectedPackage ||
 			!validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
 			return fmt.Errorf("plugin %q has invalid compatibility for %q", plugin.Name, client)
+		}
+		if authentication == "" {
+			authentication = compatibility.Authentication
+		} else if compatibility.Authentication != authentication {
+			return fmt.Errorf("plugin %q must use one consistent authentication requirement for every client", plugin.Name)
 		}
 	}
 	for server, hint := range plugin.OpenAIMCPAuth {
@@ -170,16 +204,25 @@ func validateSourcePath(value string) error {
 	return nil
 }
 
-func validPackageCompatibility(value string) bool {
-	return oneOf(value, "native", "projected", "prepared", "unsupported")
-}
-
 func validVerificationCompatibility(value string) bool {
 	return oneOf(value, "tested", "schema_only", "not_tested")
 }
 
-func validAuthCompatibility(value string) bool {
-	return oneOf(value, "not_required", "required", "unknown")
+func validAuthCompatibility(value domain.AuthenticationRequirement) bool {
+	return value == domain.AuthenticationRequirementNotRequired ||
+		value == domain.AuthenticationRequirementRequired ||
+		value == domain.AuthenticationRequirementUnknown
+}
+
+func cloneCompatibility(source map[string]domain.CatalogCompatibility) map[string]domain.CatalogCompatibility {
+	if len(source) == 0 {
+		return nil
+	}
+	result := make(map[string]domain.CatalogCompatibility, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
 }
 
 func oneOf(value string, allowed ...string) bool {

@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: agentplugins-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -29,15 +33,22 @@ jobs:
         id: identity
         env:
           TAG: ${{ inputs.tag }}
+          WORKFLOW_COMMIT: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
-          git fetch --force origin main:refs/remotes/origin/main
+          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           head_commit="$(git rev-parse HEAD)"
+          test "${WORKFLOW_REF}" = "refs/heads/main"
+          if [[ "${WORKFLOW_COMMIT}" != "${head_commit}" ]]; then
+            echo "release workflow source does not match the exact tagged main commit" >&2
+            exit 1
+          fi
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          test "${head_commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
       - name: Verify merged PR and required commit evidence
         env:
@@ -149,10 +160,13 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  publish-assets:
+  stage-draft:
     needs: [validate, build]
     runs-on: ubuntu-latest
     environment: agentplugins-release
+    outputs:
+      asset_set_digest: ${{ steps.draft.outputs.asset_set_digest }}
+      assets_artifact: ${{ steps.draft.outputs.assets_artifact }}
     permissions:
       contents: write
       id-token: write
@@ -170,21 +184,50 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/agentplugins-assets
       - name: Prepare immutable stable assets
+        id: draft
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           FROZEN_COMMIT: ${{ needs.validate.outputs.commit }}
         working-directory: ${{ runner.temp }}/agentplugins-assets
         run: |
-          test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
           git -C "${GITHUB_WORKSPACE}" fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
-          test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "${TAG}")" = "${FROZEN_COMMIT}"
-          jq -n --arg tag "${TAG}" --arg commit "${FROZEN_COMMIT}" \
-            '{schema_version: 1, tag: $tag, commit: $commit}' > release-manifest.json
-          sha256sum agentplugins_* release-manifest.json > checksums.txt
-          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
+          test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "refs/tags/${TAG}")" = "${FROZEN_COMMIT}"
+          node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
+            prepare "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
+          node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
+            verify "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
+          echo "asset_set_digest=$(sha256sum checksums.txt | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
+          echo "assets_artifact=agentplugins-draft-assets-${FROZEN_COMMIT}" >> "${GITHUB_OUTPUT}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to look up existing release ${TAG}" >&2
             exit 1
+          }
+          release_json="$(jq -c '.data.repository.release' <<<"${release_response}")"
+          if [[ "${release_json}" != "null" ]]; then
+            jq -e --arg tag "${TAG}" \
+              '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
+              <<<"${release_json}" >/dev/null || {
+                echo "release ${TAG} already exists but is not the exact resumable draft; refusing to overwrite immutable assets" >&2
+                exit 1
+              }
+            existing="${RUNNER_TEMP}/existing-agentplugins-assets"
+            mkdir -p "${existing}"
+            gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${existing}"
+            node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
+              verify "${existing}" "${TAG}" "${FROZEN_COMMIT}"
+            for asset in agentplugins_* checksums.txt release-manifest.json; do
+              cmp -- "${asset}" "${existing}/${asset}" || {
+                echo "existing draft asset differs from the frozen build: ${asset}" >&2
+                exit 1
+              }
+            done
+            echo "existing=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "existing=false" >> "${GITHUB_OUTPUT}"
           fi
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -192,16 +235,107 @@ jobs:
             ${{ runner.temp }}/agentplugins-assets/agentplugins_*
             ${{ runner.temp }}/agentplugins-assets/checksums.txt
             ${{ runner.temp }}/agentplugins-assets/release-manifest.json
-      - name: Publish attested immutable stable assets
+      - name: Create non-public immutable draft
+        if: ${{ steps.draft.outputs.existing != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         working-directory: ${{ runner.temp }}/agentplugins-assets
         run: |
-          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to recheck release ${TAG} before creation" >&2
+            exit 1
+          }
+          if [[ "$(jq -c '.data.repository.release' <<<"${release_response}")" != "null" ]]; then
+            echo "release ${TAG} appeared concurrently; refusing to overwrite immutable assets" >&2
             exit 1
           fi
           gh release create "${TAG}" agentplugins_* checksums.txt release-manifest.json \
             --repo "${GITHUB_REPOSITORY}" --verify-tag \
+            --target "${{ needs.validate.outputs.commit }}" --draft \
             --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes
+      - name: Share frozen draft assets with the read-only proof workflow
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: ${{ steps.draft.outputs.assets_artifact }}
+          path: |
+            ${{ runner.temp }}/agentplugins-assets/agentplugins_*
+            ${{ runner.temp }}/agentplugins-assets/checksums.txt
+            ${{ runner.temp }}/agentplugins-assets/release-manifest.json
+          if-no-files-found: error
+          retention-days: 7
+
+  platform-proof:
+    needs: [validate, stage-draft]
+    uses: ./.github/workflows/agentplugins-platform-proof.yml
+    permissions:
+      contents: read
+      attestations: read
+    with:
+      tag: ${{ inputs.tag }}
+      expected_commit: ${{ needs.validate.outputs.commit }}
+      allow_legacy_manifest: false
+      require_draft: true
+      expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}
+      release_assets_artifact: ${{ needs.stage-draft.outputs.assets_artifact }}
+
+  promote-release:
+    needs: [validate, stage-draft, platform-proof]
+    runs-on: ubuntu-latest
+    environment: agentplugins-release
+    permissions:
+      contents: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.validate.outputs.commit }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Reverify exact draft and promote only after all native proofs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          FROZEN_COMMIT: ${{ needs.validate.outputs.commit }}
+          EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}
+        run: |
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          test "$(git rev-list -n 1 "refs/tags/${TAG}")" = "${FROZEN_COMMIT}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to look up release ${TAG} immediately before promotion" >&2
+            exit 1
+          }
+          release_json="$(jq -c '.data.repository.release' <<<"${release_response}")"
+          [[ "${release_json}" != "null" ]] || {
+            echo "release ${TAG} was not found immediately before promotion" >&2
+            exit 1
+          }
+          jq -e --arg tag "${TAG}" \
+            '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
+            <<<"${release_json}" >/dev/null || {
+              echo "release is no longer the exact non-public draft proven by this run" >&2
+              exit 1
+            }
+          assets="${RUNNER_TEMP}/agentplugins-promote-assets"
+          mkdir -p "${assets}"
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${assets}"
+          node npm/agentplugins/scripts/release-assets.js verify "${assets}" "${TAG}" "${FROZEN_COMMIT}"
+          test "$(sha256sum "${assets}/checksums.txt" | cut -d ' ' -f 1)" = "${EXPECTED_ASSET_SET_DIGEST}"
+          for asset in "${assets}"/agentplugins_* "${assets}/checksums.txt" "${assets}/release-manifest.json"; do
+            gh attestation verify "${asset}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
+              --source-digest "${FROZEN_COMMIT}"
+          done
+          gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" --draft=false
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" \
+            --jq 'select(.draft == false and .prerelease == false) | .tag_name' | grep -Fx -- "${TAG}"

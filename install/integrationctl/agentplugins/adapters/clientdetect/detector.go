@@ -20,18 +20,35 @@ type Detector struct {
 	GOOS                  string
 	Environment           map[string]string
 	SystemApplicationsDir string
+	WindowsProgramFiles   []string
+	LinuxApplicationDirs  []string
 	LookPath              func(string) (string, error)
 	Lstat                 func(string) (fs.FileInfo, error)
 }
 
 func NewOS(homeDir string) Detector {
+	environment := environmentSnapshot()
+	xdgApplications := ""
+	if root := strings.TrimSpace(environment["XDG_DATA_HOME"]); root != "" {
+		xdgApplications = filepath.Join(root, "applications")
+	}
+	userApplications := ""
+	if root := strings.TrimSpace(homeDir); root != "" {
+		userApplications = filepath.Join(root, ".local", "share", "applications")
+	}
 	return Detector{
 		HomeDir:               homeDir,
 		GOOS:                  runtime.GOOS,
-		Environment:           environmentSnapshot(),
+		Environment:           environment,
 		SystemApplicationsDir: "/Applications",
-		LookPath:              exec.LookPath,
-		Lstat:                 os.Lstat,
+		WindowsProgramFiles:   compactPaths(environment["ProgramFiles"], environment["ProgramW6432"], environment["ProgramFiles(x86)"]),
+		LinuxApplicationDirs: compactPaths(
+			xdgApplications,
+			userApplications,
+			"/usr/local/share/applications", "/usr/share/applications",
+		),
+		LookPath: exec.LookPath,
+		Lstat:    os.Lstat,
 	}
 }
 
@@ -67,6 +84,12 @@ func (detector Detector) detectCodex() domain.DetectedClient {
 			detector.appSurface("codex_desktop", "Codex.app"),
 			detector.appSurface("chatgpt_desktop", "ChatGPT.app"),
 		)
+	} else if detector.GOOS == "windows" {
+		surfaces = append(surfaces,
+			detector.windowsAppSurface("chatgpt_desktop", filepath.Join("Microsoft", "WindowsApps", "ChatGPT.exe"), filepath.Join("WindowsApps", "ChatGPT.exe")),
+		)
+	} else if detector.GOOS == "linux" {
+		surfaces = append(surfaces, detector.linuxDesktopSurface("codex_desktop", "codex.desktop", "chatgpt.desktop"))
 	}
 	return detected(domain.ClientCodex, "OpenAI Codex / ChatGPT", configRoot, detector.lookup("codex"), surfaces)
 }
@@ -79,6 +102,10 @@ func (detector Detector) detectCursor() domain.DetectedClient {
 	}
 	if detector.GOOS == "darwin" {
 		surfaces = append(surfaces, detector.appSurface("cursor_desktop", "Cursor.app"))
+	} else if detector.GOOS == "windows" {
+		surfaces = append(surfaces, detector.windowsAppSurface("cursor_desktop", filepath.Join("Programs", "cursor", "Cursor.exe"), filepath.Join("Cursor", "Cursor.exe")))
+	} else if detector.GOOS == "linux" {
+		surfaces = append(surfaces, detector.linuxDesktopSurface("cursor_desktop", "cursor.desktop"))
 	}
 	return detected(domain.ClientCursor, "Cursor", configRoot, detector.lookup("cursor"), surfaces)
 }
@@ -100,20 +127,31 @@ func (detector Detector) detectVSCode() domain.DetectedClient {
 	}
 	if detector.GOOS == "darwin" {
 		surfaces = append(surfaces, detector.appSurface("vscode_desktop", "Visual Studio Code.app"))
+	} else if detector.GOOS == "windows" {
+		surfaces = append(surfaces, detector.windowsAppSurface("vscode_desktop", filepath.Join("Programs", "Microsoft VS Code", "Code.exe"), filepath.Join("Microsoft VS Code", "Code.exe")))
+	} else if detector.GOOS == "linux" {
+		surfaces = append(surfaces, detector.linuxDesktopSurface("vscode_desktop", "code.desktop", "visual-studio-code.desktop"))
 	}
 	return detected(domain.ClientVSCode, "Visual Studio Code", configRoot, detector.lookup("code"), surfaces)
 }
 
 func (detector Detector) detectKiro() domain.DetectedClient {
 	configRoot := filepath.Join(detector.HomeDir, ".kiro")
+	kiroCLI := detector.lookup("kiro-cli")
+	legacyCLI := detector.lookup("kiro")
 	surfaces := []domain.ClientSurface{
-		detector.binarySurface("kiro_cli", "kiro"),
+		{ID: "kiro_cli", Detected: kiroCLI != "", Evidence: evidence(kiroCLI != "", "executable_on_path")},
+		{ID: "kiro_legacy_cli", Detected: legacyCLI != "", Evidence: evidence(legacyCLI != "", "legacy_executable_on_path")},
 		detector.directorySurface("kiro_config", configRoot),
 	}
 	if detector.GOOS == "darwin" {
 		surfaces = append(surfaces, detector.appSurface("kiro_desktop", "Kiro.app"))
+	} else if detector.GOOS == "windows" {
+		surfaces = append(surfaces, detector.windowsAppSurface("kiro_desktop", filepath.Join("Programs", "Kiro", "Kiro.exe"), filepath.Join("Kiro", "Kiro.exe")))
+	} else if detector.GOOS == "linux" {
+		surfaces = append(surfaces, detector.linuxDesktopSurface("kiro_desktop", "kiro.desktop"))
 	}
-	return detected(domain.ClientKiro, "Kiro", configRoot, detector.lookup("kiro"), surfaces)
+	return detected(domain.ClientKiro, "Kiro", configRoot, firstPath(kiroCLI, legacyCLI), surfaces)
 }
 
 func (detector Detector) vscodeConfigRoot() string {
@@ -156,6 +194,35 @@ func (detector Detector) appSurface(id, appName string) domain.ClientSurface {
 	return domain.ClientSurface{ID: id}
 }
 
+func (detector Detector) windowsAppSurface(id, userRelativePath, systemRelativePath string) domain.ClientSurface {
+	paths := []string{}
+	if root := strings.TrimSpace(detector.Environment["LOCALAPPDATA"]); root != "" {
+		paths = append(paths, filepath.Join(root, userRelativePath))
+	}
+	for _, root := range detector.WindowsProgramFiles {
+		if strings.TrimSpace(root) != "" {
+			paths = append(paths, filepath.Join(root, systemRelativePath))
+		}
+	}
+	for _, path := range paths {
+		if detector.realFile(path) {
+			return domain.ClientSurface{ID: id, Detected: true, Evidence: "application_installation"}
+		}
+	}
+	return domain.ClientSurface{ID: id}
+}
+
+func (detector Detector) linuxDesktopSurface(id string, filenames ...string) domain.ClientSurface {
+	for _, root := range detector.LinuxApplicationDirs {
+		for _, filename := range filenames {
+			if detector.realFile(filepath.Join(root, filename)) {
+				return domain.ClientSurface{ID: id, Detected: true, Evidence: "desktop_entry"}
+			}
+		}
+	}
+	return domain.ClientSurface{ID: id}
+}
+
 func (detector Detector) lookup(binary string) string {
 	path, err := detector.LookPath(binary)
 	if err != nil || strings.TrimSpace(path) == "" {
@@ -170,6 +237,23 @@ func (detector Detector) realDirectory(path string) bool {
 	}
 	info, err := detector.Lstat(path)
 	return err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0
+}
+
+func (detector Detector) realFile(path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	info, err := detector.Lstat(path)
+	return err == nil && info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0
+}
+
+func firstPath(paths ...string) string {
+	for _, path := range paths {
+		if strings.TrimSpace(path) != "" {
+			return path
+		}
+	}
+	return ""
 }
 
 func detected(clientID domain.ClientID, displayName, configRoot, executablePath string, surfaces []domain.ClientSurface) domain.DetectedClient {
@@ -199,12 +283,30 @@ func evidence(ok bool, value string) string {
 
 func environmentSnapshot() map[string]string {
 	values := map[string]string{}
-	for _, name := range []string{"APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME"} {
+	for _, name := range []string{"APPDATA", "LOCALAPPDATA", "ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "XDG_CONFIG_HOME", "XDG_DATA_HOME"} {
 		if value, ok := os.LookupEnv(name); ok {
 			values[name] = value
 		}
 	}
 	return values
+}
+
+func compactPaths(paths ...string) []string {
+	result := make([]string, 0, len(paths))
+	seen := map[string]struct{}{}
+	for _, path := range paths {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			continue
+		}
+		clean := filepath.Clean(path)
+		if _, ok := seen[clean]; ok {
+			continue
+		}
+		seen[clean] = struct{}{}
+		result = append(result, clean)
+	}
+	return result
 }
 
 func IsNotFound(err error) bool {

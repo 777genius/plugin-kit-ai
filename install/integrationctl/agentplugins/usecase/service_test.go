@@ -2,9 +2,13 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,8 +17,10 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statev2"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
+	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func TestAddDryRunAndUnconfirmedPlanDoNotMutateStateOrClient(t *testing.T) {
@@ -51,6 +57,13 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
 	input := addInput(t, client, "https://example.com/one")
+	input.Envelope.ManifestSchema = domain.SchemaIdentity{URI: domain.PluginSchemaV1, Version: "1.0.0"}
+	input.Envelope.Manifest.Raw = json.RawMessage(`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"demo","future":{"kept":true}}`)
+	input.Envelope.Manifest.Unknown = map[string]json.RawMessage{"future": json.RawMessage(`{"kept":true}`)}
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{SchemaVersion: 1, CatalogVersion: "0.1.0", Compatibility: map[string]domain.CatalogCompatibility{
+		"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+	}}
+	input.Envelope.Diagnostics = []domain.Diagnostic{{Severity: domain.SeverityWarning, Code: "plugin_unknown_field", Message: "future field preserved"}}
 	input.Confirmed = true
 	result, err := service.Add(context.Background(), input)
 	if err != nil {
@@ -69,6 +82,11 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	if len(state.Installations) != 1 {
 		t.Fatalf("installations = %+v", state.Installations)
 	}
+	packageState := state.Installations[0].Package
+	if packageState.SchemaURI != domain.PluginSchemaV1 || packageState.ManifestDigest != input.Envelope.ManifestDigest ||
+		!strings.Contains(string(input.Envelope.Manifest.Raw), `"future"`) || input.Envelope.CatalogEvidence == nil || len(input.Envelope.Diagnostics) != 1 {
+		t.Fatalf("in-memory evidence or compatible package binding was lost: envelope=%+v package=%+v", input.Envelope, packageState)
+	}
 	clientState := onlyBinding(state.Installations[0])
 	if clientState.Materialization != domain.MaterializationMaterialized || clientState.Activation != domain.ActivationManual || clientState.Verification != domain.VerificationPackageValid {
 		t.Fatalf("client state = %+v", clientState)
@@ -79,8 +97,19 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	if clientState.PackageRevision == nil || clientState.PackageRevision.TreeDigest != input.Envelope.TreeDigest {
 		t.Fatalf("package revision = %+v", clientState.PackageRevision)
 	}
-	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "use update") {
-		t.Fatalf("duplicate add error = %v", err)
+	resumed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatalf("resume add: %v", err)
+	}
+	if resumed.Mutated || resumed.Activation.Activation != domain.ActivationManual {
+		t.Fatalf("resume result = %+v", resumed)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipts := onlyBinding(state.Installations[0]).Receipts; len(receipts) != 1 {
+		t.Fatalf("resume created a second directory transaction: %+v", receipts)
 	}
 }
 
@@ -115,7 +144,8 @@ func TestAddKeepsCodexProjectionInManualActivationState(t *testing.T) {
 
 func TestAddKeepsOAuthPackageInAuthPendingState(t *testing.T) {
 	t.Parallel()
-	service, store, client := serviceFixture(t)
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
 	input := addInput(t, client, "https://example.com/oauth")
 	input.Envelope.MCP = domain.MCPComponent{
 		Present: true, Enabled: true,
@@ -139,6 +169,635 @@ func TestAddKeepsOAuthPackageInAuthPendingState(t *testing.T) {
 	if onlyBinding(state.Installations[0]).Authentication != domain.AuthenticationPending {
 		t.Fatalf("client = %+v", onlyBinding(state.Installations[0]))
 	}
+}
+
+func TestOpenAIOAuthHintsDoNotOverrideGenericAuthentication(t *testing.T) {
+	t.Parallel()
+	for _, clientID := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex} {
+		service, _, _ := serviceFixture(t)
+		client := domain.DetectedClient{ClientID: clientID, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".client")}
+		input := addInput(t, client, "https://example.com/generic-auth-"+string(clientID))
+		input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{"server": {Name: "server", Type: "stdio"}}}
+		input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{string(clientID): {Package: map[bool]string{true: "projected", false: "native"}[clientID == domain.ClientCodex], Authentication: domain.AuthenticationRequirementNotRequired}}}
+		input.Hints.OpenAIMCPAuth = map[string]domain.OpenAIMCPAuthHint{"server": {OAuthResource: "https://example.com/oauth"}}
+		result, err := service.Add(context.Background(), input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Plan.Authentication != domain.AuthenticationNotRequired {
+			t.Fatalf("client %s authentication = %s", clientID, result.Plan.Authentication)
+		}
+	}
+}
+
+func TestResumeCompletesManualActivationAndPendingAuthOnlyByAttestation(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/pending-completion")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	input.ActivationComplete = true
+	input.AuthComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || !result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || !fullyConvergedOutcome(result.Activation) {
+		t.Fatalf("completion result = %+v", result)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Authentication != domain.AuthenticationComplete {
+		t.Fatalf("binding = %+v", binding)
+	}
+}
+
+func TestFreshCompletionFlagsFailBeforeMaterialization(t *testing.T) {
+	t.Parallel()
+	for _, flags := range []struct {
+		name       string
+		activation bool
+		auth       bool
+	}{
+		{name: "activation", activation: true},
+		{name: "authentication", auth: true},
+		{name: "both", activation: true, auth: true},
+	} {
+		flags := flags
+		t.Run(flags.name, func(t *testing.T) {
+			service, store, client := serviceFixture(t)
+			input := addInput(t, client, "https://example.com/fresh-"+flags.name)
+			input.Confirmed = true
+			input.ActivationComplete = flags.activation
+			input.AuthComplete = flags.auth
+			if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "already materialized") {
+				t.Fatalf("completion error = %v", err)
+			}
+			state, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(state.Installations) != 0 {
+				t.Fatalf("fresh completion flags mutated state: %+v", state)
+			}
+		})
+	}
+}
+
+func TestActivationAttestationDoesNotCompleteAuthentication(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/independent-attestations")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	input.ActivationComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Activation.ActivationAttested || result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationPending {
+		t.Fatalf("activation-only result = %+v", result)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Authentication != domain.AuthenticationPending {
+		t.Fatalf("activation-only binding = %+v", binding)
+	}
+}
+
+func TestDirectSourceConvergesOnlyAfterAuthReviewAttestation(t *testing.T) {
+	t.Parallel()
+	service, _, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/direct-source")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installed.Activation.Authentication != domain.AuthenticationNotChecked {
+		t.Fatalf("direct source auth = %+v", installed.Activation)
+	}
+	input.ActivationComplete = true
+	input.AuthComplete = true
+	completed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed.Mutated || !completed.Activation.ActivationAttested || !completed.Activation.AuthenticationAttested || !fullyConvergedOutcome(completed.Activation) {
+		t.Fatalf("direct completion = %+v", completed)
+	}
+	repeated, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repeated.NoChange || repeated.Mutated {
+		t.Fatalf("converged repeat = %+v", repeated)
+	}
+}
+
+func TestResumeCompletesOnlyPendingAuthentication(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/auth-only-completion")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.AuthComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationComplete || result.Activation.Activation != domain.ActivationActive || result.Activation.Verification != domain.VerificationInstalled {
+		t.Fatalf("auth-only result = %+v", result)
+	}
+}
+
+func TestAuthOnlyResumeRunsVerifierAndPersistsNegativeEvidence(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+	input := addInput(t, client, "https://example.com/auth-negative")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"copilot": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		binding.Authentication = domain.AuthenticationPending
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	observer := &observedActivator{outcome: domain.ActivationOutcome{
+		Activation: domain.ActivationFailed, Authentication: domain.AuthenticationNotChecked,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
+	}, err: fmt.Errorf("negative Copilot listing evidence")}
+	service.Activator = observer
+	input.AuthComplete = true
+	input.BackendExecutable = "/test/bin/copilot"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || observer.calls != 1 {
+		t.Fatalf("resume result=%+v err=%v verifier calls=%d", result, err, observer.calls)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
+		t.Fatalf("negative verifier evidence was discarded: %+v", binding)
+	}
+}
+
+func TestConvergedManualVerifierOutcomeUsesConfirmationAndReplacesStaleState(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+	input := addInput(t, client, "https://example.com/converged-manual")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		binding.Authentication = domain.AuthenticationNotRequired
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	observer := &observedActivator{outcome: domain.ActivationOutcome{
+		Activation: domain.ActivationManual, Authentication: domain.AuthenticationNotChecked,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationPackageValid,
+	}}
+	service.Activator = observer
+	input.BackendExecutable = "/test/bin/copilot"
+	input.Confirmed = false
+	preview, err := service.Add(context.Background(), input)
+	if err != nil || !preview.RequiresConfirmation || preview.NoChange || preview.Activation.Activation != domain.ActivationManual {
+		t.Fatalf("manual preview = %+v, err=%v", preview, err)
+	}
+	input.Confirmed = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil || !result.Mutated || result.NoChange {
+		t.Fatalf("manual correction = %+v, err=%v", result, err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyBinding(state.Installations[0]); binding.Activation != domain.ActivationManual || binding.Verification != domain.VerificationPackageValid {
+		t.Fatalf("manual correction was not persisted: %+v", binding)
+	}
+}
+
+func TestUnconfirmedInfrastructureFailureIsNotPersistedAsAuthoritativeEvidenceForAddOrUpdate(t *testing.T) {
+	t.Parallel()
+	for _, operation := range []string{"add", "update"} {
+		t.Run(operation, func(t *testing.T) {
+			service, store, _ := serviceFixture(t)
+			client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+			input := addInput(t, client, "https://example.com/non-authoritative-failure-"+operation)
+			input.Confirmed = true
+			if _, err := service.Add(context.Background(), input); err != nil {
+				t.Fatal(err)
+			}
+			state, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, binding := range state.Installations[0].Clients {
+				binding.Activation = domain.ActivationActive
+				binding.Authentication = domain.AuthenticationNotRequired
+				binding.Verification = domain.VerificationInstalled
+				state.Installations[0].Clients[key] = binding
+			}
+			if err := store.Save(state); err != nil {
+				t.Fatal(err)
+			}
+			service.Activator = providers.Activator{Runner: fixedUsecaseRunner{err: fmt.Errorf("temporary verifier transport failure")}}
+			input.Confirmed = false
+			input.PersistAuthoritativeObservations = true
+			input.BackendExecutable = "/test/bin/copilot"
+			var result AddResult
+			if operation == "add" {
+				result, err = service.Add(context.Background(), input)
+			} else {
+				result, err = service.Update(context.Background(), input)
+			}
+			if err == nil || result.Mutated {
+				t.Fatalf("temporary verifier result=%+v err=%v", result, err)
+			}
+			state, err = store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyBinding(state.Installations[0])
+			if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled {
+				t.Fatalf("non-authoritative failure mutated converged state: %+v", binding)
+			}
+		})
+	}
+}
+
+func TestPlanFirstAuthoritativePersistenceIsSurroundedByMutationLock(t *testing.T) {
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	input := addInput(t, client, "https://example.com/authoritative-lock")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+
+	var held atomic.Bool
+	lock := &trackingMutationLock{held: &held}
+	guarded := lockAssertingStore{StateStore: store, held: &held}
+	service.StateStore = guarded
+	service.Lock = lock
+	service.Activator = providers.Activator{Runner: fixedUsecaseRunner{result: legacyports.CommandResult{Stdout: []byte(`{"installed":[]}`)}}}
+	input.Confirmed = false
+	input.PersistAuthoritativeObservations = true
+	input.BackendExecutable = "/test/bin/codex"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || !result.Mutated {
+		t.Fatalf("authoritative result=%+v err=%v", result, err)
+	}
+	if lock.acquisitions != 1 || held.Load() {
+		t.Fatalf("lock acquisitions=%d held-after-return=%t", lock.acquisitions, held.Load())
+	}
+	persisted, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyBinding(persisted.Installations[0]); binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
+		t.Fatalf("authoritative observation was not persisted: %+v", binding)
+	}
+}
+
+func TestPlanFirstAuthoritativePersistenceRejectsStaleObservedBinding(t *testing.T) {
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	input := addInput(t, client, "https://example.com/stale-authoritative-observation")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+
+	var held atomic.Bool
+	var newer domain.ClientBinding
+	lock := &trackingMutationLock{held: &held, onAcquire: func() error {
+		latest, loadErr := store.Load()
+		if loadErr != nil {
+			return loadErr
+		}
+		for key, binding := range latest.Installations[0].Clients {
+			binding.PackageRevision.ResolvedRevision = "newer-revision"
+			binding.UpdatedAt = "2026-08-09T12:00:00Z"
+			latest.Installations[0].Clients[key] = binding
+			newer = binding
+		}
+		return store.Save(latest)
+	}}
+	service.StateStore = lockAssertingStore{StateStore: store, held: &held}
+	service.Lock = lock
+	service.Activator = providers.Activator{Runner: fixedUsecaseRunner{result: legacyports.CommandResult{Stdout: []byte(`{"installed":[]}`)}}}
+	input.Confirmed = false
+	input.PersistAuthoritativeObservations = true
+	input.BackendExecutable = "/test/bin/codex"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || !strings.Contains(err.Error(), "stale client binding observation") || !strings.Contains(err.Error(), "retry") {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if result.Mutated {
+		t.Fatalf("stale observation reported a mutation: %+v", result)
+	}
+	persisted, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if got := onlyBinding(persisted.Installations[0]); !reflect.DeepEqual(got, newer) {
+		t.Fatalf("newer binding was overwritten\n got: %+v\nwant: %+v", got, newer)
+	}
+}
+
+func TestNoChangeChecksManagedDigestBeforeReturning(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/no-change-digest")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementNotRequired}}}
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
+		t.Fatalf("no-change error = %v", err)
+	}
+}
+
+func TestRepairRejectsStaleTargetAndRollsBackFailure(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(installed.Plan.ActivePath, "plugin.json")
+	if err := os.WriteFile(manifestPath, []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.TargetLocator = filepath.Join(t.TempDir(), "outside")
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.OperationID = "repair-stale"
+	if _, err := service.Repair(context.Background(), input); err == nil || !strings.Contains(err.Error(), "untrusted persisted target") {
+		t.Fatalf("stale repair error = %v", err)
+	}
+
+	state, _ = store.Load()
+	for key, binding := range state.Installations[0].Clients {
+		binding.TargetLocator = installed.Plan.ActivePath
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	service.Kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.FaultActivationApplied {
+			return fmt.Errorf("injected repair failure")
+		}
+		return nil
+	}
+	input.OperationID = "repair-rollback"
+	if _, err := service.Repair(context.Background(), input); err == nil {
+		t.Fatal("repair unexpectedly succeeded")
+	}
+	body, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "tampered" {
+		t.Fatalf("rollback did not restore prior directory: %q", body)
+	}
+}
+
+func TestRepairPropagatesIndeterminateVerificationFailure(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair-indeterminate")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	stateBefore, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Stager = verificationFailureStager{PackageStager: service.Stager, err: fmt.Errorf("permission denied")}
+	if _, err := service.Repair(context.Background(), input); err == nil || !strings.Contains(err.Error(), "could not be determined") {
+		t.Fatalf("indeterminate repair error = %v", err)
+	}
+	stateAfter, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyBinding(stateAfter.Installations[0]).Receipts) != len(onlyBinding(stateBefore.Installations[0]).Receipts) {
+		t.Fatalf("indeterminate verification wrote a receipt: %+v", onlyBinding(stateAfter.Installations[0]).Receipts)
+	}
+}
+
+func TestRepairReceiptRecordsObservedDigestOrAbsence(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"mismatch", "absent"} {
+		t.Run(mode, func(t *testing.T) {
+			service, _, client := serviceFixture(t)
+			input := addInput(t, client, "https://example.com/repair-before-"+mode)
+			input.Confirmed = true
+			installed, err := service.Add(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "mismatch" {
+				if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.RemoveAll(installed.Plan.ActivePath); err != nil {
+				t.Fatal(err)
+			}
+			input.OperationID = "repair-before-" + mode
+			result, err := service.Repair(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "absent" && result.Receipt.BeforeDigest != "" {
+				t.Fatalf("absent BeforeDigest = %q", result.Receipt.BeforeDigest)
+			}
+			if mode == "mismatch" && (result.Receipt.BeforeDigest == "" || result.Receipt.BeforeDigest == result.Receipt.AfterDigest) {
+				t.Fatalf("mismatch receipt = %+v", result.Receipt)
+			}
+		})
+	}
+}
+
+func TestRepairCorrectsDegradedStateAndPreservesUnverifiedExternalLifecycle(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair-state")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Materialization = domain.MaterializationDegraded
+		binding.Activation = domain.ActivationFailed
+		binding.Authentication = domain.AuthenticationFailed
+		binding.Verification = domain.VerificationFailed
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.Repair(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || result.NoChange || result.Receipt.OperationID != "" {
+		t.Fatalf("state-only repair result = %+v", result)
+	}
+	state, _ = store.Load()
+	binding := onlyBinding(state.Installations[0])
+	if binding.Materialization != domain.MaterializationMaterialized || binding.Verification != domain.VerificationPackageValid ||
+		binding.Activation != domain.ActivationFailed || binding.Authentication != domain.AuthenticationFailed {
+		t.Fatalf("corrected state = %+v", binding)
+	}
+
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = store.Load()
+	beforeReceipts := len(onlyBinding(state.Installations[0]).Receipts)
+	for key, current := range state.Installations[0].Clients {
+		current.Materialization = domain.MaterializationDegraded
+		current.Verification = domain.VerificationFailed
+		state.Installations[0].Clients[key] = current
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.OperationID = "repair-degraded-replacement"
+	result, err = service.Repair(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _ = store.Load()
+	binding = onlyBinding(state.Installations[0])
+	if !result.Mutated || result.Receipt.OperationID != input.OperationID || len(binding.Receipts) != beforeReceipts+1 {
+		t.Fatalf("replacement result/state = %+v / %+v", result, binding)
+	}
+	if binding.Materialization != domain.MaterializationMaterialized || binding.Verification != domain.VerificationPackageValid ||
+		binding.Activation != domain.ActivationFailed || binding.Authentication != domain.AuthenticationFailed {
+		t.Fatalf("replacement lifecycle overclaimed = %+v", binding)
+	}
+}
+
+func fullyConvergedOutcome(outcome domain.ActivationOutcome) bool {
+	return outcome.Activation == domain.ActivationActive && outcome.Authentication == domain.AuthenticationComplete && outcome.Verification == domain.VerificationInstalled
 }
 
 func TestAddRejectsSameNativePluginNameFromDifferentSources(t *testing.T) {
@@ -348,6 +1007,19 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	if _, err := service.Add(context.Background(), first); err != nil {
 		t.Fatal(err)
 	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.Update(context.Background(), addInput(t, client, "https://example.com/one"))
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +1027,7 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	if !result.NoChange || result.Mutated || result.RequiresConfirmation {
 		t.Fatalf("update result = %+v", result)
 	}
-	state, err := store.Load()
+	state, err = store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,25 +1036,24 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	}
 }
 
-func TestLifecycleConvergenceRetriesOnlyNativeCopilotBackends(t *testing.T) {
+func TestLifecycleConvergenceRequiresActivationAuthenticationAndVerificationForEveryClient(t *testing.T) {
 	t.Parallel()
-	manual := domain.ClientBinding{Activation: domain.ActivationManual, Verification: domain.VerificationPackageValid}
-	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex, domain.ClientKiro} {
-		manual.ClientID = string(client)
-		if !lifecycleConverged(manual) {
-			t.Fatalf("manual lifecycle for %s should preserve normal no-change behavior", client)
-		}
-	}
-	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
+	manual := domain.ClientBinding{Materialization: domain.MaterializationMaterialized, Activation: domain.ActivationManual, Authentication: domain.AuthenticationNotRequired, Verification: domain.VerificationPackageValid}
+	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex, domain.ClientKiro, domain.ClientCopilot, domain.ClientVSCode} {
 		manual.ClientID = string(client)
 		if lifecycleConverged(manual) {
-			t.Fatalf("manual lifecycle for %s should retry native activation", client)
+			t.Fatalf("manual lifecycle for %s was reported converged", client)
 		}
 		manual.Activation = domain.ActivationActive
 		manual.Verification = domain.VerificationInstalled
 		if !lifecycleConverged(manual) {
 			t.Fatalf("installed lifecycle for %s should be converged", client)
 		}
+		manual.Authentication = domain.AuthenticationPending
+		if lifecycleConverged(manual) {
+			t.Fatalf("auth-pending lifecycle for %s was reported converged", client)
+		}
+		manual.Authentication = domain.AuthenticationNotRequired
 		manual.Activation = domain.ActivationManual
 		manual.Verification = domain.VerificationPackageValid
 	}
@@ -756,6 +1427,76 @@ func serviceFixture(t *testing.T) (Service, statev2.Store, domain.DetectedClient
 		},
 		Now: func() time.Time { return time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC) },
 	}, store, client
+}
+
+type verificationFailureStager struct {
+	ports.PackageStager
+	err error
+}
+
+type observedActivator struct {
+	outcome domain.ActivationOutcome
+	err     error
+	calls   int
+}
+
+type fixedUsecaseRunner struct {
+	result legacyports.CommandResult
+	err    error
+}
+
+func (runner fixedUsecaseRunner) Run(context.Context, legacyports.Command) (legacyports.CommandResult, error) {
+	return runner.result, runner.err
+}
+
+type trackingMutationLock struct {
+	held         *atomic.Bool
+	acquisitions int
+	onAcquire    func() error
+}
+
+func (lock *trackingMutationLock) Acquire(context.Context) (ports.UnlockFunc, error) {
+	lock.acquisitions++
+	if !lock.held.CompareAndSwap(false, true) {
+		return nil, fmt.Errorf("mutation lock acquired twice")
+	}
+	if lock.onAcquire != nil {
+		if err := lock.onAcquire(); err != nil {
+			lock.held.Store(false)
+			return nil, err
+		}
+	}
+	return func() error {
+		if !lock.held.CompareAndSwap(true, false) {
+			return fmt.Errorf("mutation lock released while not held")
+		}
+		return nil
+	}, nil
+}
+
+type lockAssertingStore struct {
+	transaction.StateStore
+	held *atomic.Bool
+}
+
+func (store lockAssertingStore) Save(state domain.StateFileV2) error {
+	if !store.held.Load() {
+		return fmt.Errorf("state save occurred outside mutation lock")
+	}
+	return store.StateStore.Save(state)
+}
+
+func (activator *observedActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
+	activator.calls++
+	return activator.outcome, activator.err
+}
+
+func (*observedActivator) Deactivate(context.Context, domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
+	return domain.DeactivationOutcome{}, nil
+}
+
+func (stager verificationFailureStager) Verify(context.Context, string, string) error {
+	return stager.err
 }
 
 func addInput(t *testing.T, client domain.DetectedClient, canonicalSource string) AddInput {

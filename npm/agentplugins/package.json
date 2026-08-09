@@ -25,6 +25,15 @@
   "engines": {
     "node": ">=22"
   },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

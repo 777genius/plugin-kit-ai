@@ -2,9 +2,36 @@ package ports
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
+
+type VerificationKind string
+
+const (
+	VerificationAbsent         VerificationKind = "absent"
+	VerificationDigestMismatch VerificationKind = "digest_mismatch"
+	VerificationIndeterminate  VerificationKind = "indeterminate"
+	VerificationExcludedMarker VerificationKind = "excluded_ownership_marker"
+)
+
+// VerificationError classifies integrity failures without converting an
+// infrastructure error into evidence that a managed directory drifted.
+type VerificationError struct {
+	Kind         VerificationKind
+	ActualDigest string
+	Err          error
+}
+
+func (err *VerificationError) Error() string {
+	if err.Err != nil {
+		return err.Err.Error()
+	}
+	return fmt.Sprintf("package verification failed: %s", err.Kind)
+}
+
+func (err *VerificationError) Unwrap() error { return err.Err }
 
 type SchemaRegistry interface {
 	Supports(schemaURI string) bool

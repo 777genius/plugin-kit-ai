@@ -94,8 +94,9 @@ type DeliveryPlan struct {
 	UserActions        []string            `json:"user_actions,omitempty"`
 	// LocalActions can contain operational paths and are rendered only in
 	// human-readable output. They must never be emitted by the public JSON API.
-	LocalActions []string `json:"-"`
-	Warnings     []string `json:"warnings,omitempty"`
+	LocalActions []string     `json:"-"`
+	Warnings     []string     `json:"warnings,omitempty"`
+	Diagnostics  []Diagnostic `json:"diagnostics,omitempty"`
 	// TargetRoot and ActivePath are intentionally excluded from public JSON.
 	TargetAnchor string `json:"-"`
 	TargetRoot   string `json:"-"`
@@ -117,7 +118,11 @@ type OpenAIMCPAuthHint struct {
 }
 
 type CompatibilityHints struct {
-	OpenAIMCPAuth map[string]OpenAIMCPAuthHint `json:"openai_mcp_auth,omitempty"`
+	// Compatibility preserves generic, per-client catalog requirements. The
+	// OpenAI map remains for legacy projection consumers and is not authoritative
+	// for whether authentication is required.
+	Compatibility map[string]CatalogCompatibility `json:"compatibility,omitempty"`
+	OpenAIMCPAuth map[string]OpenAIMCPAuthHint    `json:"openai_mcp_auth,omitempty"`
 }
 
 type StagedDelivery struct {
@@ -137,15 +142,25 @@ type ActivationRequest struct {
 	Replacing         bool           `json:"replacing"`
 	Interactive       bool           `json:"interactive"`
 	BackendExecutable string         `json:"-"`
+	// VerifyOnly forbids client mutation and asks the provider to inspect the
+	// current client state. ActivationComplete is an explicit user attestation
+	// accepted only when verification is unavailable or returns unknown evidence.
+	VerifyOnly         bool `json:"verify_only,omitempty"`
+	ActivationComplete bool `json:"activation_complete,omitempty"`
 }
 
 type ActivationOutcome struct {
-	Activation     ActivationState     `json:"activation"`
-	Authentication AuthenticationState `json:"authentication"`
-	Policy         PolicyState         `json:"policy"`
-	Verification   VerificationState   `json:"verification"`
-	UserActions    []string            `json:"user_actions,omitempty"`
-	LocalActions   []string            `json:"-"`
+	Activation             ActivationState     `json:"activation"`
+	Authentication         AuthenticationState `json:"authentication"`
+	Policy                 PolicyState         `json:"policy"`
+	Verification           VerificationState   `json:"verification"`
+	UserActions            []string            `json:"user_actions,omitempty"`
+	LocalActions           []string            `json:"-"`
+	ActivationAttested     bool                `json:"activation_attested,omitempty"`
+	AuthenticationAttested bool                `json:"authentication_attested,omitempty"`
+	// AuthoritativeObservation marks recognized negative verifier evidence.
+	// It is transient control-plane metadata and is never persisted as state.
+	AuthoritativeObservation bool `json:"-"`
 }
 
 type DeactivationRequest struct {

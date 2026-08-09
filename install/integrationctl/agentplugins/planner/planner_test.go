@@ -33,6 +33,67 @@ func TestPlannerNegotiatesPartialSupportWithoutRejectingSupportedComponents(t *t
 	}
 }
 
+func TestPlannerAuthenticationRequiresAffirmativePerClientCatalogEvidence(t *testing.T) {
+	t.Parallel()
+	client := detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor"))
+	for name, test := range map[string]struct {
+		evidence *domain.CatalogEvidence
+		want     domain.AuthenticationState
+	}{
+		"external_without_catalog": {want: domain.AuthenticationNotChecked},
+		"catalog_required": {evidence: &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+			"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementRequired},
+		}}, want: domain.AuthenticationPending},
+		"catalog_not_required": {evidence: &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+			"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+		}}, want: domain.AuthenticationNotRequired},
+	} {
+		name, test := name, test
+		t.Run(name, func(t *testing.T) {
+			envelope := domain.PackageEnvelope{Manifest: domain.PluginManifest{Name: "metadata-only"}, CatalogEvidence: test.evidence}
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, client, domain.ScopeUser, "demo-0123456789ab")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Authentication != test.want {
+				t.Fatalf("authentication = %s, want %s", plan.Authentication, test.want)
+			}
+		})
+	}
+}
+
+func TestPlannerFailsClosedWhenPinnedCatalogEvidenceOmitsSelectedClient(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+		"codex": {Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+	}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(
+		context.Background(), envelope,
+		detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")),
+		domain.ScopeUser, "demo-0123456789ab",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanUnsupported || plan.Activation != domain.ActivationFailed || !contains(plan.Warnings, "client_compatibility_not_catalog_verified") {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
+func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.Diagnostics = []domain.Diagnostic{{Severity: domain.SeverityWarning, Boundary: domain.BoundaryPlugin, Code: "plugin_unknown_field", Message: "future field preserved"}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")), domain.ScopeUser, "demo-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 1 || plan.Diagnostics[0].Message != "future field preserved" || !contains(plan.Warnings, "plugin_unknown_field") {
+		t.Fatalf("plan diagnostics = %+v warnings=%v", plan.Diagnostics, plan.Warnings)
+	}
+}
+
 func TestPlannerUsesNativeCursorTargetAndDoesNotExposeItInJSON(t *testing.T) {
 	t.Parallel()
 	config := filepath.Join(t.TempDir(), ".cursor")
@@ -146,6 +207,54 @@ func TestPlannerRejectsMetadataOnlyProjectionWhenAllDeclaredComponentsAreInvalid
 			}
 			if plan.Status != domain.PlanUnsupported || plan.Activation != domain.ActivationFailed || !contains(plan.Warnings, "no_valid_components") {
 				t.Fatalf("plan = %+v", plan)
+			}
+		})
+	}
+}
+
+func TestPlannerDoesNotAppendActivationOrAuthenticationGuidanceWhenUnsupported(t *testing.T) {
+	t.Parallel()
+	tests := map[string]domain.PackageEnvelope{
+		"catalog_omits_client": func() domain.PackageEnvelope {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"codex": {Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+			}}
+			return envelope
+		}(),
+		"catalog_package_mismatch": func() domain.PackageEnvelope {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"cursor": {Package: "projected", Verification: "schema_only", Authentication: domain.AuthenticationRequirementRequired},
+			}}
+			return envelope
+		}(),
+		"invalid_components": {
+			Manifest: domain.PluginManifest{Name: "broken"},
+			Diagnostics: []domain.Diagnostic{{
+				Severity: domain.SeverityError, Boundary: domain.BoundarySkill,
+				Code: "skill_invalid", Message: "all skills are invalid",
+			}},
+		},
+	}
+	for name, envelope := range tests {
+		name, envelope := name, envelope
+		t.Run(name, func(t *testing.T) {
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(
+				context.Background(), envelope,
+				detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")),
+				domain.ScopeUser, "broken-0123456789ab",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Status != domain.PlanUnsupported {
+				t.Fatalf("plan = %+v", plan)
+			}
+			for _, action := range plan.UserActions {
+				if strings.Contains(action, "authentication") || strings.Contains(action, "reload Cursor") || strings.Contains(action, "verify the plugin") {
+					t.Fatalf("unsupported plan appended lifecycle guidance %q: %+v", action, plan)
+				}
 			}
 		})
 	}

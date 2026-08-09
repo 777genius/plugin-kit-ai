@@ -3,8 +3,11 @@ package catalog
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
 func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
@@ -26,6 +29,17 @@ func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
 	}
 	if resolved.Hints.OpenAIMCPAuth["context7"].BearerTokenEnvVar != "CONTEXT7_API_KEY" {
 		t.Fatalf("hints = %+v", resolved.Hints)
+	}
+	compatibility := resolved.Hints.Compatibility["cursor"]
+	if compatibility.Authentication != "not_required" || compatibility.Package != "native" {
+		t.Fatalf("generic compatibility = %+v", resolved.Hints.Compatibility)
+	}
+	if resolved.Evidence.SchemaVersion != 1 || resolved.Evidence.CatalogVersion != "0.1.0" || resolved.Evidence.Compatibility["cursor"].Authentication != "not_required" {
+		t.Fatalf("catalog evidence = %+v", resolved.Evidence)
+	}
+	resolved.Hints.Compatibility["cursor"] = domain.CatalogCompatibility{}
+	if resolved.Evidence.Compatibility["cursor"].Package != "native" {
+		t.Fatal("resolution hints alias immutable catalog evidence")
 	}
 }
 
@@ -68,6 +82,50 @@ func TestCatalogEnforcesMinimumCLIVersionAtResolution(t *testing.T) {
 	}
 }
 
+func TestCatalogRejectsAnyCompatibilityMatrixDeviation(t *testing.T) {
+	t.Parallel()
+	tests := map[string]string{
+		"omission":       `,"kiro":{"package":"native","verification":"tested","authentication":"not_required"}`,
+		"extra":          `"kiro":{"package":"native","verification":"tested","authentication":"not_required"}`,
+		"mode":           `"vscode":{"package":"prepared"`,
+		"authentication": `"vscode":{"package":"prepared","verification":"tested","authentication":"not_required"}`,
+	}
+	for name, fragment := range tests {
+		name, fragment := name, fragment
+		t.Run(name, func(t *testing.T) {
+			body := string(validCatalog())
+			switch name {
+			case "omission":
+				body = strings.Replace(body, fragment, "", 1)
+			case "extra":
+				body = strings.Replace(body, fragment, fragment+`,"typo":{"package":"native","verification":"tested","authentication":"not_required"}`, 1)
+			case "mode":
+				body = strings.Replace(body, fragment, `"vscode":{"package":"native"`, 1)
+			case "authentication":
+				body = strings.Replace(body, fragment, `"vscode":{"package":"prepared","verification":"tested","authentication":"required"}`, 1)
+			}
+			if _, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load([]byte(body), ""); err == nil {
+				t.Fatal("invalid compatibility matrix accepted")
+			}
+		})
+	}
+}
+
+func TestEmbeddedCatalogAllEntriesUseExactCompatibilityMatrix(t *testing.T) {
+	t.Parallel()
+	body, err := os.ReadFile("../../../../../cli/plugin-kit-ai/cmd/agentplugins/catalog-v1.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.4"}).Load(body, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Catalog.Plugins) != 26 {
+		t.Fatalf("embedded package count = %d, want 26", len(loaded.Catalog.Plugins))
+	}
+}
+
 func validCatalog() []byte {
 	return []byte(`{
   "$schema": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json",
@@ -85,7 +143,7 @@ func validCatalog() []byte {
     "tree_digest": "` + digest("a") + `",
     "manifest_digest": "` + digest("b") + `",
     "components": ["mcp"],
-    "compatibility": {"cursor": {"package":"native","verification":"tested","authentication":"not_required"}},
+    "compatibility": {"codex":{"package":"projected","verification":"tested","authentication":"not_required"},"cursor":{"package":"native","verification":"tested","authentication":"not_required"},"copilot":{"package":"native","verification":"tested","authentication":"not_required"},"vscode":{"package":"prepared","verification":"tested","authentication":"not_required"},"kiro":{"package":"native","verification":"tested","authentication":"not_required"}},
     "openai_mcp_auth": {"context7": {"bearer_token_env_var":"CONTEXT7_API_KEY"}}
   }]
 }`)
@@ -96,6 +154,6 @@ func digest(value string) string {
 }
 
 func conflictCatalog() []byte {
-	duplicate := `, {"name":"context7","version":"1.0.0","agent_plugins_schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","minimum_cli_version":"0.1.0","source_path":"plugins/context7-copy","tree_digest":"` + digest("c") + `","manifest_digest":"` + digest("b") + `","components":["mcp"],"compatibility":{}}`
+	duplicate := `, {"name":"context7","version":"1.0.0","agent_plugins_schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","minimum_cli_version":"0.1.0","source_path":"plugins/context7-copy","tree_digest":"` + digest("c") + `","manifest_digest":"` + digest("b") + `","components":["mcp"],"compatibility":{"codex":{"package":"projected","verification":"tested","authentication":"not_required"},"cursor":{"package":"native","verification":"tested","authentication":"not_required"},"copilot":{"package":"native","verification":"tested","authentication":"not_required"},"vscode":{"package":"prepared","verification":"tested","authentication":"not_required"},"kiro":{"package":"native","verification":"tested","authentication":"not_required"}}}`
 	return []byte(strings.Replace(string(validCatalog()), "  }]\n}", "  }"+duplicate+"]\n}", 1))
 }

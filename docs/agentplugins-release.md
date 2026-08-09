@@ -18,7 +18,9 @@ the `latest` dist-tag without explicit owner approval for that exact version.
 - The catalog embedded in the `agentplugins` binary is byte-identical to that
   released catalog and its compiled SHA-256 pin matches.
 - `agentplugins-release` and `npm-agentplugins` require a reviewer and allow
-  deployment only from `main`.
+  deployment only from `main`. Dispatch both workflows from the exact `main`
+  commit referenced by the release tag; their source-commit guards reject a
+  newer or older workflow revision.
 - npm trusted publishing is bound to repository `777genius/plugin-kit-ai`,
   workflow `agentplugins-npm-publish.yml`, environment `npm-agentplugins`, and
   the `npm publish` permission.
@@ -38,13 +40,34 @@ project is tagged.
 3. Review the frozen commit and approve the `agentplugins-release`
    environment deployment.
 4. Confirm the workflow attests all six binaries, `checksums.txt`, and
-   `release-manifest.json` before creating the public release.
-5. Verify the release contains six platform binaries, `checksums.txt`, and
-   `release-manifest.json`.
-6. Verify GitHub attestations before allowing npm publication.
+   `release-manifest.json` before creating the non-public draft.
+5. Confirm the read-only platform-proof workflow receives the same-run frozen
+   asset artifact and succeeds on all six native targets. For a draft it cold
+   bootstraps the npm launcher from the exact local asset only after matching
+   the embedded filename, size, and SHA-256; no GitHub token reaches the
+   launcher or released binary. It then proves a warm-cache invocation with
+   the local proof source removed. Until the matrix aggregates successfully,
+   no public GitHub Release may exist.
+6. After all six proofs are green, approve the promotion deployment. Confirm
+   it reverifies the draft identity, manifest, assets, and attestations.
+   It promotes that exact draft only after all six native platform proofs succeed.
+7. Verify the resulting public release contains six platform binaries,
+   `checksums.txt`, and `release-manifest.json`, and verify GitHub attestations
+   before allowing npm publication.
 
-The workflow refuses an existing release instead of replacing immutable
-assets.
+The workflow rejects every existing public release. A rerun accepts an existing
+draft only when its tag, frozen commit, draft status, complete asset set, and
+every asset byte exactly match the rebuilt release; it never uploads over an
+existing asset. A failed native proof intentionally leaves that exact draft
+non-public. Fix the proof defect and rerun the same tag to resume. If draft
+creation itself was interrupted and left an incomplete or non-matching draft,
+an owner must verify that it was never public, delete only that draft release
+(not the tag), and rerun. Never edit or replace assets in place.
+
+For a schema-v1 historical platform audit, dispatch `Agentplugins Platform
+Proof` with `--ref <exact-tag>` and `allow_legacy_manifest=true`. The workflow
+must already exist at that tag, and its source SHA must equal the audited tag
+commit; current `main` is never allowed to impersonate a historical harness.
 
 ## Bootstrap publication record
 
@@ -68,6 +91,8 @@ after an exact-version, scripts-disabled install verifies both the registry
 signature and SLSA provenance attestation. Only then may it run `add`, `info`,
 read-only `doctor`, no-change `update`, `remove`, and final absent-state
 verification in an isolated HOME.
+The public-release platform proof uses a cold cache without the local draft
+override and therefore proves the normal anonymous GitHub release download.
 The publish-ready gate must be returned to `false` immediately after the publish
 job finishes, regardless of the verification result. Registry verification
 must still prove the `latest` dist-tag resolves to the exact published version
@@ -75,9 +100,11 @@ and that JSON output contains no absolute runner paths. It runs as a separate
 job after publication, waits up to five minutes with online metadata refreshes,
 and can be retried without attempting to republish an immutable npm version.
 The same workflow can be dispatched with `verify_only=true` and the existing
-tag after publication. That mode skips the protected publish job entirely,
-does not require opening the publish-ready gate, and only runs the public
-registry and isolated lifecycle verification.
+historical tag after publication. That mode skips release identity,
+schema-v2 six-platform proof, and the protected publish job entirely; it does
+not require the tag to point to current `main` or require opening the
+publish-ready gate, and only runs public registry, provenance, and isolated
+lifecycle verification.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.

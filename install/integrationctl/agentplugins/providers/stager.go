@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/filetree"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/packagesnapshot"
 )
 
@@ -38,20 +40,37 @@ func (stager Stager) Verify(ctx context.Context, root, expectedDigest string) er
 		return fmt.Errorf("expected artifact digest is required")
 	}
 	if err := rejectExcludedOwnershipMarkers(root); err != nil {
-		return err
+		kind := ports.VerificationIndeterminate
+		var marker *excludedOwnershipMarkerError
+		if errors.As(err, &marker) {
+			kind = ports.VerificationExcludedMarker
+		} else if errors.Is(err, os.ErrNotExist) {
+			kind = ports.VerificationAbsent
+		}
+		return &ports.VerificationError{Kind: kind, Err: err}
 	}
 	artifact, err := stager.SnapshotBuilder.Build(ctx, root)
 	if err != nil {
-		return err
+		kind := ports.VerificationIndeterminate
+		if errors.Is(err, os.ErrNotExist) {
+			kind = ports.VerificationAbsent
+		}
+		return &ports.VerificationError{Kind: kind, Err: err}
 	}
 	digest := artifact.Digest
 	if closeErr := artifact.Close(); closeErr != nil {
-		return closeErr
+		return &ports.VerificationError{Kind: ports.VerificationIndeterminate, Err: closeErr}
 	}
 	if digest != expectedDigest {
-		return fmt.Errorf("artifact digest mismatch")
+		return &ports.VerificationError{Kind: ports.VerificationDigestMismatch, ActualDigest: digest, Err: fmt.Errorf("artifact digest mismatch")}
 	}
 	return nil
+}
+
+type excludedOwnershipMarkerError struct{ name string }
+
+func (err *excludedOwnershipMarkerError) Error() string {
+	return fmt.Sprintf("managed artifact contains excluded ownership marker %q", err.name)
 }
 
 func rejectExcludedOwnershipMarkers(root string) error {
@@ -63,7 +82,7 @@ func rejectExcludedOwnershipMarkers(root string) error {
 			return nil
 		}
 		if entry.Name() == ".git" || entry.Name() == ".plugin-kit-ai.lock" {
-			return fmt.Errorf("managed artifact contains excluded ownership marker %q", entry.Name())
+			return &excludedOwnershipMarkerError{name: entry.Name()}
 		}
 		return nil
 	})

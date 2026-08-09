@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -30,16 +31,22 @@ type Service struct {
 }
 
 type AddInput struct {
-	Envelope          domain.PackageEnvelope
-	Client            domain.DetectedClient
-	Scope             domain.InstallScope
-	DryRun            bool
-	Confirmed         bool
-	Interactive       bool
-	Hints             domain.CompatibilityHints
-	InstallationID    string
-	OperationID       string
-	BackendExecutable string
+	Envelope           domain.PackageEnvelope
+	Client             domain.DetectedClient
+	Scope              domain.InstallScope
+	DryRun             bool
+	Confirmed          bool
+	Interactive        bool
+	Hints              domain.CompatibilityHints
+	InstallationID     string
+	OperationID        string
+	BackendExecutable  string
+	ActivationComplete bool
+	AuthComplete       bool
+	// PersistAuthoritativeObservations allows a read-only client verifier to
+	// record negative evidence even during a plan-first CLI pass. It does not
+	// authorize package, client, or user-requested lifecycle mutations.
+	PersistAuthoritativeObservations bool
 }
 
 type AddResult struct {
@@ -108,7 +115,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if err != nil {
 		return AddResult{}, err
 	}
-	if hasOAuthRequirement(input.Envelope, input.Hints) {
+	if openAIOAuthApplies(input.Client.ClientID, input.Envelope, input.Hints) {
 		plan.Authentication = domain.AuthenticationPending
 	}
 	result := AddResult{InstallationID: installationID, Plan: plan}
@@ -130,8 +137,38 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 	}
 	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
+	if !isMaterialized && (input.ActivationComplete || input.AuthComplete) {
+		return result, fmt.Errorf("lifecycle completion flags require an already materialized package; run add first, then rerun add with the completion flags")
+	}
 	if isMaterialized && !replace {
-		return result, fmt.Errorf("plugin is already materialized for %s; use update", input.Client.ClientID)
+		current := state.Installations[installationIndex].Clients[clientBindingID]
+		result.Activation = lifecycleOutcome(current)
+		if !packageRevisionMatches(current.PackageRevision, input.Envelope) {
+			return result, fmt.Errorf("plugin is already materialized for %s at a different revision; use update", input.Client.ClientID)
+		}
+		if lifecycleConverged(current) {
+			if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, current, "no-change check"); err != nil {
+				return result, err
+			}
+			verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, current)
+			if verifyErr != nil {
+				if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
+					result.Activation = verified
+					changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, current, verified)
+					result.Mutated = changed
+					if updateErr != nil {
+						return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
+					}
+				}
+				return result, verifyErr
+			}
+			if verified.Activation != "" && !sameLifecycleOutcome(verified, lifecycleOutcome(current)) {
+				return service.persistObservedLifecycle(input, result, installationID, clientBindingID, verified)
+			}
+			result.NoChange = true
+			return result, nil
+		}
+		return service.resume(ctx, input, result, installationID, clientBindingID, current)
 	}
 	if replace && !isMaterialized {
 		return result, fmt.Errorf("plugin is not materialized for %s; use add", input.Client.ClientID)
@@ -139,12 +176,31 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if replace {
 		current := state.Installations[installationIndex]
 		previousClient := current.Clients[clientBindingID]
+		result.Activation = lifecycleOutcome(previousClient)
 		if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, previousClient, "update"); err != nil {
 			return result, err
 		}
-		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) && lifecycleConverged(previousClient) {
-			result.NoChange = true
-			return result, nil
+		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) {
+			if lifecycleConverged(previousClient) {
+				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)
+				if verifyErr != nil {
+					if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
+						result.Activation = verified
+						changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, previousClient, verified)
+						result.Mutated = changed
+						if updateErr != nil {
+							return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
+						}
+					}
+					return result, verifyErr
+				}
+				if verified.Activation != "" && !sameLifecycleOutcome(verified, lifecycleOutcome(previousClient)) {
+					return service.persistObservedLifecycle(input, result, installationID, clientBindingID, verified)
+				}
+				result.NoChange = true
+				return result, nil
+			}
+			return service.resume(ctx, input, result, installationID, clientBindingID, previousClient)
 		}
 	}
 	if input.DryRun {
@@ -215,7 +271,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		result.Activation = outcome
 	}
-	if updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+	if _, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
 		if activationErr != nil {
 			return result, fmt.Errorf("activate client: %v; persist activation state: %w", activationErr, updateErr)
 		}
@@ -228,13 +284,153 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 }
 
 func lifecycleConverged(client domain.ClientBinding) bool {
-	if client.ClientID != string(domain.ClientCopilot) && client.ClientID != string(domain.ClientVSCode) {
-		return true
-	}
-	return client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled
+	authComplete := client.Authentication == domain.AuthenticationNotRequired || client.Authentication == domain.AuthenticationComplete
+	return client.Materialization == domain.MaterializationMaterialized &&
+		client.Activation == domain.ActivationActive &&
+		client.Verification == domain.VerificationInstalled && authComplete
 }
 
-func hasOAuthRequirement(envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
+// resume retries only the external client lifecycle against an existing,
+// digest-verified managed package. It deliberately creates no directory
+// transaction or receipt, so repeating add cannot replace or duplicate the
+// materialized artifact.
+func (service Service) resume(
+	ctx context.Context,
+	input AddInput,
+	result AddResult,
+	installationID, clientBindingID string,
+	client domain.ClientBinding,
+) (AddResult, error) {
+	if input.DryRun {
+		return result, nil
+	}
+	if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, client, "resume"); err != nil {
+		return result, err
+	}
+	result.Activation = lifecycleOutcome(client)
+	if !input.Confirmed {
+		result.RequiresConfirmation = true
+		return result, nil
+	}
+	delivery := domain.StagedDelivery{
+		ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot,
+		ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client),
+		NativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+	}
+	outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
+		Client: input.Client, Plan: result.Plan, Delivery: delivery,
+		DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
+		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
+		VerifyOnly: true, ActivationComplete: input.ActivationComplete,
+	})
+	// Authentication completion is a separate phase. Client installation/list
+	// evidence must never silently complete it.
+	if activationErr == nil && !clientVerifierAvailable(input, result.Plan) && client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled {
+		outcome.Activation = client.Activation
+		outcome.Verification = client.Verification
+	}
+	if (client.Authentication == domain.AuthenticationPending || client.Authentication == domain.AuthenticationNotChecked) && input.AuthComplete {
+		outcome.Authentication = domain.AuthenticationComplete
+		outcome.AuthenticationAttested = true
+	} else if client.Authentication != "" {
+		outcome.Authentication = client.Authentication
+	}
+	result.Activation = outcome
+	if activationErr != nil && outcome.Activation == "" {
+		outcome = domain.ActivationOutcome{
+			Activation: domain.ActivationFailed, Authentication: result.Plan.Authentication,
+			Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
+		}
+		result.Activation = outcome
+	}
+	changed, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome)
+	result.Mutated = changed
+	if updateErr != nil {
+		if activationErr != nil {
+			return result, fmt.Errorf("resume client activation: %v; persist activation state: %w", activationErr, updateErr)
+		}
+		return result, updateErr
+	}
+	if activationErr != nil {
+		return result, activationErr
+	}
+	return result, nil
+}
+
+func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
+	if strings.TrimSpace(input.BackendExecutable) == "" {
+		return false
+	}
+	switch input.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+		return true
+	case domain.ClientKiro:
+		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") || len(plan.Components) == 0 {
+			return false
+		}
+		for _, component := range plan.Components {
+			if component.Support == domain.SupportUnsupported || component.Kind != domain.ComponentMCPServer {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func (service Service) persistObservedLifecycle(input AddInput, result AddResult, installationID, clientBindingID string, outcome domain.ActivationOutcome) (AddResult, error) {
+	result.Activation = outcome
+	if input.DryRun {
+		return result, nil
+	}
+	if !input.Confirmed {
+		result.RequiresConfirmation = true
+		return result, nil
+	}
+	changed, err := service.updateLifecycle(installationID, clientBindingID, outcome)
+	result.Mutated = changed
+	return result, err
+}
+
+func (service Service) persistAuthoritativeObservation(ctx context.Context, input AddInput, installationID, clientBindingID string, observed domain.ClientBinding, outcome domain.ActivationOutcome) (bool, error) {
+	if input.Confirmed {
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	release, err := service.beginMutation(ctx, false, true)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = release() }()
+	state, err := service.StateStore.Load()
+	if err != nil {
+		return false, err
+	}
+	for _, installation := range state.Installations {
+		if installation.InstallationID != installationID {
+			continue
+		}
+		latest, ok := installation.Clients[clientBindingID]
+		if !ok || !reflect.DeepEqual(latest, observed) {
+			return false, fmt.Errorf("stale client binding observation; state changed before negative evidence could be persisted, retry the command")
+		}
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	return false, fmt.Errorf("stale client binding observation; installation changed before negative evidence could be persisted, retry the command")
+}
+
+func openAIOAuthApplies(clientID domain.ClientID, envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
+	if clientID != domain.ClientCodex {
+		return false
+	}
+	if envelope.CatalogEvidence != nil {
+		if _, present := envelope.CatalogEvidence.Compatibility[string(clientID)]; present {
+			return false
+		}
+	}
+	if _, present := hints.Compatibility[string(clientID)]; present {
+		return false
+	}
 	for serverName := range envelope.MCP.Servers {
 		if strings.TrimSpace(hints.OpenAIMCPAuth[serverName].OAuthResource) != "" {
 			return true
@@ -263,10 +459,10 @@ func (service Service) beginMutation(ctx context.Context, dryRun, confirmed bool
 	return release, nil
 }
 
-func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) error {
+func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
 	state, err := service.StateStore.Load()
 	if err != nil {
-		return err
+		return false, err
 	}
 	for installationIndex, installation := range state.Installations {
 		if installation.InstallationID != installationID {
@@ -274,7 +470,11 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		}
 		client, ok := installation.Clients[clientBindingID]
 		if !ok {
-			return fmt.Errorf("client binding disappeared during activation")
+			return false, fmt.Errorf("client binding disappeared during activation")
+		}
+		if client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
+			client.Policy == outcome.Policy && client.Verification == outcome.Verification {
+			return false, nil
 		}
 		client.Activation = outcome.Activation
 		client.Authentication = outcome.Authentication
@@ -284,9 +484,37 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		installation.Clients[clientBindingID] = client
 		installation.UpdatedAt = client.UpdatedAt
 		state.Installations[installationIndex] = installation
-		return service.StateStore.Save(state)
+		if err := service.StateStore.Save(state); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	return fmt.Errorf("installation disappeared during activation")
+	return false, fmt.Errorf("installation disappeared during activation")
+}
+
+func lifecycleOutcome(client domain.ClientBinding) domain.ActivationOutcome {
+	return domain.ActivationOutcome{Activation: client.Activation, Authentication: client.Authentication, Policy: client.Policy, Verification: client.Verification}
+}
+
+func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput, result AddResult, client domain.ClientBinding) (domain.ActivationOutcome, error) {
+	if strings.TrimSpace(input.BackendExecutable) == "" {
+		return domain.ActivationOutcome{}, nil
+	}
+	switch input.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientKiro:
+		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
+			return domain.ActivationOutcome{}, nil
+		}
+	default:
+		return domain.ActivationOutcome{}, nil
+	}
+	delivery := domain.StagedDelivery{ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot, ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client), NativeObjects: client.NativeObjects}
+	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, VerifyOnly: true})
+	if outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
+		outcome.Authentication = client.Authentication
+	}
+	return outcome, err
 }
 
 func (service Service) now() time.Time {

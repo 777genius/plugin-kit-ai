@@ -7,9 +7,10 @@ const fsp = require("node:fs/promises");
 const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
+const { spawnSync } = require("node:child_process");
 const test = require("node:test");
 
-const { acquireLock, downloadFile, ensureBinary, loadRelease } = require("../lib/bootstrap");
+const { PROOF_MODE, acquireLock, downloadFile, ensureBinary, loadRelease } = require("../lib/bootstrap");
 const { cacheRoot, detectPlatform, expectedAssetName } = require("../lib/platform");
 
 const VERSION = "0.1.0";
@@ -81,6 +82,102 @@ test("cold, warm, corrupted, and concurrent cache paths stay verified", async (t
   assert.ok(requests > beforeWarm);
 });
 
+test("internal draft proof bootstraps a cold cache from one exact frozen local asset", async (t) => {
+  const fixture = await fixturePackage(t);
+  const releaseRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "agentplugins-proof-release-"));
+  const releaseAsset = path.join(releaseRoot, fixture.file);
+  const cache = path.join(releaseRoot, "cache");
+  await fsp.writeFile(releaseAsset, fixture.binary, { mode: 0o755 });
+  t.after(() => fsp.rm(releaseRoot, { recursive: true, force: true }));
+  let requested = false;
+  const options = {
+    packageRoot: fixture.root,
+    cacheRoot: cache,
+    environment: {
+      AGENTPLUGINS_INTERNAL_PROOF_MODE: PROOF_MODE,
+      AGENTPLUGINS_INTERNAL_PROOF_BINARY: releaseAsset
+    },
+    request: () => {
+      requested = true;
+      throw new Error("draft proof must not request a public release");
+    },
+    platform: "linux",
+    arch: "x64"
+  };
+  const cold = await ensureBinary(options);
+  assert.equal(cold.cacheHit, false);
+  assert.equal(cold.source, "local_frozen_asset");
+  assert.equal(requested, false);
+  assert.equal(await fsp.readFile(cold.binaryPath, "utf8"), fixture.binary.toString());
+  const warm = await ensureBinary({ ...options, environment: {} });
+  assert.equal(warm.cacheHit, true);
+  assert.equal(requested, false);
+});
+
+test("internal draft proof rejects wrong mode, filename, bytes, and symlinks", async (t) => {
+  const fixture = await fixturePackage(t);
+  const releaseRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "agentplugins-bad-proof-release-"));
+  const cache = path.join(releaseRoot, "cache");
+  t.after(() => fsp.rm(releaseRoot, { recursive: true, force: true }));
+  const run = (file, mode = PROOF_MODE) => ensureBinary({
+    packageRoot: fixture.root,
+    cacheRoot: cache,
+    environment: {
+      AGENTPLUGINS_INTERNAL_PROOF_MODE: mode,
+      AGENTPLUGINS_INTERNAL_PROOF_BINARY: file
+    },
+    platform: "linux",
+    arch: "x64"
+  });
+  const wrongName = path.join(releaseRoot, "wrong-name");
+  await fsp.writeFile(wrongName, fixture.binary);
+  await assert.rejects(run(wrongName), /filename does not match/);
+  const exactName = path.join(releaseRoot, fixture.file);
+  await fsp.writeFile(exactName, "wrong bytes");
+  await assert.rejects(run(exactName), /does not match embedded size and SHA-256/);
+  await assert.rejects(run(exactName, "wrong-mode"), /exact proof mode/);
+  await fsp.rm(exactName);
+  try {
+    await fsp.symlink(wrongName, exactName);
+    await assert.rejects(run(exactName), /does not match embedded size and SHA-256/);
+  } catch (error) {
+    if (!error || !["EPERM", "ENOTSUP"].includes(error.code)) throw error;
+  }
+  assert.equal(fs.existsSync(cache), false);
+});
+
+test("real npm launcher consumes local proof bootstrap variables without forwarding them", async (t) => {
+  if (process.platform !== "linux" || process.arch !== "x64") {
+    t.skip("launcher fixture is pinned to linux-amd64");
+    return;
+  }
+  const launcherBinary = Buffer.from(
+    "#!/usr/bin/env node\n" +
+    "process.stdout.write(JSON.stringify({args: process.argv.slice(2), mode: process.env.AGENTPLUGINS_INTERNAL_PROOF_MODE || '', binary: process.env.AGENTPLUGINS_INTERNAL_PROOF_BINARY || ''}));\n"
+  );
+  const fixture = await fixturePackage(t, launcherBinary);
+  const packageSource = path.resolve(__dirname, "..");
+  await fsp.cp(path.join(packageSource, "bin"), path.join(fixture.root, "bin"), { recursive: true });
+  await fsp.cp(path.join(packageSource, "lib"), path.join(fixture.root, "lib"), { recursive: true });
+  const releaseRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "agentplugins-launcher-proof-"));
+  const releaseAsset = path.join(releaseRoot, fixture.file);
+  const cache = path.join(releaseRoot, "cache");
+  await fsp.writeFile(releaseAsset, fixture.binary, { mode: 0o755 });
+  t.after(() => fsp.rm(releaseRoot, { recursive: true, force: true }));
+  const result = spawnSync(process.execPath, [path.join(fixture.root, "bin", "agentplugins.js"), "version"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      AGENTPLUGINS_CACHE_DIR: cache,
+      AGENTPLUGINS_INTERNAL_PROOF_MODE: PROOF_MODE,
+      AGENTPLUGINS_INTERNAL_PROOF_BINARY: releaseAsset
+    }
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), { args: ["version"], mode: "", binary: "" });
+  assert.equal(await fsp.readFile(path.join(cache, VERSION, "linux-amd64", "agentplugins"), "utf8"), launcherBinary.toString());
+});
+
 test("offline cold cache fails without creating the cache", async (t) => {
   const fixture = await fixturePackage(t);
   const endpoint = await listen(t, (_request, response) => response.end(fixture.binary));
@@ -145,7 +242,12 @@ test("package has no install scripts", async () => {
   const packageRoot = path.resolve(__dirname, "..");
   const pkg = JSON.parse(await fsp.readFile(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(pkg.engines.node, ">=22");
+  assert.deepEqual(pkg.os, ["darwin", "linux", "win32"]);
+  assert.deepEqual(pkg.cpu, ["x64", "arm64"]);
   assert.deepEqual(pkg.scripts, { test: "node --test" });
+  assert.equal(pkg.scripts.preinstall, undefined);
+  assert.equal(pkg.scripts.install, undefined);
+  assert.equal(pkg.scripts.postinstall, undefined);
 });
 
 test("development metadata cannot download a release binary", async (t) => {

@@ -31,6 +31,121 @@ func newUpdateCommand(app App, opts *options) *cobra.Command {
 	}
 }
 
+func newRepairCommand(app App, opts *options) *cobra.Command {
+	return &cobra.Command{
+		Use: "repair <name-or-installation-id>", Short: "Explicitly restore a missing or modified managed package",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateCommonOptions(opts); err != nil {
+				return err
+			}
+			return runRepair(cmd.Context(), cmd, app, opts, args[0])
+		},
+	}
+}
+
+func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
+	stdin := bufio.NewReader(cmd.InOrStdin())
+	state, err := app.StateStore.Load()
+	if err != nil {
+		return err
+	}
+	installation, err := selectInstallation(state, selector)
+	if err != nil {
+		return err
+	}
+	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
+		return fmt.Errorf("repair requires a bound Agent Plugins installation")
+	}
+	clients, err := app.Detector.Detect(ctx)
+	if err != nil {
+		return fmt.Errorf("detect AI clients: %w", err)
+	}
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true, stdin)
+	if err != nil {
+		return err
+	}
+	binding, err := selectedRepairBinding(installation, selected.ClientID, domain.InstallScope(opts.scope))
+	if err != nil {
+		return err
+	}
+	source, err := repairSource(installation, binding)
+	if err != nil {
+		return err
+	}
+	writeProgress(app, opts.format, "Resolving and validating the exact installed Agent Plugin revision...")
+	loaded, err := app.loadPackage(ctx, source)
+	if err != nil {
+		return err
+	}
+	if loaded.cleanup != nil {
+		defer loaded.cleanup()
+	}
+	if err := requireNonInteractiveMutation(app, opts, "repair"); err != nil && !opts.dryRun {
+		return err
+	}
+	service := lifecycleService(app, detectedMap)
+	input := usecase.AddInput{Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope), DryRun: opts.dryRun,
+		InstallationID: installation.InstallationID, Interactive: app.Terminal, Hints: loaded.hints,
+		BackendExecutable: backendExecutable(selected, detectedMap)}
+	planned, err := service.Repair(ctx, input)
+	if err != nil {
+		return err
+	}
+	if opts.dryRun || planned.NoChange {
+		return renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, opts.dryRun)
+	}
+	confirmed := mutationConfirmed(app, opts)
+	if !confirmed && opts.format == "human" && app.Terminal {
+		confirmed, err = promptYesNo(stdin, cmd.OutOrStdout(), "Repair the managed package and its recorded verification state? [y/N]")
+		if err != nil {
+			return err
+		}
+	}
+	if !confirmed {
+		if opts.format == "json" {
+			return renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, false)
+		}
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
+		return err
+	}
+	input.Confirmed = true
+	result, repairErr := service.Repair(ctx, input)
+	if renderErr := renderRepairResult(cmd.OutOrStdout(), opts.format, installation, result, false); renderErr != nil && repairErr == nil {
+		repairErr = renderErr
+	}
+	return repairErr
+}
+
+func renderRepairResult(writer io.Writer, format string, installation domain.Installation, result usecase.AddResult, dryRun bool) error {
+	data := struct {
+		Plugin string            `json:"plugin"`
+		DryRun bool              `json:"dry_run"`
+		Result usecase.AddResult `json:"result"`
+	}{installation.DeclaredName, dryRun, result}
+	if format == "json" {
+		return writeJSONOutput(writer, "repair", data)
+	}
+	if result.NoChange {
+		_, err := fmt.Fprintln(writer, "Managed package digest is valid. No repair was needed.")
+		return err
+	}
+	if dryRun {
+		_, err := fmt.Fprintln(writer, "The managed package or its recorded verification state can be safely repaired. No changes made.")
+		return err
+	}
+	if result.Mutated {
+		if result.Receipt.OperationID == "" {
+			_, err := fmt.Fprintln(writer, "Managed package digest reverified and recorded lifecycle state corrected; no external client mutation was attempted.")
+			return err
+		} else {
+			_, err := fmt.Fprintln(writer, "Managed package repaired from the exact installed revision and its package digest verified; external client activation and authentication were not reverified.")
+			return err
+		}
+	}
+	return nil
+}
+
 func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
 	state, err := app.StateStore.Load()
 	if err != nil {
@@ -61,7 +176,7 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
-	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true)
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true, cmd.InOrStdin())
 	if err != nil {
 		return err
 	}
@@ -72,7 +187,8 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	input := usecase.AddInput{
 		Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Interactive: app.Terminal, Hints: loaded.hints,
-		BackendExecutable: backendExecutable(selected, detectedMap),
+		BackendExecutable:                backendExecutable(selected, detectedMap),
+		PersistAuthoritativeObservations: true,
 	}
 	planned, err := service.Update(ctx, input)
 	if err != nil {
@@ -86,7 +202,7 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 			return err
 		}
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Apply this update? [y/N]")
 		if err != nil {
@@ -141,7 +257,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
-	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, false)
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, false, cmd.InOrStdin())
 	if err != nil {
 		return err
 	}
@@ -175,7 +291,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Target: %s\n", selected.ClientID)
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Result: managed package and its lifecycle binding will be removed")
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Remove this target? [y/N]")
 		if err != nil {
@@ -205,8 +321,8 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if target := strings.TrimSpace(opts.target); target != "" && target != "legacy-all" {
 		return fmt.Errorf("legacy removal is integration-wide; use --target legacy-all after reviewing every target")
 	}
-	if !opts.dryRun && !app.Terminal && (opts.target != "legacy-all" || !opts.yes) {
-		return fmt.Errorf("non-interactive legacy removal requires --target legacy-all and --yes")
+	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) != "legacy-all" {
+		return fmt.Errorf("automated legacy removal requires --target legacy-all")
 	}
 	service := usecase.Service{
 		StateStore: app.StateStore, Legacy: app.LegacyLifecycle, LegacyLock: app.LegacyStateLock, Lock: app.MutationLock,
@@ -223,7 +339,7 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if opts.format == "human" {
 		renderLegacyRemovePlan(cmd.OutOrStdout(), planned)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Remove every legacy target listed above? [y/N]")
 		if err != nil {
@@ -301,11 +417,61 @@ func updateSource(installation domain.Installation) string {
 	return installation.Source.CanonicalSource
 }
 
+func selectedRepairBinding(installation domain.Installation, clientID domain.ClientID, scope domain.InstallScope) (domain.ClientBinding, error) {
+	var matches []domain.ClientBinding
+	for _, binding := range installation.Clients {
+		if binding.ClientID == string(clientID) && binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent {
+			matches = append(matches, binding)
+		}
+	}
+	if len(matches) != 1 {
+		return domain.ClientBinding{}, fmt.Errorf("repair requires exactly one bound target for %s in %s scope", clientID, scope)
+	}
+	return matches[0], nil
+}
+
+func repairSource(installation domain.Installation, binding domain.ClientBinding) (string, error) {
+	canonical := strings.TrimSpace(installation.Source.CanonicalSource)
+	if installation.Source.Repository == "" && filepath.IsAbs(canonical) {
+		return canonical, nil
+	}
+	revision := ""
+	if binding.PackageRevision != nil {
+		revision = strings.TrimSpace(binding.PackageRevision.ResolvedRevision)
+	}
+	if revision == "" {
+		return "", fmt.Errorf("the selected client binding has no exact resolved revision; refusing repair from a moving source")
+	}
+	if repository := strings.TrimSpace(installation.Source.Repository); repository != "" {
+		value := "github:" + repository + "@" + revision
+		if subpath := strings.TrimSpace(installation.Source.PackageSubpath); subpath != "" {
+			value += "//" + subpath
+		}
+		return value, nil
+	}
+	if canonical != "" {
+		return canonical + "#" + revision, nil
+	}
+	return "", fmt.Errorf("the selected client binding source cannot be reconstructed safely")
+}
+
 func requireNonInteractiveMutation(app App, opts *options, action string) error {
-	if app.Terminal || (strings.TrimSpace(opts.target) != "" && opts.yes) {
+	if !automatedMutation(app, opts) || strings.TrimSpace(opts.target) != "" {
 		return nil
 	}
-	return fmt.Errorf("non-interactive %s requires both --target and --yes", action)
+	return fmt.Errorf("automated %s requires --target", action)
+}
+
+// automatedMutation identifies invocations where prompting is unavailable,
+// would break the machine-readable JSON contract, or was explicitly bypassed
+// with the hidden compatibility flag. These flows still require every
+// command-specific selector/target guard.
+func automatedMutation(app App, opts *options) bool {
+	return !app.Terminal || opts.format == "json" || opts.yes
+}
+
+func mutationConfirmed(app App, opts *options) bool {
+	return opts.yes || automatedMutation(app, opts)
 }
 
 func selectBoundClient(
@@ -315,6 +481,7 @@ func selectBoundClient(
 	installation domain.Installation,
 	clients []domain.DetectedClient,
 	requireDetected bool,
+	reader io.Reader,
 ) (domain.DetectedClient, map[domain.ClientID]domain.DetectedClient, error) {
 	detectedMap := make(map[domain.ClientID]domain.DetectedClient, len(clients))
 	for _, client := range clients {
@@ -358,17 +525,23 @@ func selectBoundClient(
 	if !app.Terminal || opts.yes || opts.format == "json" {
 		return domain.DetectedClient{}, detectedMap, fmt.Errorf("plugin has multiple installed targets; choose exactly one with --target")
 	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:")
+	if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:"); err != nil {
+		return domain.DetectedClient{}, detectedMap, err
+	}
 	for index, clientID := range ids {
 		client := detectedMap[clientID]
 		display := client.DisplayName
 		if display == "" {
 			display = string(clientID)
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, display)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, display); err != nil {
+			return domain.DetectedClient{}, detectedMap, err
+		}
 	}
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Choose one target: ")
-	line, readErr := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if _, err := fmt.Fprint(cmd.OutOrStdout(), "Choose one target: "); err != nil {
+		return domain.DetectedClient{}, detectedMap, err
+	}
+	line, readErr := readInputLine(reader)
 	if readErr != nil && readErr != io.EOF {
 		return domain.DetectedClient{}, detectedMap, readErr
 	}
@@ -408,15 +581,14 @@ func renderUpdateResult(writer io.Writer, format string, envelope domain.Package
 			} else {
 				_, _ = fmt.Fprintln(writer, "Package updated. Authentication and client activation are pending.")
 			}
+		} else if result.Activation.Authentication == domain.AuthenticationNotChecked && result.Activation.Activation == domain.ActivationActive {
+			_, _ = fmt.Fprintln(writer, "Package updated and client activation verified. Authentication requirements have not been checked.")
 		} else {
 			_, _ = fmt.Fprintln(writer, "Package updated. Activation is not complete yet.")
 		}
-		for _, action := range result.Activation.UserActions {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
-		for _, action := range result.Activation.LocalActions {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
+	}
+	if action := nextLifecycleAction(result); action != "" && !fullyInstalled(result.Activation) {
+		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil
 }
