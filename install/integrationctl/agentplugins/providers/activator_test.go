@@ -150,19 +150,31 @@ func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
 		body string
 		want codexStatus
 	}{
-		"installed":              {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `]}`, codexStatusInstalled},
-		"empty":                  {`{"installed":[]}`, codexStatusAbsent},
-		"valid unrelated":        {`{"installed":[` + valid("other@managed", "other", marketplace, true, true) + `]}`, codexStatusAbsent},
-		"expected disabled":      {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, false) + `]}`, codexStatusAbsent},
-		"expected not installed": {`{"installed":[` + valid("demo@managed", "demo", marketplace, false, true) + `]}`, codexStatusAbsent},
-		"malformed":              {`{`, codexStatusUnknown},
-		"old shape":              {`{"plugins":[{"name":"demo"}]}`, codexStatusUnknown},
-		"null array":             {`{"installed":null}`, codexStatusUnknown},
-		"arbitrary entry":        {`{"installed":[{"message":"not authenticated"}]}`, codexStatusUnknown},
-		"wrong field type":       {`{"installed":[{"pluginId":7,"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
-		"missing plugin id":      {`{"installed":[{"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
-		"inconsistent identity":  {`{"installed":[` + valid("demo@other", "demo", marketplace, true, true) + `]}`, codexStatusUnknown},
-		"duplicate identity":     {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `,` + valid("demo@managed", "demo", marketplace, false, false) + `]}`, codexStatusUnknown},
+		"installed":               {`{"metadata":{"version":1},"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `]}`, codexStatusInstalled},
+		"empty":                   {`{"installed":[]}`, codexStatusAbsent},
+		"valid unrelated":         {`{"installed":[` + valid("other@managed", "other", marketplace, true, true) + `]}`, codexStatusAbsent},
+		"expected disabled":       {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, false) + `]}`, codexStatusAbsent},
+		"expected not installed":  {`{"installed":[` + valid("demo@managed", "demo", marketplace, false, true) + `]}`, codexStatusAbsent},
+		"malformed":               {`{`, codexStatusUnknown},
+		"old shape":               {`{"plugins":[{"name":"demo"}]}`, codexStatusUnknown},
+		"null array":              {`{"installed":null}`, codexStatusUnknown},
+		"arbitrary entry":         {`{"installed":[{"message":"not authenticated"}]}`, codexStatusUnknown},
+		"wrong field type":        {`{"installed":[{"pluginId":7,"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"wrong name type":         {`{"installed":[{"pluginId":"demo@managed","name":7,"marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"wrong marketplace type":  {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":7,"installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"wrong installed type":    {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":"true","enabled":true}]}`, codexStatusUnknown},
+		"wrong enabled type":      {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":1}]}`, codexStatusUnknown},
+		"missing plugin id":       {`{"installed":[{"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"missing enabled":         {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true}]}`, codexStatusUnknown},
+		"unknown entry field":     {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":true,"status":"active"}]}`, codexStatusUnknown},
+		"enabled case variant":    {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"Enabled":true}]}`, codexStatusUnknown},
+		"duplicate enabled":       {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":true,"enabled":false}]}`, codexStatusUnknown},
+		"duplicate installed":     {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"installed":false,"enabled":true}]}`, codexStatusUnknown},
+		"inconsistent identity":   {`{"installed":[` + valid("demo@other", "demo", marketplace, true, true) + `]}`, codexStatusUnknown},
+		"duplicate identity":      {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `,` + valid("demo@managed", "demo", marketplace, false, false) + `]}`, codexStatusUnknown},
+		"duplicate top installed": {`{"installed":[],"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `]}`, codexStatusUnknown},
+		"top installed variant":   {`{"Installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `]}`, codexStatusUnknown},
+		"ambiguous top installed": {`{"installed":[],"Installed":[]}`, codexStatusUnknown},
 	}
 	for name, test := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -170,6 +182,64 @@ func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
 				t.Fatalf("status = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestKiroVerificationScansUnknownBeforeRecognizedNegative(t *testing.T) {
+	t.Parallel()
+	for _, activationComplete := range []bool{false, true} {
+		t.Run(fmt.Sprintf("activation_complete_%t", activationComplete), func(t *testing.T) {
+			request := activationRequest(t, domain.ClientKiro)
+			request.BackendExecutable = "/test/bin/kiro-cli"
+			request.VerifyOnly = true
+			request.ActivationComplete = activationComplete
+			request.Plan.Components = []domain.ComponentDecision{
+				{Kind: domain.ComponentMCPServer, Name: "unknown-first", Support: domain.SupportNative},
+				{Kind: domain.ComponentMCPServer, Name: "negative-later", Support: domain.SupportNative},
+			}
+			runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+				name := command.Argv[len(command.Argv)-1]
+				if name == "negative-later" {
+					return legacyports.CommandResult{Stdout: []byte(name + ": disconnected")}
+				}
+				return legacyports.CommandResult{Stdout: []byte(name + ": enabled")}
+			}}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err == nil || outcome.Activation != domain.ActivationFailed || !outcome.AuthoritativeObservation {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
+			if outcome.ActivationAttested {
+				t.Fatalf("recognized negative evidence was bypassed by attestation: %+v", outcome)
+			}
+			if len(runner.commands) != 2 {
+				t.Fatalf("verifier calls = %d, want every MCP server", len(runner.commands))
+			}
+		})
+	}
+}
+
+func TestKiroVerificationReturnsUnknownOnlyAfterScanningEveryServer(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.VerifyOnly = true
+	request.Plan.Components = []domain.ComponentDecision{
+		{Kind: domain.ComponentMCPServer, Name: "unknown-first", Support: domain.SupportNative},
+		{Kind: domain.ComponentMCPServer, Name: "healthy-later", Support: domain.SupportNative},
+	}
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		name := command.Argv[len(command.Argv)-1]
+		if name == "healthy-later" {
+			return legacyports.CommandResult{Stdout: []byte(name + ": connected")}
+		}
+		return legacyports.CommandResult{Stdout: []byte(name + ": enabled")}
+	}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil || outcome.Activation != domain.ActivationManual || outcome.AuthoritativeObservation {
+		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+	if len(runner.commands) != 2 {
+		t.Fatalf("verifier calls = %d, want every MCP server", len(runner.commands))
 	}
 }
 

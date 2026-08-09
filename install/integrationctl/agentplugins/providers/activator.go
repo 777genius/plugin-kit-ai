@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -313,22 +314,41 @@ func (activator Activator) activateKiroMCP(ctx context.Context, request domain.A
 }
 
 func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
+	var firstCommandErr error
+	var firstUnknown string
+	var firstUnhealthy string
 	for _, component := range request.Plan.Components {
 		if component.Kind != domain.ComponentMCPServer {
 			continue
 		}
 		status, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "status", "--name", component.Name)
 		if err != nil {
-			return fmt.Errorf("verify Kiro MCP server %s: %w", component.Name, err)
+			if firstCommandErr == nil {
+				firstCommandErr = fmt.Errorf("verify Kiro MCP server %s: %w", component.Name, err)
+			}
+			continue
 		}
 		switch kiroMCPStatus(status.Stdout, component.Name) {
 		case kiroStatusHealthy:
 			continue
 		case kiroStatusUnhealthy:
-			return fmt.Errorf("%w: verify Kiro MCP server %s: server is not connected", errRecognizedNegativeEvidence, component.Name)
+			if firstUnhealthy == "" {
+				firstUnhealthy = component.Name
+			}
 		default:
-			return fmt.Errorf("%w for server %s", errKiroStatusContractUnknown, component.Name)
+			if firstUnknown == "" {
+				firstUnknown = component.Name
+			}
 		}
+	}
+	if firstUnhealthy != "" {
+		return fmt.Errorf("%w: verify Kiro MCP server %s: server is not connected", errRecognizedNegativeEvidence, firstUnhealthy)
+	}
+	if firstCommandErr != nil {
+		return firstCommandErr
+	}
+	if firstUnknown != "" {
+		return fmt.Errorf("%w for server %s", errKiroStatusContractUnknown, firstUnknown)
 	}
 	return nil
 }
@@ -408,48 +428,126 @@ const (
 var errCodexListContractUnknown = errors.New("Codex plugin list output is not recognized")
 
 func codexPluginStatus(body []byte, name, marketplace string) codexStatus {
-	var document map[string]json.RawMessage
-	if len(body) == 0 || json.Unmarshal(body, &document) != nil {
+	if len(body) == 0 {
 		return codexStatusUnknown
 	}
-	rawInstalled, ok := document["installed"]
-	if !ok || string(rawInstalled) == "null" {
+	decoder := json.NewDecoder(strings.NewReader(string(body)))
+	decoder.UseNumber()
+	parsed, err := decodeUniqueJSONValue(decoder)
+	if err != nil {
 		return codexStatusUnknown
 	}
-	type installedEntry struct {
-		PluginID        *string `json:"pluginId"`
-		Name            *string `json:"name"`
-		MarketplaceName *string `json:"marketplaceName"`
-		Installed       *bool   `json:"installed"`
-		Enabled         *bool   `json:"enabled"`
+	if _, tokenErr := decoder.Token(); tokenErr == nil || !errors.Is(tokenErr, io.EOF) {
+		return codexStatusUnknown
 	}
-	var entries []installedEntry
-	if json.Unmarshal(rawInstalled, &entries) != nil {
+	document, ok := parsed.(map[string]any)
+	if !ok {
+		return codexStatusUnknown
+	}
+	installedValue, ok := document["installed"]
+	if !ok {
+		return codexStatusUnknown
+	}
+	entries, ok := installedValue.([]any)
+	if !ok {
 		return codexStatusUnknown
 	}
 	expectedID := name + "@" + marketplace
 	identities := make(map[string]struct{}, len(entries))
 	foundExpected := false
 	expectedActive := false
-	for _, entry := range entries {
-		if entry.PluginID == nil || entry.Name == nil || entry.MarketplaceName == nil || entry.Installed == nil || entry.Enabled == nil ||
-			*entry.PluginID == "" || *entry.Name == "" || *entry.MarketplaceName == "" ||
-			*entry.PluginID != *entry.Name+"@"+*entry.MarketplaceName {
+	required := []string{"pluginId", "name", "marketplaceName", "installed", "enabled"}
+	for _, value := range entries {
+		entry, ok := value.(map[string]any)
+		if !ok || len(entry) != len(required) {
 			return codexStatusUnknown
 		}
-		if _, duplicate := identities[*entry.PluginID]; duplicate {
+		for _, field := range required {
+			if _, present := entry[field]; !present {
+				return codexStatusUnknown
+			}
+		}
+		pluginID, pluginIDOK := entry["pluginId"].(string)
+		entryName, nameOK := entry["name"].(string)
+		marketplaceName, marketplaceOK := entry["marketplaceName"].(string)
+		installed, installedOK := entry["installed"].(bool)
+		enabled, enabledOK := entry["enabled"].(bool)
+		if !pluginIDOK || !nameOK || !marketplaceOK || !installedOK || !enabledOK ||
+			pluginID == "" || entryName == "" || marketplaceName == "" ||
+			pluginID != entryName+"@"+marketplaceName {
 			return codexStatusUnknown
 		}
-		identities[*entry.PluginID] = struct{}{}
-		if *entry.PluginID == expectedID {
+		if _, duplicate := identities[pluginID]; duplicate {
+			return codexStatusUnknown
+		}
+		identities[pluginID] = struct{}{}
+		if pluginID == expectedID {
 			foundExpected = true
-			expectedActive = *entry.Installed && *entry.Enabled
+			expectedActive = installed && enabled
 		}
 	}
 	if foundExpected && expectedActive {
 		return codexStatusInstalled
 	}
 	return codexStatusAbsent
+}
+
+func decodeUniqueJSONValue(decoder *json.Decoder) (any, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, err
+	}
+	delimiter, isDelimiter := token.(json.Delim)
+	if !isDelimiter {
+		return token, nil
+	}
+	switch delimiter {
+	case '{':
+		object := make(map[string]any)
+		var keys []string
+		for decoder.More() {
+			keyToken, keyErr := decoder.Token()
+			if keyErr != nil {
+				return nil, keyErr
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return nil, fmt.Errorf("JSON object key is not a string")
+			}
+			for _, prior := range keys {
+				if strings.EqualFold(prior, key) {
+					return nil, fmt.Errorf("duplicate or case-ambiguous JSON object key %q", key)
+				}
+			}
+			keys = append(keys, key)
+			value, valueErr := decodeUniqueJSONValue(decoder)
+			if valueErr != nil {
+				return nil, valueErr
+			}
+			object[key] = value
+		}
+		closing, closingErr := decoder.Token()
+		if closingErr != nil || closing != json.Delim('}') {
+			return nil, fmt.Errorf("invalid JSON object")
+		}
+		return object, nil
+	case '[':
+		var array []any
+		for decoder.More() {
+			value, valueErr := decodeUniqueJSONValue(decoder)
+			if valueErr != nil {
+				return nil, valueErr
+			}
+			array = append(array, value)
+		}
+		closing, closingErr := decoder.Token()
+		if closingErr != nil || closing != json.Delim(']') {
+			return nil, fmt.Errorf("invalid JSON array")
+		}
+		return array, nil
+	default:
+		return nil, fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+	}
 }
 
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)

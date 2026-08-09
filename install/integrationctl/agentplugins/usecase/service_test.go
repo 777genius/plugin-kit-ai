@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -521,6 +522,65 @@ func TestPlanFirstAuthoritativePersistenceIsSurroundedByMutationLock(t *testing.
 	}
 	if binding := onlyBinding(persisted.Installations[0]); binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
 		t.Fatalf("authoritative observation was not persisted: %+v", binding)
+	}
+}
+
+func TestPlanFirstAuthoritativePersistenceRejectsStaleObservedBinding(t *testing.T) {
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	input := addInput(t, client, "https://example.com/stale-authoritative-observation")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+
+	var held atomic.Bool
+	var newer domain.ClientBinding
+	lock := &trackingMutationLock{held: &held, onAcquire: func() error {
+		latest, loadErr := store.Load()
+		if loadErr != nil {
+			return loadErr
+		}
+		for key, binding := range latest.Installations[0].Clients {
+			binding.PackageRevision.ResolvedRevision = "newer-revision"
+			binding.UpdatedAt = "2026-08-09T12:00:00Z"
+			latest.Installations[0].Clients[key] = binding
+			newer = binding
+		}
+		return store.Save(latest)
+	}}
+	service.StateStore = lockAssertingStore{StateStore: store, held: &held}
+	service.Lock = lock
+	service.Activator = providers.Activator{Runner: fixedUsecaseRunner{result: legacyports.CommandResult{Stdout: []byte(`{"installed":[]}`)}}}
+	input.Confirmed = false
+	input.PersistAuthoritativeObservations = true
+	input.BackendExecutable = "/test/bin/codex"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || !strings.Contains(err.Error(), "stale client binding observation") || !strings.Contains(err.Error(), "retry") {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if result.Mutated {
+		t.Fatalf("stale observation reported a mutation: %+v", result)
+	}
+	persisted, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if got := onlyBinding(persisted.Installations[0]); !reflect.DeepEqual(got, newer) {
+		t.Fatalf("newer binding was overwritten\n got: %+v\nwant: %+v", got, newer)
 	}
 }
 
@@ -1392,12 +1452,19 @@ func (runner fixedUsecaseRunner) Run(context.Context, legacyports.Command) (lega
 type trackingMutationLock struct {
 	held         *atomic.Bool
 	acquisitions int
+	onAcquire    func() error
 }
 
 func (lock *trackingMutationLock) Acquire(context.Context) (ports.UnlockFunc, error) {
 	lock.acquisitions++
 	if !lock.held.CompareAndSwap(false, true) {
 		return nil, fmt.Errorf("mutation lock acquired twice")
+	}
+	if lock.onAcquire != nil {
+		if err := lock.onAcquire(); err != nil {
+			lock.held.Store(false)
+			return nil, err
+		}
 	}
 	return func() error {
 		if !lock.held.CompareAndSwap(true, false) {

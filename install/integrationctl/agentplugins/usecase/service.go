@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -153,7 +154,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			if verifyErr != nil {
 				if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
 					result.Activation = verified
-					changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, verified)
+					changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, current, verified)
 					result.Mutated = changed
 					if updateErr != nil {
 						return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
@@ -185,7 +186,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 				if verifyErr != nil {
 					if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
 						result.Activation = verified
-						changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, verified)
+						changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, previousClient, verified)
 						result.Mutated = changed
 						if updateErr != nil {
 							return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
@@ -392,7 +393,7 @@ func (service Service) persistObservedLifecycle(input AddInput, result AddResult
 	return result, err
 }
 
-func (service Service) persistAuthoritativeObservation(ctx context.Context, input AddInput, installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
+func (service Service) persistAuthoritativeObservation(ctx context.Context, input AddInput, installationID, clientBindingID string, observed domain.ClientBinding, outcome domain.ActivationOutcome) (bool, error) {
 	if input.Confirmed {
 		return service.updateLifecycle(installationID, clientBindingID, outcome)
 	}
@@ -401,7 +402,21 @@ func (service Service) persistAuthoritativeObservation(ctx context.Context, inpu
 		return false, err
 	}
 	defer func() { _ = release() }()
-	return service.updateLifecycle(installationID, clientBindingID, outcome)
+	state, err := service.StateStore.Load()
+	if err != nil {
+		return false, err
+	}
+	for _, installation := range state.Installations {
+		if installation.InstallationID != installationID {
+			continue
+		}
+		latest, ok := installation.Clients[clientBindingID]
+		if !ok || !reflect.DeepEqual(latest, observed) {
+			return false, fmt.Errorf("stale client binding observation; state changed before negative evidence could be persisted, retry the command")
+		}
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	return false, fmt.Errorf("stale client binding observation; installation changed before negative evidence could be persisted, retry the command")
 }
 
 func openAIOAuthApplies(clientID domain.ClientID, envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
