@@ -45,11 +45,14 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseDraftJob, "existing draft asset differs from the frozen build")
 	mustContain(t, releaseDraftJob, "gh api graphql")
 	mustContain(t, releaseDraftJob, ".data.repository.release")
+	mustContain(t, releaseDraftJob, "Share frozen draft assets with the read-only proof workflow")
+	mustContain(t, releaseDraftJob, "assets_artifact=agentplugins-draft-assets-${FROZEN_COMMIT}")
 	mustNotContain(t, releaseDraftJob, "target_commitish")
 	mustContain(t, releaseProofJob, "needs: [validate, stage-draft]")
-	mustContain(t, releaseProofJob, "contents: write")
+	mustContain(t, releaseProofJob, "contents: read")
 	mustContain(t, releaseProofJob, "require_draft: true")
 	mustContain(t, releaseProofJob, "expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}")
+	mustContain(t, releaseProofJob, "release_assets_artifact: ${{ needs.stage-draft.outputs.assets_artifact }}")
 	mustContain(t, releasePromoteJob, "needs: [validate, stage-draft, platform-proof]")
 	mustContain(t, releasePromoteJob, "EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}")
 	mustContain(t, releasePromoteJob, "gh release edit \"${TAG}\"")
@@ -118,8 +121,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
-		`run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json`,
-		`run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`,
+		`run_agentplugins add "${synthetic}" --target cursor --format json > add.json`,
+		`run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`,
 		`.data.result.activation.authentication == "not_checked"`,
 		`.data.result.activation.activation_attested == true`,
 		`.data.result.activation.authentication_attested == true`,
@@ -144,14 +147,15 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmVerifyJob, "environment: npm-agentplugins")
 	mustNotContain(t, npmVerifyJob, "id-token: write")
 	mustNotContain(t, npmVerifyJob, "platform-proof")
+	mustNotContain(t, npmVerifyJob, "--target cursor --yes")
 	mustAppearBefore(t, npmVerifyJob, "Resolve immutable verification target", `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`)
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --yes --format json > update.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json`)
 
 	for _, want := range []string{
 		"workflow_call:",
@@ -170,7 +174,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"platform-proof.js",
 		"verified-release.json",
 		"Aggregate all six native platform proofs",
-		"platform proof requires the exact release to remain a non-public draft",
+		"draft proof requires caller-staged release assets",
+		"Download caller-staged draft assets",
 		".isDraft == false and .isPrerelease == false and .tagName == $tag",
 		`git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`,
 		`git -C release-source rev-list -n 1 "refs/tags/${TAG}"`,
@@ -178,8 +183,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, platformWorkflow, want)
 	}
 	for _, want := range []string{
-		"contents: write",
+		"contents: read",
 		"attestations: read",
+		"caller-staged assets are only valid for draft proof",
 		`[[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]`,
 		`if [[ "${commit}" != "${EXPECTED_COMMIT}" ]]`,
 		"release tag commit does not match the caller's frozen commit",

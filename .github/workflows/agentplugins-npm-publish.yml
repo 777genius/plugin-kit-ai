@@ -272,9 +272,9 @@ jobs:
             npm exec --yes --package="${NPM_PACKAGE}@${version}" -- agentplugins "$@"
           }
           run_agentplugins version | grep -Fx "agentplugins ${version}"
-          run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json
+          run_agentplugins add "${synthetic}" --target cursor --format json > add.json
           jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.authentication == "not_checked"' add.json
-          run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json
+          run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json
           jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.activation_attested == true and .data.result.activation.authentication_attested == true' complete.json
           run_agentplugins info registry-proof-synthetic --format json > info.json
           jq -e '.schema_version == 1 and .command == "info" and .data.name == "registry-proof-synthetic"' info.json
@@ -283,9 +283,9 @@ jobs:
           state_after_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
           test "${state_before_doctor}" = "${state_after_doctor}"
           jq -e '.schema_version == 1 and .command == "doctor" and .data.read_only == true' doctor.json
-          run_agentplugins update registry-proof-synthetic --target cursor --yes --format json > update.json
+          run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json
           jq -e '.schema_version == 1 and .command == "update" and .data.result.no_change == true and .data.result.mutated == false' update.json
-          run_agentplugins remove registry-proof-synthetic --target cursor --yes --format json > remove.json
+          run_agentplugins remove registry-proof-synthetic --target cursor --format json > remove.json
           jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
           run_agentplugins info registry-proof-synthetic --format json > removed.json
           jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json

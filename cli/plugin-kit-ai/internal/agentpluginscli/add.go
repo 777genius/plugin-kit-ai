@@ -46,12 +46,12 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
+	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) == "" {
+		return fmt.Errorf("automated installation requires --target")
+	}
 	selected, detectedMap, err := selectClient(cmd, app, opts, clients)
 	if err != nil {
 		return err
-	}
-	if !opts.dryRun && !app.Terminal && (strings.TrimSpace(opts.target) == "" || !opts.yes) {
-		return fmt.Errorf("non-interactive installation requires both --target and --yes")
 	}
 	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detectedMap}
 	service := usecase.Service{
@@ -89,7 +89,7 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 		}
 		return resumeInteractiveLifecycle(ctx, cmd, service, input, loaded.envelope, planned)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		prompt := "Apply this plan? [y/N]"
 		if !freshInstall {

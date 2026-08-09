@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestNewOSDoesNotProbeRelativeLocalApplicationsWithoutHome(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	detector := NewOS("")
 	for _, directory := range detector.LinuxApplicationDirs {
-		if directory == filepath.Join(".local", "share", "applications") || !filepath.IsAbs(directory) {
+		if directory == path.Join(".local", "share", "applications") || !path.IsAbs(directory) {
 			t.Fatalf("NewOS configured unsafe relative application probe %q", directory)
 		}
 	}

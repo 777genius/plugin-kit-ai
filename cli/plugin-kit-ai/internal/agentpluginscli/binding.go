@@ -50,9 +50,6 @@ func runBindingChange(
 	selector, source string,
 ) error {
 	commandName := bindingCommandName(mode)
-	if !opts.dryRun && !app.Terminal && !opts.yes {
-		return fmt.Errorf("non-interactive %s requires --yes", commandName)
-	}
 	writeProgress(app, opts.format, "Resolving and validating the proposed Agent Plugin binding...")
 	loaded, err := app.loadPackage(ctx, source)
 	if err != nil {
@@ -83,7 +80,7 @@ func runBindingChange(
 	if opts.format == "human" {
 		renderHumanBindingPlan(cmd.OutOrStdout(), planned.Plan)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Apply this binding change? [y/N]")
 		if err != nil {

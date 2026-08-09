@@ -35,13 +35,10 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if opts.dryRun {
 		return renderStateMigration(cmd.OutOrStdout(), opts.format, plan, statemigration.Report{}, true)
 	}
-	if !app.Terminal && !opts.yes {
-		return fmt.Errorf("non-interactive state migration requires --yes")
-	}
 	if opts.format == "human" {
 		renderStateMigrationPlan(cmd.OutOrStdout(), plan)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Create a backup and migrate this state? [y/N]")
 		if err != nil {

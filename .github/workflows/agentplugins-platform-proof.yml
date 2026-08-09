@@ -25,6 +25,10 @@ on:
         description: Optional SHA-256 of checksums.txt frozen by the draft staging job
         required: false
         type: string
+      release_assets_artifact:
+        description: Same-run artifact containing caller-staged draft assets
+        required: false
+        type: string
   workflow_call:
     inputs:
       tag:
@@ -47,6 +51,11 @@ on:
         type: boolean
       expected_asset_set_digest:
         description: Optional SHA-256 of checksums.txt frozen by the calling workflow
+        required: false
+        default: ""
+        type: string
+      release_assets_artifact:
+        description: Same-run artifact containing caller-staged draft assets
         required: false
         default: ""
         type: string
@@ -79,9 +88,7 @@ jobs:
     name: Verify release and pack exact npm tarball
     runs-on: ubuntu-24.04
     permissions:
-      # GitHub only exposes draft releases and their assets to tokens with push
-      # access; scope that elevated contents permission to this job alone.
-      contents: write
+      contents: read
       attestations: read
     outputs:
       commit: ${{ steps.prepare.outputs.commit }}
@@ -107,6 +114,12 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
+      - name: Download caller-staged draft assets
+        if: ${{ inputs.release_assets_artifact != '' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ inputs.release_assets_artifact }}
+          path: ${{ runner.temp }}/agentplugins-release-assets
       - name: Verify immutable release identity, assets, and attestations
         id: prepare
         env:
@@ -116,6 +129,7 @@ jobs:
           ALLOW_LEGACY: ${{ inputs.allow_legacy_manifest }}
           REQUIRE_DRAFT: ${{ inputs.require_draft }}
           EXPECTED_ASSET_SET_DIGEST: ${{ inputs.expected_asset_set_digest }}
+          RELEASE_ASSETS_ARTIFACT: ${{ inputs.release_assets_artifact }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
@@ -136,32 +150,31 @@ jobs:
           version="${TAG#agentplugins-v}"
           assets="${RUNNER_TEMP}/agentplugins-release-${version}"
           mkdir -p "${assets}"
-          owner="${GITHUB_REPOSITORY%%/*}"
-          repository="${GITHUB_REPOSITORY#*/}"
-          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
-          release_json="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
-            echo "failed to look up release ${TAG}" >&2
-            exit 1
-          }
-          release_json="$(jq -c '.data.repository.release' <<<"${release_json}")"
-          if [[ "${release_json}" = "null" ]]; then
-            echo "release ${TAG} was not found" >&2
-            exit 1
-          fi
-          if [[ "${REQUIRE_DRAFT}" = "true" ]]; then
-            jq -e --arg tag "${TAG}" \
-              '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
-              <<<"${release_json}" >/dev/null || {
-                echo "platform proof requires the exact release to remain a non-public draft" >&2
-                exit 1
-              }
+          if [[ -n "${RELEASE_ASSETS_ARTIFACT}" ]]; then
+            if [[ "${REQUIRE_DRAFT}" != "true" ]]; then
+              echo "caller-staged assets are only valid for draft proof" >&2
+              exit 1
+            fi
+            cp -R "${RUNNER_TEMP}/agentplugins-release-assets/." "${assets}/"
           else
+            if [[ "${REQUIRE_DRAFT}" = "true" ]]; then
+              echo "draft proof requires caller-staged release assets" >&2
+              exit 1
+            fi
+            owner="${GITHUB_REPOSITORY%%/*}"
+            repository="${GITHUB_REPOSITORY#*/}"
+            release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+            release_json="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+              echo "failed to look up release ${TAG}" >&2
+              exit 1
+            }
+            release_json="$(jq -c '.data.repository.release' <<<"${release_json}")"
             jq -e --arg tag "${TAG}" '.isDraft == false and .isPrerelease == false and .tagName == $tag' <<<"${release_json}" >/dev/null || {
               echo "platform proof requires an existing public release" >&2
               exit 1
             }
+            gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${assets}"
           fi
-          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${assets}"
           if [[ -n "${EXPECTED_ASSET_SET_DIGEST}" ]]; then
             [[ "${EXPECTED_ASSET_SET_DIGEST}" =~ ^[0-9a-f]{64}$ ]] || {
               echo "invalid expected release asset-set digest" >&2

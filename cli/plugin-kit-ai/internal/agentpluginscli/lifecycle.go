@@ -95,7 +95,7 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if opts.dryRun || planned.NoChange {
 		return renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, opts.dryRun)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(stdin, cmd.OutOrStdout(), "Repair the managed package and its recorded verification state? [y/N]")
 		if err != nil {
@@ -202,7 +202,7 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 			return err
 		}
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Apply this update? [y/N]")
 		if err != nil {
@@ -291,7 +291,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Target: %s\n", selected.ClientID)
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Result: managed package and its lifecycle binding will be removed")
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Remove this target? [y/N]")
 		if err != nil {
@@ -321,8 +321,8 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if target := strings.TrimSpace(opts.target); target != "" && target != "legacy-all" {
 		return fmt.Errorf("legacy removal is integration-wide; use --target legacy-all after reviewing every target")
 	}
-	if !opts.dryRun && !app.Terminal && (opts.target != "legacy-all" || !opts.yes) {
-		return fmt.Errorf("non-interactive legacy removal requires --target legacy-all and --yes")
+	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) != "legacy-all" {
+		return fmt.Errorf("automated legacy removal requires --target legacy-all")
 	}
 	service := usecase.Service{
 		StateStore: app.StateStore, Legacy: app.LegacyLifecycle, LegacyLock: app.LegacyStateLock, Lock: app.MutationLock,
@@ -339,7 +339,7 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if opts.format == "human" {
 		renderLegacyRemovePlan(cmd.OutOrStdout(), planned)
 	}
-	confirmed := opts.yes
+	confirmed := mutationConfirmed(app, opts)
 	if !confirmed && opts.format == "human" && app.Terminal {
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Remove every legacy target listed above? [y/N]")
 		if err != nil {
@@ -456,10 +456,22 @@ func repairSource(installation domain.Installation, binding domain.ClientBinding
 }
 
 func requireNonInteractiveMutation(app App, opts *options, action string) error {
-	if app.Terminal || (strings.TrimSpace(opts.target) != "" && opts.yes) {
+	if !automatedMutation(app, opts) || strings.TrimSpace(opts.target) != "" {
 		return nil
 	}
-	return fmt.Errorf("non-interactive %s requires both --target and --yes", action)
+	return fmt.Errorf("automated %s requires --target", action)
+}
+
+// automatedMutation identifies invocations where prompting is unavailable or
+// would break the machine-readable JSON contract. These flows still require
+// every command-specific selector/target guard, but an explicit --yes is not
+// part of the public UX contract.
+func automatedMutation(app App, opts *options) bool {
+	return !app.Terminal || opts.format == "json"
+}
+
+func mutationConfirmed(app App, opts *options) bool {
+	return opts.yes || automatedMutation(app, opts)
 }
 
 func selectBoundClient(

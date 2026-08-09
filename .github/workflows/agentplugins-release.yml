@@ -159,6 +159,7 @@ jobs:
     environment: agentplugins-release
     outputs:
       asset_set_digest: ${{ steps.draft.outputs.asset_set_digest }}
+      assets_artifact: ${{ steps.draft.outputs.assets_artifact }}
     permissions:
       contents: write
       id-token: write
@@ -190,6 +191,7 @@ jobs:
           node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
             verify "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
           echo "asset_set_digest=$(sha256sum checksums.txt | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
+          echo "assets_artifact=agentplugins-draft-assets-${FROZEN_COMMIT}" >> "${GITHUB_OUTPUT}"
           owner="${GITHUB_REPOSITORY%%/*}"
           repository="${GITHUB_REPOSITORY#*/}"
           release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
@@ -248,13 +250,22 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" --verify-tag \
             --target "${{ needs.validate.outputs.commit }}" --draft \
             --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes
+      - name: Share frozen draft assets with the read-only proof workflow
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: ${{ steps.draft.outputs.assets_artifact }}
+          path: |
+            ${{ runner.temp }}/agentplugins-assets/agentplugins_*
+            ${{ runner.temp }}/agentplugins-assets/checksums.txt
+            ${{ runner.temp }}/agentplugins-assets/release-manifest.json
+          if-no-files-found: error
+          retention-days: 7
 
   platform-proof:
     needs: [validate, stage-draft]
     uses: ./.github/workflows/agentplugins-platform-proof.yml
     permissions:
-      # Draft release assets require push-level repository access.
-      contents: write
+      contents: read
       attestations: read
     with:
       tag: ${{ inputs.tag }}
@@ -262,6 +273,7 @@ jobs:
       allow_legacy_manifest: false
       require_draft: true
       expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}
+      release_assets_artifact: ${{ needs.stage-draft.outputs.assets_artifact }}
 
   promote-release:
     needs: [validate, stage-draft, platform-proof]
