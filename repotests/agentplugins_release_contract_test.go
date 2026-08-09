@@ -128,6 +128,18 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 }
 
+func TestAgentpluginsReadmesUseUnversionedNpxExamples(t *testing.T) {
+	root := RepoRoot(t)
+	for _, path := range [][]string{
+		{"README.md"},
+		{"npm", "agentplugins", "README.md"},
+	} {
+		readme := readRepoFile(t, root, path...)
+		mustContain(t, readme, "npx universal-agent-plugins add context7")
+		mustNotContain(t, readme, "npx universal-agent-plugins@")
+	}
+}
+
 func mustAppearBefore(t *testing.T, text, first, second string) {
 	t.Helper()
 	firstIndex := strings.Index(text, first)
