@@ -67,13 +67,16 @@ def prepare_client(
         "codex": (home / ".codex",),
         "cursor": (home / ".cursor",),
         "copilot": (home / ".copilot",),
-        "vscode": (
-            vscode_detection_root(home, environment, platform_name or sys.platform),
-        ),
         "kiro": (home / ".kiro",),
     }
-    prepared = roots[target]
+    prepared = (
+        (vscode_detection_root(home, environment, platform_name or sys.platform),)
+        if target == "vscode"
+        else roots[target]
+    )
     for root in prepared:
+        if root.is_symlink():
+            raise RuntimeError(f"{target}: client detection root is not a real directory")
         root.mkdir(parents=True, exist_ok=True)
         if not root.is_dir() or root.is_symlink():
             raise RuntimeError(f"{target}: client detection root is not a real directory")

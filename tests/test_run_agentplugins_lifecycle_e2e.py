@@ -244,6 +244,45 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
             )
             self.assertFalse((sandbox / "appdata" / "Code").exists())
 
+    def test_non_vscode_client_does_not_require_vscode_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+
+            roots = hero_e2e.prepare_client(home, "codex", {})
+
+            self.assertEqual(roots, (home / ".codex",))
+            self.assertTrue(roots[0].is_dir())
+
+    def test_vscode_rejects_detection_root_symlink_without_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp) / "sandbox"
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            sentinel = outside / "sentinel.txt"
+            sentinel.write_text("unchanged")
+            environment = {
+                "XDG_CONFIG_HOME": str(sandbox / "config"),
+                "APPDATA": str(sandbox / "appdata"),
+            }
+            selected = sandbox / "config" / "Code" / "User"
+            selected.parent.mkdir(parents=True)
+            selected.symlink_to(outside, target_is_directory=True)
+            before = sorted(path.name for path in outside.iterdir())
+
+            with self.assertRaisesRegex(
+                RuntimeError, "vscode: client detection root is not a real directory"
+            ):
+                hero_e2e.prepare_client(
+                    sandbox / "home",
+                    "vscode",
+                    environment,
+                    platform_name="linux",
+                )
+
+            self.assertTrue(selected.is_symlink())
+            self.assertEqual(sorted(path.name for path in outside.iterdir()), before)
+            self.assertEqual(sentinel.read_text(), "unchanged")
+
     def test_projection_environment_does_not_inherit_windows_appdata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(
             os.environ,
