@@ -11,6 +11,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
 	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
+	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
+	npmPlatformProofJob := yamlJob(t, npmWorkflow, "platform-proof")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
@@ -56,6 +58,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, releaseWorkflow, name)
 	}
 
+	mustContain(t, npmReleaseIdentityJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"`)
+	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "${TAG}")"`)
+	mustContain(t, npmPlatformProofJob, "needs: release-identity")
+	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
 	for _, want := range []string{
 		"needs: [release-identity, platform-proof]",
 		"if: ${{ !inputs.verify_only }}",
@@ -72,7 +80,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, npmPublishJob, want)
 	}
 	for _, want := range []string{
-		"needs: [publish, platform-proof]",
+		"needs: publish",
 		"always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success')",
 		`ref: ${{ inputs.tag }}`,
 		"Resolve immutable verification target",
@@ -103,6 +111,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, npmVerifyJob, "npm publish --access public --tag latest --provenance")
 	mustNotContain(t, npmVerifyJob, "environment: npm-agentplugins")
 	mustNotContain(t, npmVerifyJob, "id-token: write")
+	mustNotContain(t, npmVerifyJob, "platform-proof")
 	mustAppearBefore(t, npmVerifyJob, "Resolve immutable verification target", `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@${version}" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm view --prefer-online "${NPM_PACKAGE}@latest" version`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
@@ -151,6 +160,11 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"`latest` dist-tag resolves to the exact published version",
 		"returned to `false` immediately after the publish",
 		"dispatched with `verify_only=true`",
+		"historical tag after publication",
+		"skips release identity",
+		"schema-v2 six-platform proof",
+		"not require the tag to point to current `main`",
+		"public registry, provenance, and isolated",
 	} {
 		mustContain(t, runbook, want)
 	}

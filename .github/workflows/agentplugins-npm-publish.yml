@@ -17,6 +17,7 @@ permissions:
 
 jobs:
   release-identity:
+    if: ${{ !inputs.verify_only }}
     runs-on: ubuntu-24.04
     outputs:
       commit: ${{ steps.identity.outputs.commit }}
@@ -43,6 +44,7 @@ jobs:
 
   platform-proof:
     needs: release-identity
+    if: ${{ !inputs.verify_only }}
     uses: ./.github/workflows/agentplugins-platform-proof.yml
     permissions:
       contents: read
@@ -172,7 +174,7 @@ jobs:
         run: npm publish --access public --tag latest --provenance "${TARBALL}"
 
   verify:
-    needs: [publish, platform-proof]
+    needs: publish
     if: ${{ always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

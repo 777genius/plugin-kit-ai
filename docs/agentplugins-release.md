@@ -75,9 +75,11 @@ and that JSON output contains no absolute runner paths. It runs as a separate
 job after publication, waits up to five minutes with online metadata refreshes,
 and can be retried without attempting to republish an immutable npm version.
 The same workflow can be dispatched with `verify_only=true` and the existing
-tag after publication. That mode skips the protected publish job entirely,
-does not require opening the publish-ready gate, and only runs the public
-registry and isolated lifecycle verification.
+historical tag after publication. That mode skips release identity,
+schema-v2 six-platform proof, and the protected publish job entirely; it does
+not require the tag to point to current `main` or require opening the
+publish-ready gate, and only runs public registry, provenance, and isolated
+lifecycle verification.
 
 Never publish an empty placeholder, reuse a tag, overwrite release assets, or
 resolve a binary through an unpinned GitHub `latest` release.
