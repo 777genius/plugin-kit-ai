@@ -69,8 +69,8 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if err != nil {
 		return err
 	}
-	if opts.dryRun {
-		return renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, true)
+	if opts.dryRun || planned.NoChange {
+		return renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun)
 	}
 	if opts.format == "human" {
 		if err := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); err != nil {
@@ -151,7 +151,7 @@ func selectClient(
 
 func normalizeTarget(value string) domain.ClientID {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "chatgpt", "openai", "codex":
+	case "openai", "codex":
 		return domain.ClientCodex
 	case "cursor":
 		return domain.ClientCursor
@@ -192,10 +192,10 @@ func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result u
 		_, _ = fmt.Fprintf(writer, "  - %s %s: %s\n", component.Kind, component.Name, component.Support)
 	}
 	for _, action := range result.Plan.UserActions {
-		_, _ = fmt.Fprintf(writer, "  Next: %s\n", action)
+		_, _ = fmt.Fprintf(writer, "  Planned action: %s\n", action)
 	}
 	for _, action := range result.Plan.LocalActions {
-		_, _ = fmt.Fprintf(writer, "  Next: %s\n", action)
+		_, _ = fmt.Fprintf(writer, "  Planned action: %s\n", action)
 	}
 	return nil
 }
@@ -213,6 +213,10 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 	if dryRun {
 		return renderHumanPlan(writer, envelope, result)
 	}
+	if result.NoChange {
+		_, _ = fmt.Fprintln(writer, "Already installed and lifecycle verification is complete. No changes made.")
+		return nil
+	}
 	if result.Mutated && fullyInstalled(result.Activation) {
 		_, _ = fmt.Fprintln(writer, "Installed and verified for the selected client.")
 		return nil
@@ -227,14 +231,30 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 		} else {
 			_, _ = fmt.Fprintln(writer, "Package prepared. Activation is not complete yet.")
 		}
-		for _, action := range result.Activation.UserActions {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
-		for _, action := range result.Activation.LocalActions {
+		if action := nextLifecycleAction(result); action != "" {
 			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 		}
 	}
 	return nil
+}
+
+func nextLifecycleAction(result usecase.AddResult) string {
+	action := ""
+	if len(result.Activation.LocalActions) > 0 {
+		action = result.Activation.LocalActions[0]
+	} else if len(result.Activation.UserActions) > 0 {
+		action = result.Activation.UserActions[0]
+	}
+	if result.Activation.Authentication == domain.AuthenticationPending {
+		if action != "" {
+			return fmt.Sprintf("%s; complete authentication, then rerun add to verify activation and authentication", action)
+		}
+		return fmt.Sprintf("complete authentication for the prepared package at %s, then rerun add to verify activation and authentication", result.Plan.ActivePath)
+	}
+	if action != "" {
+		return action
+	}
+	return "start a new client session and verify the plugin is available"
 }
 
 func fullyInstalled(outcome domain.ActivationOutcome) bool {

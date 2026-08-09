@@ -136,6 +136,39 @@ func TestHumanCodexFlowNeverClaimsPreparedPackageIsInstalled(t *testing.T) {
 	if !strings.Contains(stdout, "Package prepared") || strings.Contains(stdout, "Installed and verified") {
 		t.Fatalf("human output overclaimed activation: %s", stdout)
 	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, fixture.root) || !strings.Contains(stdout, "verify") {
+		t.Fatalf("human output must contain one path-bearing verification step: %s", stdout)
+	}
+}
+
+func TestRepeatedAddResumesManualLifecycleWithoutAnotherReceipt(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, "verify") || !strings.Contains(stdout, "plugins/local") {
+		t.Fatalf("resume output = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipts := onlyCLIClient(state.Installations[0]).Receipts; len(receipts) != 1 {
+		t.Fatalf("resume created another materialization receipt: %+v", receipts)
+	}
+}
+
+func TestChatGPTTargetIsNotAliasedToCodexCLI(t *testing.T) {
+	t.Parallel()
+	if got := normalizeTarget("chatgpt"); got == domain.ClientCodex {
+		t.Fatalf("ChatGPT GUI target was aliased to Codex CLI: %s", got)
+	}
 }
 
 func TestHumanOutputNeverCallsAuthPendingPackageInstalled(t *testing.T) {

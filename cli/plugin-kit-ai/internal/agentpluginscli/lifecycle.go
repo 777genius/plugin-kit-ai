@@ -411,10 +411,7 @@ func renderUpdateResult(writer io.Writer, format string, envelope domain.Package
 		} else {
 			_, _ = fmt.Fprintln(writer, "Package updated. Activation is not complete yet.")
 		}
-		for _, action := range result.Activation.UserActions {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
-		for _, action := range result.Activation.LocalActions {
+		if action := nextLifecycleAction(result); action != "" {
 			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 		}
 	}

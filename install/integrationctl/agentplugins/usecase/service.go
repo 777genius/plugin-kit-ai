@@ -131,7 +131,15 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	}
 	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
 	if isMaterialized && !replace {
-		return result, fmt.Errorf("plugin is already materialized for %s; use update", input.Client.ClientID)
+		current := state.Installations[installationIndex].Clients[clientBindingID]
+		if !packageRevisionMatches(current.PackageRevision, input.Envelope) {
+			return result, fmt.Errorf("plugin is already materialized for %s at a different revision; use update", input.Client.ClientID)
+		}
+		if lifecycleConverged(current) {
+			result.NoChange = true
+			return result, nil
+		}
+		return service.resume(ctx, input, result, installationID, clientBindingID, current)
 	}
 	if replace && !isMaterialized {
 		return result, fmt.Errorf("plugin is not materialized for %s; use add", input.Client.ClientID)
@@ -228,10 +236,62 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 }
 
 func lifecycleConverged(client domain.ClientBinding) bool {
-	if client.ClientID != string(domain.ClientCopilot) && client.ClientID != string(domain.ClientVSCode) {
-		return true
+	authComplete := client.Authentication == domain.AuthenticationNotRequired || client.Authentication == domain.AuthenticationComplete
+	return client.Materialization == domain.MaterializationMaterialized &&
+		client.Activation == domain.ActivationActive &&
+		client.Verification == domain.VerificationInstalled && authComplete
+}
+
+// resume retries only the external client lifecycle against an existing,
+// digest-verified managed package. It deliberately creates no directory
+// transaction or receipt, so repeating add cannot replace or duplicate the
+// materialized artifact.
+func (service Service) resume(
+	ctx context.Context,
+	input AddInput,
+	result AddResult,
+	installationID, clientBindingID string,
+	client domain.ClientBinding,
+) (AddResult, error) {
+	if input.DryRun {
+		return result, nil
 	}
-	return client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled
+	if !input.Confirmed {
+		result.RequiresConfirmation = true
+		return result, nil
+	}
+	if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, client, "resume"); err != nil {
+		return result, err
+	}
+	delivery := domain.StagedDelivery{
+		ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot,
+		ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client),
+		NativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+	}
+	outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
+		Client: input.Client, Plan: result.Plan, Delivery: delivery,
+		DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
+		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
+	})
+	result.Activation = outcome
+	result.Mutated = true
+	if activationErr != nil && outcome.Activation == "" {
+		outcome = domain.ActivationOutcome{
+			Activation: domain.ActivationFailed, Authentication: result.Plan.Authentication,
+			Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
+		}
+		result.Activation = outcome
+	}
+	if updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+		if activationErr != nil {
+			return result, fmt.Errorf("resume client activation: %v; persist activation state: %w", activationErr, updateErr)
+		}
+		return result, updateErr
+	}
+	if activationErr != nil {
+		return result, activationErr
+	}
+	return result, nil
 }
 
 func hasOAuthRequirement(envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {

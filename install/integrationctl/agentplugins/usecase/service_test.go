@@ -79,8 +79,19 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	if clientState.PackageRevision == nil || clientState.PackageRevision.TreeDigest != input.Envelope.TreeDigest {
 		t.Fatalf("package revision = %+v", clientState.PackageRevision)
 	}
-	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "use update") {
-		t.Fatalf("duplicate add error = %v", err)
+	resumed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatalf("resume add: %v", err)
+	}
+	if !resumed.Mutated || resumed.Activation.Activation != domain.ActivationManual {
+		t.Fatalf("resume result = %+v", resumed)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if receipts := onlyBinding(state.Installations[0]).Receipts; len(receipts) != 1 {
+		t.Fatalf("resume created a second directory transaction: %+v", receipts)
 	}
 }
 
@@ -348,6 +359,19 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	if _, err := service.Add(context.Background(), first); err != nil {
 		t.Fatal(err)
 	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
 	result, err := service.Update(context.Background(), addInput(t, client, "https://example.com/one"))
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +379,7 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	if !result.NoChange || result.Mutated || result.RequiresConfirmation {
 		t.Fatalf("update result = %+v", result)
 	}
-	state, err := store.Load()
+	state, err = store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,25 +388,24 @@ func TestUpdateReturnsNoChangeWithoutMutation(t *testing.T) {
 	}
 }
 
-func TestLifecycleConvergenceRetriesOnlyNativeCopilotBackends(t *testing.T) {
+func TestLifecycleConvergenceRequiresActivationAuthenticationAndVerificationForEveryClient(t *testing.T) {
 	t.Parallel()
-	manual := domain.ClientBinding{Activation: domain.ActivationManual, Verification: domain.VerificationPackageValid}
-	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex, domain.ClientKiro} {
-		manual.ClientID = string(client)
-		if !lifecycleConverged(manual) {
-			t.Fatalf("manual lifecycle for %s should preserve normal no-change behavior", client)
-		}
-	}
-	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
+	manual := domain.ClientBinding{Materialization: domain.MaterializationMaterialized, Activation: domain.ActivationManual, Authentication: domain.AuthenticationNotRequired, Verification: domain.VerificationPackageValid}
+	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex, domain.ClientKiro, domain.ClientCopilot, domain.ClientVSCode} {
 		manual.ClientID = string(client)
 		if lifecycleConverged(manual) {
-			t.Fatalf("manual lifecycle for %s should retry native activation", client)
+			t.Fatalf("manual lifecycle for %s was reported converged", client)
 		}
 		manual.Activation = domain.ActivationActive
 		manual.Verification = domain.VerificationInstalled
 		if !lifecycleConverged(manual) {
 			t.Fatalf("installed lifecycle for %s should be converged", client)
 		}
+		manual.Authentication = domain.AuthenticationPending
+		if lifecycleConverged(manual) {
+			t.Fatalf("auth-pending lifecycle for %s was reported converged", client)
+		}
+		manual.Authentication = domain.AuthenticationNotRequired
 		manual.Activation = domain.ActivationManual
 		manual.Verification = domain.VerificationPackageValid
 	}

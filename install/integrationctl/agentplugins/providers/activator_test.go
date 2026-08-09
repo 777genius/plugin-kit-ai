@@ -23,6 +23,9 @@ func (runner *recordingRunner) Run(_ context.Context, command legacyports.Comman
 	if runner.run != nil {
 		return runner.run(command), nil
 	}
+	if strings.HasSuffix(strings.Join(command.Argv, " "), "plugin list") {
+		return legacyports.CommandResult{Stdout: []byte("demo")}, nil
+	}
 	return legacyports.CommandResult{}, nil
 }
 
@@ -45,6 +48,7 @@ func TestActivatorInstallsCopilotAndVSCodeThroughManagedMarketplace(t *testing.T
 			want := [][]string{
 				{"/test/bin/copilot", "plugin", "marketplace", "add", request.Delivery.ActivePath},
 				{"/test/bin/copilot", "plugin", "install", "demo@" + marketplace},
+				{"/test/bin/copilot", "plugin", "list"},
 			}
 			if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
 				t.Fatalf("commands = %#v, want %#v", got, want)
@@ -59,6 +63,9 @@ func TestActivatorUpdateRecoversMissingMarketplaceAndPlugin(t *testing.T) {
 		joined := strings.Join(command.Argv, " ")
 		if strings.Contains(joined, "marketplace update") || strings.Contains(joined, "plugin update") {
 			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("missing")}
+		}
+		if strings.HasSuffix(joined, "plugin list") {
+			return legacyports.CommandResult{Stdout: []byte("demo")}
 		}
 		return legacyports.CommandResult{}
 	}}
@@ -78,9 +85,93 @@ func TestActivatorUpdateRecoversMissingMarketplaceAndPlugin(t *testing.T) {
 		{"/test/bin/copilot", "plugin", "marketplace", "add", request.Delivery.ActivePath},
 		{"/test/bin/copilot", "plugin", "update", "demo@" + marketplace},
 		{"/test/bin/copilot", "plugin", "install", "demo@" + marketplace},
+		{"/test/bin/copilot", "plugin", "list"},
 	}
 	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestActivatorDoesNotTrustCopilotInstallExitZeroWithoutListingEvidence(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return legacyports.CommandResult{} }}
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "not listed") {
+		t.Fatalf("verification error = %v", err)
+	}
+	if outcome.Activation != domain.ActivationFailed || outcome.Verification != domain.VerificationFailed || len(outcome.LocalActions) != 1 {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+func TestActivatorUsesCodexCLIAndVerifiesJSONState(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		if strings.Contains(strings.Join(command.Argv, " "), "plugin list --json") {
+			return legacyports.CommandResult{Stdout: []byte(`{"plugins":[{"name":"demo"}]}`)}
+		}
+		return legacyports.CommandResult{}
+	}}
+	request := activationRequest(t, domain.ClientCodex)
+	request.BackendExecutable = "/test/bin/codex"
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	want := [][]string{
+		{"/test/bin/codex", "plugin", "marketplace", "add", request.Delivery.ActivePath, "--json"},
+		{"/test/bin/codex", "plugin", "add", "demo@" + marketplace, "--json"},
+		{"/test/bin/codex", "plugin", "list", "--json"},
+	}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestActivatorImportsMCPOnlyPackageThroughKiroCLIAndVerifiesListing(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		if strings.Contains(strings.Join(command.Argv, " "), "mcp list global") {
+			return legacyports.CommandResult{Stdout: []byte("demo-server enabled")}
+		}
+		return legacyports.CommandResult{}
+	}}
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	want := [][]string{
+		{"/test/bin/kiro-cli", "mcp", "import", "--file", filepath.Join(request.Delivery.ActivePath, "mcp.json"), "global", "--force"},
+		{"/test/bin/kiro-cli", "mcp", "list", "global"},
+	}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestActivatorKeepsKiroUIComponentsToOneActionableManualStep(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentSkill, Name: "guide", Support: domain.SupportNative}}
+	outcome, err := (Activator{Runner: &recordingRunner{}}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationManual || len(outcome.LocalActions) != 1 || !strings.Contains(outcome.LocalActions[0], request.Delivery.ActivePath) || !strings.Contains(outcome.LocalActions[0], "verify") {
+		t.Fatalf("outcome = %+v", outcome)
 	}
 }
 
