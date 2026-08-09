@@ -215,9 +215,13 @@ func TestCopilotUnknownOutputContractRemainsManual(t *testing.T) {
 		"duplicate":       {Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)\n  • " + spec + " (v1.0.0)")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			outcome, err := (Activator{Runner: &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}}).Activate(context.Background(), request)
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err != nil || outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
+			if outcome.ActivationAttested || len(runner.commands) != 1 || len(outcome.LocalActions) == 0 {
+				t.Fatalf("unknown output path is not actionable: outcome=%+v commands=%+v", outcome, runner.commands)
 			}
 		})
 	}
@@ -242,9 +246,19 @@ func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
 	t.Parallel()
 	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro} {
 		t.Run(string(client), func(t *testing.T) {
-			runner := &recordingRunner{}
+			runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+				switch client {
+				case domain.ClientCopilot, domain.ClientVSCode:
+					return legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  No plugins installed.")}
+				case domain.ClientKiro:
+					return legacyports.CommandResult{Stdout: []byte("demo: disconnected")}
+				default:
+					return legacyports.CommandResult{Stdout: []byte(`{"installed":[]}`)}
+				}
+			}}
 			request := activationRequest(t, client)
 			request.ActivationComplete = true
+			request.VerifyOnly = true
 			request.BackendExecutable = "/test/bin/" + string(client)
 			if client == domain.ClientVSCode {
 				request.BackendExecutable = "/test/bin/copilot"
@@ -253,11 +267,15 @@ func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
 				request.BackendExecutable = "/test/bin/kiro-cli"
 				request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo", Support: domain.SupportNative}}
 			}
-			if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil || !strings.Contains(err.Error(), "available verifier must run") {
-				t.Fatalf("attestation error = %v", err)
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err == nil || outcome.Activation != domain.ActivationFailed || outcome.Verification != domain.VerificationFailed || !outcome.AuthoritativeObservation {
+				t.Fatalf("recognized negative evidence did not fail closed: outcome=%+v err=%v", outcome, err)
 			}
-			if len(runner.commands) != 0 {
-				t.Fatalf("attestation unexpectedly ran commands: %+v", runner.commands)
+			if outcome.ActivationAttested {
+				t.Fatalf("observable activation was marked attested: %+v", outcome)
+			}
+			if len(runner.commands) == 0 {
+				t.Fatal("observable activation completion did not run the verifier")
 			}
 		})
 	}
@@ -299,9 +317,13 @@ func TestKiroUnknownStatusContractRemainsManual(t *testing.T) {
 		"unknown":     {Stdout: []byte("demo-server: enabled")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			outcome, err := (Activator{Runner: &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}}).Activate(context.Background(), request)
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err != nil || outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
+			if outcome.ActivationAttested || len(runner.commands) != 1 || len(outcome.LocalActions) == 0 {
+				t.Fatalf("unknown output path is not actionable: outcome=%+v commands=%+v", outcome, runner.commands)
 			}
 		})
 	}

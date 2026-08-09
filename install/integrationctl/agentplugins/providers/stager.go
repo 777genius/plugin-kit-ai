@@ -41,7 +41,10 @@ func (stager Stager) Verify(ctx context.Context, root, expectedDigest string) er
 	}
 	if err := rejectExcludedOwnershipMarkers(root); err != nil {
 		kind := ports.VerificationIndeterminate
-		if errors.Is(err, os.ErrNotExist) {
+		var marker *excludedOwnershipMarkerError
+		if errors.As(err, &marker) {
+			kind = ports.VerificationExcludedMarker
+		} else if errors.Is(err, os.ErrNotExist) {
 			kind = ports.VerificationAbsent
 		}
 		return &ports.VerificationError{Kind: kind, Err: err}
@@ -64,6 +67,12 @@ func (stager Stager) Verify(ctx context.Context, root, expectedDigest string) er
 	return nil
 }
 
+type excludedOwnershipMarkerError struct{ name string }
+
+func (err *excludedOwnershipMarkerError) Error() string {
+	return fmt.Sprintf("managed artifact contains excluded ownership marker %q", err.name)
+}
+
 func rejectExcludedOwnershipMarkers(root string) error {
 	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -73,7 +82,7 @@ func rejectExcludedOwnershipMarkers(root string) error {
 			return nil
 		}
 		if entry.Name() == ".git" || entry.Name() == ".plugin-kit-ai.lock" {
-			return fmt.Errorf("managed artifact contains excluded ownership marker %q", entry.Name())
+			return &excludedOwnershipMarkerError{name: entry.Name()}
 		}
 		return nil
 	})

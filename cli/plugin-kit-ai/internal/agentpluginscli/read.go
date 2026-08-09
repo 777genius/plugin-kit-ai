@@ -295,7 +295,10 @@ func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedC
 	}
 	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
 		var verification *ports.VerificationError
-		if errors.As(err, &verification) && (verification.Kind == ports.VerificationAbsent || verification.Kind == ports.VerificationDigestMismatch) || strings.Contains(err.Error(), "excluded ownership marker") {
+		if errors.As(err, &verification) && verification.Kind == ports.VerificationExcludedMarker {
+			return []doctorFinding{scopedFinding("unknown", "excluded_ownership_marker", installation, binding.ClientID, "the managed package contains an ownership marker excluded from digest verification", "manually review and remove the excluded ownership marker, then rerun doctor; automatic repair is intentionally blocked")}
+		}
+		if errors.As(err, &verification) && (verification.Kind == ports.VerificationAbsent || verification.Kind == ports.VerificationDigestMismatch) {
 			return []doctorFinding{scopedFinding("degraded", "managed_directory_changed", installation, binding.ClientID, "the managed package directory is missing or differs from its recorded digest", repairAction(installation, binding))}
 		}
 		return []doctorFinding{scopedFinding("unknown", "managed_integrity_check_failed", installation, binding.ClientID, "managed-directory integrity could not be checked because verification infrastructure failed", "retry doctor after resolving the filesystem or temporary verification error")}

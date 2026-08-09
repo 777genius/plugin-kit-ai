@@ -104,10 +104,7 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		Policy:         domain.PolicyAllowed,
 		Verification:   domain.VerificationPackageValid,
 	}
-	if request.ActivationComplete && activationObservable(request, activator.Runner != nil) {
-		return outcome, fmt.Errorf("--activation-complete cannot be used when %s activation is observable; the available verifier must run", request.Client.ClientID)
-	}
-	if request.ActivationComplete {
+	if request.ActivationComplete && !activationObservable(request, activator.Runner != nil) {
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
 		outcome.ActivationAttested = true
@@ -257,7 +254,7 @@ func (activator Activator) verifyCopilot(ctx context.Context, request domain.Act
 	case copilotStatusInstalled:
 		return nil
 	case copilotStatusAbsent:
-		return fmt.Errorf("verify Copilot plugin listing: %s is not listed", pluginSpec)
+		return fmt.Errorf("%w: verify Copilot plugin listing: %s is not listed", errRecognizedNegativeEvidence, pluginSpec)
 	default:
 		return fmt.Errorf("%w: verify Copilot plugin listing", errCopilotListContractUnknown)
 	}
@@ -292,6 +289,9 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 		return fmt.Errorf("verify Codex plugin listing: %w", err)
 	}
 	if !codexHasInstalledPlugin(listed.Stdout, request.DeclaredName, marketplace) {
+		if codexListingContractRecognized(listed.Stdout) {
+			return fmt.Errorf("%w: verify Codex plugin listing: %s is not listed", errRecognizedNegativeEvidence, pluginSpec)
+		}
 		return fmt.Errorf("verify Codex plugin listing: %s is not listed", pluginSpec)
 	}
 	return nil
@@ -318,7 +318,7 @@ func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.Act
 		case kiroStatusHealthy:
 			continue
 		case kiroStatusUnhealthy:
-			return fmt.Errorf("verify Kiro MCP server %s: server is not connected", component.Name)
+			return fmt.Errorf("%w: verify Kiro MCP server %s: server is not connected", errRecognizedNegativeEvidence, component.Name)
 		default:
 			return fmt.Errorf("%w for server %s", errKiroStatusContractUnknown, component.Name)
 		}
@@ -368,6 +368,7 @@ func (activator Activator) runClientResult(ctx context.Context, client, executab
 func failedActivation(outcome domain.ActivationOutcome, next string, err error) (domain.ActivationOutcome, error) {
 	outcome.Activation = domain.ActivationFailed
 	outcome.Verification = domain.VerificationFailed
+	outcome.AuthoritativeObservation = errors.Is(err, errRecognizedNegativeEvidence)
 	outcome.UserActions = []string{"retry client activation and verify client visibility"}
 	outcome.LocalActions = []string{next}
 	return outcome, err
@@ -419,6 +420,19 @@ func codexHasInstalledPlugin(body []byte, name, marketplace string) bool {
 	return matches == 1
 }
 
+func codexListingContractRecognized(body []byte) bool {
+	var value map[string]json.RawMessage
+	if len(body) == 0 || json.Unmarshal(body, &value) != nil {
+		return false
+	}
+	installed, ok := value["installed"]
+	if !ok {
+		return false
+	}
+	var entries []json.RawMessage
+	return json.Unmarshal(installed, &entries) == nil
+}
+
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
 
 type copilotStatus int
@@ -430,6 +444,7 @@ const (
 )
 
 var errCopilotListContractUnknown = errors.New("Copilot plugin list output is not recognized")
+var errRecognizedNegativeEvidence = errors.New("recognized negative client evidence")
 
 func copilotPluginStatus(stdout []byte, expected string) copilotStatus {
 	inInstalledSection := false

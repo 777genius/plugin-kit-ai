@@ -13,6 +13,7 @@ const (
 	VerificationAbsent         VerificationKind = "absent"
 	VerificationDigestMismatch VerificationKind = "digest_mismatch"
 	VerificationIndeterminate  VerificationKind = "indeterminate"
+	VerificationExcludedMarker VerificationKind = "excluded_ownership_marker"
 )
 
 // VerificationError classifies integrity failures without converting an

@@ -158,6 +158,9 @@ type ActivationOutcome struct {
 	LocalActions           []string            `json:"-"`
 	ActivationAttested     bool                `json:"activation_attested,omitempty"`
 	AuthenticationAttested bool                `json:"authentication_attested,omitempty"`
+	// AuthoritativeObservation marks recognized negative verifier evidence.
+	// It is transient control-plane metadata and is never persisted as state.
+	AuthoritativeObservation bool `json:"-"`
 }
 
 type DeactivationRequest struct {

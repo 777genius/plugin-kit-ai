@@ -42,6 +42,10 @@ type AddInput struct {
 	BackendExecutable  string
 	ActivationComplete bool
 	AuthComplete       bool
+	// PersistAuthoritativeObservations allows a read-only client verifier to
+	// record negative evidence even during a plan-first CLI pass. It does not
+	// authorize package, client, or user-requested lifecycle mutations.
+	PersistAuthoritativeObservations bool
 }
 
 type AddResult struct {
@@ -147,9 +151,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			}
 			verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, current)
 			if verifyErr != nil {
-				if verified.Activation != "" && input.Confirmed && !input.DryRun {
+				if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
 					result.Activation = verified
-					changed, updateErr := service.updateLifecycle(installationID, clientBindingID, verified)
+					changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, verified)
 					result.Mutated = changed
 					if updateErr != nil {
 						return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
@@ -179,9 +183,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			if lifecycleConverged(previousClient) {
 				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)
 				if verifyErr != nil {
-					if verified.Activation != "" && input.Confirmed && !input.DryRun {
+					if verified.Activation != "" && !input.DryRun && (input.Confirmed || input.PersistAuthoritativeObservations && verified.AuthoritativeObservation) {
 						result.Activation = verified
-						changed, updateErr := service.updateLifecycle(installationID, clientBindingID, verified)
+						changed, updateErr := service.persistAuthoritativeObservation(ctx, input, installationID, clientBindingID, verified)
 						result.Mutated = changed
 						if updateErr != nil {
 							return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
@@ -386,6 +390,18 @@ func (service Service) persistObservedLifecycle(input AddInput, result AddResult
 	changed, err := service.updateLifecycle(installationID, clientBindingID, outcome)
 	result.Mutated = changed
 	return result, err
+}
+
+func (service Service) persistAuthoritativeObservation(ctx context.Context, input AddInput, installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
+	if input.Confirmed {
+		return service.updateLifecycle(installationID, clientBindingID, outcome)
+	}
+	release, err := service.beginMutation(ctx, false, true)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = release() }()
+	return service.updateLifecycle(installationID, clientBindingID, outcome)
 }
 
 func openAIOAuthApplies(clientID domain.ClientID, envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {

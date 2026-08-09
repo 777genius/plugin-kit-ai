@@ -426,6 +426,48 @@ func TestConvergedManualVerifierOutcomeUsesConfirmationAndReplacesStaleState(t *
 	}
 }
 
+func TestUnconfirmedInfrastructureFailureIsNotPersistedAsAuthoritativeEvidence(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+	input := addInput(t, client, "https://example.com/non-authoritative-failure")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Authentication = domain.AuthenticationNotRequired
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	service.Activator = &observedActivator{outcome: domain.ActivationOutcome{
+		Activation: domain.ActivationFailed, Authentication: domain.AuthenticationNotRequired,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
+	}, err: fmt.Errorf("temporary verifier transport failure")}
+	input.Confirmed = false
+	input.PersistAuthoritativeObservations = true
+	input.BackendExecutable = "/test/bin/copilot"
+	if _, err := service.Add(context.Background(), input); err == nil {
+		t.Fatal("temporary verifier failure unexpectedly succeeded")
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled {
+		t.Fatalf("non-authoritative failure mutated converged state: %+v", binding)
+	}
+}
+
 func TestNoChangeChecksManagedDigestBeforeReturning(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)

@@ -181,7 +181,8 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	input := usecase.AddInput{
 		Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Interactive: app.Terminal, Hints: loaded.hints,
-		BackendExecutable: backendExecutable(selected, detectedMap),
+		BackendExecutable:                backendExecutable(selected, detectedMap),
+		PersistAuthoritativeObservations: true,
 	}
 	planned, err := service.Update(ctx, input)
 	if err != nil {
