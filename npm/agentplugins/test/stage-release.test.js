@@ -55,6 +55,10 @@ test("release verification fails closed on checksum, size, and manifest mismatch
   prepareRelease(root, `agentplugins-v${version}`, COMMIT);
   assert.equal(verifyRelease(root, `agentplugins-v${version}`, COMMIT).gate_eligible, true);
 
+  await fsp.writeFile(path.join(root, "ambiguous-extra-asset"), "unexpected");
+  assert.throws(() => verifyRelease(root, `agentplugins-v${version}`, COMMIT), /must contain exactly/);
+  await fsp.rm(path.join(root, "ambiguous-extra-asset"));
+
   const manifestPath = path.join(root, "release-manifest.json");
   const manifest = JSON.parse(await fsp.readFile(manifestPath, "utf8"));
   manifest.assets["linux-amd64"].size += 1;

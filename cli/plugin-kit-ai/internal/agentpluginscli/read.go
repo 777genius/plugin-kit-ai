@@ -242,15 +242,15 @@ func doctorFindings(ctx context.Context, app App, detected []domain.DetectedClie
 			}
 			switch binding.Activation {
 			case domain.ActivationManual, domain.ActivationPrepared:
-				findings = append(findings, scopedFinding("degraded", "activation_pending", installation, binding.ClientID, "client activation is not complete", fmt.Sprintf("complete the displayed external activation step, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
+				findings = append(findings, scopedFinding("degraded", "activation_pending", installation, binding.ClientID, "client activation is not complete", fmt.Sprintf("complete the displayed external activation step, then rerun the same `agentplugins add ... --target %s%s` command", binding.ClientID, doctorScopeFlag(binding))))
 			case domain.ActivationFailed:
-				findings = append(findings, scopedFinding("degraded", "activation_failed", installation, binding.ClientID, "client activation failed", fmt.Sprintf("resolve the client-reported activation error, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
+				findings = append(findings, scopedFinding("degraded", "activation_failed", installation, binding.ClientID, "client activation failed", fmt.Sprintf("resolve the client-reported activation error, then rerun the same `agentplugins add ... --target %s%s` command", binding.ClientID, doctorScopeFlag(binding))))
 			}
 			switch binding.Authentication {
 			case domain.AuthenticationPending:
-				findings = append(findings, scopedFinding("degraded", "authentication_pending", installation, binding.ClientID, "plugin authentication is pending", fmt.Sprintf("complete the displayed external authentication step, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
+				findings = append(findings, scopedFinding("degraded", "authentication_pending", installation, binding.ClientID, "plugin authentication is pending", fmt.Sprintf("complete the displayed external authentication step, then rerun the same `agentplugins add ... --target %s%s` command", binding.ClientID, doctorScopeFlag(binding))))
 			case domain.AuthenticationFailed:
-				findings = append(findings, scopedFinding("degraded", "authentication_failed", installation, binding.ClientID, "plugin authentication failed", fmt.Sprintf("reauthorize the plugin in the selected client, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
+				findings = append(findings, scopedFinding("degraded", "authentication_failed", installation, binding.ClientID, "plugin authentication failed", fmt.Sprintf("reauthorize the plugin in the selected client, then rerun the same `agentplugins add ... --target %s%s` command", binding.ClientID, doctorScopeFlag(binding))))
 			case domain.AuthenticationNotChecked:
 				findings = append(findings, scopedFinding("unknown", "authentication_not_checked", installation, binding.ClientID, "authentication requirements have not been verified", "check the package's authentication instructions and verify access in the selected client"))
 			}
@@ -311,7 +311,14 @@ func scopedFinding(status, code string, installation domain.Installation, client
 }
 
 func repairAction(installation domain.Installation, binding domain.ClientBinding) string {
-	return fmt.Sprintf("run `agentplugins repair %s --target %s`", installation.DeclaredName, binding.ClientID)
+	return fmt.Sprintf("run `agentplugins repair %s --target %s%s`", installation.DeclaredName, binding.ClientID, doctorScopeFlag(binding))
+}
+
+func doctorScopeFlag(binding domain.ClientBinding) string {
+	if binding.Scope == string(domain.ScopeProject) {
+		return " --scope project"
+	}
+	return ""
 }
 
 func degradedFinding(code, subject, message, action string) doctorFinding {

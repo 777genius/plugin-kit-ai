@@ -44,12 +44,19 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	result := AddResult{InstallationID: installation.InstallationID, Plan: plan}
 	clientKey := domain.ComputeClientBindingID(installation.InstallationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
 	client, ok := installation.Clients[clientKey]
-	if !ok || client.Materialization != domain.MaterializationMaterialized {
+	if !ok || (client.Materialization != domain.MaterializationMaterialized && client.Materialization != domain.MaterializationDegraded) {
 		return result, fmt.Errorf("plugin is not materialized for %s", input.Client.ClientID)
+	}
+	if client.ClientBindingID != clientKey || client.ClientID != string(input.Client.ClientID) ||
+		client.Scope != string(input.Scope) || client.PhysicalArtifact != physicalID {
+		return result, fmt.Errorf("managed repair target identity does not match the selected binding")
 	}
 	result.Activation = lifecycleOutcome(client)
 	if !packageRevisionMatches(client.PackageRevision, input.Envelope) {
 		return result, fmt.Errorf("resolved repair package differs from the installed revision; use update")
+	}
+	if client.PackageRevision == nil || strings.TrimSpace(client.PackageRevision.ResolvedRevision) != strings.TrimSpace(input.Envelope.Source.ResolvedRevision) {
+		return result, fmt.Errorf("resolved repair package does not match the exact installed revision")
 	}
 	target, err := service.Targets.ResolveTarget(ctx, input.Client, input.Scope, client.PhysicalArtifact)
 	if err != nil {
@@ -67,10 +74,43 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		if verifyErr != nil {
 			return result, verifyErr
 		}
-		if verified.Activation == domain.ActivationActive && verified.Verification == domain.VerificationInstalled {
-			result.Activation = verified
+		corrected := client
+		corrected.Materialization = domain.MaterializationMaterialized
+		if corrected.Verification == domain.VerificationFailed {
+			corrected.Verification = domain.VerificationPackageValid
 		}
-		result.NoChange = true
+		if verified.Activation != "" {
+			corrected.Activation = verified.Activation
+		}
+		if verified.Authentication != "" {
+			corrected.Authentication = verified.Authentication
+		}
+		if verified.Policy != "" {
+			corrected.Policy = verified.Policy
+		}
+		if verified.Verification != "" {
+			corrected.Verification = verified.Verification
+		}
+		result.Activation = lifecycleOutcome(corrected)
+		if corrected.Materialization == client.Materialization && sameLifecycleOutcome(lifecycleOutcome(corrected), lifecycleOutcome(client)) {
+			result.NoChange = true
+			return result, nil
+		}
+		if input.DryRun {
+			return result, nil
+		}
+		if !input.Confirmed {
+			result.RequiresConfirmation = true
+			return result, nil
+		}
+		corrected.UpdatedAt = service.now().Format("2006-01-02T15:04:05.999999999Z07:00")
+		installation.Clients[clientKey] = corrected
+		installation.UpdatedAt = corrected.UpdatedAt
+		state.Installations[index] = installation
+		if err := service.StateStore.Save(state); err != nil {
+			return result, fmt.Errorf("persist corrected repair verification state: %w", err)
+		}
+		result.Mutated = true
 		return result, nil
 	}
 	if input.DryRun {
@@ -100,12 +140,21 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	}
 	kernel := service.Kernel
 	kernel.StateStore = service.StateStore
+	verifiedState := lifecycleOutcome(client)
+	verifiedState.Verification = domain.VerificationPackageValid
+	desiredClient := client
+	desiredClient.Materialization = domain.MaterializationMaterialized
+	desiredClient.Verification = domain.VerificationPackageValid
+	desiredClient.UpdatedAt = service.now().Format("2006-01-02T15:04:05.999999999Z07:00")
+	installation.Clients[clientKey] = desiredClient
+	installation.UpdatedAt = desiredClient.UpdatedAt
+	state.Installations[index] = installation
 	receipt, err := kernel.ApplyDirectory(ctx, transaction.DirectoryMutation{
 		OperationID: operationID, InstallationID: installation.InstallationID, ClientBindingID: clientKey,
 		Sequence: nextSequence(client), OwnedBase: delivery.OwnedBase, ActivePath: target.ActivePath,
-		StagingPath: delivery.StagingPath, BeforeDigest: "", AfterDigest: delivery.ArtifactDigest,
-		NativeObjects: delivery.NativeObjects, Activation: client.Activation, Authentication: client.Authentication,
-		Policy: client.Policy, Verification: client.Verification, DesiredState: state,
+		StagingPath: delivery.StagingPath, BeforeDigest: expectedDigest, AfterDigest: delivery.ArtifactDigest,
+		NativeObjects: delivery.NativeObjects, Activation: verifiedState.Activation, Authentication: verifiedState.Authentication,
+		Policy: verifiedState.Policy, Verification: verifiedState.Verification, DesiredState: state,
 		Verify: func(verifyContext context.Context, activePath string) error {
 			return service.Stager.Verify(verifyContext, activePath, delivery.ArtifactDigest)
 		},
@@ -115,5 +164,11 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		return result, err
 	}
 	result.Mutated = true
+	result.Activation = verifiedState
 	return result, nil
+}
+
+func sameLifecycleOutcome(left, right domain.ActivationOutcome) bool {
+	return left.Activation == right.Activation && left.Authentication == right.Authentication &&
+		left.Policy == right.Policy && left.Verification == right.Verification
 }

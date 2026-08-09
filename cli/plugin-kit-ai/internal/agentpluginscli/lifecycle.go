@@ -56,14 +56,6 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
 		return fmt.Errorf("repair requires a bound Agent Plugins installation")
 	}
-	writeProgress(app, opts.format, "Resolving and validating the original Agent Plugin source...")
-	loaded, err := app.loadPackage(ctx, updateSource(installation))
-	if err != nil {
-		return err
-	}
-	if loaded.cleanup != nil {
-		defer loaded.cleanup()
-	}
 	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
@@ -71,6 +63,22 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true)
 	if err != nil {
 		return err
+	}
+	binding, err := selectedRepairBinding(installation, selected.ClientID, domain.InstallScope(opts.scope))
+	if err != nil {
+		return err
+	}
+	source, err := repairSource(installation, binding)
+	if err != nil {
+		return err
+	}
+	writeProgress(app, opts.format, "Resolving and validating the exact installed Agent Plugin revision...")
+	loaded, err := app.loadPackage(ctx, source)
+	if err != nil {
+		return err
+	}
+	if loaded.cleanup != nil {
+		defer loaded.cleanup()
 	}
 	if err := requireNonInteractiveMutation(app, opts, "repair"); err != nil && !opts.dryRun {
 		return err
@@ -88,7 +96,7 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	confirmed := opts.yes
 	if !confirmed && opts.format == "human" && app.Terminal {
-		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Replace the damaged managed directory from the resolved package source? [y/N]")
+		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Repair the managed package and its recorded verification state? [y/N]")
 		if err != nil {
 			return err
 		}
@@ -119,11 +127,15 @@ func renderRepairResult(writer io.Writer, format string, installation domain.Ins
 		return nil
 	}
 	if dryRun {
-		_, _ = fmt.Fprintln(writer, "Managed package is missing or modified and can be transactionally repaired. No changes made.")
+		_, _ = fmt.Fprintln(writer, "The managed package or its recorded verification state can be safely repaired. No changes made.")
 		return nil
 	}
 	if result.Mutated {
-		_, _ = fmt.Fprintln(writer, "Managed package repaired from the resolved source; existing lifecycle state was preserved.")
+		if result.Receipt.OperationID == "" {
+			_, _ = fmt.Fprintln(writer, "Managed package digest reverified and recorded lifecycle state corrected; no external client mutation was attempted.")
+		} else {
+			_, _ = fmt.Fprintln(writer, "Managed package repaired from the exact installed revision and its package digest verified; external client activation and authentication were not reverified.")
+		}
 	}
 	return nil
 }
@@ -396,6 +408,44 @@ func updateSource(installation domain.Installation) string {
 		return value
 	}
 	return installation.Source.CanonicalSource
+}
+
+func selectedRepairBinding(installation domain.Installation, clientID domain.ClientID, scope domain.InstallScope) (domain.ClientBinding, error) {
+	var matches []domain.ClientBinding
+	for _, binding := range installation.Clients {
+		if binding.ClientID == string(clientID) && binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent {
+			matches = append(matches, binding)
+		}
+	}
+	if len(matches) != 1 {
+		return domain.ClientBinding{}, fmt.Errorf("repair requires exactly one bound target for %s in %s scope", clientID, scope)
+	}
+	return matches[0], nil
+}
+
+func repairSource(installation domain.Installation, binding domain.ClientBinding) (string, error) {
+	canonical := strings.TrimSpace(installation.Source.CanonicalSource)
+	if installation.Source.Repository == "" && filepath.IsAbs(canonical) {
+		return canonical, nil
+	}
+	revision := ""
+	if binding.PackageRevision != nil {
+		revision = strings.TrimSpace(binding.PackageRevision.ResolvedRevision)
+	}
+	if revision == "" {
+		return "", fmt.Errorf("the selected client binding has no exact resolved revision; refusing repair from a moving source")
+	}
+	if repository := strings.TrimSpace(installation.Source.Repository); repository != "" {
+		value := "github:" + repository + "@" + revision
+		if subpath := strings.TrimSpace(installation.Source.PackageSubpath); subpath != "" {
+			value += "//" + subpath
+		}
+		return value, nil
+	}
+	if canonical != "" {
+		return canonical + "#" + revision, nil
+	}
+	return "", fmt.Errorf("the selected client binding source cannot be reconstructed safely")
 }
 
 func requireNonInteractiveMutation(app App, opts *options, action string) error {

@@ -38,13 +38,25 @@ project is tagged.
 3. Review the frozen commit and approve the `agentplugins-release`
    environment deployment.
 4. Confirm the workflow attests all six binaries, `checksums.txt`, and
-   `release-manifest.json` before creating the public release.
-5. Verify the release contains six platform binaries, `checksums.txt`, and
-   `release-manifest.json`.
-6. Verify GitHub attestations before allowing npm publication.
+   `release-manifest.json` before creating the non-public draft.
+5. Confirm the authenticated platform-proof workflow downloads that exact
+   draft and succeeds on all six native targets. Until the matrix aggregates
+   successfully, no public GitHub Release may exist.
+6. After all six proofs are green, approve the promotion deployment. Confirm
+   it reverifies the draft identity, manifest, assets, and attestations.
+   It promotes that exact draft only after all six native platform proofs succeed.
+7. Verify the resulting public release contains six platform binaries,
+   `checksums.txt`, and `release-manifest.json`, and verify GitHub attestations
+   before allowing npm publication.
 
-The workflow refuses an existing release instead of replacing immutable
-assets.
+The workflow rejects every existing public release. A rerun accepts an existing
+draft only when its tag, frozen commit, draft status, complete asset set, and
+every asset byte exactly match the rebuilt release; it never uploads over an
+existing asset. A failed native proof intentionally leaves that exact draft
+non-public. Fix the proof defect and rerun the same tag to resume. If draft
+creation itself was interrupted and left an incomplete or non-matching draft,
+an owner must verify that it was never public, delete only that draft release
+(not the tag), and rerun. Never edit or replace assets in place.
 
 ## Bootstrap publication record
 

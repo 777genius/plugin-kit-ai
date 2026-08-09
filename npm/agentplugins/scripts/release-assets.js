@@ -106,6 +106,11 @@ function verifyRelease(assetRoot, tag, commit, options = {}) {
   const computed = assetMetadata(assetRoot, identity.version);
   const names = [...Object.values(computed).map((asset) => asset.file), "release-manifest.json"];
   verifyChecksums(assetRoot, names);
+  const expectedFiles = [...names, "checksums.txt"].sort();
+  const actualFiles = fs.readdirSync(assetRoot).sort();
+  if (actualFiles.join("\n") !== expectedFiles.join("\n")) {
+    throw new Error("release directory must contain exactly the six binaries, checksums, and manifest");
+  }
 
   if (manifest.schema_version === 1 && options.allowLegacyManifest === true) {
     if (Object.keys(manifest).sort().join(",") !== "commit,schema_version,tag") {

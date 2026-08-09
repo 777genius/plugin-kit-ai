@@ -421,6 +421,73 @@ func TestRepairRejectsStaleTargetAndRollsBackFailure(t *testing.T) {
 	}
 }
 
+func TestRepairCorrectsDegradedStateAndPreservesUnverifiedExternalLifecycle(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair-state")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Materialization = domain.MaterializationDegraded
+		binding.Activation = domain.ActivationFailed
+		binding.Authentication = domain.AuthenticationFailed
+		binding.Verification = domain.VerificationFailed
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.Repair(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || result.NoChange || result.Receipt.OperationID != "" {
+		t.Fatalf("state-only repair result = %+v", result)
+	}
+	state, _ = store.Load()
+	binding := onlyBinding(state.Installations[0])
+	if binding.Materialization != domain.MaterializationMaterialized || binding.Verification != domain.VerificationPackageValid ||
+		binding.Activation != domain.ActivationFailed || binding.Authentication != domain.AuthenticationFailed {
+		t.Fatalf("corrected state = %+v", binding)
+	}
+
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state, _ = store.Load()
+	beforeReceipts := len(onlyBinding(state.Installations[0]).Receipts)
+	for key, current := range state.Installations[0].Clients {
+		current.Materialization = domain.MaterializationDegraded
+		current.Verification = domain.VerificationFailed
+		state.Installations[0].Clients[key] = current
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.OperationID = "repair-degraded-replacement"
+	result, err = service.Repair(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, _ = store.Load()
+	binding = onlyBinding(state.Installations[0])
+	if !result.Mutated || result.Receipt.OperationID != input.OperationID || len(binding.Receipts) != beforeReceipts+1 {
+		t.Fatalf("replacement result/state = %+v / %+v", result, binding)
+	}
+	if binding.Materialization != domain.MaterializationMaterialized || binding.Verification != domain.VerificationPackageValid ||
+		binding.Activation != domain.ActivationFailed || binding.Authentication != domain.AuthenticationFailed {
+		t.Fatalf("replacement lifecycle overclaimed = %+v", binding)
+	}
+}
+
 func fullyConvergedOutcome(outcome domain.ActivationOutcome) bool {
 	return outcome.Activation == domain.ActivationActive && outcome.Authentication == domain.AuthenticationComplete && outcome.Verification == domain.VerificationInstalled
 }

@@ -16,6 +16,15 @@ on:
         required: false
         default: false
         type: boolean
+      require_draft:
+        description: Require the exact release to remain a non-public draft during proof
+        required: false
+        default: false
+        type: boolean
+      expected_asset_set_digest:
+        description: Optional SHA-256 of checksums.txt frozen by the draft staging job
+        required: false
+        type: string
   workflow_call:
     inputs:
       tag:
@@ -31,6 +40,16 @@ on:
         required: false
         default: false
         type: boolean
+      require_draft:
+        description: Require the exact release to remain a non-public draft during proof
+        required: false
+        default: false
+        type: boolean
+      expected_asset_set_digest:
+        description: Optional SHA-256 of checksums.txt frozen by the calling workflow
+        required: false
+        default: ""
+        type: string
     outputs:
       commit:
         description: Verified release commit
@@ -90,6 +109,8 @@ jobs:
           TAG: ${{ inputs.tag }}
           EXPECTED_COMMIT: ${{ inputs.expected_commit }}
           ALLOW_LEGACY: ${{ inputs.allow_legacy_manifest }}
+          REQUIRE_DRAFT: ${{ inputs.require_draft }}
+          EXPECTED_ASSET_SET_DIGEST: ${{ inputs.expected_asset_set_digest }}
         run: |
           if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "invalid agentplugins stable tag: ${TAG}" >&2
@@ -103,7 +124,28 @@ jobs:
           version="${TAG#agentplugins-v}"
           assets="${RUNNER_TEMP}/agentplugins-release-${version}"
           mkdir -p "${assets}"
+          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}")"
+          if [[ "${REQUIRE_DRAFT}" = "true" ]]; then
+            jq -e --arg tag "${TAG}" --arg commit "${commit}" \
+              '.draft == true and .prerelease == false and .tag_name == $tag and .target_commitish == $commit' \
+              <<<"${release_json}" >/dev/null || {
+                echo "platform proof requires the exact release to remain a non-public draft" >&2
+                exit 1
+              }
+          else
+            jq -e --arg tag "${TAG}" '.draft == false and .tag_name == $tag' <<<"${release_json}" >/dev/null || {
+              echo "platform proof requires an existing public release" >&2
+              exit 1
+            }
+          fi
           gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${assets}"
+          if [[ -n "${EXPECTED_ASSET_SET_DIGEST}" ]]; then
+            [[ "${EXPECTED_ASSET_SET_DIGEST}" =~ ^[0-9a-f]{64}$ ]] || {
+              echo "invalid expected release asset-set digest" >&2
+              exit 1
+            }
+            test "$(sha256sum "${assets}/checksums.txt" | cut -d ' ' -f 1)" = "${EXPECTED_ASSET_SET_DIGEST}"
+          fi
           policy=()
           if [[ "${ALLOW_LEGACY}" = "true" ]]; then
             policy=(allow-legacy-v1)
@@ -202,3 +244,11 @@ jobs:
           path: ${{ runner.temp }}/agentplugins-proof-${{ matrix.target }}.json
           if-no-files-found: warn
           retention-days: 7
+
+  proof-complete:
+    name: Aggregate all six native platform proofs
+    needs: [prepare, native-runtime]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Confirm native matrix aggregation
+        run: test "${{ needs.native-runtime.result }}" = "success"

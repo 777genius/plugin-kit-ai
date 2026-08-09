@@ -173,6 +173,34 @@ func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
 	}
 }
 
+func TestDoctorRecoveryIncludesProjectScopeAndExactTarget(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{DeclaredName: "demo"}
+	binding := domain.ClientBinding{ClientID: "cursor", Scope: string(domain.ScopeProject)}
+	if got := repairAction(installation, binding); got != "run `agentplugins repair demo --target cursor --scope project`" {
+		t.Fatalf("project repair action = %q", got)
+	}
+}
+
+func TestRepairSourcePinsSelectedClientRevision(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{Source: domain.SourceBinding{
+		Repository: "acme/plugins", PackageSubpath: "plugins/demo", ResolvedRevision: "moving-head",
+	}}
+	binding := domain.ClientBinding{PackageRevision: &domain.ClientPackageRevision{ResolvedRevision: "client-commit"}}
+	got, err := repairSource(installation, binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "github:acme/plugins@client-commit//plugins/demo" {
+		t.Fatalf("repair source = %q", got)
+	}
+	binding.PackageRevision.ResolvedRevision = ""
+	if _, err := repairSource(installation, binding); err == nil || !strings.Contains(err.Error(), "moving source") {
+		t.Fatalf("unpinned repair error = %v", err)
+	}
+}
+
 func TestDoctorScopesPendingRecoveryAndRendersIdentity(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -412,7 +440,7 @@ func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout, "repaired from the resolved source") {
+	if !strings.Contains(stdout, "repaired from the exact installed revision") {
 		t.Fatalf("repair output = %q", stdout)
 	}
 	if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {

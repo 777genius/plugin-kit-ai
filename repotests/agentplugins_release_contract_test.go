@@ -11,6 +11,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
 	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
+	releaseDraftJob := yamlJob(t, releaseWorkflow, "stage-draft")
+	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
+	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
 	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
 	npmPlatformProofJob := yamlJob(t, npmWorkflow, "platform-proof")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
@@ -35,7 +38,18 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, releaseWorkflow, "actions/attest@", "gh release create")
 	mustContain(t, releaseWorkflow, "^agentplugins-v[0-9]+\\.[0-9]+\\.[0-9]+$")
 	mustNotContain(t, releaseWorkflow, "--prerelease")
-	mustContain(t, releaseWorkflow, "release ${TAG} already exists; refusing to overwrite immutable assets")
+	mustContain(t, releaseDraftJob, "exact resumable draft; refusing to overwrite immutable assets")
+	mustContain(t, releaseDraftJob, "--draft")
+	mustContain(t, releaseDraftJob, "existing draft asset differs from the frozen build")
+	mustContain(t, releaseProofJob, "needs: [validate, stage-draft]")
+	mustContain(t, releaseProofJob, "require_draft: true")
+	mustContain(t, releaseProofJob, "expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}")
+	mustContain(t, releasePromoteJob, "needs: [validate, stage-draft, platform-proof]")
+	mustContain(t, releasePromoteJob, "EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}")
+	mustContain(t, releasePromoteJob, "gh release edit \"${TAG}\"")
+	mustContain(t, releasePromoteJob, "--draft=false")
+	mustAppearBefore(t, releaseWorkflow, "gh release create", "gh release edit")
+	mustAppearBefore(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml", "gh release edit")
 	mustContain(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
 	mustContain(t, releaseWorkflow, "expected_commit: ${{ needs.validate.outputs.commit }}")
 	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
@@ -143,6 +157,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"windows-11-arm",
 		"platform-proof.js",
 		"verified-release.json",
+		"Aggregate all six native platform proofs",
+		"platform proof requires the exact release to remain a non-public draft",
 	} {
 		mustContain(t, platformWorkflow, want)
 	}
@@ -157,7 +173,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 
 	for _, want := range []string{
 		"attests all six binaries, `checksums.txt`, and",
-		"`release-manifest.json` before creating the public release",
+		"`release-manifest.json` before creating the non-public draft",
+		"promotes that exact draft only after all six native platform proofs succeed",
 		"requires a merged pull request into",
 		"Repository settings are not treated as the release proof",
 		"short-lived bootstrap",
