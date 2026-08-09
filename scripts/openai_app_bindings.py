@@ -26,6 +26,7 @@ ENTRY_FIELDS = {
     "mcp_url",
     "runtime_evidence",
     "personal_app_evidence",
+    "personal_app_evidence_revision",
     "registration",
 }
 DIRECT_RUNTIME_CHECKS = {
@@ -293,6 +294,13 @@ def load_app_bindings(
         personal_evidence_path = _runtime_evidence_path(
             raw["personal_app_evidence"], root, f"{prefix}.personal_app_evidence"
         )
+        personal_evidence_revision = raw["personal_app_evidence_revision"]
+        if not isinstance(personal_evidence_revision, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", personal_evidence_revision
+        ):
+            raise ValueError(
+                f"{prefix}.personal_app_evidence_revision: expected a full commit SHA"
+            )
         _validate_personal_app_evidence(plugin_name, raw, personal_evidence_path)
         validated[plugin_name] = raw
     return validated

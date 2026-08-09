@@ -33,6 +33,7 @@ PERSONAL_APP_EVIDENCE_PATH = (
 )
 CATALOG_REVISION = "fd77a74fa85724a57b328157ab82ef4dd991cda5"
 CATALOG_DIGEST = "sha256:2293e95d41fd44daf2058696f985775847c2f4e779c8458e0e98f185e3864b0a"
+PERSONAL_APP_EVIDENCE_REVISION = "2ddbb99dd190c1792b79904f9875e6322bccd243"
 
 
 def valid_document() -> dict[str, object]:
@@ -47,6 +48,7 @@ def valid_document() -> dict[str, object]:
                 "mcp_url": MCP_URL,
                 "runtime_evidence": EVIDENCE_PATH,
                 "personal_app_evidence": PERSONAL_APP_EVIDENCE_PATH,
+                "personal_app_evidence_revision": PERSONAL_APP_EVIDENCE_REVISION,
                 "registration": {
                     "surface": "chatgpt_developer_mode",
                     "status": "development",
@@ -278,6 +280,22 @@ class OpenAIAppBindingTests(unittest.TestCase):
         query = valid_document()
         query["bindings"]["cloudflare-docs"]["mcp_url"] = MCP_URL + "?token=x"
         cases["endpoint query"] = (query, "without query or fragment")
+        missing_revision = valid_document()
+        del missing_revision["bindings"]["cloudflare-docs"][
+            "personal_app_evidence_revision"
+        ]
+        cases["missing evidence revision"] = (
+            missing_revision,
+            "unexpected or missing fields",
+        )
+        short_revision = valid_document()
+        short_revision["bindings"]["cloudflare-docs"][
+            "personal_app_evidence_revision"
+        ] = "2ddbb99"
+        cases["short evidence revision"] = (
+            short_revision,
+            "expected a full commit SHA",
+        )
 
         for name, (document, message) in cases.items():
             with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:

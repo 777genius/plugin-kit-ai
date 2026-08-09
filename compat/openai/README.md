@@ -22,9 +22,10 @@ portable package and must match one exact Streamable HTTP endpoint. Each entry
 also pins repository-relative direct and personal-app runtime records. The
 loader requires the exact public app ID, plugin, endpoint, UI observations, call
 counts, and read-only runtime checks to agree before any package is generated.
-The portable catalog mirrors only the public binding fields and pinned evidence
-path under `compatibility.chatgpt.app_binding`; clients must still match its
-server and URL to the portable `mcp.json` before generating `.app.json`.
+The portable catalog mirrors only the public binding fields plus an evidence
+path and immutable Git revision under `compatibility.chatgpt.app_binding`.
+Clients must still match its server and URL to the portable `mcp.json` before
+generating `.app.json`.
 
 Structural validation cannot prove who controls a registered ChatGPT app ID.
 That ownership is a human review boundary: `@777genius` must confirm the ID was

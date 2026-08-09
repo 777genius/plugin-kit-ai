@@ -1,10 +1,10 @@
 {
-  "$schema": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json",
-  "schema_version": 1,
-  "catalog_version": "0.1.0",
+  "$schema": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v2.schema.json",
+  "schema_version": 2,
+  "catalog_version": "0.2.0",
   "repository": "777genius/universal-agent-plugins",
-  "revision": "f735387217061dbbe186d9ee77c3f5d854a72c25",
-  "published_at": "2026-08-09T10:52:22Z",
+  "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+  "published_at": "2026-08-09T22:28:33Z",
   "plugins": [
     {
       "name": "agent-code-navigator",
@@ -237,6 +237,19 @@
           "package": "native",
           "verification": "tested",
           "authentication": "not_required"
+        },
+        "chatgpt": {
+          "package": "projected",
+          "verification": "tested",
+          "authentication": "not_required",
+          "app_binding": {
+            "app_key": "cloudflare-docs",
+            "id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
+            "mcp_server": "cloudflare-docs",
+            "mcp_url": "https://docs.mcp.cloudflare.com/mcp",
+            "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json",
+            "runtime_evidence_revision": "2ddbb99dd190c1792b79904f9875e6322bccd243"
+          }
         }
       }
     },
