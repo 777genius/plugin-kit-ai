@@ -199,6 +199,101 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
         )
         self.assertNotIn("--yes", argv)
 
+    def test_vscode_prepares_real_isolated_detection_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            home = sandbox / "home"
+            environment = hero_e2e.isolated_environment(
+                sandbox, home, CATALOG_URL, CATALOG_DIGEST
+            )
+            custom_xdg = sandbox / "custom-xdg"
+            environment["XDG_CONFIG_HOME"] = str(custom_xdg)
+
+            roots = hero_e2e.prepare_client(home, "vscode", environment)
+
+            self.assertEqual(
+                roots,
+                (
+                    custom_xdg / "Code" / "User",
+                    home / "Library" / "Application Support" / "Code" / "User",
+                    sandbox / "appdata" / "Code" / "User",
+                ),
+            )
+            for root in roots:
+                with self.subTest(root=root):
+                    self.assertTrue(root.is_dir())
+                    self.assertFalse(root.is_symlink())
+
+    def test_projection_environment_does_not_inherit_windows_appdata(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(
+            os.environ,
+            {"APPDATA": "C:\\Users\\real\\AppData", "LOCALAPPDATA": "secret"},
+            clear=True,
+        ):
+            sandbox = Path(tmp)
+            environment = hero_e2e.isolated_environment(
+                sandbox, sandbox / "home", CATALOG_URL, CATALOG_DIGEST
+            )
+
+        self.assertEqual(environment["APPDATA"], str(sandbox / "appdata"))
+        self.assertEqual(
+            environment["LOCALAPPDATA"], str(sandbox / "local-appdata")
+        )
+
+    def test_projection_failure_names_flow_and_sanitizes_stderr(self) -> None:
+        sandbox = Path("/tmp/private-sandbox")
+        environment = {
+            "HOME": str(sandbox / "home"),
+            "XDG_CONFIG_HOME": str(sandbox / "config"),
+        }
+        stderr = (
+            f"cannot write {sandbox}/config/Code/User; "
+            '"api_key":"json-secret"; token=super-secret; '
+            "Authorization: Bearer bearer-secret; "
+            "https://user:password@example.test/catalog"
+        )
+        failure = subprocess.CalledProcessError(
+            7, ["agentplugins"], stderr=stderr
+        )
+        with mock.patch.object(
+            hero_e2e.subprocess, "run", side_effect=failure
+        ), self.assertRaisesRegex(
+            RuntimeError, r"vscode/context7: add failed with exit 7"
+        ) as raised:
+            hero_e2e.run_cli(
+                Path("/tmp/agentplugins"),
+                "add",
+                "context7",
+                "vscode",
+                sandbox,
+                environment,
+            )
+
+        message = str(raised.exception)
+        self.assertIn("stderr: cannot write <path>", message)
+        self.assertNotIn(str(sandbox), message)
+        self.assertNotIn("super-secret", message)
+        self.assertNotIn("json-secret", message)
+        self.assertNotIn("bearer-secret", message)
+        self.assertNotIn("user:password", message)
+
+    def test_projection_timeout_names_target_plugin_and_command(self) -> None:
+        with mock.patch.object(
+            hero_e2e.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(["agentplugins"], 120),
+        ), self.assertRaisesRegex(
+            RuntimeError, r"kiro/notion: remove timed out after 120s"
+        ):
+            hero_e2e.run_cli(
+                Path("/tmp/agentplugins"),
+                "remove",
+                "notion",
+                "kiro",
+                Path("/tmp/sandbox"),
+                {},
+            )
+
     def test_e2e_defaults_target_agentplugins_0_1_5(self) -> None:
         self.assertEqual(e2e.EXPECTED_CLI_VERSION, "0.1.5")
         self.assertEqual(hero_e2e.EXPECTED_CLI_VERSION, "0.1.5")

@@ -55,15 +55,27 @@ def verified_catalog(catalog_digest: str) -> tuple[dict[str, object], str]:
     return catalog, actual_digest
 
 
-def prepare_client(home: Path, target: str) -> None:
+def prepare_client(
+    home: Path, target: str, environment: dict[str, str]
+) -> tuple[Path, ...]:
+    """Create isolated detection roots for the selected client."""
     roots = {
-        "codex": home / ".codex",
-        "cursor": home / ".cursor",
-        "copilot": home / ".copilot",
-        "vscode": home / "Library" / "Application Support" / "Code" / "User",
-        "kiro": home / ".kiro",
+        "codex": (home / ".codex",),
+        "cursor": (home / ".cursor",),
+        "copilot": (home / ".copilot",),
+        "vscode": (
+            Path(environment["XDG_CONFIG_HOME"]) / "Code" / "User",
+            home / "Library" / "Application Support" / "Code" / "User",
+            Path(environment["APPDATA"]) / "Code" / "User",
+        ),
+        "kiro": (home / ".kiro",),
     }
-    roots[target].mkdir(parents=True)
+    prepared = roots[target]
+    for root in prepared:
+        root.mkdir(parents=True, exist_ok=True)
+        if not root.is_dir() or root.is_symlink():
+            raise RuntimeError(f"{target}: client detection root is not a real directory")
+    return prepared
 
 
 def catalog_environment(catalog_url: str, catalog_digest: str) -> dict[str, str]:
@@ -117,6 +129,8 @@ def isolated_environment(
             "USERPROFILE": str(home),
             "XDG_CONFIG_HOME": str(sandbox / "config"),
             "XDG_CACHE_HOME": str(sandbox / "cache"),
+            "APPDATA": str(sandbox / "appdata"),
+            "LOCALAPPDATA": str(sandbox / "local-appdata"),
             "AGENTPLUGINS_HOME": str(sandbox / "state"),
             "TMPDIR": str(temp_dir),
             "TMP": str(temp_dir),
@@ -172,24 +186,74 @@ def run_cli(
         if command == "remove" and target in COPIED_CLIENTS
         else []
     )
-    return subprocess.run(
-        [
-            str(binary),
-            command,
-            plugin,
-            "--target",
-            target,
-            "--format",
-            "json",
-            *extra,
-        ],
-        cwd=sandbox,
-        env=environment,
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=CLI_TIMEOUT_SECONDS,
+    argv = [
+        str(binary),
+        command,
+        plugin,
+        "--target",
+        target,
+        "--format",
+        "json",
+        *extra,
+    ]
+    try:
+        return subprocess.run(
+            argv,
+            cwd=sandbox,
+            env=environment,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"{target}/{plugin}: {command} timed out after {CLI_TIMEOUT_SECONDS}s"
+        ) from None
+    except subprocess.CalledProcessError as error:
+        stderr = sanitized_failure_output(error.stderr, sandbox, environment)
+        raise RuntimeError(
+            f"{target}/{plugin}: {command} failed with exit {error.returncode}; "
+            f"stderr: {stderr}"
+        ) from None
+
+
+def sanitized_failure_output(
+    stderr: str | None, sandbox: Path, environment: dict[str, str]
+) -> str:
+    """Keep failure context while excluding credentials and machine paths."""
+    value = (stderr or "").strip() or "<empty>"
+    path_values = {str(sandbox), str(sandbox.resolve())}
+    for name in (
+        "HOME",
+        "USERPROFILE",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "AGENTPLUGINS_HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+    ):
+        if environment.get(name):
+            path_values.add(environment[name])
+    for path in sorted(path_values, key=len, reverse=True):
+        value = value.replace(path, "<path>")
+    value = re.sub(r"(?i)(https?://)[^/@\s]+:[^/@\s]+@", r"\1<credentials>@", value)
+    value = re.sub(r"(?i)\bBearer\s+[^\s,;]+", "Bearer <redacted>", value)
+    value = re.sub(
+        r'''(?ix)
+        (?P<key>["']?(?:api[_-]?key|token|password|secret|authorization|cookie|
+        oauth[_-]?(?:code|state))["']?\s*[:=]\s*)
+        (?:"[^"]*"|'[^']*'|[^\s,;]+)
+        ''',
+        r"\g<key><redacted>",
+        value,
     )
+    value = re.sub(r"(?<![\w.])(?:/[A-Za-z0-9._+@%=-]+){2,}", "<path>", value)
+    value = re.sub(r"(?i)\b[A-Z]:\\(?:[^\s\\]+\\)*[^\s\\]+", "<path>", value)
+    return value[:1000]
 
 
 def run(
@@ -209,10 +273,10 @@ def run(
         with tempfile.TemporaryDirectory(prefix=f"agentplugins-{target}-e2e-") as temporary:
             sandbox = Path(temporary)
             home = sandbox / "home"
-            prepare_client(home, target)
             environment = isolated_environment(
                 sandbox, home, catalog_url, catalog_digest
             )
+            prepare_client(home, target, environment)
             versions.add(
                 binary_version(binary, sandbox, environment, expected_version)
             )
