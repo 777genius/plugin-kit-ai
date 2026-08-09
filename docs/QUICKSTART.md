@@ -19,7 +19,7 @@ Supported targets:
 | Target | What the CLI does | Remaining user step |
 | --- | --- | --- |
 | `codex` | Generates a personal OpenAI marketplace package | Runs no hidden UI actions; prints exact Codex activation steps |
-| `chatgpt` | Prepares a projected package only when the catalog has a verified app binding | Install or select the registered personal app manually in ChatGPT Plugins, then start a new chat |
+| `chatgpt` (`agentplugins >=0.1.6`) | Prepares a projected package only when catalog v2 has a verified app binding | Install or select the registered personal app manually in ChatGPT Plugins, then start a new chat |
 | `cursor` | Places the native package in Cursor's local plugin directory | Reload Cursor, then verify the plugin appears |
 | `copilot` | Registers a managed marketplace, installs, and verifies through Copilot CLI | Nothing when successful |
 | `vscode` | Installs automatically through Copilot CLI when available | Otherwise prints the exact `chat.pluginLocations` setting |
@@ -38,11 +38,12 @@ npx universal-agent-plugins remove context7 --target cursor
 installed. OAuth stays inside the client; the CLI never stores tokens or accepts
 trust prompts automatically.
 
-ChatGPT activation remains a user-attested manual Plugins UI flow. Cloudflare
-Docs has the only catalog-verified target: its registered personal app passed
-discovery, chat activation, and read-only runtime. Local `.codex-plugin`
-ingestion and manager lifecycle remain unproved. The five stdio MCP packages
-stay Codex-only.
+ChatGPT target support requires `agentplugins >=0.1.6`; the current `0.1.5`
+release does not provide it, so no copy command is published yet. Activation
+remains a user-attested manual Plugins UI flow. Cloudflare Docs is the only
+catalog-v2-verified target: its registered personal app passed discovery, chat
+activation, and read-only runtime. Local `.codex-plugin` ingestion and manager
+lifecycle remain unproved. The five stdio MCP packages stay Codex-only.
 
 The portable package can also be installed through a client's native Agent
 Plugins flow. Exact client/runtime/OAuth evidence is kept separately in the

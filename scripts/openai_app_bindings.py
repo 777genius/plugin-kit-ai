@@ -212,7 +212,7 @@ def _validate_personal_app_evidence(
         raise ValueError(f"{evidence_path}: runtime call counts do not match")
     if evidence.get("scope") != {
         "proved": [
-            "registered_personal_app_install",
+            "registered_personal_app_installed_state",
             "plugins_ui_discovery",
             "chat_activation",
             "exact_app_id_linkage",

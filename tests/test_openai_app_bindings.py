@@ -9,6 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from jsonschema import Draft202012Validator
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -124,7 +126,7 @@ def valid_personal_app_evidence() -> dict[str, object]:
         "runtime": {"prompt_count": 1, "tool_call_count": 2, "read_only": True},
         "scope": {
             "proved": [
-                "registered_personal_app_install",
+                "registered_personal_app_installed_state",
                 "plugins_ui_discovery",
                 "chat_activation",
                 "exact_app_id_linkage",
@@ -282,6 +284,28 @@ class OpenAIAppBindingTests(unittest.TestCase):
                 path = self.write_document(Path(tmp), document)
                 with self.assertRaisesRegex(ValueError, message):
                     load_app_bindings(path, Path(tmp))
+
+    def test_evidence_schema_accepts_opaque_safe_app_ids(self) -> None:
+        schema = json.loads(
+            (ROOT / "schemas" / "e2e" / "client-evidence.schema.json").read_text()
+        )
+        evidence = json.loads(
+            (
+                ROOT
+                / "tests"
+                / "e2e"
+                / "results"
+                / "chatgpt-cloudflare-docs-personal-app-2026-08-10.json"
+            ).read_text()
+        )
+        validator = Draft202012Validator(schema)
+        for app_id in ("connector_example123", "asdk_app_example123"):
+            document = copy.deepcopy(evidence)
+            document["binding"]["app_id"] = app_id
+            with self.subTest(app_id=app_id):
+                self.assertEqual(list(validator.iter_errors(document)), [])
+        evidence["binding"]["app_id"] = "unsafe app id"
+        self.assertNotEqual(list(validator.iter_errors(evidence)), [])
 
     def test_sidecar_rejects_duplicate_app_id(self) -> None:
         document = valid_document()
