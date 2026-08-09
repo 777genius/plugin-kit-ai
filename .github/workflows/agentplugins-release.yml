@@ -176,12 +176,12 @@ jobs:
           FROZEN_COMMIT: ${{ needs.validate.outputs.commit }}
         working-directory: ${{ runner.temp }}/agentplugins-assets
         run: |
-          test "$(find . -maxdepth 1 -type f -name 'agentplugins_*' | wc -l | tr -d ' ')" = 6
           git -C "${GITHUB_WORKSPACE}" fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
           test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "${TAG}")" = "${FROZEN_COMMIT}"
-          jq -n --arg tag "${TAG}" --arg commit "${FROZEN_COMMIT}" \
-            '{schema_version: 1, tag: $tag, commit: $commit}' > release-manifest.json
-          sha256sum agentplugins_* release-manifest.json > checksums.txt
+          node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
+            prepare "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
+          node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
+            verify "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
           if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             echo "release ${TAG} already exists; refusing to overwrite immutable assets" >&2
             exit 1
@@ -205,3 +205,14 @@ jobs:
           gh release create "${TAG}" agentplugins_* checksums.txt release-manifest.json \
             --repo "${GITHUB_REPOSITORY}" --verify-tag \
             --title "Agentplugins ${TAG#agentplugins-v}" --generate-notes
+
+  platform-proof:
+    needs: [validate, publish-assets]
+    uses: ./.github/workflows/agentplugins-platform-proof.yml
+    permissions:
+      contents: read
+      attestations: read
+    with:
+      tag: ${{ inputs.tag }}
+      expected_commit: ${{ needs.validate.outputs.commit }}
+      allow_legacy_manifest: false

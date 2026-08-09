@@ -10,6 +10,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	makefile := readRepoFile(t, root, "Makefile")
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
+	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
@@ -33,6 +34,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseWorkflow, "^agentplugins-v[0-9]+\\.[0-9]+\\.[0-9]+$")
 	mustNotContain(t, releaseWorkflow, "--prerelease")
 	mustContain(t, releaseWorkflow, "release ${TAG} already exists; refusing to overwrite immutable assets")
+	mustContain(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
+	mustContain(t, releaseWorkflow, "expected_commit: ${{ needs.validate.outputs.commit }}")
 	mustContain(t, releaseWorkflow, "commits/${COMMIT}/pulls")
 	mustContain(t, releaseWorkflow, "release commit must come from a merged pull request into main")
 	mustContain(t, releaseWorkflow, "check-runs?filter=latest&per_page=100")
@@ -54,6 +57,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"needs: [release-identity, platform-proof]",
 		"if: ${{ !inputs.verify_only }}",
 		"environment: npm-agentplugins",
 		"id-token: write",
@@ -68,7 +72,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		mustContain(t, npmPublishJob, want)
 	}
 	for _, want := range []string{
-		"needs: publish",
+		"needs: [publish, platform-proof]",
 		"always() && !cancelled() && (inputs.verify_only || needs.publish.result == 'success')",
 		`ref: ${{ inputs.tag }}`,
 		"Resolve immutable verification target",
@@ -105,6 +109,30 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
+
+	for _, want := range []string{
+		"workflow_call:",
+		"allow_legacy_manifest:",
+		"Audit a schema-v1 historical release; never eligible as an npm publish gate",
+		"native runtime E2E (${{ matrix.target }})",
+		"target: darwin-amd64",
+		"target: darwin-arm64",
+		"target: linux-amd64",
+		"target: linux-arm64",
+		"target: windows-amd64",
+		"target: windows-arm64",
+		"macos-15-intel",
+		"ubuntu-24.04-arm",
+		"windows-11-arm",
+		"platform-proof.js",
+		"verified-release.json",
+	} {
+		mustContain(t, platformWorkflow, want)
+	}
+	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
+	mustContain(t, npmWorkflow, "test \"${{ needs.platform-proof.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")
+	mustNotContain(t, npmWorkflow, "add context7")
 
 	mustContain(t, removedBoundaryScript, "if command -v rg")
 	mustContain(t, removedBoundaryScript, "git grep --untracked --exclude-standard")

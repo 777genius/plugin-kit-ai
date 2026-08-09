@@ -1,0 +1,204 @@
+name: Agentplugins Platform Proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Exact released tag to audit, for example agentplugins-v0.1.4
+        required: true
+        type: string
+      expected_commit:
+        description: Optional exact 40-character release commit (required by publish callers)
+        required: false
+        type: string
+      allow_legacy_manifest:
+        description: Audit a schema-v1 historical release; never eligible as an npm publish gate
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      tag:
+        description: Exact released stable tag
+        required: true
+        type: string
+      expected_commit:
+        description: Exact 40-character release commit
+        required: true
+        type: string
+      allow_legacy_manifest:
+        description: Audit-only compatibility for historical schema-v1 manifests
+        required: false
+        default: false
+        type: boolean
+    outputs:
+      commit:
+        description: Verified release commit
+        value: ${{ jobs.prepare.outputs.commit }}
+      version:
+        description: Verified release version
+        value: ${{ jobs.prepare.outputs.version }}
+      package_name:
+        description: Exact npm distribution name
+        value: ${{ jobs.prepare.outputs.package_name }}
+      tarball_artifact:
+        description: Artifact containing the exact tested npm tarball
+        value: ${{ jobs.prepare.outputs.tarball_artifact }}
+      tarball_file:
+        description: Filename of the exact tested npm tarball
+        value: ${{ jobs.prepare.outputs.tarball_file }}
+      gate_eligible:
+        description: Whether the release uses the strict publish-gate manifest
+        value: ${{ jobs.prepare.outputs.gate_eligible }}
+
+permissions:
+  contents: read
+  attestations: read
+
+jobs:
+  prepare:
+    name: Verify release and pack exact npm tarball
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.prepare.outputs.commit }}
+      version: ${{ steps.prepare.outputs.version }}
+      package_name: ${{ steps.prepare.outputs.package_name }}
+      tarball_artifact: ${{ steps.prepare.outputs.tarball_artifact }}
+      tarball_file: ${{ steps.prepare.outputs.tarball_file }}
+      gate_eligible: ${{ steps.prepare.outputs.gate_eligible }}
+    steps:
+      - name: Check out platform proof tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: proof-tools
+      - name: Check out exact release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.tag }}
+          path: release-source
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Verify immutable release identity, assets, and attestations
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          EXPECTED_COMMIT: ${{ inputs.expected_commit }}
+          ALLOW_LEGACY: ${{ inputs.allow_legacy_manifest }}
+        run: |
+          if [[ ! "${TAG}" =~ ^agentplugins-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "invalid agentplugins stable tag: ${TAG}" >&2
+            exit 1
+          fi
+          commit="$(git -C release-source rev-parse HEAD)"
+          if [[ -n "${EXPECTED_COMMIT}" ]] && [[ "${commit}" != "${EXPECTED_COMMIT}" ]]; then
+            echo "release tag commit does not match the caller's frozen commit" >&2
+            exit 1
+          fi
+          version="${TAG#agentplugins-v}"
+          assets="${RUNNER_TEMP}/agentplugins-release-${version}"
+          mkdir -p "${assets}"
+          gh release download "${TAG}" --repo "${GITHUB_REPOSITORY}" --dir "${assets}"
+          policy=()
+          if [[ "${ALLOW_LEGACY}" = "true" ]]; then
+            policy=(allow-legacy-v1)
+          fi
+          node proof-tools/npm/agentplugins/scripts/release-assets.js verify \
+            "${assets}" "${TAG}" "${commit}" "${policy[@]}" > "${RUNNER_TEMP}/verified-release.json"
+          for asset in "${assets}"/agentplugins_* "${assets}/checksums.txt" "${assets}/release-manifest.json"; do
+            gh attestation verify "${asset}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --signer-workflow "github.com/${GITHUB_REPOSITORY}/.github/workflows/agentplugins-release.yml" \
+              --source-digest "${commit}"
+          done
+          stage="${RUNNER_TEMP}/agentplugins-npm-${version}"
+          mkdir -p "${stage}"
+          cp -R release-source/npm/agentplugins/. "${stage}/"
+          node proof-tools/npm/agentplugins/scripts/stage-release.js \
+            "${stage}" "${assets}" "${version}" "${commit}" "${policy[@]}"
+          (cd "${stage}" && npm test && npm pack --dry-run --ignore-scripts)
+          pack_json="$(cd "${stage}" && npm pack --ignore-scripts --json)"
+          tarball_file="$(jq -er 'if length == 1 then .[0].filename else error("expected one npm tarball") end' <<<"${pack_json}")"
+          tarball="${stage}/${tarball_file}"
+          test -s "${tarball}"
+          package_name="$(node -p 'require(process.argv[1]).name' "${stage}/package.json")"
+          tarball_artifact="agentplugins-npm-${version}"
+          gate_eligible="$(jq -r '.gate_eligible' "${RUNNER_TEMP}/verified-release.json")"
+          echo "commit=${commit}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "package_name=${package_name}" >> "${GITHUB_OUTPUT}"
+          echo "tarball_artifact=${tarball_artifact}" >> "${GITHUB_OUTPUT}"
+          echo "tarball_file=${tarball_file}" >> "${GITHUB_OUTPUT}"
+          echo "gate_eligible=${gate_eligible}" >> "${GITHUB_OUTPUT}"
+          cp "${tarball}" "${RUNNER_TEMP}/${tarball_file}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: ${{ steps.prepare.outputs.tarball_artifact }}
+          path: |
+            ${{ runner.temp }}/${{ steps.prepare.outputs.tarball_file }}
+            ${{ runner.temp }}/verified-release.json
+          if-no-files-found: error
+          retention-days: 7
+
+  native-runtime:
+    name: native runtime E2E (${{ matrix.target }})
+    needs: prepare
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-amd64
+            runner: macos-15-intel
+            lifecycle: false
+          - target: darwin-arm64
+            runner: macos-15
+            lifecycle: true
+          - target: linux-amd64
+            runner: ubuntu-24.04
+            lifecycle: true
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            lifecycle: false
+          - target: windows-amd64
+            runner: windows-2025
+            lifecycle: true
+          - target: windows-arm64
+            runner: windows-11-arm
+            lifecycle: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out platform proof harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.prepare.outputs.tarball_artifact }}
+          path: ${{ runner.temp }}/agentplugins-proof-package
+      - name: Run native npm launcher and released binary proof
+        shell: bash
+        run: |
+          node npm/agentplugins/scripts/platform-proof.js \
+            "${{ runner.temp }}/agentplugins-proof-package/${{ needs.prepare.outputs.tarball_file }}" \
+            "${{ needs.prepare.outputs.version }}" \
+            "${{ matrix.target }}" \
+            "${{ matrix.lifecycle }}" \
+            "${{ runner.temp }}/agentplugins-proof-${{ matrix.target }}.json"
+      - name: Upload machine-readable native proof
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: agentplugins-native-proof-${{ matrix.target }}
+          path: ${{ runner.temp }}/agentplugins-proof-${{ matrix.target }}.json
+          if-no-files-found: warn
+          retention-days: 7

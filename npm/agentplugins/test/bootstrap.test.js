@@ -145,7 +145,12 @@ test("package has no install scripts", async () => {
   const packageRoot = path.resolve(__dirname, "..");
   const pkg = JSON.parse(await fsp.readFile(path.join(packageRoot, "package.json"), "utf8"));
   assert.equal(pkg.engines.node, ">=22");
+  assert.deepEqual(pkg.os, ["darwin", "linux", "win32"]);
+  assert.deepEqual(pkg.cpu, ["x64", "arm64"]);
   assert.deepEqual(pkg.scripts, { test: "node --test" });
+  assert.equal(pkg.scripts.preinstall, undefined);
+  assert.equal(pkg.scripts.install, undefined);
+  assert.equal(pkg.scripts.postinstall, undefined);
 });
 
 test("development metadata cannot download a release binary", async (t) => {
