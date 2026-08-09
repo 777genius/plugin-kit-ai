@@ -196,6 +196,12 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
             chatgpt = document["plugins"][cloudflare_index]["compatibility"]["chatgpt"]
             return document, chatgpt
 
+        for app_id in ("connector_example123", "asdk_app_example123"):
+            document, chatgpt = mutated_chatgpt()
+            chatgpt["app_binding"]["id"] = app_id
+            with self.subTest(valid_app_id=app_id):
+                self.assertEqual(list(validator.iter_errors(document)), [])
+
         cases: dict[str, dict[str, object]] = {}
         document, chatgpt = mutated_chatgpt()
         del chatgpt["app_binding"]["id"]
@@ -218,6 +224,9 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         document, chatgpt = mutated_chatgpt()
         chatgpt["app_binding"]["unexpected"] = "value"
         cases["unknown binding field"] = document
+        document, chatgpt = mutated_chatgpt()
+        chatgpt["app_binding"]["id"] = "unsafe app id"
+        cases["app ID whitespace"] = document
         document = copy.deepcopy(catalog)
         codex = document["plugins"][cloudflare_index]["compatibility"]["codex"]
         codex["app_binding"] = copy.deepcopy(

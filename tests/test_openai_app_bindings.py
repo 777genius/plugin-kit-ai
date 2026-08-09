@@ -235,14 +235,38 @@ class OpenAIAppBindingTests(unittest.TestCase):
             {"apps": {"cloudflare-docs": {"id": APP_ID}}},
         )
 
+    def test_sidecar_accepts_opaque_safe_app_id_families(self) -> None:
+        for app_id in ("connector_example123", "asdk_app_example123"):
+            with self.subTest(app_id=app_id), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                document = valid_document()
+                document["bindings"]["cloudflare-docs"]["id"] = app_id
+                direct_evidence = valid_evidence()
+                direct_evidence["binding"]["app_id"] = app_id
+                personal_evidence = valid_personal_app_evidence()
+                personal_evidence["binding"]["app_id"] = app_id
+                path = self.write_document(
+                    root,
+                    document,
+                    evidence=direct_evidence,
+                    personal_evidence=personal_evidence,
+                )
+
+                bindings = load_app_bindings(path, root)
+
+                self.assertEqual(bindings["cloudflare-docs"]["id"], app_id)
+
     def test_sidecar_rejects_unknown_or_unsafe_values(self) -> None:
         cases: dict[str, tuple[object, str]] = {}
         unknown = valid_document()
         unknown["unexpected"] = True
         cases["unknown top-level field"] = (unknown, "only \\$schema")
         invalid_id = valid_document()
-        invalid_id["bindings"]["cloudflare-docs"]["id"] = "connector_vendor_id"
-        cases["non-development app ID"] = (invalid_id, "invalid ChatGPT development app ID")
+        invalid_id["bindings"]["cloudflare-docs"]["id"] = "unsafe app id"
+        cases["app ID whitespace"] = (invalid_id, "invalid ChatGPT app ID token")
+        path_id = valid_document()
+        path_id["bindings"]["cloudflare-docs"]["id"] = "../unsafe"
+        cases["app ID path syntax"] = (path_id, "invalid ChatGPT app ID token")
         mismatched_name = valid_document()
         mismatched_name["bindings"]["cloudflare-docs"]["app_key"] = "other"
         cases["mismatched app key"] = (mismatched_name, "must match the plugin name")
@@ -269,7 +293,7 @@ class OpenAIAppBindingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = self.write_document(root, document)
-            with self.assertRaisesRegex(ValueError, "duplicate ChatGPT development app ID"):
+            with self.assertRaisesRegex(ValueError, "duplicate ChatGPT app ID"):
                 load_app_bindings(path, root)
 
     def test_sidecar_rejects_runtime_evidence_drift(self) -> None:

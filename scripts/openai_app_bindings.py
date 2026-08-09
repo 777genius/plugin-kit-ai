@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 APP_BINDINGS = ROOT / "compat" / "openai" / "app-bindings.json"
 PLUGIN_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-DEVELOPMENT_APP_ID = re.compile(r"^plugin_asdk_app_[A-Za-z0-9]+$")
+APP_ID_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$")
 RUNTIME_EVIDENCE_PATH = re.compile(
     r"^tests/e2e/results/[a-z0-9-]+-(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\.json$"
 )
@@ -273,10 +273,10 @@ def load_app_bindings(
         if raw["app_key"] != plugin_name or raw["mcp_server"] != plugin_name:
             raise ValueError(f"{prefix}: app_key and mcp_server must match the plugin name")
         app_id = raw["id"]
-        if not isinstance(app_id, str) or not DEVELOPMENT_APP_ID.fullmatch(app_id):
-            raise ValueError(f"{prefix}.id: invalid ChatGPT development app ID")
+        if not isinstance(app_id, str) or not APP_ID_TOKEN.fullmatch(app_id):
+            raise ValueError(f"{prefix}.id: invalid ChatGPT app ID token")
         if app_id in seen_app_ids:
-            raise ValueError(f"{prefix}.id: duplicate ChatGPT development app ID")
+            raise ValueError(f"{prefix}.id: duplicate ChatGPT app ID")
         seen_app_ids.add(app_id)
         _require_https_url(raw["mcp_url"], f"{prefix}.mcp_url")
         registration = raw["registration"]

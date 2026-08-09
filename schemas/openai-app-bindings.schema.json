@@ -15,7 +15,10 @@
         "required": ["app_key", "id", "mcp_server", "mcp_url", "runtime_evidence", "personal_app_evidence", "registration"],
         "properties": {
           "app_key": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-          "id": { "type": "string", "pattern": "^plugin_asdk_app_[A-Za-z0-9]+$" },
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$"
+          },
           "mcp_server": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
           "mcp_url": {
             "type": "string",
