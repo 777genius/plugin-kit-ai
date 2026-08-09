@@ -462,12 +462,12 @@ func requireNonInteractiveMutation(app App, opts *options, action string) error 
 	return fmt.Errorf("automated %s requires --target", action)
 }
 
-// automatedMutation identifies invocations where prompting is unavailable or
-// would break the machine-readable JSON contract. These flows still require
-// every command-specific selector/target guard, but an explicit --yes is not
-// part of the public UX contract.
+// automatedMutation identifies invocations where prompting is unavailable,
+// would break the machine-readable JSON contract, or was explicitly bypassed
+// with the hidden compatibility flag. These flows still require every
+// command-specific selector/target guard.
 func automatedMutation(app App, opts *options) bool {
-	return !app.Terminal || opts.format == "json"
+	return !app.Terminal || opts.format == "json" || opts.yes
 }
 
 func mutationConfirmed(app App, opts *options) bool {

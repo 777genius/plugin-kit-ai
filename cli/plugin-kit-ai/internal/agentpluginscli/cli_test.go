@@ -98,6 +98,44 @@ func TestAutomatedAddRequiresExplicitTargetButNotYes(t *testing.T) {
 	}
 }
 
+func TestTTYYesNeverBypassesExplicitStandardTargetGuards(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(true, "add", plugin, "--yes"); err == nil || !strings.Contains(err.Error(), "requires --target") {
+		t.Fatalf("TTY add --yes missing-target error = %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("TTY add --yes without target mutated state: %+v", state)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	for name, args := range map[string][]string{
+		"update": {"update", "demo", "--yes"},
+		"remove": {"remove", "demo", "--yes"},
+		"repair": {"repair", "demo", "--yes"},
+	} {
+		name, args := name, args
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := fixture.execute(true, args...); err == nil || !strings.Contains(err.Error(), "requires --target") {
+				t.Fatalf("TTY %s --yes missing-target error = %v", name, err)
+			}
+		})
+	}
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyCLIClient(state.Installations[0]); binding.Materialization != domain.MaterializationMaterialized || len(binding.Receipts) != 1 {
+		t.Fatalf("TTY --yes without target mutated standard lifecycle state: %+v", binding)
+	}
+}
+
 func TestDryRunAndDoctorAreStrictlyReadOnly(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -975,6 +1013,9 @@ func TestLegacyRemovalRequiresExplicitAllTargetAndReconcilesV2(t *testing.T) {
 	}}}
 	if err := fixture.store.Save(state); err != nil {
 		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(true, "remove", "legacy-demo", "--yes"); err == nil || !strings.Contains(err.Error(), "legacy-all") {
+		t.Fatalf("unsafe legacy TTY --yes removal error = %v", err)
 	}
 	if _, _, err := fixture.execute(false, "remove", "legacy-demo"); err == nil || !strings.Contains(err.Error(), "legacy-all") {
 		t.Fatalf("unsafe legacy non-TTY removal error = %v", err)
