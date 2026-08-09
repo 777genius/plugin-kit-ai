@@ -19,13 +19,56 @@ func TestDetectorReturnsAllSupportedClientsWithoutAmbientDiscovery(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(clients) != 5 {
-		t.Fatalf("clients = %d, want 5", len(clients))
+	if len(clients) != 6 {
+		t.Fatalf("clients = %d, want 6", len(clients))
 	}
 	for _, client := range clients {
 		if client.Status != domain.DetectionNotDetected {
 			t.Fatalf("client %s unexpectedly detected", client.ClientID)
 		}
+	}
+}
+
+func TestChatGPTDesktopNeverDetectsCodexOrInheritsItsBinary(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	applications := filepath.Join(home, "Applications")
+	if err := os.MkdirAll(filepath.Join(applications, "ChatGPT.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, map[string]string{"codex": filepath.Join(home, "bin", "codex")})
+	detector.GOOS = "darwin"
+	detector.SystemApplicationsDir = applications
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatgpt := clientOf(clients, domain.ClientChatGPT)
+	if chatgpt.Status != domain.DetectionDetected || chatgpt.ExecutablePath != "" || !surfaceDetected(chatgpt.Surfaces, "chatgpt_desktop") {
+		t.Fatalf("ChatGPT detection = %+v", chatgpt)
+	}
+	codex := clientOf(clients, domain.ClientCodex)
+	if !surfaceDetected(codex.Surfaces, "codex_cli") || surfaceDetected(codex.Surfaces, "chatgpt_desktop") {
+		t.Fatalf("Codex detection leaked ChatGPT surface: %+v", codex)
+	}
+}
+
+func TestCodexDesktopNeverDetectsChatGPT(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	applications := filepath.Join(home, "Applications")
+	if err := os.MkdirAll(filepath.Join(applications, "Codex.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	detector.GOOS = "darwin"
+	detector.SystemApplicationsDir = applications
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statusOf(clients, domain.ClientCodex) != domain.DetectionDetected || statusOf(clients, domain.ClientChatGPT) != domain.DetectionNotDetected {
+		t.Fatalf("split detection = %+v", clients)
 	}
 }
 

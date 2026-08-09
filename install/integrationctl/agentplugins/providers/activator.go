@@ -33,7 +33,9 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 	case domain.ClientCursor:
 		return outcome, nil
 	case domain.ClientCodex:
-		return requireExternalUninstall(outcome, request.ExternalUninstalled, "uninstall the plugin in Codex or ChatGPT, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
+		return requireExternalUninstall(outcome, request.ExternalUninstalled, "uninstall the plugin in Codex, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
+	case domain.ClientChatGPT:
+		return requireExternalUninstall(outcome, request.ExternalUninstalled, "uninstall the plugin in ChatGPT Plugins, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
 	case domain.ClientKiro:
 		return requireExternalUninstall(outcome, request.ExternalUninstalled, "remove the custom Power in Kiro, then rerun remove with `--external-uninstalled` (also use the flag if it was never imported)"), nil
 	case domain.ClientCopilot, domain.ClientVSCode:
@@ -126,8 +128,8 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 	case domain.ClientCodex:
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
 			outcome.Activation = domain.ActivationManual
-			outcome.UserActions = append(outcome.UserActions, "install the prepared plugin in the ChatGPT/Codex app, then verify it appears in Plugins > Personal")
-			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("in the ChatGPT/Codex app, install %s from %s, then verify it appears in Plugins > Personal", request.DeclaredName, request.Delivery.ActivePath))
+			outcome.UserActions = append(outcome.UserActions, "install the prepared plugin in Codex Plugins, then verify it appears in Plugins > Personal")
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("in Codex, install %s from %s, then verify it appears in Plugins > Personal", request.DeclaredName, request.Delivery.ActivePath))
 			return outcome, nil
 		}
 		if request.VerifyOnly {
@@ -149,6 +151,16 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
+		return outcome, nil
+	case domain.ClientChatGPT:
+		outcome.Activation = domain.ActivationManual
+		if componentKindPresent(request.Plan.Components, domain.ComponentApp) {
+			outcome.UserActions = append(outcome.UserActions, "in ChatGPT Developer Mode, verify the registered connection referenced by .app.json, install the plugin from Plugins, then confirm it is enabled in a new chat")
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("open ChatGPT Plugins and install %s from the prepared marketplace at %s; verify every .app.json connection before confirming activation", request.DeclaredName, request.Delivery.ActivePath))
+		} else {
+			outcome.UserActions = append(outcome.UserActions, "install the prepared skills-only plugin from ChatGPT Plugins, then confirm it is enabled in a new chat")
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("open ChatGPT Plugins and install %s from the prepared marketplace at %s, then confirm it is enabled in a new chat", request.DeclaredName, request.Delivery.ActivePath))
+		}
 		return outcome, nil
 	case domain.ClientKiro:
 		if !mcpOnly(request.Plan.Components) {
@@ -410,6 +422,15 @@ func mcpOnly(components []domain.ComponentDecision) bool {
 		found = true
 	}
 	return found
+}
+
+func componentKindPresent(components []domain.ComponentDecision, kind domain.ComponentKind) bool {
+	for _, component := range components {
+		if component.Kind == kind && component.Support != domain.SupportUnsupported {
+			return true
+		}
+	}
+	return false
 }
 
 func isKiroCLI(executable string) bool {

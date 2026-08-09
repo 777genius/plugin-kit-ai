@@ -83,11 +83,13 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 		t.Fatalf("installations = %+v", state.Installations)
 	}
 	packageState := state.Installations[0].Package
-	if packageState.SchemaURI != domain.PluginSchemaV1 || packageState.ManifestDigest != input.Envelope.ManifestDigest ||
-		!strings.Contains(string(input.Envelope.Manifest.Raw), `"future"`) || input.Envelope.CatalogEvidence == nil || len(input.Envelope.Diagnostics) != 1 {
-		t.Fatalf("in-memory evidence or compatible package binding was lost: envelope=%+v package=%+v", input.Envelope, packageState)
-	}
 	clientState := onlyBinding(state.Installations[0])
+	if packageState.SchemaURI != domain.PluginSchemaV1 || packageState.ManifestDigest != input.Envelope.ManifestDigest ||
+		clientState.PackageRevision == nil || clientState.PackageRevision.CatalogEvidence == nil ||
+		clientState.PackageRevision.CatalogEvidence.Compatibility["cursor"].Verification != "tested" ||
+		!strings.Contains(string(input.Envelope.Manifest.Raw), `"future"`) || input.Envelope.CatalogEvidence == nil || len(input.Envelope.Diagnostics) != 1 {
+		t.Fatalf("in-memory evidence or client revision binding was lost: envelope=%+v package=%+v client=%+v", input.Envelope, packageState, clientState)
+	}
 	if clientState.Materialization != domain.MaterializationMaterialized || clientState.Activation != domain.ActivationManual || clientState.Verification != domain.VerificationPackageValid {
 		t.Fatalf("client state = %+v", clientState)
 	}
@@ -1080,17 +1082,28 @@ func TestCopilotAndVSCodeShareOneNativeBackend(t *testing.T) {
 func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 	t.Parallel()
 	service, store, cursor := serviceFixture(t)
+	evidence := func(digest string) *domain.CatalogEvidence {
+		return &domain.CatalogEvidence{
+			SchemaVersion: 2, CatalogVersion: "0.2.0", Repository: "example/catalog",
+			Revision: strings.Repeat("a", 40), Digest: digest, MinimumCLIVersion: "0.1.6",
+			Compatibility: map[string]domain.CatalogCompatibility{
+				"cursor": {Package: "native"}, "codex": {Package: "projected"},
+			},
+		}
+	}
 	codex := domain.DetectedClient{
 		ClientID: domain.ClientCodex, Status: domain.DetectionDetected,
 		ConfigRoot: filepath.Join(t.TempDir(), ".codex"),
 	}
 	firstCursor := addInput(t, cursor, "https://example.com/shared")
+	firstCursor.Envelope.CatalogEvidence = evidence("sha256:catalog-v1")
 	firstCursor.Confirmed = true
 	firstCursor.OperationID = "operation-cursor-v1"
 	if _, err := service.Add(context.Background(), firstCursor); err != nil {
 		t.Fatal(err)
 	}
 	firstCodex := addInput(t, codex, "https://example.com/shared")
+	firstCodex.Envelope.CatalogEvidence = evidence("sha256:catalog-v1")
 	firstCodex.Confirmed = true
 	firstCodex.OperationID = "operation-codex-v1"
 	if _, err := service.Add(context.Background(), firstCodex); err != nil {
@@ -1099,6 +1112,7 @@ func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 
 	updateCursor := addInput(t, cursor, "https://example.com/shared")
 	setEnvelopeVersion(t, &updateCursor.Envelope, "2.0.0", "sha256:tree-v2", "sha256:manifest-v2")
+	updateCursor.Envelope.CatalogEvidence = evidence("sha256:catalog-v2")
 	updateCursor.Confirmed = true
 	updateCursor.OperationID = "operation-cursor-v2"
 	if result, err := service.Update(context.Background(), updateCursor); err != nil || result.NoChange {
@@ -1109,12 +1123,17 @@ func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if revisionForClient(t, state.Installations[0], domain.ClientCodex).Version != "1.0.0" {
+	if revision := revisionForClient(t, state.Installations[0], domain.ClientCodex); revision.Version != "1.0.0" ||
+		revision.CatalogEvidence == nil || revision.CatalogEvidence.Digest != "sha256:catalog-v1" {
 		t.Fatalf("Codex revision advanced before its update: %+v", state.Installations[0].Clients)
+	}
+	if revision := revisionForClient(t, state.Installations[0], domain.ClientCursor); revision.CatalogEvidence == nil || revision.CatalogEvidence.Digest != "sha256:catalog-v2" {
+		t.Fatalf("Cursor catalog evidence did not advance with its revision: %+v", revision)
 	}
 
 	updateCodex := addInput(t, codex, "https://example.com/shared")
 	setEnvelopeVersion(t, &updateCodex.Envelope, "2.0.0", "sha256:tree-v2", "sha256:manifest-v2")
+	updateCodex.Envelope.CatalogEvidence = evidence("sha256:catalog-v2")
 	updateCodex.Confirmed = true
 	updateCodex.OperationID = "operation-codex-v2"
 	if result, err := service.Update(context.Background(), updateCodex); err != nil || result.NoChange || !result.Mutated {
@@ -1125,7 +1144,8 @@ func TestMultiClientUpdateConvergesEachClientRevision(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, clientID := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex} {
-		if revision := revisionForClient(t, state.Installations[0], clientID); revision.Version != "2.0.0" || revision.TreeDigest != "sha256:tree-v2" {
+		if revision := revisionForClient(t, state.Installations[0], clientID); revision.Version != "2.0.0" || revision.TreeDigest != "sha256:tree-v2" ||
+			revision.CatalogEvidence == nil || revision.CatalogEvidence.Digest != "sha256:catalog-v2" {
 			t.Fatalf("%s revision = %+v", clientID, revision)
 		}
 	}

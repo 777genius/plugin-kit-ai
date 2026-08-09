@@ -64,6 +64,7 @@ func (detector Detector) Detect(ctx context.Context) ([]domain.DetectedClient, e
 	}
 	clients := []domain.DetectedClient{
 		detector.detectCodex(),
+		detector.detectChatGPT(),
 		detector.detectCursor(),
 		detector.detectCopilot(),
 		detector.detectVSCode(),
@@ -80,18 +81,30 @@ func (detector Detector) detectCodex() domain.DetectedClient {
 		detector.directorySurface("codex_config", configRoot),
 	}
 	if detector.GOOS == "darwin" {
-		surfaces = append(surfaces,
-			detector.appSurface("codex_desktop", "Codex.app"),
-			detector.appSurface("chatgpt_desktop", "ChatGPT.app"),
-		)
-	} else if detector.GOOS == "windows" {
-		surfaces = append(surfaces,
-			detector.windowsAppSurface("chatgpt_desktop", filepath.Join("Microsoft", "WindowsApps", "ChatGPT.exe"), filepath.Join("WindowsApps", "ChatGPT.exe")),
-		)
+		surfaces = append(surfaces, detector.appSurface("codex_desktop", "Codex.app"))
 	} else if detector.GOOS == "linux" {
-		surfaces = append(surfaces, detector.linuxDesktopSurface("codex_desktop", "codex.desktop", "chatgpt.desktop"))
+		surfaces = append(surfaces, detector.linuxDesktopSurface("codex_desktop", "codex.desktop"))
 	}
-	return detected(domain.ClientCodex, "OpenAI Codex / ChatGPT", configRoot, detector.lookup("codex"), surfaces)
+	return detected(domain.ClientCodex, "OpenAI Codex", configRoot, detector.lookup("codex"), surfaces)
+}
+
+func (detector Detector) detectChatGPT() domain.DetectedClient {
+	var surfaces []domain.ClientSurface
+	switch detector.GOOS {
+	case "darwin":
+		surfaces = append(surfaces, detector.appSurface("chatgpt_desktop", "ChatGPT.app"))
+	case "windows":
+		surfaces = append(surfaces, detector.windowsAppSurface(
+			"chatgpt_desktop",
+			filepath.Join("Microsoft", "WindowsApps", "ChatGPT.exe"),
+			filepath.Join("WindowsApps", "ChatGPT.exe"),
+		))
+	case "linux":
+		surfaces = append(surfaces, detector.linuxDesktopSurface("chatgpt_desktop", "chatgpt.desktop"))
+	}
+	// ChatGPT is a remote/manual host. It intentionally has no executable and
+	// does not inherit the Codex CLI or config directory.
+	return detected(domain.ClientChatGPT, "ChatGPT", "", "", surfaces)
 }
 
 func (detector Detector) detectCursor() domain.DetectedClient {

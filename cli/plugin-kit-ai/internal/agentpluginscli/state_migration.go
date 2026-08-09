@@ -13,7 +13,7 @@ import (
 func newMigrateStateCommand(app App, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "migrate-state",
-		Short: "Explicitly migrate legacy plugin-kit-ai state into State v2",
+		Short: "Explicitly migrate legacy plugin-kit-ai state into Agent Plugins state",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if err := validateCommonOptions(opts); err != nil {
@@ -97,7 +97,7 @@ func renderStateMigration(writer io.Writer, format string, plan statemigration.P
 		renderStateMigrationPlan(writer, plan)
 		return nil
 	}
-	_, _ = fmt.Fprintf(writer, "Migrated %d legacy installation(s); backup created before State v2 commit.\n", report.Migrated)
+	_, _ = fmt.Fprintf(writer, "Migrated %d legacy installation(s); backup created before Agent Plugins state commit.\n", report.Migrated)
 	if report.NeedsRebind > 0 {
 		_, _ = fmt.Fprintf(writer, "%d installation(s) require explicit rebind before update.\n", report.NeedsRebind)
 	}
@@ -108,5 +108,5 @@ func renderStateMigration(writer io.Writer, format string, plan statemigration.P
 func renderStateMigrationPlan(writer io.Writer, plan statemigration.Plan) {
 	_, _ = fmt.Fprintf(writer, "Legacy installations: %d\n", plan.Installations)
 	_, _ = fmt.Fprintf(writer, "Require rebind: %d\n", plan.NeedsRebind)
-	_, _ = fmt.Fprintln(writer, "The legacy state remains unchanged and is backed up before State v2 is committed.")
+	_, _ = fmt.Fprintln(writer, "The legacy state remains unchanged and is backed up before Agent Plugins state is committed.")
 }

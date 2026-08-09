@@ -149,17 +149,17 @@ func (migrator Migrator) MigrateExpected(expectedDigest string) (Report, error) 
 	}
 	report.BackupPath = backupPath
 	if err := migrator.V2Store.Save(state); err != nil {
-		return report, fmt.Errorf("commit migrated state v2: %w", err)
+		return report, fmt.Errorf("commit migrated Agent Plugins state: %w", err)
 	}
 	return report, nil
 }
 
 func (migrator Migrator) load() ([]byte, legacyState, error) {
 	if strings.TrimSpace(migrator.LegacyPath) == "" || strings.TrimSpace(migrator.V2Store.Path) == "" {
-		return nil, legacyState{}, fmt.Errorf("legacy and state v2 paths are required")
+		return nil, legacyState{}, fmt.Errorf("legacy and Agent Plugins state paths are required")
 	}
 	if _, err := os.Stat(migrator.V2Store.Path); err == nil {
-		return nil, legacyState{}, fmt.Errorf("state v2 already exists; migration is not idempotent over an authoritative v2 state")
+		return nil, legacyState{}, fmt.Errorf("Agent Plugins state already exists; migration is not idempotent over authoritative state")
 	} else if !os.IsNotExist(err) {
 		return nil, legacyState{}, err
 	}

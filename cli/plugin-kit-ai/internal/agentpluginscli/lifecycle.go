@@ -81,6 +81,10 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
+	restoreCatalogEvidence(&loaded, binding)
+	if err := prepareLoadedPackageForClient(&loaded, selected.ClientID); err != nil {
+		return err
+	}
 	if err := requireNonInteractiveMutation(app, opts, "repair"); err != nil && !opts.dryRun {
 		return err
 	}
@@ -90,6 +94,15 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		BackendExecutable: backendExecutable(selected, detectedMap)}
 	planned, err := service.Repair(ctx, input)
 	if err != nil {
+		if planned.Plan.Status == domain.PlanUnsupported {
+			if opts.format == "json" {
+				if renderErr := renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, opts.dryRun); renderErr != nil {
+					return renderErr
+				}
+			} else if renderErr := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); renderErr != nil {
+				return renderErr
+			}
+		}
 		return err
 	}
 	if opts.dryRun || planned.NoChange {
@@ -180,6 +193,9 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
+	if err := prepareLoadedPackageForClient(&loaded, selected.ClientID); err != nil {
+		return err
+	}
 	if err := requireNonInteractiveMutation(app, opts, "update"); err != nil && !opts.dryRun {
 		return err
 	}
@@ -192,6 +208,15 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	planned, err := service.Update(ctx, input)
 	if err != nil {
+		if planned.Plan.Status == domain.PlanUnsupported {
+			if opts.format == "json" {
+				if renderErr := renderUpdateResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun); renderErr != nil {
+					return renderErr
+				}
+			} else if renderErr := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); renderErr != nil {
+				return renderErr
+			}
+		}
 		return err
 	}
 	if opts.dryRun || planned.NoChange {
@@ -374,7 +399,7 @@ func renderLegacyRemove(writer io.Writer, format string, result usecase.LegacyRe
 		return nil
 	}
 	if result.Mutated {
-		_, _ = fmt.Fprintln(writer, "Legacy targets removed and State v2 reconciled.")
+		_, _ = fmt.Fprintln(writer, "Legacy targets removed and Agent Plugins state reconciled.")
 	}
 	return nil
 }
@@ -386,7 +411,7 @@ func renderLegacyRemovePlan(writer io.Writer, result usecase.LegacyRemoveResult)
 		_, _ = fmt.Fprintf(writer, "  - %s\n", target)
 	}
 	if result.Reconciled {
-		_, _ = fmt.Fprintln(writer, "Legacy lifecycle already reports the installation absent; only State v2 reconciliation remains.")
+		_, _ = fmt.Fprintln(writer, "Legacy lifecycle already reports the installation absent; only Agent Plugins state reconciliation remains.")
 	}
 }
 
@@ -504,10 +529,13 @@ func selectBoundClient(
 		if !ok {
 			client = domain.DetectedClient{ClientID: clientID, DisplayName: string(clientID), Status: domain.DetectionNotDetected}
 		}
-		if requireDetected && client.Status != domain.DetectionDetected {
+		if requireDetected && client.Status != domain.DetectionDetected && clientID != domain.ClientChatGPT {
 			return domain.DetectedClient{}, fmt.Errorf("target %q is no longer detected; remove remains available", clientID)
 		}
 		return client, nil
+	}
+	if strings.EqualFold(strings.TrimSpace(opts.target), "openai") {
+		return domain.DetectedClient{}, detectedMap, fmt.Errorf("target %q is ambiguous; use --target codex or --target chatgpt", opts.target)
 	}
 	if target := normalizeTarget(opts.target); target != "" {
 		client, err := choose(target)

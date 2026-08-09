@@ -63,6 +63,49 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	}
 }
 
+func TestStagerBuildsChatGPTAppProjectionWithBundledMCPParity(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	app := `{"apps":{"notion":{"id":"asdk_app_notion_123","required":true}}}`
+	writeTestFile(t, filepath.Join(envelope.SnapshotRoot, ".app.json"), app)
+	envelope.App = domain.AppComponent{
+		Present: true, Declared: true, Enabled: true, Raw: json.RawMessage(app),
+		Bindings: map[string]domain.AppBinding{"notion": {Alias: "notion", ID: "asdk_app_notion_123", Required: true}},
+	}
+	envelope.Inventory.AppPresent = true
+	envelope.Inventory.AppBindings = []string{"notion"}
+	plan := stagingPlan(t, domain.ClientChatGPT, domain.PackageProjection)
+	plan.Components = append(plan.Components, domain.ComponentDecision{Kind: domain.ComponentApp, Name: "notion", Support: domain.SupportProjected})
+
+	delivery, err := (Stager{}).Stage(context.Background(), envelope, plan, "operation-chatgpt", domain.CompatibilityHints{
+		OpenAIMCPAuth: map[string]domain.OpenAIMCPAuthHint{
+			"notion": {OAuthResource: "https://mcp.notion.com"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := readObject(t, filepath.Join(delivery.StagingPath, ".codex-plugin", "plugin.json"))
+	if manifest["apps"] != "./.app.json" || manifest["mcpServers"] != "./.mcp.json" || manifest["skills"] != "./skills/" {
+		t.Fatalf("ChatGPT manifest = %+v", manifest)
+	}
+	openAIMCP := readObject(t, filepath.Join(delivery.StagingPath, ".mcp.json"))
+	servers := openAIMCP["mcpServers"].(map[string]any)
+	notion := servers["notion"].(map[string]any)
+	if notion["type"] != "http" || notion["oauth_resource"] != "https://mcp.notion.com" {
+		t.Fatalf("ChatGPT MCP parity projection = %+v", notion)
+	}
+	assertMissing(t, filepath.Join(delivery.StagingPath, "plugin.json"))
+	assertMissing(t, filepath.Join(delivery.StagingPath, "mcp.json"))
+	body, err := os.ReadFile(filepath.Join(delivery.StagingPath, ".app.json"))
+	if err != nil || string(body) != app {
+		t.Fatalf("lossless app projection = %q, %v", body, err)
+	}
+	if source, err := os.ReadFile(filepath.Join(envelope.SnapshotRoot, "mcp.json")); err != nil || len(source) == 0 {
+		t.Fatal("portable source MCP was mutated")
+	}
+}
+
 func TestStagerBuildsManagedCopilotMarketplaceForCopilotAndVSCode(t *testing.T) {
 	t.Parallel()
 	for _, client := range []domain.ClientID{domain.ClientCopilot, domain.ClientVSCode} {
@@ -250,7 +293,7 @@ func stagingPlan(t *testing.T, client domain.ClientID, mode domain.PackageMode) 
 	active := filepath.Join(target, "demo-0123456789ab")
 	status := domain.PlanReady
 	activation := domain.ActivationActive
-	if client == domain.ClientCodex || client == domain.ClientKiro {
+	if client == domain.ClientCodex || client == domain.ClientChatGPT || client == domain.ClientKiro {
 		status = domain.PlanManualActivationRequired
 		activation = domain.ActivationManual
 	}

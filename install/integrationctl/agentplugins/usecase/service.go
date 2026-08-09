@@ -120,6 +120,10 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	}
 	result := AddResult{InstallationID: installationID, Plan: plan}
 	if plan.Status == domain.PlanUnsupported {
+		action := strings.Join(plan.UserActions, "; ")
+		if action != "" {
+			return result, fmt.Errorf("delivery plan for %s is unsupported. Next: %s", plan.ClientID, action)
+		}
 		return result, fmt.Errorf("delivery plan for %s is unsupported", plan.ClientID)
 	}
 	if err := rejectNativeNameCollision(state, installationID, input.Envelope.Manifest.Name, input.Client.ClientID); err != nil {
@@ -591,6 +595,24 @@ func upsertPreparedInstallation(
 	return state, len(state.Installations) - 1
 }
 
+func cloneCatalogEvidence(source *domain.CatalogEvidence) *domain.CatalogEvidence {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	if len(source.Compatibility) > 0 {
+		result.Compatibility = make(map[string]domain.CatalogCompatibility, len(source.Compatibility))
+		for client, compatibility := range source.Compatibility {
+			if compatibility.AppBinding != nil {
+				binding := *compatibility.AppBinding
+				compatibility.AppBinding = &binding
+			}
+			result.Compatibility[client] = compatibility
+		}
+	}
+	return &result
+}
+
 func validatePackageTransition(installation domain.Installation, envelope domain.PackageEnvelope) error {
 	incomingVersion := envelope.Manifest.Version
 	currentVersion := installation.Package.Version
@@ -622,11 +644,13 @@ func packageRevisionFromEnvelope(envelope domain.PackageEnvelope) *domain.Client
 	return &domain.ClientPackageRevision{
 		Version: envelope.Manifest.Version, ResolvedRevision: envelope.Source.ResolvedRevision,
 		TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest,
+		CatalogEvidence: cloneCatalogEvidence(envelope.CatalogEvidence),
 	}
 }
 
 func packageRevisionMatches(revision *domain.ClientPackageRevision, envelope domain.PackageEnvelope) bool {
-	return revision != nil && revision.TreeDigest == envelope.TreeDigest && revision.ManifestDigest == envelope.ManifestDigest
+	return revision != nil && revision.TreeDigest == envelope.TreeDigest && revision.ManifestDigest == envelope.ManifestDigest &&
+		reflect.DeepEqual(revision.CatalogEvidence, envelope.CatalogEvidence)
 }
 
 func findSourceInstallation(state domain.StateFileV2, sourceBindingID string) (int, bool) {

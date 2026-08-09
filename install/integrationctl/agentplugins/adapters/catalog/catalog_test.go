@@ -82,6 +82,62 @@ func TestCatalogEnforcesMinimumCLIVersionAtResolution(t *testing.T) {
 	}
 }
 
+func TestCatalogLoadsIntegrityBoundChatGPTAppBinding(t *testing.T) {
+	t.Parallel()
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.6"}).Load(validCatalogWithChatGPT(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := loaded.Resolve("context7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := resolved.Hints.Compatibility["chatgpt"].AppBinding
+	if binding == nil || binding.AppKey != "context7" || binding.ID != "asdk_app_context7_123" || binding.MCPURL != "https://example.test/mcp" {
+		t.Fatalf("ChatGPT app binding = %+v", binding)
+	}
+	binding.ID = "connector_mutated"
+	if resolved.Evidence.Compatibility["chatgpt"].AppBinding.ID != "asdk_app_context7_123" {
+		t.Fatal("mutable hints aliased immutable catalog evidence")
+	}
+}
+
+func TestCatalogV1RejectsV2ChatGPTFields(t *testing.T) {
+	t.Parallel()
+	body := strings.Replace(string(validCatalogWithChatGPT()), domain.CatalogSchemaV2, domain.CatalogSchemaV1, 1)
+	body = strings.Replace(body, `"schema_version": 2`, `"schema_version": 1`, 1)
+	if _, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load([]byte(body), ""); err == nil {
+		t.Fatal("catalog v1 accepted v2 ChatGPT fields")
+	}
+}
+
+func TestCatalogV2RequiresAgentplugins016(t *testing.T) {
+	t.Parallel()
+	if _, err := (Loader{CurrentCLIVersion: "0.1.5"}).Load(validCatalogWithChatGPT(), ""); err == nil || !strings.Contains(err.Error(), "0.1.6") {
+		t.Fatalf("pre-0.1.6 CLI loaded catalog v2: %v", err)
+	}
+}
+
+func TestCatalogRejectsUnsafeOrMisplacedChatGPTAppBinding(t *testing.T) {
+	t.Parallel()
+	valid := string(validCatalogWithChatGPT())
+	for name, body := range map[string]string{
+		"url-query": strings.Replace(valid, `"https://example.test/mcp"`, `"https://example.test/mcp?token=x"`, 1),
+		"bad-id":    strings.Replace(valid, `"asdk_app_context7_123"`, `"not/an/app/id"`, 1),
+		"unsafe-evidence": strings.Replace(valid,
+			`"tests/e2e/results/chatgpt-context7.json"`, `"../outside.json"`, 1),
+		"bad-evidence-revision": strings.Replace(valid, strings.Repeat("e", 40), `not-a-commit`, 1),
+		"non-chatgpt":           strings.Replace(valid, `"authentication":"not_required"}`, `"authentication":"not_required","app_binding":{"app_key":"context7","id":"asdk_app_context7_123","mcp_server":"context7","mcp_url":"https://example.test/mcp","runtime_evidence":"tests/e2e/results/chatgpt-context7.json"}}`, 1),
+	} {
+		name, body := name, body
+		t.Run(name, func(t *testing.T) {
+			if _, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load([]byte(body), ""); err == nil {
+				t.Fatal("invalid ChatGPT app binding accepted")
+			}
+		})
+	}
+}
+
 func TestCatalogRejectsAnyCompatibilityMatrixDeviation(t *testing.T) {
 	t.Parallel()
 	tests := map[string]string{
@@ -111,18 +167,21 @@ func TestCatalogRejectsAnyCompatibilityMatrixDeviation(t *testing.T) {
 	}
 }
 
-func TestEmbeddedCatalogAllEntriesUseExactCompatibilityMatrix(t *testing.T) {
+func TestEmbeddedCatalogV2LoadsAllEntries(t *testing.T) {
 	t.Parallel()
-	body, err := os.ReadFile("../../../../../cli/plugin-kit-ai/cmd/agentplugins/catalog-v1.json")
+	body, err := os.ReadFile("../../../../../cli/plugin-kit-ai/cmd/agentplugins/catalog-v2.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	loaded, err := (Loader{CurrentCLIVersion: "0.1.4"}).Load(body, "")
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.6"}).Load(body, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(loaded.Catalog.Plugins) != 26 {
 		t.Fatalf("embedded package count = %d, want 26", len(loaded.Catalog.Plugins))
+	}
+	if loaded.Catalog.SchemaVersion != SchemaVersionV2 {
+		t.Fatalf("embedded catalog schema_version = %d, want %d", loaded.Catalog.SchemaVersion, SchemaVersionV2)
 	}
 }
 
@@ -147,6 +206,15 @@ func validCatalog() []byte {
     "openai_mcp_auth": {"context7": {"bearer_token_env_var":"CONTEXT7_API_KEY"}}
   }]
 }`)
+}
+
+func validCatalogWithChatGPT() []byte {
+	body := strings.Replace(string(validCatalog()), domain.CatalogSchemaV1, domain.CatalogSchemaV2, 1)
+	body = strings.Replace(body, `"schema_version": 1`, `"schema_version": 2`, 1)
+	body = strings.Replace(body, `"minimum_cli_version": "0.1.0"`, `"minimum_cli_version": "0.1.6"`, 1)
+	needle := `"kiro":{"package":"native","verification":"tested","authentication":"not_required"}`
+	chatgpt := `,"chatgpt":{"package":"projected","verification":"tested","authentication":"not_required","app_binding":{"app_key":"context7","id":"asdk_app_context7_123","mcp_server":"context7","mcp_url":"https://example.test/mcp","runtime_evidence":"tests/e2e/results/chatgpt-context7.json","runtime_evidence_revision":"` + strings.Repeat("e", 40) + `"}}`
+	return []byte(strings.Replace(body, needle, needle+chatgpt, 1))
 }
 
 func digest(value string) string {

@@ -123,7 +123,7 @@ func (service Service) RemoveLegacy(ctx context.Context, input LegacyRemoveInput
 	installation.UpdatedAt = timestamp
 	state.Installations[installationIndex] = installation
 	if err := service.StateStore.Save(state); err != nil {
-		return result, fmt.Errorf("reconcile State v2 after legacy removal: %w", err)
+		return result, fmt.Errorf("reconcile Agent Plugins state after legacy removal: %w", err)
 	}
 	result.Mutated = true
 	return result, nil

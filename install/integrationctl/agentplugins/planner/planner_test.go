@@ -179,6 +179,99 @@ func TestPlannerFailsClosedForUndetectedClientAndUnsupportedScope(t *testing.T) 
 	}
 }
 
+func TestChatGPTRemoteTargetSupportsSkillsWithoutDesktopDetection(t *testing.T) {
+	t.Parallel()
+	envelope := domain.PackageEnvelope{
+		Manifest: domain.PluginManifest{Name: "skills-only"},
+		Skills:   map[string]domain.Skill{"docs": {Name: "docs"}},
+	}
+	client := domain.DetectedClient{ClientID: domain.ClientChatGPT, Status: domain.DetectionNotDetected}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, client, domain.ScopeUser, "skills-only-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanManualActivationRequired || supportOf(plan, domain.ComponentSkill, "docs") != domain.SupportProjected || contains(plan.Warnings, "client_not_detected") {
+		t.Fatalf("ChatGPT skills plan = %+v", plan)
+	}
+	if !containsText(plan.UserActions, "skills-only") || containsText(plan.UserActions, ".app.json") || containsText(plan.UserActions, "registered app") {
+		t.Fatalf("ChatGPT skills actions = %+v", plan.UserActions)
+	}
+}
+
+func TestOnlyChatGPTProjectsRegisteredAppBindings(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientChatGPT, domain.ClientCursor, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro} {
+		capabilities, ok := Capabilities(client)
+		if !ok {
+			t.Fatalf("missing capabilities for %s", client)
+		}
+		want := domain.SupportUnsupported
+		if client == domain.ClientChatGPT {
+			want = domain.SupportProjected
+		}
+		if capabilities.AppSupport != want {
+			t.Fatalf("%s app support = %q, want %q", client, capabilities.AppSupport, want)
+		}
+	}
+}
+
+func TestChatGPTMCPFailsClosedWithoutValidAppBinding(t *testing.T) {
+	t.Parallel()
+	envelope := domain.PackageEnvelope{
+		Manifest: domain.PluginManifest{Name: "remote-mcp"},
+		MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"docs": {Name: "docs", Type: "streamable-http"},
+		}},
+	}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, domain.DetectedClient{ClientID: domain.ClientChatGPT}, domain.ScopeUser, "remote-mcp-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanUnsupported || !contains(plan.Warnings, "chatgpt_app_binding_required") {
+		t.Fatalf("ChatGPT missing app plan = %+v", plan)
+	}
+}
+
+func TestChatGPTMCPFailsClosedWhenAppAliasDoesNotMapServer(t *testing.T) {
+	t.Parallel()
+	envelope := domain.PackageEnvelope{
+		Manifest: domain.PluginManifest{Name: "remote-mcp"},
+		MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"docs": {Name: "docs", Type: "streamable-http"},
+		}},
+		App: domain.AppComponent{Present: true, Declared: true, Enabled: true, Bindings: map[string]domain.AppBinding{
+			"different": {Alias: "different", ID: "plugin_asdk_app_different_123"},
+		}},
+	}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, domain.DetectedClient{ClientID: domain.ClientChatGPT}, domain.ScopeUser, "remote-mcp-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanUnsupported || !contains(plan.Warnings, "chatgpt_app_binding_required") || supportOf(plan, domain.ComponentMCPServer, "docs") != domain.SupportUnsupported || !containsText(plan.UserActions, "docs") {
+		t.Fatalf("ChatGPT mismatched app plan = %+v", plan)
+	}
+}
+
+func TestChatGPTProjectsMCPThroughRegisteredAppBinding(t *testing.T) {
+	t.Parallel()
+	envelope := domain.PackageEnvelope{
+		Manifest: domain.PluginManifest{Name: "remote-mcp"},
+		MCP: domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"docs": {Name: "docs", Type: "streamable-http"},
+		}},
+		App: domain.AppComponent{Present: true, Declared: true, Enabled: true, Bindings: map[string]domain.AppBinding{
+			"docs": {Alias: "docs", ID: "asdk_app_docs_123"},
+		}},
+	}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, domain.DetectedClient{ClientID: domain.ClientChatGPT}, domain.ScopeUser, "remote-mcp-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanManualActivationRequired || supportOf(plan, domain.ComponentMCPServer, "docs") != domain.SupportProjected || supportOf(plan, domain.ComponentApp, "docs") != domain.SupportProjected {
+		t.Fatalf("ChatGPT app plan = %+v", plan)
+	}
+}
+
 func TestPlannerRejectsMetadataOnlyProjectionWhenAllDeclaredComponentsAreInvalid(t *testing.T) {
 	t.Parallel()
 	for name, diagnostic := range map[string]domain.Diagnostic{
@@ -292,6 +385,15 @@ func supportOf(plan domain.DeliveryPlan, kind domain.ComponentKind, name string)
 func contains(values []string, want string) bool {
 	for _, value := range values {
 		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsText(values []string, fragment string) bool {
+	for _, value := range values {
+		if strings.Contains(value, fragment) {
 			return true
 		}
 	}

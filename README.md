@@ -23,17 +23,25 @@ npx universal-agent-plugins add context7
 ```
 
 It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
-or installs one explicit target at a time across Codex/ChatGPT, Cursor, GitHub
+or installs one explicit target at a time across Codex, ChatGPT, Cursor, GitHub
 Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
-The portable manifest is the root `plugin.json`; optional portable components
-such as `mcp.json` and skills remain package inputs. For the Codex target, the
-CLI generates the official Codex package manifest at `.codex-plugin/plugin.json`.
+Accepted source shapes are either a portable root `plugin.json` with optional
+`mcp.json`, `.app.json`, and `skills/`, or an official `.codex-plugin/plugin.json`
+with its declared root `.mcp.json`, `.app.json`, and `skills/` inputs. A portable
+root manifest wins when both exist. Codex and ChatGPT retain bundled `.mcp.json`;
+ChatGPT MCP additionally requires a valid `.app.json` mapping to a connection
+registered in Developer Mode. Both targets receive an official generated
+`.codex-plugin/plugin.json`.
+Starting with agentplugins 0.1.6, direct package sources can use `--target
+chatgpt`; catalog short names stay fail-closed unless their catalog v2 entry
+includes pinned ChatGPT compatibility evidence. Catalog v1 remains readable
+without ChatGPT binding metadata.
 
 When GitHub Copilot CLI is detected, `agentplugins` installs, updates, and
 removes the plugin automatically through a managed local marketplace. VS Code
 discovers that installation automatically, so selecting either Copilot or VS
-Code once is enough. Codex/ChatGPT and Kiro keep their
+Code once is enough. Codex, ChatGPT, and Kiro keep their
 required client confirmation and receive an exact, path-specific next step in
 human-readable output.
 

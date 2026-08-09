@@ -137,12 +137,21 @@ func (stager Stager) Stage(
 	if err := sanitizePackage(stagingPath, envelope, plan); err != nil {
 		return domain.StagedDelivery{}, err
 	}
-	if plan.PackageMode == domain.PackageProjection && plan.ClientID == domain.ClientCodex {
-		if err := projectOpenAI(stagingPath, envelope, plan, hints); err != nil {
-			return domain.StagedDelivery{}, err
+	if plan.PackageMode == domain.PackageProjection {
+		switch plan.ClientID {
+		case domain.ClientCodex:
+			if err := projectOpenAI(stagingPath, envelope, plan, hints); err != nil {
+				return domain.StagedDelivery{}, err
+			}
+		case domain.ClientChatGPT:
+			if err := projectChatGPT(stagingPath, envelope, plan, hints); err != nil {
+				return domain.StagedDelivery{}, err
+			}
 		}
-		if err := projectCodexMarketplace(stagingPath, envelope, plan); err != nil {
-			return domain.StagedDelivery{}, err
+		if plan.ClientID == domain.ClientCodex || plan.ClientID == domain.ClientChatGPT {
+			if err := projectCodexMarketplace(stagingPath, envelope, plan); err != nil {
+				return domain.StagedDelivery{}, err
+			}
 		}
 	}
 	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
@@ -201,7 +210,21 @@ func sanitizePackage(root string, envelope domain.PackageEnvelope, plan domain.D
 	if err := writeSanitizedMCP(root, envelope, plan); err != nil {
 		return err
 	}
+	if err := writeSanitizedApp(root, envelope, plan); err != nil {
+		return err
+	}
 	return writeSanitizedExtensions(root, plan)
+}
+
+func writeSanitizedApp(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
+	path := filepath.Join(root, ".app.json")
+	if plan.ClientID != domain.ClientChatGPT || !envelope.App.Enabled || len(envelope.App.Raw) == 0 {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove unsupported .app.json: %w", err)
+		}
+		return nil
+	}
+	return atomicfile.Write(path, append([]byte(nil), envelope.App.Raw...), 0o644)
 }
 
 func removeInvalidAndUnsupportedSkills(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
@@ -306,7 +329,13 @@ func writeSanitizedExtensions(root string, plan domain.DeliveryPlan) error {
 }
 
 func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints) error {
-	manifest := map[string]any{"name": envelope.Manifest.Name}
+	manifest, err := projectedOpenAIManifest(envelope)
+	if err != nil {
+		return err
+	}
+	delete(manifest, "apps")
+	delete(manifest, "skills")
+	delete(manifest, "mcpServers")
 	copyString := func(key, value string) {
 		if strings.TrimSpace(value) != "" {
 			manifest[key] = value
@@ -334,7 +363,14 @@ func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.Del
 	if err := writeJSON(manifestPath, manifest); err != nil {
 		return fmt.Errorf("write OpenAI compatibility manifest: %w", err)
 	}
+	return projectOpenAIMCP(root, envelope, serverNames, hints)
+}
+
+func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames []string, hints domain.CompatibilityHints) error {
 	if len(serverNames) == 0 {
+		if err := os.Remove(filepath.Join(root, ".mcp.json")); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove empty OpenAI MCP projection: %w", err)
+		}
 		return nil
 	}
 	servers := map[string]map[string]any{}
@@ -362,6 +398,69 @@ func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.Del
 		servers[name] = config
 	}
 	return writeJSON(filepath.Join(root, ".mcp.json"), map[string]any{"mcpServers": servers})
+}
+
+func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints) error {
+	manifest, err := projectedOpenAIManifest(envelope)
+	if err != nil {
+		return err
+	}
+	serverNames := supportedMCPNames(plan)
+	if len(serverNames) > 0 {
+		manifest["mcpServers"] = "./.mcp.json"
+	} else {
+		delete(manifest, "mcpServers")
+	}
+	if hasSupported(plan, domain.ComponentSkill) {
+		manifest["skills"] = "./skills/"
+	} else {
+		delete(manifest, "skills")
+	}
+	if envelope.App.Enabled && hasSupported(plan, domain.ComponentApp) {
+		manifest["apps"] = "./.app.json"
+	} else {
+		delete(manifest, "apps")
+	}
+	if err := writeJSON(filepath.Join(root, ".codex-plugin", "plugin.json"), manifest); err != nil {
+		return fmt.Errorf("write ChatGPT plugin manifest: %w", err)
+	}
+	if err := projectOpenAIMCP(root, envelope, serverNames, hints); err != nil {
+		return err
+	}
+	for _, portableManifest := range []string{"plugin.json", "mcp.json"} {
+		if err := os.Remove(filepath.Join(root, portableManifest)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove portable %s from official ChatGPT projection: %w", portableManifest, err)
+		}
+	}
+	return nil
+}
+
+func projectedOpenAIManifest(envelope domain.PackageEnvelope) (map[string]any, error) {
+	if envelope.FormatID == domain.FormatIDOpenAIPlugin && len(envelope.Manifest.Raw) > 0 {
+		var manifest map[string]any
+		if err := json.Unmarshal(envelope.Manifest.Raw, &manifest); err != nil || manifest == nil {
+			return nil, fmt.Errorf("decode preserved OpenAI plugin manifest: %w", err)
+		}
+		return manifest, nil
+	}
+	manifest := map[string]any{"name": envelope.Manifest.Name}
+	copyString := func(key, value string) {
+		if strings.TrimSpace(value) != "" {
+			manifest[key] = value
+		}
+	}
+	copyString("version", envelope.Manifest.Version)
+	copyString("description", envelope.Manifest.Description)
+	copyString("homepage", envelope.Manifest.Homepage)
+	copyString("repository", envelope.Manifest.Repository)
+	copyString("license", envelope.Manifest.License)
+	if envelope.Manifest.Author != nil {
+		manifest["author"] = envelope.Manifest.Author
+	}
+	if len(envelope.Manifest.Keywords) > 0 {
+		manifest["keywords"] = envelope.Manifest.Keywords
+	}
+	return manifest, nil
 }
 
 func supportedMCPNames(plan domain.DeliveryPlan) []string {

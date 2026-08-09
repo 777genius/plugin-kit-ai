@@ -77,6 +77,9 @@ func TestMigrateCopiesLegacyStateAndPreservesLegacyLoaderBinding(t *testing.T) {
 		t.Fatalf("installation = %+v", installation)
 	}
 	for _, client := range installation.Clients {
+		if client.ClientID != string(domain.ClientCodex) {
+			t.Fatalf("legacy codex binding was reclassified: %+v", client)
+		}
 		if client.Materialization != domain.MaterializationMaterialized || client.Activation != domain.ActivationManual || client.Verification != domain.VerificationNotRun {
 			t.Fatalf("client states = %+v", client)
 		}

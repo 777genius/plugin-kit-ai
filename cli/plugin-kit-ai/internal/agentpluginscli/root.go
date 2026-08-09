@@ -19,7 +19,7 @@ func NewRoot(app App) *cobra.Command {
 	root.SetOut(app.output())
 	root.SetErr(app.errorOutput())
 	flags := root.PersistentFlags()
-	flags.StringVar(&opts.target, "target", "", "target client: codex, cursor, copilot, vscode, or kiro")
+	flags.StringVar(&opts.target, "target", "", "target client: codex, chatgpt, cursor, copilot, vscode, or kiro")
 	flags.StringVar(&opts.scope, "scope", "user", "installation scope: user or project")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
 	flags.BoolVar(&opts.yes, "yes", false, "confirm this selected target without installing everywhere")

@@ -3,7 +3,6 @@ package statev2
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,27 +10,6 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
-
-type oldPackageBindingV2 struct {
-	LoaderKind     string                    `json:"loader_kind"`
-	FormatID       string                    `json:"format_id"`
-	SchemaURI      string                    `json:"schema_uri"`
-	DeclaredName   string                    `json:"declared_name"`
-	Version        string                    `json:"version,omitempty"`
-	ManifestDigest string                    `json:"manifest_digest"`
-	Inventory      domain.ComponentInventory `json:"inventory"`
-}
-
-type oldInstallationV2 struct {
-	InstallationID string                          `json:"installation_id"`
-	DeclaredName   string                          `json:"declared_name"`
-	Source         domain.SourceBinding            `json:"source"`
-	Package        oldPackageBindingV2             `json:"package"`
-	Clients        map[string]domain.ClientBinding `json:"clients"`
-	NeedsRebind    bool                            `json:"needs_rebind,omitempty"`
-	CreatedAt      string                          `json:"created_at"`
-	UpdatedAt      string                          `json:"updated_at"`
-}
 
 func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	t.Parallel()
@@ -62,11 +40,11 @@ func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	}
 }
 
-func TestNewlyWrittenStateDecodesWithStrictOldV2Shape(t *testing.T) {
+func TestChatGPTStateIsExplicitlyV3AndOldReadersFailClosed(t *testing.T) {
 	t.Parallel()
 	store := Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}
 	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{
-		validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001"),
+		validChatGPTInstallation(),
 	}}
 	if err := store.Save(state); err != nil {
 		t.Fatal(err)
@@ -75,30 +53,84 @@ func TestNewlyWrittenStateDecodesWithStrictOldV2Shape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
-	var old struct {
-		SchemaVersion int                 `json:"schema_version"`
-		Installations []oldInstallationV2 `json:"installations"`
+	var header struct {
+		SchemaVersion int `json:"schema_version"`
 	}
-	if err := decoder.Decode(&old); err != nil {
-		t.Fatalf("old 0.1.4 v2 decoder rejected new state: %v\n%s", err, body)
+	if err := json.Unmarshal(body, &header); err != nil {
+		t.Fatal(err)
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		t.Fatalf("trailing state data: %v", err)
+	if header.SchemaVersion != domain.StateSchemaVersion || header.SchemaVersion == domain.LegacyStateSchemaVersion {
+		t.Fatalf("ChatGPT state was not gated behind schema v3: %s", body)
 	}
-	for _, forbidden := range []string{`"manifest_schema"`, `"manifest_document"`, `"catalog_evidence"`, `"diagnostics"`} {
-		if bytes.Contains(body, []byte(forbidden)) {
-			t.Fatalf("new state contains incompatible key %s", forbidden)
+	for _, required := range []string{`"catalog_evidence"`, `"app_present"`, `"app_bindings"`} {
+		if !bytes.Contains(body, []byte(required)) {
+			t.Fatalf("v3 ChatGPT state omitted %s: %s", required, body)
 		}
+	}
+}
+
+func TestStoreReadsLegacyV2LosslesslyWithoutMutatingUntilSave(t *testing.T) {
+	t.Parallel()
+	store := Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}
+	legacy := domain.StateFileV2{SchemaVersion: domain.LegacyStateSchemaVersion, Installations: []domain.Installation{
+		validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001"),
+	}}
+	body, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = append(body, '\n')
+	if err := os.WriteFile(store.Path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.SchemaVersion != domain.StateSchemaVersion || len(loaded.Installations) != 1 || loaded.Installations[0].Source.TreeDigest != "sha256:tree" {
+		t.Fatalf("legacy state migration = %+v", loaded)
+	}
+	afterRead, err := os.ReadFile(store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(afterRead, body) {
+		t.Fatal("read-only legacy state load rewrote the state file")
+	}
+	if err := store.Save(loaded); err != nil {
+		t.Fatal(err)
+	}
+	afterSave, err := os.ReadFile(store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(afterSave, []byte(`"schema_version": 3`)) {
+		t.Fatalf("first explicit save did not persist state v3: %s", afterSave)
+	}
+}
+
+func TestStoreRejectsV3FieldsDisguisedAsLegacyV2(t *testing.T) {
+	t.Parallel()
+	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{validChatGPTInstallation()}}
+	body, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = bytes.Replace(body, []byte(`"schema_version":3`), []byte(`"schema_version":2`), 1)
+	path := filepath.Join(t.TempDir(), "state-v2.json")
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (Store{Path: path}).Load(); err == nil || (!strings.Contains(err.Error(), "app_present") && !strings.Contains(err.Error(), "catalog_evidence")) {
+		t.Fatalf("v3 fields under a v2 header were not rejected strictly: %v", err)
 	}
 }
 
 func TestStoreFailsClosedOnFutureOrUnknownState(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]string{
-		"future":  `{"schema_version":3,"installations":[]}`,
-		"unknown": `{"schema_version":2,"installations":[],"future":true}`,
+		"future":  `{"schema_version":4,"installations":[]}`,
+		"unknown": `{"schema_version":3,"installations":[],"future":true}`,
 	} {
 		name, body := name, body
 		t.Run(name, func(t *testing.T) {
@@ -120,6 +152,17 @@ func TestStoreRejectsDuplicateInstallationIdentity(t *testing.T) {
 	err := (Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}).Save(state)
 	if err == nil || !strings.Contains(err.Error(), "duplicate installation_id") {
 		t.Fatalf("save error = %v", err)
+	}
+}
+
+func TestStoreAcceptsOfficialPackageWithoutPortableSchemaURI(t *testing.T) {
+	t.Parallel()
+	installation := validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001")
+	installation.Package.FormatID = domain.FormatIDOpenAIPlugin
+	installation.Package.SchemaURI = ""
+	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{installation}}
+	if err := (Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}).Save(state); err != nil {
+		t.Fatalf("official package state rejected: %v", err)
 	}
 }
 
@@ -193,4 +236,30 @@ func validInstallation(installationID, sourceID, physicalID string) domain.Insta
 			},
 		},
 	}
+}
+
+func validChatGPTInstallation() domain.Installation {
+	installation := validInstallation("00000000-0000-4000-8000-000000000001", "src_chatgpt", "demo-chatgpt")
+	installation.Package.Inventory = domain.ComponentInventory{
+		MCPPresent: true, MCPEnabled: true, MCPServers: []string{"demo"},
+		AppPresent: true, AppBindings: []string{"demo"},
+	}
+	for key, client := range installation.Clients {
+		client.ClientID = "chatgpt"
+		client.PackageRevision = &domain.ClientPackageRevision{
+			Version: "1.0.0", ResolvedRevision: "abc123", TreeDigest: "sha256:tree", ManifestDigest: "sha256:manifest",
+			CatalogEvidence: &domain.CatalogEvidence{
+				SchemaVersion: 2, CatalogVersion: "0.2.0", Repository: "777genius/universal-agent-plugins",
+				Revision: strings.Repeat("a", 40), Digest: "sha256:catalog", MinimumCLIVersion: "0.1.6",
+				Compatibility: map[string]domain.CatalogCompatibility{"chatgpt": {
+					Package: "projected", AppBinding: &domain.CatalogAppBinding{
+						AppKey: "demo", ID: "connector_demo", MCPServer: "demo", MCPURL: "https://example.test/mcp",
+						RuntimeEvidence: "tests/e2e/results/chatgpt-demo.json", RuntimeEvidenceRevision: strings.Repeat("b", 40),
+					},
+				}},
+			},
+		}
+		installation.Clients[key] = client
+	}
+	return installation
 }
