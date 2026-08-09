@@ -3,9 +3,11 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
@@ -150,7 +152,10 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		if request.VerifyOnly {
 			if err := activator.verifyKiroMCP(ctx, request); err != nil {
-				return failedActivation(outcome, fmt.Sprintf("verify with `%s mcp list global`", request.BackendExecutable), err)
+				if errors.Is(err, errKiroStatusContractUnknown) {
+					return manualKiroVerification(outcome, request), nil
+				}
+				return failedActivation(outcome, fmt.Sprintf("verify each server with `%s mcp status --name <server>`", request.BackendExecutable), err)
 			}
 			outcome.Activation = domain.ActivationActive
 			outcome.Verification = domain.VerificationInstalled
@@ -159,11 +164,14 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		if !isKiroCLI(request.BackendExecutable) || activator.Runner == nil {
 			outcome.Activation = domain.ActivationManual
 			outcome.UserActions = append(outcome.UserActions, "install kiro-cli and rerun add to import and verify the prepared MCP configuration")
-			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("install kiro-cli, rerun add for %s, then verify its MCP servers with `kiro-cli mcp list global`", request.Delivery.ActivePath))
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("install kiro-cli, rerun add for %s, then verify each MCP server with `kiro-cli mcp status --name <server>`", request.Delivery.ActivePath))
 			return outcome, nil
 		}
 		if err := activator.activateKiroMCP(ctx, request); err != nil {
-			return failedActivation(outcome, fmt.Sprintf("rerun the MCP import from %s, then verify with `%s mcp list global`", filepath.Join(request.Delivery.ActivePath, "mcp.json"), request.BackendExecutable), err)
+			if errors.Is(err, errKiroStatusContractUnknown) {
+				return manualKiroVerification(outcome, request), nil
+			}
+			return failedActivation(outcome, fmt.Sprintf("rerun the MCP import from %s, then verify each server with `%s mcp status --name <server>`", filepath.Join(request.Delivery.ActivePath, "mcp.json"), request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -236,7 +244,7 @@ func (activator Activator) verifyCopilot(ctx context.Context, request domain.Act
 	if err != nil {
 		return fmt.Errorf("verify Copilot plugin listing: %w", err)
 	}
-	if !stdoutHasHealthyIdentity(listed.Stdout, pluginSpec) {
+	if !copilotHasInstalledPlugin(listed.Stdout, pluginSpec) {
 		return fmt.Errorf("verify Copilot plugin listing: %s is not listed", pluginSpec)
 	}
 	return nil
@@ -285,13 +293,21 @@ func (activator Activator) activateKiroMCP(ctx context.Context, request domain.A
 }
 
 func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
-	listed, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "list", "global")
-	if err != nil {
-		return fmt.Errorf("verify Kiro MCP listing: %w", err)
-	}
 	for _, component := range request.Plan.Components {
-		if component.Kind == domain.ComponentMCPServer && !stdoutHasHealthyIdentity(listed.Stdout, component.Name) {
-			return fmt.Errorf("verify Kiro MCP listing: %s is not listed", component.Name)
+		if component.Kind != domain.ComponentMCPServer {
+			continue
+		}
+		status, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "status", "--name", component.Name)
+		if err != nil {
+			return fmt.Errorf("verify Kiro MCP server %s: %w", component.Name, err)
+		}
+		switch kiroMCPStatus(status.Stdout, component.Name) {
+		case kiroStatusHealthy:
+			continue
+		case kiroStatusUnhealthy:
+			return fmt.Errorf("verify Kiro MCP server %s: server is not connected", component.Name)
+		default:
+			return fmt.Errorf("%w for server %s", errKiroStatusContractUnknown, component.Name)
 		}
 	}
 	return nil
@@ -363,39 +379,99 @@ func isKiroCLI(executable string) bool {
 func codexHasInstalledPlugin(body []byte, name, marketplace string) bool {
 	var value struct {
 		Installed []struct {
-			PluginID        string `json:"pluginId"`
-			Name            string `json:"name"`
-			MarketplaceName string `json:"marketplaceName"`
-			Installed       bool   `json:"installed"`
-			Enabled         bool   `json:"enabled"`
+			PluginID        *string `json:"pluginId"`
+			Name            *string `json:"name"`
+			MarketplaceName *string `json:"marketplaceName"`
+			Installed       *bool   `json:"installed"`
+			Enabled         *bool   `json:"enabled"`
 		} `json:"installed"`
 	}
 	if len(body) == 0 || json.Unmarshal(body, &value) != nil {
 		return false
 	}
+	expectedID := name + "@" + marketplace
+	matches := 0
 	for _, plugin := range value.Installed {
-		if plugin.Name == name && plugin.MarketplaceName == marketplace && plugin.Installed && plugin.Enabled {
-			return true
-		}
-	}
-	return false
-}
-
-func stdoutHasHealthyIdentity(stdout []byte, expected string) bool {
-	for _, line := range strings.Split(string(stdout), "\n") {
-		lower := strings.ToLower(line)
-		if strings.Contains(lower, "disabled") || strings.Contains(lower, "error") || strings.Contains(lower, "failed") {
+		idMatches := plugin.PluginID != nil && *plugin.PluginID == expectedID
+		pairMatches := plugin.Name != nil && plugin.MarketplaceName != nil && *plugin.Name == name && *plugin.MarketplaceName == marketplace
+		if !idMatches && !pairMatches {
 			continue
 		}
-		for _, token := range strings.FieldsFunc(line, func(r rune) bool {
-			return !(r == '-' || r == '_' || r == '@' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z')
-		}) {
-			if token == expected {
-				return true
-			}
+		matches++
+		if plugin.PluginID == nil || plugin.Name == nil || plugin.MarketplaceName == nil || plugin.Installed == nil || plugin.Enabled == nil ||
+			*plugin.PluginID != expectedID || *plugin.Name != name || *plugin.MarketplaceName != marketplace || !*plugin.Installed || !*plugin.Enabled {
+			return false
 		}
 	}
-	return false
+	return matches == 1
+}
+
+var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
+
+func copilotHasInstalledPlugin(stdout []byte, expected string) bool {
+	inInstalledSection := false
+	matches := 0
+	for _, rawLine := range strings.Split(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n") {
+		if strings.TrimSpace(rawLine) == "Installed plugins:" {
+			if inInstalledSection {
+				return false
+			}
+			inInstalledSection = true
+			continue
+		}
+		if !inInstalledSection {
+			continue
+		}
+		if rawLine != "" && rawLine[0] != ' ' && rawLine[0] != '\t' {
+			inInstalledSection = false
+			continue
+		}
+		entry := copilotInstalledEntry.FindStringSubmatch(rawLine)
+		if len(entry) == 2 && entry[1] == expected {
+			matches++
+		}
+	}
+	return matches == 1
+}
+
+type kiroStatus int
+
+const (
+	kiroStatusUnknown kiroStatus = iota
+	kiroStatusHealthy
+	kiroStatusUnhealthy
+)
+
+var errKiroStatusContractUnknown = errors.New("Kiro MCP status output is not recognized")
+
+func kiroMCPStatus(stdout []byte, expected string) kiroStatus {
+	lines := strings.Split(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n")
+	nonEmpty := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if trimmed := strings.TrimSpace(line); trimmed != "" {
+			nonEmpty = append(nonEmpty, trimmed)
+		}
+	}
+	if len(nonEmpty) == 1 && (nonEmpty[0] == expected+": connected" || nonEmpty[0] == expected+" connected") {
+		return kiroStatusHealthy
+	}
+	if len(nonEmpty) == 2 && nonEmpty[0] == "Name: "+expected && nonEmpty[1] == "Status: connected" {
+		return kiroStatusHealthy
+	}
+	lower := strings.ToLower(strings.Join(nonEmpty, "\n"))
+	for _, state := range []string{"pending", "disconnected", "disabled", "auth-required", "auth required", "authentication required", "error", "failed", "failure"} {
+		if strings.Contains(lower, state) {
+			return kiroStatusUnhealthy
+		}
+	}
+	return kiroStatusUnknown
+}
+
+func manualKiroVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) domain.ActivationOutcome {
+	outcome.Activation = domain.ActivationManual
+	outcome.UserActions = []string{"confirm each imported MCP server is connected in Kiro"}
+	outcome.LocalActions = []string{fmt.Sprintf("Kiro's documented `%s mcp status --name <server>` output contract was not recognized; inspect each server manually", request.BackendExecutable)}
+	return outcome
 }
 
 func commandOutputContains(result legacyports.CommandResult, fragment string) bool {
