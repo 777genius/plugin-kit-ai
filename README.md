@@ -13,7 +13,7 @@ others only when you need them.
 
 This repository contains 26 open-source plugins packaged for the
 [Agent Plugins 1.0](https://agent-plugins.org/specification) standard.
-Portable packages use a root `plugin.json`. For Codex and ChatGPT, CI generates
+Portable packages use a root `plugin.json`. For OpenAI hosts, CI generates
 official-layout `.codex-plugin/plugin.json` packages under
 [`compat/openai`](compat/openai), validates them with OpenAI's `plugin-creator`,
 and follows the [OpenAI plugin build guide](https://developers.openai.com/plugins/build/plugins).
@@ -28,7 +28,7 @@ requires no account. You need Node.js 22 or newer:
 npx universal-agent-plugins add context7
 ```
 
-The CLI detects Codex/ChatGPT, Cursor, GitHub Copilot/VS Code, and Kiro. If more
+The CLI detects Codex, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. To choose directly:
 
 ```bash
@@ -71,7 +71,8 @@ client-specific.
 
 | Client | Delivery | Activation |
 | --- | --- | --- |
-| Codex / ChatGPT | OpenAI compatibility package | Follow the exact CLI or in-app install hint |
+| Codex | OpenAI compatibility package | Follow the exact CLI activation hint |
+| ChatGPT | Registered remote MCP app binding | User-attested manual UI activation; Cloudflare Docs personal-app E2E passed |
 | Cursor | Native Agent Plugin | Reload, then verify discovery |
 | GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
 | VS Code | Shared Copilot plugin when its CLI is available | Automatic, otherwise the exact setting is shown |
@@ -81,6 +82,13 @@ All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
 marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and the
 [compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
+
+For OpenAI delivery, five stdio MCP packages are Codex-only, twenty remote MCP
+packages require a ChatGPT app binding, and Agent Code Navigator is skills-only.
+Cloudflare Docs has the only registered development binding; its direct
+connection and registered personal-app Plugins UI runtime passed. The exact
+`.app.json` ID linkage is proved; local `.codex-plugin` ingestion and manager
+lifecycle are still separate, unproved steps.
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
 materialization/removal, and the five starter plugins pass 25/25 add/remove

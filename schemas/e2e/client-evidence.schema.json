@@ -15,6 +15,7 @@
     "client": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "minLength": 1 },
     "date": { "type": "string", "format": "date" },
+    "date_timezone": { "const": "Europe/Kyiv" },
     "observed_at_utc": { "type": "string", "format": "date-time" },
     "checks": {
       "type": "array",
@@ -24,6 +25,7 @@
         "required": ["scenario", "status"],
         "properties": {
           "scenario": { "type": "string", "minLength": 1 },
+          "operation": { "type": "string", "minLength": 1 },
           "status": {
             "enum": ["passed", "auth_required", "manual_step", "failed", "skipped"]
           }
@@ -33,6 +35,65 @@
     },
     "secrets_recorded": { "const": false },
     "real_user_project_used": { "type": "boolean" },
+    "binding": {
+      "type": "object",
+      "required": ["plugin", "app_id", "mcp_url"],
+      "properties": {
+        "plugin": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "app_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$"
+        },
+        "mcp_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@\\s]+(?:/[^?#]*)?$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "catalog": {
+      "type": "object",
+      "required": ["revision", "digest"],
+      "properties": {
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "ui": {
+      "type": "object",
+      "required": ["directory_source", "display_name", "installation_state", "detail_action", "opened_mode", "plugin_chip_selected", "activation_evidence"],
+      "properties": {
+        "directory_source": { "const": "Personal" },
+        "display_name": { "const": "Universal Agent Plugins Cloudflare Docs E2E" },
+        "installation_state": { "const": "Installed" },
+        "detail_action": { "const": "Попробовать в чате" },
+        "opened_mode": { "const": "Chat" },
+        "plugin_chip_selected": { "const": true },
+        "activation_evidence": { "const": "user_attested_manual" }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["prompt_count", "tool_call_count", "read_only"],
+      "properties": {
+        "prompt_count": { "const": 1 },
+        "tool_call_count": { "const": 2 },
+        "read_only": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "required": ["proved", "not_proved"],
+      "properties": {
+        "proved": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "not_proved": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
     "privacy": {
       "type": "object",
       "required": ["sanitized", "excluded"],
@@ -49,6 +110,40 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "evidence_type": { "const": "interactive_personal_app_runtime" }
+        },
+        "required": ["evidence_type"]
+      },
+      "then": {
+        "required": ["version", "date_timezone", "binding", "catalog", "source", "ui", "runtime", "scope", "cleanup"],
+        "properties": {
+          "client": { "const": "ChatGPT web Plugins UI" },
+          "checks": {
+            "items": { "required": ["scenario", "operation", "status"] }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "client": { "const": "ChatGPT Developer Mode" },
+          "evidence_type": { "const": "interactive_direct_mcp_runtime" }
+        },
+        "required": ["client", "evidence_type"]
+      },
+      "then": {
+        "required": ["version", "date_timezone", "binding", "source", "cleanup"],
+        "properties": {
+          "checks": {
+            "items": { "required": ["scenario", "operation", "status"] }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": { "client": { "const": "ChatGPT web" } },

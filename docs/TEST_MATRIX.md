@@ -1,6 +1,6 @@
 # Plugin verification matrix
 
-Updated on 2026-08-09. Each column is independent: a schema pass is not an
+Updated on 2026-08-10. Each column is independent: a schema pass is not an
 install, an auth challenge is not OAuth success, and tool discovery is not a
 tool call. `Direct harness` means MCP Inspector, not a client installation.
 
@@ -11,7 +11,7 @@ tool call. `Direct harness` means MCP Inspector, not a client installation.
 | `chrome-devtools` | Pass | Codex; Cursor local load; Kiro workspace | `list_pages` | Local browser, not OAuth | Codex; Cursor; Kiro; direct harness |
 | `cloudflare` | Pass | No | No | Required - not tested | None |
 | `cloudflare-bindings` | Pass | No | No | Required - not tested | None |
-| `cloudflare-docs` | Pass | Codex; Cursor local load; Kiro workspace | `search_cloudflare_documentation` | None | Codex; Cursor; Kiro; direct harness |
+| `cloudflare-docs` | Pass | Codex; Cursor local load; Kiro workspace; ChatGPT registered personal app | `search_cloudflare_documentation` | None | Codex; Cursor; Kiro; ChatGPT direct and personal app; direct harness |
 | `cloudflare-observability` | Pass | No | No | Required - not tested | None |
 | `cloudflare-radar` | Pass | No | No | Discovery passed; consent not tested | Direct harness |
 | `context7` | Pass | Codex; Kiro import; Cursor local load | `resolve-library-id`; `query-docs` | None | Codex; Kiro; Cursor; direct harness |
@@ -36,6 +36,14 @@ tool call. `Direct harness` means MCP Inspector, not a client installation.
 The automated Codex record includes the public release ref and commit, workflow
 URL and commit, copy-ready reproduction commands, and a sanitized three-event
 transcript. All client records are under [`tests/e2e/results`](../tests/e2e/results).
+
+The [Cloudflare Docs ChatGPT record](../tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json)
+proves only a direct registered no-auth development connection: `list_resources`
+and one read-only search passed. The separate [personal-app record](../tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json)
+proves Installed discovery under Personal, user-attested manual activation,
+exact app ID linkage, and one read-only prompt with exactly two tool calls. It
+does not prove local `.codex-plugin` ingestion, repository marketplace
+installation, or the `agentplugins` manager lifecycle.
 
 ## Installer lifecycle
 

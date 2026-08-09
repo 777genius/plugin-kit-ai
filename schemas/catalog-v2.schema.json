@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v2.schema.json",
+  "title": "Universal Agent Plugins catalog v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "catalog_version",
+    "repository",
+    "revision",
+    "published_at",
+    "plugins"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v2.schema.json"
+    },
+    "schema_version": { "const": 2 },
+    "catalog_version": { "$ref": "#/$defs/semver" },
+    "repository": {
+      "const": "777genius/universal-agent-plugins"
+    },
+    "revision": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "published_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/plugin" }
+    }
+  },
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "verification", "authentication"],
+      "properties": {
+        "package": {
+          "enum": ["native", "projected", "prepared", "unsupported"]
+        },
+        "verification": {
+          "enum": ["tested", "schema_only", "not_tested"]
+        },
+        "authentication": {
+          "enum": ["not_required", "required", "unknown"]
+        }
+      }
+    },
+    "chatgpt_app_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_key", "id", "mcp_server", "mcp_url", "runtime_evidence", "runtime_evidence_revision"],
+      "properties": {
+        "app_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$"
+        },
+        "mcp_server": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "mcp_url": {
+          "type": "string",
+          "pattern": "^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?(?:/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$"
+        },
+        "runtime_evidence": {
+          "type": "string",
+          "pattern": "^tests/e2e/results/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}\\.json$"
+        },
+        "runtime_evidence_revision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "chatgpt_compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "verification", "authentication", "app_binding"],
+      "properties": {
+        "package": { "const": "projected" },
+        "verification": { "enum": ["tested", "schema_only", "not_tested"] },
+        "authentication": { "enum": ["not_required", "required", "unknown"] },
+        "app_binding": { "$ref": "#/$defs/chatgpt_app_binding" }
+      }
+    },
+    "auth_hint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "oauth_resource": {
+          "type": "string",
+          "format": "uri"
+        },
+        "bearer_token_env_var": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        }
+      },
+      "anyOf": [
+        { "required": ["oauth_resource"] },
+        { "required": ["bearer_token_env_var"] }
+      ]
+    },
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "agent_plugins_schema",
+        "minimum_cli_version",
+        "source_path",
+        "tree_digest",
+        "manifest_digest",
+        "components",
+        "compatibility"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$",
+          "maxLength": 64
+        },
+        "version": { "$ref": "#/$defs/semver" },
+        "agent_plugins_schema": {
+          "const": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+        },
+        "minimum_cli_version": { "const": "0.1.6" },
+        "source_path": {
+          "type": "string",
+          "pattern": "^plugins/[a-z0-9][a-z0-9.-]*$"
+        },
+        "tree_digest": { "$ref": "#/$defs/digest" },
+        "manifest_digest": { "$ref": "#/$defs/digest" },
+        "components": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["skills", "mcp", "extensions"] }
+        },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codex", "cursor", "copilot", "vscode", "kiro"],
+          "properties": {
+            "codex": { "$ref": "#/$defs/compatibility" },
+            "chatgpt": { "$ref": "#/$defs/chatgpt_compatibility" },
+            "cursor": { "$ref": "#/$defs/compatibility" },
+            "copilot": { "$ref": "#/$defs/compatibility" },
+            "vscode": { "$ref": "#/$defs/compatibility" },
+            "kiro": { "$ref": "#/$defs/compatibility" }
+          }
+        },
+        "openai_mcp_auth": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/auth_hint" }
+        }
+      }
+    }
+  }
+}

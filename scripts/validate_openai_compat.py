@@ -9,13 +9,15 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from openai_app_bindings import APP_BINDINGS, app_document, load_app_bindings
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS_ROOT = ROOT / "compat" / "openai" / "plugins"
 MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 MANIFEST_FIELDS = {
     "name", "version", "description", "author", "homepage", "repository",
-    "license", "keywords", "skills", "mcpServers", "interface",
+    "license", "keywords", "skills", "apps", "mcpServers", "interface",
 }
 INTERFACE_FIELDS = {
     "displayName", "shortDescription", "longDescription", "developerName",
@@ -94,7 +96,29 @@ def validate_mcp(plugin_root: Path, plugin_name: str) -> None:
         require(actual == expected, f"{path}: auth metadata drift for {plugin_name}: {actual!r}")
 
 
-def validate_plugin(plugin_root: Path) -> str:
+def validate_app(
+    plugin_root: Path,
+    plugin_name: str,
+    binding: dict[str, object],
+) -> None:
+    """Require generated app wiring to match the host-only binding exactly."""
+    path = plugin_root / ".app.json"
+    require(load(path) == app_document(binding), f"{path}: app binding drift")
+    mcp = load(plugin_root / ".mcp.json")
+    servers = mcp.get("mcpServers")
+    server_name = str(binding["mcp_server"])
+    require(isinstance(servers, dict), f"{path}: matching mcpServers required")
+    require(set(servers) == {server_name}, f"{path}: app binding requires one matching MCP server")
+    server = servers[server_name]
+    require(isinstance(server, dict), f"{path}: matching MCP server must be an object")
+    require(server.get("type") == "http", f"{path}: app binding requires HTTP transport")
+    require(server.get("url") == binding["mcp_url"], f"{path}: app endpoint drift")
+
+
+def validate_plugin(
+    plugin_root: Path,
+    bindings: dict[str, dict[str, object]],
+) -> str:
     """Validate one generated OpenAI plugin and return its name."""
     path = plugin_root / ".codex-plugin" / "plugin.json"
     manifest = load(path)
@@ -128,13 +152,27 @@ def validate_plugin(plugin_root: Path) -> str:
     if "mcpServers" in manifest:
         require(manifest["mcpServers"] == "./.mcp.json", f"{path}: invalid mcpServers path")
         validate_mcp(plugin_root, str(name))
+    binding = bindings.get(str(name))
+    if binding is None:
+        require("apps" not in manifest, f"{path}: unbound plugin cannot declare apps")
+        require(not (plugin_root / ".app.json").exists(), f"{plugin_root}: rogue .app.json")
+    else:
+        require(manifest.get("apps") == "./.app.json", f"{path}: invalid apps path")
+        require("mcpServers" in manifest, f"{path}: app binding requires mcpServers")
+        validate_app(plugin_root, str(name), binding)
     return str(name)
 
 
 def validate() -> int:
     """Validate every generated package and marketplace entry."""
+    bindings = load_app_bindings(APP_BINDINGS)
     require(PLUGINS_ROOT.is_dir(), f"{PLUGINS_ROOT}: missing generated plugins")
-    names = [validate_plugin(path) for path in sorted(PLUGINS_ROOT.iterdir()) if path.is_dir()]
+    names = [
+        validate_plugin(path, bindings)
+        for path in sorted(PLUGINS_ROOT.iterdir())
+        if path.is_dir()
+    ]
+    require(set(bindings) <= set(names), "app bindings reference unknown generated plugins")
     marketplace = load(MARKETPLACE)
     entries = marketplace.get("plugins")
     require(isinstance(entries, list), f"{MARKETPLACE}: plugins must be an array")

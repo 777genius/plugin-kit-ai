@@ -1,6 +1,6 @@
 # Verification record
 
-Updated: 2026-08-09.
+Updated: 2026-08-10.
 
 ## Package conformance
 
@@ -9,9 +9,16 @@ Updated: 2026-08-09.
 - 4 skills pass `skills-ref` 0.1.1.
 - The repository semantic validator reports 26 plugins, 25 MCP servers, and 4
   skills.
+- Released catalog v1 and its schema remain byte-for-byte unchanged. Catalog v2
+  adds the optional ChatGPT binding and pins its evidence path to an immutable
+  full Git revision whose exact blob is verified before generation.
 - All 26 generated OpenAI compatibility packages pass the repository validator
   and OpenAI's `plugin-creator` validator in CI. The latter is fetched from a
   pinned `openai/codex` commit and verified by SHA-256 before execution.
+- Cloudflare Docs is the only package with a generated `.app.json`; its host-only
+  development binding matches the exact public app ID, MCP endpoint, and pinned
+  direct and personal-app runtime records. Human review still owns the app-ID
+  ownership check. Local package ingestion is not implied.
 - The OpenAI adapter preserves the host-specific auth metadata published for
   GitHub, Figma, Linear, and Notion without adding unverified auth fields.
 
@@ -29,6 +36,23 @@ in `plugins/docker-hub/mcp.json`.
 
 ## Runtime E2E
 
+- A registered no-auth Cloudflare Docs connection in ChatGPT Developer Mode
+  completed `list_resources` and one read-only `search_cloudflare_documentation`
+  call for `Durable Objects SQLite storage API`, returning 7 results. This was a
+  direct registered connection, not installation of this repository's generated
+  package or the later personal-app UI path. The 2026-08-10 evidence date uses the
+  repository operator's `Europe/Kyiv` local calendar. The sanitized record is
+  [`chatgpt-cloudflare-docs-direct-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json).
+- The registered Cloudflare Docs personal app appeared as Installed under
+  Plugins > Personal. Its detail action opened a new Chat with the plugin chip
+  selected. One read-only prompt made exactly one `list_resources` and one
+  `search_cloudflare_documentation` call for `Durable Objects SQLite storage API`;
+  the bounded response marker matched `E2E_OK Rules Of_`. This proves UI
+  discovery, user-attested manual activation, runtime, and exact `.app.json`
+  app-ID linkage.
+  It does not prove local `.codex-plugin` ingestion, repository marketplace
+  installation, or manager lifecycle. The sanitized record is
+  [`chatgpt-cloudflare-docs-personal-app-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json).
 - Public post-merge run
   [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
   tested `universal-agent-plugins@0.1.5` at merge

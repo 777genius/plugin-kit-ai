@@ -1,9 +1,15 @@
 # Four optional plugins to try first
 
 These examples avoid account credentials. Choose one: they are independent
-alternatives, not sequential steps. The CLI detects Codex/ChatGPT, Cursor,
+alternatives, not sequential steps. The CLI detects Codex, Cursor,
 GitHub Copilot/VS Code, and Kiro; if several are installed, choose one when
 prompted.
+
+On OpenAI surfaces, Context7 and Chrome DevTools are stdio packages for Codex;
+Agent Code Navigator is skills-only. Cloudflare Docs has a registered ChatGPT
+development binding. Its registered personal app passed Plugins UI discovery,
+user-attested manual activation, and read-only runtime; local package ingestion
+is not claimed.
 
 ## 1. Agent Code Navigator
 

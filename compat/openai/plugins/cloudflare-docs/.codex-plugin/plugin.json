@@ -20,6 +20,7 @@
     "research"
   ],
   "mcpServers": "./.mcp.json",
+  "apps": "./.app.json",
   "interface": {
     "displayName": "Cloudflare Docs",
     "shortDescription": "Cloudflare docs MCP",
