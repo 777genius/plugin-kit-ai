@@ -129,10 +129,6 @@ func resumeInteractiveLifecycle(
 	current usecase.AddResult,
 ) error {
 	if current.Activation.Activation != domain.ActivationActive || current.Activation.Verification != domain.VerificationInstalled {
-		if cliClientVerifierAvailable(input, current.Plan) {
-			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Client verification must return recognized positive evidence. Inspect the plugin manually, update the client if its output format is unsupported, then rerun add.")
-			return nil
-		}
 		complete, err := promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Have you completed activation and verified the plugin is enabled in the client? [y/N]")
 		if err != nil {
 			return err
@@ -177,28 +173,6 @@ func resumeInteractiveLifecycle(
 	}
 
 	return renderAddResult(cmd.OutOrStdout(), "human", envelope, current, false)
-}
-
-func cliClientVerifierAvailable(input usecase.AddInput, plan domain.DeliveryPlan) bool {
-	if strings.TrimSpace(input.BackendExecutable) == "" {
-		return false
-	}
-	switch input.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
-		return true
-	case domain.ClientKiro:
-		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") || len(plan.Components) == 0 {
-			return false
-		}
-		for _, component := range plan.Components {
-			if component.Support == domain.SupportUnsupported || component.Kind != domain.ComponentMCPServer {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
 }
 
 func selectClient(

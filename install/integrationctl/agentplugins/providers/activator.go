@@ -131,6 +131,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		if request.VerifyOnly {
 			if err := activator.verifyCodex(ctx, request); err != nil {
+				if errors.Is(err, errCodexListContractUnknown) {
+					return manualCodexVerification(outcome, request), nil
+				}
 				return failedActivation(outcome, fmt.Sprintf("verify with `%s plugin list --json`", request.BackendExecutable), err)
 			}
 			outcome.Activation = domain.ActivationActive
@@ -138,6 +141,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			return outcome, nil
 		}
 		if err := activator.activateCodex(ctx, request); err != nil {
+			if errors.Is(err, errCodexListContractUnknown) {
+				return manualCodexVerification(outcome, request), nil
+			}
 			return failedActivation(outcome, fmt.Sprintf("run Codex activation again for the prepared package at %s, then verify with `%s plugin list --json`", request.Delivery.ActivePath, request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
@@ -288,13 +294,14 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 	if err != nil {
 		return fmt.Errorf("verify Codex plugin listing: %w", err)
 	}
-	if !codexHasInstalledPlugin(listed.Stdout, request.DeclaredName, marketplace) {
-		if codexListingContractRecognized(listed.Stdout) {
-			return fmt.Errorf("%w: verify Codex plugin listing: %s is not listed", errRecognizedNegativeEvidence, pluginSpec)
-		}
-		return fmt.Errorf("verify Codex plugin listing: %s is not listed", pluginSpec)
+	switch codexPluginStatus(listed.Stdout, request.DeclaredName, marketplace) {
+	case codexStatusInstalled:
+		return nil
+	case codexStatusAbsent:
+		return fmt.Errorf("%w: verify Codex plugin listing: %s is not installed and enabled", errRecognizedNegativeEvidence, pluginSpec)
+	default:
+		return fmt.Errorf("%w: verify Codex plugin listing", errCodexListContractUnknown)
 	}
-	return nil
 }
 
 func (activator Activator) activateKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
@@ -390,47 +397,59 @@ func isKiroCLI(executable string) bool {
 	return base == "kiro-cli" || base == "kiro-cli.exe" || base == "kiro" || base == "kiro.exe"
 }
 
-func codexHasInstalledPlugin(body []byte, name, marketplace string) bool {
-	var value struct {
-		Installed []struct {
-			PluginID        *string `json:"pluginId"`
-			Name            *string `json:"name"`
-			MarketplaceName *string `json:"marketplaceName"`
-			Installed       *bool   `json:"installed"`
-			Enabled         *bool   `json:"enabled"`
-		} `json:"installed"`
+type codexStatus int
+
+const (
+	codexStatusUnknown codexStatus = iota
+	codexStatusInstalled
+	codexStatusAbsent
+)
+
+var errCodexListContractUnknown = errors.New("Codex plugin list output is not recognized")
+
+func codexPluginStatus(body []byte, name, marketplace string) codexStatus {
+	var document map[string]json.RawMessage
+	if len(body) == 0 || json.Unmarshal(body, &document) != nil {
+		return codexStatusUnknown
 	}
-	if len(body) == 0 || json.Unmarshal(body, &value) != nil {
-		return false
+	rawInstalled, ok := document["installed"]
+	if !ok || string(rawInstalled) == "null" {
+		return codexStatusUnknown
+	}
+	type installedEntry struct {
+		PluginID        *string `json:"pluginId"`
+		Name            *string `json:"name"`
+		MarketplaceName *string `json:"marketplaceName"`
+		Installed       *bool   `json:"installed"`
+		Enabled         *bool   `json:"enabled"`
+	}
+	var entries []installedEntry
+	if json.Unmarshal(rawInstalled, &entries) != nil {
+		return codexStatusUnknown
 	}
 	expectedID := name + "@" + marketplace
-	matches := 0
-	for _, plugin := range value.Installed {
-		idMatches := plugin.PluginID != nil && *plugin.PluginID == expectedID
-		pairMatches := plugin.Name != nil && plugin.MarketplaceName != nil && *plugin.Name == name && *plugin.MarketplaceName == marketplace
-		if !idMatches && !pairMatches {
-			continue
+	identities := make(map[string]struct{}, len(entries))
+	foundExpected := false
+	expectedActive := false
+	for _, entry := range entries {
+		if entry.PluginID == nil || entry.Name == nil || entry.MarketplaceName == nil || entry.Installed == nil || entry.Enabled == nil ||
+			*entry.PluginID == "" || *entry.Name == "" || *entry.MarketplaceName == "" ||
+			*entry.PluginID != *entry.Name+"@"+*entry.MarketplaceName {
+			return codexStatusUnknown
 		}
-		matches++
-		if plugin.PluginID == nil || plugin.Name == nil || plugin.MarketplaceName == nil || plugin.Installed == nil || plugin.Enabled == nil ||
-			*plugin.PluginID != expectedID || *plugin.Name != name || *plugin.MarketplaceName != marketplace || !*plugin.Installed || !*plugin.Enabled {
-			return false
+		if _, duplicate := identities[*entry.PluginID]; duplicate {
+			return codexStatusUnknown
+		}
+		identities[*entry.PluginID] = struct{}{}
+		if *entry.PluginID == expectedID {
+			foundExpected = true
+			expectedActive = *entry.Installed && *entry.Enabled
 		}
 	}
-	return matches == 1
-}
-
-func codexListingContractRecognized(body []byte) bool {
-	var value map[string]json.RawMessage
-	if len(body) == 0 || json.Unmarshal(body, &value) != nil {
-		return false
+	if foundExpected && expectedActive {
+		return codexStatusInstalled
 	}
-	installed, ok := value["installed"]
-	if !ok {
-		return false
-	}
-	var entries []json.RawMessage
-	return json.Unmarshal(installed, &entries) == nil
+	return codexStatusAbsent
 }
 
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
@@ -530,29 +549,53 @@ const (
 var errKiroStatusContractUnknown = errors.New("Kiro MCP status output is not recognized")
 
 func kiroMCPStatus(stdout []byte, expected string) kiroStatus {
-	lines := strings.Split(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n")
-	nonEmpty := make([]string, 0, len(lines))
-	for _, line := range lines {
-		if trimmed := strings.TrimSpace(line); trimmed != "" {
-			nonEmpty = append(nonEmpty, trimmed)
+	contract := strings.ReplaceAll(string(stdout), "\r\n", "\n")
+	contract = strings.TrimSuffix(contract, "\n")
+	status := ""
+	if prefix := expected + ": "; strings.HasPrefix(contract, prefix) && !strings.Contains(contract, "\n") {
+		status = strings.TrimPrefix(contract, prefix)
+	} else {
+		lines := strings.Split(contract, "\n")
+		if len(lines) != 2 || lines[0] != "Name: "+expected || !strings.HasPrefix(lines[1], "Status: ") {
+			return kiroStatusUnknown
 		}
+		status = strings.TrimPrefix(lines[1], "Status: ")
 	}
-	if len(nonEmpty) == 1 && (nonEmpty[0] == expected+": connected" || nonEmpty[0] == expected+" connected") {
+	if status == "connected" {
 		return kiroStatusHealthy
 	}
-	if len(nonEmpty) == 2 && nonEmpty[0] == "Name: "+expected && nonEmpty[1] == "Status: connected" {
-		return kiroStatusHealthy
-	}
-	lower := strings.ToLower(strings.Join(nonEmpty, "\n"))
-	for _, state := range []string{"pending", "disconnected", "disabled", "auth-required", "auth required", "authentication required", "error", "failed", "failure"} {
-		if strings.Contains(lower, state) {
+	for _, negative := range []string{"pending", "disconnected", "disabled", "auth-required", "auth required", "authentication required", "error", "failed", "failure"} {
+		if status == negative {
 			return kiroStatusUnhealthy
 		}
 	}
 	return kiroStatusUnknown
 }
 
+func attestedUnknownVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) (domain.ActivationOutcome, bool) {
+	if !request.ActivationComplete {
+		return outcome, false
+	}
+	outcome.Activation = domain.ActivationActive
+	outcome.Verification = domain.VerificationInstalled
+	outcome.ActivationAttested = true
+	return outcome, true
+}
+
+func manualCodexVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) domain.ActivationOutcome {
+	if attested, ok := attestedUnknownVerification(outcome, request); ok {
+		return attested
+	}
+	outcome.Activation = domain.ActivationManual
+	outcome.UserActions = []string{"confirm the managed plugin is installed and enabled in Codex"}
+	outcome.LocalActions = []string{fmt.Sprintf("the `%s plugin list --json` output contract was not recognized; inspect %s manually", request.BackendExecutable, request.DeclaredName)}
+	return outcome
+}
+
 func manualKiroVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) domain.ActivationOutcome {
+	if attested, ok := attestedUnknownVerification(outcome, request); ok {
+		return attested
+	}
 	outcome.Activation = domain.ActivationManual
 	outcome.UserActions = []string{"confirm each imported MCP server is connected in Kiro"}
 	outcome.LocalActions = []string{fmt.Sprintf("Kiro's documented `%s mcp status --name <server>` output contract was not recognized; inspect each server manually", request.BackendExecutable)}
@@ -560,6 +603,9 @@ func manualKiroVerification(outcome domain.ActivationOutcome, request domain.Act
 }
 
 func manualCopilotVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) domain.ActivationOutcome {
+	if attested, ok := attestedUnknownVerification(outcome, request); ok {
+		return attested
+	}
 	outcome.Activation = domain.ActivationManual
 	outcome.UserActions = []string{"confirm the managed plugin is installed and enabled in GitHub Copilot"}
 	outcome.LocalActions = []string{fmt.Sprintf("the `%s plugin list` output contract was not recognized; inspect %s manually", request.BackendExecutable, request.DeclaredName)}

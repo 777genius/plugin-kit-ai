@@ -144,7 +144,7 @@ type ActivationRequest struct {
 	BackendExecutable string         `json:"-"`
 	// VerifyOnly forbids client mutation and asks the provider to inspect the
 	// current client state. ActivationComplete is an explicit user attestation
-	// for a phase which the selected client cannot expose through an API.
+	// accepted only when verification is unavailable or returns unknown evidence.
 	VerifyOnly         bool `json:"verify_only,omitempty"`
 	ActivationComplete bool `json:"activation_complete,omitempty"`
 }

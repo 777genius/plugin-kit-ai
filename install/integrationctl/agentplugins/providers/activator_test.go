@@ -142,34 +142,59 @@ func TestActivatorUsesCodexCLIAndVerifiesJSONState(t *testing.T) {
 
 func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
 	t.Parallel()
+	marketplace := "managed"
+	valid := func(pluginID, name, market string, installed, enabled bool) string {
+		return fmt.Sprintf(`{"pluginId":%q,"name":%q,"marketplaceName":%q,"installed":%t,"enabled":%t}`, pluginID, name, market, installed, enabled)
+	}
+	cases := map[string]struct {
+		body string
+		want codexStatus
+	}{
+		"installed":              {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `]}`, codexStatusInstalled},
+		"empty":                  {`{"installed":[]}`, codexStatusAbsent},
+		"valid unrelated":        {`{"installed":[` + valid("other@managed", "other", marketplace, true, true) + `]}`, codexStatusAbsent},
+		"expected disabled":      {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, false) + `]}`, codexStatusAbsent},
+		"expected not installed": {`{"installed":[` + valid("demo@managed", "demo", marketplace, false, true) + `]}`, codexStatusAbsent},
+		"malformed":              {`{`, codexStatusUnknown},
+		"old shape":              {`{"plugins":[{"name":"demo"}]}`, codexStatusUnknown},
+		"null array":             {`{"installed":null}`, codexStatusUnknown},
+		"arbitrary entry":        {`{"installed":[{"message":"not authenticated"}]}`, codexStatusUnknown},
+		"wrong field type":       {`{"installed":[{"pluginId":7,"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"missing plugin id":      {`{"installed":[{"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
+		"inconsistent identity":  {`{"installed":[` + valid("demo@other", "demo", marketplace, true, true) + `]}`, codexStatusUnknown},
+		"duplicate identity":     {`{"installed":[` + valid("demo@managed", "demo", marketplace, true, true) + `,` + valid("demo@managed", "demo", marketplace, false, false) + `]}`, codexStatusUnknown},
+	}
+	for name, test := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := codexPluginStatus([]byte(test.body), "demo", marketplace); got != test.want {
+				t.Fatalf("status = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestCodexProviderDistinguishesNegativeAndUnknownListings(t *testing.T) {
+	t.Parallel()
 	request := activationRequest(t, domain.ClientCodex)
 	request.BackendExecutable = "/test/bin/codex"
 	request.VerifyOnly = true
-	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
-	cases := map[string]string{
-		"malformed":             `{`,
-		"old shape":             `{"plugins":[{"name":"demo"}]}`,
-		"error only":            `{"error":"not authenticated"}`,
-		"missing plugin id":     fmt.Sprintf(`{"installed":[{"name":"demo","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace),
-		"wrong plugin id":       fmt.Sprintf(`{"installed":[{"pluginId":"demo@other","name":"demo","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace),
-		"missing name":          fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace, marketplace),
-		"missing marketplace":   fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","installed":true,"enabled":true}]}`, marketplace),
-		"missing installed":     fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"enabled":true}]}`, marketplace, marketplace),
-		"missing enabled":       fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":true}]}`, marketplace, marketplace),
-		"not installed":         fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":false,"enabled":true}]}`, marketplace, marketplace),
-		"disabled":              fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":true,"enabled":false}]}`, marketplace, marketplace),
-		"wrong marketplace":     `{"installed":[{"pluginId":"demo@other","name":"demo","marketplaceName":"other","installed":true,"enabled":true}]}`,
-		"unrelated":             fmt.Sprintf(`{"installed":[{"pluginId":"demo-extra@%s","name":"demo-extra","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace, marketplace),
-		"duplicate exact":       fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":true,"enabled":true},{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace, marketplace, marketplace, marketplace),
-		"duplicate conflicting": fmt.Sprintf(`{"installed":[{"pluginId":"demo@%s","name":"demo","marketplaceName":%q,"installed":true,"enabled":true},{"pluginId":"demo@%s","name":"wrong","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace, marketplace, marketplace, marketplace),
-	}
-	for name, body := range cases {
+	for name, body := range map[string]string{
+		"negative": `{"installed":[]}`,
+		"unknown":  `{"installed":[{"name":"demo"}]}`,
+	} {
 		t.Run(name, func(t *testing.T) {
 			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
 				return legacyports.CommandResult{Stdout: []byte(body)}
 			}}
-			if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
-				t.Fatal("untrusted Codex listing was accepted")
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if name == "negative" {
+				if err == nil || outcome.Activation != domain.ActivationFailed || !outcome.AuthoritativeObservation {
+					t.Fatalf("outcome=%+v err=%v", outcome, err)
+				}
+				return
+			}
+			if err != nil || outcome.Activation != domain.ActivationManual || outcome.AuthoritativeObservation {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
 			}
 		})
 	}
@@ -312,9 +337,12 @@ func TestKiroUnknownStatusContractRemainsManual(t *testing.T) {
 	request.VerifyOnly = true
 	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
 	for name, listed := range map[string]legacyports.CommandResult{
-		"stderr only": {Stderr: []byte("demo-server: connected")},
-		"unrelated":   {Stdout: []byte("demo-server-other: connected")},
-		"unknown":     {Stdout: []byte("demo-server: enabled")},
+		"stderr only":              {Stderr: []byte("demo-server: connected")},
+		"unrelated positive":       {Stdout: []byte("demo-server-other: connected")},
+		"unrelated negative":       {Stdout: []byte("demo-server-other: disconnected")},
+		"warning plus negative":    {Stdout: []byte("warning: stale cache\ndemo-server: disconnected")},
+		"negative plus extra text": {Stdout: []byte("demo-server: disconnected\nretrying")},
+		"unknown":                  {Stdout: []byte("demo-server: enabled")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
@@ -324,6 +352,55 @@ func TestKiroUnknownStatusContractRemainsManual(t *testing.T) {
 			}
 			if outcome.ActivationAttested || len(runner.commands) != 1 || len(outcome.LocalActions) == 0 {
 				t.Fatalf("unknown output path is not actionable: outcome=%+v commands=%+v", outcome, runner.commands)
+			}
+		})
+	}
+}
+
+func TestKiroStatusParserAcceptsOnlyExactRequestedIdentityShapes(t *testing.T) {
+	t.Parallel()
+	for name, test := range map[string]struct {
+		body string
+		want kiroStatus
+	}{
+		"one line healthy":  {"demo: connected\n", kiroStatusHealthy},
+		"two line healthy":  {"Name: demo\nStatus: connected\n", kiroStatusHealthy},
+		"one line negative": {"demo: disabled\n", kiroStatusUnhealthy},
+		"two line negative": {"Name: demo\nStatus: auth required\n", kiroStatusUnhealthy},
+		"other negative":    {"other: disconnected\n", kiroStatusUnknown},
+		"extra warning":     {"warning\ndemo: disconnected\n", kiroStatusUnknown},
+		"extra suffix":      {"demo: disconnected now\n", kiroStatusUnknown},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := kiroMCPStatus([]byte(test.body), "demo"); got != test.want {
+				t.Fatalf("status = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestUnknownObservableVerificationRequiresAndRecordsExplicitAttestation(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro} {
+		t.Run(string(client), func(t *testing.T) {
+			request := activationRequest(t, client)
+			request.VerifyOnly = true
+			request.ActivationComplete = true
+			request.BackendExecutable = "/test/bin/" + string(client)
+			if client == domain.ClientVSCode {
+				request.BackendExecutable = "/test/bin/copilot"
+			}
+			if client == domain.ClientKiro {
+				request.BackendExecutable = "/test/bin/kiro-cli"
+				request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo", Support: domain.SupportNative}}
+			}
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return legacyports.CommandResult{} }}
+			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+			if err != nil || outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || !outcome.ActivationAttested {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
+			if len(runner.commands) != 1 {
+				t.Fatalf("verifier calls = %d", len(runner.commands))
 			}
 		})
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
+	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 func TestAddDryRunAndUnconfirmedPlanDoNotMutateStateOrClient(t *testing.T) {
@@ -426,11 +428,59 @@ func TestConvergedManualVerifierOutcomeUsesConfirmationAndReplacesStaleState(t *
 	}
 }
 
-func TestUnconfirmedInfrastructureFailureIsNotPersistedAsAuthoritativeEvidence(t *testing.T) {
+func TestUnconfirmedInfrastructureFailureIsNotPersistedAsAuthoritativeEvidenceForAddOrUpdate(t *testing.T) {
 	t.Parallel()
+	for _, operation := range []string{"add", "update"} {
+		t.Run(operation, func(t *testing.T) {
+			service, store, _ := serviceFixture(t)
+			client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+			input := addInput(t, client, "https://example.com/non-authoritative-failure-"+operation)
+			input.Confirmed = true
+			if _, err := service.Add(context.Background(), input); err != nil {
+				t.Fatal(err)
+			}
+			state, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			for key, binding := range state.Installations[0].Clients {
+				binding.Activation = domain.ActivationActive
+				binding.Authentication = domain.AuthenticationNotRequired
+				binding.Verification = domain.VerificationInstalled
+				state.Installations[0].Clients[key] = binding
+			}
+			if err := store.Save(state); err != nil {
+				t.Fatal(err)
+			}
+			service.Activator = providers.Activator{Runner: fixedUsecaseRunner{err: fmt.Errorf("temporary verifier transport failure")}}
+			input.Confirmed = false
+			input.PersistAuthoritativeObservations = true
+			input.BackendExecutable = "/test/bin/copilot"
+			var result AddResult
+			if operation == "add" {
+				result, err = service.Add(context.Background(), input)
+			} else {
+				result, err = service.Update(context.Background(), input)
+			}
+			if err == nil || result.Mutated {
+				t.Fatalf("temporary verifier result=%+v err=%v", result, err)
+			}
+			state, err = store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyBinding(state.Installations[0])
+			if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled {
+				t.Fatalf("non-authoritative failure mutated converged state: %+v", binding)
+			}
+		})
+	}
+}
+
+func TestPlanFirstAuthoritativePersistenceIsSurroundedByMutationLock(t *testing.T) {
 	service, store, _ := serviceFixture(t)
-	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
-	input := addInput(t, client, "https://example.com/non-authoritative-failure")
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	input := addInput(t, client, "https://example.com/authoritative-lock")
 	input.Confirmed = true
 	if _, err := service.Add(context.Background(), input); err != nil {
 		t.Fatal(err)
@@ -448,23 +498,29 @@ func TestUnconfirmedInfrastructureFailureIsNotPersistedAsAuthoritativeEvidence(t
 	if err := store.Save(state); err != nil {
 		t.Fatal(err)
 	}
-	service.Activator = &observedActivator{outcome: domain.ActivationOutcome{
-		Activation: domain.ActivationFailed, Authentication: domain.AuthenticationNotRequired,
-		Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
-	}, err: fmt.Errorf("temporary verifier transport failure")}
+
+	var held atomic.Bool
+	lock := &trackingMutationLock{held: &held}
+	guarded := lockAssertingStore{StateStore: store, held: &held}
+	service.StateStore = guarded
+	service.Lock = lock
+	service.Activator = providers.Activator{Runner: fixedUsecaseRunner{result: legacyports.CommandResult{Stdout: []byte(`{"installed":[]}`)}}}
 	input.Confirmed = false
 	input.PersistAuthoritativeObservations = true
-	input.BackendExecutable = "/test/bin/copilot"
-	if _, err := service.Add(context.Background(), input); err == nil {
-		t.Fatal("temporary verifier failure unexpectedly succeeded")
+	input.BackendExecutable = "/test/bin/codex"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || !result.Mutated {
+		t.Fatalf("authoritative result=%+v err=%v", result, err)
 	}
-	state, err = store.Load()
+	if lock.acquisitions != 1 || held.Load() {
+		t.Fatalf("lock acquisitions=%d held-after-return=%t", lock.acquisitions, held.Load())
+	}
+	persisted, err := store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	binding := onlyBinding(state.Installations[0])
-	if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled {
-		t.Fatalf("non-authoritative failure mutated converged state: %+v", binding)
+	if binding := onlyBinding(persisted.Installations[0]); binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
+		t.Fatalf("authoritative observation was not persisted: %+v", binding)
 	}
 }
 
@@ -1322,6 +1378,45 @@ type observedActivator struct {
 	outcome domain.ActivationOutcome
 	err     error
 	calls   int
+}
+
+type fixedUsecaseRunner struct {
+	result legacyports.CommandResult
+	err    error
+}
+
+func (runner fixedUsecaseRunner) Run(context.Context, legacyports.Command) (legacyports.CommandResult, error) {
+	return runner.result, runner.err
+}
+
+type trackingMutationLock struct {
+	held         *atomic.Bool
+	acquisitions int
+}
+
+func (lock *trackingMutationLock) Acquire(context.Context) (ports.UnlockFunc, error) {
+	lock.acquisitions++
+	if !lock.held.CompareAndSwap(false, true) {
+		return nil, fmt.Errorf("mutation lock acquired twice")
+	}
+	return func() error {
+		if !lock.held.CompareAndSwap(true, false) {
+			return fmt.Errorf("mutation lock released while not held")
+		}
+		return nil
+	}, nil
+}
+
+type lockAssertingStore struct {
+	transaction.StateStore
+	held *atomic.Bool
+}
+
+func (store lockAssertingStore) Save(state domain.StateFileV2) error {
+	if !store.held.Load() {
+		return fmt.Errorf("state save occurred outside mutation lock")
+	}
+	return store.StateStore.Save(state)
 }
 
 func (activator *observedActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
