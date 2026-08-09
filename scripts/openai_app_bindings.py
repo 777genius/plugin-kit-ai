@@ -25,6 +25,7 @@ ENTRY_FIELDS = {
     "mcp_server",
     "mcp_url",
     "runtime_evidence",
+    "personal_app_evidence",
     "registration",
 }
 DIRECT_RUNTIME_CHECKS = {
@@ -32,6 +33,16 @@ DIRECT_RUNTIME_CHECKS = {
     "list_resources": "passed",
     "search_cloudflare_documentation": "passed",
     "package_ui_install": "skipped",
+}
+PERSONAL_APP_CHECKS = {
+    "plugins_personal_installed": "passed",
+    "plugin_detail_try_in_chat": "passed",
+    "new_chat_plugin_chip_selected": "passed",
+    "list_resources": "passed",
+    "search_cloudflare_documentation": "passed",
+    "assistant_response_marker": "passed",
+    "local_codex_plugin_package_ingestion": "skipped",
+    "agentplugins_manager_lifecycle": "skipped",
 }
 
 
@@ -81,24 +92,51 @@ def _runtime_evidence_path(value: object, root: Path, field: str) -> Path:
     return resolved
 
 
-def _validate_runtime_evidence(
-    plugin_name: str,
+def _validate_evidence_date(
     binding: dict[str, object],
+    evidence_field: str,
+    evidence: dict[str, object],
     evidence_path: Path,
 ) -> None:
-    evidence = _load_object(evidence_path, "runtime evidence")
     evidence_date = evidence.get("date")
     try:
         observed_date = date.fromisoformat(str(evidence_date))
     except ValueError as error:
         raise ValueError(f"{evidence_path}: invalid runtime evidence date") from error
-    path_match = RUNTIME_EVIDENCE_PATH.fullmatch(str(binding["runtime_evidence"]))
+    path_match = RUNTIME_EVIDENCE_PATH.fullmatch(str(binding[evidence_field]))
     if path_match is None or evidence_date != path_match.group("date"):
         raise ValueError(f"{evidence_path}: runtime evidence date does not match filename")
     if evidence.get("date_timezone") != EVIDENCE_TIMEZONE.key:
         raise ValueError(f"{evidence_path}: runtime evidence timezone must be Europe/Kyiv")
     if observed_date > datetime.now(EVIDENCE_TIMEZONE).date():
         raise ValueError(f"{evidence_path}: future-dated runtime evidence is forbidden")
+
+
+def _operation_checks(
+    evidence: dict[str, object],
+    evidence_path: Path,
+) -> dict[str, dict[str, object]]:
+    checks = evidence.get("checks")
+    if not isinstance(checks, list):
+        raise ValueError(f"{evidence_path}: runtime checks are required")
+    actual: dict[str, dict[str, object]] = {}
+    for check in checks:
+        if not isinstance(check, dict) or not isinstance(check.get("operation"), str):
+            raise ValueError(f"{evidence_path}: every runtime check needs an operation")
+        operation = check["operation"]
+        if operation in actual:
+            raise ValueError(f"{evidence_path}: duplicate runtime check: {operation}")
+        actual[operation] = check
+    return actual
+
+
+def _validate_runtime_evidence(
+    plugin_name: str,
+    binding: dict[str, object],
+    evidence_path: Path,
+) -> None:
+    evidence = _load_object(evidence_path, "runtime evidence")
+    _validate_evidence_date(binding, "runtime_evidence", evidence, evidence_path)
     expected_binding = {
         "plugin": plugin_name,
         "app_id": binding["id"],
@@ -117,19 +155,89 @@ def _validate_runtime_evidence(
         "direct registered connection; repository package not installed"
     ):
         raise ValueError(f"{evidence_path}: evidence must keep package installation pending")
-    checks = evidence.get("checks")
-    if not isinstance(checks, list):
-        raise ValueError(f"{evidence_path}: direct runtime checks are required")
-    actual_checks: dict[str, object] = {}
-    for check in checks:
-        if not isinstance(check, dict) or not isinstance(check.get("operation"), str):
-            raise ValueError(f"{evidence_path}: every direct check needs an operation")
-        operation = check["operation"]
-        if operation in actual_checks:
-            raise ValueError(f"{evidence_path}: duplicate direct check: {operation}")
-        actual_checks[operation] = check.get("status")
+    checks = _operation_checks(evidence, evidence_path)
+    actual_checks = {operation: check.get("status") for operation, check in checks.items()}
     if actual_checks != DIRECT_RUNTIME_CHECKS:
         raise ValueError(f"{evidence_path}: direct runtime checks do not match binding")
+
+
+def _validate_personal_app_evidence(
+    plugin_name: str,
+    binding: dict[str, object],
+    evidence_path: Path,
+) -> None:
+    evidence = _load_object(evidence_path, "personal app evidence")
+    _validate_evidence_date(binding, "personal_app_evidence", evidence, evidence_path)
+    expected_binding = {
+        "plugin": plugin_name,
+        "app_id": binding["id"],
+        "mcp_url": binding["mcp_url"],
+    }
+    if evidence.get("binding") != expected_binding:
+        raise ValueError(f"{evidence_path}: binding identity does not match sidecar")
+    catalog = evidence.get("catalog")
+    if (
+        not isinstance(catalog, dict)
+        or set(catalog) != {"revision", "digest"}
+        or not re.fullmatch(r"[0-9a-f]{40}", str(catalog.get("revision", "")))
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(catalog.get("digest", "")))
+    ):
+        raise ValueError(f"{evidence_path}: pinned catalog identity is required")
+    if evidence.get("client") != "ChatGPT web Plugins UI" or evidence.get(
+        "evidence_type"
+    ) != "interactive_personal_app_runtime":
+        raise ValueError(f"{evidence_path}: expected ChatGPT personal app UI evidence")
+    source = evidence.get("source")
+    if not isinstance(source, dict) or source.get("plugin") != plugin_name:
+        raise ValueError(f"{evidence_path}: evidence plugin does not match sidecar")
+    if source.get("delivery") != (
+        "registered personal app; local .codex-plugin package ingestion not observed"
+    ):
+        raise ValueError(f"{evidence_path}: local package ingestion must remain unproved")
+    if evidence.get("ui") != {
+        "directory_source": "Personal",
+        "display_name": "Universal Agent Plugins Cloudflare Docs E2E",
+        "installation_state": "Installed",
+        "detail_action": "Попробовать в чате",
+        "opened_mode": "Chat",
+        "plugin_chip_selected": True,
+        "activation_evidence": "user_attested_manual",
+    }:
+        raise ValueError(f"{evidence_path}: Plugins UI observations do not match")
+    if evidence.get("runtime") != {
+        "prompt_count": 1,
+        "tool_call_count": 2,
+        "read_only": True,
+    }:
+        raise ValueError(f"{evidence_path}: runtime call counts do not match")
+    if evidence.get("scope") != {
+        "proved": [
+            "registered_personal_app_install",
+            "plugins_ui_discovery",
+            "chat_activation",
+            "exact_app_id_linkage",
+            "read_only_runtime",
+        ],
+        "not_proved": [
+            "local_codex_plugin_package_ingestion",
+            "repository_marketplace_install",
+            "agentplugins_manager_lifecycle",
+        ],
+    }:
+        raise ValueError(f"{evidence_path}: proof boundary does not match")
+    checks = _operation_checks(evidence, evidence_path)
+    actual_checks = {operation: check.get("status") for operation, check in checks.items()}
+    if actual_checks != PERSONAL_APP_CHECKS:
+        raise ValueError(f"{evidence_path}: personal app checks do not match binding")
+    if checks["list_resources"].get("call_count") != 1:
+        raise ValueError(f"{evidence_path}: list_resources must be called exactly once")
+    search = checks["search_cloudflare_documentation"]
+    if search.get("call_count") != 1 or search.get("query") != (
+        "Durable Objects SQLite storage API"
+    ):
+        raise ValueError(f"{evidence_path}: documentation search evidence does not match")
+    if checks["assistant_response_marker"].get("marker") != "E2E_OK Rules Of_":
+        raise ValueError(f"{evidence_path}: sanitized response marker does not match")
 
 
 def load_app_bindings(
@@ -182,6 +290,10 @@ def load_app_bindings(
             raw["runtime_evidence"], root, f"{prefix}.runtime_evidence"
         )
         _validate_runtime_evidence(plugin_name, raw, evidence_path)
+        personal_evidence_path = _runtime_evidence_path(
+            raw["personal_app_evidence"], root, f"{prefix}.personal_app_evidence"
+        )
+        _validate_personal_app_evidence(plugin_name, raw, personal_evidence_path)
         validated[plugin_name] = raw
     return validated
 

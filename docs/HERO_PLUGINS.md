@@ -7,8 +7,9 @@ prompted.
 
 On OpenAI surfaces, Context7 and Chrome DevTools are stdio packages for Codex;
 Agent Code Navigator is skills-only. Cloudflare Docs has a registered ChatGPT
-development binding and passed a direct connection check, but Plugins UI package
-installation is still pending.
+development binding. Its registered personal app passed Plugins UI discovery,
+user-attested manual activation, and read-only runtime; local package ingestion
+is not claimed.
 
 ## 1. Agent Code Navigator
 

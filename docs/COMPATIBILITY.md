@@ -48,9 +48,11 @@ at [agent-plugins.org](https://agent-plugins.org/compatible-clients).
 
 Cloudflare Docs is the only remote package with a registered ChatGPT
 development binding. Its direct no-auth connection passed `list_resources` and
-one read-only documentation search; installation of this repository package
-through the ChatGPT Plugins UI remains pending. No other remote package is
-claimed as ChatGPT-installable.
+one read-only documentation search. Its registered personal app also passed
+Plugins UI discovery, user-attested manual activation, and the same read-only
+runtime. This proves the exact `.app.json` ID linkage, not local package
+ingestion or manager lifecycle. No other remote package is claimed as
+ChatGPT-installable.
 
 ## Dependency pins
 

@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from build_openai_compat import OPENAI_MCP_AUTH
+from openai_app_bindings import load_app_bindings
 from portable_paths import validate_tree
 
 
@@ -85,9 +86,12 @@ def components(plugin_root: Path, manifest: dict[str, object]) -> list[str]:
     return values
 
 
-def compatibility(name: str) -> dict[str, object]:
+def compatibility(
+    name: str,
+    app_bindings: dict[str, dict[str, object]],
+) -> dict[str, object]:
     authentication = "not_required" if name in AUTH_NOT_REQUIRED else "required"
-    return {
+    result = {
         client: {
             "package": package,
             "verification": "tested" if client in TESTED.get(name, set()) else "schema_only",
@@ -95,6 +99,24 @@ def compatibility(name: str) -> dict[str, object]:
         }
         for client, package in CLIENT_PACKAGE.items()
     }
+    binding = app_bindings.get(name)
+    if binding is not None:
+        registration = binding.get("registration")
+        if not isinstance(registration, dict) or registration.get("authentication") != "none":
+            raise ValueError(f"{name}: ChatGPT compatibility requires explicit auth evidence")
+        result["chatgpt"] = {
+            "package": "projected",
+            "verification": "tested",
+            "authentication": "not_required",
+            "app_binding": {
+                "app_key": binding["app_key"],
+                "id": binding["id"],
+                "mcp_server": binding["mcp_server"],
+                "mcp_url": binding["mcp_url"],
+                "runtime_evidence": binding["personal_app_evidence"],
+            },
+        }
+    return result
 
 
 def auth_hints(name: str, plugin_root: Path) -> dict[str, object]:
@@ -108,6 +130,7 @@ def auth_hints(name: str, plugin_root: Path) -> dict[str, object]:
 
 def build(revision: str, published_at: str) -> dict[str, object]:
     validate_revision(revision)
+    app_bindings = load_app_bindings()
     entries = []
     for plugin_root in sorted(path for path in PLUGINS.iterdir() if path.is_dir()):
         manifest_path = plugin_root / "plugin.json"
@@ -126,13 +149,13 @@ def build(revision: str, published_at: str) -> dict[str, object]:
             "tree_digest": package_tree_digest(plugin_root),
             "manifest_digest": sha256(manifest_path.read_bytes()),
             "components": components(plugin_root, manifest),
-            "compatibility": compatibility(name),
+            "compatibility": compatibility(name, app_bindings),
         }
         hints = auth_hints(name, plugin_root)
         if hints:
             entry["openai_mcp_auth"] = hints
         entries.append(entry)
-    return {
+    catalog = {
         "$schema": SCHEMA,
         "schema_version": 1,
         "catalog_version": "0.1.0",
@@ -141,6 +164,31 @@ def build(revision: str, published_at: str) -> dict[str, object]:
         "published_at": published_at,
         "plugins": entries,
     }
+    validate_chatgpt_catalog_evidence(catalog)
+    return catalog
+
+
+def validate_chatgpt_catalog_evidence(catalog: dict[str, object]) -> None:
+    expected_identity = {
+        "revision": catalog["revision"],
+        "digest": sha256(encoded(catalog)),
+    }
+    for plugin in catalog["plugins"]:
+        chatgpt = plugin["compatibility"].get("chatgpt")
+        if chatgpt is None:
+            continue
+        binding = chatgpt["app_binding"]
+        evidence_path = ROOT / binding["runtime_evidence"]
+        try:
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError(
+                f"{plugin['name']}: ChatGPT runtime evidence is unavailable or invalid"
+            ) from error
+        if evidence.get("catalog") != expected_identity:
+            raise ValueError(
+                f"{plugin['name']}: ChatGPT runtime evidence does not match catalog identity"
+            )
 
 
 def encoded(value: object) -> bytes:

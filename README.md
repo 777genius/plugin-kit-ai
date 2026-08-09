@@ -72,7 +72,7 @@ client-specific.
 | Client | Delivery | Activation |
 | --- | --- | --- |
 | Codex | OpenAI compatibility package | Follow the exact CLI activation hint |
-| ChatGPT | Registered remote MCP app binding | Install from the Plugins UI after a binding exists; package UI E2E is pending |
+| ChatGPT | Registered remote MCP app binding | User-attested manual UI activation; Cloudflare Docs personal-app E2E passed |
 | Cursor | Native Agent Plugin | Reload, then verify discovery |
 | GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
 | VS Code | Shared Copilot plugin when its CLI is available | Automatic, otherwise the exact setting is shown |
@@ -86,8 +86,9 @@ marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and th
 For OpenAI delivery, five stdio MCP packages are Codex-only, twenty remote MCP
 packages require a ChatGPT app binding, and Agent Code Navigator is skills-only.
 Cloudflare Docs has the only registered development binding; its direct
-read-only connection passed, while installation of this package through the
-ChatGPT Plugins UI is still pending.
+connection and registered personal-app Plugins UI runtime passed. The exact
+`.app.json` ID linkage is proved; local `.codex-plugin` ingestion and manager
+lifecycle are still separate, unproved steps.
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
 materialization/removal, and the five starter plugins pass 25/25 add/remove

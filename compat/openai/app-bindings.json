@@ -8,6 +8,7 @@
       "mcp_server": "cloudflare-docs",
       "mcp_url": "https://docs.mcp.cloudflare.com/mcp",
       "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json",
+      "personal_app_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json",
       "registration": {
         "surface": "chatgpt_developer_mode",
         "status": "development",

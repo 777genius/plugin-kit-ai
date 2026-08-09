@@ -26,6 +26,11 @@ from validate_openai_compat import ValidationError, validate_plugin  # noqa: E40
 APP_ID = "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
 MCP_URL = "https://docs.mcp.cloudflare.com/mcp"
 EVIDENCE_PATH = "tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json"
+PERSONAL_APP_EVIDENCE_PATH = (
+    "tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json"
+)
+CATALOG_REVISION = "fd77a74fa85724a57b328157ab82ef4dd991cda5"
+CATALOG_DIGEST = "sha256:2293e95d41fd44daf2058696f985775847c2f4e779c8458e0e98f185e3864b0a"
 
 
 def valid_document() -> dict[str, object]:
@@ -39,6 +44,7 @@ def valid_document() -> dict[str, object]:
                 "mcp_server": "cloudflare-docs",
                 "mcp_url": MCP_URL,
                 "runtime_evidence": EVIDENCE_PATH,
+                "personal_app_evidence": PERSONAL_APP_EVIDENCE_PATH,
                 "registration": {
                     "surface": "chatgpt_developer_mode",
                     "status": "development",
@@ -86,6 +92,99 @@ def valid_evidence() -> dict[str, object]:
     }
 
 
+def valid_personal_app_evidence() -> dict[str, object]:
+    return {
+        "client": "ChatGPT web Plugins UI",
+        "version": "rolling web release; build identifier not exposed",
+        "date": "2026-08-10",
+        "date_timezone": "Europe/Kyiv",
+        "evidence_type": "interactive_personal_app_runtime",
+        "binding": {
+            "plugin": "cloudflare-docs",
+            "app_id": APP_ID,
+            "mcp_url": MCP_URL,
+        },
+        "catalog": {"revision": CATALOG_REVISION, "digest": CATALOG_DIGEST},
+        "source": {
+            "plugin": "cloudflare-docs",
+            "delivery": (
+                "registered personal app; local .codex-plugin package ingestion "
+                "not observed"
+            ),
+        },
+        "ui": {
+            "directory_source": "Personal",
+            "display_name": "Universal Agent Plugins Cloudflare Docs E2E",
+            "installation_state": "Installed",
+            "detail_action": "Попробовать в чате",
+            "opened_mode": "Chat",
+            "plugin_chip_selected": True,
+            "activation_evidence": "user_attested_manual",
+        },
+        "runtime": {"prompt_count": 1, "tool_call_count": 2, "read_only": True},
+        "scope": {
+            "proved": [
+                "registered_personal_app_install",
+                "plugins_ui_discovery",
+                "chat_activation",
+                "exact_app_id_linkage",
+                "read_only_runtime",
+            ],
+            "not_proved": [
+                "local_codex_plugin_package_ingestion",
+                "repository_marketplace_install",
+                "agentplugins_manager_lifecycle",
+            ],
+        },
+        "checks": [
+            {
+                "scenario": "installed",
+                "operation": "plugins_personal_installed",
+                "status": "passed",
+            },
+            {
+                "scenario": "try in chat",
+                "operation": "plugin_detail_try_in_chat",
+                "status": "passed",
+            },
+            {
+                "scenario": "chip selected",
+                "operation": "new_chat_plugin_chip_selected",
+                "status": "passed",
+            },
+            {
+                "scenario": "list resources",
+                "operation": "list_resources",
+                "call_count": 1,
+                "status": "passed",
+            },
+            {
+                "scenario": "search docs",
+                "operation": "search_cloudflare_documentation",
+                "query": "Durable Objects SQLite storage API",
+                "call_count": 1,
+                "status": "passed",
+            },
+            {
+                "scenario": "response marker",
+                "operation": "assistant_response_marker",
+                "marker": "E2E_OK Rules Of_",
+                "status": "passed",
+            },
+            {
+                "scenario": "local package ingestion",
+                "operation": "local_codex_plugin_package_ingestion",
+                "status": "skipped",
+            },
+            {
+                "scenario": "manager lifecycle",
+                "operation": "agentplugins_manager_lifecycle",
+                "status": "skipped",
+            },
+        ],
+    }
+
+
 class OpenAIAppBindingTests(unittest.TestCase):
     def write_document(
         self,
@@ -93,11 +192,21 @@ class OpenAIAppBindingTests(unittest.TestCase):
         document: object,
         evidence: object | None = None,
         evidence_path_value: str = EVIDENCE_PATH,
+        personal_evidence: object | None = None,
     ) -> Path:
         evidence_path = root / evidence_path_value
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text(
             json.dumps(valid_evidence() if evidence is None else evidence)
+        )
+        personal_path = root / PERSONAL_APP_EVIDENCE_PATH
+        personal_path.parent.mkdir(parents=True, exist_ok=True)
+        personal_path.write_text(
+            json.dumps(
+                valid_personal_app_evidence()
+                if personal_evidence is None
+                else personal_evidence
+            )
         )
         path = root / "app-bindings.json"
         path.write_text(json.dumps(document))
@@ -202,6 +311,41 @@ class OpenAIAppBindingTests(unittest.TestCase):
             path = self.write_document(root, document, evidence, future_path)
             with self.assertRaisesRegex(ValueError, "future-dated runtime evidence"):
                 load_app_bindings(path, root)
+
+    def test_sidecar_rejects_personal_app_evidence_drift(self) -> None:
+        cases: dict[str, tuple[dict[str, object], str]] = {}
+        wrong_id = valid_personal_app_evidence()
+        wrong_id["binding"]["app_id"] = "plugin_asdk_app_different"
+        cases["wrong app ID"] = (wrong_id, "binding identity does not match sidecar")
+        wrong_ui = valid_personal_app_evidence()
+        wrong_ui["ui"]["installation_state"] = "Available"
+        cases["not installed"] = (wrong_ui, "Plugins UI observations do not match")
+        wrong_count = valid_personal_app_evidence()
+        wrong_count["runtime"]["tool_call_count"] = 3
+        cases["wrong tool count"] = (wrong_count, "runtime call counts do not match")
+        wrong_query = valid_personal_app_evidence()
+        wrong_query["checks"][4]["query"] = "different query"
+        cases["wrong query"] = (
+            wrong_query,
+            "documentation search evidence does not match",
+        )
+        false_ingestion = valid_personal_app_evidence()
+        false_ingestion["checks"][6]["status"] = "passed"
+        cases["false package ingestion"] = (
+            false_ingestion,
+            "personal app checks do not match binding",
+        )
+
+        for name, (personal_evidence, message) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                path = self.write_document(
+                    root,
+                    valid_document(),
+                    personal_evidence=personal_evidence,
+                )
+                with self.assertRaisesRegex(ValueError, message):
+                    load_app_bindings(path, root)
 
     def test_binding_requires_exact_single_streamable_http_server(self) -> None:
         binding = valid_document()["bindings"]["cloudflare-docs"]

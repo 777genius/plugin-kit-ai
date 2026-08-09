@@ -14,8 +14,8 @@ Updated: 2026-08-10.
   pinned `openai/codex` commit and verified by SHA-256 before execution.
 - Cloudflare Docs is the only package with a generated `.app.json`; its host-only
   development binding matches the exact public app ID, MCP endpoint, and pinned
-  direct-runtime record. Human review still owns the app-ID ownership check.
-  Static validation does not imply ChatGPT Plugins UI installation.
+  direct and personal-app runtime records. Human review still owns the app-ID
+  ownership check. Local package ingestion is not implied.
 - The OpenAI adapter preserves the host-specific auth metadata published for
   GitHub, Figma, Linear, and Notion without adding unverified auth fields.
 
@@ -37,9 +37,19 @@ in `plugins/docker-hub/mcp.json`.
   completed `list_resources` and one read-only `search_cloudflare_documentation`
   call for `Durable Objects SQLite storage API`, returning 7 results. This was a
   direct registered connection, not installation of this repository's generated
-  package; package UI E2E remains pending. The 2026-08-10 evidence date uses the
+  package or the later personal-app UI path. The 2026-08-10 evidence date uses the
   repository operator's `Europe/Kyiv` local calendar. The sanitized record is
   [`chatgpt-cloudflare-docs-direct-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json).
+- The registered Cloudflare Docs personal app appeared as Installed under
+  Plugins > Personal. Its detail action opened a new Chat with the plugin chip
+  selected. One read-only prompt made exactly one `list_resources` and one
+  `search_cloudflare_documentation` call for `Durable Objects SQLite storage API`;
+  the bounded response marker matched `E2E_OK Rules Of_`. This proves UI
+  discovery, user-attested manual activation, runtime, and exact `.app.json`
+  app-ID linkage.
+  It does not prove local `.codex-plugin` ingestion, repository marketplace
+  installation, or manager lifecycle. The sanitized record is
+  [`chatgpt-cloudflare-docs-personal-app-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json).
 - Public post-merge run
   [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
   tested `universal-agent-plugins@0.1.5` at merge

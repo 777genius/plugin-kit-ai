@@ -61,6 +61,44 @@
         }
       }
     },
+    "chatgpt_app_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_key", "id", "mcp_server", "mcp_url", "runtime_evidence"],
+      "properties": {
+        "app_key": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^plugin_asdk_app_[A-Za-z0-9]+$"
+        },
+        "mcp_server": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "mcp_url": {
+          "type": "string",
+          "pattern": "^https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?(?:/[A-Za-z0-9._~!$&'()*+,;=:@%-]*)*$"
+        },
+        "runtime_evidence": {
+          "type": "string",
+          "pattern": "^tests/e2e/results/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9]{4}-[0-9]{2}-[0-9]{2}\\.json$"
+        }
+      }
+    },
+    "chatgpt_compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "verification", "authentication", "app_binding"],
+      "properties": {
+        "package": { "const": "projected" },
+        "verification": { "enum": ["tested", "schema_only", "not_tested"] },
+        "authentication": { "enum": ["not_required", "required", "unknown"] },
+        "app_binding": { "$ref": "#/$defs/chatgpt_app_binding" }
+      }
+    },
     "auth_hint": {
       "type": "object",
       "additionalProperties": false,
@@ -121,6 +159,7 @@
           "required": ["codex", "cursor", "copilot", "vscode", "kiro"],
           "properties": {
             "codex": { "$ref": "#/$defs/compatibility" },
+            "chatgpt": { "$ref": "#/$defs/chatgpt_compatibility" },
             "cursor": { "$ref": "#/$defs/compatibility" },
             "copilot": { "$ref": "#/$defs/compatibility" },
             "vscode": { "$ref": "#/$defs/compatibility" },
