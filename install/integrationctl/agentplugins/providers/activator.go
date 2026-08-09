@@ -102,8 +102,23 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		Policy:         domain.PolicyAllowed,
 		Verification:   domain.VerificationPackageValid,
 	}
+	if request.ActivationComplete {
+		if activationCanBeObserved(activator, request) {
+			return domain.ActivationOutcome{}, fmt.Errorf("--activation-complete is not accepted when client verification is available")
+		}
+		outcome.Activation = domain.ActivationActive
+		outcome.Verification = domain.VerificationInstalled
+		outcome.ActivationAttested = true
+		return outcome, nil
+	}
 	switch request.Client.ClientID {
 	case domain.ClientCursor:
+		if request.VerifyOnly {
+			outcome.Activation = domain.ActivationManual
+			outcome.UserActions = []string{"confirm that the plugin is visible and enabled in Cursor"}
+			outcome.LocalActions = []string{fmt.Sprintf("open Cursor and verify the plugin from %s is visible and enabled", request.Delivery.ActivePath)}
+			return outcome, nil
+		}
 		outcome.Activation = domain.ActivationManual
 		outcome.UserActions = append(outcome.UserActions, "register the prepared package in Cursor and verify it is visible before using its components")
 		outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("open Cursor and register %s, then reload Cursor and verify %s is visible", request.Delivery.ActivePath, request.DeclaredName))
@@ -115,18 +130,33 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("in the ChatGPT/Codex app, install %s from %s, then verify it appears in Plugins > Personal", request.DeclaredName, request.Delivery.ActivePath))
 			return outcome, nil
 		}
+		if request.VerifyOnly {
+			if err := activator.verifyCodex(ctx, request); err != nil {
+				return failedActivation(outcome, fmt.Sprintf("verify with `%s plugin list --json`", request.BackendExecutable), err)
+			}
+			outcome.Activation = domain.ActivationActive
+			outcome.Verification = domain.VerificationInstalled
+			return outcome, nil
+		}
 		if err := activator.activateCodex(ctx, request); err != nil {
 			return failedActivation(outcome, fmt.Sprintf("run Codex activation again for the prepared package at %s, then verify with `%s plugin list --json`", request.Delivery.ActivePath, request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
-		completeUncheckedAuthentication(&outcome)
 		return outcome, nil
 	case domain.ClientKiro:
 		if !mcpOnly(request.Plan.Components) {
 			outcome.Activation = domain.ActivationManual
 			outcome.UserActions = append(outcome.UserActions, "import the prepared package as a custom Power in Kiro, then verify it is active")
 			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("Kiro: Powers > Add Custom Power > Import power from a folder > select %s > Install, then verify %s is active", request.Delivery.ActivePath, request.DeclaredName))
+			return outcome, nil
+		}
+		if request.VerifyOnly {
+			if err := activator.verifyKiroMCP(ctx, request); err != nil {
+				return failedActivation(outcome, fmt.Sprintf("verify with `%s mcp list global`", request.BackendExecutable), err)
+			}
+			outcome.Activation = domain.ActivationActive
+			outcome.Verification = domain.VerificationInstalled
 			return outcome, nil
 		}
 		if !isKiroCLI(request.BackendExecutable) || activator.Runner == nil {
@@ -140,7 +170,6 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
-		completeUncheckedAuthentication(&outcome)
 		return outcome, nil
 	case domain.ClientCopilot, domain.ClientVSCode:
 		if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
@@ -158,15 +187,36 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			}
 			return outcome, nil
 		}
+		if request.VerifyOnly {
+			if err := activator.verifyCopilot(ctx, request); err != nil {
+				return failedActivation(outcome, fmt.Sprintf("verify with `%s plugin list`", request.BackendExecutable), err)
+			}
+			outcome.Activation = domain.ActivationActive
+			outcome.Verification = domain.VerificationInstalled
+			return outcome, nil
+		}
 		if err := activator.activateCopilot(ctx, request); err != nil {
 			return failedActivation(outcome, fmt.Sprintf("rerun add for the prepared package at %s, then verify with `%s plugin list`", request.Delivery.ActivePath, request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
-		completeUncheckedAuthentication(&outcome)
 		return outcome, nil
 	default:
 		return domain.ActivationOutcome{}, fmt.Errorf("unsupported activation client %q", request.Client.ClientID)
+	}
+}
+
+func activationCanBeObserved(activator Activator, request domain.ActivationRequest) bool {
+	if activator.Runner == nil || strings.TrimSpace(request.BackendExecutable) == "" {
+		return false
+	}
+	switch request.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+		return true
+	case domain.ClientKiro:
+		return mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+	default:
+		return false
 	}
 }
 
@@ -194,11 +244,16 @@ func (activator Activator) activateCopilot(ctx context.Context, request domain.A
 			return err
 		}
 	}
+	return activator.verifyCopilot(ctx, request)
+}
+
+func (activator Activator) verifyCopilot(ctx context.Context, request domain.ActivationRequest) error {
+	pluginSpec := request.DeclaredName + "@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
 	listed, err := activator.runCopilotResult(ctx, request.BackendExecutable, "plugin", "list")
 	if err != nil {
 		return fmt.Errorf("verify Copilot plugin listing: %w", err)
 	}
-	if !outputHasToken(listed, pluginSpec) && !outputHasToken(listed, request.DeclaredName) {
+	if !stdoutHasHealthyIdentity(listed.Stdout, pluginSpec) {
 		return fmt.Errorf("verify Copilot plugin listing: %s is not listed", pluginSpec)
 	}
 	return nil
@@ -222,11 +277,17 @@ func (activator Activator) activateCodex(ctx context.Context, request domain.Act
 		}
 		return fmt.Errorf("activate Codex plugin: %w", err)
 	}
+	return activator.verifyCodex(ctx, request)
+}
+
+func (activator Activator) verifyCodex(ctx context.Context, request domain.ActivationRequest) error {
+	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	pluginSpec := request.DeclaredName + "@" + marketplace
 	listed, err := activator.runClientResult(ctx, "Codex CLI", request.BackendExecutable, "plugin", "list", "--json")
 	if err != nil {
 		return fmt.Errorf("verify Codex plugin listing: %w", err)
 	}
-	if !jsonHasActiveIdentity(listed.Stdout, pluginSpec) && !jsonHasActiveIdentity(listed.Stdout, request.DeclaredName) {
+	if !codexHasInstalledPlugin(listed.Stdout, request.DeclaredName, marketplace) {
 		return fmt.Errorf("verify Codex plugin listing: %s is not listed", pluginSpec)
 	}
 	return nil
@@ -237,12 +298,16 @@ func (activator Activator) activateKiroMCP(ctx context.Context, request domain.A
 	if _, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "import", "--file", config, "global", "--force"); err != nil {
 		return fmt.Errorf("import Kiro MCP configuration: %w", err)
 	}
+	return activator.verifyKiroMCP(ctx, request)
+}
+
+func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
 	listed, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "list", "global")
 	if err != nil {
 		return fmt.Errorf("verify Kiro MCP listing: %w", err)
 	}
 	for _, component := range request.Plan.Components {
-		if component.Kind == domain.ComponentMCPServer && !outputHasToken(listed, component.Name) {
+		if component.Kind == domain.ComponentMCPServer && !stdoutHasHealthyIdentity(listed.Stdout, component.Name) {
 			return fmt.Errorf("verify Kiro MCP listing: %s is not listed", component.Name)
 		}
 	}
@@ -296,12 +361,6 @@ func failedActivation(outcome domain.ActivationOutcome, next string, err error) 
 	return outcome, err
 }
 
-func completeUncheckedAuthentication(outcome *domain.ActivationOutcome) {
-	if outcome.Authentication == domain.AuthenticationNotChecked {
-		outcome.Authentication = domain.AuthenticationNotRequired
-	}
-}
-
 func mcpOnly(components []domain.ComponentDecision) bool {
 	found := false
 	for _, component := range components {
@@ -318,48 +377,39 @@ func isKiroCLI(executable string) bool {
 	return base == "kiro-cli" || base == "kiro-cli.exe" || base == "kiro" || base == "kiro.exe"
 }
 
-func jsonHasActiveIdentity(body []byte, expected string) bool {
-	var value any
+func codexHasInstalledPlugin(body []byte, name, marketplace string) bool {
+	var value struct {
+		Installed []struct {
+			PluginID        string `json:"pluginId"`
+			Name            string `json:"name"`
+			MarketplaceName string `json:"marketplaceName"`
+			Installed       bool   `json:"installed"`
+			Enabled         bool   `json:"enabled"`
+		} `json:"installed"`
+	}
 	if len(body) == 0 || json.Unmarshal(body, &value) != nil {
 		return false
 	}
-	var visit func(any, bool) bool
-	visit = func(current any, listedValue bool) bool {
-		switch typed := current.(type) {
-		case string:
-			return listedValue && typed == expected
-		case []any:
-			for _, item := range typed {
-				if visit(item, true) {
-					return true
-				}
-			}
-		case map[string]any:
-			if enabled, ok := typed["enabled"].(bool); ok && !enabled {
-				return false
-			}
-			if active, ok := typed["active"].(bool); ok && !active {
-				return false
-			}
-			for key, item := range typed {
-				identity := key == "name" || key == "id" || key == "plugin" || key == "spec" || key == "plugin_spec"
-				if visit(item, identity) {
-					return true
-				}
-			}
+	for _, plugin := range value.Installed {
+		if plugin.Name == name && plugin.MarketplaceName == marketplace && plugin.Installed && plugin.Enabled {
+			return true
 		}
-		return false
 	}
-	return visit(value, false)
+	return false
 }
 
-func outputHasToken(result legacyports.CommandResult, expected string) bool {
-	output := string(result.Stdout) + "\n" + string(result.Stderr)
-	for _, token := range strings.FieldsFunc(output, func(r rune) bool {
-		return !(r == '-' || r == '_' || r == '@' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z')
-	}) {
-		if token == expected {
-			return true
+func stdoutHasHealthyIdentity(stdout []byte, expected string) bool {
+	for _, line := range strings.Split(string(stdout), "\n") {
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "disabled") || strings.Contains(lower, "error") || strings.Contains(lower, "failed") {
+			continue
+		}
+		for _, token := range strings.FieldsFunc(line, func(r rune) bool {
+			return !(r == '-' || r == '_' || r == '@' || r == '.' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z')
+		}) {
+			if token == expected {
+				return true
+			}
 		}
 	}
 	return false

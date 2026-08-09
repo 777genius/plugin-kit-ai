@@ -17,7 +17,8 @@ import (
 )
 
 func newAddCommand(app App, opts *options) *cobra.Command {
-	return &cobra.Command{
+	var activationComplete, authComplete bool
+	command := &cobra.Command{
 		Use:   "add <name-or-source>",
 		Short: "Plan and install one Agent Plugins 1.0 package",
 		Args:  cobra.ExactArgs(1),
@@ -25,12 +26,15 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runAdd(cmd.Context(), cmd, app, opts, args[0])
+			return runAdd(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete)
 		},
 	}
+	command.Flags().BoolVar(&activationComplete, "activation-complete", false, "attest that manual client activation is complete")
+	command.Flags().BoolVar(&authComplete, "auth-complete", false, "attest that pending client authentication is complete")
+	return command
 }
 
-func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string) error {
+func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, activationComplete, authComplete bool) error {
 	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
 	loaded, err := app.loadPackage(ctx, source)
 	if err != nil {
@@ -64,6 +68,7 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 		Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Confirmed: false, Interactive: app.Terminal,
 		Hints: loaded.hints, BackendExecutable: backendExecutable(selected, detectedMap),
+		ActivationComplete: activationComplete, AuthComplete: authComplete,
 	}
 	planned, err := service.Add(ctx, input)
 	if err != nil {
@@ -79,9 +84,23 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	}
 	confirmed := opts.yes
 	if !confirmed && opts.format == "human" && app.Terminal {
-		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Apply this plan? [y/N]")
+		prompt := "Apply this plan? [y/N]"
+		if planned.Activation.Activation == domain.ActivationManual {
+			prompt = "Have you completed manual activation and verified the plugin is enabled in the client? [y/N]"
+		} else if planned.Activation.Authentication == domain.AuthenticationPending && planned.Activation.Activation == domain.ActivationActive {
+			prompt = "Have you completed authentication in the client? [y/N]"
+		}
+		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), prompt)
 		if err != nil {
 			return err
+		}
+		if confirmed && planned.Activation.Activation == domain.ActivationManual {
+			input.ActivationComplete = true
+			if planned.Activation.Authentication == domain.AuthenticationPending {
+				input.AuthComplete = true
+			}
+		} else if confirmed && planned.Activation.Authentication == domain.AuthenticationPending && planned.Activation.Activation == domain.ActivationActive {
+			input.AuthComplete = true
 		}
 	}
 	if !confirmed {
@@ -226,7 +245,11 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 		return nil
 	}
 	if result.Mutated && fullyInstalled(result.Activation) {
-		_, _ = fmt.Fprintln(writer, "Installed and verified for the selected client.")
+		if result.Activation.ActivationAttested || result.Activation.AuthenticationAttested {
+			_, _ = fmt.Fprintln(writer, "Lifecycle marked complete from your explicit confirmation; client observation was not available for the attested phase.")
+		} else {
+			_, _ = fmt.Fprintln(writer, "Installed and verified for the selected client.")
+		}
 		return nil
 	}
 	if result.Mutated {
@@ -236,12 +259,14 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 			} else {
 				_, _ = fmt.Fprintln(writer, "Package prepared. Authentication and client activation are pending.")
 			}
+		} else if result.Activation.Authentication == domain.AuthenticationNotChecked && result.Activation.Activation == domain.ActivationActive {
+			_, _ = fmt.Fprintln(writer, "Package materialized and client activation verified. Authentication requirements have not been checked.")
 		} else {
 			_, _ = fmt.Fprintln(writer, "Package prepared. Activation is not complete yet.")
 		}
-		if action := nextLifecycleAction(result); action != "" {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
+	}
+	if action := nextLifecycleAction(result); action != "" && !fullyInstalled(result.Activation) {
+		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil
 }
@@ -258,6 +283,12 @@ func nextLifecycleAction(result usecase.AddResult) string {
 			return fmt.Sprintf("%s; complete authentication, then rerun add to verify activation and authentication", action)
 		}
 		return fmt.Sprintf("complete authentication for the prepared package at %s, then rerun add to verify activation and authentication", result.Plan.ActivePath)
+	}
+	if result.Activation.Authentication == domain.AuthenticationNotChecked {
+		if action != "" {
+			return action + "; verify this plugin's authentication requirements before using it"
+		}
+		return "verify this plugin's authentication requirements before using it"
 	}
 	if action != "" {
 		return action

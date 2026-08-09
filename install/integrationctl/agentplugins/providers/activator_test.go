@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -24,7 +25,12 @@ func (runner *recordingRunner) Run(_ context.Context, command legacyports.Comman
 		return runner.run(command), nil
 	}
 	if strings.HasSuffix(strings.Join(command.Argv, " "), "plugin list") {
-		return legacyports.CommandResult{Stdout: []byte("demo")}, nil
+		for index := len(runner.commands) - 2; index >= 0; index-- {
+			argv := runner.commands[index].Argv
+			if len(argv) >= 4 && argv[1] == "plugin" && argv[2] == "install" {
+				return legacyports.CommandResult{Stdout: []byte("• " + argv[3] + " (v1.0.0)")}, nil
+			}
+		}
 	}
 	return legacyports.CommandResult{}, nil
 }
@@ -65,7 +71,7 @@ func TestActivatorUpdateRecoversMissingMarketplaceAndPlugin(t *testing.T) {
 			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("missing")}
 		}
 		if strings.HasSuffix(joined, "plugin list") {
-			return legacyports.CommandResult{Stdout: []byte("demo")}
+			return legacyports.CommandResult{Stdout: []byte("• demo@agentplugins-8f97b00da374 (v1.0.0)")}
 		}
 		return legacyports.CommandResult{}
 	}}
@@ -110,7 +116,7 @@ func TestActivatorUsesCodexCLIAndVerifiesJSONState(t *testing.T) {
 	t.Parallel()
 	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
 		if strings.Contains(strings.Join(command.Argv, " "), "plugin list --json") {
-			return legacyports.CommandResult{Stdout: []byte(`{"plugins":[{"name":"demo"}]}`)}
+			return legacyports.CommandResult{Stdout: []byte(`{"installed":[{"pluginId":"demo@agentplugins-8f97b00da374","name":"demo","marketplaceName":"agentplugins-8f97b00da374","installed":true,"enabled":true}],"available":[]}`)}
 		}
 		return legacyports.CommandResult{}
 	}}
@@ -131,6 +137,81 @@ func TestActivatorUsesCodexCLIAndVerifiesJSONState(t *testing.T) {
 	}
 	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCodex)
+	request.BackendExecutable = "/test/bin/codex"
+	request.VerifyOnly = true
+	marketplace := managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	cases := map[string]string{
+		"old shape":         `{"plugins":[{"name":"demo"}]}`,
+		"disabled":          fmt.Sprintf(`{"installed":[{"name":"demo","marketplaceName":%q,"installed":true,"enabled":false}]}`, marketplace),
+		"wrong marketplace": `{"installed":[{"name":"demo","marketplaceName":"other","installed":true,"enabled":true}]}`,
+		"unrelated":         fmt.Sprintf(`{"installed":[{"name":"demo-extra","marketplaceName":%q,"installed":true,"enabled":true}]}`, marketplace),
+	}
+	for name, body := range cases {
+		t.Run(name, func(t *testing.T) {
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+				return legacyports.CommandResult{Stdout: []byte(body)}
+			}}
+			if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
+				t.Fatal("untrusted Codex listing was accepted")
+			}
+		})
+	}
+}
+
+func TestCopilotVerificationUsesOnlyExactHealthyStdoutToken(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	request.VerifyOnly = true
+	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	cases := []legacyports.CommandResult{
+		{Stdout: []byte("• demo (v1)")},
+		{Stderr: []byte("• " + spec + " (v1)")},
+		{Stdout: []byte("• " + spec + " disabled")},
+		{Stdout: []byte("error: " + spec)},
+		{Stdout: []byte("• demo-extra@" + managedMarketplaceName(request.Plan.PhysicalArtifactID) + " (v1)")},
+	}
+	for _, listed := range cases {
+		runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+		if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
+			t.Fatalf("untrusted Copilot listing was accepted: %+v", listed)
+		}
+	}
+}
+
+func TestKiroVerificationUsesExactHealthyStdoutIdentity(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.VerifyOnly = true
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
+	for _, listed := range []legacyports.CommandResult{
+		{Stderr: []byte("demo-server enabled")}, {Stdout: []byte("demo-server disabled")},
+		{Stdout: []byte("demo-server error")}, {Stdout: []byte("demo-server-other enabled")},
+	} {
+		runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+		if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
+			t.Fatalf("untrusted Kiro listing was accepted: %+v", listed)
+		}
+	}
+}
+
+func TestClientListingDoesNotConvertUnknownAuthentication(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	outcome, err := (Activator{Runner: &recordingRunner{}}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Authentication != domain.AuthenticationNotChecked {
+		t.Fatalf("authentication = %s", outcome.Authentication)
 	}
 }
 

@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -97,7 +98,7 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume add: %v", err)
 	}
-	if !resumed.Mutated || resumed.Activation.Activation != domain.ActivationManual {
+	if resumed.Mutated || resumed.Activation.Activation != domain.ActivationManual {
 		t.Fatalf("resume result = %+v", resumed)
 	}
 	state, err = store.Load()
@@ -140,7 +141,8 @@ func TestAddKeepsCodexProjectionInManualActivationState(t *testing.T) {
 
 func TestAddKeepsOAuthPackageInAuthPendingState(t *testing.T) {
 	t.Parallel()
-	service, store, client := serviceFixture(t)
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
 	input := addInput(t, client, "https://example.com/oauth")
 	input.Envelope.MCP = domain.MCPComponent{
 		Present: true, Enabled: true,
@@ -164,6 +166,175 @@ func TestAddKeepsOAuthPackageInAuthPendingState(t *testing.T) {
 	if onlyBinding(state.Installations[0]).Authentication != domain.AuthenticationPending {
 		t.Fatalf("client = %+v", onlyBinding(state.Installations[0]))
 	}
+}
+
+func TestOpenAIOAuthHintsDoNotOverrideGenericAuthentication(t *testing.T) {
+	t.Parallel()
+	for _, clientID := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex} {
+		service, _, _ := serviceFixture(t)
+		client := domain.DetectedClient{ClientID: clientID, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".client")}
+		input := addInput(t, client, "https://example.com/generic-auth-"+string(clientID))
+		input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{"server": {Name: "server", Type: "stdio"}}}
+		input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{string(clientID): {Package: map[bool]string{true: "projected", false: "native"}[clientID == domain.ClientCodex], Authentication: domain.AuthenticationRequirementNotRequired}}}
+		input.Hints.OpenAIMCPAuth = map[string]domain.OpenAIMCPAuthHint{"server": {OAuthResource: "https://example.com/oauth"}}
+		result, err := service.Add(context.Background(), input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Plan.Authentication != domain.AuthenticationNotRequired {
+			t.Fatalf("client %s authentication = %s", clientID, result.Plan.Authentication)
+		}
+	}
+}
+
+func TestResumeCompletesManualActivationAndPendingAuthOnlyByAttestation(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/pending-completion")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	input.ActivationComplete = true
+	input.AuthComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || !result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || !fullyConvergedOutcome(result.Activation) {
+		t.Fatalf("completion result = %+v", result)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Authentication != domain.AuthenticationComplete {
+		t.Fatalf("binding = %+v", binding)
+	}
+}
+
+func TestResumeCompletesOnlyPendingAuthentication(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/auth-only-completion")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.AuthComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Mutated || result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationComplete {
+		t.Fatalf("auth-only result = %+v", result)
+	}
+}
+
+func TestNoChangeChecksManagedDigestBeforeReturning(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/no-change-digest")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementNotRequired}}}
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
+		t.Fatalf("no-change error = %v", err)
+	}
+}
+
+func TestRepairRejectsStaleTargetAndRollsBackFailure(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(installed.Plan.ActivePath, "plugin.json")
+	if err := os.WriteFile(manifestPath, []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.TargetLocator = filepath.Join(t.TempDir(), "outside")
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	input.OperationID = "repair-stale"
+	if _, err := service.Repair(context.Background(), input); err == nil || !strings.Contains(err.Error(), "untrusted persisted target") {
+		t.Fatalf("stale repair error = %v", err)
+	}
+
+	state, _ = store.Load()
+	for key, binding := range state.Installations[0].Clients {
+		binding.TargetLocator = installed.Plan.ActivePath
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	service.Kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.FaultActivationApplied {
+			return fmt.Errorf("injected repair failure")
+		}
+		return nil
+	}
+	input.OperationID = "repair-rollback"
+	if _, err := service.Repair(context.Background(), input); err == nil {
+		t.Fatal("repair unexpectedly succeeded")
+	}
+	body, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "tampered" {
+		t.Fatalf("rollback did not restore prior directory: %q", body)
+	}
+}
+
+func fullyConvergedOutcome(outcome domain.ActivationOutcome) bool {
+	return outcome.Activation == domain.ActivationActive && outcome.Authentication == domain.AuthenticationComplete && outcome.Verification == domain.VerificationInstalled
 }
 
 func TestAddRejectsSameNativePluginNameFromDifferentSources(t *testing.T) {

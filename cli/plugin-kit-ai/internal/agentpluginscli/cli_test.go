@@ -205,6 +205,33 @@ func TestRepeatedAddResumesManualLifecycleWithoutAnotherReceipt(t *testing.T) {
 	}
 }
 
+func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := onlyCLIClient(state.Installations[0]).TargetLocator
+	if err := os.RemoveAll(target); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "repair", "demo", "--target", "cursor", "--yes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "repaired from the resolved source") {
+		t.Fatalf("repair output = %q", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
+		t.Fatalf("repaired package: %v", err)
+	}
+}
+
 func TestChatGPTTargetIsNotAliasedToCodexCLI(t *testing.T) {
 	t.Parallel()
 	if got := normalizeTarget("chatgpt"); got == domain.ClientCodex {

@@ -29,6 +29,7 @@ func NewRoot(app App) *cobra.Command {
 
 	root.AddCommand(newAddCommand(app, opts))
 	root.AddCommand(newUpdateCommand(app, opts))
+	root.AddCommand(newRepairCommand(app, opts))
 	root.AddCommand(newRemoveCommand(app, opts))
 	root.AddCommand(newMigrateFormatCommand(app, opts))
 	root.AddCommand(newMigrateStateCommand(app, opts))

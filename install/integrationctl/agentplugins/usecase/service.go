@@ -31,16 +31,18 @@ type Service struct {
 }
 
 type AddInput struct {
-	Envelope          domain.PackageEnvelope
-	Client            domain.DetectedClient
-	Scope             domain.InstallScope
-	DryRun            bool
-	Confirmed         bool
-	Interactive       bool
-	Hints             domain.CompatibilityHints
-	InstallationID    string
-	OperationID       string
-	BackendExecutable string
+	Envelope           domain.PackageEnvelope
+	Client             domain.DetectedClient
+	Scope              domain.InstallScope
+	DryRun             bool
+	Confirmed          bool
+	Interactive        bool
+	Hints              domain.CompatibilityHints
+	InstallationID     string
+	OperationID        string
+	BackendExecutable  string
+	ActivationComplete bool
+	AuthComplete       bool
 }
 
 type AddResult struct {
@@ -109,7 +111,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if err != nil {
 		return AddResult{}, err
 	}
-	if hasOAuthRequirement(input.Envelope, input.Hints) {
+	if openAIOAuthApplies(input.Client.ClientID, input.Envelope, input.Hints) {
 		plan.Authentication = domain.AuthenticationPending
 	}
 	result := AddResult{InstallationID: installationID, Plan: plan}
@@ -133,10 +135,21 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
 	if isMaterialized && !replace {
 		current := state.Installations[installationIndex].Clients[clientBindingID]
+		result.Activation = lifecycleOutcome(current)
 		if !packageRevisionMatches(current.PackageRevision, input.Envelope) {
 			return result, fmt.Errorf("plugin is already materialized for %s at a different revision; use update", input.Client.ClientID)
 		}
 		if lifecycleConverged(current) {
+			if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, current, "no-change check"); err != nil {
+				return result, err
+			}
+			verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, current)
+			if verifyErr != nil {
+				return result, verifyErr
+			}
+			if verified.Activation == domain.ActivationActive && verified.Verification == domain.VerificationInstalled {
+				result.Activation = verified
+			}
 			result.NoChange = true
 			return result, nil
 		}
@@ -148,12 +161,23 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if replace {
 		current := state.Installations[installationIndex]
 		previousClient := current.Clients[clientBindingID]
+		result.Activation = lifecycleOutcome(previousClient)
 		if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, previousClient, "update"); err != nil {
 			return result, err
 		}
-		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) && lifecycleConverged(previousClient) {
-			result.NoChange = true
-			return result, nil
+		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) {
+			if lifecycleConverged(previousClient) {
+				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)
+				if verifyErr != nil {
+					return result, verifyErr
+				}
+				if verified.Activation == domain.ActivationActive && verified.Verification == domain.VerificationInstalled {
+					result.Activation = verified
+				}
+				result.NoChange = true
+				return result, nil
+			}
+			return service.resume(ctx, input, result, installationID, clientBindingID, previousClient)
 		}
 	}
 	if input.DryRun {
@@ -224,7 +248,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		result.Activation = outcome
 	}
-	if updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+	if _, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
 		if activationErr != nil {
 			return result, fmt.Errorf("activate client: %v; persist activation state: %w", activationErr, updateErr)
 		}
@@ -257,12 +281,13 @@ func (service Service) resume(
 	if input.DryRun {
 		return result, nil
 	}
+	if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, client, "resume"); err != nil {
+		return result, err
+	}
+	result.Activation = lifecycleOutcome(client)
 	if !input.Confirmed {
 		result.RequiresConfirmation = true
 		return result, nil
-	}
-	if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, client, "resume"); err != nil {
-		return result, err
 	}
 	delivery := domain.StagedDelivery{
 		ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot,
@@ -273,9 +298,21 @@ func (service Service) resume(
 		Client: input.Client, Plan: result.Plan, Delivery: delivery,
 		DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
 		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
+		VerifyOnly: true, ActivationComplete: input.ActivationComplete,
 	})
+	// Authentication completion is a separate phase. Client installation/list
+	// evidence must never silently complete it.
+	if client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled {
+		outcome.Activation = client.Activation
+		outcome.Verification = client.Verification
+	}
+	if client.Authentication == domain.AuthenticationPending && input.AuthComplete {
+		outcome.Authentication = domain.AuthenticationComplete
+		outcome.AuthenticationAttested = true
+	} else if client.Authentication != "" {
+		outcome.Authentication = client.Authentication
+	}
 	result.Activation = outcome
-	result.Mutated = true
 	if activationErr != nil && outcome.Activation == "" {
 		outcome = domain.ActivationOutcome{
 			Activation: domain.ActivationFailed, Authentication: result.Plan.Authentication,
@@ -283,7 +320,9 @@ func (service Service) resume(
 		}
 		result.Activation = outcome
 	}
-	if updateErr := service.updateLifecycle(installationID, clientBindingID, outcome); updateErr != nil {
+	changed, updateErr := service.updateLifecycle(installationID, clientBindingID, outcome)
+	result.Mutated = changed
+	if updateErr != nil {
 		if activationErr != nil {
 			return result, fmt.Errorf("resume client activation: %v; persist activation state: %w", activationErr, updateErr)
 		}
@@ -295,7 +334,18 @@ func (service Service) resume(
 	return result, nil
 }
 
-func hasOAuthRequirement(envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
+func openAIOAuthApplies(clientID domain.ClientID, envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {
+	if clientID != domain.ClientCodex {
+		return false
+	}
+	if envelope.CatalogEvidence != nil {
+		if _, present := envelope.CatalogEvidence.Compatibility[string(clientID)]; present {
+			return false
+		}
+	}
+	if _, present := hints.Compatibility[string(clientID)]; present {
+		return false
+	}
 	for serverName := range envelope.MCP.Servers {
 		if strings.TrimSpace(hints.OpenAIMCPAuth[serverName].OAuthResource) != "" {
 			return true
@@ -324,10 +374,10 @@ func (service Service) beginMutation(ctx context.Context, dryRun, confirmed bool
 	return release, nil
 }
 
-func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) error {
+func (service Service) updateLifecycle(installationID, clientBindingID string, outcome domain.ActivationOutcome) (bool, error) {
 	state, err := service.StateStore.Load()
 	if err != nil {
-		return err
+		return false, err
 	}
 	for installationIndex, installation := range state.Installations {
 		if installation.InstallationID != installationID {
@@ -335,7 +385,11 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		}
 		client, ok := installation.Clients[clientBindingID]
 		if !ok {
-			return fmt.Errorf("client binding disappeared during activation")
+			return false, fmt.Errorf("client binding disappeared during activation")
+		}
+		if client.Activation == outcome.Activation && client.Authentication == outcome.Authentication &&
+			client.Policy == outcome.Policy && client.Verification == outcome.Verification {
+			return false, nil
 		}
 		client.Activation = outcome.Activation
 		client.Authentication = outcome.Authentication
@@ -345,9 +399,37 @@ func (service Service) updateLifecycle(installationID, clientBindingID string, o
 		installation.Clients[clientBindingID] = client
 		installation.UpdatedAt = client.UpdatedAt
 		state.Installations[installationIndex] = installation
-		return service.StateStore.Save(state)
+		if err := service.StateStore.Save(state); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	return fmt.Errorf("installation disappeared during activation")
+	return false, fmt.Errorf("installation disappeared during activation")
+}
+
+func lifecycleOutcome(client domain.ClientBinding) domain.ActivationOutcome {
+	return domain.ActivationOutcome{Activation: client.Activation, Authentication: client.Authentication, Policy: client.Policy, Verification: client.Verification}
+}
+
+func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput, result AddResult, client domain.ClientBinding) (domain.ActivationOutcome, error) {
+	if strings.TrimSpace(input.BackendExecutable) == "" {
+		return domain.ActivationOutcome{}, nil
+	}
+	switch input.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+	case domain.ClientKiro:
+		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") {
+			return domain.ActivationOutcome{}, nil
+		}
+	default:
+		return domain.ActivationOutcome{}, nil
+	}
+	delivery := domain.StagedDelivery{ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot, ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client), NativeObjects: client.NativeObjects}
+	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, VerifyOnly: true})
+	if outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
+		outcome.Authentication = client.Authentication
+	}
+	return outcome, err
 }
 
 func (service Service) now() time.Time {

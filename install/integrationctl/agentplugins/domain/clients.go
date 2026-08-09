@@ -142,15 +142,22 @@ type ActivationRequest struct {
 	Replacing         bool           `json:"replacing"`
 	Interactive       bool           `json:"interactive"`
 	BackendExecutable string         `json:"-"`
+	// VerifyOnly forbids client mutation and asks the provider to inspect the
+	// current client state. ActivationComplete is an explicit user attestation
+	// for a phase which the selected client cannot expose through an API.
+	VerifyOnly         bool `json:"verify_only,omitempty"`
+	ActivationComplete bool `json:"activation_complete,omitempty"`
 }
 
 type ActivationOutcome struct {
-	Activation     ActivationState     `json:"activation"`
-	Authentication AuthenticationState `json:"authentication"`
-	Policy         PolicyState         `json:"policy"`
-	Verification   VerificationState   `json:"verification"`
-	UserActions    []string            `json:"user_actions,omitempty"`
-	LocalActions   []string            `json:"-"`
+	Activation             ActivationState     `json:"activation"`
+	Authentication         AuthenticationState `json:"authentication"`
+	Policy                 PolicyState         `json:"policy"`
+	Verification           VerificationState   `json:"verification"`
+	UserActions            []string            `json:"user_actions,omitempty"`
+	LocalActions           []string            `json:"-"`
+	ActivationAttested     bool                `json:"activation_attested,omitempty"`
+	AuthenticationAttested bool                `json:"authentication_attested,omitempty"`
 }
 
 type DeactivationRequest struct {

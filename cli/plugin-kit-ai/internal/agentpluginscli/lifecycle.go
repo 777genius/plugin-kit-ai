@@ -31,6 +31,103 @@ func newUpdateCommand(app App, opts *options) *cobra.Command {
 	}
 }
 
+func newRepairCommand(app App, opts *options) *cobra.Command {
+	return &cobra.Command{
+		Use: "repair <name-or-installation-id>", Short: "Explicitly restore a missing or modified managed package",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateCommonOptions(opts); err != nil {
+				return err
+			}
+			return runRepair(cmd.Context(), cmd, app, opts, args[0])
+		},
+	}
+}
+
+func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
+	state, err := app.StateStore.Load()
+	if err != nil {
+		return err
+	}
+	installation, err := selectInstallation(state, selector)
+	if err != nil {
+		return err
+	}
+	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
+		return fmt.Errorf("repair requires a bound Agent Plugins installation")
+	}
+	writeProgress(app, opts.format, "Resolving and validating the original Agent Plugin source...")
+	loaded, err := app.loadPackage(ctx, updateSource(installation))
+	if err != nil {
+		return err
+	}
+	if loaded.cleanup != nil {
+		defer loaded.cleanup()
+	}
+	clients, err := app.Detector.Detect(ctx)
+	if err != nil {
+		return fmt.Errorf("detect AI clients: %w", err)
+	}
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true)
+	if err != nil {
+		return err
+	}
+	if err := requireNonInteractiveMutation(app, opts, "repair"); err != nil && !opts.dryRun {
+		return err
+	}
+	service := lifecycleService(app, detectedMap)
+	input := usecase.AddInput{Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope), DryRun: opts.dryRun,
+		InstallationID: installation.InstallationID, Interactive: app.Terminal, Hints: loaded.hints,
+		BackendExecutable: backendExecutable(selected, detectedMap)}
+	planned, err := service.Repair(ctx, input)
+	if err != nil {
+		return err
+	}
+	if opts.dryRun || planned.NoChange {
+		return renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, opts.dryRun)
+	}
+	confirmed := opts.yes
+	if !confirmed && opts.format == "human" && app.Terminal {
+		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Replace the damaged managed directory from the resolved package source? [y/N]")
+		if err != nil {
+			return err
+		}
+	}
+	if !confirmed {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
+		return nil
+	}
+	input.Confirmed = true
+	result, repairErr := service.Repair(ctx, input)
+	if renderErr := renderRepairResult(cmd.OutOrStdout(), opts.format, installation, result, false); renderErr != nil && repairErr == nil {
+		repairErr = renderErr
+	}
+	return repairErr
+}
+
+func renderRepairResult(writer io.Writer, format string, installation domain.Installation, result usecase.AddResult, dryRun bool) error {
+	data := struct {
+		Plugin string            `json:"plugin"`
+		DryRun bool              `json:"dry_run"`
+		Result usecase.AddResult `json:"result"`
+	}{installation.DeclaredName, dryRun, result}
+	if format == "json" {
+		return writeJSONOutput(writer, "repair", data)
+	}
+	if result.NoChange {
+		_, _ = fmt.Fprintln(writer, "Managed package digest is valid. No repair was needed.")
+		return nil
+	}
+	if dryRun {
+		_, _ = fmt.Fprintln(writer, "Managed package is missing or modified and can be transactionally repaired. No changes made.")
+		return nil
+	}
+	if result.Mutated {
+		_, _ = fmt.Fprintln(writer, "Managed package repaired from the resolved source; existing lifecycle state was preserved.")
+	}
+	return nil
+}
+
 func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
 	state, err := app.StateStore.Load()
 	if err != nil {
@@ -408,12 +505,14 @@ func renderUpdateResult(writer io.Writer, format string, envelope domain.Package
 			} else {
 				_, _ = fmt.Fprintln(writer, "Package updated. Authentication and client activation are pending.")
 			}
+		} else if result.Activation.Authentication == domain.AuthenticationNotChecked && result.Activation.Activation == domain.ActivationActive {
+			_, _ = fmt.Fprintln(writer, "Package updated and client activation verified. Authentication requirements have not been checked.")
 		} else {
 			_, _ = fmt.Fprintln(writer, "Package updated. Activation is not complete yet.")
 		}
-		if action := nextLifecycleAction(result); action != "" {
-			_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
-		}
+	}
+	if action := nextLifecycleAction(result); action != "" && !fullyInstalled(result.Activation) {
+		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil
 }
