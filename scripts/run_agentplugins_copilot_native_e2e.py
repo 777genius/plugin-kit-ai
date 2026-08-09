@@ -18,6 +18,7 @@ from run_agentplugins_lifecycle_e2e import (
     CLI_TIMEOUT_SECONDS,
     EXPECTED_CLI_VERSION,
     catalog_environment,
+    verified_catalog,
 )
 
 
@@ -32,6 +33,16 @@ COPILOT_VERSION_PATTERN = re.compile(r"GitHub Copilot CLI ([0-9]+\.[0-9]+\.[0-9]
 COPILOT_PLUGIN_ENTRY_PATTERN = re.compile(
     r"^\s*•\s+(?P<plugin_id>[^\s]+)\s+\([^\r\n)]+\)\s*$"
 )
+
+
+def catalog_evidence(
+    catalog: dict[str, object], catalog_digest: str
+) -> dict[str, str]:
+    """Return the verified local catalog identity stored in native evidence."""
+    return {
+        "catalog_revision": str(catalog["revision"]),
+        "catalog_digest": catalog_digest,
+    }
 
 
 def isolated_environment(
@@ -149,7 +160,7 @@ def run(
     catalog_digest: str,
 ) -> dict[str, object]:
     """Run the five hero packages through real Copilot marketplace commands."""
-    catalog = json.loads(CATALOG.read_text())
+    catalog, actual_catalog_digest = verified_catalog(catalog_digest)
     available = {entry["name"] for entry in catalog["plugins"]}
     missing = sorted(set(HERO_PLUGINS) - available)
     if missing:
@@ -249,6 +260,7 @@ def run(
         ),
         "date": observed.date().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
+        **catalog_evidence(catalog, actual_catalog_digest),
         "evidence_type": "automated_native_lifecycle",
         "checks": [
             {

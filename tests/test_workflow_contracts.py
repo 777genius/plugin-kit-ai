@@ -66,6 +66,11 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn(
                     '--expected-version "${AGENTPLUGINS_VERSION}"', commands
                 )
+                self.assertIn(
+                    'catalog_digest="sha256:$(sha256sum catalog/v1/catalog.json',
+                    commands,
+                )
+                self.assertIn('--catalog-digest "${catalog_digest}"', commands)
                 self.assertIn(evidence, commands)
                 self.assertIn("check-jsonschema --schemafile", commands)
                 self.assertIn("scripts/validate_client_evidence.py --file", commands)
@@ -96,6 +101,15 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertEqual(
                     jobs[name]["env"]["AGENTPLUGINS_VERSION"], "0.1.5"
                 )
+
+    def test_copilot_native_job_binds_evidence_to_local_catalog(self) -> None:
+        job = load_workflow()["jobs"]["copilot-native-lifecycle"]
+        commands = job_run_commands(job)
+
+        self.assertIn(
+            'catalog_digest="sha256:$(sha256sum catalog/v1/catalog.json', commands
+        )
+        self.assertIn('--catalog-digest "${catalog_digest}"', commands)
 
 
 if __name__ == "__main__":

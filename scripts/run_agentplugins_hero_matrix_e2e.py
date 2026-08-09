@@ -14,7 +14,6 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog" / "v1" / "catalog.json"
 HERO_PLUGINS = (
@@ -34,6 +33,26 @@ SEMVER_PATTERN = re.compile(
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 )
 CATALOG_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
+CATALOG_REVISION_PATTERN = re.compile(r"[0-9a-f]{40}")
+
+
+def verified_catalog(catalog_digest: str) -> tuple[dict[str, object], str]:
+    """Load the exact local catalog after binding it to the supplied digest."""
+    if not CATALOG_DIGEST_PATTERN.fullmatch(catalog_digest):
+        raise ValueError("catalog digest must be lowercase sha256:<64 hex>")
+    body = CATALOG.read_bytes()
+    actual_digest = "sha256:" + hashlib.sha256(body).hexdigest()
+    if catalog_digest != actual_digest:
+        raise ValueError(
+            f"catalog digest does not match the local catalog: expected {actual_digest}"
+        )
+    catalog = json.loads(body)
+    revision = catalog.get("revision")
+    if not isinstance(revision, str) or not CATALOG_REVISION_PATTERN.fullmatch(
+        revision
+    ):
+        raise ValueError("local catalog revision must be a full lowercase commit SHA")
+    return catalog, actual_digest
 
 
 def prepare_client(home: Path, target: str) -> None:
@@ -179,7 +198,7 @@ def run(
     catalog_url: str,
     catalog_digest: str,
 ) -> dict[str, object]:
-    catalog = json.loads(CATALOG.read_text())
+    catalog, actual_catalog_digest = verified_catalog(catalog_digest)
     available = {entry["name"] for entry in catalog["plugins"]}
     missing = sorted(set(HERO_PLUGINS) - available)
     if missing:
@@ -230,7 +249,7 @@ def run(
         "date": date.today().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
         "catalog_revision": catalog["revision"],
-        "catalog_digest": "sha256:" + hashlib.sha256(CATALOG.read_bytes()).hexdigest(),
+        "catalog_digest": actual_catalog_digest,
         "checks": [
             {
                 "scenario": "five hero packages add/remove across five client projections",

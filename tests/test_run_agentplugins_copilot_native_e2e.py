@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import sys
 import unittest
@@ -23,6 +24,22 @@ SPEC.loader.exec_module(copilot_e2e)
 class CopilotNativeE2ETests(unittest.TestCase):
     def test_default_agentplugins_version_is_0_1_5(self) -> None:
         self.assertEqual(copilot_e2e.EXPECTED_CLI_VERSION, "0.1.5")
+
+    def test_native_evidence_uses_verified_local_catalog_identity(self) -> None:
+        actual_digest = "sha256:" + hashlib.sha256(
+            copilot_e2e.CATALOG.read_bytes()
+        ).hexdigest()
+        catalog, digest = copilot_e2e.verified_catalog(actual_digest)
+
+        self.assertEqual(
+            copilot_e2e.catalog_evidence(catalog, digest),
+            {
+                "catalog_revision": catalog["revision"],
+                "catalog_digest": actual_digest,
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "does not match the local catalog"):
+            copilot_e2e.verified_catalog("sha256:" + "0" * 64)
 
     def test_plugin_list_parser_returns_only_complete_entries(self) -> None:
         output = """Installed plugins:

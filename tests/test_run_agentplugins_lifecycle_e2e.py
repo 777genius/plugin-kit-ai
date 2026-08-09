@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import subprocess
@@ -83,6 +84,18 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
                 module=module.__name__, case="digest"
             ), self.assertRaises(ValueError):
                 module.catalog_environment(CATALOG_URL, "sha256:not-pinned")
+
+    def test_e2e_catalog_digest_is_bound_to_exact_local_file(self) -> None:
+        for module in (e2e, hero_e2e):
+            actual = "sha256:" + hashlib.sha256(module.CATALOG.read_bytes()).hexdigest()
+            with self.subTest(module=module.__name__, case="match"):
+                catalog, digest = module.verified_catalog(actual)
+                self.assertEqual(digest, actual)
+                self.assertEqual(catalog["revision"], json.loads(module.CATALOG.read_text())["revision"])
+            with self.subTest(module=module.__name__, case="mismatch"), self.assertRaisesRegex(
+                ValueError, "does not match the local catalog"
+            ):
+                module.verified_catalog("sha256:" + "0" * 64)
 
     def test_binary_version_is_semantic_and_exact(self) -> None:
         success = SimpleNamespace(stdout="agentplugins 0.1.1\n")

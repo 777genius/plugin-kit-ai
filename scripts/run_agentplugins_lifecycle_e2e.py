@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -24,6 +25,26 @@ SEMVER_PATTERN = re.compile(
     r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
 )
 CATALOG_DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}")
+CATALOG_REVISION_PATTERN = re.compile(r"[0-9a-f]{40}")
+
+
+def verified_catalog(catalog_digest: str) -> tuple[dict[str, object], str]:
+    """Load the exact local catalog after binding it to the supplied digest."""
+    if not CATALOG_DIGEST_PATTERN.fullmatch(catalog_digest):
+        raise ValueError("catalog digest must be lowercase sha256:<64 hex>")
+    body = CATALOG.read_bytes()
+    actual_digest = "sha256:" + hashlib.sha256(body).hexdigest()
+    if catalog_digest != actual_digest:
+        raise ValueError(
+            f"catalog digest does not match the local catalog: expected {actual_digest}"
+        )
+    catalog = json.loads(body)
+    revision = catalog.get("revision")
+    if not isinstance(revision, str) or not CATALOG_REVISION_PATTERN.fullmatch(
+        revision
+    ):
+        raise ValueError("local catalog revision must be a full lowercase commit SHA")
+    return catalog, actual_digest
 
 
 def catalog_environment(catalog_url: str, catalog_digest: str) -> dict[str, str]:
@@ -146,7 +167,7 @@ def run(
     catalog_url: str,
     catalog_digest: str,
 ) -> dict[str, object]:
-    catalog = json.loads(CATALOG.read_text())
+    catalog, actual_catalog_digest = verified_catalog(catalog_digest)
     names = [entry["name"] for entry in catalog["plugins"]]
     with tempfile.TemporaryDirectory(prefix="agentplugins-lifecycle-e2e-") as temporary:
         sandbox = Path(temporary)
@@ -225,7 +246,7 @@ def run(
         "date": observed.date().isoformat(),
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
         "catalog_revision": catalog["revision"],
-        "catalog_digest": "sha256:" + __import__("hashlib").sha256(CATALOG.read_bytes()).hexdigest(),
+        "catalog_digest": actual_catalog_digest,
         "checks": [
             {"scenario": "resolve all short names from the pinned catalog", "status": "passed", "plugin_count": len(names)},
             {"scenario": "transactional add for every catalog package", "status": "passed", "plugin_count": len(names)},
