@@ -16,6 +16,7 @@ from pathlib import Path
 from run_agentplugins_lifecycle_e2e import (
     CATALOG,
     CLI_TIMEOUT_SECONDS,
+    EXPECTED_CLI_VERSION,
     catalog_environment,
 )
 
@@ -118,7 +119,6 @@ def agentplugins_json(
             plugin,
             "--target",
             "copilot",
-            "--yes",
             "--format",
             "json",
         ],
@@ -270,7 +270,7 @@ def run(
             {
                 "scenario": "tool runtime and OAuth",
                 "status": "skipped",
-                "reason": "tracked separately from package lifecycle",
+                "reason": "native lifecycle verification does not invoke plugin tools or authenticate OAuth",
             },
         ],
         "secrets_recorded": False,
@@ -294,7 +294,7 @@ def run(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--expected-version", default="0.1.2")
+    parser.add_argument("--expected-version", default=EXPECTED_CLI_VERSION)
     parser.add_argument("--copilot-binary", type=Path, required=True)
     parser.add_argument("--expected-copilot-version", default="1.0.78")
     parser.add_argument("--catalog-url", required=True)

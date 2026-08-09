@@ -27,7 +27,7 @@ HERO_PLUGINS = (
 CLIENTS = ("codex", "cursor", "copilot", "vscode", "kiro")
 COPIED_CLIENTS = {"codex", "copilot", "vscode", "kiro"}
 CLI_TIMEOUT_SECONDS = 120
-EXPECTED_CLI_VERSION = "0.1.2"
+EXPECTED_CLI_VERSION = "0.1.5"
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
@@ -139,6 +139,40 @@ def binary_version(
     return version
 
 
+def run_cli(
+    binary: Path,
+    command: str,
+    plugin: str,
+    target: str,
+    sandbox: Path,
+    environment: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    """Run one non-interactive package projection without confirmation flags."""
+    extra = (
+        ["--external-uninstalled"]
+        if command == "remove" and target in COPIED_CLIENTS
+        else []
+    )
+    return subprocess.run(
+        [
+            str(binary),
+            command,
+            plugin,
+            "--target",
+            target,
+            "--format",
+            "json",
+            *extra,
+        ],
+        cwd=sandbox,
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=CLI_TIMEOUT_SECONDS,
+    )
+
+
 def run(
     binary: Path,
     expected_version: str,
@@ -165,25 +199,13 @@ def run(
             )
             for plugin in HERO_PLUGINS:
                 for command in ("add", "remove"):
-                    extra = ["--external-uninstalled"] if command == "remove" and target in COPIED_CLIENTS else []
-                    completed = subprocess.run(
-                        [
-                            str(binary),
-                            command,
-                            plugin,
-                            "--target",
-                            target,
-                            "--yes",
-                            "--format",
-                            "json",
-                            *extra,
-                        ],
-                        cwd=sandbox,
-                        env=environment,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                        timeout=CLI_TIMEOUT_SECONDS,
+                    completed = run_cli(
+                        binary,
+                        command,
+                        plugin,
+                        target,
+                        sandbox,
+                        environment,
                     )
                     value = json.loads(completed.stdout)
                     result = value.get("data", {}).get("result", {})
@@ -219,7 +241,7 @@ def run(
             {
                 "scenario": "client process launch, tool runtime, and OAuth",
                 "status": "skipped",
-                "reason": "package projection evidence is intentionally separate from runtime evidence",
+                "reason": "package projections do not launch client processes or prove tool or OAuth runtime",
             },
         ],
         "secrets_recorded": False,

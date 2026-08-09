@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import subprocess
 import tempfile
@@ -125,6 +126,77 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
                 {},
                 check=True,
             )
+
+    def test_lifecycle_commands_do_not_pass_yes(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="{}", stderr="")
+        with mock.patch.object(
+            e2e.subprocess, "run", return_value=completed
+        ) as run_command:
+            e2e.run_cli(
+                Path("/tmp/agentplugins"),
+                "add",
+                "context7",
+                Path("/tmp/sandbox"),
+                {},
+                check=True,
+            )
+
+        argv = run_command.call_args.args[0]
+        self.assertEqual(
+            argv,
+            [
+                "/tmp/agentplugins",
+                "add",
+                "context7",
+                "--target",
+                "cursor",
+                "--format",
+                "json",
+            ],
+        )
+        self.assertNotIn("--yes", argv)
+
+    def test_projection_commands_do_not_pass_yes(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout="{}", stderr="")
+        with mock.patch.object(
+            hero_e2e.subprocess, "run", return_value=completed
+        ) as run_command:
+            hero_e2e.run_cli(
+                Path("/tmp/agentplugins"),
+                "remove",
+                "context7",
+                "kiro",
+                Path("/tmp/sandbox"),
+                {},
+            )
+
+        argv = run_command.call_args.args[0]
+        self.assertEqual(
+            argv,
+            [
+                "/tmp/agentplugins",
+                "remove",
+                "context7",
+                "--target",
+                "kiro",
+                "--format",
+                "json",
+                "--external-uninstalled",
+            ],
+        )
+        self.assertNotIn("--yes", argv)
+
+    def test_e2e_defaults_target_agentplugins_0_1_5(self) -> None:
+        self.assertEqual(e2e.EXPECTED_CLI_VERSION, "0.1.5")
+        self.assertEqual(hero_e2e.EXPECTED_CLI_VERSION, "0.1.5")
+
+    def test_e2e_flow_dimensions_cover_catalog_and_hero_matrix(self) -> None:
+        catalog = json.loads(e2e.CATALOG.read_text())
+
+        self.assertEqual(len(catalog["plugins"]), 26)
+        self.assertEqual(len(hero_e2e.HERO_PLUGINS), 5)
+        self.assertEqual(len(hero_e2e.CLIENTS), 5)
+        self.assertEqual(len(hero_e2e.HERO_PLUGINS) * len(hero_e2e.CLIENTS), 25)
 
 
 if __name__ == "__main__":
