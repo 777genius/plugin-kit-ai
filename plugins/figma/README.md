@@ -6,7 +6,7 @@ Community package for the official Figma MCP plugin for design context, code-to-
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add figma
+npx universal-agent-plugins add figma
 ```
 <!-- agentplugins-install:end -->
 

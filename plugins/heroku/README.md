@@ -6,7 +6,7 @@ Community package for the official Heroku hosted MCP plugin for apps, add-ons, l
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add heroku
+npx universal-agent-plugins add heroku
 ```
 <!-- agentplugins-install:end -->
 

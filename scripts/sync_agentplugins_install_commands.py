@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "plugins"
 START = "<!-- agentplugins-install:start -->"
 END = "<!-- agentplugins-install:end -->"
+NPX_COMMAND = "npx universal-agent-plugins"
 
 
 def block(name: str) -> str:
@@ -19,7 +20,7 @@ def block(name: str) -> str:
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add {name}
+{NPX_COMMAND} add {name}
 ```
 {END}"""
 
@@ -54,6 +55,16 @@ def main() -> int:
                 readme.write_text(expected)
     if args.check and changed:
         raise SystemExit("ERROR: package install commands are out of date: " + ", ".join(str(path.relative_to(ROOT)) for path in changed))
+    pinned_examples = [
+        path.relative_to(ROOT)
+        for path in ROOT.rglob("*.md")
+        if f"{NPX_COMMAND}@" in path.read_text()
+    ]
+    if pinned_examples:
+        raise SystemExit(
+            "ERROR: public npx examples must not pin the installer version: "
+            + ", ".join(str(path) for path in pinned_examples)
+        )
     print(f"OK: {len(list(PLUGINS.glob('*/README.md')))} package install commands")
     return 0
 

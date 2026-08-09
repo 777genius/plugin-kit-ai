@@ -6,7 +6,7 @@ Portable Agent Plugins package for Context7. Pull up-to-date, version-specific d
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add context7
+npx universal-agent-plugins add context7
 ```
 <!-- agentplugins-install:end -->
 
