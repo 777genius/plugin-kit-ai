@@ -13,8 +13,9 @@ Updated: 2026-08-10.
   and OpenAI's `plugin-creator` validator in CI. The latter is fetched from a
   pinned `openai/codex` commit and verified by SHA-256 before execution.
 - Cloudflare Docs is the only package with a generated `.app.json`; its host-only
-  development binding matches the exact public MCP endpoint. Static validation
-  does not imply ChatGPT Plugins UI installation.
+  development binding matches the exact public app ID, MCP endpoint, and pinned
+  direct-runtime record. Human review still owns the app-ID ownership check.
+  Static validation does not imply ChatGPT Plugins UI installation.
 - The OpenAI adapter preserves the host-specific auth metadata published for
   GitHub, Figma, Linear, and Notion without adding unverified auth fields.
 

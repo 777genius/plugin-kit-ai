@@ -7,6 +7,7 @@
       "id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
       "mcp_server": "cloudflare-docs",
       "mcp_url": "https://docs.mcp.cloudflare.com/mcp",
+      "runtime_evidence": "tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json",
       "registration": {
         "surface": "chatgpt_developer_mode",
         "status": "development",

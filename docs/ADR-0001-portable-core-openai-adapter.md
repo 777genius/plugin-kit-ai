@@ -24,7 +24,14 @@ separate host-only `compat/openai/app-bindings.json` sidecar. Per the
 [official OpenAI packaging contract](https://developers.openai.com/plugins/build/plugins),
 the generator emits a plugin-root `.app.json` and points manifest `apps` to
 `./.app.json`. Every binding must match one exact portable Streamable HTTP MCP;
-unknown, stale, or mismatched bindings fail validation.
+unknown, stale, duplicate, or mismatched bindings fail validation. The sidecar
+also pins a sanitized runtime record whose public app ID, plugin, endpoint, and
+direct checks must match exactly.
+
+Machine validation establishes structural provenance, not ownership of the
+registered ChatGPT app. A human owner must confirm that the public technical ID
+is controlled by the intended workspace. `CODEOWNERS` requests this review but
+does not by itself prove that GitHub branch protection enforces it.
 
 The portable package never contains `.codex-plugin` or `.mcp.json`, so it stays
 within the Agent Plugins 1.0 component model. The compatibility package is a

@@ -24,6 +24,7 @@
         "required": ["scenario", "status"],
         "properties": {
           "scenario": { "type": "string", "minLength": 1 },
+          "operation": { "type": "string", "minLength": 1 },
           "status": {
             "enum": ["passed", "auth_required", "manual_step", "failed", "skipped"]
           }
@@ -33,6 +34,16 @@
     },
     "secrets_recorded": { "const": false },
     "real_user_project_used": { "type": "boolean" },
+    "binding": {
+      "type": "object",
+      "required": ["plugin", "app_id", "mcp_url"],
+      "properties": {
+        "plugin": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "app_id": { "type": "string", "pattern": "^plugin_asdk_app_[A-Za-z0-9]+$" },
+        "mcp_url": { "type": "string", "format": "uri", "pattern": "^https://" }
+      },
+      "additionalProperties": false
+    },
     "privacy": {
       "type": "object",
       "required": ["sanitized", "excluded"],
@@ -49,6 +60,23 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": {
+          "client": { "const": "ChatGPT Developer Mode" },
+          "evidence_type": { "const": "interactive_direct_mcp_runtime" }
+        },
+        "required": ["client", "evidence_type"]
+      },
+      "then": {
+        "required": ["version", "binding", "source", "cleanup"],
+        "properties": {
+          "checks": {
+            "items": { "required": ["scenario", "operation", "status"] }
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": { "client": { "const": "ChatGPT web" } },
