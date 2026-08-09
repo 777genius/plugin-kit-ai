@@ -6,7 +6,7 @@ Community package for the official Notion hosted MCP plugin for user-authorized 
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add notion
+npx universal-agent-plugins add notion
 ```
 <!-- agentplugins-install:end -->
 

@@ -6,7 +6,7 @@ Portable Agent Plugins package for Chrome DevTools MCP. Inspect pages, automate 
 ## Install
 
 ```bash
-npx universal-agent-plugins@0.1.2 add chrome-devtools
+npx universal-agent-plugins add chrome-devtools
 ```
 <!-- agentplugins-install:end -->
 
