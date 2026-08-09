@@ -41,6 +41,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseDraftJob, "exact resumable draft; refusing to overwrite immutable assets")
 	mustContain(t, releaseDraftJob, "--draft")
 	mustContain(t, releaseDraftJob, "existing draft asset differs from the frozen build")
+	mustContain(t, releaseDraftJob, "gh api graphql")
+	mustContain(t, releaseDraftJob, ".data.repository.release")
+	mustNotContain(t, releaseDraftJob, "target_commitish")
 	mustContain(t, releaseProofJob, "needs: [validate, stage-draft]")
 	mustContain(t, releaseProofJob, "require_draft: true")
 	mustContain(t, releaseProofJob, "expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}")
@@ -48,6 +51,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releasePromoteJob, "EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}")
 	mustContain(t, releasePromoteJob, "gh release edit \"${TAG}\"")
 	mustContain(t, releasePromoteJob, "--draft=false")
+	mustContain(t, releasePromoteJob, `git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`)
+	mustContain(t, releasePromoteJob, `git rev-list -n 1 "refs/tags/${TAG}"`)
+	mustContain(t, releasePromoteJob, "gh api graphql")
+	mustNotContain(t, releasePromoteJob, "target_commitish")
 	mustAppearBefore(t, releaseWorkflow, "gh release create", "gh release edit")
 	mustAppearBefore(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml", "gh release edit")
 	mustContain(t, releaseWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
@@ -74,7 +81,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 
 	mustContain(t, npmReleaseIdentityJob, "if: ${{ !inputs.verify_only }}")
 	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"`)
-	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "${TAG}")"`)
+	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
+	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
 	mustContain(t, npmPlatformProofJob, "needs: release-identity")
 	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
 	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
@@ -159,9 +167,14 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		"verified-release.json",
 		"Aggregate all six native platform proofs",
 		"platform proof requires the exact release to remain a non-public draft",
+		".isDraft == false and .isPrerelease == false and .tagName == $tag",
+		`git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"`,
+		`git -C release-source rev-list -n 1 "refs/tags/${TAG}"`,
 	} {
 		mustContain(t, platformWorkflow, want)
 	}
+	mustNotContain(t, platformWorkflow, "target_commitish")
+	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)
 	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
 	mustContain(t, npmWorkflow, "test \"${{ needs.platform-proof.outputs.gate_eligible }}\" = \"true\"")
 	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")

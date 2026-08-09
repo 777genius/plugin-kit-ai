@@ -117,6 +117,9 @@ jobs:
             exit 1
           fi
           commit="$(git -C release-source rev-parse HEAD)"
+          git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          tag_commit="$(git -C release-source rev-list -n 1 "refs/tags/${TAG}")"
+          test "${tag_commit}" = "${commit}"
           if [[ -n "${EXPECTED_COMMIT}" ]] && [[ "${commit}" != "${EXPECTED_COMMIT}" ]]; then
             echo "release tag commit does not match the caller's frozen commit" >&2
             exit 1
@@ -124,16 +127,27 @@ jobs:
           version="${TAG#agentplugins-v}"
           assets="${RUNNER_TEMP}/agentplugins-release-${version}"
           mkdir -p "${assets}"
-          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}")"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+          release_json="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to look up release ${TAG}" >&2
+            exit 1
+          }
+          release_json="$(jq -c '.data.repository.release' <<<"${release_json}")"
+          if [[ "${release_json}" = "null" ]]; then
+            echo "release ${TAG} was not found" >&2
+            exit 1
+          fi
           if [[ "${REQUIRE_DRAFT}" = "true" ]]; then
-            jq -e --arg tag "${TAG}" --arg commit "${commit}" \
-              '.draft == true and .prerelease == false and .tag_name == $tag and .target_commitish == $commit' \
+            jq -e --arg tag "${TAG}" \
+              '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
               <<<"${release_json}" >/dev/null || {
                 echo "platform proof requires the exact release to remain a non-public draft" >&2
                 exit 1
               }
           else
-            jq -e --arg tag "${TAG}" '.draft == false and .tag_name == $tag' <<<"${release_json}" >/dev/null || {
+            jq -e --arg tag "${TAG}" '.isDraft == false and .isPrerelease == false and .tagName == $tag' <<<"${release_json}" >/dev/null || {
               echo "platform proof requires an existing public release" >&2
               exit 1
             }

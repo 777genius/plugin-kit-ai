@@ -2,11 +2,13 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 )
 
@@ -69,7 +71,8 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	if expectedDigest == "" {
 		return result, fmt.Errorf("managed package digest is missing; refusing repair")
 	}
-	if verifyErr := service.Stager.Verify(ctx, target.ActivePath, expectedDigest); verifyErr == nil {
+	verifyErr := service.Stager.Verify(ctx, target.ActivePath, expectedDigest)
+	if verifyErr == nil {
 		verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, client)
 		if verifyErr != nil {
 			return result, verifyErr
@@ -113,6 +116,17 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		result.Mutated = true
 		return result, nil
 	}
+	var verification *ports.VerificationError
+	if !errors.As(verifyErr, &verification) || (verification.Kind != ports.VerificationAbsent && verification.Kind != ports.VerificationDigestMismatch) {
+		return result, fmt.Errorf("managed package integrity could not be determined; refusing repair: %w", verifyErr)
+	}
+	beforeDigest := ""
+	if verification.Kind == ports.VerificationDigestMismatch {
+		if strings.TrimSpace(verification.ActualDigest) == "" {
+			return result, fmt.Errorf("managed package verifier reported a digest mismatch without the actual digest; refusing repair")
+		}
+		beforeDigest = verification.ActualDigest
+	}
 	if input.DryRun {
 		return result, nil
 	}
@@ -152,7 +166,7 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	receipt, err := kernel.ApplyDirectory(ctx, transaction.DirectoryMutation{
 		OperationID: operationID, InstallationID: installation.InstallationID, ClientBindingID: clientKey,
 		Sequence: nextSequence(client), OwnedBase: delivery.OwnedBase, ActivePath: target.ActivePath,
-		StagingPath: delivery.StagingPath, BeforeDigest: expectedDigest, AfterDigest: delivery.ArtifactDigest,
+		StagingPath: delivery.StagingPath, BeforeDigest: beforeDigest, AfterDigest: delivery.ArtifactDigest,
 		NativeObjects: delivery.NativeObjects, Activation: verifiedState.Activation, Authentication: verifiedState.Authentication,
 		Policy: verifiedState.Policy, Verification: verifiedState.Verification, DesiredState: state,
 		Verify: func(verifyContext context.Context, activePath string) error {

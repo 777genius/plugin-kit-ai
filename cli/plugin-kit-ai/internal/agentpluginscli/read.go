@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/spf13/cobra"
 )
 
@@ -294,7 +294,8 @@ func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedC
 		return []doctorFinding{scopedFinding("unknown", "managed_integrity_not_checked", installation, binding.ClientID, "managed-directory integrity evidence is unavailable", repairAction(installation, binding))}
 	}
 	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
-		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "artifact digest mismatch") || strings.Contains(err.Error(), "excluded ownership marker") {
+		var verification *ports.VerificationError
+		if errors.As(err, &verification) && (verification.Kind == ports.VerificationAbsent || verification.Kind == ports.VerificationDigestMismatch) || strings.Contains(err.Error(), "excluded ownership marker") {
 			return []doctorFinding{scopedFinding("degraded", "managed_directory_changed", installation, binding.ClientID, "the managed package directory is missing or differs from its recorded digest", repairAction(installation, binding))}
 		}
 		return []doctorFinding{scopedFinding("unknown", "managed_integrity_check_failed", installation, binding.ClientID, "managed-directory integrity could not be checked because verification infrastructure failed", "retry doctor after resolving the filesystem or temporary verification error")}
@@ -311,7 +312,7 @@ func scopedFinding(status, code string, installation domain.Installation, client
 }
 
 func repairAction(installation domain.Installation, binding domain.ClientBinding) string {
-	return fmt.Sprintf("run `agentplugins repair %s --target %s%s`", installation.DeclaredName, binding.ClientID, doctorScopeFlag(binding))
+	return fmt.Sprintf("run `agentplugins repair %s --target %s%s`", installation.InstallationID, binding.ClientID, doctorScopeFlag(binding))
 }
 
 func doctorScopeFlag(binding domain.ClientBinding) string {

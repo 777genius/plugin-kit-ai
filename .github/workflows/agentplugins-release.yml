@@ -38,10 +38,10 @@ jobs:
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
-          git fetch --force origin main:refs/remotes/origin/main
+          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           head_commit="$(git rev-parse HEAD)"
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          test "${head_commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
       - name: Verify merged PR and required commit evidence
         env:
@@ -184,15 +184,23 @@ jobs:
         working-directory: ${{ runner.temp }}/agentplugins-assets
         run: |
           git -C "${GITHUB_WORKSPACE}" fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
-          test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "${TAG}")" = "${FROZEN_COMMIT}"
+          test "$(git -C "${GITHUB_WORKSPACE}" rev-list -n 1 "refs/tags/${TAG}")" = "${FROZEN_COMMIT}"
           node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
             prepare "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
           node "${GITHUB_WORKSPACE}/npm/agentplugins/scripts/release-assets.js" \
             verify "${PWD}" "${TAG}" "${FROZEN_COMMIT}"
           echo "asset_set_digest=$(sha256sum checksums.txt | cut -d ' ' -f 1)" >> "${GITHUB_OUTPUT}"
-          if release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" 2>/dev/null)"; then
-            jq -e --arg tag "${TAG}" --arg commit "${FROZEN_COMMIT}" \
-              '.draft == true and .prerelease == false and .tag_name == $tag and .target_commitish == $commit' \
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to look up existing release ${TAG}" >&2
+            exit 1
+          }
+          release_json="$(jq -c '.data.repository.release' <<<"${release_response}")"
+          if [[ "${release_json}" != "null" ]]; then
+            jq -e --arg tag "${TAG}" \
+              '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
               <<<"${release_json}" >/dev/null || {
                 echo "release ${TAG} already exists but is not the exact resumable draft; refusing to overwrite immutable assets" >&2
                 exit 1
@@ -225,7 +233,14 @@ jobs:
           TAG: ${{ inputs.tag }}
         working-directory: ${{ runner.temp }}/agentplugins-assets
         run: |
-          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to recheck release ${TAG} before creation" >&2
+            exit 1
+          }
+          if [[ "$(jq -c '.data.repository.release' <<<"${release_response}")" != "null" ]]; then
             echo "release ${TAG} appeared concurrently; refusing to overwrite immutable assets" >&2
             exit 1
           fi
@@ -270,9 +285,22 @@ jobs:
           FROZEN_COMMIT: ${{ needs.validate.outputs.commit }}
           EXPECTED_ASSET_SET_DIGEST: ${{ needs.stage-draft.outputs.asset_set_digest }}
         run: |
-          release_json="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}")"
-          jq -e --arg tag "${TAG}" --arg commit "${FROZEN_COMMIT}" \
-            '.draft == true and .prerelease == false and .tag_name == $tag and .target_commitish == $commit' \
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          test "$(git rev-list -n 1 "refs/tags/${TAG}")" = "${FROZEN_COMMIT}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repository="${GITHUB_REPOSITORY#*/}"
+          release_query='query($owner:String!,$name:String!,$tag:String!){repository(owner:$owner,name:$name){release(tagName:$tag){isDraft isPrerelease tagName}}}'
+          release_response="$(gh api graphql -f query="${release_query}" -F owner="${owner}" -F name="${repository}" -F tag="${TAG}")" || {
+            echo "failed to look up release ${TAG} immediately before promotion" >&2
+            exit 1
+          }
+          release_json="$(jq -c '.data.repository.release' <<<"${release_response}")"
+          [[ "${release_json}" != "null" ]] || {
+            echo "release ${TAG} was not found immediately before promotion" >&2
+            exit 1
+          }
+          jq -e --arg tag "${TAG}" \
+            '.isDraft == true and .isPrerelease == false and .tagName == $tag' \
             <<<"${release_json}" >/dev/null || {
               echo "release is no longer the exact non-public draft proven by this run" >&2
               exit 1

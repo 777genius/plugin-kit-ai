@@ -15,6 +15,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statev2"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 )
@@ -329,8 +330,99 @@ func TestResumeCompletesOnlyPendingAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Mutated || result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationComplete {
+	if !result.Mutated || result.Activation.ActivationAttested || !result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationComplete || result.Activation.Activation != domain.ActivationActive || result.Activation.Verification != domain.VerificationInstalled {
 		t.Fatalf("auth-only result = %+v", result)
+	}
+}
+
+func TestAuthOnlyResumeRunsVerifierAndPersistsNegativeEvidence(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+	input := addInput(t, client, "https://example.com/auth-negative")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"copilot": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		binding.Authentication = domain.AuthenticationPending
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	observer := &observedActivator{outcome: domain.ActivationOutcome{
+		Activation: domain.ActivationFailed, Authentication: domain.AuthenticationNotChecked,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationFailed,
+	}, err: fmt.Errorf("negative Copilot listing evidence")}
+	service.Activator = observer
+	input.AuthComplete = true
+	input.BackendExecutable = "/test/bin/copilot"
+	result, err := service.Add(context.Background(), input)
+	if err == nil || observer.calls != 1 {
+		t.Fatalf("resume result=%+v err=%v verifier calls=%d", result, err, observer.calls)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed {
+		t.Fatalf("negative verifier evidence was discarded: %+v", binding)
+	}
+}
+
+func TestConvergedManualVerifierOutcomeUsesConfirmationAndReplacesStaleState(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".copilot")}
+	input := addInput(t, client, "https://example.com/converged-manual")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Activation = domain.ActivationActive
+		binding.Verification = domain.VerificationInstalled
+		binding.Authentication = domain.AuthenticationNotRequired
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	observer := &observedActivator{outcome: domain.ActivationOutcome{
+		Activation: domain.ActivationManual, Authentication: domain.AuthenticationNotChecked,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationPackageValid,
+	}}
+	service.Activator = observer
+	input.BackendExecutable = "/test/bin/copilot"
+	input.Confirmed = false
+	preview, err := service.Add(context.Background(), input)
+	if err != nil || !preview.RequiresConfirmation || preview.NoChange || preview.Activation.Activation != domain.ActivationManual {
+		t.Fatalf("manual preview = %+v, err=%v", preview, err)
+	}
+	input.Confirmed = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil || !result.Mutated || result.NoChange {
+		t.Fatalf("manual correction = %+v, err=%v", result, err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := onlyBinding(state.Installations[0]); binding.Activation != domain.ActivationManual || binding.Verification != domain.VerificationPackageValid {
+		t.Fatalf("manual correction was not persisted: %+v", binding)
 	}
 }
 
@@ -418,6 +510,64 @@ func TestRepairRejectsStaleTargetAndRollsBackFailure(t *testing.T) {
 	}
 	if string(body) != "tampered" {
 		t.Fatalf("rollback did not restore prior directory: %q", body)
+	}
+}
+
+func TestRepairPropagatesIndeterminateVerificationFailure(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair-indeterminate")
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	stateBefore, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Stager = verificationFailureStager{PackageStager: service.Stager, err: fmt.Errorf("permission denied")}
+	if _, err := service.Repair(context.Background(), input); err == nil || !strings.Contains(err.Error(), "could not be determined") {
+		t.Fatalf("indeterminate repair error = %v", err)
+	}
+	stateAfter, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyBinding(stateAfter.Installations[0]).Receipts) != len(onlyBinding(stateBefore.Installations[0]).Receipts) {
+		t.Fatalf("indeterminate verification wrote a receipt: %+v", onlyBinding(stateAfter.Installations[0]).Receipts)
+	}
+}
+
+func TestRepairReceiptRecordsObservedDigestOrAbsence(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"mismatch", "absent"} {
+		t.Run(mode, func(t *testing.T) {
+			service, _, client := serviceFixture(t)
+			input := addInput(t, client, "https://example.com/repair-before-"+mode)
+			input.Confirmed = true
+			installed, err := service.Add(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "mismatch" {
+				if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.RemoveAll(installed.Plan.ActivePath); err != nil {
+				t.Fatal(err)
+			}
+			input.OperationID = "repair-before-" + mode
+			result, err := service.Repair(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode == "absent" && result.Receipt.BeforeDigest != "" {
+				t.Fatalf("absent BeforeDigest = %q", result.Receipt.BeforeDigest)
+			}
+			if mode == "mismatch" && (result.Receipt.BeforeDigest == "" || result.Receipt.BeforeDigest == result.Receipt.AfterDigest) {
+				t.Fatalf("mismatch receipt = %+v", result.Receipt)
+			}
+		})
 	}
 }
 
@@ -1119,6 +1269,30 @@ func serviceFixture(t *testing.T) (Service, statev2.Store, domain.DetectedClient
 		},
 		Now: func() time.Time { return time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC) },
 	}, store, client
+}
+
+type verificationFailureStager struct {
+	ports.PackageStager
+	err error
+}
+
+type observedActivator struct {
+	outcome domain.ActivationOutcome
+	err     error
+	calls   int
+}
+
+func (activator *observedActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
+	activator.calls++
+	return activator.outcome, activator.err
+}
+
+func (*observedActivator) Deactivate(context.Context, domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
+	return domain.DeactivationOutcome{}, nil
+}
+
+func (stager verificationFailureStager) Verify(context.Context, string, string) error {
+	return stager.err
 }
 
 func addInput(t *testing.T, client domain.DetectedClient, canonicalSource string) AddInput {

@@ -104,6 +104,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		Policy:         domain.PolicyAllowed,
 		Verification:   domain.VerificationPackageValid,
 	}
+	if request.ActivationComplete && activationObservable(request, activator.Runner != nil) {
+		return outcome, fmt.Errorf("--activation-complete cannot be used when %s activation is observable; the available verifier must run", request.Client.ClientID)
+	}
 	if request.ActivationComplete {
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -194,6 +197,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		if request.VerifyOnly {
 			if err := activator.verifyCopilot(ctx, request); err != nil {
+				if errors.Is(err, errCopilotListContractUnknown) {
+					return manualCopilotVerification(outcome, request), nil
+				}
 				return failedActivation(outcome, fmt.Sprintf("verify with `%s plugin list`", request.BackendExecutable), err)
 			}
 			outcome.Activation = domain.ActivationActive
@@ -201,6 +207,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 			return outcome, nil
 		}
 		if err := activator.activateCopilot(ctx, request); err != nil {
+			if errors.Is(err, errCopilotListContractUnknown) {
+				return manualCopilotVerification(outcome, request), nil
+			}
 			return failedActivation(outcome, fmt.Sprintf("rerun add for the prepared package at %s, then verify with `%s plugin list`", request.Delivery.ActivePath, request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
@@ -244,10 +253,14 @@ func (activator Activator) verifyCopilot(ctx context.Context, request domain.Act
 	if err != nil {
 		return fmt.Errorf("verify Copilot plugin listing: %w", err)
 	}
-	if !copilotHasInstalledPlugin(listed.Stdout, pluginSpec) {
+	switch copilotPluginStatus(listed.Stdout, pluginSpec) {
+	case copilotStatusInstalled:
+		return nil
+	case copilotStatusAbsent:
 		return fmt.Errorf("verify Copilot plugin listing: %s is not listed", pluginSpec)
+	default:
+		return fmt.Errorf("%w: verify Copilot plugin listing", errCopilotListContractUnknown)
 	}
-	return nil
 }
 
 func (activator Activator) activateCodex(ctx context.Context, request domain.ActivationRequest) error {
@@ -408,15 +421,28 @@ func codexHasInstalledPlugin(body []byte, name, marketplace string) bool {
 
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
 
-func copilotHasInstalledPlugin(stdout []byte, expected string) bool {
+type copilotStatus int
+
+const (
+	copilotStatusUnknown copilotStatus = iota
+	copilotStatusInstalled
+	copilotStatusAbsent
+)
+
+var errCopilotListContractUnknown = errors.New("Copilot plugin list output is not recognized")
+
+func copilotPluginStatus(stdout []byte, expected string) copilotStatus {
 	inInstalledSection := false
+	recognizedSection := false
+	recognizedEntry := false
 	matches := 0
 	for _, rawLine := range strings.Split(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n") {
 		if strings.TrimSpace(rawLine) == "Installed plugins:" {
 			if inInstalledSection {
-				return false
+				return copilotStatusUnknown
 			}
 			inInstalledSection = true
+			recognizedSection = true
 			continue
 		}
 		if !inInstalledSection {
@@ -427,11 +453,55 @@ func copilotHasInstalledPlugin(stdout []byte, expected string) bool {
 			continue
 		}
 		entry := copilotInstalledEntry.FindStringSubmatch(rawLine)
-		if len(entry) == 2 && entry[1] == expected {
-			matches++
+		if len(entry) == 2 {
+			recognizedEntry = true
+			if entry[1] == expected {
+				matches++
+			}
+			continue
+		}
+		trimmed := strings.TrimSpace(rawLine)
+		if trimmed == "" {
+			continue
+		}
+		if trimmed == "No plugins installed." || trimmed == "No plugins installed" {
+			recognizedEntry = true
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if strings.Contains(trimmed, expected) {
+			for _, state := range []string{"pending", "disconnected", "disabled", "auth-required", "auth required", "authentication required", "error", "failed", "failure"} {
+				if strings.Contains(lower, state) {
+					return copilotStatusAbsent
+				}
+			}
+			return copilotStatusUnknown
 		}
 	}
-	return matches == 1
+	if matches == 1 {
+		return copilotStatusInstalled
+	}
+	if matches > 1 {
+		return copilotStatusUnknown
+	}
+	if recognizedSection && recognizedEntry {
+		return copilotStatusAbsent
+	}
+	return copilotStatusUnknown
+}
+
+func activationObservable(request domain.ActivationRequest, runnerAvailable bool) bool {
+	if !runnerAvailable || strings.TrimSpace(request.BackendExecutable) == "" {
+		return false
+	}
+	switch request.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+		return true
+	case domain.ClientKiro:
+		return mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+	default:
+		return false
+	}
 }
 
 type kiroStatus int
@@ -471,6 +541,13 @@ func manualKiroVerification(outcome domain.ActivationOutcome, request domain.Act
 	outcome.Activation = domain.ActivationManual
 	outcome.UserActions = []string{"confirm each imported MCP server is connected in Kiro"}
 	outcome.LocalActions = []string{fmt.Sprintf("Kiro's documented `%s mcp status --name <server>` output contract was not recognized; inspect each server manually", request.BackendExecutable)}
+	return outcome
+}
+
+func manualCopilotVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) domain.ActivationOutcome {
+	outcome.Activation = domain.ActivationManual
+	outcome.UserActions = []string{"confirm the managed plugin is installed and enabled in GitHub Copilot"}
+	outcome.LocalActions = []string{fmt.Sprintf("the `%s plugin list` output contract was not recognized; inspect %s manually", request.BackendExecutable, request.DeclaredName)}
 	return outcome
 }
 

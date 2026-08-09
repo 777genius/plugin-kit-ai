@@ -147,10 +147,18 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			}
 			verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, current)
 			if verifyErr != nil {
+				if verified.Activation != "" && input.Confirmed && !input.DryRun {
+					result.Activation = verified
+					changed, updateErr := service.updateLifecycle(installationID, clientBindingID, verified)
+					result.Mutated = changed
+					if updateErr != nil {
+						return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
+					}
+				}
 				return result, verifyErr
 			}
-			if verified.Activation == domain.ActivationActive && verified.Verification == domain.VerificationInstalled {
-				result.Activation = verified
+			if verified.Activation != "" && !sameLifecycleOutcome(verified, lifecycleOutcome(current)) {
+				return service.persistObservedLifecycle(input, result, installationID, clientBindingID, verified)
 			}
 			result.NoChange = true
 			return result, nil
@@ -171,10 +179,18 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			if lifecycleConverged(previousClient) {
 				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)
 				if verifyErr != nil {
+					if verified.Activation != "" && input.Confirmed && !input.DryRun {
+						result.Activation = verified
+						changed, updateErr := service.updateLifecycle(installationID, clientBindingID, verified)
+						result.Mutated = changed
+						if updateErr != nil {
+							return result, fmt.Errorf("client verification failed: %v; persist negative verification evidence: %w", verifyErr, updateErr)
+						}
+					}
 					return result, verifyErr
 				}
-				if verified.Activation == domain.ActivationActive && verified.Verification == domain.VerificationInstalled {
-					result.Activation = verified
+				if verified.Activation != "" && !sameLifecycleOutcome(verified, lifecycleOutcome(previousClient)) {
+					return service.persistObservedLifecycle(input, result, installationID, clientBindingID, verified)
 				}
 				result.NoChange = true
 				return result, nil
@@ -304,7 +320,7 @@ func (service Service) resume(
 	})
 	// Authentication completion is a separate phase. Client installation/list
 	// evidence must never silently complete it.
-	if client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled {
+	if activationErr == nil && !clientVerifierAvailable(input, result.Plan) && client.Activation == domain.ActivationActive && client.Verification == domain.VerificationInstalled {
 		outcome.Activation = client.Activation
 		outcome.Verification = client.Verification
 	}
@@ -334,6 +350,42 @@ func (service Service) resume(
 		return result, activationErr
 	}
 	return result, nil
+}
+
+func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
+	if strings.TrimSpace(input.BackendExecutable) == "" {
+		return false
+	}
+	switch input.Client.ClientID {
+	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
+		return true
+	case domain.ClientKiro:
+		if !strings.Contains(strings.ToLower(input.BackendExecutable), "kiro") || len(plan.Components) == 0 {
+			return false
+		}
+		for _, component := range plan.Components {
+			if component.Support == domain.SupportUnsupported || component.Kind != domain.ComponentMCPServer {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+func (service Service) persistObservedLifecycle(input AddInput, result AddResult, installationID, clientBindingID string, outcome domain.ActivationOutcome) (AddResult, error) {
+	result.Activation = outcome
+	if input.DryRun {
+		return result, nil
+	}
+	if !input.Confirmed {
+		result.RequiresConfirmation = true
+		return result, nil
+	}
+	changed, err := service.updateLifecycle(installationID, clientBindingID, outcome)
+	result.Mutated = changed
+	return result, err
 }
 
 func openAIOAuthApplies(clientID domain.ClientID, envelope domain.PackageEnvelope, hints domain.CompatibilityHints) bool {

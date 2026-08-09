@@ -163,7 +163,7 @@ func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
 			if finding.InstallationName != "demo" || finding.InstallationID == "" || finding.ClientID != "cursor" {
 				t.Fatalf("managed finding scope = %+v", finding)
 			}
-			if finding.RecoveryAction != "run `agentplugins repair demo --target cursor`" {
+			if finding.RecoveryAction != "run `agentplugins repair "+finding.InstallationID+" --target cursor`" {
 				t.Fatalf("managed finding recovery = %q", finding.RecoveryAction)
 			}
 		}
@@ -175,9 +175,9 @@ func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
 
 func TestDoctorRecoveryIncludesProjectScopeAndExactTarget(t *testing.T) {
 	t.Parallel()
-	installation := domain.Installation{DeclaredName: "demo"}
+	installation := domain.Installation{InstallationID: "00000000-0000-4000-8000-000000000001", DeclaredName: "demo"}
 	binding := domain.ClientBinding{ClientID: "cursor", Scope: string(domain.ScopeProject)}
-	if got := repairAction(installation, binding); got != "run `agentplugins repair demo --target cursor --scope project`" {
+	if got := repairAction(installation, binding); got != "run `agentplugins repair 00000000-0000-4000-8000-000000000001 --target cursor --scope project`" {
 		t.Fatalf("project repair action = %q", got)
 	}
 }

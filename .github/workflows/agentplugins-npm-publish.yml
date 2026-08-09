@@ -36,10 +36,10 @@ jobs:
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
-          git fetch --force origin main:refs/remotes/origin/main
+          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           commit="$(git rev-parse HEAD)"
           test "${commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${commit}" = "$(git rev-list -n 1 "${TAG}")"
+          test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${commit}" >> "${GITHUB_OUTPUT}"
 
   platform-proof:
@@ -89,12 +89,12 @@ jobs:
             exit 1
           fi
           test "${READY}" = "true"
-          git fetch --force origin main:refs/remotes/origin/main
+          git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           head_commit="$(git rev-parse HEAD)"
           test "${head_commit}" = "${{ needs.release-identity.outputs.commit }}"
           test "${{ needs.platform-proof.outputs.gate_eligible }}" = "true"
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
-          test "${head_commit}" = "$(git rev-list -n 1 "${TAG}")"
+          test "${head_commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
           package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
           package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
@@ -199,6 +199,8 @@ jobs:
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           package_name="$(node -p 'require("./npm/agentplugins/package.json").name')"
           package_name_length="$(printf '%s' "${package_name}" | wc -c | tr -d ' ')"
           if [[ ! "${package_name}" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]] || [[ "${package_name_length}" -gt 214 ]]; then

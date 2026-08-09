@@ -98,16 +98,16 @@ func TestActivatorUpdateRecoversMissingMarketplaceAndPlugin(t *testing.T) {
 	}
 }
 
-func TestActivatorDoesNotTrustCopilotInstallExitZeroWithoutListingEvidence(t *testing.T) {
+func TestActivatorFallsBackToManualForUnknownCopilotListing(t *testing.T) {
 	t.Parallel()
 	runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return legacyports.CommandResult{} }}
 	request := activationRequest(t, domain.ClientCopilot)
 	request.BackendExecutable = "/test/bin/copilot"
 	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
-	if err == nil || !strings.Contains(err.Error(), "not listed") {
+	if err != nil {
 		t.Fatalf("verification error = %v", err)
 	}
-	if outcome.Activation != domain.ActivationFailed || outcome.Verification != domain.VerificationFailed || len(outcome.LocalActions) != 1 {
+	if outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid || len(outcome.LocalActions) != 1 {
 		t.Fatalf("outcome = %+v", outcome)
 	}
 }
@@ -175,30 +175,89 @@ func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
 	}
 }
 
-func TestCopilotVerificationUsesOnlyExactHealthyStdoutToken(t *testing.T) {
+func TestCopilotVerificationRejectsRecognizedNegativeEvidence(t *testing.T) {
 	t.Parallel()
 	request := activationRequest(t, domain.ClientCopilot)
 	request.BackendExecutable = "/test/bin/copilot"
 	request.VerifyOnly = true
 	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
 	cases := map[string]legacyports.CommandResult{
-		"bare name":       {Stdout: []byte("Installed plugins:\n  • demo (v1.0.0)")},
-		"stderr only":     {Stderr: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)")},
-		"outside section": {Stdout: []byte("• " + spec + " (v1.0.0)")},
-		"pending":         {Stdout: []byte("Installed plugins:\n  • " + spec + " pending")},
-		"disconnected":    {Stdout: []byte("Installed plugins:\n  • " + spec + " disconnected")},
-		"disabled":        {Stdout: []byte("Installed plugins:\n  • " + spec + " disabled")},
-		"auth required":   {Stdout: []byte("Installed plugins:\n  • " + spec + " auth-required")},
-		"error":           {Stdout: []byte("Installed plugins:\n  error: " + spec)},
-		"unrelated":       {Stdout: []byte("Installed plugins:\n  • demo-extra@" + managedMarketplaceName(request.Plan.PhysicalArtifactID) + " (v1.0.0)")},
-		"bad version":     {Stdout: []byte("Installed plugins:\n  • " + spec + " (latest)")},
-		"duplicate":       {Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)\n  • " + spec + " (v1.0.0)")},
+		"pending":          {Stdout: []byte("Installed plugins:\n  • " + spec + " pending")},
+		"disconnected":     {Stdout: []byte("Installed plugins:\n  • " + spec + " disconnected")},
+		"disabled":         {Stdout: []byte("Installed plugins:\n  • " + spec + " disabled")},
+		"auth required":    {Stdout: []byte("Installed plugins:\n  • " + spec + " auth-required")},
+		"error":            {Stdout: []byte("Installed plugins:\n  error: " + spec)},
+		"unrelated":        {Stdout: []byte("Installed plugins:\n  • demo-extra@" + managedMarketplaceName(request.Plan.PhysicalArtifactID) + " (v1.0.0)")},
+		"explicitly empty": {Stdout: []byte("Installed plugins:\n  No plugins installed.")},
 	}
 	for name, listed := range cases {
 		t.Run(name, func(t *testing.T) {
 			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
 			if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil {
 				t.Fatalf("untrusted Copilot listing was accepted: %+v", listed)
+			}
+		})
+	}
+}
+
+func TestCopilotUnknownOutputContractRemainsManual(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	request.VerifyOnly = true
+	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	for name, listed := range map[string]legacyports.CommandResult{
+		"empty":           {},
+		"bare name":       {Stdout: []byte("Installed plugins:\n  • demo (v1.0.0)")},
+		"stderr only":     {Stderr: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)")},
+		"outside section": {Stdout: []byte("• " + spec + " (v1.0.0)")},
+		"bad version":     {Stdout: []byte("Installed plugins:\n  • " + spec + " (latest)")},
+		"duplicate":       {Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.0)\n  • " + spec + " (v1.0.0)")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			outcome, err := (Activator{Runner: &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}}).Activate(context.Background(), request)
+			if err != nil || outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid {
+				t.Fatalf("outcome=%+v err=%v", outcome, err)
+			}
+		})
+	}
+}
+
+func TestCopilotExactVersion1078OutputRemainsSupported(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientCopilot)
+	request.BackendExecutable = "/test/bin/copilot"
+	request.VerifyOnly = true
+	spec := "demo@" + managedMarketplaceName(request.Plan.PhysicalArtifactID)
+	runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult {
+		return legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  • " + spec + " (v1.0.78)")}
+	}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil || outcome.Activation != domain.ActivationActive {
+		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro} {
+		t.Run(string(client), func(t *testing.T) {
+			runner := &recordingRunner{}
+			request := activationRequest(t, client)
+			request.ActivationComplete = true
+			request.BackendExecutable = "/test/bin/" + string(client)
+			if client == domain.ClientVSCode {
+				request.BackendExecutable = "/test/bin/copilot"
+			}
+			if client == domain.ClientKiro {
+				request.BackendExecutable = "/test/bin/kiro-cli"
+				request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo", Support: domain.SupportNative}}
+			}
+			if _, err := (Activator{Runner: runner}).Activate(context.Background(), request); err == nil || !strings.Contains(err.Error(), "available verifier must run") {
+				t.Fatalf("attestation error = %v", err)
+			}
+			if len(runner.commands) != 0 {
+				t.Fatalf("attestation unexpectedly ran commands: %+v", runner.commands)
 			}
 		})
 	}
