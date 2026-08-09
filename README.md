@@ -26,6 +26,8 @@ It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares
 or installs one explicit target at a time across Codex/ChatGPT, Cursor, GitHub
 Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
+The portable source is only the root `plugin.json`; generated output for the
+official OpenAI host uses `.codex-plugin/plugin.json`.
 
 When GitHub Copilot CLI is detected, `agentplugins` installs, updates, and
 removes the plugin automatically through a managed local marketplace. VS Code
@@ -129,17 +131,18 @@ Guide:
 
 ## Quick Start
 
-If you do not know which path to choose yet, start here:
-
-Try a real plugin now without installing the CLI permanently:
+Want to try a real Agent Plugin without installing a CLI permanently?
 
 ```bash
-npx plugin-kit-ai@latest add notion
+npx universal-agent-plugins add context7
 ```
 
-This installs every supported output for that plugin.
+Building a plugin instead? Use `plugin-kit-ai` for authoring and generated
+output delivery. Its older `plugin-kit-ai add` lifecycle is not the default
+installer for portable Agent Plugins 1.0. Start with
+[Choose What You Are Building](#choose-what-you-are-building).
 
-Recommended daily-use install path:
+Recommended authoring CLI install path:
 
 ```bash
 brew install 777genius/homebrew-plugin-kit-ai/plugin-kit-ai
