@@ -15,6 +15,7 @@
     "client": { "type": "string", "minLength": 1 },
     "version": { "type": "string", "minLength": 1 },
     "date": { "type": "string", "format": "date" },
+    "date_timezone": { "const": "Europe/Kyiv" },
     "observed_at_utc": { "type": "string", "format": "date-time" },
     "checks": {
       "type": "array",
@@ -40,7 +41,11 @@
       "properties": {
         "plugin": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         "app_id": { "type": "string", "pattern": "^plugin_asdk_app_[A-Za-z0-9]+$" },
-        "mcp_url": { "type": "string", "format": "uri", "pattern": "^https://" }
+        "mcp_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://[^/?#@\\s]+(?:/[^?#]*)?$"
+        }
       },
       "additionalProperties": false
     },
@@ -69,7 +74,7 @@
         "required": ["client", "evidence_type"]
       },
       "then": {
-        "required": ["version", "binding", "source", "cleanup"],
+        "required": ["version", "date_timezone", "binding", "source", "cleanup"],
         "properties": {
           "checks": {
             "items": { "required": ["scenario", "operation", "status"] }

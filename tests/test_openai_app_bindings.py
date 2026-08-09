@@ -54,6 +54,7 @@ def valid_evidence() -> dict[str, object]:
         "client": "ChatGPT Developer Mode",
         "version": "rolling web release; build identifier not exposed",
         "date": "2026-08-10",
+        "date_timezone": "Europe/Kyiv",
         "evidence_type": "interactive_direct_mcp_runtime",
         "binding": {
             "plugin": "cloudflare-docs",
@@ -91,8 +92,9 @@ class OpenAIAppBindingTests(unittest.TestCase):
         root: Path,
         document: object,
         evidence: object | None = None,
+        evidence_path_value: str = EVIDENCE_PATH,
     ) -> Path:
-        evidence_path = root / EVIDENCE_PATH
+        evidence_path = root / evidence_path_value
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text(
             json.dumps(valid_evidence() if evidence is None else evidence)
@@ -185,6 +187,21 @@ class OpenAIAppBindingTests(unittest.TestCase):
                 path = self.write_document(root, valid_document(), evidence)
                 with self.assertRaisesRegex(ValueError, message):
                     load_app_bindings(path, root)
+
+    def test_sidecar_rejects_future_dated_runtime_evidence(self) -> None:
+        future_path = (
+            "tests/e2e/results/chatgpt-cloudflare-docs-direct-2999-01-01.json"
+        )
+        document = valid_document()
+        document["bindings"]["cloudflare-docs"]["runtime_evidence"] = future_path
+        evidence = valid_evidence()
+        evidence["date"] = "2999-01-01"
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = self.write_document(root, document, evidence, future_path)
+            with self.assertRaisesRegex(ValueError, "future-dated runtime evidence"):
+                load_app_bindings(path, root)
 
     def test_binding_requires_exact_single_streamable_http_server(self) -> None:
         binding = valid_document()["bindings"]["cloudflare-docs"]

@@ -37,7 +37,8 @@ in `plugins/docker-hub/mcp.json`.
   completed `list_resources` and one read-only `search_cloudflare_documentation`
   call for `Durable Objects SQLite storage API`, returning 7 results. This was a
   direct registered connection, not installation of this repository's generated
-  package; package UI E2E remains pending. The sanitized record is
+  package; package UI E2E remains pending. The 2026-08-10 evidence date uses the
+  repository operator's `Europe/Kyiv` local calendar. The sanitized record is
   [`chatgpt-cloudflare-docs-direct-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json).
 - Public post-merge run
   [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)

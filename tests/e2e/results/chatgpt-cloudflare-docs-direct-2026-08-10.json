@@ -2,6 +2,7 @@
   "client": "ChatGPT Developer Mode",
   "version": "rolling web release; build identifier not exposed",
   "date": "2026-08-10",
+  "date_timezone": "Europe/Kyiv",
   "evidence_type": "interactive_direct_mcp_runtime",
   "connection": "registered no-auth development MCP connection",
   "binding": {

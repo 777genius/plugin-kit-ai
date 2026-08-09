@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,8 +16,9 @@ APP_BINDINGS = ROOT / "compat" / "openai" / "app-bindings.json"
 PLUGIN_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DEVELOPMENT_APP_ID = re.compile(r"^plugin_asdk_app_[A-Za-z0-9]+$")
 RUNTIME_EVIDENCE_PATH = re.compile(
-    r"^tests/e2e/results/[a-z0-9-]+-[0-9]{4}-[0-9]{2}-[0-9]{2}\.json$"
+    r"^tests/e2e/results/[a-z0-9-]+-(?P<date>[0-9]{4}-[0-9]{2}-[0-9]{2})\.json$"
 )
+EVIDENCE_TIMEZONE = ZoneInfo("Europe/Kyiv")
 ENTRY_FIELDS = {
     "app_key",
     "id",
@@ -84,6 +87,18 @@ def _validate_runtime_evidence(
     evidence_path: Path,
 ) -> None:
     evidence = _load_object(evidence_path, "runtime evidence")
+    evidence_date = evidence.get("date")
+    try:
+        observed_date = date.fromisoformat(str(evidence_date))
+    except ValueError as error:
+        raise ValueError(f"{evidence_path}: invalid runtime evidence date") from error
+    path_match = RUNTIME_EVIDENCE_PATH.fullmatch(str(binding["runtime_evidence"]))
+    if path_match is None or evidence_date != path_match.group("date"):
+        raise ValueError(f"{evidence_path}: runtime evidence date does not match filename")
+    if evidence.get("date_timezone") != EVIDENCE_TIMEZONE.key:
+        raise ValueError(f"{evidence_path}: runtime evidence timezone must be Europe/Kyiv")
+    if observed_date > datetime.now(EVIDENCE_TIMEZONE).date():
+        raise ValueError(f"{evidence_path}: future-dated runtime evidence is forbidden")
     expected_binding = {
         "plugin": plugin_name,
         "app_id": binding["id"],
