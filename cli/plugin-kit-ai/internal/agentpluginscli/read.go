@@ -237,7 +237,7 @@ func doctorFindings(ctx context.Context, app App, detected []domain.DetectedClie
 			if !visible || client.Status != domain.DetectionDetected {
 				findings = append(findings, scopedFinding("degraded", "client_not_visible", installation, binding.ClientID, "the package is tracked but no current client visibility evidence was detected", "install or launch the client so its CLI, desktop application, or configuration directory is visible, then rerun doctor"))
 			}
-			if binding.ClientID == string(domain.ClientCopilot) && strings.TrimSpace(client.ExecutablePath) == "" {
+			if visible && client.Status == domain.DetectionDetected && binding.ClientID == string(domain.ClientCopilot) && strings.TrimSpace(client.ExecutablePath) == "" {
 				findings = append(findings, scopedFinding("degraded", "copilot_cli_missing", installation, binding.ClientID, "GitHub Copilot CLI is unavailable for automatic Copilot activation", "install GitHub Copilot CLI, ensure copilot is on PATH, and rerun doctor"))
 			}
 			switch binding.Activation {

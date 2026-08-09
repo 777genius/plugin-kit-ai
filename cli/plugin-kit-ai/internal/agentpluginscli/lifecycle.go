@@ -45,6 +45,7 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 }
 
 func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
+	stdin := bufio.NewReader(cmd.InOrStdin())
 	state, err := app.StateStore.Load()
 	if err != nil {
 		return err
@@ -60,7 +61,7 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
-	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true)
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true, stdin)
 	if err != nil {
 		return err
 	}
@@ -96,14 +97,17 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	confirmed := opts.yes
 	if !confirmed && opts.format == "human" && app.Terminal {
-		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Repair the managed package and its recorded verification state? [y/N]")
+		confirmed, err = promptYesNo(stdin, cmd.OutOrStdout(), "Repair the managed package and its recorded verification state? [y/N]")
 		if err != nil {
 			return err
 		}
 	}
 	if !confirmed {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
-		return nil
+		if opts.format == "json" {
+			return renderRepairResult(cmd.OutOrStdout(), opts.format, installation, planned, false)
+		}
+		_, err = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
+		return err
 	}
 	input.Confirmed = true
 	result, repairErr := service.Repair(ctx, input)
@@ -123,18 +127,20 @@ func renderRepairResult(writer io.Writer, format string, installation domain.Ins
 		return writeJSONOutput(writer, "repair", data)
 	}
 	if result.NoChange {
-		_, _ = fmt.Fprintln(writer, "Managed package digest is valid. No repair was needed.")
-		return nil
+		_, err := fmt.Fprintln(writer, "Managed package digest is valid. No repair was needed.")
+		return err
 	}
 	if dryRun {
-		_, _ = fmt.Fprintln(writer, "The managed package or its recorded verification state can be safely repaired. No changes made.")
-		return nil
+		_, err := fmt.Fprintln(writer, "The managed package or its recorded verification state can be safely repaired. No changes made.")
+		return err
 	}
 	if result.Mutated {
 		if result.Receipt.OperationID == "" {
-			_, _ = fmt.Fprintln(writer, "Managed package digest reverified and recorded lifecycle state corrected; no external client mutation was attempted.")
+			_, err := fmt.Fprintln(writer, "Managed package digest reverified and recorded lifecycle state corrected; no external client mutation was attempted.")
+			return err
 		} else {
-			_, _ = fmt.Fprintln(writer, "Managed package repaired from the exact installed revision and its package digest verified; external client activation and authentication were not reverified.")
+			_, err := fmt.Fprintln(writer, "Managed package repaired from the exact installed revision and its package digest verified; external client activation and authentication were not reverified.")
+			return err
 		}
 	}
 	return nil
@@ -170,7 +176,7 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
-	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true)
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, true, cmd.InOrStdin())
 	if err != nil {
 		return err
 	}
@@ -251,7 +257,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
 	}
-	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, false)
+	selected, detectedMap, err := selectBoundClient(cmd, app, opts, installation, clients, false, cmd.InOrStdin())
 	if err != nil {
 		return err
 	}
@@ -463,6 +469,7 @@ func selectBoundClient(
 	installation domain.Installation,
 	clients []domain.DetectedClient,
 	requireDetected bool,
+	reader io.Reader,
 ) (domain.DetectedClient, map[domain.ClientID]domain.DetectedClient, error) {
 	detectedMap := make(map[domain.ClientID]domain.DetectedClient, len(clients))
 	for _, client := range clients {
@@ -506,17 +513,23 @@ func selectBoundClient(
 	if !app.Terminal || opts.yes || opts.format == "json" {
 		return domain.DetectedClient{}, detectedMap, fmt.Errorf("plugin has multiple installed targets; choose exactly one with --target")
 	}
-	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:")
+	if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:"); err != nil {
+		return domain.DetectedClient{}, detectedMap, err
+	}
 	for index, clientID := range ids {
 		client := detectedMap[clientID]
 		display := client.DisplayName
 		if display == "" {
 			display = string(clientID)
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, display)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, display); err != nil {
+			return domain.DetectedClient{}, detectedMap, err
+		}
 	}
-	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Choose one target: ")
-	line, readErr := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if _, err := fmt.Fprint(cmd.OutOrStdout(), "Choose one target: "); err != nil {
+		return domain.DetectedClient{}, detectedMap, err
+	}
+	line, readErr := readInputLine(reader)
 	if readErr != nil && readErr != io.EOF {
 		return domain.DetectedClient{}, detectedMap, readErr
 	}

@@ -212,6 +212,54 @@ func TestPlannerRejectsMetadataOnlyProjectionWhenAllDeclaredComponentsAreInvalid
 	}
 }
 
+func TestPlannerDoesNotAppendActivationOrAuthenticationGuidanceWhenUnsupported(t *testing.T) {
+	t.Parallel()
+	tests := map[string]domain.PackageEnvelope{
+		"catalog_omits_client": func() domain.PackageEnvelope {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"codex": {Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+			}}
+			return envelope
+		}(),
+		"catalog_package_mismatch": func() domain.PackageEnvelope {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"cursor": {Package: "projected", Verification: "schema_only", Authentication: domain.AuthenticationRequirementRequired},
+			}}
+			return envelope
+		}(),
+		"invalid_components": {
+			Manifest: domain.PluginManifest{Name: "broken"},
+			Diagnostics: []domain.Diagnostic{{
+				Severity: domain.SeverityError, Boundary: domain.BoundarySkill,
+				Code: "skill_invalid", Message: "all skills are invalid",
+			}},
+		},
+	}
+	for name, envelope := range tests {
+		name, envelope := name, envelope
+		t.Run(name, func(t *testing.T) {
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(
+				context.Background(), envelope,
+				detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")),
+				domain.ScopeUser, "broken-0123456789ab",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Status != domain.PlanUnsupported {
+				t.Fatalf("plan = %+v", plan)
+			}
+			for _, action := range plan.UserActions {
+				if strings.Contains(action, "authentication") || strings.Contains(action, "reload Cursor") || strings.Contains(action, "verify the plugin") {
+					t.Fatalf("unsupported plan appended lifecycle guidance %q: %+v", action, plan)
+				}
+			}
+		})
+	}
+}
+
 func testEnvelope() domain.PackageEnvelope {
 	return domain.PackageEnvelope{
 		Manifest: domain.PluginManifest{

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -335,6 +336,28 @@ func TestDoctorDoesNotRequireCopilotCLIForVSCodeBinding(t *testing.T) {
 	}
 }
 
+func TestDoctorDoesNotReportMissingCopilotCLIWhenCopilotIsNotVisible(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCopilot)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	fixture.app.Detector = staticDetector{}
+	var stdout, stderr bytes.Buffer
+	app := fixture.app
+	app.Output = &stdout
+	app.ErrorOutput = &stderr
+	command := NewRoot(app)
+	command.SetArgs([]string{"doctor", "demo", "--format", "json"})
+	if err := command.ExecuteContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), "client_not_visible") || strings.Contains(stdout.String(), "copilot_cli_missing") {
+		t.Fatalf("invisible Copilot findings = %s", stdout.String())
+	}
+}
+
 func TestDoctorDoesNotCallVerifierFailureChangedContent(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -621,6 +644,94 @@ func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
 	}
 }
 
+func TestInteractiveRepairUsesOneReaderForTargetAndConfirmation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex),
+		fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+	for _, target := range []string{"codex", "cursor"} {
+		if _, _, err := fixture.execute(false, "add", plugin, "--target", target, "--yes"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var codexTarget string
+	for _, binding := range state.Installations[0].Clients {
+		if binding.ClientID == string(domain.ClientCodex) {
+			codexTarget = binding.TargetLocator
+		}
+	}
+	if err := os.RemoveAll(codexTarget); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.executeInput(true, "1\ny\n", "repair", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Choose one target:") || !strings.Contains(stdout, "Repair the managed package") {
+		t.Fatalf("repair prompts = %q", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(codexTarget, "plugin.json")); err != nil {
+		t.Fatalf("selected target was not repaired: %v", err)
+	}
+}
+
+func TestDeclinedJSONRepairEmitsOneValidEnvelope(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := onlyCLIClient(state.Installations[0]).TargetLocator
+	if err := os.RemoveAll(target); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(true, "repair", "demo", "--target", "cursor", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertVersionedJSON(t, stdout, "repair")
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("declined repair changed target: %v", err)
+	}
+}
+
+func TestRepairReturnsOutputErrors(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(onlyCLIClient(state.Installations[0]).TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	app := fixture.app
+	app.Input = strings.NewReader("n\n")
+	app.Output = alwaysErrorWriter{}
+	app.ErrorOutput = io.Discard
+	app.Terminal = true
+	command := NewRoot(app)
+	command.SetArgs([]string{"repair", "demo", "--target", "cursor"})
+	if err := command.ExecuteContext(context.Background()); err == nil || !strings.Contains(err.Error(), "synthetic output failure") {
+		t.Fatalf("repair output error = %v", err)
+	}
+}
+
 func TestChatGPTTargetIsNotAliasedToCodexCLI(t *testing.T) {
 	t.Parallel()
 	if got := normalizeTarget("chatgpt"); got == domain.ClientCodex {
@@ -890,6 +1001,12 @@ type cliFixture struct {
 	app        App
 	store      statev2.Store
 	operations string
+}
+
+type alwaysErrorWriter struct{}
+
+func (alwaysErrorWriter) Write([]byte) (int, error) {
+	return 0, errors.New("synthetic output failure")
 }
 
 func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {

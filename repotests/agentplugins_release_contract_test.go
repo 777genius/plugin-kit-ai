@@ -11,6 +11,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-release.yml")
 	npmWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-npm-publish.yml")
 	platformWorkflow := readRepoFile(t, root, ".github", "workflows", "agentplugins-platform-proof.yml")
+	platformPrepareJob := yamlJob(t, platformWorkflow, "prepare")
+	platformCompleteJob := yamlJob(t, platformWorkflow, "proof-complete")
 	releaseDraftJob := yamlJob(t, releaseWorkflow, "stage-draft")
 	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
 	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
@@ -45,6 +47,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, releaseDraftJob, ".data.repository.release")
 	mustNotContain(t, releaseDraftJob, "target_commitish")
 	mustContain(t, releaseProofJob, "needs: [validate, stage-draft]")
+	mustContain(t, releaseProofJob, "contents: write")
 	mustContain(t, releaseProofJob, "require_draft: true")
 	mustContain(t, releaseProofJob, "expected_asset_set_digest: ${{ needs.stage-draft.outputs.asset_set_digest }}")
 	mustContain(t, releasePromoteJob, "needs: [validate, stage-draft, platform-proof]")
@@ -86,6 +89,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, npmPlatformProofJob, "needs: release-identity")
 	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
 	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
+	mustContain(t, npmPlatformProofJob, "contents: read")
 	for _, want := range []string{
 		"needs: [release-identity, platform-proof]",
 		"if: ${{ !inputs.verify_only }}",
@@ -172,6 +176,25 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`git -C release-source rev-list -n 1 "refs/tags/${TAG}"`,
 	} {
 		mustContain(t, platformWorkflow, want)
+	}
+	for _, want := range []string{
+		"contents: write",
+		"attestations: read",
+		`[[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]`,
+		`if [[ "${commit}" != "${EXPECTED_COMMIT}" ]]`,
+		"release tag commit does not match the caller's frozen commit",
+	} {
+		mustContain(t, platformPrepareJob, want)
+	}
+	for _, want := range []string{
+		"Download all native platform proofs",
+		"expected exactly six machine-readable platform proofs",
+		"expected exactly one machine-readable proof for ${target}",
+		".schema_version == 1",
+		".release_version == $version",
+		".proofs.isolated_add_update_remove == $lifecycle",
+	} {
+		mustContain(t, platformCompleteJob, want)
 	}
 	mustNotContain(t, platformWorkflow, "target_commitish")
 	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)

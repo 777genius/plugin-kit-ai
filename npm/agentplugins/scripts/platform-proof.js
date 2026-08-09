@@ -36,11 +36,34 @@ function mkdir(directory) {
   fs.mkdirSync(directory, { recursive: true });
 }
 
+function npmInvocation(args, platform = process.platform, execPath = process.execPath) {
+  if (platform !== "win32") return { command: "npm", args };
+  const npmCLI = path.win32.join(path.win32.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return { command: execPath, args: [npmCLI, ...args] };
+}
+
+function parseLifecycle(value) {
+  if (value !== "true" && value !== "false") {
+    fail("lifecycle must be exactly true or false");
+  }
+  return value === "true";
+}
+
+function lifecycleCommands(synthetic) {
+  return [
+    ["add", synthetic, "--target", "cursor"],
+    ["add", synthetic, "--target", "cursor", "--activation-complete", "--auth-complete"],
+    ["update", "platform-proof-synthetic", "--target", "cursor"],
+    ["remove", "platform-proof-synthetic", "--target", "cursor"]
+  ];
+}
+
 function main() {
   const [tarballArg, version, expectedTarget, lifecycleArg, resultArg] = process.argv.slice(2);
   if (!tarballArg || !version || !expectedTarget || !lifecycleArg || !resultArg) {
     fail("usage: platform-proof.js <npm-tarball> <version> <os-arch> <true|false> <result-json>");
   }
+  const lifecycle = parseLifecycle(lifecycleArg);
   const osNames = { darwin: "darwin", linux: "linux", win32: "windows" };
   const archNames = { x64: "amd64", arm64: "arm64" };
   const actualTarget = `${osNames[process.platform] || process.platform}-${archNames[process.arch] || process.arch}`;
@@ -94,12 +117,14 @@ function main() {
   }
   fs.writeFileSync(env.NPM_CONFIG_USERCONFIG, "registry=https://registry.npmjs.org/\n");
 
-  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const tarball = path.resolve(tarballArg);
-  run(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund", "--save-exact", tarball], {
+  const npmInstall = npmInvocation(["install", "--ignore-scripts", "--no-audit", "--no-fund", "--save-exact", tarball]);
+  if (process.platform === "win32" && !fs.existsSync(npmInstall.args[0])) {
+    fail(`npm CLI was not found next to Node.js: ${npmInstall.args[0]}`);
+  }
+  run(npmInstall.command, npmInstall.args, {
     cwd: project,
-    env,
-    shell: process.platform === "win32"
+    env
   });
   const packageRoot = path.join(project, "node_modules", "universal-agent-plugins");
   const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
@@ -143,12 +168,12 @@ function main() {
   if (fs.readdirSync(cursor).join(",") !== "platform-proof-marker") fail("dry-run changed the synthetic client root");
   if (fs.lstatSync(binaryPath).mtimeMs !== firstMtime) fail("warm launcher invocation replaced the verified cache entry");
 
-  const lifecycle = lifecycleArg === "true";
   if (lifecycle) {
-    const add = invokeJSON(["add", synthetic, "--target", "cursor", "--yes"]);
-    const complete = invokeJSON(["add", synthetic, "--target", "cursor", "--yes", "--activation-complete", "--auth-complete"]);
-    const update = invokeJSON(["update", "platform-proof-synthetic", "--target", "cursor", "--yes"]);
-    const remove = invokeJSON(["remove", "platform-proof-synthetic", "--target", "cursor", "--yes"]);
+    const [addCommand, completeCommand, updateCommand, removeCommand] = lifecycleCommands(synthetic);
+    const add = invokeJSON(addCommand);
+    const complete = invokeJSON(completeCommand);
+    const update = invokeJSON(updateCommand);
+    const remove = invokeJSON(removeCommand);
     if (add.data.result.mutated !== true || add.data.result.activation.authentication !== "not_checked" ||
         complete.data.result.mutated !== true || complete.data.result.activation.activation_attested !== true ||
         complete.data.result.activation.authentication_attested !== true || update.data.result.no_change !== true ||
@@ -186,9 +211,13 @@ function main() {
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 }
 
-try {
-  main();
-} catch (error) {
-  process.stderr.write(`agentplugins platform proof: ${error.message}\n`);
-  process.exitCode = 1;
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    process.stderr.write(`agentplugins platform proof: ${error.message}\n`);
+    process.exitCode = 1;
+  }
 }
+
+module.exports = { lifecycleCommands, npmInvocation, parseLifecycle };

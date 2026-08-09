@@ -32,6 +32,10 @@ func NewOS(homeDir string) Detector {
 	if root := strings.TrimSpace(environment["XDG_DATA_HOME"]); root != "" {
 		xdgApplications = filepath.Join(root, "applications")
 	}
+	userApplications := ""
+	if root := strings.TrimSpace(homeDir); root != "" {
+		userApplications = filepath.Join(root, ".local", "share", "applications")
+	}
 	return Detector{
 		HomeDir:               homeDir,
 		GOOS:                  runtime.GOOS,
@@ -40,7 +44,7 @@ func NewOS(homeDir string) Detector {
 		WindowsProgramFiles:   compactPaths(environment["ProgramFiles"], environment["ProgramW6432"], environment["ProgramFiles(x86)"]),
 		LinuxApplicationDirs: compactPaths(
 			xdgApplications,
-			filepath.Join(homeDir, ".local", "share", "applications"),
+			userApplications,
 			"/usr/local/share/applications", "/usr/share/applications",
 		),
 		LookPath: exec.LookPath,

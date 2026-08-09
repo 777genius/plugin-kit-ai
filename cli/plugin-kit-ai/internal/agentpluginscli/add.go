@@ -248,7 +248,9 @@ func backendExecutable(selected domain.DetectedClient, clients map[domain.Client
 }
 
 func promptYesNo(reader io.Reader, writer io.Writer, prompt string) (bool, error) {
-	_, _ = fmt.Fprint(writer, prompt+" ")
+	if _, err := fmt.Fprint(writer, prompt+" "); err != nil {
+		return false, err
+	}
 	line, err := readInputLine(reader)
 	if err != nil && err != io.EOF {
 		return false, err

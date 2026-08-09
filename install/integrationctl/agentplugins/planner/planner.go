@@ -78,11 +78,6 @@ func (planner Planner) Plan(
 			}
 		}
 	}
-	if plan.Authentication == domain.AuthenticationPending {
-		plan.UserActions = append(plan.UserActions, "complete authentication for this plugin in the selected client")
-	} else if plan.Authentication == domain.AuthenticationNotChecked {
-		plan.UserActions = append(plan.UserActions, "verify the plugin's authentication requirements before using it")
-	}
 	if !hasComponents(plan.Components) && hasComponentErrors {
 		plan.Status = domain.PlanUnsupported
 		plan.Activation = domain.ActivationFailed
@@ -91,6 +86,14 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanUnsupported
 		plan.Activation = domain.ActivationFailed
 		plan.Warnings = append(plan.Warnings, "no_supported_components")
+	}
+	if plan.Status == domain.PlanUnsupported {
+		return plan, nil
+	}
+	if plan.Authentication == domain.AuthenticationPending {
+		plan.UserActions = append(plan.UserActions, "complete authentication for this plugin in the selected client")
+	} else if plan.Authentication == domain.AuthenticationNotChecked {
+		plan.UserActions = append(plan.UserActions, "verify the plugin's authentication requirements before using it")
 	}
 	if plan.Status != domain.PlanUnsupported && planner.hasNativeCopilotBackend(client) {
 		plan.Status = domain.PlanReady
@@ -155,7 +158,9 @@ func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.Catal
 	}
 	if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
 		plan.Warnings = appendUnique(plan.Warnings, "catalog_"+compatibility.Verification)
-		plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+		if plan.Status != domain.PlanUnsupported {
+			plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+		}
 	}
 }
 

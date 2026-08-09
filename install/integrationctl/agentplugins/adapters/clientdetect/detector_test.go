@@ -28,6 +28,16 @@ func TestDetectorReturnsAllSupportedClientsWithoutAmbientDiscovery(t *testing.T)
 	}
 }
 
+func TestNewOSDoesNotProbeRelativeLocalApplicationsWithoutHome(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", "")
+	detector := NewOS("")
+	for _, directory := range detector.LinuxApplicationDirs {
+		if directory == filepath.Join(".local", "share", "applications") || !filepath.IsAbs(directory) {
+			t.Fatalf("NewOS configured unsafe relative application probe %q", directory)
+		}
+	}
+}
+
 func TestDetectorFindsOneAndMultipleClientsFromInjectedHomeAndPath(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

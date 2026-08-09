@@ -253,7 +253,8 @@ jobs:
     needs: [validate, stage-draft]
     uses: ./.github/workflows/agentplugins-platform-proof.yml
     permissions:
-      contents: read
+      # Draft release assets require push-level repository access.
+      contents: write
       attestations: read
     with:
       tag: ${{ inputs.tag }}

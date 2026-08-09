@@ -8,8 +8,8 @@ on:
         required: true
         type: string
       expected_commit:
-        description: Optional exact 40-character release commit (required by publish callers)
-        required: false
+        description: Exact lowercase 40-character release commit
+        required: true
         type: string
       allow_legacy_manifest:
         description: Audit a schema-v1 historical release; never eligible as an npm publish gate
@@ -78,6 +78,11 @@ jobs:
   prepare:
     name: Verify release and pack exact npm tarball
     runs-on: ubuntu-24.04
+    permissions:
+      # GitHub only exposes draft releases and their assets to tokens with push
+      # access; scope that elevated contents permission to this job alone.
+      contents: write
+      attestations: read
     outputs:
       commit: ${{ steps.prepare.outputs.commit }}
       version: ${{ steps.prepare.outputs.version }}
@@ -116,11 +121,15 @@ jobs:
             echo "invalid agentplugins stable tag: ${TAG}" >&2
             exit 1
           fi
+          if [[ ! "${EXPECTED_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "expected_commit must be an exact lowercase 40-character commit" >&2
+            exit 1
+          fi
           commit="$(git -C release-source rev-parse HEAD)"
           git -C release-source fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
           tag_commit="$(git -C release-source rev-list -n 1 "refs/tags/${TAG}")"
           test "${tag_commit}" = "${commit}"
-          if [[ -n "${EXPECTED_COMMIT}" ]] && [[ "${commit}" != "${EXPECTED_COMMIT}" ]]; then
+          if [[ "${commit}" != "${EXPECTED_COMMIT}" ]]; then
             echo "release tag commit does not match the caller's frozen commit" >&2
             exit 1
           fi
@@ -264,5 +273,58 @@ jobs:
     needs: [prepare, native-runtime]
     runs-on: ubuntu-24.04
     steps:
-      - name: Confirm native matrix aggregation
-        run: test "${{ needs.native-runtime.result }}" = "success"
+      - name: Download all native platform proofs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: agentplugins-native-proof-*
+          path: ${{ runner.temp }}/agentplugins-native-proofs
+      - name: Validate exactly one proof for every native target
+        env:
+          EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          root="${RUNNER_TEMP}/agentplugins-native-proofs"
+          proofs=()
+          while IFS= read -r -d '' proof; do
+            proofs+=("${proof}")
+          done < <(find "${root}" -type f -name '*.json' -print0)
+          if [[ "${#proofs[@]}" -ne 6 ]]; then
+            echo "expected exactly six machine-readable platform proofs, found ${#proofs[@]}" >&2
+            exit 1
+          fi
+          for spec in \
+            "darwin-amd64 false" \
+            "darwin-arm64 true" \
+            "linux-amd64 true" \
+            "linux-arm64 false" \
+            "windows-amd64 true" \
+            "windows-arm64 false"; do
+            read -r target lifecycle <<<"${spec}"
+            matches=()
+            while IFS= read -r -d '' proof; do
+              matches+=("${proof}")
+            done < <(find "${root}" -type f -name "agentplugins-proof-${target}.json" -print0)
+            if [[ "${#matches[@]}" -ne 1 ]]; then
+              echo "expected exactly one machine-readable proof for ${target}, found ${#matches[@]}" >&2
+              exit 1
+            fi
+            jq -e \
+              --arg target "${target}" \
+              --arg version "${EXPECTED_VERSION}" \
+              --argjson lifecycle "${lifecycle}" \
+              '.schema_version == 1 and
+               .target == $target and
+               .release_version == $version and
+               .execution == "native-runtime-e2e" and
+               .proofs.npm_install_ignore_scripts == true and
+               .proofs.launcher_cold_bootstrap == true and
+               .proofs.embedded_sha256_and_size == true and
+               .proofs.released_binary_executed == true and
+               .proofs.version == true and
+               .proofs.list == true and
+               .proofs.doctor_read_only == true and
+               .proofs.synthetic_add_dry_run == true and
+               .proofs.warm_cache == true and
+               .proofs.isolated_add_update_remove == $lifecycle' \
+              "${matches[0]}" >/dev/null
+          done
