@@ -26,8 +26,9 @@ It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares
 or installs one explicit target at a time across Codex/ChatGPT, Cursor, GitHub
 Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
-The portable source is only the root `plugin.json`; generated output for the
-official OpenAI host uses `.codex-plugin/plugin.json`.
+The portable manifest is the root `plugin.json`; optional portable components
+such as `mcp.json` and skills remain package inputs. For the Codex target, the
+CLI generates the official Codex package manifest at `.codex-plugin/plugin.json`.
 
 When GitHub Copilot CLI is detected, `agentplugins` installs, updates, and
 removes the plugin automatically through a managed local marketplace. VS Code
