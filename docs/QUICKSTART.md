@@ -18,7 +18,7 @@ Supported targets:
 
 | Target | What the CLI does | Remaining user step |
 | --- | --- | --- |
-| `codex` | Generates a personal OpenAI marketplace package | Runs no hidden UI actions; prints exact Codex CLI and ChatGPT/Codex app steps |
+| `codex` | Generates a personal OpenAI marketplace package | Runs no hidden UI actions; prints exact Codex activation steps |
 | `cursor` | Places the native package in Cursor's local plugin directory | Reload Cursor, then verify the plugin appears |
 | `copilot` | Registers a managed marketplace, installs, and verifies through Copilot CLI | Nothing when successful |
 | `vscode` | Installs automatically through Copilot CLI when available | Otherwise prints the exact `chat.pluginLocations` setting |
@@ -36,6 +36,11 @@ npx universal-agent-plugins remove context7 --target cursor
 `prepared`, `auth_pending`, and `manual_activation_required` are not reported as
 installed. OAuth stays inside the client; the CLI never stores tokens or accepts
 trust prompts automatically.
+
+ChatGPT is a separate Plugins UI flow, not a CLI target. Its remote MCP packages
+need a registered `.app.json` binding. Cloudflare Docs has a development binding
+and passed a direct read-only connection check, but installing this repository's
+package in ChatGPT is still pending. The five stdio MCP packages remain Codex-only.
 
 The portable package can also be installed through a client's native Agent
 Plugins flow. Exact client/runtime/OAuth evidence is kept separately in the

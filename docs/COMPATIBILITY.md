@@ -38,6 +38,20 @@ at [agent-plugins.org](https://agent-plugins.org/compatible-clients).
 | `supabase` | Streamable HTTP | Client-managed auth and project scoping; development/test data only per upstream guidance |
 | `vercel` | Streamable HTTP | Client-managed Vercel OAuth |
 
+## OpenAI delivery boundary
+
+| Package group | Count | Codex | ChatGPT |
+| --- | ---: | --- | --- |
+| stdio MCP | 5 | Generated `.mcp.json` package | Not supported; Codex-only |
+| Streamable HTTP MCP | 20 | Generated `.mcp.json` package | Requires a registered `.app.json` binding |
+| Skills-only | 1 | Generated skills package | Separate skills package; package UI E2E not claimed |
+
+Cloudflare Docs is the only remote package with a registered ChatGPT
+development binding. Its direct no-auth connection passed `list_resources` and
+one read-only documentation search; installation of this repository package
+through the ChatGPT Plugins UI remains pending. No other remote package is
+claimed as ChatGPT-installable.
+
 ## Dependency pins
 
 Verified against stable registry releases on 2026-08-07:

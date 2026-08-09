@@ -1,0 +1,55 @@
+{
+  "client": "ChatGPT Developer Mode",
+  "version": "rolling web release; build identifier not exposed",
+  "date": "2026-08-10",
+  "evidence_type": "interactive_direct_mcp_runtime",
+  "connection": "registered no-auth development MCP connection",
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "plugin": "cloudflare-docs",
+    "plugin_version": "0.1.0",
+    "delivery": "direct registered connection; repository package not installed"
+  },
+  "checks": [
+    {
+      "scenario": "connect the registered Cloudflare Docs development MCP",
+      "status": "passed"
+    },
+    {
+      "scenario": "call list_resources through the direct connection",
+      "status": "passed"
+    },
+    {
+      "scenario": "run one read-only search_cloudflare_documentation call",
+      "status": "passed",
+      "detail": "The query 'Durable Objects SQLite storage API' returned 7 results. No raw result payload was recorded."
+    },
+    {
+      "scenario": "install this repository package from the ChatGPT Plugins UI",
+      "status": "skipped",
+      "reason": "package UI E2E is pending and is not implied by the direct connection"
+    }
+  ],
+  "cleanup": {
+    "connection_status": "retained for package UI E2E"
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "technical connection ID",
+      "chat URLs",
+      "authorization URLs",
+      "raw tool output"
+    ]
+  }
+}

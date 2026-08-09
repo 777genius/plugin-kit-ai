@@ -10,6 +10,13 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from openai_app_bindings import (
+    APP_BINDINGS,
+    app_document,
+    load_app_bindings,
+    validate_binding_target,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PORTABLE_ROOT = ROOT / "plugins"
@@ -119,7 +126,12 @@ def display_name(name: str) -> str:
     return special.get(name, name.replace("-", " ").title())
 
 
-def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool) -> dict[str, object]:
+def openai_manifest(
+    portable: dict[str, object],
+    has_skills: bool,
+    has_mcp: bool,
+    has_app: bool,
+) -> dict[str, object]:
     """Translate a portable manifest into the current OpenAI host manifest."""
     name = str(portable["name"])
     description = str(portable["description"])
@@ -138,6 +150,8 @@ def openai_manifest(portable: dict[str, object], has_skills: bool, has_mcp: bool
         manifest["skills"] = "./skills/"
     if has_mcp:
         manifest["mcpServers"] = "./.mcp.json"
+    if has_app:
+        manifest["apps"] = "./.app.json"
     capabilities = CAPABILITY_OVERRIDES.get(
         name,
         ["Read"] if name in READ_ONLY_PLUGINS else ["Read", "Write"],
@@ -180,17 +194,36 @@ def openai_mcp(portable: dict[str, object], plugin_name: str) -> dict[str, objec
 
 def build(output_root: Path, marketplace_path: Path) -> None:
     """Generate all OpenAI packages and their marketplace catalog."""
+    bindings = load_app_bindings(APP_BINDINGS)
+    portable_roots = sorted(path for path in PORTABLE_ROOT.iterdir() if path.is_dir())
+    unknown_bindings = set(bindings) - {path.name for path in portable_roots}
+    if unknown_bindings:
+        raise ValueError(f"app bindings reference unknown plugins: {sorted(unknown_bindings)}")
     entries = []
-    for portable_root in sorted(path for path in PORTABLE_ROOT.iterdir() if path.is_dir()):
+    for portable_root in portable_roots:
         portable = load(portable_root / "plugin.json")
         name = str(portable["name"])
+        if name != portable_root.name:
+            raise ValueError(f"{portable_root}: plugin name does not match directory")
         output = output_root / name
         output.mkdir(parents=True, exist_ok=True)
         has_skills = (portable_root / "skills").is_dir()
         has_mcp = (portable_root / "mcp.json").is_file()
-        dump(output / ".codex-plugin" / "plugin.json", openai_manifest(portable, has_skills, has_mcp))
+        binding = bindings.get(name)
+        portable_mcp = load(portable_root / "mcp.json") if has_mcp else None
+        if binding is not None:
+            if portable_mcp is None:
+                raise ValueError(f"{name}: app binding requires portable mcp.json")
+            validate_binding_target(name, binding, portable_mcp)
+        dump(
+            output / ".codex-plugin" / "plugin.json",
+            openai_manifest(portable, has_skills, has_mcp, binding is not None),
+        )
         if has_mcp:
-            dump(output / ".mcp.json", openai_mcp(load(portable_root / "mcp.json"), name))
+            assert portable_mcp is not None
+            dump(output / ".mcp.json", openai_mcp(portable_mcp, name))
+        if binding is not None:
+            dump(output / ".app.json", app_document(binding))
         if has_skills:
             shutil.copytree(portable_root / "skills", output / "skills", dirs_exist_ok=True)
         assets = output / "assets"
