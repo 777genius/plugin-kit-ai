@@ -145,7 +145,7 @@
         "agent_plugins_schema": {
           "const": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
         },
-        "minimum_cli_version": { "$ref": "#/$defs/semver" },
+        "minimum_cli_version": { "const": "0.1.6" },
         "source_path": {
           "type": "string",
           "pattern": "^plugins/[a-z0-9][a-z0-9.-]*$"

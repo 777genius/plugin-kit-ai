@@ -72,6 +72,7 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         for plugin in current["plugins"]:
             self.assertRegex(plugin["tree_digest"], r"^sha256:[0-9a-f]{64}$")
             self.assertRegex(plugin["manifest_digest"], r"^sha256:[0-9a-f]{64}$")
+            self.assertEqual(plugin["minimum_cli_version"], "0.1.6")
             expected = base_clients | ({"chatgpt"} if plugin["name"] == "cloudflare-docs" else set())
             self.assertEqual(set(plugin["compatibility"]), expected)
 
@@ -249,6 +250,9 @@ class AgentpluginsCatalogBuilderTests(unittest.TestCase):
         document, chatgpt = mutated_chatgpt()
         del chatgpt["app_binding"]["id"]
         cases["missing ID"] = document
+        document, _ = mutated_chatgpt()
+        document["plugins"][cloudflare_index]["minimum_cli_version"] = "0.1.5"
+        cases["pre-v2 CLI version"] = document
         document, chatgpt = mutated_chatgpt()
         chatgpt["package"] = "native"
         cases["non-projected package"] = document
