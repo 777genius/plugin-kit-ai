@@ -339,6 +339,37 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
         self.assertNotIn("private-code", sanitized)
         self.assertNotIn("private-state", sanitized)
 
+    def test_sanitizer_redacts_standalone_bearer_and_oauth_fragment(self) -> None:
+        sanitized = hero_e2e.sanitized_failure_output(
+            "remote said Bearer FAKE_BEARER_VALUE; "
+            "callback https://example.test/cb#code=FRAGMENT_CODE&state=FRAGMENT_STATE",
+            Path("/tmp/sandbox"),
+            {},
+        )
+
+        self.assertEqual(
+            sanitized,
+            "remote said Bearer <redacted>; "
+            "callback https://example.test/cb#code=<redacted>&state=<redacted>",
+        )
+        for secret in ("FAKE_BEARER_VALUE", "FRAGMENT_CODE", "FRAGMENT_STATE"):
+            self.assertNotIn(secret, sanitized)
+
+    def test_sanitizer_redacts_colon_prefixed_path_but_preserves_public_url(self) -> None:
+        sanitized = hero_e2e.sanitized_failure_output(
+            "binary:/home/runner/work/repo/tool; file:file:///var/lib/private/item; "
+            "docs:https://example.test/public/guide",
+            Path("/tmp/sandbox"),
+            {},
+        )
+
+        self.assertEqual(
+            sanitized,
+            "binary:<path>; file:<path>; docs:https://example.test/public/guide",
+        )
+        self.assertNotIn("/home/runner/work/repo/tool", sanitized)
+        self.assertNotIn("/var/lib/private/item", sanitized)
+
     def test_projection_timeout_names_target_plugin_and_command(self) -> None:
         with mock.patch.object(
             hero_e2e.subprocess,

@@ -253,6 +253,7 @@ def sanitized_failure_output(
             path_values.add(environment[name])
     for path in sorted(path_values, key=len, reverse=True):
         value = value.replace(path, "<path>")
+    value = re.sub(r"(?i)\bfile:///(?:[^\s,;]+)", "<path>", value)
     value = re.sub(r"(?i)(https?://)[^/@\s]+:[^/@\s]+@", r"\1<credentials>@", value)
     value = re.sub(
         r"(?im)(\bauthorization\s*[:=]\s*)[^\r\n]+",
@@ -260,7 +261,10 @@ def sanitized_failure_output(
         value,
     )
     value = re.sub(
-        r"(?i)([?&](?:code|state)=)[^&#\s]*", r"\1<redacted>", value
+        r"(?i)\bBearer\s+[^\s,;]+", "Bearer <redacted>", value
+    )
+    value = re.sub(
+        r"(?i)([?&#](?:code|state)=)[^&#\s]*", r"\1<redacted>", value
     )
     value = re.sub(
         r'''(?ix)
@@ -271,7 +275,7 @@ def sanitized_failure_output(
         r"\g<key><redacted>",
         value,
     )
-    value = re.sub(r"(?<![\w./:])(?:/[A-Za-z0-9._+@%=-]+){2,}", "<path>", value)
+    value = re.sub(r"(?<![\w./])(?:/[A-Za-z0-9._+@%=-]+){2,}", "<path>", value)
     value = re.sub(r"(?i)\b[A-Z]:\\(?:[^\s\\]+\\)*[^\s\\]+", "<path>", value)
     return value[:1000]
 
