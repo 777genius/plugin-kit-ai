@@ -127,7 +127,10 @@ func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.Catal
 	}
 	compatibility, ok := evidence.Compatibility[string(plan.ClientID)]
 	if !ok {
+		plan.Status = domain.PlanUnsupported
+		plan.Activation = domain.ActivationFailed
 		plan.Warnings = appendUnique(plan.Warnings, "client_compatibility_not_catalog_verified")
+		plan.UserActions = append(plan.UserActions, "choose a client present in the pinned catalog evidence")
 		return
 	}
 	switch compatibility.Authentication {

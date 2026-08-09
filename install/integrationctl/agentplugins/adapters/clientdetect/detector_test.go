@@ -129,6 +129,52 @@ func TestDetectorFindsFixedWindowsDesktopInstallationWithoutPATH(t *testing.T) {
 	}
 }
 
+func TestDetectorFindsWindowsSystemInstallationWithoutUserInstall(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	programFiles := filepath.Join(home, "Program Files")
+	executable := filepath.Join(programFiles, "Microsoft VS Code", "Code.exe")
+	if err := os.MkdirAll(filepath.Dir(executable), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(executable, []byte("synthetic"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	detector.GOOS = "windows"
+	detector.WindowsProgramFiles = []string{programFiles}
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	vscode := clientOf(clients, domain.ClientVSCode)
+	if vscode.Status != domain.DetectionDetected || !surfaceDetected(vscode.Surfaces, "vscode_desktop") {
+		t.Fatalf("VS Code system detection = %+v", vscode)
+	}
+}
+
+func TestDetectorFindsLinuxGUIOnlyFromExactDesktopEntry(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	applications := filepath.Join(home, "usr-share-applications")
+	if err := os.MkdirAll(applications, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(applications, "kiro.desktop"), []byte("[Desktop Entry]"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	detector.LinuxApplicationDirs = []string{applications}
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	kiro := clientOf(clients, domain.ClientKiro)
+	if kiro.Status != domain.DetectionDetected || kiro.ExecutablePath != "" || !surfaceDetected(kiro.Surfaces, "kiro_desktop") {
+		t.Fatalf("Kiro Linux GUI-only detection = %+v", kiro)
+	}
+}
+
 func testDetector(home string, binaries map[string]string) Detector {
 	applications := filepath.Join(home, "system-applications")
 	return Detector{

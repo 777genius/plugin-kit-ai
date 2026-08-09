@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,10 +160,140 @@ func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
 		}
 		if finding.Code == "managed_directory_changed" {
 			found = true
+			if finding.InstallationName != "demo" || finding.InstallationID == "" || finding.ClientID != "cursor" {
+				t.Fatalf("managed finding scope = %+v", finding)
+			}
+			if finding.RecoveryAction != "run `agentplugins repair demo --target cursor`" {
+				t.Fatalf("managed finding recovery = %q", finding.RecoveryAction)
+			}
 		}
 	}
 	if !found {
 		t.Fatalf("managed integrity finding missing: %+v", output.Data.Findings)
+	}
+}
+
+func TestDoctorScopesPendingRecoveryAndRendersIdentity(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Authentication = domain.AuthenticationPending
+		state.Installations[0].Clients[key] = binding
+	}
+	if err := fixture.store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installationID := state.Installations[0].InstallationID
+	for _, expected := range []string{
+		"Installation: demo (" + installationID + ")",
+		"Client: cursor",
+		"complete the displayed external activation step, then rerun the same `agentplugins add ... --target cursor` command",
+		"complete the displayed external authentication step, then rerun the same `agentplugins add ... --target cursor` command",
+	} {
+		if !strings.Contains(stdout, expected) {
+			t.Fatalf("doctor output omitted %q:\n%s", expected, stdout)
+		}
+	}
+	if strings.Contains(stdout, "then rerun doctor") {
+		t.Fatalf("pending lifecycle recovery incorrectly recommends doctor:\n%s", stdout)
+	}
+}
+
+func TestDoctorBlocksAutomaticMutationForMissingPhysicalIdentity(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.PhysicalArtifact = ""
+		state.Installations[0].Clients[key] = binding
+	}
+	findings := doctorFindings(context.Background(), fixture.app, fixture.app.Detector.(staticDetector).clients, state, nil, &state.Installations[0])
+	var found doctorFinding
+	for _, finding := range findings {
+		if finding.Code == "managed_target_unverifiable" {
+			found = finding
+		}
+	}
+	if found.Code == "" || !strings.Contains(found.RecoveryAction, "automatic mutation is intentionally blocked") {
+		t.Fatalf("missing identity recovery = %+v", findings)
+	}
+	if strings.Contains(found.RecoveryAction, "update") || strings.Contains(found.RecoveryAction, "remove") {
+		t.Fatalf("blocked identity recovery invented a refusing mutation: %+v", found)
+	}
+}
+
+func TestDoctorDoesNotRequireCopilotCLIForVSCodeBinding(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientVSCode)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "vscode", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout, "copilot_cli_missing") {
+		t.Fatalf("VS Code binding incorrectly required Copilot CLI: %s", stdout)
+	}
+}
+
+func TestDoctorDoesNotCallVerifierFailureChangedContent(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	fixture.app.Stager = failingVerifyStager{err: errors.New("temporary verifier unavailable")}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "managed_integrity_check_failed") || strings.Contains(stdout, "managed_directory_changed") {
+		t.Fatalf("verification infrastructure error was mislabeled: %s", stdout)
+	}
+}
+
+func TestDoctorSkipsClientWarningsForAbsentBinding(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, binding := range state.Installations[0].Clients {
+		binding.Materialization = domain.MaterializationAbsent
+		state.Installations[0].Clients[key] = binding
+	}
+	findings := doctorFindings(context.Background(), fixture.app, nil, state, nil, &state.Installations[0])
+	for _, finding := range findings {
+		if finding.ClientID != "" {
+			t.Fatalf("absent binding produced client finding: %+v", finding)
+		}
 	}
 }
 
@@ -543,6 +674,22 @@ func (fixture cliFixture) execute(terminal bool, args ...string) (string, string
 
 type staticDetector struct {
 	clients []domain.DetectedClient
+}
+
+type failingVerifyStager struct {
+	err error
+}
+
+func (failingVerifyStager) Stage(context.Context, domain.PackageEnvelope, domain.DeliveryPlan, string, domain.CompatibilityHints) (domain.StagedDelivery, error) {
+	return domain.StagedDelivery{}, errors.New("unexpected stage")
+}
+
+func (failingVerifyStager) Discard(context.Context, domain.StagedDelivery) error {
+	return errors.New("unexpected discard")
+}
+
+func (stager failingVerifyStager) Verify(context.Context, string, string) error {
+	return stager.err
 }
 
 type cliLegacyLifecycleStub struct {

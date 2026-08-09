@@ -1,6 +1,9 @@
 package statev2
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +11,27 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
+
+type oldPackageBindingV2 struct {
+	LoaderKind     string                    `json:"loader_kind"`
+	FormatID       string                    `json:"format_id"`
+	SchemaURI      string                    `json:"schema_uri"`
+	DeclaredName   string                    `json:"declared_name"`
+	Version        string                    `json:"version,omitempty"`
+	ManifestDigest string                    `json:"manifest_digest"`
+	Inventory      domain.ComponentInventory `json:"inventory"`
+}
+
+type oldInstallationV2 struct {
+	InstallationID string                          `json:"installation_id"`
+	DeclaredName   string                          `json:"declared_name"`
+	Source         domain.SourceBinding            `json:"source"`
+	Package        oldPackageBindingV2             `json:"package"`
+	Clients        map[string]domain.ClientBinding `json:"clients"`
+	NeedsRebind    bool                            `json:"needs_rebind,omitempty"`
+	CreatedAt      string                          `json:"created_at"`
+	UpdatedAt      string                          `json:"updated_at"`
+}
 
 func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	t.Parallel()
@@ -35,6 +59,38 @@ func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("state mode = %o", info.Mode().Perm())
+	}
+}
+
+func TestNewlyWrittenStateDecodesWithStrictOldV2Shape(t *testing.T) {
+	t.Parallel()
+	store := Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}
+	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{
+		validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001"),
+	}}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	var old struct {
+		SchemaVersion int                 `json:"schema_version"`
+		Installations []oldInstallationV2 `json:"installations"`
+	}
+	if err := decoder.Decode(&old); err != nil {
+		t.Fatalf("old 0.1.4 v2 decoder rejected new state: %v\n%s", err, body)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		t.Fatalf("trailing state data: %v", err)
+	}
+	for _, forbidden := range []string{`"manifest_schema"`, `"manifest_document"`, `"catalog_evidence"`, `"diagnostics"`} {
+		if bytes.Contains(body, []byte(forbidden)) {
+			t.Fatalf("new state contains incompatible key %s", forbidden)
+		}
 	}
 }
 

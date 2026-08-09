@@ -62,6 +62,25 @@ func TestPlannerAuthenticationRequiresAffirmativePerClientCatalogEvidence(t *tes
 	}
 }
 
+func TestPlannerFailsClosedWhenPinnedCatalogEvidenceOmitsSelectedClient(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+		"codex": {Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+	}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(
+		context.Background(), envelope,
+		detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")),
+		domain.ScopeUser, "demo-0123456789ab",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Status != domain.PlanUnsupported || plan.Activation != domain.ActivationFailed || !contains(plan.Warnings, "client_compatibility_not_catalog_verified") {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
 func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
 	t.Parallel()
 	envelope := testEnvelope()

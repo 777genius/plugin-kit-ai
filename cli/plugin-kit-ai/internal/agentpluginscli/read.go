@@ -2,9 +2,11 @@ package agentpluginscli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -42,11 +44,14 @@ type publicInstallation struct {
 }
 
 type doctorFinding struct {
-	Status         string `json:"status"`
-	Code           string `json:"code"`
-	Subject        string `json:"subject,omitempty"`
-	Message        string `json:"message"`
-	RecoveryAction string `json:"recovery_action,omitempty"`
+	Status           string `json:"status"`
+	Code             string `json:"code"`
+	Subject          string `json:"subject,omitempty"`
+	InstallationName string `json:"installation_name,omitempty"`
+	InstallationID   string `json:"installation_id,omitempty"`
+	ClientID         string `json:"client_id,omitempty"`
+	Message          string `json:"message"`
+	RecoveryAction   string `json:"recovery_action,omitempty"`
 }
 
 type supportedClient struct {
@@ -170,6 +175,12 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open recovery operations: %d\n", report.OpenOperationCount)
 	for _, finding := range report.Findings {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: %s\n", finding.Status, finding.Code, finding.Message)
+		if finding.InstallationID != "" {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Installation: %s (%s)\n", finding.InstallationName, finding.InstallationID)
+		}
+		if finding.ClientID != "" {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Client: %s\n", finding.ClientID)
+		}
 		if finding.RecoveryAction != "" {
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Recovery: %s\n", finding.RecoveryAction)
 		}
@@ -211,65 +222,44 @@ func doctorFindings(ctx context.Context, app App, detected []domain.DetectedClie
 		installations = []domain.Installation{*selected}
 	}
 	for _, installation := range installations {
-		for _, diagnostic := range installation.Package.Diagnostics {
-			status := string(diagnostic.Severity)
-			if diagnostic.Severity == domain.SeverityError {
-				status = "degraded"
-			}
-			findings = append(findings, doctorFinding{Status: status, Code: diagnostic.Code, Subject: installation.DeclaredName, Message: diagnostic.Message, RecoveryAction: "review the package diagnostic and update the package after correcting the indicated item"})
-		}
-		if evidence := installation.Package.CatalogEvidence; evidence != nil {
-			clientIDs := make([]string, 0, len(evidence.Compatibility))
-			for clientID := range evidence.Compatibility {
-				clientIDs = append(clientIDs, clientID)
-			}
-			sort.Strings(clientIDs)
-			for _, clientID := range clientIDs {
-				compatibility := evidence.Compatibility[clientID]
-				if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
-					findings = append(findings, doctorFinding{Status: "warning", Code: "catalog_" + compatibility.Verification, Subject: clientID, Message: "catalog compatibility has limited runtime verification", RecoveryAction: "verify the plugin in this client before relying on it"})
-				}
-			}
-		}
 		if installation.NeedsRebind {
-			findings = append(findings, degradedFinding("source_rebind_required", installation.DeclaredName, "the source identity needs an explicit rebind", "remove the old binding or run the explicit rebind workflow before updating"))
+			findings = append(findings, scopedFinding("degraded", "source_rebind_required", installation, "", "the source identity needs an explicit rebind", "automatic mutation is intentionally blocked; recover the original source identity and review an explicit rebind against the recorded installation"))
 		}
 		for _, binding := range installation.Clients {
 			if binding.Materialization == domain.MaterializationAbsent {
 				continue
 			}
 			if _, supported := clientplanner.Capabilities(domain.ClientID(binding.ClientID)); !supported {
-				findings = append(findings, degradedFinding("unsupported_client_binding", binding.ClientID, "the tracked binding names an unsupported client", "remove this stale binding and add the plugin to a supported client"))
+				findings = append(findings, scopedFinding("degraded", "unsupported_client_binding", installation, binding.ClientID, "the tracked binding names an unsupported client", blockedStateRecovery))
 				continue
 			}
 			client, visible := detectedByID[binding.ClientID]
 			if !visible || client.Status != domain.DetectionDetected {
-				findings = append(findings, degradedFinding("client_not_visible", binding.ClientID, "the package is tracked but no current client visibility evidence was detected", "install or launch the client so its CLI, desktop application, or configuration directory is visible, then rerun doctor"))
+				findings = append(findings, scopedFinding("degraded", "client_not_visible", installation, binding.ClientID, "the package is tracked but no current client visibility evidence was detected", "install or launch the client so its CLI, desktop application, or configuration directory is visible, then rerun doctor"))
+			}
+			if binding.ClientID == string(domain.ClientCopilot) && strings.TrimSpace(client.ExecutablePath) == "" {
+				findings = append(findings, scopedFinding("degraded", "copilot_cli_missing", installation, binding.ClientID, "GitHub Copilot CLI is unavailable for automatic Copilot activation", "install GitHub Copilot CLI, ensure copilot is on PATH, and rerun doctor"))
 			}
 			switch binding.Activation {
 			case domain.ActivationManual, domain.ActivationPrepared:
-				findings = append(findings, degradedFinding("activation_pending", binding.ClientID, "client activation is not complete", "open the selected client, finish plugin activation, and then rerun doctor"))
+				findings = append(findings, scopedFinding("degraded", "activation_pending", installation, binding.ClientID, "client activation is not complete", fmt.Sprintf("complete the displayed external activation step, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
 			case domain.ActivationFailed:
-				findings = append(findings, degradedFinding("activation_failed", binding.ClientID, "client activation failed", "retry the plugin update for this client after resolving the client-reported activation error"))
+				findings = append(findings, scopedFinding("degraded", "activation_failed", installation, binding.ClientID, "client activation failed", fmt.Sprintf("resolve the client-reported activation error, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
 			}
 			switch binding.Authentication {
 			case domain.AuthenticationPending:
-				findings = append(findings, degradedFinding("authentication_pending", binding.ClientID, "plugin authentication is pending", "complete authentication in the selected client and rerun doctor"))
+				findings = append(findings, scopedFinding("degraded", "authentication_pending", installation, binding.ClientID, "plugin authentication is pending", fmt.Sprintf("complete the displayed external authentication step, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
 			case domain.AuthenticationFailed:
-				findings = append(findings, degradedFinding("authentication_failed", binding.ClientID, "plugin authentication failed", "reauthorize the plugin in the selected client and rerun doctor"))
+				findings = append(findings, scopedFinding("degraded", "authentication_failed", installation, binding.ClientID, "plugin authentication failed", fmt.Sprintf("reauthorize the plugin in the selected client, then rerun the same `agentplugins add ... --target %s` command", binding.ClientID)))
 			case domain.AuthenticationNotChecked:
-				findings = append(findings, doctorFinding{Status: "unknown", Code: "authentication_not_checked", Subject: binding.ClientID, Message: "authentication requirements have not been verified", RecoveryAction: "check the package's authentication instructions and verify access in the selected client"})
+				findings = append(findings, scopedFinding("unknown", "authentication_not_checked", installation, binding.ClientID, "authentication requirements have not been verified", "check the package's authentication instructions and verify access in the selected client"))
 			}
 			if binding.Materialization == domain.MaterializationDegraded || binding.Verification == domain.VerificationFailed {
-				findings = append(findings, degradedFinding("installation_verification_failed", binding.ClientID, "the managed package is marked degraded or failed verification", "run plugin update for this client to rebuild and verify the managed package"))
+				findings = append(findings, scopedFinding("degraded", "installation_verification_failed", installation, binding.ClientID, "the managed package is marked degraded or failed verification", repairAction(installation, binding)))
 			}
-			findings = append(findings, checkManagedIntegrity(ctx, app, client, binding)...)
-		}
-	}
-	if requiresCopilotRuntime(installations) {
-		copilot, ok := detectedByID[string(domain.ClientCopilot)]
-		if !ok || strings.TrimSpace(copilot.ExecutablePath) == "" {
-			findings = append(findings, degradedFinding("copilot_cli_missing", "runtime", "GitHub Copilot CLI is unavailable for automatic Copilot/VS Code activation", "install GitHub Copilot CLI, ensure copilot is on PATH, and rerun doctor"))
+			if visible && client.Status == domain.DetectionDetected {
+				findings = append(findings, checkManagedIntegrity(ctx, app, client, installation, binding)...)
+			}
 		}
 	}
 	if len(findings) == 0 {
@@ -278,17 +268,19 @@ func doctorFindings(ctx context.Context, app App, detected []domain.DetectedClie
 	return findings
 }
 
-func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedClient, binding domain.ClientBinding) []doctorFinding {
+const blockedStateRecovery = "automatic mutation is intentionally blocked; restore state-v2.json from a trusted backup that matches the managed source, or recover and review the original source and binding metadata"
+
+func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedClient, installation domain.Installation, binding domain.ClientBinding) []doctorFinding {
 	if binding.Materialization != domain.MaterializationMaterialized || strings.TrimSpace(binding.TargetLocator) == "" {
 		return nil
 	}
 	physicalID := strings.TrimSpace(binding.PhysicalArtifact)
 	if physicalID == "" {
-		return []doctorFinding{degradedFinding("managed_target_unverifiable", binding.ClientID, "the managed target has no physical artifact identity", "run plugin update for this client to rebuild its managed target metadata")}
+		return []doctorFinding{scopedFinding("degraded", "managed_target_unverifiable", installation, binding.ClientID, "the managed target has no physical artifact identity", blockedStateRecovery)}
 	}
 	target, err := (clientplanner.Planner{ManagedRoot: app.ManagedRoot}).ResolveTarget(ctx, client, domain.InstallScope(binding.Scope), physicalID)
 	if err != nil || filepath.Clean(target.ActivePath) != filepath.Clean(binding.TargetLocator) {
-		return []doctorFinding{degradedFinding("managed_target_mismatch", binding.ClientID, "the recorded managed target does not match the current safe client target", "do not modify the recorded path; remove the stale binding and add the plugin again for this client")}
+		return []doctorFinding{scopedFinding("degraded", "managed_target_mismatch", installation, binding.ClientID, "the recorded managed target does not match the current safe client target", blockedStateRecovery)}
 	}
 	expected := ""
 	sequence := 0
@@ -299,23 +291,27 @@ func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedC
 		}
 	}
 	if expected == "" || app.Stager == nil {
-		return []doctorFinding{{Status: "unknown", Code: "managed_integrity_not_checked", Subject: binding.ClientID, Message: "managed-directory integrity evidence is unavailable", RecoveryAction: "run plugin update for this client to create fresh integrity evidence"}}
+		return []doctorFinding{scopedFinding("unknown", "managed_integrity_not_checked", installation, binding.ClientID, "managed-directory integrity evidence is unavailable", repairAction(installation, binding))}
 	}
 	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
-		return []doctorFinding{degradedFinding("managed_directory_changed", binding.ClientID, "the managed package directory is missing or differs from its recorded digest", "run plugin update for this client to restore the managed directory")}
+		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "artifact digest mismatch") || strings.Contains(err.Error(), "excluded ownership marker") {
+			return []doctorFinding{scopedFinding("degraded", "managed_directory_changed", installation, binding.ClientID, "the managed package directory is missing or differs from its recorded digest", repairAction(installation, binding))}
+		}
+		return []doctorFinding{scopedFinding("unknown", "managed_integrity_check_failed", installation, binding.ClientID, "managed-directory integrity could not be checked because verification infrastructure failed", "retry doctor after resolving the filesystem or temporary verification error")}
 	}
 	return nil
 }
 
-func requiresCopilotRuntime(installations []domain.Installation) bool {
-	for _, installation := range installations {
-		for _, binding := range installation.Clients {
-			if binding.Materialization != domain.MaterializationAbsent && (binding.ClientID == string(domain.ClientCopilot) || binding.ClientID == string(domain.ClientVSCode)) {
-				return true
-			}
-		}
+func scopedFinding(status, code string, installation domain.Installation, clientID, message, action string) doctorFinding {
+	return doctorFinding{
+		Status: status, Code: code, InstallationName: installation.DeclaredName,
+		InstallationID: installation.InstallationID, ClientID: clientID,
+		Message: message, RecoveryAction: action,
 	}
-	return false
+}
+
+func repairAction(installation domain.Installation, binding domain.ClientBinding) string {
+	return fmt.Sprintf("run `agentplugins repair %s --target %s`", installation.DeclaredName, binding.ClientID)
 }
 
 func degradedFinding(code, subject, message, action string) doctorFinding {

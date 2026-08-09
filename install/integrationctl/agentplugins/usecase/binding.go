@@ -142,11 +142,8 @@ func (service Service) changeBinding(ctx context.Context, input BindingChangeInp
 	}
 	installation.Package = domain.PackageBinding{
 		LoaderKind: input.Envelope.LoaderKind, FormatID: input.Envelope.FormatID,
-		SchemaURI: input.Envelope.SchemaURI, SchemaVersion: input.Envelope.SchemaVersion,
-		ManifestSchema: schemaIdentity(input.Envelope), ManifestDocument: manifestDocument(input.Envelope),
-		CatalogEvidence: input.Envelope.CatalogEvidence, Diagnostics: append([]domain.Diagnostic(nil), input.Envelope.Diagnostics...),
-		DeclaredName: input.Envelope.Manifest.Name,
-		Version:      input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
+		SchemaURI: input.Envelope.SchemaURI, DeclaredName: input.Envelope.Manifest.Name,
+		Version: input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
 		Inventory: input.Envelope.Inventory,
 	}
 	installation.NeedsRebind = false

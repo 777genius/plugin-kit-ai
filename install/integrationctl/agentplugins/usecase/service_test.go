@@ -79,10 +79,9 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 		t.Fatalf("installations = %+v", state.Installations)
 	}
 	packageState := state.Installations[0].Package
-	if packageState.ManifestDocument == nil || !strings.Contains(string(packageState.ManifestDocument.Raw), `"future"`) ||
-		packageState.CatalogEvidence == nil || packageState.CatalogEvidence.Compatibility["cursor"].Authentication != domain.AuthenticationRequirementNotRequired ||
-		len(packageState.Diagnostics) != 1 {
-		t.Fatalf("package evidence was not preserved: %+v", packageState)
+	if packageState.SchemaURI != domain.PluginSchemaV1 || packageState.ManifestDigest != input.Envelope.ManifestDigest ||
+		!strings.Contains(string(input.Envelope.Manifest.Raw), `"future"`) || input.Envelope.CatalogEvidence == nil || len(input.Envelope.Diagnostics) != 1 {
+		t.Fatalf("in-memory evidence or compatible package binding was lost: envelope=%+v package=%+v", input.Envelope, packageState)
 	}
 	clientState := onlyBinding(state.Installations[0])
 	if clientState.Materialization != domain.MaterializationMaterialized || clientState.Activation != domain.ActivationManual || clientState.Verification != domain.VerificationPackageValid {
