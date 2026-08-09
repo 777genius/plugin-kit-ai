@@ -9,7 +9,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +39,19 @@ type publicInstallation struct {
 	Source         string         `json:"source"`
 	NeedsRebind    bool           `json:"needs_rebind,omitempty"`
 	Clients        []publicClient `json:"clients"`
+}
+
+type doctorFinding struct {
+	Status         string `json:"status"`
+	Code           string `json:"code"`
+	Subject        string `json:"subject,omitempty"`
+	Message        string `json:"message"`
+	RecoveryAction string `json:"recovery_action,omitempty"`
+}
+
+type supportedClient struct {
+	ClientID    domain.ClientID    `json:"client_id"`
+	PackageMode domain.PackageMode `json:"package_mode"`
 }
 
 func newListCommand(app App, opts *options) *cobra.Command {
@@ -123,11 +138,16 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	report := struct {
 		ReadOnly           bool                   `json:"read_only"`
+		ToolVersion        string                 `json:"tool_version"`
+		SupportedClients   []supportedClient      `json:"supported_clients"`
 		Clients            []publicDetectedClient `json:"clients"`
 		InstallationCount  int                    `json:"installation_count"`
 		OpenOperationCount int                    `json:"open_operation_count"`
 		Installation       *publicInstallation    `json:"installation,omitempty"`
-	}{ReadOnly: true, Clients: publicClients, InstallationCount: len(publicInstallations(state, false)), OpenOperationCount: len(open)}
+		Findings           []doctorFinding        `json:"findings"`
+	}{ReadOnly: true, ToolVersion: normalizedToolVersion(app.Version), SupportedClients: doctorSupportedClients(), Clients: publicClients,
+		InstallationCount: len(publicInstallations(state, false)), OpenOperationCount: len(open)}
+	selected := (*domain.Installation)(nil)
 	if len(args) == 1 {
 		installation, err := selectInstallation(state, args[0])
 		if err != nil {
@@ -135,20 +155,171 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		}
 		value := publicInstallationView(installation, true)
 		report.Installation = &value
+		selected = &installation
 	}
+	report.Findings = doctorFindings(ctx, app, clients, state, open, selected)
 	if opts.format == "json" {
 		return writeJSONOutput(cmd.OutOrStdout(), "doctor", report)
 	}
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "agentplugins doctor (read-only)")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Tool version: %s\n", report.ToolVersion)
 	for _, client := range clients {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", client.DisplayName, client.Status)
 	}
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Tracked installations: %d\n", report.InstallationCount)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Open recovery operations: %d\n", report.OpenOperationCount)
+	for _, finding := range report.Findings {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  [%s] %s: %s\n", finding.Status, finding.Code, finding.Message)
+		if finding.RecoveryAction != "" {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Recovery: %s\n", finding.RecoveryAction)
+		}
+	}
 	if report.Installation != nil {
 		return renderInstallation(cmd.OutOrStdout(), *report.Installation)
 	}
 	return nil
+}
+
+func normalizedToolVersion(version string) string {
+	if version = strings.TrimSpace(version); version != "" {
+		return version
+	}
+	return "development"
+}
+
+func doctorSupportedClients() []supportedClient {
+	ids := []domain.ClientID{domain.ClientCodex, domain.ClientCursor, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro}
+	result := make([]supportedClient, 0, len(ids))
+	for _, id := range ids {
+		capabilities, _ := clientplanner.Capabilities(id)
+		result = append(result, supportedClient{ClientID: id, PackageMode: capabilities.PackageMode})
+	}
+	return result
+}
+
+func doctorFindings(ctx context.Context, app App, detected []domain.DetectedClient, state domain.StateFileV2, open []dirswap.Receipt, selected *domain.Installation) []doctorFinding {
+	var findings []doctorFinding
+	detectedByID := make(map[string]domain.DetectedClient, len(detected))
+	for _, client := range detected {
+		detectedByID[string(client.ClientID)] = client
+	}
+	if len(open) > 0 {
+		findings = append(findings, degradedFinding("open_recovery_operations", "operations", "an interrupted managed-directory operation requires recovery", "rerun the intended add, update, or remove command to perform transactional recovery"))
+	}
+	installations := state.Installations
+	if selected != nil {
+		installations = []domain.Installation{*selected}
+	}
+	for _, installation := range installations {
+		for _, diagnostic := range installation.Package.Diagnostics {
+			status := string(diagnostic.Severity)
+			if diagnostic.Severity == domain.SeverityError {
+				status = "degraded"
+			}
+			findings = append(findings, doctorFinding{Status: status, Code: diagnostic.Code, Subject: installation.DeclaredName, Message: diagnostic.Message, RecoveryAction: "review the package diagnostic and update the package after correcting the indicated item"})
+		}
+		if evidence := installation.Package.CatalogEvidence; evidence != nil {
+			clientIDs := make([]string, 0, len(evidence.Compatibility))
+			for clientID := range evidence.Compatibility {
+				clientIDs = append(clientIDs, clientID)
+			}
+			sort.Strings(clientIDs)
+			for _, clientID := range clientIDs {
+				compatibility := evidence.Compatibility[clientID]
+				if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
+					findings = append(findings, doctorFinding{Status: "warning", Code: "catalog_" + compatibility.Verification, Subject: clientID, Message: "catalog compatibility has limited runtime verification", RecoveryAction: "verify the plugin in this client before relying on it"})
+				}
+			}
+		}
+		if installation.NeedsRebind {
+			findings = append(findings, degradedFinding("source_rebind_required", installation.DeclaredName, "the source identity needs an explicit rebind", "remove the old binding or run the explicit rebind workflow before updating"))
+		}
+		for _, binding := range installation.Clients {
+			if binding.Materialization == domain.MaterializationAbsent {
+				continue
+			}
+			if _, supported := clientplanner.Capabilities(domain.ClientID(binding.ClientID)); !supported {
+				findings = append(findings, degradedFinding("unsupported_client_binding", binding.ClientID, "the tracked binding names an unsupported client", "remove this stale binding and add the plugin to a supported client"))
+				continue
+			}
+			client, visible := detectedByID[binding.ClientID]
+			if !visible || client.Status != domain.DetectionDetected {
+				findings = append(findings, degradedFinding("client_not_visible", binding.ClientID, "the package is tracked but no current client visibility evidence was detected", "install or launch the client so its CLI, desktop application, or configuration directory is visible, then rerun doctor"))
+			}
+			switch binding.Activation {
+			case domain.ActivationManual, domain.ActivationPrepared:
+				findings = append(findings, degradedFinding("activation_pending", binding.ClientID, "client activation is not complete", "open the selected client, finish plugin activation, and then rerun doctor"))
+			case domain.ActivationFailed:
+				findings = append(findings, degradedFinding("activation_failed", binding.ClientID, "client activation failed", "retry the plugin update for this client after resolving the client-reported activation error"))
+			}
+			switch binding.Authentication {
+			case domain.AuthenticationPending:
+				findings = append(findings, degradedFinding("authentication_pending", binding.ClientID, "plugin authentication is pending", "complete authentication in the selected client and rerun doctor"))
+			case domain.AuthenticationFailed:
+				findings = append(findings, degradedFinding("authentication_failed", binding.ClientID, "plugin authentication failed", "reauthorize the plugin in the selected client and rerun doctor"))
+			case domain.AuthenticationNotChecked:
+				findings = append(findings, doctorFinding{Status: "unknown", Code: "authentication_not_checked", Subject: binding.ClientID, Message: "authentication requirements have not been verified", RecoveryAction: "check the package's authentication instructions and verify access in the selected client"})
+			}
+			if binding.Materialization == domain.MaterializationDegraded || binding.Verification == domain.VerificationFailed {
+				findings = append(findings, degradedFinding("installation_verification_failed", binding.ClientID, "the managed package is marked degraded or failed verification", "run plugin update for this client to rebuild and verify the managed package"))
+			}
+			findings = append(findings, checkManagedIntegrity(ctx, app, client, binding)...)
+		}
+	}
+	if requiresCopilotRuntime(installations) {
+		copilot, ok := detectedByID[string(domain.ClientCopilot)]
+		if !ok || strings.TrimSpace(copilot.ExecutablePath) == "" {
+			findings = append(findings, degradedFinding("copilot_cli_missing", "runtime", "GitHub Copilot CLI is unavailable for automatic Copilot/VS Code activation", "install GitHub Copilot CLI, ensure copilot is on PATH, and rerun doctor"))
+		}
+	}
+	if len(findings) == 0 {
+		findings = append(findings, doctorFinding{Status: "healthy", Code: "no_degradation_detected", Message: "no tracked degradation was detected"})
+	}
+	return findings
+}
+
+func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedClient, binding domain.ClientBinding) []doctorFinding {
+	if binding.Materialization != domain.MaterializationMaterialized || strings.TrimSpace(binding.TargetLocator) == "" {
+		return nil
+	}
+	physicalID := strings.TrimSpace(binding.PhysicalArtifact)
+	if physicalID == "" {
+		return []doctorFinding{degradedFinding("managed_target_unverifiable", binding.ClientID, "the managed target has no physical artifact identity", "run plugin update for this client to rebuild its managed target metadata")}
+	}
+	target, err := (clientplanner.Planner{ManagedRoot: app.ManagedRoot}).ResolveTarget(ctx, client, domain.InstallScope(binding.Scope), physicalID)
+	if err != nil || filepath.Clean(target.ActivePath) != filepath.Clean(binding.TargetLocator) {
+		return []doctorFinding{degradedFinding("managed_target_mismatch", binding.ClientID, "the recorded managed target does not match the current safe client target", "do not modify the recorded path; remove the stale binding and add the plugin again for this client")}
+	}
+	expected := ""
+	sequence := 0
+	for _, receipt := range binding.Receipts {
+		if receipt.Sequence >= sequence && strings.TrimSpace(receipt.AfterDigest) != "" {
+			sequence = receipt.Sequence
+			expected = receipt.AfterDigest
+		}
+	}
+	if expected == "" || app.Stager == nil {
+		return []doctorFinding{{Status: "unknown", Code: "managed_integrity_not_checked", Subject: binding.ClientID, Message: "managed-directory integrity evidence is unavailable", RecoveryAction: "run plugin update for this client to create fresh integrity evidence"}}
+	}
+	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
+		return []doctorFinding{degradedFinding("managed_directory_changed", binding.ClientID, "the managed package directory is missing or differs from its recorded digest", "run plugin update for this client to restore the managed directory")}
+	}
+	return nil
+}
+
+func requiresCopilotRuntime(installations []domain.Installation) bool {
+	for _, installation := range installations {
+		for _, binding := range installation.Clients {
+			if binding.Materialization != domain.MaterializationAbsent && (binding.ClientID == string(domain.ClientCopilot) || binding.ClientID == string(domain.ClientVSCode)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func degradedFinding(code, subject, message, action string) doctorFinding {
+	return doctorFinding{Status: "degraded", Code: code, Subject: subject, Message: message, RecoveryAction: action}
 }
 
 func newVersionCommand(app App, opts *options) *cobra.Command {

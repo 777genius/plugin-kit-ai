@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,6 +52,13 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
 	input := addInput(t, client, "https://example.com/one")
+	input.Envelope.ManifestSchema = domain.SchemaIdentity{URI: domain.PluginSchemaV1, Version: "1.0.0"}
+	input.Envelope.Manifest.Raw = json.RawMessage(`{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"demo","future":{"kept":true}}`)
+	input.Envelope.Manifest.Unknown = map[string]json.RawMessage{"future": json.RawMessage(`{"kept":true}`)}
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{SchemaVersion: 1, CatalogVersion: "0.1.0", Compatibility: map[string]domain.CatalogCompatibility{
+		"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+	}}
+	input.Envelope.Diagnostics = []domain.Diagnostic{{Severity: domain.SeverityWarning, Code: "plugin_unknown_field", Message: "future field preserved"}}
 	input.Confirmed = true
 	result, err := service.Add(context.Background(), input)
 	if err != nil {
@@ -68,6 +76,12 @@ func TestAddCommitsCursorPackageReceiptAndLeavesDiscoveryManual(t *testing.T) {
 	}
 	if len(state.Installations) != 1 {
 		t.Fatalf("installations = %+v", state.Installations)
+	}
+	packageState := state.Installations[0].Package
+	if packageState.ManifestDocument == nil || !strings.Contains(string(packageState.ManifestDocument.Raw), `"future"`) ||
+		packageState.CatalogEvidence == nil || packageState.CatalogEvidence.Compatibility["cursor"].Authentication != domain.AuthenticationRequirementNotRequired ||
+		len(packageState.Diagnostics) != 1 {
+		t.Fatalf("package evidence was not preserved: %+v", packageState)
 	}
 	clientState := onlyBinding(state.Installations[0])
 	if clientState.Materialization != domain.MaterializationMaterialized || clientState.Activation != domain.ActivationManual || clientState.Verification != domain.VerificationPackageValid {

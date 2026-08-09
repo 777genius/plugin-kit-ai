@@ -70,6 +70,21 @@ type PluginManifest struct {
 	Raw           json.RawMessage            `json:"-"`
 }
 
+// SchemaIdentity makes a document's schema URI and interpreted version
+// explicit without replacing its lossless Raw representation.
+type SchemaIdentity struct {
+	URI     string `json:"uri"`
+	Version string `json:"version"`
+}
+
+// VersionedDocument preserves author-controlled JSON independently of any
+// catalog or legacy metadata that describes the same package.
+type VersionedDocument struct {
+	Schema  SchemaIdentity             `json:"schema"`
+	Raw     json.RawMessage            `json:"raw"`
+	Unknown map[string]json.RawMessage `json:"unknown,omitempty"`
+}
+
 type MCPServer struct {
 	Name    string          `json:"name"`
 	Type    string          `json:"type"`
@@ -113,11 +128,13 @@ type PackageEnvelope struct {
 	FormatID        string             `json:"format_id"`
 	SchemaURI       string             `json:"schema_uri"`
 	SchemaVersion   string             `json:"schema_version"`
+	ManifestSchema  SchemaIdentity     `json:"manifest_schema"`
 	Manifest        PluginManifest     `json:"manifest"`
 	MCP             MCPComponent       `json:"mcp"`
 	Skills          map[string]Skill   `json:"skills,omitempty"`
 	Inventory       ComponentInventory `json:"inventory"`
 	Diagnostics     []Diagnostic       `json:"diagnostics,omitempty"`
+	CatalogEvidence *CatalogEvidence   `json:"catalog_evidence,omitempty"`
 	Source          SourceIdentity     `json:"source"`
 	TreeDigest      string             `json:"tree_digest"`
 	ManifestDigest  string             `json:"manifest_digest"`

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -380,8 +381,11 @@ func upsertPreparedInstallation(
 		},
 		Package: domain.PackageBinding{
 			LoaderKind: input.Envelope.LoaderKind, FormatID: input.Envelope.FormatID,
-			SchemaURI: input.Envelope.SchemaURI, DeclaredName: input.Envelope.Manifest.Name,
-			Version: input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
+			SchemaURI: input.Envelope.SchemaURI, SchemaVersion: input.Envelope.SchemaVersion,
+			ManifestSchema: schemaIdentity(input.Envelope), ManifestDocument: manifestDocument(input.Envelope),
+			CatalogEvidence: input.Envelope.CatalogEvidence, Diagnostics: append([]domain.Diagnostic(nil), input.Envelope.Diagnostics...),
+			DeclaredName: input.Envelope.Manifest.Name,
+			Version:      input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
 			Inventory: input.Envelope.Inventory,
 		},
 		Clients:   map[string]domain.ClientBinding{},
@@ -395,8 +399,11 @@ func upsertPreparedInstallation(
 		installation.Source.TreeDigest = input.Envelope.TreeDigest
 		installation.Package = domain.PackageBinding{
 			LoaderKind: input.Envelope.LoaderKind, FormatID: input.Envelope.FormatID,
-			SchemaURI: input.Envelope.SchemaURI, DeclaredName: input.Envelope.Manifest.Name,
-			Version: input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
+			SchemaURI: input.Envelope.SchemaURI, SchemaVersion: input.Envelope.SchemaVersion,
+			ManifestSchema: schemaIdentity(input.Envelope), ManifestDocument: manifestDocument(input.Envelope),
+			CatalogEvidence: input.Envelope.CatalogEvidence, Diagnostics: append([]domain.Diagnostic(nil), input.Envelope.Diagnostics...),
+			DeclaredName: input.Envelope.Manifest.Name,
+			Version:      input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
 			Inventory: input.Envelope.Inventory,
 		}
 		installation.UpdatedAt = timestamp
@@ -421,6 +428,27 @@ func upsertPreparedInstallation(
 	}
 	state.Installations = append(state.Installations, installation)
 	return state, len(state.Installations) - 1
+}
+
+func schemaIdentity(envelope domain.PackageEnvelope) *domain.SchemaIdentity {
+	identity := envelope.ManifestSchema
+	if identity.URI == "" {
+		identity = domain.SchemaIdentity{URI: envelope.SchemaURI, Version: envelope.SchemaVersion}
+	}
+	return &identity
+}
+
+func manifestDocument(envelope domain.PackageEnvelope) *domain.VersionedDocument {
+	if len(envelope.Manifest.Raw) == 0 {
+		return nil
+	}
+	unknown := make(map[string]json.RawMessage, len(envelope.Manifest.Unknown))
+	for key, value := range envelope.Manifest.Unknown {
+		unknown[key] = append(json.RawMessage(nil), value...)
+	}
+	return &domain.VersionedDocument{
+		Schema: *schemaIdentity(envelope), Raw: append(json.RawMessage(nil), envelope.Manifest.Raw...), Unknown: unknown,
+	}
 }
 
 func validatePackageTransition(installation domain.Installation, envelope domain.PackageEnvelope) error {

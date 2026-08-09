@@ -188,8 +188,16 @@ func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result u
 	_, _ = fmt.Fprintf(writer, "Target: %s\n", result.Plan.ClientID)
 	_, _ = fmt.Fprintf(writer, "Package: %s\n", result.Plan.PackageMode)
 	_, _ = fmt.Fprintf(writer, "Result: %s\n", result.Plan.Status)
+	_, _ = fmt.Fprintf(writer, "Authentication: %s\n", result.Plan.Authentication)
+	_, _ = fmt.Fprintf(writer, "Verification: %s\n", result.Plan.Verification)
 	for _, component := range result.Plan.Components {
 		_, _ = fmt.Fprintf(writer, "  - %s %s: %s\n", component.Kind, component.Name, component.Support)
+	}
+	for _, diagnostic := range result.Plan.Diagnostics {
+		_, _ = fmt.Fprintf(writer, "  Warning: %s: %s\n", diagnostic.Code, diagnostic.Message)
+	}
+	for _, warning := range result.Plan.Warnings {
+		_, _ = fmt.Fprintf(writer, "  Warning: %s\n", warning)
 	}
 	for _, action := range result.Plan.UserActions {
 		_, _ = fmt.Fprintf(writer, "  Planned action: %s\n", action)

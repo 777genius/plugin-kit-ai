@@ -75,7 +75,20 @@ func (loaded Loaded) Resolve(name string) (domain.CatalogResolution, error) {
 		Entry:           entry,
 		SourceReference: fmt.Sprintf("%s@%s//%s", loaded.Catalog.Repository, loaded.Catalog.Revision, entry.SourcePath),
 		CatalogDigest:   loaded.Digest,
-		Hints:           domain.CompatibilityHints{OpenAIMCPAuth: cloneAuthHints(entry.OpenAIMCPAuth)},
+		Hints: domain.CompatibilityHints{
+			Compatibility: cloneCompatibility(entry.Compatibility),
+			OpenAIMCPAuth: cloneAuthHints(entry.OpenAIMCPAuth),
+		},
+		Evidence: domain.CatalogEvidence{
+			SchemaVersion:      loaded.Catalog.SchemaVersion,
+			CatalogVersion:     loaded.Catalog.CatalogVersion,
+			Repository:         loaded.Catalog.Repository,
+			Revision:           loaded.Catalog.Revision,
+			Digest:             loaded.Digest,
+			MinimumCLIVersion:  entry.MinimumCLIVersion,
+			AgentPluginsSchema: entry.AgentPluginsSchema,
+			Compatibility:      cloneCompatibility(entry.Compatibility),
+		},
 	}, nil
 }
 
@@ -178,8 +191,21 @@ func validVerificationCompatibility(value string) bool {
 	return oneOf(value, "tested", "schema_only", "not_tested")
 }
 
-func validAuthCompatibility(value string) bool {
-	return oneOf(value, "not_required", "required", "unknown")
+func validAuthCompatibility(value domain.AuthenticationRequirement) bool {
+	return value == domain.AuthenticationRequirementNotRequired ||
+		value == domain.AuthenticationRequirementRequired ||
+		value == domain.AuthenticationRequirementUnknown
+}
+
+func cloneCompatibility(source map[string]domain.CatalogCompatibility) map[string]domain.CatalogCompatibility {
+	if len(source) == 0 {
+		return nil
+	}
+	result := make(map[string]domain.CatalogCompatibility, len(source))
+	for key, value := range source {
+		result[key] = value
+	}
+	return result
 }
 
 func oneOf(value string, allowed ...string) bool {

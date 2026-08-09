@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"strings"
 	"testing"
+
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
 func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
@@ -26,6 +28,17 @@ func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
 	}
 	if resolved.Hints.OpenAIMCPAuth["context7"].BearerTokenEnvVar != "CONTEXT7_API_KEY" {
 		t.Fatalf("hints = %+v", resolved.Hints)
+	}
+	compatibility := resolved.Hints.Compatibility["cursor"]
+	if compatibility.Authentication != "not_required" || compatibility.Package != "native" {
+		t.Fatalf("generic compatibility = %+v", resolved.Hints.Compatibility)
+	}
+	if resolved.Evidence.SchemaVersion != 1 || resolved.Evidence.CatalogVersion != "0.1.0" || resolved.Evidence.Compatibility["cursor"].Authentication != "not_required" {
+		t.Fatalf("catalog evidence = %+v", resolved.Evidence)
+	}
+	resolved.Hints.Compatibility["cursor"] = domain.CatalogCompatibility{}
+	if resolved.Evidence.Compatibility["cursor"].Package != "native" {
+		t.Fatal("resolution hints alias immutable catalog evidence")
 	}
 }
 

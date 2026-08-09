@@ -94,8 +94,9 @@ type DeliveryPlan struct {
 	UserActions        []string            `json:"user_actions,omitempty"`
 	// LocalActions can contain operational paths and are rendered only in
 	// human-readable output. They must never be emitted by the public JSON API.
-	LocalActions []string `json:"-"`
-	Warnings     []string `json:"warnings,omitempty"`
+	LocalActions []string     `json:"-"`
+	Warnings     []string     `json:"warnings,omitempty"`
+	Diagnostics  []Diagnostic `json:"diagnostics,omitempty"`
 	// TargetRoot and ActivePath are intentionally excluded from public JSON.
 	TargetAnchor string `json:"-"`
 	TargetRoot   string `json:"-"`
@@ -117,7 +118,11 @@ type OpenAIMCPAuthHint struct {
 }
 
 type CompatibilityHints struct {
-	OpenAIMCPAuth map[string]OpenAIMCPAuthHint `json:"openai_mcp_auth,omitempty"`
+	// Compatibility preserves generic, per-client catalog requirements. The
+	// OpenAI map remains for legacy projection consumers and is not authoritative
+	// for whether authentication is required.
+	Compatibility map[string]CatalogCompatibility `json:"compatibility,omitempty"`
+	OpenAIMCPAuth map[string]OpenAIMCPAuthHint    `json:"openai_mcp_auth,omitempty"`
 }
 
 type StagedDelivery struct {

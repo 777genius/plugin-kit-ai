@@ -89,6 +89,46 @@ func TestDetectorUsesInjectedWindowsConfigRoot(t *testing.T) {
 	}
 }
 
+func TestDetectorRecognizesKiroCLIAndPreservesLegacyEvidence(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	modern := filepath.Join(home, "bin", "kiro-cli")
+	legacy := filepath.Join(home, "bin", "kiro")
+	detector := testDetector(home, map[string]string{"kiro-cli": modern, "kiro": legacy})
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	kiro := clientOf(clients, domain.ClientKiro)
+	if kiro.ExecutablePath != modern || !surfaceDetected(kiro.Surfaces, "kiro_cli") || !surfaceDetected(kiro.Surfaces, "kiro_legacy_cli") {
+		t.Fatalf("Kiro detection = %+v", kiro)
+	}
+}
+
+func TestDetectorFindsFixedWindowsDesktopInstallationWithoutPATH(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	local := filepath.Join(home, "AppData", "Local")
+	executable := filepath.Join(local, "Programs", "cursor", "Cursor.exe")
+	if err := os.MkdirAll(filepath.Dir(executable), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(executable, []byte("synthetic"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	detector := testDetector(home, nil)
+	detector.GOOS = "windows"
+	detector.Environment = map[string]string{"LOCALAPPDATA": local}
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cursor := clientOf(clients, domain.ClientCursor)
+	if cursor.Status != domain.DetectionDetected || !surfaceDetected(cursor.Surfaces, "cursor_desktop") {
+		t.Fatalf("Cursor Windows detection = %+v", cursor)
+	}
+}
+
 func testDetector(home string, binaries map[string]string) Detector {
 	applications := filepath.Join(home, "system-applications")
 	return Detector{
@@ -113,4 +153,22 @@ func statusOf(clients []domain.DetectedClient, id domain.ClientID) domain.Detect
 		}
 	}
 	return ""
+}
+
+func clientOf(clients []domain.DetectedClient, id domain.ClientID) domain.DetectedClient {
+	for _, client := range clients {
+		if client.ClientID == id {
+			return client
+		}
+	}
+	return domain.DetectedClient{}
+}
+
+func surfaceDetected(surfaces []domain.ClientSurface, id string) bool {
+	for _, surface := range surfaces {
+		if surface.ID == id {
+			return surface.Detected
+		}
+	}
+	return false
 }

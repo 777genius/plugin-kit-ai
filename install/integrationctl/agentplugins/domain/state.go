@@ -49,13 +49,18 @@ type SourceBinding struct {
 }
 
 type PackageBinding struct {
-	LoaderKind     string             `json:"loader_kind"`
-	FormatID       string             `json:"format_id"`
-	SchemaURI      string             `json:"schema_uri"`
-	DeclaredName   string             `json:"declared_name"`
-	Version        string             `json:"version,omitempty"`
-	ManifestDigest string             `json:"manifest_digest"`
-	Inventory      ComponentInventory `json:"inventory"`
+	LoaderKind       string             `json:"loader_kind"`
+	FormatID         string             `json:"format_id"`
+	SchemaURI        string             `json:"schema_uri"`
+	SchemaVersion    string             `json:"schema_version,omitempty"`
+	ManifestSchema   *SchemaIdentity    `json:"manifest_schema,omitempty"`
+	ManifestDocument *VersionedDocument `json:"manifest_document,omitempty"`
+	CatalogEvidence  *CatalogEvidence   `json:"catalog_evidence,omitempty"`
+	Diagnostics      []Diagnostic       `json:"diagnostics,omitempty"`
+	DeclaredName     string             `json:"declared_name"`
+	Version          string             `json:"version,omitempty"`
+	ManifestDigest   string             `json:"manifest_digest"`
+	Inventory        ComponentInventory `json:"inventory"`
 }
 
 type NativeObjectOwnership struct {

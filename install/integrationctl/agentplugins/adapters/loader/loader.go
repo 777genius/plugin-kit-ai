@@ -64,6 +64,7 @@ func (loader Loader) Load(ctx context.Context, input domain.LoadInput) (domain.P
 		FormatID:        domain.FormatIDAgentPluginsV1,
 		SchemaURI:       manifest.SchemaURI,
 		SchemaVersion:   "1.0.0",
+		ManifestSchema:  domain.SchemaIdentity{URI: manifest.SchemaURI, Version: "1.0.0"},
 		Manifest:        manifest,
 		MCP:             mcp,
 		Skills:          skills,

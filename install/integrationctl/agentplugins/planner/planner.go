@@ -34,12 +34,15 @@ func (planner Planner) Plan(
 		return domain.DeliveryPlan{}, fmt.Errorf("unsupported client %q", client.ClientID)
 	}
 	plan := domain.DeliveryPlan{
-		ClientID:           client.ClientID,
-		Scope:              scope,
-		Status:             statusFor(capabilities.ActivationMode),
-		PackageMode:        capabilities.PackageMode,
-		Activation:         activationFor(capabilities.ActivationMode),
-		Authentication:     domain.AuthenticationNotRequired,
+		ClientID:    client.ClientID,
+		Scope:       scope,
+		Status:      statusFor(capabilities.ActivationMode),
+		PackageMode: capabilities.PackageMode,
+		Activation:  activationFor(capabilities.ActivationMode),
+		// A package loaded without catalog evidence has unknown authentication
+		// requirements. Only affirmative per-client evidence may mark it as not
+		// required.
+		Authentication:     domain.AuthenticationNotChecked,
 		Policy:             domain.PolicyAllowed,
 		Verification:       domain.VerificationPackageValid,
 		PhysicalArtifactID: physicalArtifactID,
@@ -64,17 +67,21 @@ func (planner Planner) Plan(
 	plan.TargetAnchor = target.TargetAnchor
 	plan.ActivePath = target.ActivePath
 	plan.Components = componentDecisions(envelope, capabilities)
-	if envelope.MCP.Present {
-		plan.Authentication = domain.AuthenticationNotChecked
-	}
+	applyCatalogCompatibility(&plan, envelope.CatalogEvidence)
 	hasComponentErrors := false
 	for _, diagnostic := range envelope.Diagnostics {
+		plan.Diagnostics = append(plan.Diagnostics, diagnostic)
+		plan.Warnings = appendUnique(plan.Warnings, diagnostic.Code)
 		if diagnostic.Severity == domain.SeverityError {
-			plan.Warnings = append(plan.Warnings, diagnostic.Code)
 			if diagnostic.Boundary == domain.BoundaryMCP || diagnostic.Boundary == domain.BoundaryMCPServer || diagnostic.Boundary == domain.BoundarySkill || diagnostic.Boundary == domain.BoundaryExtension {
 				hasComponentErrors = true
 			}
 		}
+	}
+	if plan.Authentication == domain.AuthenticationPending {
+		plan.UserActions = append(plan.UserActions, "complete authentication for this plugin in the selected client")
+	} else if plan.Authentication == domain.AuthenticationNotChecked {
+		plan.UserActions = append(plan.UserActions, "verify the plugin's authentication requirements before using it")
 	}
 	if !hasComponents(plan.Components) && hasComponentErrors {
 		plan.Status = domain.PlanUnsupported
@@ -111,6 +118,64 @@ func (planner Planner) Plan(
 		}
 	}
 	return plan, nil
+}
+
+func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.CatalogEvidence) {
+	if evidence == nil {
+		plan.Warnings = appendUnique(plan.Warnings, "authentication_not_catalog_verified")
+		return
+	}
+	compatibility, ok := evidence.Compatibility[string(plan.ClientID)]
+	if !ok {
+		plan.Warnings = appendUnique(plan.Warnings, "client_compatibility_not_catalog_verified")
+		return
+	}
+	switch compatibility.Authentication {
+	case domain.AuthenticationRequirementNotRequired:
+		plan.Authentication = domain.AuthenticationNotRequired
+	case domain.AuthenticationRequirementRequired:
+		plan.Authentication = domain.AuthenticationPending
+	default:
+		plan.Authentication = domain.AuthenticationNotChecked
+		plan.Warnings = appendUnique(plan.Warnings, "authentication_requirement_unknown")
+	}
+	if compatibility.Package == "unsupported" {
+		plan.Status = domain.PlanUnsupported
+		plan.Activation = domain.ActivationFailed
+		plan.Warnings = appendUnique(plan.Warnings, "catalog_client_unsupported")
+		plan.UserActions = append(plan.UserActions, "choose a client marked compatible by the pinned catalog")
+	} else if !catalogPackageMatches(compatibility.Package, plan.PackageMode) {
+		plan.Status = domain.PlanUnsupported
+		plan.Activation = domain.ActivationFailed
+		plan.Warnings = appendUnique(plan.Warnings, "catalog_package_mode_mismatch")
+		plan.UserActions = append(plan.UserActions, "update agentplugins or choose a client whose catalog package mode is supported")
+	}
+	if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
+		plan.Warnings = appendUnique(plan.Warnings, "catalog_"+compatibility.Verification)
+		plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+	}
+}
+
+func catalogPackageMatches(value string, mode domain.PackageMode) bool {
+	switch value {
+	case "native":
+		return mode == domain.PackageNative
+	case "projected":
+		return mode == domain.PackageProjection
+	case "prepared":
+		return mode == domain.PackagePrepared
+	default:
+		return false
+	}
+}
+
+func appendUnique(values []string, value string) []string {
+	for _, existing := range values {
+		if existing == value {
+			return values
+		}
+	}
+	return append(values, value)
 }
 
 func (planner Planner) hasNativeCopilotBackend(client domain.DetectedClient) bool {

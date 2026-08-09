@@ -125,6 +125,47 @@ func TestDryRunAndDoctorAreStrictlyReadOnly(t *testing.T) {
 	}
 }
 
+func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if err := os.WriteFile(filepath.Join(binding.TargetLocator, "unexpected.txt"), []byte("tampered"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output struct {
+		Data struct {
+			Findings []doctorFinding `json:"findings"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, finding := range output.Data.Findings {
+		if finding.Status == "degraded" && finding.RecoveryAction == "" {
+			t.Fatalf("degraded finding has no recovery: %+v", finding)
+		}
+		if finding.Code == "managed_directory_changed" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("managed integrity finding missing: %+v", output.Data.Findings)
+	}
+}
+
 func TestHumanCodexFlowNeverClaimsPreparedPackageIsInstalled(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})

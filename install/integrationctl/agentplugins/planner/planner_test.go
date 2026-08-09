@@ -33,6 +33,48 @@ func TestPlannerNegotiatesPartialSupportWithoutRejectingSupportedComponents(t *t
 	}
 }
 
+func TestPlannerAuthenticationRequiresAffirmativePerClientCatalogEvidence(t *testing.T) {
+	t.Parallel()
+	client := detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor"))
+	for name, test := range map[string]struct {
+		evidence *domain.CatalogEvidence
+		want     domain.AuthenticationState
+	}{
+		"external_without_catalog": {want: domain.AuthenticationNotChecked},
+		"catalog_required": {evidence: &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+			"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementRequired},
+		}}, want: domain.AuthenticationPending},
+		"catalog_not_required": {evidence: &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+			"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired},
+		}}, want: domain.AuthenticationNotRequired},
+	} {
+		name, test := name, test
+		t.Run(name, func(t *testing.T) {
+			envelope := domain.PackageEnvelope{Manifest: domain.PluginManifest{Name: "metadata-only"}, CatalogEvidence: test.evidence}
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, client, domain.ScopeUser, "demo-0123456789ab")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if plan.Authentication != test.want {
+				t.Fatalf("authentication = %s, want %s", plan.Authentication, test.want)
+			}
+		})
+	}
+}
+
+func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.Diagnostics = []domain.Diagnostic{{Severity: domain.SeverityWarning, Boundary: domain.BoundaryPlugin, Code: "plugin_unknown_field", Message: "future field preserved"}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")), domain.ScopeUser, "demo-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Diagnostics) != 1 || plan.Diagnostics[0].Message != "future field preserved" || !contains(plan.Warnings, "plugin_unknown_field") {
+		t.Fatalf("plan diagnostics = %+v warnings=%v", plan.Diagnostics, plan.Warnings)
+	}
+}
+
 func TestPlannerUsesNativeCursorTargetAndDoesNotExposeItInJSON(t *testing.T) {
 	t.Parallel()
 	config := filepath.Join(t.TempDir(), ".cursor")
