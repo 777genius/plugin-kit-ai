@@ -92,6 +92,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
+		`run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json`,
+		`run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`,
+		`.data.result.activation.authentication == "not_checked"`,
+		`.data.result.activation.activation_attested == true`,
+		`.data.result.activation.authentication_attested == true`,
+		`.data.result.no_change == true and .data.result.mutated == false`,
 	} {
 		mustContain(t, npmVerifyJob, want)
 	}
@@ -118,6 +124,8 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --yes --format json > update.json`)
 
 	for _, want := range []string{
 		"workflow_call:",

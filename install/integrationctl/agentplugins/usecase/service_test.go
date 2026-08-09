@@ -214,6 +214,95 @@ func TestResumeCompletesManualActivationAndPendingAuthOnlyByAttestation(t *testi
 	}
 }
 
+func TestFreshCompletionFlagsFailBeforeMaterialization(t *testing.T) {
+	t.Parallel()
+	for _, flags := range []struct {
+		name       string
+		activation bool
+		auth       bool
+	}{
+		{name: "activation", activation: true},
+		{name: "authentication", auth: true},
+		{name: "both", activation: true, auth: true},
+	} {
+		flags := flags
+		t.Run(flags.name, func(t *testing.T) {
+			service, store, client := serviceFixture(t)
+			input := addInput(t, client, "https://example.com/fresh-"+flags.name)
+			input.Confirmed = true
+			input.ActivationComplete = flags.activation
+			input.AuthComplete = flags.auth
+			if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "already materialized") {
+				t.Fatalf("completion error = %v", err)
+			}
+			state, err := store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(state.Installations) != 0 {
+				t.Fatalf("fresh completion flags mutated state: %+v", state)
+			}
+		})
+	}
+}
+
+func TestActivationAttestationDoesNotCompleteAuthentication(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/independent-attestations")
+	input.Envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{"cursor": {Package: "native", Authentication: domain.AuthenticationRequirementRequired}}}
+	input.Confirmed = true
+	if _, err := service.Add(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	input.ActivationComplete = true
+	result, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Activation.ActivationAttested || result.Activation.AuthenticationAttested || result.Activation.Authentication != domain.AuthenticationPending {
+		t.Fatalf("activation-only result = %+v", result)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Authentication != domain.AuthenticationPending {
+		t.Fatalf("activation-only binding = %+v", binding)
+	}
+}
+
+func TestDirectSourceConvergesOnlyAfterAuthReviewAttestation(t *testing.T) {
+	t.Parallel()
+	service, _, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/direct-source")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installed.Activation.Authentication != domain.AuthenticationNotChecked {
+		t.Fatalf("direct source auth = %+v", installed.Activation)
+	}
+	input.ActivationComplete = true
+	input.AuthComplete = true
+	completed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !completed.Mutated || !completed.Activation.ActivationAttested || !completed.Activation.AuthenticationAttested || !fullyConvergedOutcome(completed.Activation) {
+		t.Fatalf("direct completion = %+v", completed)
+	}
+	repeated, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !repeated.NoChange || repeated.Mutated {
+		t.Fatalf("converged repeat = %+v", repeated)
+	}
+}
+
 func TestResumeCompletesOnlyPendingAuthentication(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)

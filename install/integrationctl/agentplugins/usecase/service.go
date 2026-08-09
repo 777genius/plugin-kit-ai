@@ -132,6 +132,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 	}
 	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
+	if !isMaterialized && (input.ActivationComplete || input.AuthComplete) {
+		return result, fmt.Errorf("lifecycle completion flags require an already materialized package; run add first, then rerun add with the completion flags")
+	}
 	if isMaterialized && !replace {
 		current := state.Installations[installationIndex].Clients[clientBindingID]
 		result.Activation = lifecycleOutcome(current)
@@ -305,7 +308,7 @@ func (service Service) resume(
 		outcome.Activation = client.Activation
 		outcome.Verification = client.Verification
 	}
-	if client.Authentication == domain.AuthenticationPending && input.AuthComplete {
+	if (client.Authentication == domain.AuthenticationPending || client.Authentication == domain.AuthenticationNotChecked) && input.AuthComplete {
 		outcome.Authentication = domain.AuthenticationComplete
 		outcome.AuthenticationAttested = true
 	} else if client.Authentication != "" {

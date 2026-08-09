@@ -146,9 +146,12 @@ function main() {
   const lifecycle = lifecycleArg === "true";
   if (lifecycle) {
     const add = invokeJSON(["add", synthetic, "--target", "cursor", "--yes"]);
+    const complete = invokeJSON(["add", synthetic, "--target", "cursor", "--yes", "--activation-complete", "--auth-complete"]);
     const update = invokeJSON(["update", "platform-proof-synthetic", "--target", "cursor", "--yes"]);
     const remove = invokeJSON(["remove", "platform-proof-synthetic", "--target", "cursor", "--yes"]);
-    if (add.data.result.mutated !== true || update.data.result.no_change !== true ||
+    if (add.data.result.mutated !== true || add.data.result.activation.authentication !== "not_checked" ||
+        complete.data.result.mutated !== true || complete.data.result.activation.activation_attested !== true ||
+        complete.data.result.activation.authentication_attested !== true || update.data.result.no_change !== true ||
         update.data.result.mutated !== false || remove.data.result.mutated !== true) {
       fail("isolated synthetic add/update/remove lifecycle contract failed");
     }

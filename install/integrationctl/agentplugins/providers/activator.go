@@ -103,9 +103,6 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		Verification:   domain.VerificationPackageValid,
 	}
 	if request.ActivationComplete {
-		if activationCanBeObserved(activator, request) {
-			return domain.ActivationOutcome{}, fmt.Errorf("--activation-complete is not accepted when client verification is available")
-		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
 		outcome.ActivationAttested = true
@@ -203,20 +200,6 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		return outcome, nil
 	default:
 		return domain.ActivationOutcome{}, fmt.Errorf("unsupported activation client %q", request.Client.ClientID)
-	}
-}
-
-func activationCanBeObserved(activator Activator, request domain.ActivationRequest) bool {
-	if activator.Runner == nil || strings.TrimSpace(request.BackendExecutable) == "" {
-		return false
-	}
-	switch request.Client.ClientID {
-	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
-		return true
-	case domain.ClientKiro:
-		return mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
-	default:
-		return false
 	}
 }
 

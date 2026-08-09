@@ -1,7 +1,6 @@
 package agentpluginscli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -30,7 +29,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&activationComplete, "activation-complete", false, "attest that manual client activation is complete")
-	command.Flags().BoolVar(&authComplete, "auth-complete", false, "attest that pending client authentication is complete")
+	command.Flags().BoolVar(&authComplete, "auth-complete", false, "attest that required authentication is complete or none is required after review")
 	return command
 }
 
@@ -82,25 +81,22 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 			return err
 		}
 	}
+	freshInstall := planned.Activation.Activation == ""
+	if !freshInstall && opts.format == "human" && app.Terminal && !opts.yes && !activationComplete && !authComplete {
+		if err := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, false); err != nil {
+			return err
+		}
+		return resumeInteractiveLifecycle(ctx, cmd, service, input, loaded.envelope, planned)
+	}
 	confirmed := opts.yes
 	if !confirmed && opts.format == "human" && app.Terminal {
 		prompt := "Apply this plan? [y/N]"
-		if planned.Activation.Activation == domain.ActivationManual {
-			prompt = "Have you completed manual activation and verified the plugin is enabled in the client? [y/N]"
-		} else if planned.Activation.Authentication == domain.AuthenticationPending && planned.Activation.Activation == domain.ActivationActive {
-			prompt = "Have you completed authentication in the client? [y/N]"
+		if !freshInstall {
+			prompt = "Apply these explicit lifecycle attestations? [y/N]"
 		}
 		confirmed, err = promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), prompt)
 		if err != nil {
 			return err
-		}
-		if confirmed && planned.Activation.Activation == domain.ActivationManual {
-			input.ActivationComplete = true
-			if planned.Activation.Authentication == domain.AuthenticationPending {
-				input.AuthComplete = true
-			}
-		} else if confirmed && planned.Activation.Authentication == domain.AuthenticationPending && planned.Activation.Activation == domain.ActivationActive {
-			input.AuthComplete = true
 		}
 	}
 	if !confirmed {
@@ -117,7 +113,65 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if renderErr := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, result, false); renderErr != nil && err == nil {
 		err = renderErr
 	}
+	if err == nil && freshInstall && opts.format == "human" && app.Terminal && !opts.yes {
+		return resumeInteractiveLifecycle(ctx, cmd, service, input, loaded.envelope, result)
+	}
 	return err
+}
+
+func resumeInteractiveLifecycle(
+	ctx context.Context,
+	cmd *cobra.Command,
+	service usecase.Service,
+	input usecase.AddInput,
+	envelope domain.PackageEnvelope,
+	current usecase.AddResult,
+) error {
+	if current.Activation.Activation != domain.ActivationActive || current.Activation.Verification != domain.VerificationInstalled {
+		complete, err := promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Have you completed activation and verified the plugin is enabled in the client? [y/N]")
+		if err != nil {
+			return err
+		}
+		if !complete {
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Activation remains unconfirmed. Rerun add when it is complete.")
+			return nil
+		}
+		resume := input
+		resume.Confirmed = true
+		resume.InstallationID = current.InstallationID
+		resume.ActivationComplete = true
+		resume.AuthComplete = false
+		current, err = service.Add(ctx, resume)
+		if err != nil {
+			return err
+		}
+	}
+
+	if current.Activation.Authentication == domain.AuthenticationPending || current.Activation.Authentication == domain.AuthenticationNotChecked {
+		complete, err := promptYesNo(cmd.InOrStdin(), cmd.OutOrStdout(), "Have you completed required authentication, or reviewed the package and confirmed none is required? [y/N]")
+		if err != nil {
+			return err
+		}
+		if !complete {
+			if current.Activation.ActivationAttested {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Activation is user-attested. Authentication remains unconfirmed; rerun add after completing or reviewing it.")
+			} else {
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Authentication remains unconfirmed. Rerun add after completing or reviewing it.")
+			}
+			return nil
+		}
+		resume := input
+		resume.Confirmed = true
+		resume.InstallationID = current.InstallationID
+		resume.ActivationComplete = false
+		resume.AuthComplete = true
+		current, err = service.Add(ctx, resume)
+		if err != nil {
+			return err
+		}
+	}
+
+	return renderAddResult(cmd.OutOrStdout(), "human", envelope, current, false)
 }
 
 func selectClient(
@@ -157,7 +211,7 @@ func selectClient(
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, client.DisplayName)
 	}
 	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Choose one target: ")
-	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	line, err := readInputLine(cmd.InOrStdin())
 	if err != nil && err != io.EOF {
 		return domain.DetectedClient{}, detectedMap, err
 	}
@@ -194,12 +248,29 @@ func backendExecutable(selected domain.DetectedClient, clients map[domain.Client
 
 func promptYesNo(reader io.Reader, writer io.Writer, prompt string) (bool, error) {
 	_, _ = fmt.Fprint(writer, prompt+" ")
-	line, err := bufio.NewReader(reader).ReadString('\n')
+	line, err := readInputLine(reader)
 	if err != nil && err != io.EOF {
 		return false, err
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes", nil
+}
+
+func readInputLine(reader io.Reader) (string, error) {
+	var line strings.Builder
+	var buffer [1]byte
+	for {
+		read, err := reader.Read(buffer[:])
+		if read > 0 {
+			if buffer[0] == '\n' {
+				return line.String(), nil
+			}
+			line.WriteByte(buffer[0])
+		}
+		if err != nil {
+			return line.String(), err
+		}
+	}
 }
 
 func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result usecase.AddResult) error {
@@ -246,7 +317,7 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 	}
 	if result.Mutated && fullyInstalled(result.Activation) {
 		if result.Activation.ActivationAttested || result.Activation.AuthenticationAttested {
-			_, _ = fmt.Fprintln(writer, "Lifecycle marked complete from your explicit confirmation; client observation was not available for the attested phase.")
+			_, _ = fmt.Fprintln(writer, "Lifecycle is user-attested for the explicitly confirmed phase; it was not observed from the client.")
 		} else {
 			_, _ = fmt.Fprintln(writer, "Installed and verified for the selected client.")
 		}

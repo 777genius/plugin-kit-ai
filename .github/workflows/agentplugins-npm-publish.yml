@@ -271,7 +271,9 @@ jobs:
           }
           run_agentplugins version | grep -Fx "agentplugins ${version}"
           run_agentplugins add "${synthetic}" --target cursor --yes --format json > add.json
-          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true' add.json
+          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.authentication == "not_checked"' add.json
+          run_agentplugins add "${synthetic}" --target cursor --yes --activation-complete --auth-complete --format json > complete.json
+          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.activation_attested == true and .data.result.activation.authentication_attested == true' complete.json
           run_agentplugins info registry-proof-synthetic --format json > info.json
           jq -e '.schema_version == 1 and .command == "info" and .data.name == "registry-proof-synthetic"' info.json
           state_before_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
@@ -285,7 +287,7 @@ jobs:
           jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
           run_agentplugins info registry-proof-synthetic --format json > removed.json
           jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json
-          if grep -F "${RUNNER_TEMP}" add.json info.json doctor.json update.json remove.json removed.json; then
+          if grep -F "${RUNNER_TEMP}" add.json complete.json info.json doctor.json update.json remove.json removed.json; then
             echo "agentplugins JSON output leaked an absolute runner path" >&2
             exit 1
           fi

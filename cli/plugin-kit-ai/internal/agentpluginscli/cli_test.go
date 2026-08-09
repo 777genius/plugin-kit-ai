@@ -336,6 +336,63 @@ func TestRepeatedAddResumesManualLifecycleWithoutAnotherReceipt(t *testing.T) {
 	}
 }
 
+func TestInitialInteractiveAddPromptsForApplyBeforeLifecycle(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "n\n", "add", plugin, "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Apply this plan? [y/N]") || strings.Contains(stdout, "Have you completed activation") || strings.Contains(stdout, "authentication, or reviewed") {
+		t.Fatalf("initial prompt order = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("declined plan materialized state: %+v", state)
+	}
+}
+
+func TestInteractiveActivationYesAuthNoKeepsIndependentResumableState(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.executeInput(true, "y\ny\nn\n", "add", plugin, "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply := strings.Index(stdout, "Apply this plan? [y/N]")
+	activation := strings.Index(stdout, "Have you completed activation")
+	auth := strings.Index(stdout, "Have you completed required authentication")
+	if apply < 0 || activation <= apply || auth <= activation {
+		t.Fatalf("interactive prompt order = %q", stdout)
+	}
+	if strings.Count(stdout, "Next:") != 1 || !strings.Contains(stdout, "Activation is user-attested") {
+		t.Fatalf("interactive next action or attestation output = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if binding.Activation != domain.ActivationActive || binding.Verification != domain.VerificationInstalled || binding.Authentication != domain.AuthenticationNotChecked {
+		t.Fatalf("declined auth state = %+v", binding)
+	}
+}
+
+func TestCLICompletionFlagsRequirePriorMaterialization(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	_, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--yes", "--activation-complete", "--auth-complete")
+	if err == nil || !strings.Contains(err.Error(), "already materialized") {
+		t.Fatalf("fresh completion error = %v", err)
+	}
+}
+
 func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -660,9 +717,13 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 }
 
 func (fixture cliFixture) execute(terminal bool, args ...string) (string, string, error) {
+	return fixture.executeInput(terminal, "", args...)
+}
+
+func (fixture cliFixture) executeInput(terminal bool, input string, args ...string) (string, string, error) {
 	var stdout, stderr bytes.Buffer
 	app := fixture.app
-	app.Input = strings.NewReader("")
+	app.Input = strings.NewReader(input)
 	app.Output = &stdout
 	app.ErrorOutput = &stderr
 	app.Terminal = terminal
