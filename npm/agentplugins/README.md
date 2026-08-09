@@ -3,6 +3,8 @@
 Install and manage portable Agent Plugins 1.0 packages across Codex/ChatGPT,
 Cursor, GitHub Copilot/VS Code, and Kiro.
 
+Prerequisite: Node.js 22 or newer.
+
 ```bash
 npx universal-agent-plugins add context7
 ```
@@ -18,6 +20,18 @@ The npm package has no `postinstall`. On first execution it downloads only the
 binary matching the exact npm version, verifies the SHA-256 embedded in the npm
 tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
+
+Release 0.1.5 passed exact native npm bootstrap proofs on all six supported
+platforms:
+
+| OS | x64 | arm64 |
+| --- | --- | --- |
+| macOS | Tested | Tested |
+| Linux | Tested | Tested |
+| Windows | Tested | Tested |
+
+Other operating systems and CPU architectures are unsupported and fail before
+the binary runs.
 
 ```bash
 npx universal-agent-plugins doctor
