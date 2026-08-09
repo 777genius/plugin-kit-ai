@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -56,7 +57,10 @@ def verified_catalog(catalog_digest: str) -> tuple[dict[str, object], str]:
 
 
 def prepare_client(
-    home: Path, target: str, environment: dict[str, str]
+    home: Path,
+    target: str,
+    environment: dict[str, str],
+    platform_name: str | None = None,
 ) -> tuple[Path, ...]:
     """Create isolated detection roots for the selected client."""
     roots = {
@@ -64,9 +68,7 @@ def prepare_client(
         "cursor": (home / ".cursor",),
         "copilot": (home / ".copilot",),
         "vscode": (
-            Path(environment["XDG_CONFIG_HOME"]) / "Code" / "User",
-            home / "Library" / "Application Support" / "Code" / "User",
-            Path(environment["APPDATA"]) / "Code" / "User",
+            vscode_detection_root(home, environment, platform_name or sys.platform),
         ),
         "kiro": (home / ".kiro",),
     }
@@ -76,6 +78,17 @@ def prepare_client(
         if not root.is_dir() or root.is_symlink():
             raise RuntimeError(f"{target}: client detection root is not a real directory")
     return prepared
+
+
+def vscode_detection_root(
+    home: Path, environment: dict[str, str], platform_name: str
+) -> Path:
+    """Map one platform to the VS Code user root used by client detection."""
+    if platform_name == "win32":
+        return Path(environment["APPDATA"]) / "Code" / "User"
+    if platform_name == "darwin":
+        return home / "Library" / "Application Support" / "Code" / "User"
+    return Path(environment["XDG_CONFIG_HOME"]) / "Code" / "User"
 
 
 def catalog_environment(catalog_url: str, catalog_digest: str) -> dict[str, str]:
@@ -241,7 +254,14 @@ def sanitized_failure_output(
     for path in sorted(path_values, key=len, reverse=True):
         value = value.replace(path, "<path>")
     value = re.sub(r"(?i)(https?://)[^/@\s]+:[^/@\s]+@", r"\1<credentials>@", value)
-    value = re.sub(r"(?i)\bBearer\s+[^\s,;]+", "Bearer <redacted>", value)
+    value = re.sub(
+        r"(?im)(\bauthorization\s*[:=]\s*)[^\r\n]+",
+        r"\1<redacted>",
+        value,
+    )
+    value = re.sub(
+        r"(?i)([?&](?:code|state)=)[^&#\s]*", r"\1<redacted>", value
+    )
     value = re.sub(
         r'''(?ix)
         (?P<key>["']?(?:api[_-]?key|token|password|secret|authorization|cookie|
@@ -251,7 +271,7 @@ def sanitized_failure_output(
         r"\g<key><redacted>",
         value,
     )
-    value = re.sub(r"(?<![\w.])(?:/[A-Za-z0-9._+@%=-]+){2,}", "<path>", value)
+    value = re.sub(r"(?<![\w./:])(?:/[A-Za-z0-9._+@%=-]+){2,}", "<path>", value)
     value = re.sub(r"(?i)\b[A-Z]:\\(?:[^\s\\]+\\)*[^\s\\]+", "<path>", value)
     return value[:1000]
 

@@ -199,7 +199,7 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
         )
         self.assertNotIn("--yes", argv)
 
-    def test_vscode_prepares_real_isolated_detection_roots(self) -> None:
+    def test_vscode_detection_root_maps_each_platform(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             sandbox = Path(tmp)
             home = sandbox / "home"
@@ -209,20 +209,40 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
             custom_xdg = sandbox / "custom-xdg"
             environment["XDG_CONFIG_HOME"] = str(custom_xdg)
 
-            roots = hero_e2e.prepare_client(home, "vscode", environment)
+            self.assertEqual(
+                hero_e2e.vscode_detection_root(home, environment, "linux"),
+                custom_xdg / "Code" / "User",
+            )
+            self.assertEqual(
+                hero_e2e.vscode_detection_root(home, environment, "darwin"),
+                home / "Library" / "Application Support" / "Code" / "User",
+            )
+            self.assertEqual(
+                hero_e2e.vscode_detection_root(home, environment, "win32"),
+                sandbox / "appdata" / "Code" / "User",
+            )
+
+    def test_vscode_prepares_only_current_platform_real_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            home = sandbox / "home"
+            environment = hero_e2e.isolated_environment(
+                sandbox, home, CATALOG_URL, CATALOG_DIGEST
+            )
+
+            roots = hero_e2e.prepare_client(
+                home, "vscode", environment, platform_name="linux"
+            )
 
             self.assertEqual(
-                roots,
-                (
-                    custom_xdg / "Code" / "User",
-                    home / "Library" / "Application Support" / "Code" / "User",
-                    sandbox / "appdata" / "Code" / "User",
-                ),
+                roots, (sandbox / "config" / "Code" / "User",)
             )
-            for root in roots:
-                with self.subTest(root=root):
-                    self.assertTrue(root.is_dir())
-                    self.assertFalse(root.is_symlink())
+            self.assertTrue(roots[0].is_dir())
+            self.assertFalse(roots[0].is_symlink())
+            self.assertFalse(
+                (home / "Library" / "Application Support" / "Code").exists()
+            )
+            self.assertFalse((sandbox / "appdata" / "Code").exists())
 
     def test_projection_environment_does_not_inherit_windows_appdata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(
@@ -276,6 +296,48 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
         self.assertNotIn("json-secret", message)
         self.assertNotIn("bearer-secret", message)
         self.assertNotIn("user:password", message)
+
+    def test_sanitizer_redacts_complete_authorization_values(self) -> None:
+        cases = {
+            "Basic Zm9vOmJhcg== trailing-value": ("Zm9vOmJhcg==", "trailing-value"),
+            "token opaque-token trailing-value": ("opaque-token", "trailing-value"),
+            "Bearer bearer-token trailing-value": ("bearer-token", "trailing-value"),
+            'Digest username="private", response="digest-secret"': (
+                "private",
+                "digest-secret",
+            ),
+            "CustomScheme custom-secret extra-parameter": (
+                "custom-secret",
+                "extra-parameter",
+            ),
+        }
+        for authorization, secrets in cases.items():
+            with self.subTest(authorization=authorization):
+                sanitized = hero_e2e.sanitized_failure_output(
+                    f"request failed\nAuthorization: {authorization}\nretry disabled",
+                    Path("/tmp/sandbox"),
+                    {},
+                )
+                self.assertEqual(
+                    sanitized,
+                    "request failed\nAuthorization: <redacted>\nretry disabled",
+                )
+                for secret in secrets:
+                    self.assertNotIn(secret, sanitized)
+
+    def test_sanitizer_redacts_oauth_query_code_and_state(self) -> None:
+        sanitized = hero_e2e.sanitized_failure_output(
+            "callback rejected: https://example.test/cb?code=private-code&state=private-state&next=public",
+            Path("/tmp/sandbox"),
+            {},
+        )
+
+        self.assertEqual(
+            sanitized,
+            "callback rejected: https://example.test/cb?code=<redacted>&state=<redacted>&next=public",
+        )
+        self.assertNotIn("private-code", sanitized)
+        self.assertNotIn("private-state", sanitized)
 
     def test_projection_timeout_names_target_plugin_and_command(self) -> None:
         with mock.patch.object(
