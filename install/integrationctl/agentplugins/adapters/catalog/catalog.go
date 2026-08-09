@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"path"
 	"regexp"
 	"sort"
@@ -18,13 +19,19 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-const SchemaVersion = 1
+const (
+	SchemaVersionV1 = 1
+	SchemaVersionV2 = 2
+	minimumV2CLI    = "v0.1.6"
+)
 
 var (
 	repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	commitPattern     = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	digestPattern     = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	namePattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,63}$`)
+	appAliasPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+	appIDPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$`)
 )
 
 var requiredCompatibility = map[string]string{
@@ -55,7 +62,7 @@ func (loader Loader) Load(body []byte, expectedDigest string) (Loaded, error) {
 	decoder.DisallowUnknownFields()
 	var value domain.CatalogV1
 	if err := decoder.Decode(&value); err != nil {
-		return Loaded{}, fmt.Errorf("decode catalog v1: %w", err)
+		return Loaded{}, fmt.Errorf("decode catalog: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return Loaded{}, fmt.Errorf("catalog contains trailing JSON values")
@@ -63,11 +70,15 @@ func (loader Loader) Load(body []byte, expectedDigest string) (Loaded, error) {
 	if err := validateCatalog(value); err != nil {
 		return Loaded{}, err
 	}
+	cliVersion := normalizeVersion(loader.CurrentCLIVersion)
+	if value.SchemaVersion == SchemaVersionV2 && cliVersion != "" && semver.Compare(cliVersion, minimumV2CLI) < 0 {
+		return Loaded{}, fmt.Errorf("catalog v2 requires agentplugins 0.1.6 or newer")
+	}
 	byName := make(map[string]domain.CatalogPlugin, len(value.Plugins))
 	for _, plugin := range value.Plugins {
 		byName[plugin.Name] = plugin
 	}
-	return Loaded{Catalog: value, Digest: digest, byName: byName, cli: normalizeVersion(loader.CurrentCLIVersion)}, nil
+	return Loaded{Catalog: value, Digest: digest, byName: byName, cli: cliVersion}, nil
 }
 
 func (loaded Loaded) Resolve(name string) (domain.CatalogResolution, error) {
@@ -101,7 +112,9 @@ func (loaded Loaded) Resolve(name string) (domain.CatalogResolution, error) {
 }
 
 func validateCatalog(value domain.CatalogV1) error {
-	if value.Schema != domain.CatalogSchemaV1 || value.SchemaVersion != SchemaVersion {
+	supportedSchema := (value.SchemaVersion == SchemaVersionV1 && value.Schema == domain.CatalogSchemaV1) ||
+		(value.SchemaVersion == SchemaVersionV2 && value.Schema == domain.CatalogSchemaV2)
+	if !supportedSchema {
 		return fmt.Errorf("unsupported catalog schema")
 	}
 	if !semver.IsValid(normalizeVersion(value.CatalogVersion)) {
@@ -118,7 +131,7 @@ func validateCatalog(value domain.CatalogV1) error {
 	}
 	seen := map[string]domain.CatalogPlugin{}
 	for index, plugin := range value.Plugins {
-		if err := validatePlugin(plugin); err != nil {
+		if err := validatePlugin(plugin, value.SchemaVersion); err != nil {
 			return fmt.Errorf("plugins[%d]: %w", index, err)
 		}
 		if previous, exists := seen[plugin.Name]; exists {
@@ -132,12 +145,15 @@ func validateCatalog(value domain.CatalogV1) error {
 	return nil
 }
 
-func validatePlugin(plugin domain.CatalogPlugin) error {
+func validatePlugin(plugin domain.CatalogPlugin, schemaVersion int) error {
 	if !namePattern.MatchString(plugin.Name) || strings.Contains(plugin.Name, "..") || strings.HasSuffix(plugin.Name, ".") {
 		return fmt.Errorf("invalid plugin name %q", plugin.Name)
 	}
 	if !semver.IsValid(normalizeVersion(plugin.Version)) || !semver.IsValid(normalizeVersion(plugin.MinimumCLIVersion)) {
 		return fmt.Errorf("plugin %q has invalid version metadata", plugin.Name)
+	}
+	if schemaVersion == SchemaVersionV2 && semver.Compare(normalizeVersion(plugin.MinimumCLIVersion), minimumV2CLI) < 0 {
+		return fmt.Errorf("plugin %q catalog v2 minimum_cli_version must be 0.1.6 or newer", plugin.Name)
 	}
 	if plugin.AgentPluginsSchema != domain.PluginSchemaV1 {
 		return fmt.Errorf("plugin %q uses unsupported Agent Plugins schema", plugin.Name)
@@ -158,8 +174,15 @@ func validatePlugin(plugin domain.CatalogPlugin) error {
 		}
 		components[component] = struct{}{}
 	}
-	if len(plugin.Compatibility) != len(requiredCompatibility) {
-		return fmt.Errorf("plugin %q compatibility must contain exactly codex, cursor, copilot, vscode, and kiro", plugin.Name)
+	allowChatGPT := schemaVersion == SchemaVersionV2
+	if (!allowChatGPT && len(plugin.Compatibility) != len(requiredCompatibility)) ||
+		(allowChatGPT && (len(plugin.Compatibility) < len(requiredCompatibility) || len(plugin.Compatibility) > len(requiredCompatibility)+1)) {
+		return fmt.Errorf("plugin %q compatibility has the wrong client set for catalog schema v%d", plugin.Name, schemaVersion)
+	}
+	for client := range plugin.Compatibility {
+		if _, required := requiredCompatibility[client]; !required && (!allowChatGPT || client != string(domain.ClientChatGPT)) {
+			return fmt.Errorf("plugin %q compatibility contains unsupported client %q", plugin.Name, client)
+		}
 	}
 	var authentication domain.AuthenticationRequirement
 	for client, expectedPackage := range requiredCompatibility {
@@ -171,16 +194,59 @@ func validatePlugin(plugin domain.CatalogPlugin) error {
 			!validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
 			return fmt.Errorf("plugin %q has invalid compatibility for %q", plugin.Name, client)
 		}
+		if compatibility.AppBinding != nil {
+			return fmt.Errorf("plugin %q app_binding is allowed only for chatgpt", plugin.Name)
+		}
 		if authentication == "" {
 			authentication = compatibility.Authentication
 		} else if compatibility.Authentication != authentication {
 			return fmt.Errorf("plugin %q must use one consistent authentication requirement for every client", plugin.Name)
 		}
 	}
+	if compatibility, ok := plugin.Compatibility[string(domain.ClientChatGPT)]; ok {
+		if compatibility.Package != "projected" || !validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
+			return fmt.Errorf("plugin %q has invalid compatibility for chatgpt", plugin.Name)
+		}
+		if authentication != "" && compatibility.Authentication != authentication {
+			return fmt.Errorf("plugin %q must use one consistent authentication requirement for every client", plugin.Name)
+		}
+		_, hasMCP := components["mcp"]
+		if hasMCP && compatibility.AppBinding == nil {
+			return fmt.Errorf("plugin %q ChatGPT MCP compatibility requires app_binding", plugin.Name)
+		}
+		if compatibility.AppBinding != nil {
+			if err := ValidateAppBinding(*compatibility.AppBinding); err != nil {
+				return fmt.Errorf("plugin %q chatgpt app_binding: %w", plugin.Name, err)
+			}
+		}
+	}
 	for server, hint := range plugin.OpenAIMCPAuth {
 		if strings.TrimSpace(server) == "" || (hint.OAuthResource == "" && hint.BearerTokenEnvVar == "") {
 			return fmt.Errorf("plugin %q has invalid OpenAI auth hint", plugin.Name)
 		}
+	}
+	return nil
+}
+
+func ValidateAppBinding(binding domain.CatalogAppBinding) error {
+	if !appAliasPattern.MatchString(binding.AppKey) || !appAliasPattern.MatchString(binding.MCPServer) {
+		return fmt.Errorf("app_key and mcp_server must be safe aliases")
+	}
+	if binding.AppKey != binding.MCPServer {
+		return fmt.Errorf("app_key must equal mcp_server in v0.1")
+	}
+	if !appIDPattern.MatchString(binding.ID) {
+		return fmt.Errorf("id must be a non-empty opaque safe ASCII token")
+	}
+	parsed, err := url.Parse(binding.MCPURL)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.String() != binding.MCPURL {
+		return fmt.Errorf("mcp_url must be a normalized absolute HTTPS URL without userinfo, query, or fragment")
+	}
+	if err := validateSourcePath(binding.RuntimeEvidence); err != nil {
+		return fmt.Errorf("runtime_evidence: %w", err)
+	}
+	if !commitPattern.MatchString(binding.RuntimeEvidenceRevision) {
+		return fmt.Errorf("runtime_evidence_revision must be an exact lowercase Git commit")
 	}
 	return nil
 }
@@ -220,6 +286,10 @@ func cloneCompatibility(source map[string]domain.CatalogCompatibility) map[strin
 	}
 	result := make(map[string]domain.CatalogCompatibility, len(source))
 	for key, value := range source {
+		if value.AppBinding != nil {
+			binding := *value.AppBinding
+			value.AppBinding = &binding
+		}
 		result[key] = value
 	}
 	return result

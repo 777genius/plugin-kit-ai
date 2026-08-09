@@ -732,6 +732,50 @@ func TestDeactivatorPreservesManualClientArtifactsUntilAcknowledged(t *testing.T
 	}
 }
 
+func TestChatGPTActivationIsManualAndNeverUsesCodexRunner(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientChatGPT)
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentApp, Name: "demo", Support: domain.SupportProjected}}
+	request.BackendExecutable = "/test/bin/codex"
+	runner := &recordingRunner{}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid || len(runner.commands) != 0 {
+		t.Fatalf("ChatGPT activation = %+v commands=%+v", outcome, runner.commands)
+	}
+	if len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], "Developer Mode") || !strings.Contains(outcome.UserActions[0], ".app.json") {
+		t.Fatalf("ChatGPT actions = %+v", outcome.UserActions)
+	}
+}
+
+func TestChatGPTSkillsOnlyActivationDoesNotMentionAppRegistration(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientChatGPT)
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentSkill, Name: "docs", Support: domain.SupportProjected}}
+	outcome, err := (Activator{}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationManual || len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], "skills-only") || strings.Contains(outcome.UserActions[0], ".app.json") || strings.Contains(outcome.UserActions[0], "Developer Mode") {
+		t.Fatalf("ChatGPT skills-only activation = %+v", outcome)
+	}
+}
+
+func TestChatGPTActivationCanOnlyCompleteByExplicitAttestation(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientChatGPT)
+	request.ActivationComplete = true
+	outcome, err := (Activator{}).Activate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || !outcome.ActivationAttested {
+		t.Fatalf("ChatGPT attestation = %+v", outcome)
+	}
+}
+
 func activationRequest(t *testing.T, client domain.ClientID) domain.ActivationRequest {
 	t.Helper()
 	base := filepath.Join(t.TempDir(), "managed")

@@ -47,7 +47,7 @@ func (planner Planner) Plan(
 		Verification:       domain.VerificationPackageValid,
 		PhysicalArtifactID: physicalArtifactID,
 	}
-	if client.Status != domain.DetectionDetected {
+	if client.Status != domain.DetectionDetected && client.ClientID != domain.ClientChatGPT {
 		plan.Status = domain.PlanUnsupported
 		plan.Activation = domain.ActivationFailed
 		plan.Warnings = append(plan.Warnings, "client_not_detected")
@@ -73,10 +73,23 @@ func (planner Planner) Plan(
 		plan.Diagnostics = append(plan.Diagnostics, diagnostic)
 		plan.Warnings = appendUnique(plan.Warnings, diagnostic.Code)
 		if diagnostic.Severity == domain.SeverityError {
-			if diagnostic.Boundary == domain.BoundaryMCP || diagnostic.Boundary == domain.BoundaryMCPServer || diagnostic.Boundary == domain.BoundarySkill || diagnostic.Boundary == domain.BoundaryExtension {
+			if diagnostic.Boundary == domain.BoundaryMCP || diagnostic.Boundary == domain.BoundaryMCPServer || diagnostic.Boundary == domain.BoundarySkill || diagnostic.Boundary == domain.BoundaryExtension ||
+				(diagnostic.Boundary == domain.BoundaryApp && client.ClientID == domain.ClientChatGPT) {
 				hasComponentErrors = true
 			}
 		}
+	}
+	missingChatGPTApps := missingChatGPTAppBindings(envelope)
+	if client.ClientID == domain.ClientChatGPT &&
+		((!envelope.App.Enabled && (len(envelope.MCP.Servers) > 0 || envelope.App.Present || envelope.App.Declared)) || len(missingChatGPTApps) > 0) {
+		plan.Status = domain.PlanUnsupported
+		plan.Activation = domain.ActivationFailed
+		plan.Warnings = appendUnique(plan.Warnings, "chatgpt_app_binding_required")
+		action := "register every remote MCP connection in ChatGPT Developer Mode and provide a valid root .app.json mapping"
+		if len(missingChatGPTApps) > 0 {
+			action += " for: " + strings.Join(missingChatGPTApps, ", ")
+		}
+		plan.UserActions = append(plan.UserActions, action)
 	}
 	if !hasComponents(plan.Components) && hasComponentErrors {
 		plan.Status = domain.PlanUnsupported
@@ -102,7 +115,13 @@ func (planner Planner) Plan(
 
 	switch client.ClientID {
 	case domain.ClientCodex:
-		plan.UserActions = append(plan.UserActions, "finish installation in Codex or ChatGPT Plugins, then start a new session")
+		plan.UserActions = append(plan.UserActions, "finish installation in Codex Plugins, then start a new session")
+	case domain.ClientChatGPT:
+		if hasSupportedKind(plan.Components, domain.ComponentApp) {
+			plan.UserActions = append(plan.UserActions, "install the prepared plugin from ChatGPT Plugins, verify its registered app connection, then start a new chat")
+		} else {
+			plan.UserActions = append(plan.UserActions, "install the prepared skills-only plugin from ChatGPT Plugins, then start a new chat")
+		}
 	case domain.ClientCursor:
 		plan.UserActions = append(plan.UserActions, "reload Cursor, then verify the plugin appears before using its components")
 	case domain.ClientCopilot:
@@ -238,31 +257,37 @@ func Capabilities(clientID domain.ClientID) (domain.ClientCapabilities, bool) {
 		return domain.ClientCapabilities{
 			ClientID: clientID, PackageMode: domain.PackageProjection, ActivationMode: domain.ActivationByUser,
 			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportProjected,
-			MCPTransports: mapSupport(allMCP, domain.SupportProjected), ExtensionSupport: domain.SupportUnsupported,
+			MCPTransports: mapSupport(allMCP, domain.SupportProjected), AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportUnsupported,
+		}, true
+	case domain.ClientChatGPT:
+		return domain.ClientCapabilities{
+			ClientID: clientID, PackageMode: domain.PackageProjection, ActivationMode: domain.ActivationByUser,
+			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportProjected,
+			MCPTransports: mapSupport(allMCP, domain.SupportUnsupported), AppSupport: domain.SupportProjected, ExtensionSupport: domain.SupportUnsupported,
 		}, true
 	case domain.ClientCursor:
 		return domain.ClientCapabilities{
 			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
 			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, ExtensionSupport: domain.SupportNative,
+			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportNative,
 		}, true
 	case domain.ClientCopilot:
 		return domain.ClientCapabilities{
 			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
 			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, ExtensionSupport: domain.SupportNative,
+			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportNative,
 		}, true
 	case domain.ClientVSCode:
 		return domain.ClientCapabilities{
 			ClientID: clientID, PackageMode: domain.PackagePrepared, ActivationMode: domain.ActivationByUser,
 			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportPrepared,
-			MCPTransports: mapSupport(allMCP, domain.SupportPrepared), ExtensionSupport: domain.SupportPrepared,
+			MCPTransports: mapSupport(allMCP, domain.SupportPrepared), AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportPrepared,
 		}, true
 	case domain.ClientKiro:
 		return domain.ClientCapabilities{
 			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
 			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, ExtensionSupport: domain.SupportUnsupported,
+			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportUnsupported,
 		}, true
 	default:
 		return domain.ClientCapabilities{}, false
@@ -300,7 +325,7 @@ func (planner Planner) targetRoot(client domain.DetectedClient, mode domain.Pack
 }
 
 func componentDecisions(envelope domain.PackageEnvelope, capabilities domain.ClientCapabilities) []domain.ComponentDecision {
-	decisions := make([]domain.ComponentDecision, 0, len(envelope.Skills)+len(envelope.MCP.Servers)+len(envelope.Manifest.Extensions))
+	decisions := make([]domain.ComponentDecision, 0, len(envelope.Skills)+len(envelope.MCP.Servers)+len(envelope.App.Bindings)+len(envelope.Manifest.Extensions))
 	skillNames := sortedKeys(envelope.Skills)
 	for _, name := range skillNames {
 		decisions = append(decisions, decision(domain.ComponentSkill, name, capabilities.SkillSupport))
@@ -312,7 +337,16 @@ func componentDecisions(envelope domain.PackageEnvelope, capabilities domain.Cli
 		if !ok {
 			support = domain.SupportUnsupported
 		}
+		if capabilities.ClientID == domain.ClientChatGPT && envelope.App.Enabled {
+			if _, mapped := envelope.App.Bindings[name]; mapped {
+				support = domain.SupportProjected
+			}
+		}
 		decisions = append(decisions, decision(domain.ComponentMCPServer, name, support))
+	}
+	appNames := sortedKeys(envelope.App.Bindings)
+	for _, name := range appNames {
+		decisions = append(decisions, decision(domain.ComponentApp, name, capabilities.AppSupport))
 	}
 	extensionNames := sortedKeys(envelope.Manifest.Extensions)
 	for _, name := range extensionNames {
@@ -322,6 +356,9 @@ func componentDecisions(envelope domain.PackageEnvelope, capabilities domain.Cli
 }
 
 func decision(kind domain.ComponentKind, name string, support domain.SupportLevel) domain.ComponentDecision {
+	if support == "" {
+		support = domain.SupportUnsupported
+	}
 	value := domain.ComponentDecision{Kind: kind, Name: name, Support: support}
 	if support == domain.SupportUnsupported {
 		value.Reason = "component_not_supported_by_client"
@@ -388,4 +425,24 @@ func hasSupportedComponent(decisions []domain.ComponentDecision) bool {
 		}
 	}
 	return false
+}
+
+func hasSupportedKind(decisions []domain.ComponentDecision, kind domain.ComponentKind) bool {
+	for _, item := range decisions {
+		if item.Kind == kind && item.Support != domain.SupportUnsupported {
+			return true
+		}
+	}
+	return false
+}
+
+func missingChatGPTAppBindings(envelope domain.PackageEnvelope) []string {
+	missing := make([]string, 0)
+	for name := range envelope.MCP.Servers {
+		if _, ok := envelope.App.Bindings[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }

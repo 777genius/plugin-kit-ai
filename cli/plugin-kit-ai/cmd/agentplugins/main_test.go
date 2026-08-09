@@ -15,9 +15,12 @@ func TestEmbeddedCatalogIsPinnedAndContainsAllLaunchPlugins(t *testing.T) {
 	if digest != defaultCatalogDigest {
 		t.Fatalf("embedded catalog digest = %s, want %s", digest, defaultCatalogDigest)
 	}
-	loaded, err := (catalog.Loader{CurrentCLIVersion: "0.1.0"}).Load(embeddedCatalog, defaultCatalogDigest)
+	loaded, err := (catalog.Loader{CurrentCLIVersion: "0.1.6"}).Load(embeddedCatalog, defaultCatalogDigest)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if loaded.Catalog.SchemaVersion != 2 {
+		t.Fatalf("embedded catalog schema_version = %d, want 2", loaded.Catalog.SchemaVersion)
 	}
 	if len(loaded.Catalog.Plugins) != 26 {
 		t.Fatalf("catalog plugins = %d", len(loaded.Catalog.Plugins))

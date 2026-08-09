@@ -11,6 +11,7 @@ type ComponentKind string
 
 const (
 	ClientCodex   ClientID = "codex"
+	ClientChatGPT ClientID = "chatgpt"
 	ClientCursor  ClientID = "cursor"
 	ClientCopilot ClientID = "copilot"
 	ClientVSCode  ClientID = "vscode"
@@ -43,6 +44,7 @@ const (
 
 	ComponentSkill     ComponentKind = "skill"
 	ComponentMCPServer ComponentKind = "mcp_server"
+	ComponentApp       ComponentKind = "app"
 	ComponentExtension ComponentKind = "extension"
 )
 
@@ -70,6 +72,7 @@ type ClientCapabilities struct {
 	Scopes           []InstallScope          `json:"scopes"`
 	SkillSupport     SupportLevel            `json:"skill_support"`
 	MCPTransports    map[string]SupportLevel `json:"mcp_transports,omitempty"`
+	AppSupport       SupportLevel            `json:"app_support"`
 	ExtensionSupport SupportLevel            `json:"extension_support"`
 }
 

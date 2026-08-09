@@ -37,6 +37,9 @@ func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
 	if strings.Contains(stdout, "--yes") {
 		t.Fatalf("user-facing help exposed the automation-only flag: %s", stdout)
 	}
+	if !strings.Contains(stdout, "codex, chatgpt, cursor") {
+		t.Fatalf("user-facing help omitted the distinct ChatGPT target: %s", stdout)
+	}
 }
 
 func TestAddListAndInfoProduceVersionedPathRedactedJSON(t *testing.T) {
@@ -765,10 +768,539 @@ func TestRepairReturnsOutputErrors(t *testing.T) {
 	}
 }
 
-func TestChatGPTTargetIsNotAliasedToCodexCLI(t *testing.T) {
+func TestChatGPTTargetIsDistinctFromCodex(t *testing.T) {
 	t.Parallel()
-	if got := normalizeTarget("chatgpt"); got == domain.ClientCodex {
-		t.Fatalf("ChatGPT GUI target was aliased to Codex CLI: %s", got)
+	if got := normalizeTarget("chatgpt"); got != domain.ClientChatGPT {
+		t.Fatalf("ChatGPT target = %s", got)
+	}
+}
+
+func TestChatGPTDoctorDoesNotApplyAnotherTargetsNewerInventory(t *testing.T) {
+	t.Parallel()
+	installation := domain.Installation{
+		Source:  domain.SourceBinding{TreeDigest: "sha256:new-tree"},
+		Package: domain.PackageBinding{ManifestDigest: "sha256:new-manifest", Inventory: domain.ComponentInventory{MCPPresent: true}},
+	}
+	binding := domain.ClientBinding{PackageRevision: &domain.ClientPackageRevision{TreeDigest: "sha256:chatgpt-tree", ManifestDigest: "sha256:chatgpt-manifest"}}
+	if packageInventoryAppliesToBinding(installation, binding) {
+		t.Fatal("newer package inventory was applied to an older ChatGPT client revision")
+	}
+}
+
+func TestOpenAITargetFailsAsAmbiguousWithoutMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "openai"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("openai target error = %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 0 {
+		t.Fatalf("ambiguous target mutated state: %+v, %v", state, err)
+	}
+}
+
+func TestChatGPTMCPWithoutAppBindingFailsBeforeMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt")
+	if err == nil || !strings.Contains(err.Error(), "Developer Mode") || !strings.Contains(err.Error(), ".app.json") {
+		t.Fatalf("missing app error = %v", err)
+	}
+	if !strings.Contains(stdout, "Developer Mode") || !strings.Contains(stdout, ".app.json") || !strings.Contains(stdout, "demo") {
+		t.Fatalf("human unsupported plan omitted recovery guidance: %s", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 0 {
+		t.Fatalf("missing app mutated state: %+v, %v", state, err)
+	}
+	if _, err := os.Stat(fixture.app.ManagedRoot); !os.IsNotExist(err) {
+		t.Fatalf("unsupported plan mutated managed filesystem: %v", err)
+	}
+}
+
+func TestChatGPTUnsupportedPlanRendersStructuredJSONGuidance(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt", "--dry-run", "--format", "json")
+	if err == nil {
+		t.Fatal("unsupported ChatGPT dry-run succeeded")
+	}
+	if !strings.Contains(stdout, `"status":"unsupported"`) || !strings.Contains(stdout, `"user_actions"`) || !strings.Contains(stdout, "Developer Mode") || !strings.Contains(stdout, ".app.json") {
+		t.Fatalf("JSON unsupported plan omitted structured guidance: %s", stdout)
+	}
+	state, stateErr := fixture.store.Load()
+	if stateErr != nil || len(state.Installations) != 0 {
+		t.Fatalf("unsupported JSON plan mutated state: %+v, %v", state, stateErr)
+	}
+}
+
+func TestChatGPTUnsupportedUpdateRendersRecoveryWithoutMutation(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		format string
+	}{
+		{name: "human", format: "human"},
+		{name: "json", format: "json"},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newCLIFixture(t, nil)
+			plugin := writeCLIPlugin(t)
+			writeCLIMCP(t, plugin)
+			writeCLIApp(t, plugin)
+			if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
+				t.Fatal(err)
+			}
+			state, err := fixture.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyCLIClient(state.Installations[0])
+			stateBefore, err := os.ReadFile(fixture.store.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(filepath.Join(plugin, ".app.json")); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"update", "demo", "--target", "chatgpt"}
+			if test.format == "json" {
+				args = append(args, "--format", "json")
+			}
+			stdout, _, updateErr := fixture.execute(false, args...)
+			if updateErr == nil {
+				t.Fatal("unsupported ChatGPT update succeeded")
+			}
+			if test.format == "json" {
+				assertVersionedJSON(t, stdout, "update")
+				if !strings.Contains(stdout, `"user_actions"`) {
+					t.Fatalf("JSON update omitted structured user actions: %s", stdout)
+				}
+			}
+			for _, expected := range []string{"Developer Mode", ".app.json", "demo"} {
+				if !strings.Contains(stdout, expected) || !strings.Contains(updateErr.Error(), expected) {
+					t.Fatalf("%s update omitted %q recovery guidance: stdout=%q error=%v", test.format, expected, stdout, updateErr)
+				}
+			}
+			stateAfter, err := os.ReadFile(fixture.store.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(stateBefore, stateAfter) {
+				t.Fatal("unsupported ChatGPT update mutated state")
+			}
+			if _, err := os.Stat(filepath.Join(binding.TargetLocator, ".app.json")); err != nil {
+				t.Fatalf("unsupported ChatGPT update mutated the managed package: %v", err)
+			}
+		})
+	}
+}
+
+func TestChatGPTUnsupportedRepairRendersStructuredRecoveryWithoutMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	writeCLIApp(t, plugin)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if err := os.Remove(filepath.Join(plugin, ".app.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(binding.TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	stateBefore, err := os.ReadFile(fixture.store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, repairErr := fixture.execute(false, "repair", "demo", "--target", "chatgpt", "--format", "json")
+	if repairErr == nil {
+		t.Fatal("unsupported ChatGPT repair succeeded")
+	}
+	assertVersionedJSON(t, stdout, "repair")
+	for _, expected := range []string{`"user_actions"`, "Developer Mode", ".app.json", "demo"} {
+		if !strings.Contains(stdout, expected) {
+			t.Fatalf("JSON repair omitted %q recovery guidance: %s", expected, stdout)
+		}
+	}
+	stateAfter, err := os.ReadFile(fixture.store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stateBefore, stateAfter) {
+		t.Fatal("unsupported ChatGPT repair mutated state")
+	}
+	if _, err := os.Stat(binding.TargetLocator); !os.IsNotExist(err) {
+		t.Fatalf("unsupported ChatGPT repair mutated the managed package: %v", err)
+	}
+}
+
+func TestNoDetectedClientSuggestsExplicitChatGPTTarget(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	plugin := writeCLIPlugin(t)
+	_, _, err := fixture.execute(true, "add", plugin)
+	if err == nil || !strings.Contains(err.Error(), "--target chatgpt") || !strings.Contains(err.Error(), "install/detect another client") {
+		t.Fatalf("zero-client guidance = %v", err)
+	}
+	state, stateErr := fixture.store.Load()
+	if stateErr != nil || len(state.Installations) != 0 {
+		t.Fatalf("zero-client add mutated state: %+v, %v", state, stateErr)
+	}
+}
+
+func TestCatalogChatGPTAppBindingVerifiesMCPAndSynthesizesApp(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	envelope, err := fixture.app.PackageLoader.Load(context.Background(), domain.LoadInput{SnapshotRoot: plugin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded := loadedPackage{envelope: envelope, hints: domain.CompatibilityHints{Compatibility: map[string]domain.CatalogCompatibility{
+		"chatgpt": {
+			Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired,
+			AppBinding: &domain.CatalogAppBinding{AppKey: "demo", ID: "asdk_app_demo_123", MCPServer: "demo", MCPURL: "https://example.test/mcp", RuntimeEvidence: "tests/e2e/results/chatgpt-demo.json", RuntimeEvidenceRevision: strings.Repeat("e", 40)},
+		},
+	}}}
+	if err := prepareLoadedPackageForClient(&loaded, domain.ClientChatGPT); err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.envelope.App.Enabled || loaded.envelope.App.Bindings["demo"].ID != "asdk_app_demo_123" || !strings.Contains(string(loaded.envelope.App.Raw), "asdk_app_demo_123") {
+		t.Fatalf("catalog app synthesis = %+v", loaded.envelope.App)
+	}
+
+	mismatch := loaded
+	mismatch.envelope = envelope
+	binding := *mismatch.hints.Compatibility["chatgpt"].AppBinding
+	binding.MCPURL = "https://other.example.test/mcp"
+	compatibility := mismatch.hints.Compatibility["chatgpt"]
+	compatibility.AppBinding = &binding
+	mismatch.hints.Compatibility = map[string]domain.CatalogCompatibility{"chatgpt": compatibility}
+	if err := prepareLoadedPackageForClient(&mismatch, domain.ClientChatGPT); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("catalog URL mismatch = %v", err)
+	}
+
+	existingMismatch := loaded
+	existingMismatch.envelope = envelope
+	existingMismatch.envelope.App = domain.AppComponent{
+		Present: true, Declared: true, Enabled: true,
+		Bindings: map[string]domain.AppBinding{"demo": {Alias: "demo", ID: "connector_wrong"}},
+	}
+	if err := prepareLoadedPackageForClient(&existingMismatch, domain.ClientChatGPT); err == nil || !strings.Contains(err.Error(), "does not exactly match") {
+		t.Fatalf("existing app mismatch = %v", err)
+	}
+
+	restored := loadedPackage{envelope: envelope}
+	revisionBinding := domain.ClientBinding{PackageRevision: &domain.ClientPackageRevision{CatalogEvidence: &domain.CatalogEvidence{
+		SchemaVersion: 2, Compatibility: cloneCatalogCompatibility(loaded.hints.Compatibility),
+	}}}
+	restoreCatalogEvidence(&restored, revisionBinding)
+	if err := prepareLoadedPackageForClient(&restored, domain.ClientChatGPT); err != nil || !restored.envelope.App.Enabled {
+		t.Fatalf("persisted catalog evidence did not restore ChatGPT repair binding: %+v, %v", restored.envelope.App, err)
+	}
+}
+
+func TestRepairRestoresCatalogEvidenceFromSelectedClientRevision(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	envelope, err := fixture.app.PackageLoader.Load(context.Background(), domain.LoadInput{SnapshotRoot: plugin})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compatibility := func(id string) map[string]domain.CatalogCompatibility {
+		return map[string]domain.CatalogCompatibility{"chatgpt": {
+			Package: "projected", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired,
+			AppBinding: &domain.CatalogAppBinding{AppKey: "demo", ID: id, MCPServer: "demo", MCPURL: "https://example.test/mcp", RuntimeEvidence: "tests/e2e/results/chatgpt-demo.json", RuntimeEvidenceRevision: strings.Repeat("e", 40)},
+		}}
+	}
+	installation := domain.Installation{Clients: map[string]domain.ClientBinding{
+		"chatgpt-old": {ClientID: "chatgpt", PackageRevision: &domain.ClientPackageRevision{
+			Version: "1.0.0", TreeDigest: "sha256:tree-a", ManifestDigest: "sha256:manifest-a",
+			CatalogEvidence: &domain.CatalogEvidence{SchemaVersion: 2, Digest: "sha256:catalog-a", Compatibility: compatibility("connector_app_a")},
+		}},
+		"codex-new": {ClientID: "codex", PackageRevision: &domain.ClientPackageRevision{
+			Version: "2.0.0", TreeDigest: "sha256:tree-b", ManifestDigest: "sha256:manifest-b",
+			CatalogEvidence: &domain.CatalogEvidence{SchemaVersion: 2, Digest: "sha256:catalog-b", Compatibility: compatibility("connector_app_b")},
+		}},
+	}}
+	restored := loadedPackage{envelope: envelope}
+	restoreCatalogEvidence(&restored, installation.Clients["chatgpt-old"])
+	if err := prepareLoadedPackageForClient(&restored, domain.ClientChatGPT); err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.envelope.App.Bindings["demo"].ID; got != "connector_app_a" {
+		t.Fatalf("ChatGPT repair used evidence from a different client revision: got %q", got)
+	}
+}
+
+func TestChatGPTAppPackagePreparesManualInstallWithoutDesktopDetection(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	app := `{"apps":{"demo":{"id":"asdk_app_demo_123","required":true}}}`
+	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(app), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Package prepared") || !strings.Contains(stdout, "ChatGPT Plugins") || !strings.Contains(stdout, ".app.json") {
+		t.Fatalf("ChatGPT output = %q", stdout)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 1 {
+		t.Fatalf("state = %+v, %v", state, err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if binding.ClientID != string(domain.ClientChatGPT) || binding.Activation != domain.ActivationManual {
+		t.Fatalf("ChatGPT binding = %+v", binding)
+	}
+	manifest := readCLIObject(t, filepath.Join(binding.TargetLocator, ".codex-plugin", "plugin.json"))
+	if manifest["apps"] != "./.app.json" || manifest["mcpServers"] != "./.mcp.json" {
+		t.Fatalf("ChatGPT projection = %+v", manifest)
+	}
+	if mcp := readCLIObject(t, filepath.Join(binding.TargetLocator, ".mcp.json")); mcp["mcpServers"] == nil {
+		t.Fatalf("ChatGPT projection lost bundled MCP parity: %+v", mcp)
+	}
+	if _, err := os.Stat(filepath.Join(binding.TargetLocator, "plugin.json")); !os.IsNotExist(err) {
+		t.Fatalf("portable manifest shadows official ChatGPT projection: %v", err)
+	}
+	reloaded, err := fixture.app.PackageLoader.Load(context.Background(), domain.LoadInput{SnapshotRoot: binding.TargetLocator})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.FormatID != domain.FormatIDOpenAIPlugin || !reloaded.App.Enabled || !reloaded.MCP.Enabled {
+		t.Fatalf("ChatGPT staged artifact is not a runnable official package: %+v", reloaded)
+	}
+	doctor, _, err := fixture.execute(false, "doctor", "demo", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(doctor, "client_not_visible") || !strings.Contains(doctor, "chatgpt_registration_unverified") {
+		t.Fatalf("ChatGPT doctor findings = %s", doctor)
+	}
+}
+
+func TestOfficialOpenAIPackagePreparesForChatGPT(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(plugin, ".codex-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"name":"official-demo","apps":"./.app.json","mcpServers":"./.mcp.json","interface":{"displayName":"Official Demo"},"future":{"preserved":true}}`
+	if err := os.WriteFile(filepath.Join(plugin, ".codex-plugin", "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(`{"apps":{"demo":{"id":"plugin_asdk_app_demo_123"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, ".mcp.json"), []byte(`{"mcpServers":{"demo":{"type":"http","url":"https://example.test/mcp"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 1 {
+		t.Fatalf("state = %+v, %v", state, err)
+	}
+	installation := state.Installations[0]
+	if installation.Package.FormatID != domain.FormatIDOpenAIPlugin || installation.Package.SchemaURI != "" {
+		t.Fatalf("official binding = %+v", installation.Package)
+	}
+	projected := readCLIObject(t, filepath.Join(onlyCLIClient(installation).TargetLocator, ".codex-plugin", "plugin.json"))
+	if projected["apps"] != "./.app.json" || projected["mcpServers"] != "./.mcp.json" || projected["interface"] == nil || projected["future"] == nil {
+		t.Fatalf("official projection lost fields = %+v", projected)
+	}
+	if mcp := readCLIObject(t, filepath.Join(onlyCLIClient(installation).TargetLocator, ".mcp.json")); mcp["mcpServers"] == nil {
+		t.Fatalf("official ChatGPT projection lost bundled MCP parity: %+v", mcp)
+	}
+}
+
+func TestOfficialHooksFailClosedBeforeDryRunOrMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(plugin, ".codex-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"name":"hooked","hooks":{"PreToolUse":[{"command":"./hooks/run"}]}}`
+	if err := os.WriteFile(filepath.Join(plugin, ".codex-plugin", "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt", "--dry-run", "--format", "json"); err == nil {
+		t.Fatal("hook dry-run succeeded")
+	} else {
+		var loadErr *domain.LoadError
+		if !errors.As(err, &loadErr) || loadErr.Diagnostic.Code != "official_hooks_unsupported" {
+			t.Fatalf("hook dry-run error = %v", err)
+		}
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 0 {
+		t.Fatalf("hook dry-run mutated state: %+v, %v", state, err)
+	}
+	if _, err := os.Stat(fixture.app.ManagedRoot); !os.IsNotExist(err) {
+		t.Fatalf("hook dry-run mutated managed filesystem: %v", err)
+	}
+}
+
+func TestImplicitPortableHooksFailClosedBeforeDryRunOrMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := writeCLIPlugin(t)
+	if err := os.MkdirAll(filepath.Join(plugin, "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "hooks", "hooks.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt", "--dry-run", "--format", "json"); err == nil {
+		t.Fatal("implicit hook dry-run succeeded")
+	} else {
+		var loadErr *domain.LoadError
+		if !errors.As(err, &loadErr) || loadErr.Diagnostic.Code != "official_hooks_unsupported" || !strings.Contains(err.Error(), "remove the hooks directory") {
+			t.Fatalf("implicit hook dry-run error = %v", err)
+		}
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 0 {
+		t.Fatalf("implicit hook dry-run mutated state: %+v, %v", state, err)
+	}
+	if _, err := os.Stat(fixture.app.ManagedRoot); !os.IsNotExist(err) {
+		t.Fatalf("implicit hook dry-run mutated managed filesystem: %v", err)
+	}
+}
+
+func TestOfficialOpenAIPackageKeepsBundledMCPAndDropsAppForCodex(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})
+	plugin := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(plugin, ".codex-plugin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"name":"official-codex","mcpServers":"./.mcp.json","apps":"./.app.json","interface":{"displayName":"Official Codex"}}`
+	if err := os.WriteFile(filepath.Join(plugin, ".codex-plugin", "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, ".mcp.json"), []byte(`{"mcpServers":{"docs":{"url":"https://example.test/mcp"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(`{"apps":{"docs":{"id":"plugin_asdk_app_docs_123"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "codex"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 1 {
+		t.Fatalf("state = %+v, %v", state, err)
+	}
+	target := onlyCLIClient(state.Installations[0]).TargetLocator
+	projected := readCLIObject(t, filepath.Join(target, ".codex-plugin", "plugin.json"))
+	if projected["mcpServers"] != "./.mcp.json" || projected["apps"] != nil || projected["interface"] == nil {
+		t.Fatalf("Codex projection = %+v", projected)
+	}
+	mcp := readCLIObject(t, filepath.Join(target, ".mcp.json"))
+	if mcp["mcpServers"] == nil {
+		t.Fatalf("Codex MCP projection = %+v", mcp)
+	}
+	if _, err := os.Stat(filepath.Join(target, ".app.json")); !os.IsNotExist(err) {
+		t.Fatalf("Codex projection retained ChatGPT app binding: %v", err)
+	}
+}
+
+func TestChatGPTBoundLifecycleWorksWithoutLocalDesktopDetection(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}})
+	plugin := writeCLIPlugin(t)
+	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(`{"apps":{"demo":{"id":"plugin_asdk_app_demo_123"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(plugin, "plugin.json")
+	body, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "chatgpt"); err != nil {
+		t.Fatalf("undetected ChatGPT update: %v", err)
+	}
+	updated, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(onlyCLIClient(updated.Installations[0]).TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "repair", "demo", "--target", "chatgpt"); err != nil {
+		t.Fatalf("undetected ChatGPT repair: %v", err)
+	}
+	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "chatgpt", "--external-uninstalled"); err != nil {
+		t.Fatalf("undetected ChatGPT remove: %v", err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(state.Installations[0])
+	if state.Installations[0].Package.Version != "2.0.0" || binding.Materialization != domain.MaterializationAbsent {
+		t.Fatalf("ChatGPT lifecycle state = %+v", state.Installations[0])
+	}
+}
+
+func TestCodexAndChatGPTUseIndependentBindings(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex),
+		{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected},
+	})
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(`{"apps":{"demo":{"id":"asdk_app_demo_123"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []string{"codex", "chatgpt"} {
+		if _, _, err := fixture.execute(false, "add", plugin, "--target", target); err != nil {
+			t.Fatalf("add %s: %v", target, err)
+		}
+	}
+	state, err := fixture.store.Load()
+	if err != nil || len(state.Installations) != 1 || len(state.Installations[0].Clients) != 2 {
+		t.Fatalf("state = %+v, %v", state, err)
+	}
+	seen := map[string]domain.ClientBinding{}
+	for _, binding := range state.Installations[0].Clients {
+		seen[binding.ClientID] = binding
+	}
+	if seen["codex"].ClientBindingID == seen["chatgpt"].ClientBindingID || seen["codex"].TargetLocator == seen["chatgpt"].TargetLocator {
+		t.Fatalf("bindings were conflated: %+v", seen)
 	}
 }
 
@@ -1000,6 +1532,49 @@ func TestMigrateStateIsExplicitPlanFirstAndPathRedacted(t *testing.T) {
 	}
 }
 
+func TestReadOnlyCommandsLoadLegacyV2WithoutPersistingMigration(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	installationID := "00000000-0000-4000-8000-000000000001"
+	target := filepath.Join(fixture.root, "managed", "demo")
+	clientBindingID := domain.ComputeClientBindingID(installationID, "cursor", "user", target)
+	legacy := domain.StateFileV2{SchemaVersion: domain.LegacyStateSchemaVersion, Installations: []domain.Installation{{
+		InstallationID: installationID, DeclaredName: "demo",
+		Source:  domain.SourceBinding{SourceBindingID: "src_demo", RequestedSource: "demo", CanonicalSource: "https://example.test/demo", ResolvedRevision: "abc123", TreeDigest: "sha256:tree"},
+		Package: domain.PackageBinding{LoaderKind: domain.LoaderKindAgentPlugins, FormatID: domain.FormatIDAgentPluginsV1, SchemaURI: domain.PluginSchemaV1, DeclaredName: "demo", ManifestDigest: "sha256:manifest"},
+		Clients: map[string]domain.ClientBinding{clientBindingID: {
+			ClientBindingID: clientBindingID, ClientID: "cursor", Scope: "user", TargetLocator: target,
+			PhysicalArtifact: domain.ComputePhysicalArtifactID("demo", installationID), Materialization: domain.MaterializationMaterialized,
+			Activation: domain.ActivationManual, Authentication: domain.AuthenticationNotRequired,
+			Policy: domain.PolicyAllowed, Verification: domain.VerificationPackageValid,
+		}},
+	}}}
+	body, err := json.MarshalIndent(legacy, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = append(body, '\n')
+	if err := os.MkdirAll(filepath.Dir(fixture.store.Path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fixture.store.Path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "list", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "doctor", "demo", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(fixture.store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, body) {
+		t.Fatalf("read-only commands persisted the v2-to-v3 migration:\n%s", after)
+	}
+}
+
 func TestLegacyRemovalRequiresExplicitAllTargetAndReconcilesV2(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, nil)
@@ -1188,6 +1763,35 @@ func writeCLIPlugin(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func writeCLIMCP(t *testing.T, root string) {
+	t.Helper()
+	body := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"streamable-http","url":"https://example.test/mcp"}}}`
+	if err := os.WriteFile(filepath.Join(root, "mcp.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeCLIApp(t *testing.T, root string) {
+	t.Helper()
+	body := `{"apps":{"demo":{"id":"asdk_app_demo_123","required":true}}}`
+	if err := os.WriteFile(filepath.Join(root, ".app.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func readCLIObject(t *testing.T, path string) map[string]any {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(body, &value); err != nil {
+		t.Fatal(err)
+	}
+	return value
 }
 
 func assertVersionedJSON(t *testing.T, body, command string) {

@@ -2,6 +2,7 @@ package agentpluginscli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -102,9 +103,75 @@ func cloneCatalogCompatibility(source map[string]domain.CatalogCompatibility) ma
 	}
 	result := make(map[string]domain.CatalogCompatibility, len(source))
 	for client, compatibility := range source {
+		if compatibility.AppBinding != nil {
+			binding := *compatibility.AppBinding
+			compatibility.AppBinding = &binding
+		}
 		result[client] = compatibility
 	}
 	return result
+}
+
+func prepareLoadedPackageForClient(loaded *loadedPackage, clientID domain.ClientID) error {
+	if loaded == nil || clientID != domain.ClientChatGPT {
+		return nil
+	}
+	compatibility, ok := loaded.hints.Compatibility[string(domain.ClientChatGPT)]
+	if !ok || compatibility.AppBinding == nil {
+		return nil
+	}
+	binding := *compatibility.AppBinding
+	if err := catalog.ValidateAppBinding(binding); err != nil {
+		return fmt.Errorf("catalog ChatGPT app binding is invalid: %w", err)
+	}
+	server, ok := loaded.envelope.MCP.Servers[binding.MCPServer]
+	if !ok || !loaded.envelope.MCP.Enabled {
+		return fmt.Errorf("catalog ChatGPT app binding references missing MCP server %q", binding.MCPServer)
+	}
+	serverURL, ok := server.Decoded["url"].(string)
+	if !ok || serverURL != binding.MCPURL {
+		return fmt.Errorf("catalog ChatGPT app binding URL does not match MCP server %q", binding.MCPServer)
+	}
+	if loaded.envelope.App.Present {
+		existing, matches := loaded.envelope.App.Bindings[binding.AppKey]
+		if !loaded.envelope.App.Enabled || !matches || len(loaded.envelope.App.Bindings) != 1 || existing.ID != binding.ID {
+			return fmt.Errorf("package .app.json does not exactly match the catalog ChatGPT app binding")
+		}
+		return nil
+	}
+	entry := struct {
+		ID string `json:"id"`
+	}{ID: binding.ID}
+	document := struct {
+		Apps map[string]any `json:"apps"`
+	}{Apps: map[string]any{binding.AppKey: entry}}
+	raw, err := json.Marshal(document)
+	if err != nil {
+		return fmt.Errorf("encode catalog ChatGPT app binding: %w", err)
+	}
+	entryRaw, err := json.Marshal(entry)
+	if err != nil {
+		return fmt.Errorf("encode catalog ChatGPT app entry: %w", err)
+	}
+	loaded.envelope.App = domain.AppComponent{
+		Present: true, Declared: true, Enabled: true, Raw: raw,
+		Bindings: map[string]domain.AppBinding{
+			binding.AppKey: {Alias: binding.AppKey, ID: binding.ID, Raw: entryRaw},
+		},
+	}
+	loaded.envelope.Inventory.AppPresent = true
+	loaded.envelope.Inventory.AppBindings = []string{binding.AppKey}
+	return nil
+}
+
+func restoreCatalogEvidence(loaded *loadedPackage, binding domain.ClientBinding) {
+	if loaded == nil || loaded.envelope.CatalogEvidence != nil || binding.PackageRevision == nil || binding.PackageRevision.CatalogEvidence == nil {
+		return
+	}
+	evidence := *binding.PackageRevision.CatalogEvidence
+	evidence.Compatibility = cloneCatalogCompatibility(evidence.Compatibility)
+	loaded.envelope.CatalogEvidence = &evidence
+	loaded.hints.Compatibility = cloneCatalogCompatibility(evidence.Compatibility)
 }
 
 func (app App) resolveCatalogName(ctx context.Context, name string) (domain.CatalogResolution, error) {

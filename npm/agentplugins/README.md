@@ -1,7 +1,8 @@
 # Universal Agent Plugins
 
-Install and manage portable Agent Plugins 1.0 packages across Codex/ChatGPT,
-Cursor, GitHub Copilot/VS Code, and Kiro.
+Install and manage portable Agent Plugins 1.0 packages across Codex, Cursor,
+GitHub Copilot/VS Code, and Kiro. Agentplugins 0.1.6 adds the separate ChatGPT
+target for official app-bound packages and catalog v2 entries.
 
 Prerequisite: Node.js 22 or newer.
 
@@ -45,7 +46,7 @@ npx universal-agent-plugins remove context7 --target cursor
 For GitHub Copilot CLI, `agentplugins` performs the native install, update, and
 remove automatically through a managed local marketplace. VS Code discovers
 the same installation automatically, so selecting either target once is
-enough. Codex/ChatGPT and Kiro print one exact, path-specific next step when
+enough. Codex, ChatGPT (0.1.6+), and Kiro print one exact, path-specific next step when
 their client UI must finish the installation.
 
 Short names resolve through the pinned
@@ -58,24 +59,29 @@ npx universal-agent-plugins add ./my-plugin --target cursor
 npx universal-agent-plugins add owner/repo@commit//plugins/my-plugin --target cursor
 ```
 
-The package must have a root `plugin.json` using the supported Agent Plugins
-1.0 schema. Optional root `mcp.json` and `skills/*/SKILL.md` components are
-installed only where the selected client supports them. The downloaded binary
-and installed command remain `agentplugins`.
+Accepted packages have either a portable root `plugin.json` with optional
+`mcp.json`, `.app.json`, and `skills/`, or an official
+`.codex-plugin/plugin.json` with its declared root `.mcp.json`, `.app.json`, and
+`skills/` sidecars. The downloaded binary and installed command remain
+`agentplugins`.
 
-Each mutation changes one selected client and asks before changing it. v0.1
-supports user scope and reports whether a client can install automatically or
-requires manual activation. For older `plugin-kit-ai` installations, run the
-explicit migration before the first standard installation:
+Each mutation changes one selected client. Human TTY sessions ask before a
+change; non-TTY and JSON automation auto-confirm only when `--target` is
+explicit, without requiring `--yes`. v0.1 supports user scope and reports
+whether a client can install automatically or requires manual activation. For
+older `plugin-kit-ai` installations, run the explicit migration before the
+first standard installation:
 
 ```bash
 npx universal-agent-plugins migrate-state --dry-run
 npx universal-agent-plugins migrate-state
 ```
 
-The migration validates the complete State v2 result, creates a byte-for-byte
+The migration validates the complete State v3 result, creates a byte-for-byte
 backup, and keeps legacy `plugin.yaml` packages on their original lifecycle
-until an explicit `migrate-format`.
+until an explicit `migrate-format`. agentplugins 0.1.6 reads existing State v2
+without rewriting it; the first explicit mutation saves State v3. After that,
+0.1.5 fails closed and no silent downgrade is supported.
 
 Legacy migration intentionally shares the old `plugin-kit-ai` sentinel lock. If
 a crash leaves `~/.plugin-kit-ai/locks/state.lock`, first stop every

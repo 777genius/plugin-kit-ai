@@ -186,6 +186,9 @@ func componentInventoryLabel(inventory domain.ComponentInventory) string {
 	} else {
 		parts = append(parts, "mcp=absent")
 	}
+	if inventory.AppPresent {
+		parts = append(parts, "apps=["+sortedList(inventory.AppBindings)+"]")
+	}
 	parts = append(parts, "skills=["+sortedList(inventory.Skills)+"]")
 	parts = append(parts, "extensions=["+sortedList(inventory.Extensions)+"]")
 	if len(inventory.InvalidMCPServer) > 0 {

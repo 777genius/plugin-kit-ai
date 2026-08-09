@@ -36,20 +36,20 @@ func (store Store) Load() (domain.StateFileV2, error) {
 	if err := json.Unmarshal(body, &header); err != nil {
 		return domain.StateFileV2{}, fmt.Errorf("decode state v2 header: %w", err)
 	}
-	if header.SchemaVersion != domain.StateSchemaVersion {
-		return domain.StateFileV2{}, fmt.Errorf("unsupported state v2 schema_version %d", header.SchemaVersion)
-	}
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.DisallowUnknownFields()
 	var state domain.StateFileV2
-	if err := decoder.Decode(&state); err != nil {
-		return domain.StateFileV2{}, fmt.Errorf("decode state v2: %w", err)
+	switch header.SchemaVersion {
+	case domain.LegacyStateSchemaVersion:
+		state, err = decodeLegacyStateV2(body)
+	case domain.StateSchemaVersion:
+		err = decodeStrictJSON(body, &state)
+	default:
+		return domain.StateFileV2{}, fmt.Errorf("unsupported state schema_version %d; this build reads %d and %d and writes only %d", header.SchemaVersion, domain.LegacyStateSchemaVersion, domain.StateSchemaVersion, domain.StateSchemaVersion)
 	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		return domain.StateFileV2{}, fmt.Errorf("state v2 contains trailing JSON values")
+	if err != nil {
+		return domain.StateFileV2{}, err
 	}
 	if err := Validate(state); err != nil {
-		return domain.StateFileV2{}, fmt.Errorf("validate state v2: %w", err)
+		return domain.StateFileV2{}, fmt.Errorf("validate state: %w", err)
 	}
 	return state, nil
 }
@@ -62,7 +62,7 @@ func (store Store) Save(state domain.StateFileV2) error {
 		state.SchemaVersion = domain.StateSchemaVersion
 	}
 	if err := Validate(state); err != nil {
-		return fmt.Errorf("refuse invalid state v2: %w", err)
+		return fmt.Errorf("refuse invalid state: %w", err)
 	}
 	state.Installations = append([]domain.Installation(nil), state.Installations...)
 	sort.Slice(state.Installations, func(i, j int) bool {
@@ -81,6 +81,18 @@ func (store Store) Save(state domain.StateFileV2) error {
 		return fmt.Errorf("protect state v2 directory: %w", err)
 	}
 	return atomicfile.Write(store.Path, body, 0o600)
+}
+
+func decodeStrictJSON(body []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return fmt.Errorf("decode state: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("state contains trailing JSON values")
+	}
+	return nil
 }
 
 func Validate(state domain.StateFileV2) error {
@@ -111,8 +123,11 @@ func Validate(state domain.StateFileV2) error {
 		}
 		sourceBindingIDs[installation.Source.SourceBindingID] = struct{}{}
 		if installation.Package.LoaderKind == domain.LoaderKindAgentPlugins {
-			if installation.Package.FormatID == "" || installation.Package.SchemaURI == "" || installation.Source.TreeDigest == "" || installation.Package.ManifestDigest == "" {
+			if installation.Package.FormatID == "" || installation.Source.TreeDigest == "" || installation.Package.ManifestDigest == "" {
 				return fmt.Errorf("%s standard package binding is incomplete", prefix)
+			}
+			if installation.Package.FormatID == domain.FormatIDAgentPluginsV1 && installation.Package.SchemaURI == "" {
+				return fmt.Errorf("%s portable standard package binding has no schema URI", prefix)
 			}
 		}
 		for mapKey, client := range installation.Clients {

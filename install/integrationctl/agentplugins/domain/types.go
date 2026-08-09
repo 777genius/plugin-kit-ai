@@ -5,6 +5,7 @@ import "encoding/json"
 const (
 	LoaderKindAgentPlugins = "agent_plugins"
 	FormatIDAgentPluginsV1 = "agent-plugins/1.0.0"
+	FormatIDOpenAIPlugin   = "openai-agent-plugin/current"
 	LoaderKindLegacy       = "legacy"
 	FormatIDLegacyV1       = "plugin-kit-ai/v1"
 
@@ -26,6 +27,7 @@ const (
 	BoundaryPlugin    FailureBoundary = "plugin"
 	BoundaryMCP       FailureBoundary = "mcp"
 	BoundaryMCPServer FailureBoundary = "mcp_server"
+	BoundaryApp       FailureBoundary = "app"
 	BoundarySkill     FailureBoundary = "skill"
 	BoundaryExtension FailureBoundary = "extension"
 )
@@ -101,6 +103,27 @@ type MCPComponent struct {
 	InvalidServer map[string]Diagnostic `json:"invalid_servers,omitempty"`
 }
 
+// AppBinding references a connection that was registered outside the package.
+// The CLI validates and projects this reference but never claims ownership of
+// the remote connection.
+type AppBinding struct {
+	Alias    string          `json:"alias"`
+	ID       string          `json:"id"`
+	Optional bool            `json:"optional,omitempty"`
+	Required bool            `json:"required,omitempty"`
+	Raw      json.RawMessage `json:"-"`
+}
+
+// AppComponent is the typed, lossless representation of the official root
+// .app.json compatibility file.
+type AppComponent struct {
+	Present  bool                  `json:"present"`
+	Declared bool                  `json:"declared"`
+	Enabled  bool                  `json:"enabled"`
+	Raw      json.RawMessage       `json:"-"`
+	Bindings map[string]AppBinding `json:"bindings,omitempty"`
+}
+
 type Skill struct {
 	Name          string         `json:"name"`
 	Description   string         `json:"description"`
@@ -117,6 +140,8 @@ type ComponentInventory struct {
 	MCPEnabled        bool     `json:"mcp_enabled"`
 	MCPServers        []string `json:"mcp_servers,omitempty"`
 	InvalidMCPServer  []string `json:"invalid_mcp_servers,omitempty"`
+	AppPresent        bool     `json:"app_present,omitempty"`
+	AppBindings       []string `json:"app_bindings,omitempty"`
 	Skills            []string `json:"skills,omitempty"`
 	InvalidSkills     []string `json:"invalid_skills,omitempty"`
 	InvalidSkillsRoot bool     `json:"invalid_skills_root,omitempty"`
@@ -131,6 +156,7 @@ type PackageEnvelope struct {
 	ManifestSchema  SchemaIdentity     `json:"manifest_schema"`
 	Manifest        PluginManifest     `json:"manifest"`
 	MCP             MCPComponent       `json:"mcp"`
+	App             AppComponent       `json:"app"`
 	Skills          map[string]Skill   `json:"skills,omitempty"`
 	Inventory       ComponentInventory `json:"inventory"`
 	Diagnostics     []Diagnostic       `json:"diagnostics,omitempty"`

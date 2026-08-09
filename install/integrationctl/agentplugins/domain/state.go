@@ -1,6 +1,9 @@
 package domain
 
-const StateSchemaVersion = 2
+const (
+	LegacyStateSchemaVersion = 2
+	StateSchemaVersion       = 3
+)
 
 type MaterializationState string
 type ActivationState string
@@ -86,10 +89,11 @@ type MutationReceipt struct {
 // projected into one client. Installation.Package is the latest accepted
 // revision, while individual clients may temporarily converge one at a time.
 type ClientPackageRevision struct {
-	Version          string `json:"version,omitempty"`
-	ResolvedRevision string `json:"resolved_revision,omitempty"`
-	TreeDigest       string `json:"tree_digest"`
-	ManifestDigest   string `json:"manifest_digest"`
+	Version          string           `json:"version,omitempty"`
+	ResolvedRevision string           `json:"resolved_revision,omitempty"`
+	TreeDigest       string           `json:"tree_digest"`
+	ManifestDigest   string           `json:"manifest_digest"`
+	CatalogEvidence  *CatalogEvidence `json:"catalog_evidence,omitempty"`
 }
 
 type ClientBinding struct {

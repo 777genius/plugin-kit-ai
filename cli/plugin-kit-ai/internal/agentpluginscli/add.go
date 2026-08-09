@@ -53,6 +53,9 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if err != nil {
 		return err
 	}
+	if err := prepareLoadedPackageForClient(&loaded, selected.ClientID); err != nil {
+		return err
+	}
 	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detectedMap}
 	service := usecase.Service{
 		StateStore: app.StateStore,
@@ -72,6 +75,15 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	}
 	planned, err := service.Add(ctx, input)
 	if err != nil {
+		if planned.Plan.Status == domain.PlanUnsupported {
+			if opts.format == "json" {
+				if renderErr := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun); renderErr != nil {
+					return renderErr
+				}
+			} else if renderErr := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); renderErr != nil {
+				return renderErr
+			}
+		}
 		return err
 	}
 	if opts.dryRun || planned.NoChange {
@@ -191,14 +203,22 @@ func selectClient(
 	}
 	target := normalizeTarget(opts.target)
 	if target != "" {
+		if strings.EqualFold(strings.TrimSpace(opts.target), "openai") {
+			return domain.DetectedClient{}, detectedMap, fmt.Errorf("target %q is ambiguous; use --target codex or --target chatgpt", opts.target)
+		}
 		client, ok := detectedMap[target]
-		if !ok || client.Status != domain.DetectionDetected {
+		if !ok && target == domain.ClientChatGPT {
+			client = domain.DetectedClient{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
+			detectedMap[target] = client
+			ok = true
+		}
+		if !ok || (client.Status != domain.DetectionDetected && target != domain.ClientChatGPT) {
 			return domain.DetectedClient{}, detectedMap, fmt.Errorf("target %q was not detected", opts.target)
 		}
 		return client, detectedMap, nil
 	}
 	if len(detected) == 0 {
-		return domain.DetectedClient{}, detectedMap, fmt.Errorf("no supported AI client was detected; use --target after installing a client")
+		return domain.DetectedClient{}, detectedMap, fmt.Errorf("no supported local AI client was detected; use --target chatgpt for ChatGPT, or install/detect another client")
 	}
 	if len(detected) == 1 {
 		return detected[0], detectedMap, nil
@@ -225,8 +245,10 @@ func selectClient(
 
 func normalizeTarget(value string) domain.ClientID {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "openai", "codex":
+	case "codex":
 		return domain.ClientCodex
+	case "chatgpt":
+		return domain.ClientChatGPT
 	case "cursor":
 		return domain.ClientCursor
 	case "copilot", "github-copilot":

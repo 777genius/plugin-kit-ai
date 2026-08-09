@@ -1,11 +1,24 @@
 package domain
 
-const CatalogSchemaV1 = "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json"
+const (
+	CatalogSchemaV1 = "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v1.schema.json"
+	CatalogSchemaV2 = "https://github.com/777genius/universal-agent-plugins/schemas/catalog-v2.schema.json"
+)
 
 type CatalogCompatibility struct {
 	Package        string                    `json:"package"`
 	Verification   string                    `json:"verification"`
 	Authentication AuthenticationRequirement `json:"authentication"`
+	AppBinding     *CatalogAppBinding        `json:"app_binding,omitempty"`
+}
+
+type CatalogAppBinding struct {
+	AppKey                  string `json:"app_key"`
+	ID                      string `json:"id"`
+	MCPServer               string `json:"mcp_server"`
+	MCPURL                  string `json:"mcp_url"`
+	RuntimeEvidence         string `json:"runtime_evidence"`
+	RuntimeEvidenceRevision string `json:"runtime_evidence_revision"`
 }
 
 type AuthenticationRequirement string
