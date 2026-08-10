@@ -1,0 +1,1317 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "name": "agent-code-navigator",
+      "version": "0.1.0",
+      "description": "Route code discovery across exact search, semantic search, LSP navigation, and call-graph analysis.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "code-intelligence",
+        "code-search",
+        "codegraph",
+        "codex",
+        "lsp"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "code-intelligence",
+        "code-search",
+        "codegraph",
+        "codex",
+        "lsp"
+      ],
+      "components": [
+        "skills"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/agent-code-navigator",
+        "manifest_sha256": "sha256:675fb48dff9431f75e2986211039b3bfb04860a84d6a5bd157b9658514a2394e",
+        "tree_sha256": "sha256:2da970986164b2ba56aee452205bb2312927814f66596653b248c127e4e767e0"
+      },
+      "install_source": "agent-code-navigator",
+      "built_in": true,
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": [
+          "codex",
+          "cursor",
+          "kiro"
+        ]
+      }
+    },
+    {
+      "name": "atlassian",
+      "version": "0.1.0",
+      "description": "Community package for the official Atlassian Rovo MCP plugin for Jira, Confluence, and Compass workflows through Atlassian's hosted remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "atlassian",
+        "collaboration",
+        "compass",
+        "confluence",
+        "jira",
+        "mcp",
+        "planning",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "atlassian",
+        "collaboration",
+        "compass",
+        "confluence",
+        "jira",
+        "mcp",
+        "planning",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/atlassian",
+        "manifest_sha256": "sha256:e83ade754f1251554622e4b48d596ebf72510bd7292b19a7793df4de8e546d04",
+        "tree_sha256": "sha256:a5988dbe73fa2efa8892a3918aabc6273a8398d56f3d247e7e921fdb1ee8a167",
+        "icon_sha256": "sha256:5b2b712e8a9bb65fc7207f8273f586c325507f3f7c79b2a04e31da1dedd5f3b4"
+      },
+      "install_source": "atlassian",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/atlassian.svg",
+        "sha256": "sha256:5b2b712e8a9bb65fc7207f8273f586c325507f3f7c79b2a04e31da1dedd5f3b4"
+      }
+    },
+    {
+      "name": "chrome-devtools",
+      "version": "0.1.0",
+      "description": "Portable Agent Plugins package for Chrome DevTools MCP. Inspect pages, automate flows, analyze performance, and debug browser state.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "browser",
+        "chrome",
+        "debugging",
+        "mcp",
+        "performance"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "browser",
+        "chrome",
+        "debugging",
+        "mcp",
+        "performance"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/chrome-devtools",
+        "manifest_sha256": "sha256:e7d43a8e39b0e83f2c05777e297f6a3884002dc2601d70528b55a44132db8091",
+        "tree_sha256": "sha256:07cae09debbcd3f4ab7c18ef00db5fba58b0185b2c502d759732155e47a65f7b",
+        "icon_sha256": "sha256:6f466b9a8da5314737ca5213367cfbf4a8ff75c1dbf58c30db9396cff3b16dd0"
+      },
+      "install_source": "chrome-devtools",
+      "built_in": true,
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": [
+          "codex",
+          "cursor",
+          "kiro"
+        ]
+      },
+      "icon": {
+        "path": "assets/plugin-icons/googlechrome.svg",
+        "sha256": "sha256:6f466b9a8da5314737ca5213367cfbf4a8ff75c1dbf58c30db9396cff3b16dd0"
+      }
+    },
+    {
+      "name": "cloudflare",
+      "version": "0.1.0",
+      "description": "Community package for the official Cloudflare API MCP plugin for token-efficient access to the Cloudflare API through Cloudflare's hosted Code Mode server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "api",
+        "cloud",
+        "cloudflare",
+        "devops",
+        "mcp",
+        "plugins",
+        "workers"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "api",
+        "cloud",
+        "cloudflare",
+        "devops",
+        "mcp",
+        "plugins",
+        "workers"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/cloudflare",
+        "manifest_sha256": "sha256:9bec7cfed2ecb217145c2a02658296670a328416566433518b4da0246e91d382",
+        "tree_sha256": "sha256:788761d3f9da6d95d7ab8c6253942f057ecef5e0fb8e2815fbca8dcbb5fcee40",
+        "icon_sha256": "sha256:32876bda81542203316d67b9623818ac60986897cac79f70e03e8f31f7b7f160"
+      },
+      "install_source": "cloudflare",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/cloudflare.svg",
+        "sha256": "sha256:32876bda81542203316d67b9623818ac60986897cac79f70e03e8f31f7b7f160"
+      }
+    },
+    {
+      "name": "cloudflare-bindings",
+      "version": "0.1.0",
+      "description": "Community package for the official Cloudflare Workers Bindings MCP integration for storage, AI, and compute primitives.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "bindings",
+        "cloudflare",
+        "mcp",
+        "plugins",
+        "workers"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "bindings",
+        "cloudflare",
+        "mcp",
+        "plugins",
+        "workers"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/cloudflare-bindings",
+        "manifest_sha256": "sha256:6b945cf035f784216e71425cf7b6ca477b27a2069d2580e9713a65f5ec2ca0bf",
+        "tree_sha256": "sha256:98573830f703a479dece5bb964353117151e533abff0fa77597c5a654dc56729"
+      },
+      "install_source": "cloudflare-bindings",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      }
+    },
+    {
+      "name": "cloudflare-docs",
+      "version": "0.1.0",
+      "description": "Community package for the official Cloudflare hosted MCP plugin for up-to-date Cloudflare documentation and reference lookups through Cloudflare's remote documentation server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "cloud",
+        "cloudflare",
+        "docs",
+        "mcp",
+        "plugins",
+        "research"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "cloud",
+        "cloudflare",
+        "docs",
+        "mcp",
+        "plugins",
+        "research"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/cloudflare-docs",
+        "manifest_sha256": "sha256:6b575562e527194ccd31238fde8c5f764409ecc98e211e92dfb81455eef88bdd",
+        "tree_sha256": "sha256:ebfc3239ab774dea35897919362f4ca0b2b3bfc6d33863d977940ab493907b74"
+      },
+      "install_source": "cloudflare-docs",
+      "built_in": true,
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": [
+          "chatgpt",
+          "codex",
+          "cursor",
+          "kiro"
+        ]
+      }
+    },
+    {
+      "name": "cloudflare-observability",
+      "version": "0.1.0",
+      "description": "Community package for the official Cloudflare hosted MCP plugin for logs, analytics, and production debugging through Cloudflare's remote observability server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "analytics",
+        "cloud",
+        "cloudflare",
+        "debugging",
+        "devops",
+        "mcp",
+        "observability",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "analytics",
+        "cloud",
+        "cloudflare",
+        "debugging",
+        "devops",
+        "mcp",
+        "observability",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/cloudflare-observability",
+        "manifest_sha256": "sha256:41573bb020202619d72fe2cbbf35c56cb5ed4b885b17867ffd2e4a74ebcb5064",
+        "tree_sha256": "sha256:dbabe94312d1d780f6f96c6f9c595cb46dbdef49ce31182906c3cc4077e4b295"
+      },
+      "install_source": "cloudflare-observability",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      }
+    },
+    {
+      "name": "cloudflare-radar",
+      "version": "0.1.0",
+      "description": "Community package for the official Cloudflare Radar MCP plugin for internet telemetry, traffic trends, and network intelligence through Cloudflare's hosted Radar server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "analytics",
+        "cloudflare",
+        "mcp",
+        "network",
+        "plugins",
+        "radar"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "analytics",
+        "cloudflare",
+        "mcp",
+        "network",
+        "plugins",
+        "radar"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/cloudflare-radar",
+        "manifest_sha256": "sha256:cf94d10bad7d902f4ed171d2363854fb93409ac79a1c5e02d152be6448d66fc2",
+        "tree_sha256": "sha256:bad20c22343458ad40d08b48d621db32955b07ab66d61ad02cc0546a4e5e94c6"
+      },
+      "install_source": "cloudflare-radar",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      }
+    },
+    {
+      "name": "context7",
+      "version": "0.1.0",
+      "description": "Portable Agent Plugins package for Context7. Pull up-to-date, version-specific documentation and code examples directly from source repositories into agent context.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "context7",
+        "documentation",
+        "mcp",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "context7",
+        "documentation",
+        "mcp",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/context7",
+        "manifest_sha256": "sha256:341c54728c2f50d3876b12a6e94ba06751c94d2be215037846d06f93a018434e",
+        "tree_sha256": "sha256:51eee528879504843a31b2ea57abb77167e33cd5b81856e0640ce3a52f3281a4",
+        "icon_sha256": "sha256:3ba6504a9d361cb43e71afa0a7666bc6f36853f0a0847812b4b2d6479afe21f6"
+      },
+      "install_source": "context7",
+      "built_in": true,
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": [
+          "codex",
+          "cursor",
+          "kiro"
+        ]
+      },
+      "icon": {
+        "path": "assets/plugin-icons/context7.png",
+        "sha256": "sha256:3ba6504a9d361cb43e71afa0a7666bc6f36853f0a0847812b4b2d6479afe21f6"
+      }
+    },
+    {
+      "name": "docker-hub",
+      "version": "0.1.0",
+      "description": "Community package for the official Docker Hub MCP plugin for repository, image, and Docker Hub workflows through Docker's containerized stdio server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "containers",
+        "docker",
+        "mcp",
+        "plugins",
+        "registry"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "containers",
+        "docker",
+        "mcp",
+        "plugins",
+        "registry"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/docker-hub",
+        "manifest_sha256": "sha256:413347fe45d0dbcbd5b4d5cf88eb7e0ec5c0cd080486ea4cb8c3f61f0bd7a95d",
+        "tree_sha256": "sha256:7976d176756b199da384cc898ccfe24aa7c0ebd9894e703132fec6d1bac699a4",
+        "icon_sha256": "sha256:ba1fb157870b2ec02e054aed42154ac7418e25af91ec321fd328d17cad4023cd"
+      },
+      "install_source": "docker-hub",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/docker.svg",
+        "sha256": "sha256:ba1fb157870b2ec02e054aed42154ac7418e25af91ec321fd328d17cad4023cd"
+      }
+    },
+    {
+      "name": "figma",
+      "version": "0.1.0",
+      "description": "Community package for the official Figma MCP plugin for design context, code-to-design workflows, and authenticated access to Figma Design, Make, and FigJam through Figma's remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "design",
+        "figma",
+        "mcp",
+        "plugins",
+        "ui"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "design",
+        "figma",
+        "mcp",
+        "plugins",
+        "ui"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/figma",
+        "manifest_sha256": "sha256:67fbfd8062a7f3d965ee63cc68f392a6afb1e8861e3bcc5fe1f70e7e9fadabba",
+        "tree_sha256": "sha256:aefbb22c2052bb401168b4ceea895f5d4eeb9073185c4d33a91f4b38ebad24b4",
+        "icon_sha256": "sha256:b9171110637bb953781a04044d9957478ae84f6a7ac597a25c0bfdfb3292a45e"
+      },
+      "install_source": "figma",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/figma.svg",
+        "sha256": "sha256:b9171110637bb953781a04044d9957478ae84f6a7ac597a25c0bfdfb3292a45e"
+      }
+    },
+    {
+      "name": "firebase",
+      "version": "0.1.0",
+      "description": "Google Firebase MCP integration. Manage Firestore databases, authentication, cloud functions, hosting, and storage. Build and manage your Firebase backend directly from your development workflow.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "firebase",
+        "firestore",
+        "mcp",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "firebase",
+        "firestore",
+        "mcp",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/firebase",
+        "manifest_sha256": "sha256:9883d7c5b0472304f799df862f52d3cdae3120b3324633d6a58fceceb78da7b7",
+        "tree_sha256": "sha256:9ed143367d27e63b55acd864135680ac71137247d4cb17599bf94370c9cc32fc",
+        "icon_sha256": "sha256:abbf47a2efb5468324769adb713211d1611f16550440bb3ca9d224462e2f44c3"
+      },
+      "install_source": "firebase",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/firebase.svg",
+        "sha256": "sha256:abbf47a2efb5468324769adb713211d1611f16550440bb3ca9d224462e2f44c3"
+      }
+    },
+    {
+      "name": "github",
+      "version": "0.1.0",
+      "description": "Community Agent Plugin for repository, issue, pull request, review, and search workflows through GitHub's MCP server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "auth",
+        "github",
+        "mcp",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "auth",
+        "github",
+        "mcp",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/github",
+        "manifest_sha256": "sha256:091e37c5f33c0a92f77070cfcb1b03759b2637927281c04d989e6c8fef888cae",
+        "tree_sha256": "sha256:8977d2273c14e2cfcd0d502d490c8420e3edb2822608af2aeb7493fca7703d27",
+        "icon_sha256": "sha256:7355ca8b501686639280d23ab673dbfe55edaca09daa7eb0d45c6526ec570e6a"
+      },
+      "install_source": "github",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/github.svg",
+        "sha256": "sha256:7355ca8b501686639280d23ab673dbfe55edaca09daa7eb0d45c6526ec570e6a"
+      }
+    },
+    {
+      "name": "gitlab",
+      "version": "0.1.0",
+      "description": "Portable Agent Plugins package for GitLab MCP. Inspect projects, issues, merge requests, and related DevOps workflows through GitLab's HTTP server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "gitlab",
+        "mcp",
+        "oauth",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "gitlab",
+        "mcp",
+        "oauth",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/gitlab",
+        "manifest_sha256": "sha256:1a181fab20d9520f5f006f4237e88d67cf58d29b9994dbc45ee4c80d2474e080",
+        "tree_sha256": "sha256:e7ef8870fe6678ab84731a0b389b57b41a439e4903ea37b4fe60b59240c08bc3",
+        "icon_sha256": "sha256:3bbfcd2707b9cd5bc6d68d561da605c520a707ceaecf3912aede560bb0990e27"
+      },
+      "install_source": "gitlab",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/gitlab.svg",
+        "sha256": "sha256:3bbfcd2707b9cd5bc6d68d561da605c520a707ceaecf3912aede560bb0990e27"
+      }
+    },
+    {
+      "name": "greptile",
+      "version": "0.1.0",
+      "description": "Community package for the official Greptile MCP integration for repository search and code intelligence tooling.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "code-search",
+        "greptile",
+        "mcp",
+        "plugins",
+        "repository"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "code-search",
+        "greptile",
+        "mcp",
+        "plugins",
+        "repository"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/greptile",
+        "manifest_sha256": "sha256:05b29500564aede5274a6d21c0cf5bb4727e995045b04de170913b7ef2ae07bb",
+        "tree_sha256": "sha256:b6c701696326d50ca19664f2e6350451a75e37298f2ae47e107ccaf6f865d93d",
+        "icon_sha256": "sha256:1222f4a9a6f6979452947f4c59cf1a34f059fc933270b898e3cf049bbd882898"
+      },
+      "install_source": "greptile",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/greptile.png",
+        "sha256": "sha256:1222f4a9a6f6979452947f4c59cf1a34f059fc933270b898e3cf049bbd882898"
+      }
+    },
+    {
+      "name": "heroku",
+      "version": "0.1.0",
+      "description": "Community package for the official Heroku hosted MCP plugin for apps, add-ons, logs, Postgres, and operational workflows through Heroku's remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "apps",
+        "backend",
+        "cloud",
+        "devops",
+        "heroku",
+        "mcp",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "apps",
+        "backend",
+        "cloud",
+        "devops",
+        "heroku",
+        "mcp",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/heroku",
+        "manifest_sha256": "sha256:5b7c088e290ed04b0eafe0275dc806e7c2153dd7cbe6b74d1c5f1d2961e9355a",
+        "tree_sha256": "sha256:9988a94c56676b54f5e819d4c72eefe7164a6e207503c32308122983a9662d64",
+        "icon_sha256": "sha256:368a7d40a8f57c2bdd0ffef591f1ca613d8323bedaeb9aac54a4b7dd1c98b229"
+      },
+      "install_source": "heroku",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/heroku.png",
+        "sha256": "sha256:368a7d40a8f57c2bdd0ffef591f1ca613d8323bedaeb9aac54a4b7dd1c98b229"
+      }
+    },
+    {
+      "name": "hubspot-crm",
+      "version": "0.1.0",
+      "description": "Community package for the official HubSpot remote MCP integration for beta, read-only CRM object access through HubSpot's hosted MCP server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "crm",
+        "hubspot",
+        "mcp",
+        "plugins",
+        "sales"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "crm",
+        "hubspot",
+        "mcp",
+        "plugins",
+        "sales"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/hubspot-crm",
+        "manifest_sha256": "sha256:20334e86a1b599d2759e04bfaef37dc2ddb7f6b0f3994b5d66d4eca12fbec941",
+        "tree_sha256": "sha256:93db3068e880bc135100853804f195434673fc5dd6bcc9a7fd82197e930dda4e",
+        "icon_sha256": "sha256:5e3d32c06f065e541829e34c2d2429b1fee686a49020b1974b3fec228916f55e"
+      },
+      "install_source": "hubspot-crm",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/hubspot.svg",
+        "sha256": "sha256:5e3d32c06f065e541829e34c2d2429b1fee686a49020b1974b3fec228916f55e"
+      }
+    },
+    {
+      "name": "hubspot-developer",
+      "version": "0.1.0",
+      "description": "Local HubSpot Developer MCP integration for project scaffolding, CMS, builds, logs, and app workflows via the HubSpot CLI.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "cms",
+        "developer-tools",
+        "hubspot",
+        "mcp",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "cms",
+        "developer-tools",
+        "hubspot",
+        "mcp",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/hubspot-developer",
+        "manifest_sha256": "sha256:257a75ed2e473945a26afa102152f866bd8269bb41c998f6d87fbdf43ed1a6b9",
+        "tree_sha256": "sha256:706abd93939ee72ea62fd2da90ee27f6d55cfa5c5d57fa695d5b0bcbc4f99a75",
+        "icon_sha256": "sha256:5e3d32c06f065e541829e34c2d2429b1fee686a49020b1974b3fec228916f55e"
+      },
+      "install_source": "hubspot-developer",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/hubspot.svg",
+        "sha256": "sha256:5e3d32c06f065e541829e34c2d2429b1fee686a49020b1974b3fec228916f55e"
+      }
+    },
+    {
+      "name": "linear",
+      "version": "0.1.0",
+      "description": "Community package for the official Linear MCP integration for workspace management, issues, and project workflows.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "issues",
+        "linear",
+        "mcp",
+        "plugins",
+        "project-management"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "issues",
+        "linear",
+        "mcp",
+        "plugins",
+        "project-management"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/linear",
+        "manifest_sha256": "sha256:0b8ed223c21d206d802130ace7219b5c78af1903675640cc77f5195e4f86ef70",
+        "tree_sha256": "sha256:ae5a6bee33aff8bc2a045cc8f7ac4f7cf0ae453c0bb8031a587bb2a9b081a2a2",
+        "icon_sha256": "sha256:3700486fede168b1fbaf0987eda06621d0e54dd30968578b857fd7360cb2029e"
+      },
+      "install_source": "linear",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/linear.svg",
+        "sha256": "sha256:3700486fede168b1fbaf0987eda06621d0e54dd30968578b857fd7360cb2029e"
+      }
+    },
+    {
+      "name": "neon",
+      "version": "0.1.0",
+      "description": "Community package for the official Neon hosted MCP plugin for database, branch, and project workflows through Neon's remote MCP server.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "database",
+        "mcp",
+        "neon",
+        "plugins",
+        "postgres"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "database",
+        "mcp",
+        "neon",
+        "plugins",
+        "postgres"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/neon",
+        "manifest_sha256": "sha256:6787894c7d3e033db05deee5e36358caf387493a98a78716d6db4b343e9c0698",
+        "tree_sha256": "sha256:d4a807220a40563e968f8efeb37a424b95ab82c6566877f1f6d688c63900ad10",
+        "icon_sha256": "sha256:1efb65dc651fea608e77c090df6a6113fdb186a3ca3643d2800db34bea9a72b2"
+      },
+      "install_source": "neon",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/neon.svg",
+        "sha256": "sha256:1efb65dc651fea608e77c090df6a6113fdb186a3ca3643d2800db34bea9a72b2"
+      }
+    },
+    {
+      "name": "notion",
+      "version": "0.1.0",
+      "description": "Community package for the official Notion hosted MCP plugin for user-authorized workspace access. Search pages, read docs, edit content, and work with Notion knowledge directly from AI agents.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "collaboration",
+        "knowledge",
+        "mcp",
+        "notion",
+        "planning",
+        "plugins"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "collaboration",
+        "knowledge",
+        "mcp",
+        "notion",
+        "planning",
+        "plugins"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/notion",
+        "manifest_sha256": "sha256:bbab30a4f062218d7a5fce2f6c818680d3c7adfaebdbaa3e523e15942a2f57e5",
+        "tree_sha256": "sha256:67b355127dc3e618196b0f8a9f1af1914f6b9b8f1e31299dc75d567c010e8da9",
+        "icon_sha256": "sha256:81f54dd0d8bc6dd8d01c56acd8cb67a60bc66f0b1fa48754e9d28f9f6c3d83f9"
+      },
+      "install_source": "notion",
+      "built_in": true,
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": [
+          "codex",
+          "cursor",
+          "kiro"
+        ]
+      },
+      "icon": {
+        "path": "assets/plugin-icons/notion.svg",
+        "sha256": "sha256:81f54dd0d8bc6dd8d01c56acd8cb67a60bc66f0b1fa48754e9d28f9f6c3d83f9"
+      }
+    },
+    {
+      "name": "sentry",
+      "version": "0.1.0",
+      "description": "Community package for the official Sentry hosted MCP plugin for human-in-the-loop debugging, issue triage, and incident workflows through Sentry's remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "debugging",
+        "incidents",
+        "mcp",
+        "plugins",
+        "sentry"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "debugging",
+        "incidents",
+        "mcp",
+        "plugins",
+        "sentry"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/sentry",
+        "manifest_sha256": "sha256:7606b1f8af700ea76590f0ae586ff8586f4dc370f536ceedbeab8d934494e42e",
+        "tree_sha256": "sha256:d67605b84b3b3d9a1791307a40b5df663e2bb719b1321a3ee2899977fb849762",
+        "icon_sha256": "sha256:24ac56868a3b5dd440c4de2a3cf8f6864591ba81067eedd8d6be0b0690b136eb"
+      },
+      "install_source": "sentry",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/sentry.svg",
+        "sha256": "sha256:24ac56868a3b5dd440c4de2a3cf8f6864591ba81067eedd8d6be0b0690b136eb"
+      }
+    },
+    {
+      "name": "statsig",
+      "version": "0.1.0",
+      "description": "Community package for the official Statsig MCP plugin for experiments, feature flags, configs, metrics, and console workflows through Statsig's hosted MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "experimentation",
+        "feature-flags",
+        "mcp",
+        "plugins",
+        "statsig"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "experimentation",
+        "feature-flags",
+        "mcp",
+        "plugins",
+        "statsig"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/statsig",
+        "manifest_sha256": "sha256:5100526dca8f8e53e42d1d53f8acc1879ea8a2d8b0982df3f00be5e95bf3e465",
+        "tree_sha256": "sha256:28fd20bf16a96e87f311ecac07ab89f75e23c42b303c931fa2bbc9840005db73",
+        "icon_sha256": "sha256:d5d78848f86767a6bb2d54326621f864b20a42e12de3dfba7d40dd2981129d0e"
+      },
+      "install_source": "statsig",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/statsig.png",
+        "sha256": "sha256:d5d78848f86767a6bb2d54326621f864b20a42e12de3dfba7d40dd2981129d0e"
+      }
+    },
+    {
+      "name": "stripe",
+      "version": "0.1.0",
+      "description": "Community package for the official Stripe hosted MCP plugin for payments, billing, customer, and documentation workflows through Stripe's remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "billing",
+        "commerce",
+        "mcp",
+        "payments",
+        "plugins",
+        "stripe"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "billing",
+        "commerce",
+        "mcp",
+        "payments",
+        "plugins",
+        "stripe"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/stripe",
+        "manifest_sha256": "sha256:e70885fda5a4ce50c302891229e204bbf22904ec3f227670e5916d69f9b8b80d",
+        "tree_sha256": "sha256:63cba08ab98fc8c0d91db9f580390f39551fddd3ffdff56443f928687dd920fd",
+        "icon_sha256": "sha256:7576775bf9915b696bbb9162268f5c56147d2b4221a76ac6a9ca92835239b7e9"
+      },
+      "install_source": "stripe",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/stripe.svg",
+        "sha256": "sha256:7576775bf9915b696bbb9162268f5c56147d2b4221a76ac6a9ca92835239b7e9"
+      }
+    },
+    {
+      "name": "supabase",
+      "version": "0.1.0",
+      "description": "Community package for the official Supabase MCP integration for development and database operations from agent workflows.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "backend",
+        "mcp",
+        "plugins",
+        "postgres",
+        "supabase"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "backend",
+        "mcp",
+        "plugins",
+        "postgres",
+        "supabase"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/supabase",
+        "manifest_sha256": "sha256:bb0672e8cd411b1c8e0872a5f7f0abc95f9c68f008802d42a2cd16a689deeb11",
+        "tree_sha256": "sha256:2ae36c14a87016fad5ea9a45bd0a16b6f56acf15e64604cb0de942198ef35277",
+        "icon_sha256": "sha256:75f9566421d97d4f1d8d7f34526189fd6e727ca83987432fc2477c2fc8388086"
+      },
+      "install_source": "supabase",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/supabase.svg",
+        "sha256": "sha256:75f9566421d97d4f1d8d7f34526189fd6e727ca83987432fc2477c2fc8388086"
+      }
+    },
+    {
+      "name": "vercel",
+      "version": "0.1.0",
+      "description": "Community package for the official Vercel hosted MCP plugin for project, deployment, log, and documentation workflows through Vercel's remote MCP service.",
+      "author": {
+        "name": "777genius",
+        "url": "https://github.com/777genius"
+      },
+      "license": "Apache-2.0",
+      "categories": [
+        "agent-plugins",
+        "ai-agents",
+        "deployments",
+        "mcp",
+        "plugins",
+        "vercel"
+      ],
+      "keywords": [
+        "agent-plugins",
+        "ai-agents",
+        "deployments",
+        "mcp",
+        "plugins",
+        "vercel"
+      ],
+      "components": [
+        "mcp"
+      ],
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "2ddbb99dd190c1792b79904f9875e6322bccd243",
+        "path": "plugins/vercel",
+        "manifest_sha256": "sha256:23f7cd28573c4ab10943178db05a47f2af3639518a334449c23d89b19562ef74",
+        "tree_sha256": "sha256:4ed31025a6c8323a330a163190c6264f0a6cebde8f643b87d599d8b5c6745304",
+        "icon_sha256": "sha256:6217577e71250f65a47fa6d738dfd32aef81446c0708c146415ec2b04622a768"
+      },
+      "install_source": "vercel",
+      "built_in": true,
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "icon": {
+        "path": "assets/plugin-icons/vercel.svg",
+        "sha256": "sha256:6217577e71250f65a47fa6d738dfd32aef81446c0708c146415ec2b04622a768"
+      }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-plugins.org/schemas/registry-entry.schema.json",
+  "title": "Public registry source descriptor",
+  "type": "object",
+  "required": ["schema_version", "repository", "revision", "path", "categories"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "repository": {
+      "type": "string",
+      "pattern": "^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$"
+    },
+    "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\.(?:/|$))[a-zA-Z0-9._-]+(?:/[a-zA-Z0-9._-]+)*$"
+    },
+    "categories": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 40}
+    }
+  },
+  "additionalProperties": false
+}
