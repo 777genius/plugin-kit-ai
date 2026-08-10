@@ -7,6 +7,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/live-e2e.yml"
 VALIDATE_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/validate.yml"
+PAGES_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pages.yml"
 
 
 def load_workflow() -> dict[str, object]:
@@ -22,6 +23,17 @@ def job_run_commands(job: dict[str, object]) -> str:
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_pages_concurrency_isolates_prs_from_production(self) -> None:
+        workflow = yaml.load(
+            PAGES_WORKFLOW_PATH.read_text(), Loader=yaml.BaseLoader
+        )
+
+        self.assertEqual(
+            workflow["concurrency"]["group"],
+            "${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages-production' }}",
+        )
+        self.assertEqual(workflow["concurrency"]["cancel-in-progress"], "true")
+
     def test_release_publish_uses_tested_script(self) -> None:
         workflow = WORKFLOW_PATH.read_text()
 

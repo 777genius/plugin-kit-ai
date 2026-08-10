@@ -37,7 +37,7 @@
   --line-strong: rgba(38, 44, 76, .2);
   --primary: #6348e8;
   --primary-bright: #563bd9;
-  --cyan: #087e9a;
+  --cyan: #08718a;
   --coral: #c74b3d;
   --green: #087b59;
   --grid: rgba(48, 62, 118, .055);
@@ -80,7 +80,7 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 
 .button { min-height: 48px; padding: 0 20px; border: 1px solid transparent; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; gap: 10px; text-decoration: none; font-weight: 750; font-size: .9rem; cursor: pointer; transition: transform .18s ease, border-color .18s ease, background .18s ease; }
 .button:hover { transform: translateY(-2px); }
-.button--primary { color: #fff; background: linear-gradient(135deg, #7257f5, #4e81f3); box-shadow: 0 10px 30px rgba(100, 74, 234, .25); }
+.button--primary { color: #fff; background: linear-gradient(135deg, #7257f5, #416fda); box-shadow: 0 10px 30px rgba(100, 74, 234, .25); }
 .button--secondary { color: var(--text); background: var(--surface); border-color: var(--line-strong); }
 
 .eyebrow { margin-bottom: 10px; color: var(--primary-bright); font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }

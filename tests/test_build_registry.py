@@ -426,20 +426,52 @@ class GeneratedIndexTests(unittest.TestCase):
         self.assertEqual(first, registry.OUTPUT.read_bytes())
         index = json.loads(first)
         self.assertEqual(index["schema_version"], 1)
-        self.assertEqual(len(index["plugins"]), 26)
+        self.assertGreaterEqual(len(index["plugins"]), 26)
         names = [item["name"] for item in index["plugins"]]
         self.assertEqual(names, sorted(names))
         required = {"name", "version", "description", "author", "license", "categories", "keywords", "source", "install_source", "built_in", "client_support", "validation", "components"}
         for item in index["plugins"]:
             self.assertTrue(required.issubset(item))
-            self.assertTrue(item["built_in"])
-            self.assertEqual(item["install_source"], item["name"])
-            self.assertEqual(item["client_support"]["resolution"], "catalog")
+            if item["built_in"]:
+                self.assertEqual(item["install_source"], item["name"])
+                self.assertEqual(item["client_support"]["resolution"], "catalog")
+            else:
+                source = item["source"]
+                self.assertEqual(
+                    item["install_source"],
+                    f"{source['repository']}@{source['revision']}//{source['path']}",
+                )
+                self.assertEqual(item["client_support"]["resolution"], "install_time")
             self.assertTrue(item["client_support"]["clients"])
+        self.assertEqual(sum(item["built_in"] for item in index["plugins"]), 26)
         context7 = next(item for item in index["plugins"] if item["name"] == "context7")
         cloudflare_docs = next(item for item in index["plugins"] if item["name"] == "cloudflare-docs")
         self.assertNotIn("chatgpt", context7["client_support"]["clients"])
         self.assertIn("chatgpt", cloudflare_docs["client_support"]["clients"])
+
+    def test_generated_index_accepts_26_builtins_plus_valid_external(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            entries = Path(tmp)
+            descriptor = {
+                "schema_version": 1,
+                "repository": "example/plugins",
+                "revision": "a" * 40,
+                "path": "packages/demo",
+                "categories": ["developer-tools"],
+            }
+            (entries / "demo.json").write_text(json.dumps(descriptor))
+            opener = external_opener(archive_bytes(valid_entries()))
+            with mock.patch.object(registry, "ENTRIES", entries):
+                index = registry.build(opener)
+
+        self.assertEqual(len(index["plugins"]), 27)
+        self.assertEqual(sum(item["built_in"] for item in index["plugins"]), 26)
+        external = next(item for item in index["plugins"] if not item["built_in"])
+        self.assertEqual(
+            external["install_source"],
+            f"example/plugins@{'a' * 40}//packages/demo",
+        )
+        self.assertEqual(external["client_support"]["resolution"], "install_time")
 
     def test_builtin_name_cannot_be_claimed_by_descriptor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
