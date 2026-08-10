@@ -249,6 +249,128 @@
     {
       "if": {
         "properties": {
+          "client": { "const": "ChatGPT desktop app (Codex backend)" },
+          "evidence_type": { "const": "desktop_package_ingestion_control_plane" }
+        },
+        "required": ["client", "evidence_type"]
+      },
+      "then": {
+        "required": [
+          "version",
+          "date_timezone",
+          "observed_at_utc",
+          "binding",
+          "source",
+          "manager",
+          "backend",
+          "scope",
+          "cleanup",
+          "screenshots_committed"
+        ],
+        "properties": {
+          "real_user_project_used": { "const": false },
+          "screenshots_committed": { "const": false },
+          "binding": {
+            "properties": {
+              "plugin": { "const": "cloudflare-docs" },
+              "app_id": {
+                "const": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
+              },
+              "mcp_url": { "const": "https://docs.mcp.cloudflare.com/mcp" }
+            }
+          },
+          "source": {
+            "type": "object",
+            "required": [
+              "repository",
+              "marketplace",
+              "marketplace_revision",
+              "plugin",
+              "plugin_version",
+              "plugin_path"
+            ],
+            "properties": {
+              "repository": {
+                "const": "https://github.com/777genius/universal-agent-plugins"
+              },
+              "marketplace": { "const": "universal-agent-plugins" },
+              "marketplace_revision": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "plugin": { "const": "cloudflare-docs" },
+              "plugin_version": { "const": "0.1.0" },
+              "plugin_path": {
+                "const": "compat/openai/plugins/cloudflare-docs"
+              }
+            },
+            "additionalProperties": false
+          },
+          "manager": {
+            "type": "object",
+            "required": [
+              "marketplace_registered",
+              "package_installed",
+              "package_enabled",
+              "cache_materialized",
+              "package_shape"
+            ],
+            "properties": {
+              "marketplace_registered": { "const": true },
+              "package_installed": { "const": true },
+              "package_enabled": { "const": true },
+              "cache_materialized": { "const": true },
+              "package_shape": { "const": "official_codex_plugin" }
+            },
+            "additionalProperties": false
+          },
+          "backend": {
+            "type": "object",
+            "required": [
+              "plugin_read",
+              "app_binding_read",
+              "app_runtime_snapshot"
+            ],
+            "properties": {
+              "plugin_read": { "const": true },
+              "app_binding_read": {
+                "const": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
+              },
+              "app_runtime_snapshot": {
+                "const": "binding_absent_on_codex_backend"
+              }
+            },
+            "additionalProperties": false
+          },
+          "checks": {
+            "items": { "required": ["scenario", "operation", "status"] }
+          },
+          "cleanup": {
+            "type": "object",
+            "required": [
+              "package_status",
+              "marketplace_status",
+              "connection_status"
+            ],
+            "properties": {
+              "package_status": {
+                "const": "retained_for_follow_up_ui_e2e"
+              },
+              "marketplace_status": {
+                "const": "retained_for_follow_up_ui_e2e"
+              },
+              "connection_status": {
+                "const": "retained_for_follow_up_ui_e2e"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "client": { "const": "Codex CLI" },
           "evidence_type": { "const": "automated_public_install" }
         },

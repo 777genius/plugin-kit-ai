@@ -1,0 +1,126 @@
+{
+  "client": "ChatGPT desktop app (Codex backend)",
+  "version": "0.147.0-alpha.6.5",
+  "date": "2026-08-10",
+  "date_timezone": "Europe/Kyiv",
+  "observed_at_utc": "2026-08-10T00:24:30Z",
+  "evidence_type": "desktop_package_ingestion_control_plane",
+  "binding": {
+    "plugin": "cloudflare-docs",
+    "app_id": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
+    "mcp_url": "https://docs.mcp.cloudflare.com/mcp"
+  },
+  "source": {
+    "repository": "https://github.com/777genius/universal-agent-plugins",
+    "marketplace": "universal-agent-plugins",
+    "marketplace_revision": "d37b49dcbe035cc3ca13b9088993319b370f56b2",
+    "plugin": "cloudflare-docs",
+    "plugin_version": "0.1.0",
+    "plugin_path": "compat/openai/plugins/cloudflare-docs"
+  },
+  "manager": {
+    "marketplace_registered": true,
+    "package_installed": true,
+    "package_enabled": true,
+    "cache_materialized": true,
+    "package_shape": "official_codex_plugin"
+  },
+  "backend": {
+    "plugin_read": true,
+    "app_binding_read": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4",
+    "app_runtime_snapshot": "binding_absent_on_codex_backend"
+  },
+  "scope": {
+    "proved": [
+      "repository_marketplace_registration",
+      "exact_revision_package_resolution",
+      "local_codex_plugin_package_ingestion",
+      "official_manager_install",
+      "desktop_backend_plugin_read",
+      "exact_app_id_linkage",
+      "enabled_state"
+    ],
+    "not_proved": [
+      "chatgpt_work_ui_discovery",
+      "chatgpt_work_package_activation",
+      "package_routed_runtime",
+      "app_connection_visible_in_codex_backend"
+    ]
+  },
+  "checks": [
+    {
+      "scenario": "register the public repository marketplace at the exact merged revision",
+      "operation": "plugin_marketplace_add",
+      "status": "passed"
+    },
+    {
+      "scenario": "install Cloudflare Docs with the official desktop plugin manager",
+      "operation": "plugin_add",
+      "status": "passed"
+    },
+    {
+      "scenario": "verify the installed package is enabled",
+      "operation": "plugin_list",
+      "status": "passed"
+    },
+    {
+      "scenario": "verify the cache contains .codex-plugin/plugin.json, .app.json, and .mcp.json",
+      "operation": "installed_package_shape",
+      "status": "passed"
+    },
+    {
+      "scenario": "read the installed package through the desktop app-server",
+      "operation": "plugin_read",
+      "status": "passed"
+    },
+    {
+      "scenario": "verify the desktop package points at the exact registered ChatGPT app ID",
+      "operation": "plugin_read_app_binding",
+      "status": "passed"
+    },
+    {
+      "scenario": "observe that the ChatGPT development app is not present in the Codex backend app snapshot",
+      "operation": "app_installed_boundary",
+      "status": "passed",
+      "observation": "binding_absent_on_codex_backend"
+    },
+    {
+      "scenario": "discover and activate the installed package in ChatGPT Work UI",
+      "operation": "chatgpt_work_ui_activation",
+      "status": "skipped",
+      "reason": "requires a ChatGPT desktop restart and interactive Work UI observation"
+    },
+    {
+      "scenario": "run a tool through the installed package routing path",
+      "operation": "package_routed_runtime",
+      "status": "skipped",
+      "reason": "the registered personal-app runtime is proven separately; package-routed Work runtime is not yet observed"
+    }
+  ],
+  "cleanup": {
+    "package_status": "retained_for_follow_up_ui_e2e",
+    "marketplace_status": "retained_for_follow_up_ui_e2e",
+    "connection_status": "retained_for_follow_up_ui_e2e"
+  },
+  "secrets_recorded": false,
+  "real_user_project_used": false,
+  "screenshots_committed": false,
+  "privacy": {
+    "sanitized": true,
+    "excluded": [
+      "credentials",
+      "tokens",
+      "cookies",
+      "OAuth codes",
+      "OAuth state",
+      "account identifiers",
+      "workspace identifiers",
+      "chat URLs",
+      "authorization URLs",
+      "absolute filesystem paths",
+      "installation identifiers",
+      "raw manager output",
+      "raw app-server output"
+    ]
+  }
+}
