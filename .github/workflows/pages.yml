@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
-      - uses: pnpm/action-setup@41ff726559292e0d0b57ba2dec2524a8339d2f47 # v4.1.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 10.34.5
           run_install: false
