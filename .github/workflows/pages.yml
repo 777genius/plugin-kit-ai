@@ -47,13 +47,14 @@ jobs:
           node-version: "22"
           cache: pnpm
           cache-dependency-path: site/pnpm-lock.yaml
+      - name: Install Python validation dependencies
+        run: python3 -m pip install check-jsonschema==0.37.4 PyYAML==6.0.3
       - name: Validate deterministic registry and Python suite
         run: |
           python3 scripts/build_registry.py --check
           python3 -m unittest discover -s tests
       - name: Validate registry JSON schemas and workflow YAML
         run: |
-          python3 -m pip install check-jsonschema==0.37.4 PyYAML==6.0.3
           check-jsonschema --schemafile schemas/registry-index.schema.json registry/index.json
           if compgen -G 'registry/entries/*.json' > /dev/null; then
             check-jsonschema --schemafile schemas/registry-entry.schema.json registry/entries/*.json
