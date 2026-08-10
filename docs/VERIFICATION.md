@@ -64,14 +64,16 @@ in `plugins/docker-hub/mcp.json`.
   activation, or runtime. See
   [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json).
 - Public post-merge run
-  [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
-  tested `universal-agent-plugins@0.1.5` at merge
-  [`8c2be5a`](https://github.com/777genius/universal-agent-plugins/commit/8c2be5a4740f0cef8b8dd8e57e51757e1f1167ea).
+  [`31350094295`](https://github.com/777genius/universal-agent-plugins/actions/runs/31350094295)
+  tested `universal-agent-plugins@0.1.6` at merge
+  [`a768a55`](https://github.com/777genius/universal-agent-plugins/commit/a768a55da757fe32b4cadc5a1ef729928847d2bf).
   It completed 26/26 transactional package lifecycles, 25/25 hero projections
   across Codex, Cursor, Copilot, VS Code, and Kiro, and 5/5 native Copilot
-  marketplace install/list/remove lifecycles in disposable profiles. These
-  checks do not prove client tool runtime or OAuth. Sanitized Actions evidence
-  artifacts are retained for 30 days on the linked run.
+  marketplace install/list/remove lifecycles in disposable profiles. It also
+  passed catalog-v2 ChatGPT dry-run, official package projection, State v3
+  repair, guarded removal, and cleanup. These checks do not prove ChatGPT Work
+  activation, package-routed runtime, Copilot tool runtime, or OAuth. Sanitized
+  Actions evidence artifacts are retained for 30 days on the linked run.
 - Stable `agentplugins 0.1.6` was built from merge `b9f7353` and passed the
   [release pipeline](https://github.com/777genius/plugin-kit-ai/actions/runs/31343240686):
   exact native binaries for macOS, Linux, and Windows on x64 and arm64, frozen

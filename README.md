@@ -100,9 +100,10 @@ prove tool or OAuth runtime. Separately, audited interactive evidence proves
 read-only Notion calls in all three. A separate sanitized Codex check also
 passed Figma OAuth and read-only `whoami`; it does not cover other clients.
 Post-merge live run
-[`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
-also proves native Copilot 0.1.5 install/list/remove lifecycle for the five
-starter plugins; it does not prove Copilot tool runtime or OAuth.
+[`31350094295`](https://github.com/777genius/universal-agent-plugins/actions/runs/31350094295)
+proves the current 0.1.6 lifecycle matrix, including native Copilot
+install/list/remove for the five starter plugins. It does not prove Copilot tool
+runtime or OAuth.
 
 ## Safety
 
