@@ -38,12 +38,18 @@ npx universal-agent-plugins remove context7 --target cursor
 installed. OAuth stays inside the client; the CLI never stores tokens or accepts
 trust prompts automatically.
 
-ChatGPT target support requires `agentplugins >=0.1.6`; the current `0.1.5`
-release does not provide it, so no copy command is published yet. Activation
-remains a user-attested manual Plugins UI flow. Cloudflare Docs is the only
-catalog-v2-verified target: its registered personal app passed discovery, chat
-activation, and read-only runtime. Local `.codex-plugin` ingestion and manager
-lifecycle remain unproved. The five stdio MCP packages stay Codex-only.
+ChatGPT target support starts with `agentplugins 0.1.6`. Cloudflare Docs is the
+only catalog-v2-verified target:
+
+```bash
+npx universal-agent-plugins add cloudflare-docs --target chatgpt
+```
+
+This prepares and validates the package; it does not silently install or attest
+the ChatGPT UI step. The registered development app passed personal-app
+discovery, chat activation, and read-only runtime, but its availability remains
+account/workspace-specific. Follow the printed Plugins UI step and verify it in
+a new chat. The five stdio MCP packages stay Codex-only.
 
 The portable package can also be installed through a client's native Agent
 Plugins flow. Exact client/runtime/OAuth evidence is kept separately in the

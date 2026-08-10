@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "catalog" / "v1" / "catalog.json"
 CLI_TIMEOUT_SECONDS = 120
-EXPECTED_CLI_VERSION = "0.1.5"
+EXPECTED_CLI_VERSION = "0.1.6"
 SEMVER_PATTERN = re.compile(
     r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"

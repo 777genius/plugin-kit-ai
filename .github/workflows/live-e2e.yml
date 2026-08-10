@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      AGENTPLUGINS_VERSION: "0.1.5"
+      AGENTPLUGINS_VERSION: "0.1.6"
       COPILOT_VERSION: "1.0.78"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,7 +127,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      AGENTPLUGINS_VERSION: "0.1.5"
+      AGENTPLUGINS_VERSION: "0.1.6"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -162,11 +162,50 @@ jobs:
           path: /tmp/agentplugins-package-lifecycle-e2e.json
           retention-days: 30
 
+  agentplugins-chatgpt-catalog-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AGENTPLUGINS_VERSION: "0.1.6"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Install exact Agent Plugins CLI
+        run: npm install --global "universal-agent-plugins@${AGENTPLUGINS_VERSION}"
+      - name: Run ChatGPT catalog v2 lifecycle E2E
+        env:
+          CATALOG_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/catalog/v2/catalog.json
+        run: |
+          catalog_digest="sha256:$(sha256sum catalog/v2/catalog.json | cut -d ' ' -f 1)"
+          python3 scripts/run_agentplugins_chatgpt_catalog_e2e.py \
+            --binary "$(command -v agentplugins)" \
+            --expected-version "${AGENTPLUGINS_VERSION}" \
+            --catalog-url "${CATALOG_URL}" \
+            --catalog-digest "${catalog_digest}" \
+            --output /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+      - name: Validate sanitized evidence
+        run: |
+          python3 -m pip install check-jsonschema==0.37.4
+          check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+          python3 scripts/validate_client_evidence.py --file /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agentplugins-chatgpt-catalog-v2-evidence-${{ github.run_id }}
+          path: /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+          retention-days: 30
+
   agentplugins-hero-projections:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      AGENTPLUGINS_VERSION: "0.1.5"
+      AGENTPLUGINS_VERSION: "0.1.6"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -208,6 +247,7 @@ jobs:
       - codex-marketplace-install
       - copilot-native-lifecycle
       - agentplugins-package-lifecycle
+      - agentplugins-chatgpt-catalog-v2
       - agentplugins-hero-projections
     runs-on: ubuntu-latest
     permissions:
