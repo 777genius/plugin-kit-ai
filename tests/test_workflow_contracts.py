@@ -35,6 +35,28 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("agentplugins_version", inputs)
         self.assertNotIn("github.event.inputs.agentplugins_version", workflow_text)
 
+    def test_scheduled_marketplace_e2e_resolves_latest_immutable_release(self) -> None:
+        workflow = load_workflow()
+        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        job = workflow["jobs"]["codex-marketplace-install"]
+        commands = job_run_commands(job)
+        install_step = next(
+            step
+            for step in job["steps"]
+            if isinstance(step, dict)
+            and "scripts/run_codex_install_e2e.py" in step.get("run", "")
+        )
+
+        self.assertNotIn("default", inputs["marketplace_ref"])
+        self.assertNotIn("v0.1.5", WORKFLOW_PATH.read_text())
+        self.assertIn("releases/latest", commands)
+        self.assertIn("^v[0-9]+\\.[0-9]+\\.[0-9]+$", commands)
+        self.assertIn("git merge-base --is-ancestor", commands)
+        self.assertEqual(
+            install_step["env"]["MARKETPLACE_REF"],
+            "${{ steps.marketplace.outputs.ref }}",
+        )
+
     def test_agentplugins_lifecycle_and_projection_jobs_are_isolated(self) -> None:
         jobs = load_workflow()["jobs"]
         expected = {
