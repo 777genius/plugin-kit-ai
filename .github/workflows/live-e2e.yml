@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       marketplace_ref:
-        description: Public marketplace Git ref to install
+        description: Optional exact public marketplace release tag to install
         required: false
-        default: v0.1.5
   schedule:
     - cron: "17 6 * * 1"
   push:
@@ -42,8 +41,6 @@ jobs:
   codex-marketplace-install:
     runs-on: ubuntu-latest
     timeout-minutes: 12
-    env:
-      MARKETPLACE_REF: ${{ github.event.inputs.marketplace_ref || (github.ref_type == 'tag' && github.ref_name) || 'v0.1.5' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,12 +53,31 @@ jobs:
           node-version: "24"
       - name: Install pinned Codex CLI
         run: npm install --global @openai/codex@0.147.0
-      - name: Verify release tag belongs to main
-        if: github.ref_type == 'tag'
+      - name: Resolve immutable marketplace release
+        id: marketplace
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_REF: ${{ github.event.inputs.marketplace_ref }}
         run: |
+          if [[ -n "$REQUESTED_REF" ]]; then
+            marketplace_ref="$REQUESTED_REF"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            marketplace_ref="$GITHUB_REF_NAME"
+          else
+            marketplace_ref="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
+          fi
+          if [[ ! "$marketplace_ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Marketplace ref must be an exact semantic-version release tag." >&2
+            exit 1
+          fi
+          git fetch --force origin "refs/tags/${marketplace_ref}:refs/tags/${marketplace_ref}"
           git fetch --no-tags origin main:refs/remotes/origin/main
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          marketplace_commit="$(git rev-list -n 1 "${marketplace_ref}^{commit}")"
+          git merge-base --is-ancestor "$marketplace_commit" refs/remotes/origin/main
+          echo "ref=${marketplace_ref}" >> "$GITHUB_OUTPUT"
       - name: Install public plugin and call Context7
+        env:
+          MARKETPLACE_REF: ${{ steps.marketplace.outputs.ref }}
         run: >-
           python3 scripts/run_codex_install_e2e.py
           --marketplace-ref "$MARKETPLACE_REF"

@@ -19,6 +19,13 @@ official-layout `.codex-plugin/plugin.json` packages under
 and follows the [OpenAI plugin build guide](https://developers.openai.com/plugins/build/plugins).
 The installer below is a community CLI, not an OpenAI product.
 
+The installer is open source and maintained in
+[`777genius/plugin-kit-ai`](https://github.com/777genius/plugin-kit-ai).
+`universal-agent-plugins` is the npm package; `agentplugins` is the installed
+command. Its shared Go engine reads standard `plugin.json` packages and uses
+client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS Code,
+and Kiro.
+
 ## Try one plugin
 
 Context7 is an easy first choice. It finds current library documentation and
