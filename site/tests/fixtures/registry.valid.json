@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "name": "context7",
+      "version": "1.0.0",
+      "description": "Find current, version-specific library documentation.",
+      "author": "Community package for Upstash",
+      "license": "MIT",
+      "categories": ["documentation"],
+      "keywords": ["docs", "libraries"],
+      "source": "plugins/context7",
+      "install_source": "context7",
+      "built_in": true,
+      "validation": { "schema_validated": true, "runtime_tested": true },
+      "components": ["mcp"],
+      "icon": "assets/plugin-icons/context7.png"
+    },
+    {
+      "name": "example-external",
+      "version": "2.1.0",
+      "description": "A fixture representing a future community submission.",
+      "author": "Example contributor",
+      "license": "Apache-2.0",
+      "categories": ["development"],
+      "keywords": ["example"],
+      "source": "https://github.com/example/plugins",
+      "install_source": "example/plugins@0123456789abcdef0123456789abcdef01234567//plugins/example",
+      "built_in": false,
+      "validation": "schema_validated",
+      "components": { "skills": true, "mcp": false }
+    }
+  ]
+}

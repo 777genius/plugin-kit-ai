@@ -1,0 +1,33 @@
+import type { RegistryPlugin } from '../types/registry'
+
+export interface CatalogFilters {
+  query?: string
+  category?: string
+  component?: string
+  source?: 'all' | 'built-in' | 'external'
+}
+
+export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters): RegistryPlugin[] {
+  const query = filters.query?.trim().toLocaleLowerCase() ?? ''
+  return plugins.filter((plugin) => {
+    const searchable = [
+      plugin.name,
+      plugin.description,
+      plugin.author,
+      ...plugin.categories,
+      ...plugin.keywords,
+      ...plugin.components,
+    ].join(' ').toLocaleLowerCase()
+    return (!query || searchable.includes(query))
+      && (!filters.category || plugin.categories.includes(filters.category))
+      && (!filters.component || plugin.components.includes(filters.component))
+      && (!filters.source || filters.source === 'all'
+        || (filters.source === 'built-in' ? plugin.built_in : !plugin.built_in))
+  })
+}
+
+export function availableFilters(plugins: RegistryPlugin[]) {
+  const categories = [...new Set(plugins.flatMap(plugin => plugin.categories))].sort()
+  const components = [...new Set(plugins.flatMap(plugin => plugin.components))].sort()
+  return { categories, components }
+}
