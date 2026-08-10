@@ -69,6 +69,9 @@ jobs:
       - name: Install site dependencies
         working-directory: site
         run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Audit site dependencies
+        working-directory: site
+        run: pnpm audit --audit-level=low
       - name: Lint, test, and typecheck
         working-directory: site
         run: |
