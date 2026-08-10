@@ -1,8 +1,21 @@
 <script setup lang="ts">
+import type { ClientID } from '~/types/registry'
+import { pluginCommands } from '~/utils/commands'
+
 const registry = useRegistry()
-const { repositoryUrl } = useSite()
+const { asset, repositoryUrl } = useSite()
 const builtInCount = computed(() => registry.plugins.filter(plugin => plugin.built_in).length)
 const externalCount = computed(() => registry.plugins.length - builtInCount.value)
+const demoPlugin = computed(() => {
+  const plugin = registry.plugins.find(item => item.name === 'context7')
+  if (!plugin) throw new Error('Context7 is required for the homepage quick start')
+  return plugin
+})
+const heroTargets = computed(() => clients.filter(client => demoPlugin.value.client_support.clients.includes(client.id)))
+const heroTarget = ref<ClientID>('cursor')
+const selectedHeroClient = computed(() => heroTargets.value.find(client => client.id === heroTarget.value) ?? heroTargets.value[0]!)
+const heroCommand = computed(() => pluginCommands(demoPlugin.value, selectedHeroClient.value.id).add)
+const heroClientLabel = (id: ClientID, name: string) => id === 'copilot' ? 'Copilot' : name
 const description = 'Discover and manage Agent Plugins 1.0 across Codex, ChatGPT, Cursor, GitHub Copilot CLI, VS Code, and Kiro with one community CLI.'
 
 useSeoMeta({
@@ -20,7 +33,6 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
   <div>
     <section class="hero container">
       <div class="hero__copy">
-        <div class="hero__badge"><span /> Community directory for Agent Plugins 1.0</div>
         <h1>One command.<br /><em>Every supported client.</em></h1>
         <p class="hero__lead">Add, update, or remove portable agent abilities across the tools you already use. Choose a plugin, choose a target, and let the community CLI handle the client-specific layout.</p>
         <div class="hero__actions">
@@ -33,9 +45,22 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
         <div class="hero__window">
           <div class="hero__window-top"><span /><span /><span /><b>Quick start</b></div>
           <div class="hero__window-body">
-            <p>Install Context7 for Cursor</p>
-            <CommandSnippet command="npx universal-agent-plugins add context7 --target cursor" />
-            <div class="hero__success"><span>✓</span><div><strong>Ready for Cursor</strong><small>Start a new session, then ask for current docs.</small></div></div>
+            <fieldset class="hero-targets">
+              <legend>Choose one target for this command</legend>
+              <div class="hero-targets__grid">
+                <label v-for="client in heroTargets" :key="client.id" class="hero-target" :class="{ 'hero-target--selected': heroTarget === client.id }" :title="client.name">
+                  <input v-model="heroTarget" class="sr-only" type="radio" name="hero-target" :value="client.id" />
+                  <span class="hero-target__icon"><img :src="asset(`client-icons/${client.icon}`)" alt="" width="19" height="19" /></span>
+                  <span class="hero-target__name">{{ heroClientLabel(client.id, client.name) }}</span>
+                </label>
+              </div>
+            </fieldset>
+            <p>Install Context7 for {{ selectedHeroClient.name }}</p>
+            <CommandSnippet :command="heroCommand" />
+            <div class="hero__success">
+              <span>✓</span>
+              <div><strong>Ready for {{ selectedHeroClient.name }}</strong><small>Run one command per client you want to use.</small></div>
+            </div>
           </div>
         </div>
         <div class="hero__float hero__float--schema"><span>✓</span> Schema validated</div>

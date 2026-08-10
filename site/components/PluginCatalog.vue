@@ -6,6 +6,7 @@ const props = withDefaults(defineProps<{ plugins: RegistryPlugin[], heading?: st
   heading: 'Explore plugins',
   intro: 'Browse schema-validated packages from the generated registry.',
 })
+const { repositoryUrl } = useSite()
 const query = ref('')
 const category = ref('')
 const component = ref<RegistryPlugin['components'][number] | ''>('')
@@ -55,7 +56,12 @@ const visible = computed(() => filterPlugins(props.plugins, {
         </select>
       </label>
     </div>
-    <div class="catalog-count" aria-live="polite">Showing {{ visible.length }} of {{ plugins.length }} plugins</div>
+    <div class="catalog-meta">
+      <div class="catalog-count" aria-live="polite">Showing {{ visible.length }} of {{ plugins.length }} plugins</div>
+      <a class="button button--secondary catalog-submit" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">
+        <span aria-hidden="true">＋</span> Add a plugin
+      </a>
+    </div>
     <div v-if="visible.length" class="plugin-grid">
       <PluginCard v-for="plugin in visible" :key="plugin.name" :plugin="plugin" />
     </div>
