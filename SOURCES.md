@@ -2,6 +2,9 @@
 
 Checked on 2026-08-07. Vendor names and trademarks belong to their owners.
 
+Supported client logo provenance is recorded in
+[`assets/client-icons/README.md`](assets/client-icons/README.md).
+
 OpenAI-only auth and capability adapter values are taken from OpenAI's published
 [GitHub](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/github/.mcp.json),
 [Figma](https://github.com/openai/plugins/blob/11c74d6ba24d3a6d48f54a194cd00ef3beea18f9/plugins/figma/.codex-plugin/plugin.json),

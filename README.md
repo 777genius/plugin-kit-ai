@@ -71,12 +71,12 @@ client-specific.
 
 | Client | Delivery | Activation |
 | --- | --- | --- |
-| Codex | OpenAI compatibility package | Follow the exact CLI activation hint |
-| ChatGPT | Registered remote MCP app binding | User-attested manual UI activation; Cloudflare Docs personal-app E2E passed |
-| Cursor | Native Agent Plugin | Reload, then verify discovery |
-| GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
-| VS Code | Shared Copilot plugin when its CLI is available | Automatic, otherwise the exact setting is shown |
-| Kiro | Native folder package | Follow the exact Power import hint |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | Official-layout `.codex-plugin` package | CLI prints the exact activation steps |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Official-layout package + registered app binding | Manual Plugins UI; package-routed Work runtime is not yet proved |
+| <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor | Native Agent Plugin | Reload, then verify discovery |
+| <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
+| <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |
+| <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Native folder package | Follow the exact Power import hint |
 
 All 26 packages pass the standard schemas. That does not mean every service or
 OAuth flow has been tested in every client, and the standard is not a universal
@@ -86,9 +86,10 @@ marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and th
 For OpenAI delivery, five stdio MCP packages are Codex-only, twenty remote MCP
 packages require a ChatGPT app binding, and Agent Code Navigator is skills-only.
 Cloudflare Docs has the only registered development binding; its direct
-connection and registered personal-app Plugins UI runtime passed. The exact
-`.app.json` ID linkage is proved; local `.codex-plugin` ingestion and manager
-lifecycle are still separate, unproved steps.
+connection and registered personal-app Plugins UI runtime passed. Repository
+marketplace ingestion, official manager installation, package materialization,
+and exact `.app.json` linkage also passed. ChatGPT Work UI discovery, activation,
+and package-routed runtime remain unproved.
 
 Package lifecycle proof is broader than runtime proof: all 26 pass isolated
 materialization/removal, and the five starter plugins pass 25/25 add/remove
@@ -100,7 +101,7 @@ prove tool or OAuth runtime. Separately, audited interactive evidence proves
 read-only Notion calls in all three. A separate sanitized Codex check also
 passed Figma OAuth and read-only `whoami`; it does not cover other clients.
 Post-merge live run
-[`31350094295`](https://github.com/777genius/universal-agent-plugins/actions/runs/31350094295)
+[`31363316668`](https://github.com/777genius/universal-agent-plugins/actions/runs/31363316668)
 proves the current 0.1.6 lifecycle matrix, including native Copilot
 install/list/remove for the five starter plugins. It does not prove Copilot tool
 runtime or OAuth.
