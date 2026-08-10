@@ -18,7 +18,8 @@ Updated: 2026-08-10.
 - Cloudflare Docs is the only package with a generated `.app.json`; its host-only
   development binding matches the exact public app ID, MCP endpoint, and pinned
   direct and personal-app runtime records. Human review still owns the app-ID
-  ownership check. Local package ingestion is not implied.
+  ownership check. A separate desktop control-plane record proves package
+  ingestion; the binding alone does not.
 - The OpenAI adapter preserves the host-specific auth metadata published for
   GitHub, Figma, Linear, and Notion without adding unverified auth fields.
 
@@ -53,6 +54,15 @@ in `plugins/docker-hub/mcp.json`.
   It does not prove local `.codex-plugin` ingestion, repository marketplace
   installation, or manager lifecycle. The sanitized record is
   [`chatgpt-cloudflare-docs-personal-app-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json).
+- ChatGPT desktop's bundled Codex backend 0.147.0-alpha.6.5 registered the public
+  marketplace at exact merge `d37b49d`, installed and enabled Cloudflare Docs,
+  materialized the official `.codex-plugin` package in its cache, and returned
+  the exact app binding through `plugin/read`. Its `app/installed` snapshot did
+  not contain that ChatGPT development binding, so app routing was not active on
+  the tested Codex backend. This proves repository marketplace ingestion and
+  desktop control-plane parsing, not ChatGPT Work UI discovery, activation, or
+  package-routed runtime. See
+  [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json).
 - Public post-merge run
   [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
   tested `universal-agent-plugins@0.1.5` at merge
@@ -62,6 +72,16 @@ in `plugins/docker-hub/mcp.json`.
   marketplace install/list/remove lifecycles in disposable profiles. These
   checks do not prove client tool runtime or OAuth. Sanitized Actions evidence
   artifacts are retained for 30 days on the linked run.
+- Stable `agentplugins 0.1.6` was built from merge `b9f7353` and passed the
+  [release pipeline](https://github.com/777genius/plugin-kit-ai/actions/runs/31343240686):
+  exact native binaries for macOS, Linux, and Windows on x64 and arm64, frozen
+  checksums and manifest, cold bootstrap, cache behavior, and native lifecycle
+  proof. The separate
+  [npm pipeline](https://github.com/777genius/plugin-kit-ai/actions/runs/31343525895)
+  repeated public-release cold bootstrap on all six targets, published
+  `universal-agent-plugins@0.1.6`, and verified the registry tarball, npm
+  signature, SLSA provenance, and post-publish arbitrary `plugin.json`
+  lifecycle. These release gates do not imply client tool runtime or OAuth.
 - Codex CLI 0.144.1 used `universal-agent-plugins@0.1.5` to add `figma 0.1.0`
   for target Codex in a fresh git project and isolated `CODEX_HOME`. The
   generated plugin installed and enabled, Figma OAuth login completed
