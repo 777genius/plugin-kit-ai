@@ -6,6 +6,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/live-e2e.yml"
+VALIDATE_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/validate.yml"
 
 
 def load_workflow() -> dict[str, object]:
@@ -57,7 +58,7 @@ class WorkflowContractTests(unittest.TestCase):
             with self.subTest(job=name):
                 job = jobs[name]
                 commands = job_run_commands(job)
-                self.assertEqual(job["env"]["AGENTPLUGINS_VERSION"], "0.1.5")
+                self.assertEqual(job["env"]["AGENTPLUGINS_VERSION"], "0.1.6")
                 self.assertIn(
                     'npm install --global "universal-agent-plugins@${AGENTPLUGINS_VERSION}"',
                     commands,
@@ -87,6 +88,7 @@ class WorkflowContractTests(unittest.TestCase):
         agentplugins_jobs = {
             "copilot-native-lifecycle",
             "agentplugins-package-lifecycle",
+            "agentplugins-chatgpt-catalog-v2",
             "agentplugins-hero-projections",
         }
 
@@ -99,7 +101,7 @@ class WorkflowContractTests(unittest.TestCase):
         for name in agentplugins_jobs:
             with self.subTest(job=name):
                 self.assertEqual(
-                    jobs[name]["env"]["AGENTPLUGINS_VERSION"], "0.1.5"
+                    jobs[name]["env"]["AGENTPLUGINS_VERSION"], "0.1.6"
                 )
 
     def test_copilot_native_job_binds_evidence_to_local_catalog(self) -> None:
@@ -110,6 +112,67 @@ class WorkflowContractTests(unittest.TestCase):
             'catalog_digest="sha256:$(sha256sum catalog/v1/catalog.json', commands
         )
         self.assertIn('--catalog-digest "${catalog_digest}"', commands)
+
+    def test_chatgpt_job_gates_released_cli_against_catalog_v2(self) -> None:
+        job = load_workflow()["jobs"]["agentplugins-chatgpt-catalog-v2"]
+        commands = job_run_commands(job)
+        uses = {
+            step["uses"]
+            for step in job["steps"]
+            if isinstance(step, dict) and "uses" in step
+        }
+
+        self.assertEqual(job["env"]["AGENTPLUGINS_VERSION"], "0.1.6")
+        self.assertIn(
+            'npm install --global "universal-agent-plugins@${AGENTPLUGINS_VERSION}"',
+            commands,
+        )
+        self.assertIn("scripts/run_agentplugins_chatgpt_catalog_e2e.py", commands)
+        self.assertIn(
+            'catalog_digest="sha256:$(sha256sum catalog/v2/catalog.json', commands
+        )
+        run_step = next(
+            step
+            for step in job["steps"]
+            if isinstance(step, dict)
+            and "scripts/run_agentplugins_chatgpt_catalog_e2e.py" in step.get("run", "")
+        )
+        self.assertIn("/catalog/v2/catalog.json", run_step["env"]["CATALOG_URL"])
+        self.assertIn('--expected-version "${AGENTPLUGINS_VERSION}"', commands)
+        self.assertIn('--catalog-digest "${catalog_digest}"', commands)
+        self.assertIn(
+            "/tmp/agentplugins-chatgpt-catalog-v2-e2e.json", commands
+        )
+        self.assertIn("check-jsonschema --schemafile", commands)
+        self.assertIn("scripts/validate_client_evidence.py --file", commands)
+        self.assertEqual(
+            uses,
+            {
+                "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+                "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+                "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+            },
+        )
+
+    def test_pull_request_gate_runs_released_consumer_e2e(self) -> None:
+        workflow = yaml.load(VALIDATE_WORKFLOW_PATH.read_text(), Loader=yaml.BaseLoader)
+        job = workflow["jobs"]["agentplugins-chatgpt-catalog-v2"]
+        commands = job_run_commands(job)
+
+        self.assertIn("pull_request", workflow["on"])
+        self.assertEqual(job["env"]["AGENTPLUGINS_VERSION"], "0.1.6")
+        self.assertIn("pull_request.head.repo.full_name", job["env"]["CATALOG_REPOSITORY"])
+        self.assertIn("pull_request.head.sha", job["env"]["CATALOG_REVISION"])
+        self.assertIn(
+            'npm install --global "universal-agent-plugins@${AGENTPLUGINS_VERSION}"',
+            commands,
+        )
+        self.assertIn("scripts/run_agentplugins_chatgpt_catalog_e2e.py", commands)
+        self.assertIn("${CATALOG_REPOSITORY}/${CATALOG_REVISION}", commands)
+        self.assertIn("catalog/v2/catalog.json", commands)
+        self.assertIn("check-jsonschema --schemafile", commands)
+        self.assertIn("scripts/validate_client_evidence.py --file", commands)
 
 
 if __name__ == "__main__":

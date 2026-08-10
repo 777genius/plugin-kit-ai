@@ -41,3 +41,43 @@ jobs:
             python3 /tmp/openai-validate-plugin.py "$plugin"
           done
       - run: python3 -m unittest discover -s tests
+
+  agentplugins-chatgpt-catalog-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AGENTPLUGINS_VERSION: "0.1.6"
+      CATALOG_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+      CATALOG_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+      - name: Install exact released Agent Plugins CLI
+        run: npm install --global "universal-agent-plugins@${AGENTPLUGINS_VERSION}"
+      - name: Run released-consumer ChatGPT catalog v2 E2E
+        run: |
+          catalog_digest="sha256:$(sha256sum catalog/v2/catalog.json | cut -d ' ' -f 1)"
+          catalog_url="https://raw.githubusercontent.com/${CATALOG_REPOSITORY}/${CATALOG_REVISION}/catalog/v2/catalog.json"
+          python3 scripts/run_agentplugins_chatgpt_catalog_e2e.py \
+            --binary "$(command -v agentplugins)" \
+            --expected-version "${AGENTPLUGINS_VERSION}" \
+            --catalog-url "${catalog_url}" \
+            --catalog-digest "${catalog_digest}" \
+            --output /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+      - name: Validate sanitized evidence
+        run: |
+          python3 -m pip install check-jsonschema==0.37.4
+          check-jsonschema --schemafile schemas/e2e/client-evidence.schema.json /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+          python3 scripts/validate_client_evidence.py --file /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agentplugins-chatgpt-catalog-v2-${{ github.run_id }}
+          path: /tmp/agentplugins-chatgpt-catalog-v2-e2e.json
+          retention-days: 30

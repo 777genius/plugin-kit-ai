@@ -426,9 +426,9 @@ class AgentpluginsLifecycleE2ETests(unittest.TestCase):
                 {},
             )
 
-    def test_e2e_defaults_target_agentplugins_0_1_5(self) -> None:
-        self.assertEqual(e2e.EXPECTED_CLI_VERSION, "0.1.5")
-        self.assertEqual(hero_e2e.EXPECTED_CLI_VERSION, "0.1.5")
+    def test_e2e_defaults_target_agentplugins_0_1_6(self) -> None:
+        self.assertEqual(e2e.EXPECTED_CLI_VERSION, "0.1.6")
+        self.assertEqual(hero_e2e.EXPECTED_CLI_VERSION, "0.1.6")
 
     def test_e2e_flow_dimensions_cover_catalog_and_hero_matrix(self) -> None:
         catalog = json.loads(e2e.CATALOG.read_text())

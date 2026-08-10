@@ -22,8 +22,8 @@ SPEC.loader.exec_module(copilot_e2e)
 
 
 class CopilotNativeE2ETests(unittest.TestCase):
-    def test_default_agentplugins_version_is_0_1_5(self) -> None:
-        self.assertEqual(copilot_e2e.EXPECTED_CLI_VERSION, "0.1.5")
+    def test_default_agentplugins_version_is_0_1_6(self) -> None:
+        self.assertEqual(copilot_e2e.EXPECTED_CLI_VERSION, "0.1.6")
 
     def test_native_evidence_uses_verified_local_catalog_identity(self) -> None:
         actual_digest = "sha256:" + hashlib.sha256(
