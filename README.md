@@ -7,8 +7,13 @@
 [![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
 [![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
 
-Give your AI agent ready-made abilities: search current documentation, navigate
-code, debug browsers, work with cloud tools, and more. Pick one plugin and add
+**One CLI installs Agent Plugins across Codex, ChatGPT, Cursor, GitHub
+Copilot/VS Code, and Kiro.** It adapts each package to the selected client and
+manages add, update, repair, and remove. When a client requires UI activation or
+OAuth, it prints the exact next step.
+
+Pick from 26 ready-made abilities: search current documentation, navigate code,
+debug browsers, work with cloud tools, and more. Install one plugin and add
 others only when you need them.
 
 This repository contains 26 open-source plugins packaged for the
@@ -40,6 +45,14 @@ than one is present, choose one from the prompt. To choose directly:
 
 ```bash
 npx universal-agent-plugins add context7 --target cursor
+```
+
+The same CLI manages the rest of the plugin lifecycle:
+
+```bash
+npx universal-agent-plugins update context7 --target cursor
+npx universal-agent-plugins repair context7 --target cursor
+npx universal-agent-plugins remove context7 --target cursor
 ```
 
 Open a new chat or session in the client you selected and ask:
