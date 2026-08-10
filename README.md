@@ -31,6 +31,10 @@ command. Its shared Go engine reads standard `plugin.json` packages and uses
 client-specific adapters for Codex, ChatGPT, Cursor, GitHub Copilot/VS Code,
 and Kiro.
 
+Browse the [plugin directory](https://777genius.github.io/universal-agent-plugins/)
+or [submit a plugin](registry/README.md#submit-an-external-package) through a Git-native
+pull request. This community directory is not an official OpenAI registry.
+
 ## Try one plugin
 
 Context7 is an easy first choice. It finds current library documentation and

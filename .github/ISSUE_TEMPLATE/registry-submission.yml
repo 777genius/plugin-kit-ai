@@ -1,0 +1,31 @@
+name: External registry submission
+description: Propose a pinned public GitHub package for the directory
+title: "registry: add "
+body:
+  - type: markdown
+    attributes:
+      value: Read registry/README.md first. The package is installed by exact source; no external short-name alias is created.
+  - type: input
+    id: source
+    attributes:
+      label: Exact immutable install source
+      description: Public canonical GitHub repository, full 40-character lowercase commit SHA, and normalized plugin path.
+      placeholder: owner/repo@0123456789abcdef0123456789abcdef01234567//path/to/plugin
+    validations:
+      required: true
+  - type: textarea
+    id: review
+    attributes:
+      label: Review notes
+      description: Explain package purpose, permissions, authentication, and why this revision should be reviewed.
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Validation acknowledgement
+      options:
+        - label: I understand schema-only validation is not verification, endorsement, or a malware guarantee.
+          required: true
+        - label: I understand updates require another PR pinned to a new commit.
+          required: true

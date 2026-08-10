@@ -1,0 +1,117 @@
+name: Pages
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "registry/**"
+      - "schemas/registry-*.schema.json"
+      - "scripts/build_registry.py"
+      - "tests/test_build_registry.py"
+      - ".github/workflows/pages.yml"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "registry/**"
+      - "schemas/registry-*.schema.json"
+      - "scripts/build_registry.py"
+      - "tests/test_build_registry.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages-production' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.34.5
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: site/pnpm-lock.yaml
+      - name: Install Python validation dependencies
+        run: python3 -m pip install check-jsonschema==0.37.4 PyYAML==6.0.3
+      - name: Validate deterministic registry and Python suite
+        run: |
+          python3 scripts/build_registry.py --check
+          python3 -m unittest discover -s tests
+      - name: Validate registry JSON schemas and workflow YAML
+        run: |
+          check-jsonschema --schemafile schemas/registry-index.schema.json registry/index.json
+          if compgen -G 'registry/entries/*.json' > /dev/null; then
+            check-jsonschema --schemafile schemas/registry-entry.schema.json registry/entries/*.json
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import yaml
+          for path in sorted(Path('.github/workflows').glob('*.yml')):
+              yaml.safe_load(path.read_text(encoding='utf-8'))
+          PY
+      - name: Install site dependencies
+        working-directory: site
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Lint, test, and typecheck
+        working-directory: site
+        run: |
+          pnpm lint
+          pnpm test
+          pnpm typecheck
+      - name: Generate Pages site
+        working-directory: site
+        env:
+          NUXT_APP_BASE_URL: /universal-agent-plugins/
+          NUXT_PUBLIC_SITE_URL: https://777genius.github.io/universal-agent-plugins
+        run: |
+          pnpm generate
+          pnpm check:generated
+      - name: Archive Pages site
+        run: |
+          tar \
+            --dereference --hard-dereference \
+            --directory site/.output/public \
+            -cvf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            .
+      - name: Upload Pages artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90192b6a8d970a214e8a67a2a4f74fd7537f # v4.0.5

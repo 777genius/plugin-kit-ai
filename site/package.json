@@ -1,0 +1,34 @@
+{
+  "name": "universal-agent-plugins-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.34.5",
+  "pnpm": {
+    "ignoredOptionalDependencies": [
+      "better-sqlite3"
+    ]
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "generate": "nuxt generate",
+    "lint": "nuxt prepare && eslint .",
+    "test": "node --test --experimental-strip-types tests/*.test.ts",
+    "typecheck": "nuxt prepare && vue-tsc --noEmit",
+    "check:generated": "node scripts/check-generated.mjs"
+  },
+  "dependencies": {
+    "nuxt": "3.21.11",
+    "vue": "3.5.41",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "1.15.2",
+    "eslint": "9.39.4",
+    "typescript": "5.9.3",
+    "vue-tsc": "3.3.9"
+  }
+}
