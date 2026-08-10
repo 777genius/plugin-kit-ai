@@ -39,14 +39,23 @@ class FakeResponse:
 
 
 class FakeOpener:
-    def __init__(self, response: FakeResponse):
-        self.response = response
-        self.request = None
-        self.timeout = None
+    def __init__(self, *responses: FakeResponse):
+        self.responses = list(responses)
+        self.requests = []
+        self.timeouts = []
 
     def open(self, request, timeout=None):
-        self.request, self.timeout = request, timeout
-        return self.response
+        self.requests.append(request)
+        self.timeouts.append(timeout)
+        return self.responses.pop(0)
+
+    @property
+    def request(self):
+        return self.requests[-1]
+
+    @property
+    def timeout(self):
+        return self.timeouts[-1]
 
 
 def archive_bytes(entries: list[tuple[str, bytes | None, str]], root: str = "repo-deadbeef") -> bytes:
@@ -99,6 +108,19 @@ def valid_entries(name: str = "demo") -> list[tuple[str, bytes | None, str]]:
         (f"{base}/README.md", b"# Demo\n", "file"),
         (f"{base}/mcp.json", json.dumps(mcp).encode(), "file"),
     ]
+
+
+def commit_response(revision: str = "a" * 40, **updates) -> bytes:
+    value = {"sha": revision, "url": registry.commit_api_url("example/plugins", revision), "tree": {"sha": "b" * 40}, "parents": []}
+    value.update(updates)
+    return json.dumps(value).encode()
+
+
+def external_opener(body: bytes, revision: str = "a" * 40) -> FakeOpener:
+    return FakeOpener(
+        FakeResponse(commit_response(revision), registry.commit_api_url("example/plugins", revision)),
+        FakeResponse(body, registry.archive_url("example/plugins", revision)),
+    )
 
 
 class RegistryDescriptorTests(unittest.TestCase):
@@ -199,6 +221,61 @@ class NetworkLimitTests(unittest.TestCase):
                 self.download(FakeResponse(b"x", url), Path(tmp) / "a.tgz")
 
 
+class CommitResolutionTests(unittest.TestCase):
+    def test_resolves_exact_git_commit_before_archive_without_forwarding_token(self) -> None:
+        revision = "a" * 40
+        opener = external_opener(archive_bytes(valid_entries()), revision)
+        descriptor = {"name": "demo", "repository": "example/plugins", "revision": revision, "path": "packages/demo", "categories": ["developer-tools"]}
+        with mock.patch.dict(registry.os.environ, {"GITHUB_TOKEN": "secret-token"}, clear=False):
+            registry.external_entry(descriptor, opener)
+        self.assertEqual([request.full_url for request in opener.requests], [registry.commit_api_url("example/plugins", revision), registry.archive_url("example/plugins", revision)])
+        self.assertEqual(opener.requests[0].get_header("Authorization"), "Bearer secret-token")
+        self.assertIsNone(opener.requests[1].get_header("Authorization"))
+        self.assertEqual(opener.timeouts, [registry.CONNECT_TIMEOUT_SECONDS, registry.CONNECT_TIMEOUT_SECONDS])
+
+    def test_token_cannot_follow_api_redirect_to_another_host(self) -> None:
+        request = registry.urllib.request.Request(
+            registry.commit_api_url("example/plugins", "a" * 40),
+            headers={"Authorization": "Bearer secret-token"},
+        )
+        with self.assertRaises(registry.RegistryError):
+            registry.NoRedirect().redirect_request(request, None, 302, "Found", {}, "https://evil.example/steal")
+
+    def test_fails_closed_on_status_url_type_sha_and_malformed_json(self) -> None:
+        revision = "a" * 40
+        url = registry.commit_api_url("example/plugins", revision)
+        cases = [
+            FakeResponse(commit_response(revision), url, status=404),
+            FakeResponse(commit_response(revision), "https://evil.example/commit"),
+            FakeResponse(b"[]", url),
+            FakeResponse(commit_response("c" * 40), url),
+            FakeResponse(b"{bad", url),
+            FakeResponse(b'{"sha":"' + revision.encode() + b'","sha":"' + revision.encode() + b'"}', url),
+            FakeResponse(commit_response(revision, url="https://evil.example/commit"), url),
+            FakeResponse(json.dumps({"sha": revision, "tree": "not-an-object", "parents": []}).encode(), url),
+            FakeResponse(commit_response(revision, parents=[{"sha": "not-a-sha"}]), url),
+        ]
+        for response in cases:
+            with self.subTest(status=response.status, url=response.geturl(), body=response._body.getvalue()):
+                with self.assertRaises(registry.RegistryError):
+                    registry.resolve_commit("example/plugins", revision, FakeOpener(response))
+
+    def test_bounds_commit_response_bytes_content_length_and_time(self) -> None:
+        revision = "a" * 40
+        url = registry.commit_api_url("example/plugins", revision)
+        responses = [
+            FakeResponse(b"{}", url, length=str(registry.MAX_API_RESPONSE_BYTES + 1)),
+            FakeResponse(b"{}", url, length="-1"),
+        ]
+        for response in responses:
+            with self.subTest(headers=response.headers), self.assertRaises(registry.RegistryError):
+                registry.resolve_commit("example/plugins", revision, FakeOpener(response))
+        with mock.patch.object(registry, "MAX_API_RESPONSE_BYTES", 4), self.assertRaises(registry.RegistryError):
+            registry.resolve_commit("example/plugins", revision, FakeOpener(FakeResponse(b"12345", url)))
+        with mock.patch.object(registry.time, "monotonic", side_effect=[0, registry.API_TOTAL_SECONDS + 1]), self.assertRaises(registry.RegistryError):
+            registry.resolve_commit("example/plugins", revision, FakeOpener(FakeResponse(b"{}", url)))
+
+
 class ArchiveLimitTests(unittest.TestCase):
     def extract(self, body: bytes, destination: Path) -> None:
         compressed, expanded = destination.parent / "a.tgz", destination.parent / "a.tar"
@@ -279,8 +356,7 @@ class ExternalPackageTests(unittest.TestCase):
     def test_external_entry_is_pinned_schema_only_and_derived_from_package(self) -> None:
         body = archive_bytes(valid_entries() + [("packages/demo/icon.svg", b"<svg/>", "file")])
         descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
-        url = registry.archive_url("example/plugins", "a" * 40)
-        item = registry.external_entry(descriptor, FakeOpener(FakeResponse(body, url)))
+        item = registry.external_entry(descriptor, external_opener(body))
         self.assertEqual(item["install_source"], f"example/plugins@{'a' * 40}//packages/demo")
         self.assertEqual(item["author"]["name"], "Example Author")
         self.assertEqual(item["license"], "Apache-2.0")
@@ -294,15 +370,13 @@ class ExternalPackageTests(unittest.TestCase):
         entries = valid_entries()
         entries[3] = (entries[3][0], b'{"mcpServers":{},"mcpServers":{}}', "file")
         descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
-        url = registry.archive_url("example/plugins", "a" * 40)
         with self.assertRaises(registry.RegistryError):
-            registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+            registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
 
     def test_allows_array_data_json_without_weakening_duplicate_checks(self) -> None:
         entries = valid_entries() + [("packages/demo/data.json", b'[1, 2, 3]', "file")]
         descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
-        url = registry.archive_url("example/plugins", "a" * 40)
-        item = registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+        item = registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
         self.assertEqual(item["name"], "demo")
 
     def test_rejects_manifest_name_or_repository_mismatch_and_missing_license(self) -> None:
@@ -313,9 +387,8 @@ class ExternalPackageTests(unittest.TestCase):
             manifest[field] = value
             entries[1] = (entries[1][0], json.dumps(manifest).encode(), "file")
             descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
-            url = registry.archive_url("example/plugins", "a" * 40)
             with self.subTest(field=field), self.assertRaises(registry.RegistryError):
-                registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+                registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
 
     def test_existing_mcp_secret_checks_are_preserved(self) -> None:
         entries = valid_entries()
@@ -323,9 +396,26 @@ class ExternalPackageTests(unittest.TestCase):
         mcp["mcpServers"]["demo"]["headers"] = {"Authorization": "token"}
         entries[3] = (entries[3][0], json.dumps(mcp).encode(), "file")
         descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
-        url = registry.archive_url("example/plugins", "a" * 40)
         with self.assertRaises(registry.RegistryError):
-            registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+            registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
+
+    def test_rejects_plugin_manifest_that_fails_vendored_schema(self) -> None:
+        entries = valid_entries()
+        manifest = json.loads(entries[1][1])
+        manifest["homepage"] = 42
+        entries[1] = (entries[1][0], json.dumps(manifest).encode(), "file")
+        descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
+        with self.assertRaisesRegex(registry.RegistryError, r"plugin\.json: Agent Plugins 1\.0 schema error.*homepage"):
+            registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
+
+    def test_rejects_mcp_configuration_that_fails_vendored_schema(self) -> None:
+        entries = valid_entries()
+        mcp = json.loads(entries[3][1])
+        mcp["mcpServers"]["demo"]["url"] = 42
+        entries[3] = (entries[3][0], json.dumps(mcp).encode(), "file")
+        descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
+        with self.assertRaisesRegex(registry.RegistryError, r"mcp\.json: Agent Plugins 1\.0 schema error"):
+            registry.external_entry(descriptor, external_opener(archive_bytes(entries)))
 
 
 class GeneratedIndexTests(unittest.TestCase):

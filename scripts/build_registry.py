@@ -23,6 +23,8 @@ import urllib.request
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, urlsplit
 
+import jsonschema
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_agentplugins_catalog import package_tree_digest
 from portable_paths import validate_segment, validate_tree
@@ -37,9 +39,12 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 CATEGORY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 DESCRIPTOR_FIELDS = {"schema_version", "repository", "revision", "path", "categories"}
 APPROVED_ARCHIVE_HOSTS = {"codeload.github.com"}
+APPROVED_API_HOSTS = {"api.github.com"}
 CONNECT_TIMEOUT_SECONDS = 15
+API_TOTAL_SECONDS = 15
 TOTAL_DOWNLOAD_SECONDS = 30
 ARCHIVE_PROCESS_SECONDS = 30
+MAX_API_RESPONSE_BYTES = 1 << 20
 MAX_DOWNLOAD_BYTES = 25 << 20
 MAX_ARCHIVE_BYTES = 300 << 20
 MAX_EXTRACTED_BYTES = 128 << 20
@@ -65,31 +70,39 @@ def digest_bytes(body: bytes) -> str:
     return "sha256:" + hashlib.sha256(body).hexdigest()
 
 
-def read_json(path: Path) -> object:
+def parse_json_bytes(body: bytes, source: str) -> object:
     def unique_object(pairs):  # type: ignore[no-untyped-def]
         result = {}
         normalized_keys = set()
         for key, item in pairs:
-            require(key not in result, f"{path}: duplicate JSON key {key!r}")
+            require(key not in result, f"{source}: duplicate JSON key {key!r}")
             normalized = unicodedata.normalize("NFC", key).casefold()
-            require(normalized not in normalized_keys, f"{path}: case/Unicode-colliding JSON key {key!r}")
+            require(normalized not in normalized_keys, f"{source}: case/Unicode-colliding JSON key {key!r}")
             normalized_keys.add(normalized)
             result[key] = item
         return result
 
     def reject_constant(value: str) -> None:
         raise RegistryError(
-            f"{path}: non-finite JSON number {value!r} is forbidden"
+            f"{source}: non-finite JSON number {value!r} is forbidden"
         )
 
     try:
         return json.loads(
-            path.read_text(encoding="utf-8"),
+            body.decode("utf-8"),
             object_pairs_hook=unique_object,
             parse_constant=reject_constant,
         )
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise RegistryError(f"{path}: invalid UTF-8 JSON: {error}") from error
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise RegistryError(f"{source}: invalid UTF-8 JSON: {error}") from error
+
+
+def read_json(path: Path) -> object:
+    try:
+        body = path.read_bytes()
+    except OSError as error:
+        raise RegistryError(f"{path}: cannot read JSON: {error}") from error
+    return parse_json_bytes(body, str(path))
 
 
 def read_object(path: Path) -> dict[str, object]:
@@ -141,7 +154,61 @@ def validate_descriptor(path: Path) -> dict[str, object]:
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
-        raise RegistryError(f"archive download redirect is forbidden ({code})")
+        raise RegistryError(f"network redirect is forbidden ({code})")
+
+
+def commit_api_url(repository: str, revision: str) -> str:
+    url = f"https://api.github.com/repos/{quote(repository, safe='/')}/git/commits/{revision}"
+    parsed = urlsplit(url)
+    require(parsed.scheme == "https" and parsed.hostname in APPROVED_API_HOSTS and parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment, "unsafe GitHub API URL")
+    return url
+
+
+def resolve_commit(repository: str, revision: str, opener=None) -> None:  # type: ignore[no-untyped-def]
+    url = commit_api_url(repository, revision)
+    opener = opener or urllib.request.build_opener(NoRedirect())
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "uap-registry-builder/1",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
+    started = time.monotonic()
+    try:
+        response = opener.open(request, timeout=CONNECT_TIMEOUT_SECONDS)
+        with response:
+            require(response.status == 200, f"GitHub commit lookup returned HTTP {response.status}")
+            require(response.geturl() == url, "GitHub commit response URL mismatch")
+            final = urlsplit(response.geturl())
+            require(final.scheme == "https" and final.hostname in APPROVED_API_HOSTS and final.username is None and final.password is None and not final.query and not final.fragment, "GitHub commit response URL is not approved")
+            length = response.headers.get("Content-Length")
+            if length is not None:
+                require(length.isascii() and length.isdigit() and int(length) <= MAX_API_RESPONSE_BYTES, "GitHub commit response Content-Length exceeds limit")
+            chunks = []
+            total = 0
+            while True:
+                require(time.monotonic() - started <= API_TOTAL_SECONDS, "GitHub commit lookup exceeded total time limit")
+                chunk = response.read(min(64 << 10, MAX_API_RESPONSE_BYTES - total + 1))
+                if not chunk:
+                    break
+                total += len(chunk)
+                require(total <= MAX_API_RESPONSE_BYTES, "GitHub commit response exceeds size limit")
+                chunks.append(chunk)
+        value = parse_json_bytes(b"".join(chunks), "GitHub commit response")
+        require(isinstance(value, dict), "GitHub commit response must be an object")
+        require(value.get("sha") == revision, "GitHub commit response SHA does not exactly match revision")
+        require(value.get("url") == url, "GitHub commit object URL does not exactly match lookup URL")
+        tree = value.get("tree")
+        require(isinstance(tree, dict) and isinstance(tree.get("sha"), str) and SHA_RE.fullmatch(tree["sha"]) is not None, "GitHub response is not a Git commit object")
+        parents = value.get("parents")
+        require(isinstance(parents, list) and all(isinstance(parent, dict) and isinstance(parent.get("sha"), str) and SHA_RE.fullmatch(parent["sha"]) is not None for parent in parents), "GitHub response is not a Git commit object")
+    except RegistryError:
+        raise
+    except (OSError, urllib.error.URLError) as error:
+        raise RegistryError(f"GitHub commit lookup failed closed: {error}") from error
 
 
 def archive_url(repository: str, revision: str) -> str:
@@ -282,17 +349,34 @@ def component_names(root: Path, manifest: dict[str, object]) -> list[str]:
     return sorted(result)
 
 
+def validate_schema(document: object, document_path: Path, schema_name: str) -> None:
+    schema_path = ROOT / "schemas" / "1.0.0" / f"{schema_name}.schema.json"
+    schema = read_object(schema_path)
+    try:
+        validator = jsonschema.Draft202012Validator(schema)
+        error = next(validator.iter_errors(document), None)
+    except jsonschema.SchemaError as schema_error:
+        raise RegistryError(f"{schema_path}: invalid vendored schema: {schema_error.message}") from schema_error
+    if error is not None:
+        location = "/".join(str(part) for part in error.absolute_path) or "<root>"
+        raise RegistryError(f"{document_path}: Agent Plugins 1.0 schema error at {location}: {error.message}")
+
+
 def package_fields(root: Path, categories: list[str]) -> dict[str, object]:
     # json.load silently accepts duplicate object keys. Parse every submitted
     # JSON file with the registry's fail-closed reader before schema validation.
     for json_path in sorted(root.rglob("*.json")):
         read_json(json_path)
+    manifest_path = root / "plugin.json"
+    manifest = read_object(manifest_path)
+    validate_schema(manifest, manifest_path, "plugin")
+    mcp_path = root / "mcp.json"
+    if mcp_path.is_file():
+        validate_schema(read_object(mcp_path), mcp_path, "mcp")
     try:
         validate_plugin(root)
     except (ValidationError, ValueError) as error:
         raise RegistryError(str(error)) from error
-    manifest_path = root / "plugin.json"
-    manifest = read_object(manifest_path)
     license_value = manifest.get("license")
     require(isinstance(license_value, str) and license_value.strip(), f"{manifest_path}: license required")
     author = manifest.get("author")
@@ -320,6 +404,7 @@ def external_entry(descriptor: dict[str, object], opener=None) -> dict[str, obje
         temp = Path(temporary)
         compressed, expanded, package = temp / "source.tar.gz", temp / "source.tar", temp / str(descriptor["name"])
         package.mkdir()
+        resolve_commit(str(descriptor["repository"]), str(descriptor["revision"]), opener)
         download_archive(str(descriptor["repository"]), str(descriptor["revision"]), compressed, opener)
         decompress_archive(compressed, expanded)
         extract_package(expanded, str(descriptor["path"]), package)

@@ -24,7 +24,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
         <h1>One command.<br /><em>Every supported client.</em></h1>
         <p class="hero__lead">Add, update, or remove portable agent abilities across the tools you already use. Choose a plugin, choose a target, and let the community CLI handle the client-specific layout.</p>
         <div class="hero__actions">
-          <NuxtLink class="button button--primary" to="/plugins">Explore {{ builtInCount }} plugins <span aria-hidden="true">→</span></NuxtLink>
+          <NuxtLink class="button button--primary" to="/plugins">Explore {{ registry.plugins.length }} plugins <span aria-hidden="true">→</span></NuxtLink>
           <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Submit a plugin</a>
         </div>
         <p class="hero__fine-print">Open source · No tracking · Review before enabling</p>
