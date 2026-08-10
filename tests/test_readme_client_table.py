@@ -21,6 +21,21 @@ CHATGPT_EVIDENCE_PATH = (
 
 
 class ReadmeClientTableTests(unittest.TestCase):
+    def test_external_agent_plugin_install_is_documented(self) -> None:
+        readme = README_PATH.read_text()
+        quickstart = (REPO_ROOT / "docs" / "QUICKSTART.md").read_text()
+        contributing = (REPO_ROOT / "CONTRIBUTING.md").read_text()
+
+        for document in (readme, quickstart, contributing):
+            with self.subTest(document=document[:40]):
+                self.assertIn("owner/repo@FULL_COMMIT_SHA//path/to/plugin", document)
+                self.assertIn("--target cursor", document)
+
+        self.assertIn("add ./my-plugin --target cursor", readme)
+        self.assertIn("not limited to this catalog", readme)
+        self.assertIn("do not need to be copied into it", readme)
+        self.assertIn("Catalog membership is needed only for a reviewed short name", quickstart)
+
     def test_every_supported_client_has_a_sourced_logo(self) -> None:
         readme = README_PATH.read_text()
         provenance = (ICON_ROOT / "README.md").read_text()

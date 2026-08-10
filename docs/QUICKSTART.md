@@ -38,6 +38,22 @@ npx universal-agent-plugins remove context7 --target cursor
 installed. OAuth stays inside the client; the CLI never stores tokens or accepts
 trust prompts automatically.
 
+## Install a package outside the catalog
+
+Any valid Agent Plugins 1.0 package can be installed directly. Use a local
+folder while developing it, or pin a GitHub source to a full commit SHA:
+
+```bash
+npx universal-agent-plugins add ./my-plugin --target cursor
+npx universal-agent-plugins add \
+  owner/repo@FULL_COMMIT_SHA//path/to/plugin \
+  --target cursor
+```
+
+Catalog membership is needed only for a reviewed short name such as `context7`;
+it is not required for installation. Review an external package's skills, MCP
+servers, hooks, permissions, and source before enabling it.
+
 ChatGPT target support starts with `agentplugins 0.1.6`. Cloudflare Docs is the
 only catalog-v2-verified target:
 
