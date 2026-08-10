@@ -54,15 +54,15 @@ binding. It does not prove ChatGPT Work UI activation or package-routed runtime.
 | Installer | Catalog | Package add/remove | Client runtime | OAuth |
 | --- | --- | --- | --- | --- |
 | [`agentplugins 0.1.6` release](https://github.com/777genius/plugin-kit-ai/actions/runs/31343240686) + [npm verification](https://github.com/777genius/plugin-kit-ai/actions/runs/31343525895) | Embedded catalog v2, digest `66199c87...357050` | Public cold bootstrap passed on macOS, Linux, and Windows for x64/arm64; native lifecycle and published-registry verification passed | Not implied | Not tested |
-| [`agentplugins 0.1.6` post-merge run](https://github.com/777genius/universal-agent-plugins/actions/runs/31350094295) | Catalog v1 26/26 plus catalog-v2 Cloudflare Docs | 26/26 Cursor lifecycle; ChatGPT v2 dry-run, projection, State v3 repair, guarded removal, and cleanup passed | Not implied | Not tested |
+| [`agentplugins 0.1.6` post-merge run](https://github.com/777genius/universal-agent-plugins/actions/runs/31363316668) | Catalog v1 26/26 plus catalog-v2 Cloudflare Docs | 26/26 Cursor lifecycle; ChatGPT v2 dry-run, projection, State v3 repair, guarded removal, and cleanup passed | Not implied | Not tested |
 | `agentplugins 0.1.6`, hero projections | 5 pinned hero packages | 25/25 add/remove flows across isolated Codex, Cursor, Copilot, VS Code, and Kiro projections | Not implied | Not tested |
 | `agentplugins 0.1.6` + Copilot CLI 1.0.78 | 5 pinned hero packages | 5/5 automatic marketplace registration, native install, verification, uninstall, and marketplace cleanup in an isolated HOME | Not implied | Not tested |
 | Interactive hero runtime matrix | 5 local packages | Client-specific test loading in Codex, Cursor, and Kiro | 15/15 checks passed across 3 clients | 3/3 Notion OAuth + read-only runtime passed |
 | [Interactive Codex Figma check](../tests/e2e/results/codex-figma-oauth-2026-08-09.json) | `figma 0.1.0` via `agentplugins 0.1.5` | Add, install/enable, and cleanup passed in isolated profiles | Read-only Figma MCP `whoami` passed | Figma OAuth passed in Codex only |
 | [ChatGPT desktop package check](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json) | Public marketplace at merge `d37b49d` | Official manager add, enabled state, cache, and app-server read passed | Not implied | No auth required; Codex backend app snapshot did not include the ChatGPT development binding |
 
-The three `0.1.6` lifecycle/projection rows come from public run `31350094295` at
-merge [`a768a55`](https://github.com/777genius/universal-agent-plugins/commit/a768a55da757fe32b4cadc5a1ef729928847d2bf).
+The three `0.1.6` lifecycle/projection rows come from public run `31363316668` at
+main commit [`d3941c0`](https://github.com/777genius/universal-agent-plugins/commit/d3941c0ec097a44123eb9c40df940a3cda2a3406).
 They prove source resolution, package validation, transactional lifecycle,
 catalog-v2 ChatGPT package preparation, and native Copilot lifecycle. They do
 not prove ChatGPT Work activation, package-routed runtime, Copilot tool runtime,

@@ -64,9 +64,9 @@ in `plugins/docker-hub/mcp.json`.
   activation, or runtime. See
   [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json).
 - Public post-merge run
-  [`31350094295`](https://github.com/777genius/universal-agent-plugins/actions/runs/31350094295)
-  tested `universal-agent-plugins@0.1.6` at merge
-  [`a768a55`](https://github.com/777genius/universal-agent-plugins/commit/a768a55da757fe32b4cadc5a1ef729928847d2bf).
+  [`31363316668`](https://github.com/777genius/universal-agent-plugins/actions/runs/31363316668)
+  tested `universal-agent-plugins@0.1.6` at main commit
+  [`d3941c0`](https://github.com/777genius/universal-agent-plugins/commit/d3941c0ec097a44123eb9c40df940a3cda2a3406).
   It completed 26/26 transactional package lifecycles, 25/25 hero projections
   across Codex, Cursor, Copilot, VS Code, and Kiro, and 5/5 native Copilot
   marketplace install/list/remove lifecycles in disposable profiles. It also

@@ -6,7 +6,7 @@ Verified on 2026-08-10. "Supported" comes from the Agent Plugins project;
 | Client | Agent Plugins 1.0 components | Local availability | Verification |
 | --- | --- | --- | --- |
 | Codex | Skills; stdio and Streamable HTTP MCP | Codex CLI 0.147.0 | Automated public marketplace install + Context7 tool call; separate Figma OAuth/read-only runtime passed |
-| ChatGPT | Skills and registered Streamable HTTP MCP app bindings; no stdio | ChatGPT web/desktop | Cloudflare Docs registered personal app was Installed under Personal, activated manually with user-attested UI evidence, and passed read-only runtime; local `.codex-plugin` ingestion remains unproved |
+| ChatGPT | Skills and registered Streamable HTTP MCP app bindings; no stdio | ChatGPT web/desktop | Cloudflare Docs registered personal app passed manual activation and read-only runtime; separate repository package ingestion and official manager installation passed, while package-routed Work runtime remains unproved |
 | Cursor | Skills; stdio, Streamable HTTP, legacy SSE MCP | Cursor 3.9.16 | Local package load + pinned stdio MCP connection passed; no marketplace-install claim |
 | VS Code | Skills; stdio, Streamable HTTP, legacy SSE MCP | Not installed | Shares the managed Copilot plugin when Copilot CLI is available; VS Code UI runtime remains separately untested |
 | GitHub Copilot | Skills; stdio, Streamable HTTP, legacy SSE MCP | Copilot CLI 1.0.78 | Five hero packages passed automatic marketplace add, plugin install, verification, uninstall, and marketplace cleanup in an isolated profile |
@@ -20,7 +20,9 @@ OpenAI delivery is intentionally split: five stdio MCP packages are Codex-only,
 twenty remote MCP packages require registered ChatGPT app bindings, and the one
 skills-only package has no MCP transport. Only Cloudflare Docs currently has a
 repository binding and a tested registered personal app. The app ID linkage is
-proved; repository marketplace ingestion and manager lifecycle are not.
+proved. Separate repository marketplace ingestion, official manager installation,
+cache materialization, and desktop control-plane parsing also passed. ChatGPT
+Work UI activation and package-routed runtime remain unproved.
 
 ## Component-compatible, not claimed as Agent Plugins 1.0 clients
 
