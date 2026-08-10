@@ -1,4 +1,5 @@
 import type { ClientTarget, RegistryPlugin } from '~/types/registry'
+import { githubSourceUrl, mirroredIconPath } from '~/utils/registry'
 
 export const clients: ClientTarget[] = [
   { id: 'codex', name: 'Codex', icon: 'openai.svg', note: 'Skills and supported MCP transports' },
@@ -16,18 +17,14 @@ export function useSite() {
   const asset = (path: string) => `${baseURL}${path.replace(/^\//, '')}`
 
   const pluginIcon = (plugin: RegistryPlugin) => {
-    if (!plugin.icon) return asset('logo.svg')
-    const filename = plugin.icon.split('/').at(-1)
-    return filename ? asset(`plugin-icons/${filename}`) : asset('logo.svg')
+    // External author-controlled images are never loaded. A future sanitized
+    // mirror can opt entries into locally served assets explicitly.
+    const path = mirroredIconPath(plugin)
+    return asset(path ?? 'logo.svg')
   }
 
   const sourceUrl = (plugin: RegistryPlugin) => {
-    if (/^https:\/\//.test(plugin.source)) return plugin.source
-    if (!plugin.built_in) {
-      const match = plugin.install_source.match(/^([^@]+)@([a-f0-9]{40})\/\/(.+)$/)
-      if (match) return `https://github.com/${match[1]}/tree/${match[2]}/${match[3]}`
-    }
-    return `${repositoryUrl}/tree/main/${plugin.source.replace(/^\.\//, '')}`
+    return githubSourceUrl(plugin)
   }
 
   return { asset, baseURL, pluginIcon, repositoryUrl, sourceUrl }

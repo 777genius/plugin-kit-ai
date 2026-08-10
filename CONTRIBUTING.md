@@ -30,6 +30,9 @@ npx universal-agent-plugins add \
   --target cursor --dry-run
 ```
 
+To list one in the public directory, follow the separate [external registry
+submission guide](registry/README.md#submit-an-external-package).
+
 ```bash
 python3 scripts/validate_catalog.py
 python3 scripts/build_openai_compat.py --check

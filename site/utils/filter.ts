@@ -3,7 +3,7 @@ import type { RegistryPlugin } from '../types/registry'
 export interface CatalogFilters {
   query?: string
   category?: string
-  component?: string
+  component?: RegistryPlugin['components'][number]
   source?: 'all' | 'built-in' | 'external'
 }
 
@@ -13,7 +13,7 @@ export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters
     const searchable = [
       plugin.name,
       plugin.description,
-      plugin.author,
+      plugin.author.name,
       ...plugin.categories,
       ...plugin.keywords,
       ...plugin.components,

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path'
-import { loadRegistryIndex } from './utils/registry'
+import { loadRegistryIndex } from './build/load-registry'
 
 const defaultRegistryPath = resolve(process.cwd(), '../registry/index.json')
 const registryPath = process.env.UAP_REGISTRY_PATH
@@ -27,9 +27,7 @@ export default defineNuxtConfig({
     baseURL,
     head: {
       htmlAttrs: { lang: 'en' },
-      titleTemplate: title => title
-        ? `${title} · Universal Agent Plugins`
-        : 'Universal Agent Plugins',
+      titleTemplate: '%s · Universal Agent Plugins',
       link: [
         { rel: 'icon', type: 'image/svg+xml', href: `${baseURL}logo.svg` },
       ],
@@ -49,7 +47,7 @@ export default defineNuxtConfig({
   nitro: {
     compressPublicAssets: true,
     prerender: {
-      crawlLinks: true,
+      crawlLinks: false,
       routes: [
         '/',
         '/plugins',

@@ -8,13 +8,13 @@ const props = withDefaults(defineProps<{ plugins: RegistryPlugin[], heading?: st
 })
 const query = ref('')
 const category = ref('')
-const component = ref('')
+const component = ref<RegistryPlugin['components'][number] | ''>('')
 const source = ref<'all' | 'built-in' | 'external'>('all')
 const filters = computed(() => availableFilters(props.plugins))
 const visible = computed(() => filterPlugins(props.plugins, {
   query: query.value,
   category: category.value,
-  component: component.value,
+  component: component.value || undefined,
   source: source.value,
 }))
 </script>

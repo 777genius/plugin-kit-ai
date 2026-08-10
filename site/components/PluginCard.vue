@@ -4,6 +4,7 @@
 -->
 <script setup lang="ts">
 import type { RegistryPlugin } from '~/types/registry'
+import { validationLabel } from '~/utils/registry'
 
 defineProps<{ plugin: RegistryPlugin }>()
 const { pluginIcon, sourceUrl } = useSite()
@@ -18,13 +19,13 @@ const { pluginIcon, sourceUrl } = useSite()
     </div>
     <h3>{{ plugin.name }}</h3>
     <p class="plugin-card__description">{{ plugin.description }}</p>
-    <p class="plugin-card__author">By {{ plugin.author }} · <a :href="sourceUrl(plugin)" target="_blank" rel="noreferrer">source <span class="sr-only">for {{ plugin.name }}</span></a></p>
+    <p class="plugin-card__author">By {{ plugin.author.name }} · <a :href="sourceUrl(plugin)" target="_blank" rel="noreferrer">source <span class="sr-only">for {{ plugin.name }}</span></a></p>
     <div class="plugin-card__bottom">
       <ul class="badge-list" aria-label="Plugin components">
         <li v-for="component in plugin.components" :key="component">{{ component }}</li>
       </ul>
-      <span class="validation-badge" :class="{ 'validation-badge--pending': !plugin.validation.schemaValidated }">
-        <span aria-hidden="true">{{ plugin.validation.schemaValidated ? '✓' : '!' }}</span> {{ plugin.validation.label }}
+      <span class="validation-badge">
+        <span aria-hidden="true">✓</span> {{ validationLabel(plugin.validation) }}
       </span>
     </div>
   </article>

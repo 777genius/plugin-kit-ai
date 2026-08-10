@@ -25,7 +25,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
         <p class="hero__lead">Add, update, or remove portable agent abilities across the tools you already use. Choose a plugin, choose a target, and let the community CLI handle the client-specific layout.</p>
         <div class="hero__actions">
           <NuxtLink class="button button--primary" to="/plugins">Explore {{ builtInCount }} plugins <span aria-hidden="true">→</span></NuxtLink>
-          <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/CONTRIBUTING.md#add-or-update-a-plugin`" target="_blank" rel="noreferrer">Submit a plugin</a>
+          <a class="button button--secondary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Submit a plugin</a>
         </div>
         <p class="hero__fine-print">Open source · No tracking · Review before enabling</p>
       </div>
@@ -82,7 +82,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
 
     <section class="submit-cta container">
       <div><p class="eyebrow">Built in the open</p><h2>Have a useful Agent Plugin?</h2><p>Submit a schema-valid package with a reviewable source. External entries stay pinned to an immutable commit.</p></div>
-      <a class="button button--primary" :href="`${repositoryUrl}/blob/main/CONTRIBUTING.md#add-or-update-a-plugin`" target="_blank" rel="noreferrer">Submit a plugin <span aria-hidden="true">↗</span></a>
+      <a class="button button--primary" :href="`${repositoryUrl}/blob/main/registry/README.md#submit-an-external-package`" target="_blank" rel="noreferrer">Submit a plugin <span aria-hidden="true">↗</span></a>
     </section>
   </div>
 </template>

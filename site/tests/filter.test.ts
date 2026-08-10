@@ -1,27 +1,27 @@
 import { readFileSync } from 'node:fs'
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
-import { availableFilters, filterPlugins } from '../utils/filter'
-import { parseRegistryIndex } from '../utils/registry'
+import { availableFilters, filterPlugins } from '../utils/filter.ts'
+import { parseRegistryIndex } from '../utils/registry.ts'
 
 const fixture = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/registry.valid.json', import.meta.url)), 'utf8')) as unknown
 const plugins = parseRegistryIndex(fixture).plugins
 
 describe('catalog filtering', () => {
   it('searches names, descriptions, authors, keywords, and components case-insensitively', () => {
-    expect(filterPlugins(plugins, { query: 'UPSTASH' }).map(plugin => plugin.name)).toEqual(['context7'])
-    expect(filterPlugins(plugins, { query: 'skills' }).map(plugin => plugin.name)).toEqual(['example-external'])
-    expect(filterPlugins(plugins, { query: 'version-specific' }).map(plugin => plugin.name)).toEqual(['context7'])
+    assert.deepEqual(filterPlugins(plugins, { query: 'UPSTASH' }).map(plugin => plugin.name), ['context7'])
+    assert.deepEqual(filterPlugins(plugins, { query: 'skills' }).map(plugin => plugin.name), ['example-external'])
+    assert.deepEqual(filterPlugins(plugins, { query: 'version-specific' }).map(plugin => plugin.name), ['context7'])
   })
 
   it('combines category, component, and source filters', () => {
-    expect(filterPlugins(plugins, { category: 'documentation', component: 'mcp', source: 'built-in' }))
-      .toEqual([plugins[0]])
-    expect(filterPlugins(plugins, { source: 'external' })).toEqual([plugins[1]])
+    assert.deepEqual(filterPlugins(plugins, { category: 'documentation', component: 'mcp', source: 'built-in' }), [plugins[0]])
+    assert.deepEqual(filterPlugins(plugins, { source: 'external' }), [plugins[1]])
   })
 
   it('derives stable filter options from registry data', () => {
-    expect(availableFilters(plugins)).toEqual({
+    assert.deepEqual(availableFilters(plugins), {
       categories: ['development', 'documentation'],
       components: ['mcp', 'skills'],
     })

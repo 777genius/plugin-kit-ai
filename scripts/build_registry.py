@@ -44,10 +44,12 @@ MAX_DOWNLOAD_BYTES = 25 << 20
 MAX_ARCHIVE_BYTES = 300 << 20
 MAX_EXTRACTED_BYTES = 128 << 20
 MAX_FILES = 5_000
+MAX_MEMBERS = 6_000
 MAX_FILE_BYTES = 16 << 20
 MAX_PATH_DEPTH = 32
 MAX_CATEGORIES = 8
 ICON_NAMES = {"chrome-devtools": "googlechrome.svg", "docker-hub": "docker.svg", "hubspot-crm": "hubspot.svg", "hubspot-developer": "hubspot.svg"}
+CLIENT_IDS = ("codex", "chatgpt", "cursor", "copilot", "vscode", "kiro")
 
 
 class RegistryError(Exception):
@@ -63,11 +65,15 @@ def digest_bytes(body: bytes) -> str:
     return "sha256:" + hashlib.sha256(body).hexdigest()
 
 
-def read_object(path: Path) -> dict[str, object]:
+def read_json(path: Path) -> object:
     def unique_object(pairs):  # type: ignore[no-untyped-def]
         result = {}
+        normalized_keys = set()
         for key, item in pairs:
             require(key not in result, f"{path}: duplicate JSON key {key!r}")
+            normalized = unicodedata.normalize("NFC", key).casefold()
+            require(normalized not in normalized_keys, f"{path}: case/Unicode-colliding JSON key {key!r}")
+            normalized_keys.add(normalized)
             result[key] = item
         return result
 
@@ -77,13 +83,17 @@ def read_object(path: Path) -> dict[str, object]:
         )
 
     try:
-        value = json.loads(
+        return json.loads(
             path.read_text(encoding="utf-8"),
             object_pairs_hook=unique_object,
             parse_constant=reject_constant,
         )
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise RegistryError(f"{path}: invalid UTF-8 JSON: {error}") from error
+
+
+def read_object(path: Path) -> dict[str, object]:
+    value = read_json(path)
     require(isinstance(value, dict), f"{path}: top level must be an object")
     return value
 
@@ -205,14 +215,20 @@ def extract_package(expanded: Path, plugin_path: str, destination: Path) -> None
     prefix_parts: tuple[str, ...] | None = None
     selected: list[tuple[tarfile.TarInfo, tuple[str, ...]]] = []
     seen: set[str] = set()
-    total = archive_files = 0
+    total = archive_files = archive_members = 0
     started = time.monotonic()
     try:
         with tarfile.open(expanded, mode="r:") as archive:
             for member in archive:
                 require(time.monotonic() - started <= ARCHIVE_PROCESS_SECONDS, "archive validation exceeded time limit")
+                archive_members += 1
+                require(archive_members <= MAX_MEMBERS, "archive exceeds member-count limit")
                 path = safe_member_path(member.name)
                 require(not (member.issym() or member.islnk()) and (member.isdir() or member.isfile()), f"archive contains link or special file: {member.name!r}")
+                require(not member.sparse and not any("sparse" in key.casefold() for key in member.pax_headers), f"archive contains a sparse file: {member.name!r}")
+                folded = path.as_posix().casefold()
+                require(folded not in seen, "archive contains duplicate or case-colliding paths")
+                seen.add(folded)
                 if member.isfile():
                     archive_files += 1
                     require(archive_files <= MAX_FILES, "archive exceeds file-count limit")
@@ -229,9 +245,6 @@ def extract_package(expanded: Path, plugin_path: str, destination: Path) -> None
                     require(member.isdir(), "plugin path is not a directory")
                     continue
                 require(len(package_relative) <= MAX_PATH_DEPTH, "package path exceeds depth limit")
-                folded = "/".join(package_relative).casefold()
-                require(folded not in seen, "archive contains duplicate or case-colliding package paths")
-                seen.add(folded)
                 if member.isfile():
                     total += member.size
                     require(total <= MAX_EXTRACTED_BYTES, "package exceeds extracted-size limit")
@@ -270,6 +283,10 @@ def component_names(root: Path, manifest: dict[str, object]) -> list[str]:
 
 
 def package_fields(root: Path, categories: list[str]) -> dict[str, object]:
+    # json.load silently accepts duplicate object keys. Parse every submitted
+    # JSON file with the registry's fail-closed reader before schema validation.
+    for json_path in sorted(root.rglob("*.json")):
+        read_json(json_path)
     try:
         validate_plugin(root)
     except (ValidationError, ValueError) as error:
@@ -311,12 +328,14 @@ def external_entry(descriptor: dict[str, object], opener=None) -> dict[str, obje
         manifest = read_object(package / "plugin.json")
         require(canonical_manifest_repository(manifest.get("repository")) == descriptor["repository"], "manifest repository must exactly match the pinned descriptor repository")
         source = {"repository": descriptor["repository"], "revision": descriptor["revision"], "path": descriptor["path"], "manifest_sha256": fields.pop("manifest_sha256"), "tree_sha256": fields.pop("tree_sha256")}
-        icon = next((path for path in (package / "icon.svg", package / "icon.png", package / "icon.webp") if path.is_file()), None)
-        if icon:
-            source["icon_sha256"] = digest_bytes(icon.read_bytes())
-        result = {**fields, "source": source, "install_source": f"{descriptor['repository']}@{descriptor['revision']}//{descriptor['path']}", "built_in": False, "validation": {"level": "schema_only", "schema": "agent-plugins-1.0", "runtime_evidence": []}}
-        if icon:
-            result["icon"] = {"path": f"https://raw.githubusercontent.com/{descriptor['repository']}/{descriptor['revision']}/{descriptor['path']}/{icon.name}", "sha256": source["icon_sha256"]}
+        result = {
+            **fields,
+            "source": source,
+            "install_source": f"{descriptor['repository']}@{descriptor['revision']}//{descriptor['path']}",
+            "built_in": False,
+            "client_support": {"resolution": "install_time", "clients": list(CLIENT_IDS)},
+            "validation": {"level": "schema_only", "schema": "agent-plugins-1.0", "runtime_evidence": []},
+        }
         return result
 
 
@@ -334,10 +353,21 @@ def builtin_entries() -> list[dict[str, object]]:
         require(catalog_item.get("source_path") == f"plugins/{name}", f"{name}: catalog source mismatch")
         require(catalog_item.get("manifest_digest") == fields["manifest_sha256"], f"{name}: local manifest differs from the pinned catalog revision")
         require(catalog_item.get("tree_digest") == fields["tree_sha256"], f"{name}: local tree differs from the pinned catalog revision")
-        evidence = sorted(client for client, value in catalog_item.get("compatibility", {}).items() if isinstance(value, dict) and value.get("verification") == "tested")
+        compatibility = catalog_item.get("compatibility")
+        require(isinstance(compatibility, dict) and compatibility, f"{name}: catalog compatibility is missing")
+        require(set(compatibility).issubset(CLIENT_IDS), f"{name}: catalog compatibility contains an unknown client")
+        supported_clients = [client for client in CLIENT_IDS if client in compatibility]
+        evidence = sorted(client for client, value in compatibility.items() if isinstance(value, dict) and value.get("verification") == "tested")
         fields["categories"] = sorted(set(fields["keywords"]))
         source = {"repository": repository, "revision": revision, "path": f"plugins/{name}", "manifest_sha256": fields.pop("manifest_sha256"), "tree_sha256": fields.pop("tree_sha256")}
-        item = {**fields, "source": source, "install_source": name, "built_in": True, "validation": {"level": "runtime_evidence" if evidence else "schema_only", "schema": "agent-plugins-1.0", "runtime_evidence": evidence}}
+        item = {
+            **fields,
+            "source": source,
+            "install_source": name,
+            "built_in": True,
+            "client_support": {"resolution": "catalog", "clients": supported_clients},
+            "validation": {"level": "runtime_evidence" if evidence else "schema_only", "schema": "agent-plugins-1.0", "runtime_evidence": evidence},
+        }
         icon_name = ICON_NAMES.get(name, name + ".svg")
         icon_path = ROOT / "assets" / "plugin-icons" / icon_name
         if not icon_path.is_file():

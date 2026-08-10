@@ -5,30 +5,62 @@
       "name": "context7",
       "version": "1.0.0",
       "description": "Find current, version-specific library documentation.",
-      "author": "Community package for Upstash",
+      "author": {"name": "Community package for Upstash"},
       "license": "MIT",
       "categories": ["documentation"],
       "keywords": ["docs", "libraries"],
-      "source": "plugins/context7",
+      "source": {
+        "repository": "777genius/universal-agent-plugins",
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "path": "plugins/context7",
+        "manifest_sha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tree_sha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "icon_sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
       "install_source": "context7",
       "built_in": true,
-      "validation": { "schema_validated": true, "runtime_tested": true },
+      "client_support": {
+        "resolution": "catalog",
+        "clients": ["codex", "cursor", "copilot", "vscode", "kiro"]
+      },
+      "validation": {
+        "level": "runtime_evidence",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": ["codex", "cursor"]
+      },
       "components": ["mcp"],
-      "icon": "assets/plugin-icons/context7.png"
+      "icon": {
+        "path": "assets/plugin-icons/context7.png",
+        "sha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
     },
     {
       "name": "example-external",
       "version": "2.1.0",
-      "description": "A fixture representing a future community submission.",
-      "author": "Example contributor",
+      "description": "A fixture representing a community submission.",
+      "author": {"name": "Example contributor", "url": "https://github.com/example"},
       "license": "Apache-2.0",
       "categories": ["development"],
       "keywords": ["example"],
-      "source": "https://github.com/example/plugins",
+      "source": {
+        "repository": "example/plugins",
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "path": "plugins/example",
+        "manifest_sha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "tree_sha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
       "install_source": "example/plugins@0123456789abcdef0123456789abcdef01234567//plugins/example",
       "built_in": false,
-      "validation": "schema_validated",
-      "components": { "skills": true, "mcp": false }
+      "client_support": {
+        "resolution": "install_time",
+        "clients": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]
+      },
+      "validation": {
+        "level": "schema_only",
+        "schema": "agent-plugins-1.0",
+        "runtime_evidence": []
+      },
+      "components": ["skills"]
     }
   ]
 }

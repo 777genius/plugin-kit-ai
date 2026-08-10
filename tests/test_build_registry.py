@@ -65,6 +65,11 @@ def archive_bytes(entries: list[tuple[str, bytes | None, str]], root: str = "rep
             elif kind == "fifo":
                 info.type = tarfile.FIFOTYPE
                 archive.addfile(info)
+            elif kind == "sparse":
+                info.type = tarfile.REGTYPE
+                info.size = 1
+                info.pax_headers = {"GNU.sparse.map": "0,1"}
+                archive.addfile(info, io.BytesIO(b"x"))
             else:
                 assert body is not None
                 info.size = len(body)
@@ -143,6 +148,8 @@ class RegistryDescriptorTests(unittest.TestCase):
     def test_rejects_duplicate_keys_and_nonstandard_json_numbers(self) -> None:
         documents = [
             '{"schema_version":1,"schema_version":1}',
+            '{"repository":"example/plugins","Repository":"example/plugins"}',
+            '{"café":1,"cafe\\u0301":2}',
             '{"schema_version":NaN}',
         ]
         for document in documents:
@@ -206,8 +213,8 @@ class ArchiveLimitTests(unittest.TestCase):
             self.extract(archive_bytes(valid_entries()), destination)
             self.assertTrue((destination / "plugin.json").is_file())
 
-    def test_rejects_links_and_special_files(self) -> None:
-        for kind in ["symlink", "fifo"]:
+    def test_rejects_links_special_and_sparse_files(self) -> None:
+        for kind in ["symlink", "fifo", "sparse"]:
             entries = valid_entries() + [(f"packages/demo/{kind}", None, kind)]
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmp:
                 with self.assertRaises(registry.RegistryError):
@@ -260,6 +267,13 @@ class ArchiveLimitTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp, self.assertRaises(registry.RegistryError):
                 self.extract(body, Path(tmp) / "package")
 
+    def test_rejects_duplicates_outside_selected_package_and_member_floods(self) -> None:
+        duplicate = valid_entries() + [("other/file", b"one", "file"), ("OTHER/FILE", b"two", "file")]
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(registry.RegistryError):
+            self.extract(archive_bytes(duplicate), Path(tmp) / "package")
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(registry, "MAX_MEMBERS", 1), self.assertRaises(registry.RegistryError):
+            self.extract(archive_bytes(valid_entries()), Path(tmp) / "package")
+
 
 class ExternalPackageTests(unittest.TestCase):
     def test_external_entry_is_pinned_schema_only_and_derived_from_package(self) -> None:
@@ -271,8 +285,25 @@ class ExternalPackageTests(unittest.TestCase):
         self.assertEqual(item["author"]["name"], "Example Author")
         self.assertEqual(item["license"], "Apache-2.0")
         self.assertEqual(item["validation"]["level"], "schema_only")
+        self.assertEqual(item["client_support"], {"resolution": "install_time", "clients": list(registry.CLIENT_IDS)})
         self.assertRegex(item["source"]["tree_sha256"], r"^sha256:[0-9a-f]{64}$")
-        self.assertEqual(item["icon"]["sha256"], item["source"]["icon_sha256"])
+        self.assertNotIn("icon", item)
+        self.assertNotIn("icon_sha256", item["source"])
+
+    def test_rejects_duplicate_keys_in_component_json(self) -> None:
+        entries = valid_entries()
+        entries[3] = (entries[3][0], b'{"mcpServers":{},"mcpServers":{}}', "file")
+        descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
+        url = registry.archive_url("example/plugins", "a" * 40)
+        with self.assertRaises(registry.RegistryError):
+            registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+
+    def test_allows_array_data_json_without_weakening_duplicate_checks(self) -> None:
+        entries = valid_entries() + [("packages/demo/data.json", b'[1, 2, 3]', "file")]
+        descriptor = {"name": "demo", "repository": "example/plugins", "revision": "a" * 40, "path": "packages/demo", "categories": ["developer-tools"]}
+        url = registry.archive_url("example/plugins", "a" * 40)
+        item = registry.external_entry(descriptor, FakeOpener(FakeResponse(archive_bytes(entries), url)))
+        self.assertEqual(item["name"], "demo")
 
     def test_rejects_manifest_name_or_repository_mismatch_and_missing_license(self) -> None:
         mutations = [("name", "other"), ("repository", "https://github.com/other/plugins"), ("license", "")]
@@ -308,11 +339,17 @@ class GeneratedIndexTests(unittest.TestCase):
         self.assertEqual(len(index["plugins"]), 26)
         names = [item["name"] for item in index["plugins"]]
         self.assertEqual(names, sorted(names))
-        required = {"name", "version", "description", "author", "license", "categories", "keywords", "source", "install_source", "built_in", "validation", "components"}
+        required = {"name", "version", "description", "author", "license", "categories", "keywords", "source", "install_source", "built_in", "client_support", "validation", "components"}
         for item in index["plugins"]:
             self.assertTrue(required.issubset(item))
             self.assertTrue(item["built_in"])
             self.assertEqual(item["install_source"], item["name"])
+            self.assertEqual(item["client_support"]["resolution"], "catalog")
+            self.assertTrue(item["client_support"]["clients"])
+        context7 = next(item for item in index["plugins"] if item["name"] == "context7")
+        cloudflare_docs = next(item for item in index["plugins"] if item["name"] == "cloudflare-docs")
+        self.assertNotIn("chatgpt", context7["client_support"]["clients"])
+        self.assertIn("chatgpt", cloudflare_docs["client_support"]["clients"])
 
     def test_builtin_name_cannot_be_claimed_by_descriptor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

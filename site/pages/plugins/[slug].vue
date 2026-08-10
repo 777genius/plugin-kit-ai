@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validationLabel } from '~/utils/registry'
 const route = useRoute()
 const registry = useRegistry()
 const { pluginIcon, sourceUrl, repositoryUrl } = useSite()
@@ -30,7 +31,7 @@ useHead({ link: [{ rel: 'canonical', href: canonical }] })
         </div>
         <p class="plugin-profile__description">{{ plugin.description }}</p>
         <dl class="plugin-facts">
-          <div><dt>Author</dt><dd>{{ plugin.author }}</dd></div>
+          <div><dt>Author</dt><dd>{{ plugin.author.name }}</dd></div>
           <div><dt>License</dt><dd>{{ plugin.license || 'Not specified' }}</dd></div>
           <div><dt>Install source</dt><dd><code>{{ plugin.install_source }}</code></dd></div>
           <div><dt>Repository</dt><dd><a :href="sourceUrl(plugin)" target="_blank" rel="noreferrer">View source <span aria-hidden="true">↗</span></a></dd></div>
@@ -38,8 +39,9 @@ useHead({ link: [{ rel: 'canonical', href: canonical }] })
         <div class="plugin-profile__section"><h2>Components</h2><ul class="badge-list"><li v-for="component in plugin.components" :key="component">{{ component }}</li></ul></div>
         <div v-if="plugin.categories.length" class="plugin-profile__section"><h2>Categories</h2><ul class="tag-list"><li v-for="category in plugin.categories" :key="category">{{ category }}</li></ul></div>
         <div class="status-card">
-          <span class="validation-badge" :class="{ 'validation-badge--pending': !plugin.validation.schemaValidated }"><span>{{ plugin.validation.schemaValidated ? '✓' : '!' }}</span> {{ plugin.validation.label }}</span>
-          <p>This status covers package structure. It does not mean every client, server, permission, runtime, or OAuth flow was tested.</p>
+          <span class="validation-badge"><span>✓</span> {{ validationLabel(plugin.validation) }}</span>
+          <p v-if="plugin.validation.runtime_evidence.length"><strong>Runtime evidence:</strong> {{ plugin.validation.runtime_evidence.join(', ') }}.</p>
+          <p v-else>No runtime evidence is recorded for this exact revision. Schema validation covers package structure only; it is not an endorsement or a runtime safety claim.</p>
           <a :href="`${repositoryUrl}/blob/main/docs/VERIFICATION.md`" target="_blank" rel="noreferrer">Read verification evidence →</a>
         </div>
       </article>

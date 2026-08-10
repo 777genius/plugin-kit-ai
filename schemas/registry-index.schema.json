@@ -51,18 +51,32 @@
         }
       ]
     },
+    "clientSupport": {
+      "type": "object",
+      "required": ["resolution", "clients"],
+      "properties": {
+        "resolution": {"enum": ["catalog", "install_time"]},
+        "clients": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]}
+        }
+      },
+      "additionalProperties": false
+    },
     "icon": {
       "type": "object",
       "required": ["path", "sha256"],
       "properties": {
-        "path": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "pattern": "^assets/plugin-icons/[a-zA-Z0-9._-]+$"},
         "sha256": {"$ref": "#/$defs/digest"}
       },
       "additionalProperties": false
     },
     "plugin": {
       "type": "object",
-      "required": ["name", "version", "description", "author", "license", "categories", "keywords", "source", "install_source", "built_in", "validation", "components"],
+      "required": ["name", "version", "description", "author", "license", "categories", "keywords", "source", "install_source", "built_in", "client_support", "validation", "components"],
       "properties": {
         "name": {"type": "string", "pattern": "^(?!.*(?:--|\\.\\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"},
         "version": {"type": "string"},
@@ -83,6 +97,7 @@
         "source": {"$ref": "#/$defs/source"},
         "install_source": {"type": "string", "minLength": 1},
         "built_in": {"type": "boolean"},
+        "client_support": {"$ref": "#/$defs/clientSupport"},
         "validation": {"$ref": "#/$defs/validation"},
         "components": {"type": "array", "items": {"enum": ["extensions", "mcp", "skills"]}, "uniqueItems": true},
         "icon": {"$ref": "#/$defs/icon"}
@@ -90,8 +105,18 @@
       "additionalProperties": false,
       "allOf": [
         {
+          "if": {"properties": {"built_in": {"const": true}}},
+          "then": {"properties": {"client_support": {"properties": {"resolution": {"const": "catalog"}}}}}
+        },
+        {
           "if": {"properties": {"built_in": {"const": false}}},
-          "then": {"properties": {"install_source": {"pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9._-]*@[0-9a-f]{40}//.+$"}}}
+          "then": {
+            "properties": {
+              "install_source": {"pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9._-]*@[0-9a-f]{40}//.+$"},
+              "client_support": {"properties": {"resolution": {"const": "install_time"}}}
+            },
+            "not": {"required": ["icon"]}
+          }
         }
       ]
     }
