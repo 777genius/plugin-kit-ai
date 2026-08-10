@@ -270,6 +270,15 @@
         "properties": {
           "real_user_project_used": { "const": false },
           "screenshots_committed": { "const": false },
+          "binding": {
+            "properties": {
+              "plugin": { "const": "cloudflare-docs" },
+              "app_id": {
+                "const": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
+              },
+              "mcp_url": { "const": "https://docs.mcp.cloudflare.com/mcp" }
+            }
+          },
           "source": {
             "type": "object",
             "required": [
@@ -325,8 +334,7 @@
             "properties": {
               "plugin_read": { "const": true },
               "app_binding_read": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9._~:-]{0,255}$"
+                "const": "plugin_asdk_app_6a78e90cf73481918ef10cdb87cd4bb4"
               },
               "app_runtime_snapshot": {
                 "const": "binding_absent_on_codex_backend"

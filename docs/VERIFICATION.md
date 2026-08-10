@@ -58,10 +58,10 @@ in `plugins/docker-hub/mcp.json`.
   marketplace at exact merge `d37b49d`, installed and enabled Cloudflare Docs,
   materialized the official `.codex-plugin` package in its cache, and returned
   the exact app binding through `plugin/read`. Its `app/installed` snapshot did
-  not contain that ChatGPT development binding, so app routing was not active on
-  the tested Codex backend. This proves repository marketplace ingestion and
-  desktop control-plane parsing, not ChatGPT Work UI discovery, activation, or
-  package-routed runtime. See
+  not contain that ChatGPT development binding. This proves repository
+  marketplace ingestion and desktop control-plane parsing, but package-routed
+  app routing remains unproved; it does not prove ChatGPT Work UI discovery,
+  activation, or runtime. See
   [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json).
 - Public post-merge run
   [`31332320890`](https://github.com/777genius/universal-agent-plugins/actions/runs/31332320890)
