@@ -78,34 +78,13 @@ client-specific.
 | <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |
 | <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Native folder package | Follow the exact Power import hint |
 
-All 26 packages pass the standard schemas. That does not mean every service or
-OAuth flow has been tested in every client, and the standard is not a universal
-marketplace. See the [test matrix](docs/TEST_MATRIX.md) for exact results and the
-[compatibility guide](docs/COMPATIBILITY.md) before connecting a private service.
-
-For OpenAI delivery, five stdio MCP packages are Codex-only, twenty remote MCP
-packages require a ChatGPT app binding, and Agent Code Navigator is skills-only.
-Cloudflare Docs has the only registered development binding; its direct
-connection and registered personal-app Plugins UI runtime passed. Repository
-marketplace ingestion, official manager installation, package materialization,
-and exact `.app.json` linkage also passed. ChatGPT Work UI discovery, activation,
-and package-routed runtime remain unproved.
-
-Package lifecycle proof is broader than runtime proof: all 26 pass isolated
-materialization/removal, and the five starter plugins pass 25/25 add/remove
-flows across Codex, Cursor, Copilot, VS Code, and Kiro projections. Released
-`agentplugins 0.1.6` E2E also covers catalog-v2 ChatGPT dry-run, projection,
-State v3 repair, and removal. These checks do not launch client processes or
-prove tool or OAuth runtime. Separately, audited interactive evidence proves
-15/15 real runtime checks across Codex, Cursor, and Kiro, including authenticated
-read-only Notion calls in all three. A separate sanitized Codex check also
-passed Figma OAuth and read-only `whoami`; it does not cover other clients.
-Post-merge live run
-[`31363316668`](https://github.com/777genius/universal-agent-plugins/actions/runs/31363316668)
-at main commit [`d3941c0`](https://github.com/777genius/universal-agent-plugins/commit/d3941c0ec097a44123eb9c40df940a3cda2a3406)
-proves the current 0.1.6 lifecycle matrix, including native Copilot
-install/list/remove for the five starter plugins. It does not prove Copilot tool
-runtime or OAuth.
+All 26 packages pass standard schema validation. Five starter plugins passed
+15/15 runtime checks across Codex, Cursor, and Kiro, including Notion OAuth in
+all three; Figma OAuth passed separately in Codex. Installation coverage is
+broader than runtime coverage, and the standard itself is not a universal
+marketplace. See the [test matrix](docs/TEST_MATRIX.md), [verification
+report](docs/VERIFICATION.md), and [compatibility guide](docs/COMPATIBILITY.md)
+for exact per-client evidence.
 
 ## Safety
 

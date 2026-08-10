@@ -8,6 +8,7 @@ README_PATH = REPO_ROOT / "README.md"
 ICON_ROOT = REPO_ROOT / "assets" / "client-icons"
 CLIENTS_PATH = REPO_ROOT / "docs" / "CLIENTS.md"
 COMPATIBILITY_PATH = REPO_ROOT / "docs" / "COMPATIBILITY.md"
+HERO_PLUGINS_PATH = REPO_ROOT / "docs" / "HERO_PLUGINS.md"
 TEST_MATRIX_PATH = REPO_ROOT / "docs" / "TEST_MATRIX.md"
 VERIFICATION_PATH = REPO_ROOT / "docs" / "VERIFICATION.md"
 CHATGPT_EVIDENCE_PATH = (
@@ -95,13 +96,26 @@ class ReadmeClientTableTests(unittest.TestCase):
                 "package_routed_runtime",
             }.issubset(not_proved)
         )
-        self.assertIn("Repository\nmarketplace ingestion, official manager installation", readme)
-        self.assertIn("ChatGPT Work UI discovery, activation,\nand package-routed runtime remain unproved", readme)
+        self.assertIn("All 26 packages pass standard schema validation", readme)
+        self.assertIn("15/15 runtime checks across Codex, Cursor, and Kiro", readme)
+        self.assertIn("Installation coverage is\nbroader than runtime coverage", readme)
+        self.assertIn("docs/TEST_MATRIX.md", readme)
+        self.assertIn("docs/VERIFICATION.md", readme)
         self.assertNotIn(
             "local `.codex-plugin` ingestion and manager\nlifecycle are still separate, unproved steps",
             readme,
         )
-        for path in (README_PATH, TEST_MATRIX_PATH, VERIFICATION_PATH):
+        for internal_term in (
+            "State v3",
+            "projection",
+            "materialization",
+            "31363316668",
+            "d3941c0",
+        ):
+            with self.subTest(internal_term=internal_term):
+                self.assertNotIn(internal_term, readme)
+
+        for path in (TEST_MATRIX_PATH, VERIFICATION_PATH):
             with self.subTest(lifecycle_document=path.name):
                 document = path.read_text()
                 self.assertIn("31363316668", document)
@@ -118,6 +132,11 @@ class ReadmeClientTableTests(unittest.TestCase):
         compatibility = COMPATIBILITY_PATH.read_text()
         self.assertNotIn("not local package\ningestion or manager lifecycle", compatibility)
         self.assertIn("package-routed runtime", compatibility)
+
+        hero_plugins = HERO_PLUGINS_PATH.read_text()
+        self.assertNotIn("local package ingestion\nis not claimed", hero_plugins)
+        self.assertIn("repository package separately\npassed marketplace ingestion", hero_plugins)
+        self.assertIn("package-routed\nChatGPT Work runtime remains unproved", hero_plugins)
 
 
 if __name__ == "__main__":
