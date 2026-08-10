@@ -15,6 +15,21 @@ existing package are welcome.
 6. Update `SOURCES.md` and `docs/COMPATIBILITY.md`.
 7. Run the validator and unit tests.
 
+Before opening a pull request, test the package directly from its local folder:
+
+```bash
+npx universal-agent-plugins add ./plugins/<plugin-name> --target cursor --dry-run
+```
+
+Packages hosted in another repository can be tested without copying them into
+this catalog by using an immutable GitHub source:
+
+```bash
+npx universal-agent-plugins add \
+  owner/repo@FULL_COMMIT_SHA//path/to/plugin \
+  --target cursor --dry-run
+```
+
 ```bash
 python3 scripts/validate_catalog.py
 python3 scripts/build_openai_compat.py --check

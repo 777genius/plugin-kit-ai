@@ -65,6 +65,24 @@ That's it. Every plugin is independent, so you never need to install the whole
 catalog or follow a chain of plugins. Client activation and OAuth can still
 require a visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
 
+## Install any Agent Plugin
+
+The CLI is not limited to this catalog. Install any valid Agent Plugins 1.0
+package from a local directory or an immutable GitHub revision:
+
+```bash
+npx universal-agent-plugins add ./my-plugin --target cursor
+npx universal-agent-plugins add \
+  owner/repo@FULL_COMMIT_SHA//path/to/plugin \
+  --target cursor
+```
+
+The package can use the portable root `plugin.json` layout or the official
+`.codex-plugin/plugin.json` layout with its declared sidecars. Pin GitHub
+sources to a full commit SHA so every install is reproducible. Short names such
+as `context7` resolve through this repository's reviewed catalog; external
+packages do not need to be copied into it.
+
 ## All plugins
 
 | Plugins |  |  |
