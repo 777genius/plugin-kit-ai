@@ -26,7 +26,9 @@ func newUpdateCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runUpdate(cmd.Context(), cmd, app, opts, args[0])
+			return runForTargets(cmd, opts, "update", func() error {
+				return runUpdate(cmd.Context(), cmd, app, opts, args[0])
+			})
 		},
 	}
 }
@@ -39,7 +41,9 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runRepair(cmd.Context(), cmd, app, opts, args[0])
+			return runForTargets(cmd, opts, "repair", func() error {
+				return runRepair(cmd.Context(), cmd, app, opts, args[0])
+			})
 		},
 	}
 }
@@ -259,7 +263,9 @@ func newRemoveCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runRemove(cmd.Context(), cmd, app, opts, args[0])
+			return runForTargets(cmd, opts, "remove", func() error {
+				return runRemove(cmd.Context(), cmd, app, opts, args[0])
+			})
 		},
 	}
 	command.Flags().BoolVar(&opts.externalUninstalled, "external-uninstalled", false, "confirm the selected client plugin was uninstalled manually or was never activated/imported")
@@ -551,7 +557,7 @@ func selectBoundClient(
 		return client, detectedMap, err
 	}
 	if !app.Terminal || opts.yes || opts.format == "json" {
-		return domain.DetectedClient{}, detectedMap, fmt.Errorf("plugin has multiple installed targets; choose exactly one with --target")
+		return domain.DetectedClient{}, detectedMap, fmt.Errorf("plugin has multiple installed targets; choose one or more with --target codex,cursor")
 	}
 	if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:"); err != nil {
 		return domain.DetectedClient{}, detectedMap, err
