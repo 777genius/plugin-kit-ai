@@ -38,9 +38,9 @@ watch(availableClients, (next) => {
       <AppMultiSelect :model-value="targets" label="Choose target agents" :options="targetOptions" @update:model-value="updateTargets" />
     </div>
     <div class="command-stack">
-      <CommandSnippet label="Add" :command="commands.add" />
-      <CommandSnippet label="Update" :command="commands.update" />
-      <CommandSnippet label="Remove" :command="commands.remove" />
+      <CommandSnippet label="Add" kind="add" :command="commands.add" />
+      <CommandSnippet label="Update" kind="update" :command="commands.update" />
+      <CommandSnippet label="Remove" kind="remove" :command="commands.remove" />
     </div>
     <p v-if="!plugin.built_in" class="install-panel__notice"><strong>Pinned external source.</strong> Add uses the full commit pin. Update and remove use the installed manifest name; the directory provides no alias or automatic latest-version lookup.</p>
     <p v-if="plugin.client_support.resolution === 'install_time'" class="install-panel__notice"><strong>Checked at install time.</strong> The CLI validates the package and selected target before it changes managed files.</p>
