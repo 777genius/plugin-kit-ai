@@ -41,15 +41,15 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
+			stdin := bufio.NewReader(cmd.InOrStdin())
 			return runForTargets(cmd, opts, "repair", func() error {
-				return runRepair(cmd.Context(), cmd, app, opts, args[0])
+				return runRepair(cmd.Context(), cmd, app, opts, args[0], stdin)
 			})
 		},
 	}
 }
 
-func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
-	stdin := bufio.NewReader(cmd.InOrStdin())
+func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string, stdin *bufio.Reader) error {
 	state, err := app.StateStore.Load()
 	if err != nil {
 		return err

@@ -794,6 +794,42 @@ func TestInteractiveRepairUsesOneReaderForTargetAndConfirmation(t *testing.T) {
 	}
 }
 
+func TestInteractiveMultiTargetRepairSharesOneReaderAcrossConfirmations(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex),
+		fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "codex,cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := make(map[string]string, len(state.Installations[0].Clients))
+	for _, binding := range state.Installations[0].Clients {
+		targets[binding.ClientID] = binding.TargetLocator
+		if err := os.RemoveAll(binding.TargetLocator); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	stdout, _, err := fixture.executeInput(true, "y\ny\n", "repair", "demo", "--target", "codex,cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Completed: 2 succeeded, 0 failed.") {
+		t.Fatalf("repair output = %q", stdout)
+	}
+	for client, target := range targets {
+		if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
+			t.Fatalf("%s target was not repaired: %v", client, err)
+		}
+	}
+}
+
 func TestJSONRepairAutoConfirmsWithoutYes(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
