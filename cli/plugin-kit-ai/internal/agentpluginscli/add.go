@@ -19,13 +19,15 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 	var activationComplete, authComplete bool
 	command := &cobra.Command{
 		Use:   "add <name-or-source>",
-		Short: "Plan and install one Agent Plugins 1.0 package",
+		Short: "Plan and install one Agent Plugins 1.0 package for one or more clients",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runAdd(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete)
+			return runForTargets(cmd, opts, "add", func() error {
+				return runAdd(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete)
+			})
 		},
 	}
 	command.Flags().BoolVar(&activationComplete, "activation-complete", false, "attest that manual client activation is complete")
@@ -224,7 +226,7 @@ func selectClient(
 		return detected[0], detectedMap, nil
 	}
 	if !app.Terminal || opts.yes || opts.format == "json" {
-		return domain.DetectedClient{}, detectedMap, fmt.Errorf("multiple clients detected; choose exactly one with --target")
+		return domain.DetectedClient{}, detectedMap, fmt.Errorf("multiple clients detected; choose one or more with --target codex,cursor")
 	}
 	sort.Slice(detected, func(i, j int) bool { return detected[i].DisplayName < detected[j].DisplayName })
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Detected clients:")

@@ -101,6 +101,83 @@ func TestAutomatedAddRequiresExplicitTargetButNotYes(t *testing.T) {
 	}
 }
 
+func TestCommaSeparatedTargetsRunAddUpdateAndRemove(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "codex, cursor,codex", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBatchJSON(t, stdout, "add", 2, 0)
+	assertClientBindings(t, fixture, domain.MaterializationMaterialized, 1)
+
+	manifest := filepath.Join(plugin, "plugin.json")
+	body, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err = fixture.execute(false, "update", "demo", "--target", "codex,cursor", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBatchJSON(t, stdout, "update", 2, 0)
+	assertClientBindings(t, fixture, domain.MaterializationMaterialized, 2)
+
+	stdout, _, err = fixture.execute(false, "remove", "demo", "--target", "codex,cursor", "--external-uninstalled", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBatchJSON(t, stdout, "remove", 2, 0)
+	assertClientBindings(t, fixture, domain.MaterializationAbsent, 3)
+}
+
+func TestCommaSeparatedTargetsRejectUnsafeValues(t *testing.T) {
+	t.Parallel()
+	for name, value := range map[string]string{
+		"empty":        "codex,,cursor",
+		"all":          "all",
+		"ambiguous":    "openai,cursor",
+		"unsupported":  "claude,cursor",
+		"legacy_mixed": "legacy-all,cursor",
+	} {
+		name, value := name, value
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := parseTargetOption(value); err == nil {
+				t.Fatalf("parseTargetOption(%q) succeeded", value)
+			}
+		})
+	}
+}
+
+func TestCommaSeparatedTargetsKeepSuccessfulClientsOnPartialFailure(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "cursor,codex", "--format", "json")
+	if err == nil || !strings.Contains(err.Error(), "codex") {
+		t.Fatalf("partial failure = %v", err)
+	}
+	assertBatchJSON(t, stdout, "add", 1, 1)
+	state, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 1 || onlyCLIClient(state.Installations[0]).ClientID != string(domain.ClientCursor) {
+		t.Fatalf("partial state = %+v", state)
+	}
+	if strings.Contains(stdout, fixture.root) {
+		t.Fatalf("batch JSON leaked sandbox path: %s", stdout)
+	}
+}
+
 func TestTTYYesNeverBypassesExplicitStandardTargetGuards(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -714,6 +791,42 @@ func TestInteractiveRepairUsesOneReaderForTargetAndConfirmation(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(codexTarget, "plugin.json")); err != nil {
 		t.Fatalf("selected target was not repaired: %v", err)
+	}
+}
+
+func TestInteractiveMultiTargetRepairSharesOneReaderAcrossConfirmations(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex),
+		fixtureClient(t, domain.ClientCursor),
+	})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "codex,cursor", "--yes"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	targets := make(map[string]string, len(state.Installations[0].Clients))
+	for _, binding := range state.Installations[0].Clients {
+		targets[binding.ClientID] = binding.TargetLocator
+		if err := os.RemoveAll(binding.TargetLocator); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	stdout, _, err := fixture.executeInput(true, "y\ny\n", "repair", "demo", "--target", "codex,cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout, "Completed: 2 succeeded, 0 failed.") {
+		t.Fatalf("repair output = %q", stdout)
+	}
+	for client, target := range targets {
+		if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
+			t.Fatalf("%s target was not repaired: %v", client, err)
+		}
 	}
 }
 
@@ -1802,6 +1915,42 @@ func assertVersionedJSON(t *testing.T, body, command string) {
 	}
 	if value["schema_version"] != float64(1) || value["command"] != command {
 		t.Fatalf("JSON envelope = %+v", value)
+	}
+}
+
+func assertBatchJSON(t *testing.T, body, command string, succeeded, failed int) {
+	t.Helper()
+	var value struct {
+		SchemaVersion int    `json:"schema_version"`
+		Command       string `json:"command"`
+		Data          struct {
+			Batch     bool                `json:"batch"`
+			Succeeded int                 `json:"succeeded"`
+			Failed    int                 `json:"failed"`
+			Targets   []batchTargetResult `json:"targets"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &value); err != nil {
+		t.Fatalf("decode batch JSON output %q: %v", body, err)
+	}
+	if value.SchemaVersion != outputSchemaVersion || value.Command != command || !value.Data.Batch || value.Data.Succeeded != succeeded || value.Data.Failed != failed || len(value.Data.Targets) != succeeded+failed {
+		t.Fatalf("batch JSON envelope = %+v", value)
+	}
+}
+
+func assertClientBindings(t *testing.T, fixture cliFixture, materialization domain.MaterializationState, receipts int) {
+	t.Helper()
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 2 {
+		t.Fatalf("state = %+v", state)
+	}
+	for _, binding := range state.Installations[0].Clients {
+		if binding.Materialization != materialization || len(binding.Receipts) != receipts {
+			t.Fatalf("binding = %+v", binding)
+		}
 	}
 }
 

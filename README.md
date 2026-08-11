@@ -23,7 +23,7 @@ npx universal-agent-plugins add context7
 ```
 
 It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
-or installs one explicit target at a time across Codex, ChatGPT, Cursor, GitHub
+or installs one or more explicit targets across Codex, ChatGPT, Cursor, GitHub
 Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
 reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
 Accepted source shapes are either a portable root `plugin.json` with optional
@@ -48,7 +48,12 @@ human-readable output.
 ```bash
 npx universal-agent-plugins add context7 --dry-run --target cursor
 npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor
 ```
+
+Comma-separated targets run through the same client-specific lifecycle one by
+one. Successful targets remain installed if another target fails, and the CLI
+returns a non-zero status with an exact per-target summary.
 
 Short names resolve through the pinned catalog, while a local directory or an
 exact GitHub source such as `owner/repo@ref//path/to/plugin` can install any

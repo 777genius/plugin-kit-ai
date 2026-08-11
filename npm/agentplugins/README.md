@@ -39,6 +39,7 @@ npx universal-agent-plugins doctor
 npx universal-agent-plugins list
 npx universal-agent-plugins add context7 --dry-run --target cursor
 npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor
 npx universal-agent-plugins update context7 --target cursor
 npx universal-agent-plugins remove context7 --target cursor
 ```
@@ -65,7 +66,10 @@ Accepted packages have either a portable root `plugin.json` with optional
 `skills/` sidecars. The downloaded binary and installed command remain
 `agentplugins`.
 
-Each mutation changes one selected client. Human TTY sessions ask before a
+Each mutation changes one or more explicitly selected clients. Use a
+comma-separated value such as `--target codex,cursor`; every target keeps its
+own lifecycle result, and a partial failure returns a non-zero status without
+rolling back successful clients. Human TTY sessions ask before each client
 change; non-TTY and JSON automation auto-confirm only when `--target` is
 explicit, without requiring `--yes`. v0.1 supports user scope and reports
 whether a client can install automatically or requires manual activation. For

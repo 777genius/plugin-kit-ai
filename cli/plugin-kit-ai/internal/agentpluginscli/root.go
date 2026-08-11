@@ -2,7 +2,6 @@ package agentpluginscli
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,7 +18,7 @@ func NewRoot(app App) *cobra.Command {
 	root.SetOut(app.output())
 	root.SetErr(app.errorOutput())
 	flags := root.PersistentFlags()
-	flags.StringVar(&opts.target, "target", "", "target client: codex, chatgpt, cursor, copilot, vscode, or kiro")
+	flags.StringVar(&opts.target, "target", "", "target client(s), comma-separated: codex, chatgpt, cursor, copilot, vscode, or kiro")
 	flags.StringVar(&opts.scope, "scope", "user", "installation scope: user or project")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
 	flags.BoolVar(&opts.yes, "yes", false, "confirm this selected target without installing everywhere")
@@ -48,8 +47,8 @@ func validateCommonOptions(opts *options) error {
 	if opts.scope != "user" && opts.scope != "project" {
 		return fmt.Errorf("--scope must be user or project")
 	}
-	if strings.EqualFold(strings.TrimSpace(opts.target), "all") {
-		return fmt.Errorf("--target all is not supported; choose clients explicitly")
+	if _, err := parseTargetOption(opts.target); err != nil {
+		return err
 	}
 	return nil
 }
