@@ -123,10 +123,14 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 .hero__float--schema { right: -24px; bottom: -22px; padding: 10px 14px; border-radius: 12px; color: var(--muted); font-size: .72rem; font-weight: 650; }.hero__float--schema span { color: var(--green); }
 .hero__float--standard { top: -24px; left: -28px; padding: 10px 13px; display: flex; align-items: center; gap: 8px; border-radius: 12px; font-size: .66rem; font-weight: 750; white-space: nowrap; }.hero__float--standard a { color: var(--cyan); text-underline-offset: 3px; }.hero__float--standard span { color: var(--subtle); text-transform: lowercase; }
 
-.command-snippet { overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, #050710 74%, var(--surface-solid)); }
+.command-snippet { --command-accent: #a999ff; overflow: hidden; border: 1px solid var(--line); border-radius: 11px; background: color-mix(in srgb, #050710 74%, var(--surface-solid)); }
+.command-snippet--add { --command-accent: #50d5a3; }
+.command-snippet--update { --command-accent: #61c6ff; }
+.command-snippet--remove { --command-accent: #ff8178; }
 :root[data-theme="light"] .command-snippet { background: #20243a; color: #f5f6ff; }
 .command-snippet__header { min-height: 35px; padding-inline: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.08); color: #8790aa; font-size: .63rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
-.command-snippet__header span { display: flex; align-items: center; gap: 7px; }.command-snippet__header i { width: 6px; height: 6px; border-radius: 50%; background: #50d5a3; }
+.command-snippet__label { display: flex; align-items: center; gap: 7px; }
+.command-snippet__label-icon { width: 13px; height: 13px; flex: 0 0 13px; color: var(--command-accent); stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .command-snippet button { border: 0; padding: 4px 7px; color: #a999ff; background: transparent; font-size: .63rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
 .command-snippet pre { margin: 0; padding: 15px 14px 17px; overflow-x: auto; color: #dfe5ff; font-size: clamp(.66rem, 1.15vw, .78rem); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .command-snippet code::first-line { color: #dfe5ff; }

@@ -3,7 +3,16 @@
   See site/NOTICE.md for the complete attribution.
 -->
 <script setup lang="ts">
-const props = withDefaults(defineProps<{ command: string, label?: string }>(), { label: 'Terminal' })
+type CommandKind = 'terminal' | 'add' | 'update' | 'remove'
+
+const props = withDefaults(defineProps<{
+  command: string
+  label?: string
+  kind?: CommandKind
+}>(), {
+  label: 'Terminal',
+  kind: 'terminal',
+})
 const copied = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -29,9 +38,26 @@ async function copyCommand() {
 </script>
 
 <template>
-  <div class="command-snippet">
+  <div class="command-snippet" :class="`command-snippet--${kind}`">
     <div class="command-snippet__header">
-      <span><i />{{ label }}</span>
+      <span class="command-snippet__label">
+        <svg class="command-snippet__label-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <template v-if="kind === 'add'">
+            <path d="M12 5v14M5 12h14" />
+          </template>
+          <template v-else-if="kind === 'update'">
+            <path d="M20 7v5h-5M4 17v-5h5" />
+            <path d="M18.5 12a6.5 6.5 0 0 0-11.2-4.5L4 12M5.5 12a6.5 6.5 0 0 0 11.2 4.5L20 12" />
+          </template>
+          <template v-else-if="kind === 'remove'">
+            <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+          </template>
+          <template v-else>
+            <path d="m5 7 4 5-4 5M11 17h8" />
+          </template>
+        </svg>
+        {{ label }}
+      </span>
       <button type="button" :aria-label="copied ? 'Command copied' : 'Copy command'" @click="copyCommand">
         {{ copied ? 'Copied' : 'Copy' }}
       </button>
