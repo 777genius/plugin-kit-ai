@@ -25,4 +25,16 @@ describe('command generation', () => {
       remove: 'npx universal-agent-plugins remove example-external --target copilot',
     })
   })
+
+  it('generates one command for multiple selected agents', () => {
+    assert.deepEqual(pluginCommands(plugins[0]!, ['codex', 'cursor', 'codex']), {
+      add: 'npx universal-agent-plugins add context7 --target codex,cursor',
+      update: 'npx universal-agent-plugins update context7 --target codex,cursor',
+      remove: 'npx universal-agent-plugins remove context7 --target codex,cursor',
+    })
+  })
+
+  it('requires at least one selected agent', () => {
+    assert.throws(() => pluginCommands(plugins[0]!, []), /At least one target/)
+  })
 })

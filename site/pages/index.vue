@@ -12,15 +12,27 @@ const demoPlugin = computed(() => {
   return plugin
 })
 const heroTargets = computed(() => clients.filter(client => demoPlugin.value.client_support.clients.includes(client.id)))
-const heroTarget = ref<ClientID>('cursor')
-const selectedHeroClient = computed(() => heroTargets.value.find(client => client.id === heroTarget.value) ?? heroTargets.value[0]!)
-const heroCommand = computed(() => pluginCommands(demoPlugin.value, selectedHeroClient.value.id).add)
 const heroClientLabel = (id: ClientID, name: string) => id === 'copilot' ? 'Copilot' : name
+const initialHeroTarget = heroTargets.value.find(client => client.id === 'cursor')?.id ?? heroTargets.value[0]!.id
+const heroTargetIDs = ref<ClientID[]>([initialHeroTarget])
+const selectedHeroClients = computed(() => heroTargets.value.filter(client => heroTargetIDs.value.includes(client.id)))
+const selectedHeroNames = computed(() => selectedHeroClients.value.map(client => heroClientLabel(client.id, client.name)).join(' + '))
+const heroCommand = computed(() => pluginCommands(demoPlugin.value, selectedHeroClients.value.map(client => client.id)).add)
 const description = 'Install, update, and remove Agent Plugins 1.0 across Codex, ChatGPT, Cursor, GitHub Copilot CLI, VS Code, and Kiro with one community CLI.'
 const workflowPath = ref<HTMLElement>()
 const workflowAnimated = ref(false)
 const workflowVisible = ref(false)
 let workflowObserver: IntersectionObserver | undefined
+
+function toggleHeroTarget(id: ClientID) {
+  if (heroTargetIDs.value.includes(id)) {
+    if (heroTargetIDs.value.length === 1) return
+    heroTargetIDs.value = heroTargetIDs.value.filter(target => target !== id)
+    return
+  }
+  const selected = new Set([...heroTargetIDs.value, id])
+  heroTargetIDs.value = heroTargets.value.filter(client => selected.has(client.id)).map(client => client.id)
+}
 
 onMounted(() => {
   workflowAnimated.value = true
@@ -66,20 +78,21 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
           <div class="hero__window-top"><span /><span /><span /><b>Quick start</b></div>
           <div class="hero__window-body">
             <fieldset class="hero-targets">
-              <legend>Choose your agent</legend>
+              <legend>Choose one or more agents</legend>
               <div class="hero-targets__grid">
-                <label v-for="client in heroTargets" :key="client.id" class="hero-target" :class="{ 'hero-target--selected': heroTarget === client.id }" :title="client.name">
-                  <input v-model="heroTarget" class="sr-only" type="radio" name="hero-target" :value="client.id" />
+                <label v-for="client in heroTargets" :key="client.id" class="hero-target" :class="{ 'hero-target--selected': heroTargetIDs.includes(client.id) }" :title="client.name">
+                  <input class="sr-only" type="checkbox" name="hero-target" :value="client.id" :checked="heroTargetIDs.includes(client.id)" :disabled="heroTargetIDs.length === 1 && heroTargetIDs.includes(client.id)" @change="toggleHeroTarget(client.id)" />
+                  <span class="hero-target__check" aria-hidden="true">✓</span>
                   <span class="hero-target__icon"><img :src="asset(`client-icons/${client.icon}`)" alt="" width="19" height="19" /></span>
                   <span class="hero-target__name">{{ heroClientLabel(client.id, client.name) }}</span>
                 </label>
               </div>
             </fieldset>
-            <p>Install Context7 for {{ selectedHeroClient.name }}</p>
+            <p>Install Context7 for {{ selectedHeroNames }}</p>
             <CommandSnippet :command="heroCommand" />
             <div class="hero__success">
               <span>✓</span>
-              <div><strong>Command ready for {{ selectedHeroClient.name }}</strong><small>Repeat it for any other agent you use.</small></div>
+              <div><strong>Command ready for {{ selectedHeroClients.length === 1 ? selectedHeroNames : `${selectedHeroClients.length} agents` }}</strong><small>One command installs each selected target in order.</small></div>
             </div>
           </div>
         </div>
@@ -120,8 +133,8 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
               <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="6" r="2.5" /><circle cx="6" cy="17" r="2.5" /><circle cx="18" cy="17" r="2.5" /><path d="m10.8 8.2-3.6 6.6m6-6.6 3.6 6.6M8.5 17h7" /></svg>
             </span>
           </div>
-          <div><h3>Choose an agent</h3><p>Generate the exact command for Codex, ChatGPT, Cursor, Copilot, VS Code, or Kiro.</p></div>
-          <div class="workflow-step__tags" aria-hidden="true"><span>One target</span><span>Exact command</span></div>
+          <div><h3>Choose your agents</h3><p>Select one or more of Codex, ChatGPT, Cursor, Copilot, VS Code, or Kiro.</p></div>
+          <div class="workflow-step__tags" aria-hidden="true"><span>Multi-target</span><span>One command</span></div>
         </li>
         <li class="workflow-step workflow-step--control">
           <div class="workflow-step__head">

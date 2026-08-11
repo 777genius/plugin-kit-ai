@@ -12,7 +12,12 @@ finds several clients, select one. You can also name the target directly:
 
 ```bash
 npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor
 ```
+
+Comma-separated targets install in the order shown. Each target keeps its own
+result; if one fails, successful targets are not silently rolled back and the
+command exits non-zero with a per-target summary.
 
 Supported targets:
 
@@ -25,13 +30,14 @@ Supported targets:
 | `vscode` | Installs automatically through Copilot CLI when available | Otherwise prints the exact `chat.pluginLocations` setting |
 | `kiro` | Prepares the native package folder | Prints the exact **Powers -> Add Custom Power -> Import** steps and folder |
 
-Lifecycle commands use the same explicit target:
+Lifecycle commands use the same explicit target or comma-separated targets:
 
 ```bash
 npx universal-agent-plugins info context7
 npx universal-agent-plugins doctor context7
 npx universal-agent-plugins update context7 --target cursor
 npx universal-agent-plugins remove context7 --target cursor
+npx universal-agent-plugins update context7 --target codex,cursor
 ```
 
 `prepared`, `auth_pending`, and `manual_activation_required` are not reported as

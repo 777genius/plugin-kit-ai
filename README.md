@@ -49,7 +49,12 @@ than one is present, choose one from the prompt. To choose directly:
 
 ```bash
 npx universal-agent-plugins add context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor
 ```
+
+Pass several explicit targets as one comma-separated value. The CLI handles
+each client through its own lifecycle, keeps successful installs if another
+target fails, and returns a non-zero status with a per-target summary.
 
 The same CLI manages the rest of the plugin lifecycle:
 

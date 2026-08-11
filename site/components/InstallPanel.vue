@@ -5,21 +5,25 @@ import { pluginCommands } from '~/utils/commands'
 const props = defineProps<{ plugin: RegistryPlugin }>()
 const { asset } = useSite()
 const availableClients = computed(() => clients.filter(client => props.plugin.client_support.clients.includes(client.id)))
-const target = ref<(typeof clients)[number]['id']>(availableClients.value.find(client => client.id === 'cursor')?.id ?? availableClients.value[0]!.id)
+const initialTarget = availableClients.value.find(client => client.id === 'cursor')?.id ?? availableClients.value[0]!.id
+const targets = ref<(typeof clients)[number]['id'][]>([initialTarget])
 const targetOptions = computed(() => availableClients.value.map(client => ({
   value: client.id,
   label: client.name,
   icon: asset(`client-icons/${client.icon}`),
 })))
-const commands = computed(() => pluginCommands(props.plugin, target.value))
+const commands = computed(() => pluginCommands(props.plugin, targets.value))
 
-function updateTarget(value: string) {
-  const client = availableClients.value.find(item => item.id === value)
-  if (client) target.value = client.id
+function updateTargets(values: string[]) {
+  const allowed = new Set(availableClients.value.map(client => client.id))
+  const next = values.filter((value): value is (typeof clients)[number]['id'] => allowed.has(value as (typeof clients)[number]['id']))
+  if (next.length) targets.value = next
 }
 
 watch(availableClients, (next) => {
-  if (!next.some(client => client.id === target.value)) target.value = next[0]!.id
+  const allowed = new Set(next.map(client => client.id))
+  const retained = targets.value.filter(target => allowed.has(target))
+  targets.value = retained.length ? retained : [next[0]!.id]
 })
 </script>
 
@@ -30,8 +34,8 @@ watch(availableClients, (next) => {
       <span>Node.js 22+</span>
     </div>
     <div class="target-select">
-      <span>Target agent</span>
-      <AppSelect :model-value="target" label="Target agent" :options="targetOptions" @update:model-value="updateTarget" />
+      <span>Target agents</span>
+      <AppMultiSelect :model-value="targets" label="Choose target agents" :options="targetOptions" @update:model-value="updateTargets" />
     </div>
     <div class="command-stack">
       <CommandSnippet label="Add" :command="commands.add" />
