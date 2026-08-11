@@ -48,8 +48,8 @@ The CLI detects Codex, Cursor, GitHub Copilot/VS Code, and Kiro. If more
 than one is present, choose one from the prompt. To choose directly:
 
 ```bash
-npx universal-agent-plugins add context7 --target cursor
-npx universal-agent-plugins add context7 --target codex,cursor
+npx universal-agent-plugins@0.1.7 add context7 --target cursor
+npx universal-agent-plugins@0.1.7 add context7 --target codex,cursor
 ```
 
 Pass several explicit targets as one comma-separated value. The CLI handles

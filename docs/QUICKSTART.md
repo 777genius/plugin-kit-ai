@@ -11,8 +11,8 @@ The CLI shows the exact package plan and asks before changing anything. If it
 finds several clients, select one. You can also name the target directly:
 
 ```bash
-npx universal-agent-plugins add context7 --target cursor
-npx universal-agent-plugins add context7 --target codex,cursor
+npx universal-agent-plugins@0.1.7 add context7 --target cursor
+npx universal-agent-plugins@0.1.7 add context7 --target codex,cursor
 ```
 
 Comma-separated targets install in the order shown. Each target keeps its own
