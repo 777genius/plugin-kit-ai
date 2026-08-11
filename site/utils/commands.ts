@@ -1,6 +1,11 @@
 import type { RegistryPlugin } from '../types/registry'
 
-export function pluginCommands(plugin: RegistryPlugin, target: string) {
+export function pluginCommands(plugin: RegistryPlugin, targets: string | readonly string[]) {
+  const values = (Array.isArray(targets) ? targets : [targets])
+    .map(target => target.trim())
+    .filter((target, index, all) => target && all.indexOf(target) === index)
+  if (!values.length) throw new Error('At least one target is required')
+  const target = values.join(',')
   return {
     add: `npx universal-agent-plugins add ${plugin.install_source} --target ${target}`,
     update: `npx universal-agent-plugins update ${plugin.name} --target ${target}`,
