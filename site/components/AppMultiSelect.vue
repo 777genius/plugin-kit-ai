@@ -47,7 +47,7 @@ function toggle(value: string) {
 
 <template>
   <PopoverRoot>
-    <PopoverTrigger class="app-multiselect__trigger" :aria-label="label">
+    <PopoverTrigger class="app-multiselect__trigger" :aria-label="`${label}: ${summary}`">
       <span class="app-multiselect__value">
         <span class="app-multiselect__icons" aria-hidden="true">
           <span v-for="option in selected.slice(0, 3)" :key="option.value"><img v-if="option.icon" :src="option.icon" alt="" width="19" height="19" /></span>
