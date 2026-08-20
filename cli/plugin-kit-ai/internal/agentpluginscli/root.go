@@ -19,10 +19,8 @@ func NewRoot(app App) *cobra.Command {
 	root.SetErr(app.errorOutput())
 	flags := root.PersistentFlags()
 	flags.StringVar(&opts.target, "target", "", "target client(s), comma-separated: codex, chatgpt, cursor, copilot, vscode, or kiro")
-	flags.StringVar(&opts.scope, "scope", "user", "installation scope: user or project")
+	flags.StringVar(&opts.scope, "scope", "user", "installation scope (user only in this release)")
 	flags.BoolVar(&opts.dryRun, "dry-run", false, "show the exact plan without changes")
-	flags.BoolVar(&opts.yes, "yes", false, "confirm this selected target without installing everywhere")
-	_ = flags.MarkHidden("yes")
 	flags.StringVar(&opts.format, "format", "human", "output format: human or json")
 	flags.BoolVar(&opts.noColor, "no-color", false, "disable color output")
 
@@ -30,6 +28,7 @@ func NewRoot(app App) *cobra.Command {
 	root.AddCommand(newUpdateCommand(app, opts))
 	root.AddCommand(newRepairCommand(app, opts))
 	root.AddCommand(newRemoveCommand(app, opts))
+	root.AddCommand(newSwitchCommand(app, opts))
 	root.AddCommand(newMigrateFormatCommand(app, opts))
 	root.AddCommand(newMigrateStateCommand(app, opts))
 	root.AddCommand(newRebindCommand(app, opts))
@@ -46,6 +45,9 @@ func validateCommonOptions(opts *options) error {
 	}
 	if opts.scope != "user" && opts.scope != "project" {
 		return fmt.Errorf("--scope must be user or project")
+	}
+	if opts.scope == "project" {
+		return fmt.Errorf("--scope project is not supported by the current client adapters; the public CLI supports user scope only")
 	}
 	if _, err := parseTargetOption(opts.target); err != nil {
 		return err

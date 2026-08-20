@@ -1,26 +1,27 @@
 package agentpluginscli
 
 import (
-	"bytes"
-	"encoding/json"
+	"crypto/rand"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/spf13/cobra"
 )
 
+func newOperationGroupID() (string, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return "", fmt.Errorf("create operation group ID: %w", err)
+	}
+	return fmt.Sprintf("op-%x", value[:]), nil
+}
+
 type batchTargetResult struct {
 	Target string `json:"target"`
 	Output any    `json:"output,omitempty"`
 	Error  string `json:"error,omitempty"`
-}
-
-type batchCommandResult struct {
-	Batch     bool                `json:"batch"`
-	Succeeded int                 `json:"succeeded"`
-	Failed    int                 `json:"failed"`
-	Targets   []batchTargetResult `json:"targets"`
 }
 
 func parseTargetOption(value string) ([]domain.ClientID, error) {
@@ -55,12 +56,21 @@ func parseTargetOption(value string) ([]domain.ClientID, error) {
 			return nil, fmt.Errorf("unsupported target %q; choose codex, chatgpt, cursor, copilot, vscode, or kiro", raw)
 		}
 		if _, duplicate := seen[target]; duplicate {
-			continue
+			return nil, fmt.Errorf("--target contains duplicate client %q", target)
 		}
 		seen[target] = struct{}{}
 		targets = append(targets, target)
 	}
+	sortTargets(targets)
 	return targets, nil
+}
+
+func sortTargets(targets []domain.ClientID) {
+	order := map[domain.ClientID]int{
+		domain.ClientCodex: 0, domain.ClientChatGPT: 1, domain.ClientCursor: 2,
+		domain.ClientCopilot: 3, domain.ClientVSCode: 4, domain.ClientKiro: 5,
+	}
+	sort.SliceStable(targets, func(i, j int) bool { return order[targets[i]] < order[targets[j]] })
 }
 
 func supportedTarget(target domain.ClientID) bool {
@@ -77,71 +87,15 @@ func runForTargets(cmd *cobra.Command, opts *options, command string, run func()
 	if err != nil {
 		return err
 	}
-	if len(targets) <= 1 {
-		if len(targets) == 1 {
-			original := opts.target
-			opts.target = string(targets[0])
-			defer func() { opts.target = original }()
-		}
-		return run()
+	if len(targets) > 1 {
+		return fmt.Errorf("internal %s dispatch error: multi-target commands require one combined plan", command)
 	}
-
-	originalTarget := opts.target
-	originalOutput := cmd.OutOrStdout()
-	defer func() {
-		opts.target = originalTarget
-		cmd.SetOut(originalOutput)
-	}()
-
-	result := batchCommandResult{Batch: true, Targets: make([]batchTargetResult, 0, len(targets))}
-	var failures []string
-	if opts.format == "human" {
-		_, _ = fmt.Fprintf(originalOutput, "Running %s for %d targets: %s\n", command, len(targets), joinTargets(targets))
+	if len(targets) == 1 {
+		original := opts.target
+		opts.target = string(targets[0])
+		defer func() { opts.target = original }()
 	}
-
-	for index, target := range targets {
-		opts.target = string(target)
-		entry := batchTargetResult{Target: string(target)}
-		var captured bytes.Buffer
-		if opts.format == "json" {
-			cmd.SetOut(&captured)
-		} else {
-			_, _ = fmt.Fprintf(originalOutput, "\n[%d/%d] %s\n", index+1, len(targets), target)
-		}
-
-		runErr := run()
-		if opts.format == "json" {
-			cmd.SetOut(originalOutput)
-			if payload := bytes.TrimSpace(captured.Bytes()); len(payload) > 0 {
-				if jsonErr := json.Unmarshal(payload, &entry.Output); jsonErr != nil {
-					runErr = fmt.Errorf("invalid %s JSON for target %s: %w", command, target, jsonErr)
-				}
-			}
-		}
-		if runErr != nil {
-			entry.Error = "command failed for this target; see the process error for details"
-			result.Failed++
-			failures = append(failures, fmt.Sprintf("%s: %v", target, runErr))
-			if opts.format == "human" {
-				_, _ = fmt.Fprintf(originalOutput, "Target %s failed: %v\n", target, runErr)
-			}
-		} else {
-			result.Succeeded++
-		}
-		result.Targets = append(result.Targets, entry)
-	}
-
-	if opts.format == "json" {
-		if err := writeJSONOutput(originalOutput, command, result); err != nil {
-			return err
-		}
-	} else {
-		_, _ = fmt.Fprintf(originalOutput, "\nCompleted: %d succeeded, %d failed.\n", result.Succeeded, result.Failed)
-	}
-	if len(failures) > 0 {
-		return fmt.Errorf("%s failed for %d of %d targets: %s", command, len(failures), len(targets), strings.Join(failures, "; "))
-	}
-	return nil
+	return run()
 }
 
 func joinTargets(targets []domain.ClientID) string {

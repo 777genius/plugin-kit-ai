@@ -25,8 +25,41 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
+			var detectedClients []domain.DetectedClient
+			if strings.TrimSpace(opts.target) == "" && app.Terminal {
+				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
+				loaded, err := app.loadPackage(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				if loaded.cleanup != nil {
+					defer loaded.cleanup()
+				}
+				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app)
+				if err != nil {
+					return err
+				}
+				detectedClients = clients
+				opts.target = selection
+				defer func() { opts.target = "" }()
+				targets, err := parseTargetOption(opts.target)
+				if err != nil {
+					return err
+				}
+				if len(targets) > 1 {
+					return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClients)
+				}
+				return runAddLoaded(cmd.Context(), cmd, app, opts, loaded, activationComplete, authComplete, detectedClients)
+			}
+			targets, err := parseTargetOption(opts.target)
+			if err != nil {
+				return err
+			}
+			if len(targets) > 1 {
+				return runAddManyWithClients(cmd.Context(), cmd, app, opts, args[0], targets, activationComplete, authComplete, detectedClients)
+			}
 			return runForTargets(cmd, opts, "add", func() error {
-				return runAdd(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete)
+				return runAddWithClients(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete, detectedClients)
 			})
 		},
 	}
@@ -36,6 +69,10 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 }
 
 func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, activationComplete, authComplete bool) error {
+	return runAddWithClients(ctx, cmd, app, opts, source, activationComplete, authComplete, nil)
+}
+
+func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
 	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
 	loaded, err := app.loadPackage(ctx, source)
 	if err != nil {
@@ -44,11 +81,18 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
-	clients, err := app.Detector.Detect(ctx)
-	if err != nil {
-		return fmt.Errorf("detect AI clients: %w", err)
+	return runAddLoaded(ctx, cmd, app, opts, loaded, activationComplete, authComplete, clients)
+}
+
+func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *options, loaded loadedPackage, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
+	if clients == nil {
+		detectedClients, err := app.Detector.Detect(ctx)
+		if err != nil {
+			return fmt.Errorf("detect AI clients: %w", err)
+		}
+		clients = detectedClients
 	}
-	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) == "" {
+	if automatedMutation(app, opts) && strings.TrimSpace(opts.target) == "" {
 		return fmt.Errorf("automated installation requires --target")
 	}
 	selected, detectedMap, err := selectClient(cmd, app, opts, clients)
@@ -97,7 +141,7 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 		}
 	}
 	freshInstall := planned.Activation.Activation == ""
-	if !freshInstall && opts.format == "human" && app.Terminal && !opts.yes && !activationComplete && !authComplete {
+	if !freshInstall && opts.format == "human" && app.Terminal && !activationComplete && !authComplete {
 		if err := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, false); err != nil {
 			return err
 		}
@@ -128,10 +172,61 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 	if renderErr := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, result, false); renderErr != nil && err == nil {
 		err = renderErr
 	}
-	if err == nil && freshInstall && opts.format == "human" && app.Terminal && !opts.yes {
+	if err == nil && freshInstall && opts.format == "human" && app.Terminal {
 		return resumeInteractiveLifecycle(ctx, cmd, service, input, loaded.envelope, result)
 	}
 	return err
+}
+
+func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (string, []domain.DetectedClient, error) {
+	clients, err := app.Detector.Detect(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("detect AI clients: %w", err)
+	}
+	var detected []domain.DetectedClient
+	for _, client := range clients {
+		if client.Status == domain.DetectionDetected && supportedTarget(client.ClientID) {
+			detected = append(detected, client)
+		}
+	}
+	if len(detected) == 0 {
+		return "", nil, fmt.Errorf("no supported local AI client was detected; use --target chatgpt for ChatGPT, or install/detect another client")
+	}
+	sort.Slice(detected, func(i, j int) bool { return string(detected[i].ClientID) < string(detected[j].ClientID) })
+	if len(detected) == 1 {
+		return string(detected[0].ClientID), clients, nil
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Detected supported clients (all selected by default):")
+	for index, client := range detected {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. [x] %s (%s)\n", index+1, client.DisplayName, client.ClientID)
+	}
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Choose targets by number, comma-separated [all]: ")
+	line, readErr := readInputLine(cmd.InOrStdin())
+	if readErr != nil && readErr != io.EOF {
+		return "", nil, readErr
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		values := make([]string, len(detected))
+		for index, client := range detected {
+			values[index] = string(client.ClientID)
+		}
+		return strings.Join(values, ","), clients, nil
+	}
+	seen := make(map[int]struct{})
+	var values []string
+	for _, raw := range strings.Split(line, ",") {
+		choice, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil || choice < 1 || choice > len(detected) {
+			return "", nil, fmt.Errorf("invalid client multiselect")
+		}
+		if _, duplicate := seen[choice]; duplicate {
+			return "", nil, fmt.Errorf("duplicate client multiselect choice %d", choice)
+		}
+		seen[choice] = struct{}{}
+		values = append(values, string(detected[choice-1].ClientID))
+	}
+	return strings.Join(values, ","), clients, nil
 }
 
 func resumeInteractiveLifecycle(
@@ -225,7 +320,7 @@ func selectClient(
 	if len(detected) == 1 {
 		return detected[0], detectedMap, nil
 	}
-	if !app.Terminal || opts.yes || opts.format == "json" {
+	if !app.Terminal || opts.format == "json" {
 		return domain.DetectedClient{}, detectedMap, fmt.Errorf("multiple clients detected; choose one or more with --target codex,cursor")
 	}
 	sort.Slice(detected, func(i, j int) bool { return detected[i].DisplayName < detected[j].DisplayName })
@@ -326,12 +421,7 @@ func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result u
 }
 
 func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool) error {
-	data := struct {
-		Plugin  string            `json:"plugin"`
-		Version string            `json:"version,omitempty"`
-		DryRun  bool              `json:"dry_run"`
-		Result  usecase.AddResult `json:"result"`
-	}{Plugin: envelope.Manifest.Name, Version: envelope.Manifest.Version, DryRun: dryRun, Result: result}
+	data := newAddResultData(envelope, result, dryRun)
 	if format == "json" {
 		return writeJSONOutput(writer, "add", data)
 	}
@@ -369,12 +459,39 @@ func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnv
 	return nil
 }
 
+type addResultData struct {
+	OperationID    string            `json:"operation_id,omitempty"`
+	Plugin         string            `json:"plugin"`
+	Version        string            `json:"version,omitempty"`
+	Source         string            `json:"source"`
+	Revision       string            `json:"revision,omitempty"`
+	TreeDigest     string            `json:"tree_digest"`
+	ManifestDigest string            `json:"manifest_digest"`
+	NextAction     string            `json:"next_action,omitempty"`
+	DryRun         bool              `json:"dry_run"`
+	Result         usecase.AddResult `json:"result"`
+}
+
+func newAddResultData(envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool) addResultData {
+	return addResultData{
+		OperationID: result.Receipt.OperationID, Plugin: envelope.Manifest.Name,
+		Version: envelope.Manifest.Version, Source: publicPackageSource(envelope.Source),
+		Revision: envelope.Source.ResolvedRevision, TreeDigest: envelope.TreeDigest,
+		ManifestDigest: envelope.ManifestDigest, NextAction: nextLifecycleAction(result),
+		DryRun: dryRun, Result: result,
+	}
+}
+
 func nextLifecycleAction(result usecase.AddResult) string {
 	action := ""
 	if len(result.Activation.LocalActions) > 0 {
 		action = result.Activation.LocalActions[0]
 	} else if len(result.Activation.UserActions) > 0 {
 		action = result.Activation.UserActions[0]
+	} else if len(result.Plan.LocalActions) > 0 {
+		action = result.Plan.LocalActions[0]
+	} else if len(result.Plan.UserActions) > 0 {
+		action = result.Plan.UserActions[0]
 	}
 	if result.Activation.Authentication == domain.AuthenticationPending {
 		if action != "" {

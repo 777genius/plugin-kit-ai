@@ -27,6 +27,9 @@ type App struct {
 	StateMigrator   *statemigration.Migrator
 	LegacyLifecycle ports.LegacyLifecycle
 	LegacyStateLock legacyports.LockManager
+	SourceSwitcher  SourceSwitcher
+	DataPurger      DataPurger
+	GroupLifecycle  GroupLifecycle
 	HTTPClient      *http.Client
 	CatalogURL      string
 	CatalogDigest   string
@@ -41,10 +44,10 @@ type options struct {
 	target              string
 	scope               string
 	dryRun              bool
-	yes                 bool
 	format              string
 	noColor             bool
 	externalUninstalled bool
+	purgeData           bool
 }
 
 func (app App) input() io.Reader {
