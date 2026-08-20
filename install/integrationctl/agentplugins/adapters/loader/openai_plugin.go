@@ -34,6 +34,13 @@ func (loader Loader) loadOpenAIPluginManifest(path string) (domain.PluginManifes
 	if err != nil {
 		return domain.PluginManifest{}, openAIComponentPaths{}, nil, "", domain.FatalLoad("plugin_manifest_malformed", ".codex-plugin/plugin.json", "parse official OpenAI plugin manifest", err)
 	}
+	for key, raw := range rawFields {
+		if _, known := openAIManifestFields[key]; known {
+			if err := rejectDuplicateJSONKeys(raw); err != nil {
+				return domain.PluginManifest{}, openAIComponentPaths{}, nil, "", domain.FatalLoad("plugin_manifest_malformed", ".codex-plugin/plugin.json", fmt.Sprintf("parse official manifest field %q", key), err)
+			}
+		}
+	}
 	var typed struct {
 		Name        string         `json:"name"`
 		Version     string         `json:"version"`

@@ -1,0 +1,171 @@
+package sourceacquisition
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/packagedigest"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+)
+
+func TestAcquireGitHubExactSHASparselySnapshotsOnlyPluginRoot(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	writeRepo(t, repository, "plugin/plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"sparse"}`, 0o644)
+	writeRepo(t, repository, "plugin/bin/server", "fixture", 0o755)
+	writeRepo(t, repository, "unrelated/large", strings.Repeat("x", 4096), 0o644)
+	revision := commit(t, repository)
+	tempRoot := t.TempDir()
+	acquirer := Acquirer{
+		TempRoot:   tempRoot,
+		Digester:   packagedigest.Builder{TempRoot: tempRoot, Limits: domain.PackageLimits{MaxTreeBytes: 1024}},
+		URLForRepo: func(string) string { return repository },
+	}
+	snapshot, err := acquirer.AcquireGitHub(context.Background(), "example/plugin", revision, "plugin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer packagedigest.Remove(snapshot)
+	if snapshot.Source.ResolvedRevision != revision || snapshot.Source.PackageSubpath != "plugin" || snapshot.FileCount != 2 {
+		t.Fatalf("snapshot = %+v", snapshot)
+	}
+	if _, err := os.Stat(filepath.Join(snapshot.Root, "unrelated")); !os.IsNotExist(err) {
+		t.Fatalf("unrelated monorepo content entered snapshot: %v", err)
+	}
+	if len(snapshot.ExecutableFiles) != 1 || snapshot.ExecutableFiles[0] != "bin/server" {
+		t.Fatalf("executables = %v", snapshot.ExecutableFiles)
+	}
+}
+
+func TestAcquireGitHubRepositoryRootExcludesGitMetadata(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repository := newRepository(t)
+	writeRepo(t, repository, "plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"root"}`, 0o644)
+	revision := commit(t, repository)
+	acquirer := Acquirer{TempRoot: t.TempDir(), URLForRepo: func(string) string { return repository }}
+	snapshot, err := acquirer.AcquireGitHub(context.Background(), "example/root-plugin", revision, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer packagedigest.Remove(snapshot)
+	if snapshot.FileCount != 1 || snapshot.Source.RequestedSource != "example/root-plugin@"+revision || strings.HasSuffix(snapshot.Source.CanonicalSource, "//") {
+		t.Fatalf("root snapshot identity = %+v", snapshot)
+	}
+	if _, err := os.Lstat(filepath.Join(snapshot.Root, ".git")); !os.IsNotExist(err) {
+		t.Fatalf("Git metadata entered repository-root snapshot: %v", err)
+	}
+}
+
+func TestAcquireGitHubRejectsMutableRevisionAndUnsafeSubpathBeforeGit(t *testing.T) {
+	acquirer := Acquirer{Runner: panicRunner{}}
+	for _, test := range []struct{ revision, subpath string }{{"main", "plugin"}, {strings.Repeat("a", 40), "../plugin"}, {strings.ToUpper(strings.Repeat("a", 40)), "plugin"}} {
+		if _, err := acquirer.AcquireGitHub(context.Background(), "example/plugin", test.revision, test.subpath); err == nil {
+			t.Fatalf("accepted revision=%q subpath=%q", test.revision, test.subpath)
+		}
+	}
+}
+
+func TestAcquireGitHubRejectsSubmoduleInsidePluginRoot(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	submodule := newRepository(t)
+	writeRepo(t, submodule, "README", "submodule", 0o644)
+	_ = commit(t, submodule)
+	repository := newRepository(t)
+	writeRepo(t, repository, "plugin/plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"submodule"}`, 0o644)
+	runGit(t, "-c", "protocol.file.allow=always", "-C", repository, "submodule", "add", "--quiet", submodule, "plugin/vendor")
+	revision := commit(t, repository)
+	acquirer := Acquirer{TempRoot: t.TempDir(), URLForRepo: func(string) string { return repository }}
+	if _, err := acquirer.AcquireGitHub(context.Background(), "example/plugin", revision, "plugin"); err == nil || !strings.Contains(err.Error(), "submodule") {
+		t.Fatalf("submodule error = %v", err)
+	}
+}
+
+func TestExecutablePathsFromTreeArePluginRelative(t *testing.T) {
+	tree := []byte("100644 blob a\tplugin/plugin.json\x00100755 blob b\tplugin/bin/server\x00120000 blob c\tplugin/link\x00")
+	paths, err := executablePathsFromTree(tree, "plugin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "bin/server" {
+		t.Fatalf("executable paths = %v", paths)
+	}
+	if _, err := executablePathsFromTree([]byte("160000 commit a\tplugin/vendor\x00"), "plugin"); err == nil || !strings.Contains(err.Error(), "submodule") {
+		t.Fatalf("submodule tree error = %v", err)
+	}
+}
+
+func TestGitEnvironmentDoesNotForwardUserCredentialsOrConfiguration(t *testing.T) {
+	environment := isolatedGitEnvironment([]string{
+		"PATH=/usr/bin",
+		"HOME=/users/example",
+		"XDG_CONFIG_HOME=/users/example/.config",
+		"GIT_CONFIG_PARAMETERS='http.extraHeader=Authorization: secret'",
+		"GIT_ASKPASS=/tmp/credential-helper",
+		"SSH_AUTH_SOCK=/tmp/agent.sock",
+		"NETRC=/users/example/.netrc",
+	}, "/isolated")
+	joined := strings.Join(environment, "\n")
+	for _, secret := range []string{"/users/example", "Authorization: secret", "credential-helper", "agent.sock", ".netrc"} {
+		if strings.Contains(joined, secret) {
+			t.Fatalf("credential-bearing environment value %q was forwarded: %v", secret, environment)
+		}
+	}
+	for _, required := range []string{"PATH=/usr/bin", "HOME=/isolated", "GIT_CONFIG_GLOBAL=" + os.DevNull, "GIT_CONFIG_KEY_0=credential.helper", "GIT_TERMINAL_PROMPT=0"} {
+		if !strings.Contains(joined, required) {
+			t.Fatalf("isolated Git environment is missing %q: %v", required, environment)
+		}
+	}
+}
+
+type panicRunner struct{}
+
+func (panicRunner) Run(context.Context, Command) ([]byte, error) {
+	panic("git must not run for invalid source")
+}
+
+func newRepository(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	runGit(t, "init", "--quiet", "--initial-branch=main", root)
+	runGit(t, "-C", root, "config", "user.email", "test@example.invalid")
+	runGit(t, "-C", root, "config", "user.name", "Test")
+	return root
+}
+
+func writeRepo(t *testing.T, root, relative, body string, mode os.FileMode) {
+	t.Helper()
+	filename := filepath.Join(root, filepath.FromSlash(relative))
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filename, []byte(body), mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func commit(t *testing.T, root string) string {
+	t.Helper()
+	runGit(t, "-C", root, "add", ".")
+	runGit(t, "-C", root, "commit", "--quiet", "-m", "fixture")
+	return strings.TrimSpace(runGit(t, "-C", root, "rev-parse", "HEAD"))
+}
+
+func runGit(t *testing.T, args ...string) string {
+	t.Helper()
+	command := exec.Command("git", args...)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, output)
+	}
+	return string(output)
+}

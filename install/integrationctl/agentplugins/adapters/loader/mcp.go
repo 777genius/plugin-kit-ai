@@ -3,14 +3,18 @@ package loader
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
-func (loader Loader) loadMCP(path string) (domain.MCPComponent, []domain.Diagnostic) {
-	body, exists, err := readRegularFile(path)
+func (loader Loader) loadMCP(filename, pluginSchema string, executableFiles []string) (domain.MCPComponent, []domain.Diagnostic) {
+	body, exists, err := readRegularFile(filename)
 	if !exists {
 		return domain.MCPComponent{}, nil
 	}
@@ -32,6 +36,9 @@ func (loader Loader) loadMCP(path string) (domain.MCPComponent, []domain.Diagnos
 		return component, []domain.Diagnostic{mcpDiagnostic("mcp_schema_missing", "mcp.json requires a string $schema", nil)}
 	}
 	component.SchemaURI = schemaURI
+	if schemaVersion(schemaURI) != schemaVersion(pluginSchema) {
+		return component, []domain.Diagnostic{mcpDiagnostic("mcp_schema_mismatch", fmt.Sprintf("mcp.json schema %q does not match plugin.json schema version %q", schemaURI, pluginSchema), nil)}
+	}
 	if schemaURI != domain.MCPSchemaV1 || !loader.Registry.Supports(schemaURI) {
 		return component, []domain.Diagnostic{mcpDiagnostic("mcp_schema_unsupported", fmt.Sprintf("unsupported Agent Plugins MCP schema %q", schemaURI), nil)}
 	}
@@ -40,7 +47,7 @@ func (loader Loader) loadMCP(path string) (domain.MCPComponent, []domain.Diagnos
 		return component, []domain.Diagnostic{mcpDiagnostic("mcp_servers_missing", "mcp.json requires mcpServers", nil)}
 	}
 	var serverDocuments map[string]json.RawMessage
-	if err := decodeJSON(serversRaw, &serverDocuments); err != nil || serverDocuments == nil {
+	if err := decodeRawJSONObject(serversRaw, &serverDocuments); err != nil || serverDocuments == nil {
 		return component, []domain.Diagnostic{mcpDiagnostic("mcp_servers_invalid", "mcpServers must be a JSON object", err)}
 	}
 	topLevel := make(map[string]any, len(decoded))
@@ -73,6 +80,13 @@ func (loader Loader) loadMCP(path string) (domain.MCPComponent, []domain.Diagnos
 			}
 			decodeErr = loader.Registry.Validate(schemaURI, document)
 		}
+		var requirement *domain.StdioRequirement
+		if decodeErr == nil {
+			typeName, _ := decodedServer["type"].(string)
+			if typeName == "stdio" {
+				requirement, decodeErr = validateStdioServer(filepath.Dir(filename), decodedServer, executableFiles)
+			}
+		}
 		if decodeErr != nil {
 			diagnostic := domain.Diagnostic{
 				Severity: domain.SeverityError,
@@ -88,13 +102,169 @@ func (loader Loader) loadMCP(path string) (domain.MCPComponent, []domain.Diagnos
 		}
 		typeName, _ := decodedServer["type"].(string)
 		component.Servers[name] = domain.MCPServer{
-			Name:    name,
-			Type:    typeName,
-			Raw:     append(json.RawMessage(nil), raw...),
-			Decoded: decodedServer,
+			Name:             name,
+			Type:             typeName,
+			Raw:              append(json.RawMessage(nil), raw...),
+			Decoded:          decodedServer,
+			StdioRequirement: requirement,
 		}
 	}
 	return component, diagnostics
+}
+
+func schemaVersion(uri string) string {
+	const marker = "/schemas/"
+	index := strings.Index(uri, marker)
+	if index < 0 {
+		return ""
+	}
+	remainder := uri[index+len(marker):]
+	if slash := strings.IndexByte(remainder, '/'); slash >= 0 {
+		return remainder[:slash]
+	}
+	return ""
+}
+
+func validateStdioServer(root string, config map[string]any, executableFiles []string) (*domain.StdioRequirement, error) {
+	command, _ := config["command"].(string)
+	if command == "" {
+		return nil, fmt.Errorf("stdio command must be a non-empty executable token")
+	}
+	requirement := &domain.StdioRequirement{Command: command, Kind: domain.ExecutableBare}
+	if strings.ContainsAny(command, `/\\`) {
+		relative, err := bundledCommandPath(command)
+		if err != nil {
+			return nil, err
+		}
+		candidate := filepath.Join(root, filepath.FromSlash(relative))
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err != nil {
+			return nil, fmt.Errorf("resolve bundled stdio command %q: %w", command, err)
+		}
+		contained, err := filepath.Rel(root, resolved)
+		if err != nil || contained == ".." || filepath.IsAbs(contained) || strings.HasPrefix(contained, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("bundled stdio command %q resolves outside the plugin root", command)
+		}
+		info, err := os.Stat(resolved)
+		if err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("bundled stdio command %q must name a regular file in the plugin root", command)
+		}
+		resolvedRelative, err := filepath.Rel(root, resolved)
+		if err != nil {
+			return nil, fmt.Errorf("resolve bundled stdio command %q relative to the plugin root: %w", command, err)
+		}
+		resolvedRelative = filepath.ToSlash(resolvedRelative)
+		executable := false
+		for _, item := range executableFiles {
+			if item == relative || item == resolvedRelative {
+				executable = true
+				break
+			}
+		}
+		if !executable {
+			return nil, fmt.Errorf("bundled stdio command %q is not marked executable", command)
+		}
+		requirement.Kind, requirement.BundledRelativePath = domain.ExecutableBundled, relative
+	}
+	values := []string{}
+	if args, ok := config["args"].([]any); ok {
+		for _, value := range args {
+			if text, ok := value.(string); ok {
+				values = append(values, text)
+			}
+		}
+	}
+	if env, ok := config["env"].(map[string]any); ok {
+		if _, reserved := env["PLUGIN_ROOT"]; reserved {
+			return nil, fmt.Errorf("stdio server must not define reserved environment variable PLUGIN_ROOT")
+		}
+		if _, reserved := env["PLUGIN_DATA"]; reserved {
+			return nil, fmt.Errorf("stdio server must not define reserved environment variable PLUGIN_DATA")
+		}
+		for _, value := range env {
+			if text, ok := value.(string); ok {
+				values = append(values, text)
+			}
+		}
+	}
+	if cwd, ok := config["cwd"].(string); ok {
+		if err := validateCWD(cwd); err != nil {
+			return nil, err
+		}
+		values = append(values, cwd)
+	}
+	for _, value := range values {
+		if err := validateReservedPlaceholders(value); err != nil {
+			return nil, err
+		}
+		if strings.Contains(value, "${PLUGIN_ROOT}") {
+			requirement.UsesPluginRoot = true
+		}
+		if strings.Contains(value, "${PLUGIN_DATA}") {
+			requirement.UsesPluginData = true
+		}
+	}
+	return requirement, nil
+}
+
+func bundledCommandPath(command string) (string, error) {
+	if !strings.HasPrefix(command, "./") || strings.Contains(command, `\\`) {
+		return "", fmt.Errorf("bundled stdio command %q must be a ./-prefixed plugin-relative path", command)
+	}
+	relative := strings.TrimPrefix(command, "./")
+	if relative == "" || path.Clean(relative) != relative || strings.HasPrefix(relative, "../") {
+		return "", fmt.Errorf("bundled stdio command %q escapes the plugin root", command)
+	}
+	for _, segment := range strings.Split(relative, "/") {
+		if err := pathpolicy.ValidatePortablePathSegment(segment); err != nil {
+			return "", fmt.Errorf("bundled stdio command %q contains a non-portable path segment: %w", command, err)
+		}
+	}
+	return relative, nil
+}
+
+func validateCWD(value string) error {
+	var suffix string
+	switch {
+	case strings.HasPrefix(value, "./"):
+		suffix = strings.TrimPrefix(value, "./")
+	case value == "${PLUGIN_ROOT}" || value == "${PLUGIN_DATA}":
+		return nil
+	case strings.HasPrefix(value, "${PLUGIN_ROOT}/"):
+		suffix = strings.TrimPrefix(value, "${PLUGIN_ROOT}/")
+	case strings.HasPrefix(value, "${PLUGIN_DATA}/"):
+		suffix = strings.TrimPrefix(value, "${PLUGIN_DATA}/")
+	default:
+		return fmt.Errorf("stdio cwd must be ./-, PLUGIN_ROOT-, or PLUGIN_DATA-rooted")
+	}
+	if suffix == "" || path.IsAbs(suffix) || strings.Contains(suffix, `\\`) || strings.Contains(suffix, "${PLUGIN_") || path.Clean(suffix) != suffix || strings.HasPrefix(suffix, "../") {
+		return fmt.Errorf("stdio cwd escapes its declared root")
+	}
+	for _, segment := range strings.Split(suffix, "/") {
+		if err := pathpolicy.ValidatePortablePathSegment(segment); err != nil {
+			return fmt.Errorf("stdio cwd contains a non-portable path segment: %w", err)
+		}
+	}
+	return nil
+}
+
+func validateReservedPlaceholders(value string) error {
+	for offset := 0; ; {
+		index := strings.Index(value[offset:], "${PLUGIN_")
+		if index < 0 {
+			return nil
+		}
+		index += offset
+		end := strings.IndexByte(value[index:], '}')
+		if end < 0 {
+			return fmt.Errorf("unterminated reserved PLUGIN placeholder")
+		}
+		placeholder := value[index : index+end+1]
+		if placeholder != "${PLUGIN_ROOT}" && placeholder != "${PLUGIN_DATA}" {
+			return fmt.Errorf("unsupported reserved placeholder %q", placeholder)
+		}
+		offset = index + end + 1
+	}
 }
 
 func (loader Loader) loadOpenAIMCP(path string, declared bool) (domain.MCPComponent, []domain.Diagnostic) {
@@ -129,7 +299,7 @@ func (loader Loader) loadOpenAIMCP(path string, declared bool) (domain.MCPCompon
 			if len(rawFields) != 1 {
 				return component, []domain.Diagnostic{openAIMCPDiagnostic("mcp_servers_invalid", "wrapped .mcp.json cannot contain sibling fields", nil)}
 			}
-			if err := decodeJSON(wrapped, &serverDocuments); err != nil || serverDocuments == nil {
+			if err := decodeRawJSONObject(wrapped, &serverDocuments); err != nil || serverDocuments == nil {
 				return component, []domain.Diagnostic{openAIMCPDiagnostic("mcp_servers_invalid", wrapper+" must be an object", err)}
 			}
 			break

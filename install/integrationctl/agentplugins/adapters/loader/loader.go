@@ -18,6 +18,29 @@ type Loader struct {
 	Registry ports.SchemaRegistry
 }
 
+// LoadSnapshot is the standard acquisition-to-loading boundary. It carries
+// the exact sealed root, digest, executable modes, and source identity as one
+// value so later planning never rereads the mutable source.
+func (loader Loader) LoadSnapshot(ctx context.Context, snapshot domain.PackageSnapshot) (domain.PackageEnvelope, error) {
+	if snapshot.DigestAlgorithm != domain.TreeDigestAlgorithm || !validSHA256Digest(snapshot.TreeDigest) {
+		return domain.PackageEnvelope{}, domain.FatalLoad("snapshot_digest_invalid", "", "package snapshot does not use the supported versioned tree digest", nil)
+	}
+	return loader.Load(ctx, domain.LoadInput{SnapshotRoot: snapshot.Root, TreeDigest: snapshot.TreeDigest, ExecutableFiles: snapshot.ExecutableFiles, Source: snapshot.Source})
+}
+
+func validSHA256Digest(value string) bool {
+	const prefix = "sha256:"
+	if !strings.HasPrefix(value, prefix) || len(value) != len(prefix)+sha256.Size*2 {
+		return false
+	}
+	encoded := strings.TrimPrefix(value, prefix)
+	if encoded != strings.ToLower(encoded) {
+		return false
+	}
+	_, err := hex.DecodeString(encoded)
+	return err == nil
+}
+
 func (loader Loader) Load(ctx context.Context, input domain.LoadInput) (domain.PackageEnvelope, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.PackageEnvelope{}, err
@@ -34,57 +57,24 @@ func (loader Loader) Load(ctx context.Context, input domain.LoadInput) (domain.P
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return domain.PackageEnvelope{}, domain.FatalLoad("snapshot_invalid", "plugin.json", "package snapshot root must be a real directory", err)
 	}
+	manifestPath := filepath.Join(root, "plugin.json")
+	formatID := domain.FormatIDAgentPluginsV1
+	schemaVersion := "1.0.0"
+	mcpPath := filepath.Join(root, "mcp.json")
+	skillsPath := filepath.Join(root, "skills")
+	manifest, diagnostics, manifestDigest, err := loader.loadPluginManifest(manifestPath)
+	if err != nil {
+		return domain.PackageEnvelope{}, err
+	}
 	if err := rejectDiscoverableHooks(root); err != nil {
 		return domain.PackageEnvelope{}, domain.FatalLoad(
 			"official_hooks_unsupported", "hooks/hooks.json",
 			"lifecycle hooks are auto-discovered by official clients but are not modeled by agentplugins v0.1; remove the hooks directory before installation", err,
 		)
 	}
-	manifestPath := filepath.Join(root, "plugin.json")
-	_, portable, probeErr := readRegularFile(manifestPath)
-	if probeErr != nil {
-		return domain.PackageEnvelope{}, domain.FatalLoad("plugin_manifest_read_failed", "plugin.json", "read root plugin.json", probeErr)
-	}
-	formatID := domain.FormatIDAgentPluginsV1
-	schemaVersion := "1.0.0"
-	mcpPath := filepath.Join(root, "mcp.json")
-	appPath := filepath.Join(root, ".app.json")
-	skillsPath := filepath.Join(root, "skills")
-	appDeclared, acceptUndeclaredApp := false, true
-	mcpDeclared := true
 
-	var manifest domain.PluginManifest
-	var diagnostics []domain.Diagnostic
-	var manifestDigest string
-	if portable {
-		manifest, diagnostics, manifestDigest, err = loader.loadPluginManifest(manifestPath)
-	} else {
-		formatID = domain.FormatIDOpenAIPlugin
-		schemaVersion = ""
-		var components openAIComponentPaths
-		manifest, components, diagnostics, manifestDigest, err = loader.loadOpenAIPluginManifest(filepath.Join(root, ".codex-plugin", "plugin.json"))
-		mcpDeclared = components.MCP
-		appDeclared = components.App
-		acceptUndeclaredApp = false
-		if !components.Skills {
-			skillsPath = ""
-		}
-	}
-	if err != nil {
-		return domain.PackageEnvelope{}, err
-	}
-
-	var mcp domain.MCPComponent
-	var mcpDiagnostics []domain.Diagnostic
-	if portable {
-		mcp, mcpDiagnostics = loader.loadMCP(mcpPath)
-	} else {
-		mcpPath = filepath.Join(root, ".mcp.json")
-		mcp, mcpDiagnostics = loader.loadOpenAIMCP(mcpPath, mcpDeclared)
-	}
+	mcp, mcpDiagnostics := loader.loadMCP(mcpPath, manifest.SchemaURI, input.ExecutableFiles)
 	diagnostics = append(diagnostics, mcpDiagnostics...)
-	app, appDiagnostics := loader.loadApp(appPath, appDeclared, acceptUndeclaredApp)
-	diagnostics = append(diagnostics, appDiagnostics...)
 	var skills map[string]domain.Skill
 	var invalidSkills []string
 	var invalidSkillsRoot bool
@@ -98,8 +88,6 @@ func (loader Loader) Load(ctx context.Context, input domain.LoadInput) (domain.P
 		MCPPresent:        mcp.Present,
 		MCPEnabled:        mcp.Enabled,
 		MCPServers:        sortedMCPServerNames(mcp.Servers),
-		AppPresent:        app.Present,
-		AppBindings:       sortedAppBindingNames(app.Bindings),
 		Skills:            sortedSkillNames(skills),
 		InvalidSkills:     invalidSkills,
 		InvalidSkillsRoot: invalidSkillsRoot,
@@ -120,7 +108,6 @@ func (loader Loader) Load(ctx context.Context, input domain.LoadInput) (domain.P
 		ManifestSchema:  domain.SchemaIdentity{URI: manifest.SchemaURI, Version: schemaVersion},
 		Manifest:        manifest,
 		MCP:             mcp,
-		App:             app,
 		Skills:          skills,
 		Inventory:       inventory,
 		Diagnostics:     diagnostics,

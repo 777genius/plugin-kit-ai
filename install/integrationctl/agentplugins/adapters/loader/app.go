@@ -43,7 +43,7 @@ func (loader Loader) loadApp(path string, declared, acceptUndeclared bool) (doma
 		return component, []domain.Diagnostic{appDiagnostic("app_entries_missing", ".app.json requires an apps object", nil)}
 	}
 	var entries map[string]json.RawMessage
-	if err := decodeJSON(appsRaw, &entries); err != nil || entries == nil {
+	if err := decodeRawJSONObject(appsRaw, &entries); err != nil || entries == nil {
 		return component, []domain.Diagnostic{appDiagnostic("app_entries_invalid", ".app.json apps must be an object", err)}
 	}
 	if len(entries) == 0 {
