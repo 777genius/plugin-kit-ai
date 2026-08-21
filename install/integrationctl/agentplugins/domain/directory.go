@@ -49,17 +49,10 @@ type DirectoryMinimumCapabilities struct {
 	MCP    string `json:"mcp"`
 }
 
-// DistributionKind is also used by persisted installation provenance. Keep a
-// single domain vocabulary rather than adapter-owned copies.
-type DistributionKind string
 type DistributionStatus string
 type ReleaseStatus string
 
 const (
-	DistributionUpstream        DistributionKind = "upstream"
-	DistributionCommunityBridge DistributionKind = "community_bridge"
-	DistributionCommunity       DistributionKind = "community"
-
 	DistributionActive    DistributionStatus = "active"
 	DistributionSuspended DistributionStatus = "suspended"
 
