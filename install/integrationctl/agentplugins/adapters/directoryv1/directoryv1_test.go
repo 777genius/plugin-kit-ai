@@ -40,7 +40,7 @@ func fixtureKey(id string, state KeyState, fill byte) (TrustedKey, ed25519.Priva
 func fixtureSnapshot(sequence uint64) domain.DirectorySnapshot {
 	release := domain.DirectoryRelease{Sequence: 9, PackageVersion: "not-semver", ManifestName: "tool", AgentPluginsSchema: supportedPluginSchema, PackageSource: domain.DirectorySource{Repository: "owner/repo", Revision: "0123456789012345678901234567890123456789", Path: "plugin"}, TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ManifestDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Components: []string{"mcp", "skills"}, PublishedAt: "2026-08-20T10:00:00Z"}
 	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 9, Status: domain.ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: []domain.DirectoryTarget{{Client: domain.ClientCodex, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementUnknown}, {Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}}, CurrentEvidence: []string{"schema-pass"}}
-	evidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "schema-pass", DistributionID: "owner/tool", ReleaseSequence: 9, PackageTreeDigest: release.TreeDigest, Level: "schema", Outcome: "passed", Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", Path: "evidence/schema.json", Digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}}
+	evidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "schema-pass", DistributionID: "owner/tool", ReleaseSequence: 9, PackageTreeDigest: release.TreeDigest, Level: "schema", Outcome: "passed", Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", Path: "evidence/schema.json", Digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}, Trust: &domain.DirectoryEvidenceTrust{Kind: "github_actions", Workflow: "owner/evidence/.github/workflows/directory.yml", SourceRef: "refs/heads/main", SourceDigest: "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}
 	product := domain.DirectoryProduct{SchemaVersion: 1, ID: "tool", DisplayName: "Tool", Description: "Tool description", ManifestName: "tool", Aliases: []string{"tool"}, ReservedAliases: []string{"tool"}, Categories: []string{"tools"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "required"}, DefaultDistribution: "owner/tool", Distributions: []string{"owner/tool"}}
 	distribution := domain.DirectoryDistribution{SchemaVersion: 1, ID: "owner/tool", ProductID: "tool", Kind: domain.DistributionUpstream, Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}
 	return domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: sequence, PublicationID: fmt.Sprintf("publication-%d", sequence), SourceCommit: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", GeneratedAt: "2026-08-20T11:00:00Z", ExpiresAt: "2026-09-19T11:00:00Z", Products: []domain.DirectoryProduct{product}, Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{evidence}, Revocations: []domain.DirectoryRevocation{}}
@@ -257,6 +257,89 @@ func TestSnapshotStrictSchemaOneSemantics(t *testing.T) {
 	trailing := append(encode(base), []byte(` {}`)...)
 	if _, err := ParseSnapshot(trailing); !errors.Is(err, ErrStrictJSON) {
 		t.Fatalf("trailing snapshot JSON accepted: %v", err)
+	}
+}
+
+func TestEvidenceEligibilityTrustContract(t *testing.T) {
+	encode := func(t *testing.T, value domain.DirectorySnapshot) []byte {
+		t.Helper()
+		body, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+	reviewed := &domain.DirectoryEvidenceTrust{Kind: "reviewed_external"}
+	tests := []struct {
+		name    string
+		mutate  func(*domain.DirectorySnapshot)
+		wantErr bool
+	}{
+		{name: "trusted pass"},
+		{name: "trusted fail", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed" }},
+		{name: "missing trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust = nil }, wantErr: true},
+		{name: "unknown trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust.Kind = "contributor_asserted" }, wantErr: true},
+		{name: "forged workflow repository", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Trust.Workflow = "contributor/evidence/.github/workflows/directory.yml"
+		}, wantErr: true},
+		{name: "forged source digest", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Trust.SourceDigest = "dddddddddddddddddddddddddddddddddddddddd"
+		}, wantErr: true},
+		{name: "incompatible reviewed gate", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Level = "materialization"
+			v.Evidence[0].Client = domain.ClientCodex
+			v.Evidence[0].ClientVersion = "1.0.0"
+			v.Evidence[0].InstallerVersion = "1.0.0"
+			v.Evidence[0].OS = "linux"
+			v.Evidence[0].Architecture = "amd64"
+			v.Evidence[0].ObservedAt = "2026-08-20T10:00:00Z"
+			v.Evidence[0].Trust = reviewed
+		}, wantErr: true},
+		{name: "reviewed runtime fail accepted", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Level = "runtime"
+			v.Evidence[0].Outcome = "failed"
+			v.Evidence[0].Trust = reviewed
+		}},
+		{name: "reviewed schema fail incompatible", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Level = "schema"
+			v.Evidence[0].Outcome = "failed"
+			v.Evidence[0].Client = ""
+			v.Evidence[0].ClientVersion = ""
+			v.Evidence[0].InstallerVersion = ""
+			v.Evidence[0].OS = ""
+			v.Evidence[0].Architecture = ""
+			v.Evidence[0].ObservedAt = ""
+			v.Evidence[0].Trust = reviewed
+		}, wantErr: true},
+		{name: "non-current evidence", mutate: func(v *domain.DirectorySnapshot) { v.Distributions[0].ReleasePolicies[0].CurrentEvidence = []string{} }, wantErr: true},
+		{name: "informational without trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "inconclusive"; v.Evidence[0].Trust = nil }},
+		{name: "reviewed informational accepted", mutate: func(v *domain.DirectorySnapshot) {
+			v.Evidence[0].Outcome = "inconclusive"
+			v.Evidence[0].Trust = reviewed
+		}},
+		{name: "github actions informational accepted", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "not_tested" }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			value := fixtureSnapshot(16)
+			value.Evidence[0].Level = "materialization"
+			value.Evidence[0].Client = domain.ClientCodex
+			value.Evidence[0].ClientVersion = "1.0.0"
+			value.Evidence[0].InstallerVersion = "1.0.0"
+			value.Evidence[0].OS = "linux"
+			value.Evidence[0].Architecture = "amd64"
+			value.Evidence[0].ObservedAt = "2026-08-20T10:00:00Z"
+			if tc.mutate != nil {
+				tc.mutate(&value)
+			}
+			_, err := ParseSnapshot(encode(t, value))
+			if tc.wantErr && !errors.Is(err, ErrStrictJSON) {
+				t.Fatalf("untrusted evidence accepted: %v", err)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("valid evidence rejected: %v", err)
+			}
+		})
 	}
 }
 

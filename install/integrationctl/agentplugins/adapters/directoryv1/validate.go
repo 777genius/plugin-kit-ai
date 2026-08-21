@@ -275,7 +275,7 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 		}
 		if e.Trust != nil {
 			if e.Trust.Kind == "github_actions" {
-				if !workflowPattern.MatchString(e.Trust.Workflow) || !sourceRefPattern.MatchString(e.Trust.SourceRef) || !shaPattern.MatchString(e.Trust.SourceDigest) {
+				if !workflowPattern.MatchString(e.Trust.Workflow) || !sourceRefPattern.MatchString(e.Trust.SourceRef) || !shaPattern.MatchString(e.Trust.SourceDigest) || !e.HasTrustedProvenance() {
 					return strictError("%s invalid trust", where)
 				}
 			} else if e.Trust.Kind != "reviewed_external" || e.Trust.Workflow != "" || e.Trust.SourceRef != "" || e.Trust.SourceDigest != "" {
@@ -294,6 +294,9 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 			e, ok := evidence[id]
 			if !ok || releaseKey(e.DistributionID, e.ReleaseSequence) != identity {
 				return strictError("policy references inapplicable evidence %q", id)
+			}
+			if evidenceAffectsEligibility(e) && !e.HasTrustedEligibilityProvenance() {
+				return strictError("evidence %q lacks trusted eligibility provenance", id)
 			}
 			tuple := strings.Join([]string{e.DistributionID, fmt.Sprint(e.ReleaseSequence), e.PackageTreeDigest, e.Level, string(e.Client), e.ClientVersion, e.InstallerVersion, e.DependencyIdentity, e.OS, e.Architecture}, "\x00")
 			if tuples[tuple] {
@@ -315,6 +318,10 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 		revoked[identity] = true
 	}
 	return nil
+}
+
+func evidenceAffectsEligibility(e domain.DirectoryEvidence) bool {
+	return e.Outcome == "failed" || (e.Level == "materialization" && e.Outcome == "passed")
 }
 
 func validatePolicy(p domain.DirectoryReleasePolicy) error {

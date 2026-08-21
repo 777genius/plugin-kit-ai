@@ -18,6 +18,22 @@ func testPolicy(sequence uint64, clients ...ClientID) DirectoryReleasePolicy {
 	return DirectoryReleasePolicy{ReleaseSequence: sequence, Status: ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: targets, CurrentEvidence: []string{}}
 }
 
+func testTrustedEvidence(e DirectoryEvidence) DirectoryEvidence {
+	e.Artifact = DirectoryEvidenceArtifact{
+		Repository: "owner/evidence",
+		Revision:   "abcdefabcdefabcdefabcdefabcdefabcdefabcd",
+		Path:       "evidence/result.json",
+		Digest:     "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+	}
+	e.Trust = &DirectoryEvidenceTrust{
+		Kind:         "github_actions",
+		Workflow:     "owner/evidence/.github/workflows/directory.yml",
+		SourceRef:    "refs/heads/main",
+		SourceDigest: e.Artifact.Revision,
+	}
+	return e
+}
+
 func testDistribution(id string, kind DistributionKind, releases []DirectoryRelease, policies []DirectoryReleasePolicy) DirectoryDistribution {
 	return DirectoryDistribution{SchemaVersion: 1, ID: id, ProductID: "tool", Kind: kind, Status: DistributionActive, Packager: "owner", Releases: releases, ReleasePolicies: policies}
 }
@@ -35,9 +51,9 @@ func testDirectory() DirectorySnapshot {
 		for _, target := range policy.Targets {
 			id := "passed/materialization/" + string(target.Client) + "/" + release.PackageVersion
 			policy.CurrentEvidence = append(policy.CurrentEvidence, id)
-			snapshot.Evidence = append(snapshot.Evidence, DirectoryEvidence{ID: id, DistributionID: upstreamDistribution.ID, ReleaseSequence: release.Sequence,
+			snapshot.Evidence = append(snapshot.Evidence, testTrustedEvidence(DirectoryEvidence{ID: id, DistributionID: upstreamDistribution.ID, ReleaseSequence: release.Sequence,
 				PackageTreeDigest: release.TreeDigest, Level: "materialization", Outcome: "passed", Client: target.Client,
-				InstallerVersion: "promotion-installer", ClientVersion: "promotion-client", OS: "promotion-os", Architecture: "promotion-arch"})
+				InstallerVersion: "promotion-installer", ClientVersion: "promotion-client", OS: "promotion-os", Architecture: "promotion-arch"}))
 		}
 	}
 	return snapshot
@@ -140,8 +156,8 @@ func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 	updatePolicy := testPolicy(4, ClientCodex)
 	updatePolicy.CurrentEvidence = []string{"passed/materialization/codex/4"}
 	d.ReleasePolicies = append(d.ReleasePolicies, updatePolicy)
-	s.Evidence = append(s.Evidence, DirectoryEvidence{ID: updatePolicy.CurrentEvidence[0], DistributionID: d.ID, ReleaseSequence: 4,
-		PackageTreeDigest: d.Releases[len(d.Releases)-1].TreeDigest, Level: "materialization", Outcome: "passed", Client: ClientCodex})
+	s.Evidence = append(s.Evidence, testTrustedEvidence(DirectoryEvidence{ID: updatePolicy.CurrentEvidence[0], DistributionID: d.ID, ReleaseSequence: 4,
+		PackageTreeDigest: d.Releases[len(d.Releases)-1].TreeDigest, Level: "materialization", Outcome: "passed", Client: ClientCodex}))
 	r = base
 	r.Operation = DirectoryUpdate
 	if got, err := ResolveDirectory(s, r); err != nil || got.ReleaseSequence != 4 {
@@ -206,7 +222,7 @@ func TestResolveDirectoryGates(t *testing.T) {
 		t.Fatal("installer gate")
 	}
 	p.MinimumInstallerVersion = "1.0.0"
-	s.Evidence = []DirectoryEvidence{{ID: "failed/runtime", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex, ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"}}
+	s.Evidence = []DirectoryEvidence{testTrustedEvidence(DirectoryEvidence{ID: "failed/runtime", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex, ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"})}
 	p.CurrentEvidence = []string{"failed/runtime"}
 	if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err == nil {
 		t.Fatal("evidence gate")
@@ -227,7 +243,7 @@ func TestResolveDirectoryGates(t *testing.T) {
 	s = testDirectory()
 	p = &s.Distributions[2].ReleasePolicies[1]
 	s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
-	s.Evidence = []DirectoryEvidence{{ID: "failed/schema", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "schema", Outcome: "failed"}}
+	s.Evidence = []DirectoryEvidence{testTrustedEvidence(DirectoryEvidence{ID: "failed/schema", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "schema", Outcome: "failed"})}
 	p.CurrentEvidence = []string{"failed/schema"}
 	if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err == nil {
 		t.Fatal("schema evidence gate")
@@ -244,9 +260,9 @@ func TestResolveDirectoryUpstreamMaterializationAndExactFailedTuple(t *testing.T
 	}
 	policy.CurrentEvidence = passed
 	s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
-	exactFailure := DirectoryEvidence{ID: "failed/exact", DistributionID: "owner/tool", ReleaseSequence: 3,
+	exactFailure := testTrustedEvidence(DirectoryEvidence{ID: "failed/exact", DistributionID: "owner/tool", ReleaseSequence: 3,
 		PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex,
-		ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "npx"}
+		ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "npx"})
 	s.Evidence = append(s.Evidence, exactFailure)
 	policy.CurrentEvidence = append(policy.CurrentEvidence, exactFailure.ID)
 	exact := request("owner/tool", ClientCodex)
@@ -279,13 +295,91 @@ func TestResolveDirectoryExactFailedCompatibilityLevelsBlock(t *testing.T) {
 			s := testDirectory()
 			s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
 			policy := &s.Distributions[2].ReleasePolicies[1]
-			failure := DirectoryEvidence{ID: "failed/" + level, DistributionID: "owner/tool", ReleaseSequence: 3,
+			failure := testTrustedEvidence(DirectoryEvidence{ID: "failed/" + level, DistributionID: "owner/tool", ReleaseSequence: 3,
 				PackageTreeDigest: testRelease(3, "").TreeDigest, Level: level, Outcome: "failed", Client: ClientCodex,
-				ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"}
+				ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"})
 			s.Evidence = append(s.Evidence, failure)
 			policy.CurrentEvidence = append(policy.CurrentEvidence, failure.ID)
 			if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); !errors.Is(err, ErrDirectoryIneligible) {
 				t.Fatalf("exact failed %s evidence did not block: %v", level, err)
+			}
+		})
+	}
+}
+
+func TestResolveDirectoryEligibilityRequiresTrustedEvidence(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*DirectoryReleasePolicy, *DirectoryEvidence)
+		wantOK bool
+	}{
+		{name: "trusted pass", wantOK: true},
+		{name: "missing trust", mutate: func(_ *DirectoryReleasePolicy, e *DirectoryEvidence) { e.Trust = nil }},
+		{name: "unknown trust", mutate: func(_ *DirectoryReleasePolicy, e *DirectoryEvidence) { e.Trust.Kind = "contributor_asserted" }},
+		{name: "forged workflow", mutate: func(_ *DirectoryReleasePolicy, e *DirectoryEvidence) {
+			e.Trust.Workflow = "contributor/evidence/.github/workflows/directory.yml"
+		}},
+		{name: "incompatible reviewed trust", mutate: func(_ *DirectoryReleasePolicy, e *DirectoryEvidence) {
+			e.Trust = &DirectoryEvidenceTrust{Kind: "reviewed_external"}
+		}},
+		{name: "non-current trusted evidence", mutate: func(p *DirectoryReleasePolicy, _ *DirectoryEvidence) { p.CurrentEvidence = nil }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := testDirectory()
+			s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
+			policy := &s.Distributions[2].ReleasePolicies[1]
+			evidence := evidenceByID(s, policy.CurrentEvidence[0])
+			if tc.mutate != nil {
+				tc.mutate(policy, evidence)
+			}
+			_, err := ResolveDirectory(s, request("owner/tool", ClientCodex))
+			if tc.wantOK && err != nil {
+				t.Fatalf("trusted pass did not promote release: %v", err)
+			}
+			if !tc.wantOK && !errors.Is(err, ErrDirectoryIneligible) {
+				t.Fatalf("untrusted pass promoted release: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveDirectoryOnlyTrustedCurrentFailureBlocks(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*DirectoryEvidence, *DirectoryReleasePolicy)
+		blocked bool
+	}{
+		{name: "trusted fail", blocked: true},
+		{name: "reviewed runtime fail", mutate: func(e *DirectoryEvidence, _ *DirectoryReleasePolicy) {
+			e.Trust = &DirectoryEvidenceTrust{Kind: "reviewed_external"}
+		}, blocked: true},
+		{name: "missing trust", mutate: func(e *DirectoryEvidence, _ *DirectoryReleasePolicy) { e.Trust = nil }},
+		{name: "unknown trust", mutate: func(e *DirectoryEvidence, _ *DirectoryReleasePolicy) { e.Trust.Kind = "self_declared" }},
+		{name: "forged trust", mutate: func(e *DirectoryEvidence, _ *DirectoryReleasePolicy) {
+			e.Artifact.Revision = "dddddddddddddddddddddddddddddddddddddddd"
+		}},
+		{name: "non-current fail", mutate: func(_ *DirectoryEvidence, p *DirectoryReleasePolicy) { p.CurrentEvidence = p.CurrentEvidence[:1] }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := testDirectory()
+			s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
+			policy := &s.Distributions[2].ReleasePolicies[1]
+			failure := testTrustedEvidence(DirectoryEvidence{ID: "runtime/fail", DistributionID: "owner/tool", ReleaseSequence: 3,
+				PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex,
+				ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"})
+			s.Evidence = append(s.Evidence, failure)
+			policy.CurrentEvidence = append(policy.CurrentEvidence, failure.ID)
+			if tc.mutate != nil {
+				tc.mutate(&s.Evidence[len(s.Evidence)-1], policy)
+			}
+			_, err := ResolveDirectory(s, request("owner/tool", ClientCodex))
+			if tc.blocked && !errors.Is(err, ErrDirectoryIneligible) {
+				t.Fatalf("trusted failure did not block: %v", err)
+			}
+			if !tc.blocked && err != nil {
+				t.Fatalf("untrusted or non-current failure blocked: %v", err)
 			}
 		})
 	}

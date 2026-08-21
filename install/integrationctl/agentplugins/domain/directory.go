@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -166,6 +167,51 @@ type DirectoryEvidenceArtifact struct {
 	Revision   string `json:"revision"`
 	Path       string `json:"path"`
 	Digest     string `json:"digest"`
+}
+
+var (
+	directoryEvidenceWorkflowPattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9._-]*/\.github/workflows/[A-Za-z0-9._-]+\.ya?ml$`)
+	directoryEvidenceSourceRefPattern = regexp.MustCompile(`^refs/heads/[A-Za-z0-9._/-]+$`)
+	directoryEvidenceRevisionPattern  = regexp.MustCompile(`^[0-9a-f]{40}$`)
+)
+
+// HasTrustedProvenance reports whether evidence carries one of the provenance
+// forms recognized by Directory schema 1. GitHub Actions provenance is bound to
+// the repository and revision containing the evidence artifact; an external
+// provenance is trusted only when the signed Directory publisher marked it as
+// reviewed and supplied no forged workflow fields.
+func (e DirectoryEvidence) HasTrustedProvenance() bool {
+	if e.Trust == nil {
+		return false
+	}
+	switch e.Trust.Kind {
+	case "github_actions":
+		if !directoryEvidenceWorkflowPattern.MatchString(e.Trust.Workflow) ||
+			!directoryEvidenceSourceRefPattern.MatchString(e.Trust.SourceRef) ||
+			!directoryEvidenceRevisionPattern.MatchString(e.Trust.SourceDigest) {
+			return false
+		}
+		workflowPrefix := e.Artifact.Repository + "/.github/workflows/"
+		return strings.HasPrefix(e.Trust.Workflow, workflowPrefix) && e.Artifact.Revision == e.Trust.SourceDigest
+	case "reviewed_external":
+		return e.Trust.Workflow == "" && e.Trust.SourceRef == "" && e.Trust.SourceDigest == ""
+	default:
+		return false
+	}
+}
+
+// HasTrustedEligibilityProvenance applies the schema-1 compatibility rule for
+// evidence that can block or promote a release. Static schema/materialization
+// gates require reproducible workflow provenance; client runtime gates may also
+// use evidence explicitly reviewed by the signed Directory publisher.
+func (e DirectoryEvidence) HasTrustedEligibilityProvenance() bool {
+	if !e.HasTrustedProvenance() {
+		return false
+	}
+	if e.Level == "schema" || e.Level == "materialization" {
+		return e.Trust.Kind == "github_actions"
+	}
+	return e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth"
 }
 
 type DirectoryRevocation struct {
@@ -415,7 +461,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		}
 	}
 	for _, evidenceID := range policy.CurrentEvidence {
-		if e := evidenceByID(snapshot, evidenceID); e != nil && directoryEvidenceApplies(*e, distribution, release, "", request) && e.Level == "schema" && e.Outcome == "failed" {
+		if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(*e, distribution, release, "", request) && e.Level == "schema" && e.Outcome == "failed" {
 			return &eligibilityReason{"blocking_evidence", "current trusted schema evidence failed"}
 		}
 	}
@@ -432,7 +478,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 			return &eligibilityReason{"upstream_materialization_required", "upstream release lacks current passed materialization evidence for " + string(target)}
 		}
 		for _, evidenceID := range policy.CurrentEvidence {
-			if e := evidenceByID(snapshot, evidenceID); e != nil && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
+			if e := evidenceByID(snapshot, evidenceID); e != nil && e.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
 				return &eligibilityReason{"blocking_evidence", "current trusted " + e.Level + " evidence failed for " + string(target)}
 			}
 		}
@@ -458,7 +504,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 func hasPassedUpstreamMaterialization(snapshot DirectorySnapshot, distribution DirectoryDistribution, release DirectoryRelease, policy DirectoryReleasePolicy, client ClientID) bool {
 	for _, evidenceID := range policy.CurrentEvidence {
 		evidence := evidenceByID(snapshot, evidenceID)
-		if evidence != nil && evidence.DistributionID == distribution.ID && evidence.ReleaseSequence == release.Sequence &&
+		if evidence != nil && evidence.HasTrustedEligibilityProvenance() && evidence.DistributionID == distribution.ID && evidence.ReleaseSequence == release.Sequence &&
 			evidence.PackageTreeDigest == release.TreeDigest && evidence.Client == client && evidence.Level == "materialization" && evidence.Outcome == "passed" {
 			return true
 		}
