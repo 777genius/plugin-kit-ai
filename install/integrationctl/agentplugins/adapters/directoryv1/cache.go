@@ -97,6 +97,21 @@ func (cache Cache) Store(candidate VerifiedBundle, trust TrustStore) error {
 	if err != nil {
 		return err
 	}
+	directory := filepath.Dir(cache.Path)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		return err
+	}
+	if err := os.Chmod(directory, 0700); err != nil {
+		return err
+	}
+	// The lock deliberately covers the read/compare and the complete durable
+	// replacement. Without that span, two independently verified writers can
+	// both compare against N and then publish N+2 followed by N+1.
+	unlock, err := lockCache(cache.Path + ".lock")
+	if err != nil {
+		return fmt.Errorf("lock directory cache: %w", err)
+	}
+	defer unlock()
 	if current, loadErr := cache.Load(trust); loadErr == nil && current.Snapshot.Sequence >= verified.Snapshot.Sequence {
 		if current.Snapshot.Sequence > verified.Snapshot.Sequence {
 			return ErrCacheRollback
@@ -112,13 +127,6 @@ func (cache Cache) Store(candidate VerifiedBundle, trust TrustStore) error {
 		return err
 	}
 	body = append(body, '\n')
-	directory := filepath.Dir(cache.Path)
-	if err := os.MkdirAll(directory, 0700); err != nil {
-		return err
-	}
-	if err := os.Chmod(directory, 0700); err != nil {
-		return err
-	}
 	var nonce [8]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return err

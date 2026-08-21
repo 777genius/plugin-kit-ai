@@ -106,6 +106,9 @@ func TestPlannerUsesNativeCursorTargetAndDoesNotExposeItInJSON(t *testing.T) {
 	if plan.ActivePath != want || plan.Status != domain.PlanManualActivationRequired || plan.PackageMode != domain.PackageNative {
 		t.Fatalf("plan = %+v, want active %s", plan, want)
 	}
+	if plan.DeclaredName != "demo" || plan.NativeRegistryRoot != config {
+		t.Fatalf("native identity inputs = name %q root %q", plan.DeclaredName, plan.NativeRegistryRoot)
+	}
 	body, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +133,7 @@ func TestPlannerPromotesVSCodeToReadyWhenCopilotIsDetected(t *testing.T) {
 		ManagedRoot: t.TempDir(),
 		Detected: map[domain.ClientID]domain.DetectedClient{
 			domain.ClientCopilot: {
-				ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ExecutablePath: "/test/bin/copilot",
+				ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: "/test/home/.copilot", ExecutablePath: "/test/bin/copilot",
 			},
 		},
 	}
@@ -140,6 +143,9 @@ func TestPlannerPromotesVSCodeToReadyWhenCopilotIsDetected(t *testing.T) {
 	}
 	if bridged.Status != domain.PlanReady || bridged.PackageMode != domain.PackagePrepared || bridged.Activation != domain.ActivationPrepared {
 		t.Fatalf("bridged plan = %+v", bridged)
+	}
+	if bridged.NativeRegistryExecutable != "/test/bin/copilot" || bridged.NativeRegistryRoot != "/test/home/.copilot" {
+		t.Fatalf("shared native registry = executable %q root %q", bridged.NativeRegistryExecutable, bridged.NativeRegistryRoot)
 	}
 }
 

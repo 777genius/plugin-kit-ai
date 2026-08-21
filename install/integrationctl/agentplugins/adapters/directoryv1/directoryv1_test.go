@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -426,6 +427,100 @@ func TestCacheAtomicPermissionsPreservationAndOfflineExpiry(t *testing.T) {
 	client.Now = func() time.Time { return time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC) }
 	if _, err := client.Load(context.Background(), 0); !errors.Is(err, ErrClockSkew) {
 		t.Fatalf("clock skew: %v", err)
+	}
+}
+
+func TestCacheConcurrentStoresCannotPublishLowerSequenceLast(t *testing.T) {
+	key, private := fixtureKey("fixture-key", KeyCurrent, 12)
+	trust := TrustStore{Keys: []TrustedKey{key}}
+	bundle := func(sequence uint64) VerifiedBundle {
+		snapshot, envelope, _ := signedFixture(t, sequence, key, private)
+		verified, err := VerifyBundle(snapshot, envelope, trust)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return verified
+	}
+	cache := Cache{Path: filepath.Join(t.TempDir(), "lkg.json")}
+	initial, lowerBundle, higherBundle := bundle(40), bundle(41), bundle(42)
+	if err := cache.Store(initial, trust); err != nil {
+		t.Fatal(err)
+	}
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	lower := cache
+	lower.BeforeRename = func(string) error {
+		close(entered)
+		<-release
+		return nil
+	}
+	var wait sync.WaitGroup
+	wait.Add(2)
+	errorsByWriter := make(chan error, 2)
+	go func() {
+		defer wait.Done()
+		errorsByWriter <- lower.Store(lowerBundle, trust)
+	}()
+	<-entered
+	go func() {
+		defer wait.Done()
+		errorsByWriter <- cache.Store(higherBundle, trust)
+	}()
+	close(release)
+	wait.Wait()
+	close(errorsByWriter)
+	for err := range errorsByWriter {
+		if err != nil {
+			t.Fatalf("concurrent store: %v", err)
+		}
+	}
+	loaded, err := cache.Load(trust)
+	if err != nil || loaded.Snapshot.Sequence != 42 {
+		t.Fatalf("final cache sequence = %d, err = %v", loaded.Snapshot.Sequence, err)
+	}
+}
+
+func TestCacheConcurrentLowerStoreRechecksAfterHigherCommit(t *testing.T) {
+	key, private := fixtureKey("fixture-key", KeyCurrent, 13)
+	trust := TrustStore{Keys: []TrustedKey{key}}
+	bundle := func(sequence uint64) VerifiedBundle {
+		snapshot, envelope, _ := signedFixture(t, sequence, key, private)
+		verified, err := VerifyBundle(snapshot, envelope, trust)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return verified
+	}
+	cache := Cache{Path: filepath.Join(t.TempDir(), "lkg.json")}
+	initial, lowerBundle, higherBundle := bundle(50), bundle(51), bundle(52)
+	if err := cache.Store(initial, trust); err != nil {
+		t.Fatal(err)
+	}
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	higher := cache
+	higher.BeforeRename = func(string) error {
+		close(entered)
+		<-release
+		return nil
+	}
+	higherErr := make(chan error, 1)
+	go func() { higherErr <- higher.Store(higherBundle, trust) }()
+	<-entered
+	lowerErr := make(chan error, 1)
+	go func() { lowerErr <- cache.Store(lowerBundle, trust) }()
+	close(release)
+	if err := <-higherErr; err != nil {
+		t.Fatalf("higher store: %v", err)
+	}
+	if err := <-lowerErr; !errors.Is(err, ErrCacheRollback) {
+		t.Fatalf("lower store after higher commit = %v", err)
+	}
+	loaded, err := cache.Load(trust)
+	if err != nil || loaded.Snapshot.Sequence != 52 {
+		t.Fatalf("final cache sequence = %d, err = %v", loaded.Snapshot.Sequence, err)
 	}
 }
 

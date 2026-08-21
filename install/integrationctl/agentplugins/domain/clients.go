@@ -93,8 +93,14 @@ type DeliveryPlan struct {
 	Policy             PolicyState         `json:"policy"`
 	Verification       VerificationState   `json:"verification"`
 	PhysicalArtifactID string              `json:"physical_artifact_id"`
-	Components         []ComponentDecision `json:"components,omitempty"`
-	UserActions        []string            `json:"user_actions,omitempty"`
+	// DeclaredName and NativeRegistry* are preflight-only identity inputs. They
+	// are deliberately excluded from public output because registry locators
+	// can reveal local user paths.
+	DeclaredName             string              `json:"-"`
+	NativeRegistryRoot       string              `json:"-"`
+	NativeRegistryExecutable string              `json:"-"`
+	Components               []ComponentDecision `json:"components,omitempty"`
+	UserActions              []string            `json:"user_actions,omitempty"`
 	// LocalActions can contain operational paths and are rendered only in
 	// human-readable output. They must never be emitted by the public JSON API.
 	LocalActions []string     `json:"-"`

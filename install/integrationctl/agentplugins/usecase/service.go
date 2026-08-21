@@ -281,6 +281,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, previousClient, "update"); err != nil {
 			return result, err
 		}
+		if err := service.observeNativeIdentity(ctx, input.Client, plan, managedBinding); err != nil {
+			return result, err
+		}
 		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) {
 			if lifecycleConverged(previousClient) {
 				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)

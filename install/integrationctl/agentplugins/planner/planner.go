@@ -46,7 +46,9 @@ func (planner Planner) Plan(
 		Policy:             domain.PolicyAllowed,
 		Verification:       domain.VerificationPackageValid,
 		PhysicalArtifactID: physicalArtifactID,
+		DeclaredName:       envelope.Manifest.Name,
 	}
+	planner.setNativeRegistry(&plan, client)
 	if client.Status != domain.DetectionDetected && client.ClientID != domain.ClientChatGPT {
 		plan.Status = domain.PlanUnsupported
 		plan.Activation = domain.ActivationFailed
@@ -140,6 +142,16 @@ func (planner Planner) Plan(
 		}
 	}
 	return plan, nil
+}
+
+func (planner Planner) setNativeRegistry(plan *domain.DeliveryPlan, client domain.DetectedClient) {
+	plan.NativeRegistryRoot = client.ConfigRoot
+	plan.NativeRegistryExecutable = client.ExecutablePath
+	if client.ClientID == domain.ClientVSCode {
+		copilot := planner.Detected[domain.ClientCopilot]
+		plan.NativeRegistryRoot = copilot.ConfigRoot
+		plan.NativeRegistryExecutable = copilot.ExecutablePath
+	}
 }
 
 func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.CatalogEvidence) {
