@@ -113,23 +113,33 @@ func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 	}
 	s.Revocations = nil
 	d.ReleasePolicies[1].Status = ReleaseSuperseded
-	r = base
-	r.Operation = DirectoryReproduce
-	if _, err := ResolveDirectory(s, r); err != nil {
-		t.Fatalf("reproduce: %v", err)
-	}
-	r.Operation = DirectoryRepair
-	if _, err := ResolveDirectory(s, r); err == nil {
-		t.Fatal("superseded repair accepted")
+	for _, op := range []DirectoryOperation{DirectoryInstall, DirectoryNewTarget, DirectoryRepair, DirectoryRematerialize, DirectoryReproduce} {
+		r = base
+		r.Operation = op
+		if got, err := ResolveDirectory(s, r); err != nil || got.ReleaseSequence != recorded.ReleaseSequence {
+			t.Fatalf("exact recorded superseded %s: %+v %v", op, got, err)
+		}
 	}
 	d.ReleasePolicies[1].Status = ReleaseActive
 	d.Status = DistributionSuspended
-	for _, op := range []DirectoryOperation{DirectoryInstall, DirectoryNewTarget, DirectoryUpdate} {
+	for _, op := range []DirectoryOperation{DirectoryInstall, DirectoryNewTarget} {
 		r.Operation = op
-		if _, err := ResolveDirectory(s, r); err == nil {
-			t.Fatalf("suspended %s accepted", op)
+		if got, err := ResolveDirectory(s, r); err != nil || got.ReleaseSequence != recorded.ReleaseSequence {
+			t.Fatalf("suspended exact recorded %s: %+v %v", op, got, err)
 		}
 	}
+	r.Operation = DirectoryUpdate
+	if _, err := ResolveDirectory(s, r); err == nil {
+		t.Fatal("suspended update accepted")
+	}
+	r.Recorded = nil
+	for _, op := range []DirectoryOperation{DirectoryInstall, DirectoryNewTarget} {
+		r.Operation = op
+		if _, err := ResolveDirectory(s, r); err == nil {
+			t.Fatalf("suspended %s created unrelated exposure", op)
+		}
+	}
+	r.Recorded = recorded
 	r.Operation = DirectoryRepair
 	if _, err := ResolveDirectory(s, r); err != nil {
 		t.Fatalf("suspended repair: %v", err)

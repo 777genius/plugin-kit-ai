@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
@@ -66,5 +69,28 @@ func TestHardenedHTTPClientRedirectPolicy(t *testing.T) {
 	downgrade, _ := http.NewRequest(http.MethodGet, "http://directory.example/registry/latest.json", nil)
 	if err := check(downgrade, []*http.Request{original}); err == nil {
 		t.Fatal("HTTPS downgrade redirect was accepted")
+	}
+}
+
+func TestInvalidScopeAndTargetDoNotCreateDataRoot(t *testing.T) {
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+	t.Setenv("HOME", t.TempDir())
+	for name, args := range map[string][]string{
+		"project-scope":  {"agentplugins", "add", "demo", "--scope", "project"},
+		"invalid-target": {"agentplugins", "add", "demo", "--target", "not-a-client"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dataRoot := filepath.Join(t.TempDir(), "must-not-exist")
+			t.Setenv("AGENTPLUGINS_HOME", dataRoot)
+			os.Args = args
+			err := run()
+			if err == nil || (name == "project-scope" && !strings.Contains(err.Error(), "user scope")) {
+				t.Fatalf("invalid invocation error = %v", err)
+			}
+			if _, statErr := os.Lstat(dataRoot); !os.IsNotExist(statErr) {
+				t.Fatalf("invalid invocation mutated data root: %v", statErr)
+			}
+		})
 	}
 }

@@ -2,6 +2,7 @@ package sourceacquisition
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,6 +126,57 @@ func TestGitEnvironmentDoesNotForwardUserCredentialsOrConfiguration(t *testing.T
 			t.Fatalf("isolated Git environment is missing %q: %v", required, environment)
 		}
 	}
+}
+
+func TestAcquireGitHubRedactsTemporaryPathsAndRawGitFailure(t *testing.T) {
+	tempRoot := t.TempDir()
+	revision := strings.Repeat("a", 40)
+	runner := &failGitOperationRunner{operation: "fetch", raw: "fatal: credential rejected in " + filepath.Join(tempRoot, "agentplugins-git-secret", "repository")}
+	acquirer := Acquirer{TempRoot: tempRoot, Runner: runner, URLForRepo: func(string) string { return "https://secret.invalid/token/repository.git" }}
+	_, err := acquirer.AcquireGitHub(context.Background(), "example/plugin", revision, "plugin")
+	if err == nil {
+		t.Fatal("raw Git failure was accepted")
+	}
+	message := err.Error()
+	for _, required := range []string{`repository "example/plugin"`, revision, "fetch immutable revision"} {
+		if !strings.Contains(message, required) {
+			t.Fatalf("public error omitted %q: %s", required, message)
+		}
+	}
+	for _, secret := range []string{tempRoot, "agentplugins-git-secret", "fatal:", "credential rejected", "secret.invalid", "token"} {
+		if strings.Contains(message, secret) {
+			t.Fatalf("public error leaked %q: %s", secret, message)
+		}
+	}
+}
+
+func TestAcquireLocalRedactsInternalSnapshotPath(t *testing.T) {
+	source := t.TempDir()
+	if err := os.WriteFile(filepath.Join(source, "plugin.json"), []byte(`{"name":"demo"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	privateTempRoot := filepath.Join(t.TempDir(), "missing", "private-snapshots")
+	_, err := (Acquirer{TempRoot: privateTempRoot}).AcquireLocal(context.Background(), source)
+	if err == nil || !strings.Contains(err.Error(), "snapshot package content failed") {
+		t.Fatalf("local snapshot error = %v", err)
+	}
+	if strings.Contains(err.Error(), privateTempRoot) || strings.Contains(err.Error(), "private-snapshots") {
+		t.Fatalf("local snapshot error leaked internal path: %v", err)
+	}
+}
+
+type failGitOperationRunner struct {
+	operation string
+	raw       string
+}
+
+func (runner *failGitOperationRunner) Run(_ context.Context, command Command) ([]byte, error) {
+	for _, argument := range command.Args {
+		if argument == runner.operation {
+			return nil, errors.New(runner.raw)
+		}
+	}
+	return nil, nil
 }
 
 type panicRunner struct{}

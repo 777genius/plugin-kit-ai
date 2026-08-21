@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -231,5 +232,40 @@ func TestDirectLocalAndFullSHASourcesBypassDirectory(t *testing.T) {
 				t.Fatalf("direct source received Directory provenance: %+v", state)
 			}
 		})
+	}
+}
+
+func TestExistingRelativeDirectoryDoesNotOverrideShortNameForAddOrSwitch(t *testing.T) {
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	t.Chdir(filepath.Dir(plugin))
+	shortName := filepath.Base(plugin)
+	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
+	fixture.app.SourceAcquirer = counter
+
+	if _, _, err := fixture.execute(false, "add", shortName, "--target", "cursor"); err == nil || !strings.Contains(err.Error(), "signed Directory dependencies are unavailable") {
+		t.Fatalf("existing relative directory changed add selector meaning: %v", err)
+	}
+	if counter.calls != 0 {
+		t.Fatalf("bare short name acquired local directory %d time(s)", counter.calls)
+	}
+	if _, _, err := fixture.execute(false, "add", "./"+shortName, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "switch", "demo", "--to", shortName); err == nil || !strings.Contains(err.Error(), "short name") {
+		t.Fatalf("existing relative directory changed switch selector meaning: %v", err)
+	}
+}
+
+func TestExplicitLocalPathRecognizesOnlyPortableExplicitAndAbsoluteWindowsForms(t *testing.T) {
+	for _, value := range []string{"./plugin", "../plugin", `.\plugin`, `..\plugin`, `/plugin`, `C:\plugin`, `d:/plugin`, `\\server\share\plugin`} {
+		if !explicitLocalPath(value) {
+			t.Errorf("explicitLocalPath(%q) = false", value)
+		}
+	}
+	for _, value := range []string{"plugin", "existing-plugin", `C:plugin`, `owner\\plugin`, `\\server`} {
+		if explicitLocalPath(value) {
+			t.Errorf("explicitLocalPath(%q) = true", value)
+		}
 	}
 }

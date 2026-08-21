@@ -120,20 +120,21 @@ func (acquirer Acquirer) AcquireGitHubVerified(ctx context.Context, repository, 
 func (acquirer Acquirer) AcquireLocal(ctx context.Context, sourceRoot string) (domain.PackageSnapshot, error) {
 	absolute, err := filepath.Abs(sourceRoot)
 	if err != nil {
-		return domain.PackageSnapshot{}, fmt.Errorf("resolve local package: %w", err)
+		return domain.PackageSnapshot{}, fmt.Errorf("resolve local package source failed")
 	}
 	source := domain.SourceIdentity{RequestedSource: sourceRoot, CanonicalSource: filepath.Clean(absolute), SourceBindingHint: "direct-local"}
 	snapshot, err := acquirer.digester().Snapshot(ctx, absolute, source)
-	if err == nil {
-		snapshot.AcquiredAt = acquirer.now()
+	if err != nil {
+		return domain.PackageSnapshot{}, fmt.Errorf("acquire local package: snapshot package content failed")
 	}
-	return snapshot, err
+	snapshot.AcquiredAt = acquirer.now()
+	return snapshot, nil
 }
 
 func (acquirer Acquirer) acquireGit(ctx context.Context, url, repository, revision, subpath string) (domain.PackageSnapshot, error) {
 	tempRoot, err := os.MkdirTemp(acquirer.TempRoot, "agentplugins-git-*")
 	if err != nil {
-		return domain.PackageSnapshot{}, fmt.Errorf("create Git acquisition root: %w", err)
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "create temporary workspace")
 	}
 	defer os.RemoveAll(tempRoot)
 	repoRoot := filepath.Join(tempRoot, "repository")
@@ -141,25 +142,25 @@ func (acquirer Acquirer) acquireGit(ctx context.Context, url, repository, revisi
 		return acquirer.runner().Run(ctx, Command{Dir: tempRoot, Args: args})
 	}
 	if _, err := run("init", "--quiet", repoRoot); err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "initialize repository")
 	}
 	if _, err := run("-C", repoRoot, "remote", "add", "origin", url); err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "configure repository remote")
 	}
 	for _, setting := range [][]string{{"core.autocrlf", "false"}, {"core.filemode", "true"}, {"core.symlinks", "true"}, {"fetch.recurseSubmodules", "false"}} {
 		if _, err := run("-C", repoRoot, "config", setting[0], setting[1]); err != nil {
-			return domain.PackageSnapshot{}, err
+			return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "configure isolated repository")
 		}
 	}
 	if _, err := run("-C", repoRoot, "fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags", "--no-recurse-submodules", "origin", revision); err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "fetch immutable revision")
 	}
 	resolved, err := run("-C", repoRoot, "rev-parse", "--verify", "FETCH_HEAD^{commit}")
 	if err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "verify fetched revision")
 	}
 	if strings.TrimSpace(string(resolved)) != revision {
-		return domain.PackageSnapshot{}, fmt.Errorf("fetched commit %q does not match requested immutable revision %q", strings.TrimSpace(string(resolved)), revision)
+		return domain.PackageSnapshot{}, fmt.Errorf("acquire GitHub repository %q at revision %s: fetched revision did not match the requested immutable revision", repository, revision)
 	}
 	pathspec := "."
 	if subpath != "" {
@@ -167,25 +168,25 @@ func (acquirer Acquirer) acquireGit(ctx context.Context, url, repository, revisi
 	}
 	tree, err := run("-C", repoRoot, "ls-tree", "-r", "-z", revision, "--", pathspec)
 	if err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "inspect package tree")
 	}
 	if len(tree) == 0 {
-		return domain.PackageSnapshot{}, fmt.Errorf("plugin subpath %q does not exist at revision %s", pathspec, revision)
+		return domain.PackageSnapshot{}, fmt.Errorf("acquire GitHub repository %q at revision %s: inspect package tree: plugin subpath %q does not exist", repository, revision, pathspec)
 	}
 	executableFiles, err := executablePathsFromTree(tree, subpath)
 	if err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, fmt.Errorf("acquire GitHub repository %q at revision %s: inspect package tree: %s", repository, revision, publicTreeError(err))
 	}
 	if subpath != "" {
 		if _, err := run("-C", repoRoot, "sparse-checkout", "init", "--cone"); err != nil {
-			return domain.PackageSnapshot{}, err
+			return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "initialize sparse checkout")
 		}
 		if _, err := run("-C", repoRoot, "sparse-checkout", "set", "--cone", "--", subpath); err != nil {
-			return domain.PackageSnapshot{}, err
+			return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "configure sparse checkout")
 		}
 	}
 	if _, err := run("-C", repoRoot, "checkout", "--quiet", "--detach", revision); err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "checkout immutable revision")
 	}
 	packageRoot := repoRoot
 	if subpath != "" {
@@ -193,7 +194,7 @@ func (acquirer Acquirer) acquireGit(ctx context.Context, url, repository, revisi
 	}
 	info, err := os.Lstat(packageRoot)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return domain.PackageSnapshot{}, fmt.Errorf("plugin subpath %q is not a real directory", pathspec)
+		return domain.PackageSnapshot{}, fmt.Errorf("acquire GitHub repository %q at revision %s: plugin subpath %q is not a real directory", repository, revision, pathspec)
 	}
 	requestedSource := repository + "@" + revision
 	canonicalSource := "https://github.com/" + requestedSource
@@ -209,10 +210,26 @@ func (acquirer Acquirer) acquireGit(ctx context.Context, url, repository, revisi
 	}
 	snapshot, err := acquirer.digester().SnapshotWithExecutables(ctx, packageRoot, source, executableFiles)
 	if err != nil {
-		return domain.PackageSnapshot{}, err
+		return domain.PackageSnapshot{}, gitAcquisitionFailure(repository, revision, "snapshot package content")
 	}
 	snapshot.AcquiredAt = acquirer.now()
 	return snapshot, nil
+}
+
+func gitAcquisitionFailure(repository, revision, operation string) error {
+	return fmt.Errorf("acquire GitHub repository %q at revision %s: %s failed", repository, revision, operation)
+}
+
+func publicTreeError(err error) string {
+	message := err.Error()
+	switch {
+	case strings.Contains(message, "submodule"):
+		return "Git submodule content is unsupported in plugin subpath"
+	case strings.Contains(message, "outside plugin subpath"):
+		return "Git tree contained content outside the plugin subpath"
+	default:
+		return "Git returned an invalid package tree"
+	}
 }
 
 func executablePathsFromTree(tree []byte, subpath string) ([]string, error) {

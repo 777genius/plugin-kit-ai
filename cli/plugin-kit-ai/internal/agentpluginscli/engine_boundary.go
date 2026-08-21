@@ -38,7 +38,7 @@ func newSwitchCommand(app App, opts *options) *cobra.Command {
 			if strings.TrimSpace(destination) == "" {
 				return fmt.Errorf("switch requires --to with a qualified distribution or exact source")
 			}
-			if isShortName(strings.TrimSpace(destination)) && !localDirectoryExists(strings.TrimSpace(destination)) {
+			if isShortName(strings.TrimSpace(destination)) {
 				return fmt.Errorf("switch --to requires a qualified distribution ID or exact local/full-SHA source; a short name could select a changing default")
 			}
 			return runSwitch(cmd.Context(), cmd, app, opts, args[0], destination)

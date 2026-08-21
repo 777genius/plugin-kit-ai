@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -1869,6 +1870,52 @@ func TestMigrateStateIsExplicitPlanFirstAndPathRedacted(t *testing.T) {
 	}
 	if len(state.Installations) != 1 || state.Installations[0].Package.LoaderKind != domain.LoaderKindLegacy {
 		t.Fatalf("migrated state = %+v", state)
+	}
+}
+
+func TestMigrateStateExplicitlyMigratesAuthoritativeSchemaTwoAndThree(t *testing.T) {
+	for _, schema := range []int{domain.LegacyStateSchemaVersion, domain.PreviousStateSchemaVersion} {
+		t.Run(fmt.Sprintf("schema-%d", schema), func(t *testing.T) {
+			fixture := newCLIFixture(t, nil)
+			if err := os.MkdirAll(filepath.Dir(fixture.store.Path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			original := []byte(fmt.Sprintf("{\"schema_version\":%d,\"installations\":[]}\n", schema))
+			if err := os.WriteFile(fixture.store.Path, original, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			migrator := statemigration.Migrator{
+				LegacyPath: filepath.Join(fixture.root, "missing-legacy-state.json"), V2Store: fixture.store,
+				Lock: fixture.app.Lifecycle.Lock, RecoverJournal: fixture.app.Lifecycle.Kernel.Recover,
+			}
+			fixture.app.StateMigrator = &migrator
+			stdout, _, err := fixture.execute(false, "migrate-state", "--dry-run", "--format", "json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(stdout, fmt.Sprintf(`"source_schema":%d`, schema)) {
+				t.Fatalf("authoritative plan omitted source schema: %s", stdout)
+			}
+			afterPlan, err := os.ReadFile(fixture.store.Path)
+			if err != nil || !bytes.Equal(afterPlan, original) {
+				t.Fatalf("dry-run rewrote authoritative state: %q, %v", afterPlan, err)
+			}
+			if _, _, err := fixture.execute(false, "migrate-state", "--format", "json"); err != nil {
+				t.Fatal(err)
+			}
+			body, err := os.ReadFile(fixture.store.Path)
+			if err != nil || !strings.Contains(string(body), fmt.Sprintf(`"schema_version": %d`, domain.StateSchemaVersion)) {
+				t.Fatalf("authoritative state was not fixed forward: %s, %v", body, err)
+			}
+			backups, err := filepath.Glob(fixture.store.Path + fmt.Sprintf(".schema%d.backup-agentplugins-*", schema))
+			if err != nil || len(backups) != 1 {
+				t.Fatalf("authoritative backup = %v, %v", backups, err)
+			}
+			backup, err := os.ReadFile(backups[0])
+			if err != nil || !bytes.Equal(backup, original) {
+				t.Fatalf("backup does not preserve reviewed bytes: %q, %v", backup, err)
+			}
+		})
 	}
 }
 

@@ -315,9 +315,6 @@ func orderedDistributions(snapshot DirectorySnapshot, product DirectoryProduct) 
 }
 
 func chooseDirectoryRelease(snapshot DirectorySnapshot, product DirectoryProduct, distribution DirectoryDistribution, request DirectoryResolveRequest) (*DirectoryRelease, []eligibilityReason) {
-	if distribution.Status == DistributionSuspended && request.Operation != DirectoryRemove && request.Operation != DirectoryRepair && request.Operation != DirectoryRematerialize && request.Operation != DirectoryReproduce {
-		return nil, []eligibilityReason{{"distribution_suspended", "distribution is suspended for this operation"}}
-	}
 	policies := map[uint64]DirectoryReleasePolicy{}
 	for _, p := range distribution.ReleasePolicies {
 		policies[p.ReleaseSequence] = p
@@ -341,6 +338,11 @@ func chooseDirectoryRelease(snapshot DirectorySnapshot, product DirectoryProduct
 		if request.Operation == DirectoryUpdate && request.Recorded != nil && release.Sequence <= request.Recorded.ReleaseSequence {
 			continue
 		}
+		if distribution.Status == DistributionSuspended && request.Operation != DirectoryRemove && request.Operation != DirectoryRepair && request.Operation != DirectoryRematerialize && request.Operation != DirectoryReproduce &&
+			!(exactRecorded && (request.Operation == DirectoryInstall || request.Operation == DirectoryNewTarget)) {
+			reasons = append(reasons, eligibilityReason{"distribution_suspended", "distribution is suspended for this operation"})
+			continue
+		}
 		if request.Operation == DirectoryRemove && exactRecorded {
 			return release, nil
 		}
@@ -348,7 +350,7 @@ func chooseDirectoryRelease(snapshot DirectorySnapshot, product DirectoryProduct
 			reasons = append(reasons, eligibilityReason{"release_revoked", fmt.Sprintf("release %d is revoked", release.Sequence)})
 			continue
 		}
-		if policy.Status == ReleaseSuperseded && !(exactRecorded && (request.Operation == DirectoryReproduce || request.Operation == DirectoryRemove)) {
+		if policy.Status == ReleaseSuperseded && !exactRecorded {
 			reasons = append(reasons, eligibilityReason{"release_superseded", fmt.Sprintf("release %d is historical only", release.Sequence)})
 			continue
 		}

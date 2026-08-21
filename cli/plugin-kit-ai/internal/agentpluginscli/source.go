@@ -93,7 +93,7 @@ func (app App) loadPackageFor(ctx context.Context, raw string, request packageRe
 	if requested == "" {
 		return loadedPackage{}, fmt.Errorf("plugin name or source is required")
 	}
-	if localDirectoryExists(requested) || explicitLocalPath(requested) {
+	if explicitLocalPath(requested) {
 		return app.acquireLocal(ctx, requested)
 	}
 	if match := exactGitPattern.FindStringSubmatch(requested); match != nil {
@@ -415,10 +415,19 @@ func isShortName(value string) bool {
 }
 
 func explicitLocalPath(value string) bool {
-	return filepath.IsAbs(value) || strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") || strings.HasPrefix(value, `.\`) || strings.HasPrefix(value, `..\`)
-}
-
-func localDirectoryExists(value string) bool {
-	info, err := os.Stat(value)
-	return err == nil && info.IsDir()
+	if filepath.IsAbs(value) || strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") || strings.HasPrefix(value, `.\`) || strings.HasPrefix(value, `..\`) {
+		return true
+	}
+	// filepath.IsAbs follows the host OS. Recognize only genuinely absolute
+	// Windows spellings as well so a source copied between shells is stable;
+	// drive-relative forms such as C:plugin intentionally remain selectors.
+	if len(value) >= 3 && ((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) && value[1] == ':' && (value[2] == '\\' || value[2] == '/') {
+		return true
+	}
+	if !strings.HasPrefix(value, `\\`) {
+		return false
+	}
+	unc := strings.TrimPrefix(value, `\\`)
+	server, share, ok := strings.Cut(unc, `\`)
+	return ok && server != "" && strings.Trim(share, `\`) != ""
 }

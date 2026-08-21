@@ -56,9 +56,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dataRoot, 0o700); err != nil {
-		return fmt.Errorf("create agentplugins data directory: %w", err)
-	}
 	registry, err := specregistry.New()
 	if err != nil {
 		return err
@@ -97,7 +94,7 @@ func run() error {
 		LegacyStateLock:     locks.FileLock{BaseDir: filepath.Join(home, ".plugin-kit-ai", "locks")},
 		Detector:            clientdetect.NewOS(home),
 		DirectoryClient:     directoryClient,
-		SourceAcquirer:      sourceacquisition.Acquirer{TempRoot: dataRoot},
+		SourceAcquirer:      lazySourceAcquirer{dataRoot: dataRoot, acquirer: sourceacquisition.Acquirer{TempRoot: dataRoot}},
 		PackageLoader:       packageLoader,
 		NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
 		Lifecycle:           lifecycle,
@@ -109,6 +106,42 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return agentpluginscli.NewRoot(app).ExecuteContext(ctx)
+}
+
+// lazySourceAcquirer creates the private temporary root only once a validated
+// command actually begins source acquisition. CLI construction and rejected
+// flags/scopes therefore leave AGENTPLUGINS_HOME untouched.
+type lazySourceAcquirer struct {
+	dataRoot string
+	acquirer sourceacquisition.Acquirer
+}
+
+func (acquirer lazySourceAcquirer) prepare() error {
+	if err := os.MkdirAll(acquirer.dataRoot, 0o700); err != nil {
+		return fmt.Errorf("create agentplugins data directory: %w", err)
+	}
+	return nil
+}
+
+func (acquirer lazySourceAcquirer) AcquireLocal(ctx context.Context, source string) (domain.PackageSnapshot, error) {
+	if err := acquirer.prepare(); err != nil {
+		return domain.PackageSnapshot{}, err
+	}
+	return acquirer.acquirer.AcquireLocal(ctx, source)
+}
+
+func (acquirer lazySourceAcquirer) AcquireGitHub(ctx context.Context, repository, revision, subpath string) (domain.PackageSnapshot, error) {
+	if err := acquirer.prepare(); err != nil {
+		return domain.PackageSnapshot{}, err
+	}
+	return acquirer.acquirer.AcquireGitHub(ctx, repository, revision, subpath)
+}
+
+func (acquirer lazySourceAcquirer) AcquireGitHubVerified(ctx context.Context, repository, revision, subpath, digest string) (domain.PackageSnapshot, error) {
+	if err := acquirer.prepare(); err != nil {
+		return domain.PackageSnapshot{}, err
+	}
+	return acquirer.acquirer.AcquireGitHubVerified(ctx, repository, revision, subpath, digest)
 }
 
 func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
