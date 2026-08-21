@@ -22,6 +22,7 @@ import (
 
 type Stager struct {
 	SnapshotBuilder packagesnapshot.Builder
+	PluginDataRoot  string
 }
 
 func (stager Stager) Discard(ctx context.Context, delivery domain.StagedDelivery) error {
@@ -95,6 +96,34 @@ func (stager Stager) Stage(
 	operationID string,
 	hints domain.CompatibilityHints,
 ) (delivery domain.StagedDelivery, err error) {
+	return stager.stage(ctx, envelope, plan, operationID, hints, stager.pluginDataPath(plan))
+}
+
+// StageWithPluginData binds projections to the exact owned locator recorded by
+// lifecycle state. It is an optional extension to ports.PackageStager so older
+// non-stdio test doubles remain source-compatible.
+func (stager Stager) StageWithPluginData(
+	ctx context.Context,
+	envelope domain.PackageEnvelope,
+	plan domain.DeliveryPlan,
+	operationID string,
+	hints domain.CompatibilityHints,
+	pluginDataPath string,
+) (delivery domain.StagedDelivery, err error) {
+	if strings.TrimSpace(pluginDataPath) == "" || !filepath.IsAbs(pluginDataPath) {
+		return domain.StagedDelivery{}, fmt.Errorf("owned PLUGIN_DATA path must be absolute")
+	}
+	return stager.stage(ctx, envelope, plan, operationID, hints, filepath.Clean(pluginDataPath))
+}
+
+func (stager Stager) stage(
+	ctx context.Context,
+	envelope domain.PackageEnvelope,
+	plan domain.DeliveryPlan,
+	operationID string,
+	hints domain.CompatibilityHints,
+	pluginDataPath string,
+) (delivery domain.StagedDelivery, err error) {
 	if err := ctx.Err(); err != nil {
 		return domain.StagedDelivery{}, err
 	}
@@ -108,6 +137,9 @@ func (stager Stager) Stage(
 		return domain.StagedDelivery{}, fmt.Errorf("invalid staging operation id: %w", err)
 	}
 	if err := validatePlanPaths(plan); err != nil {
+		return domain.StagedDelivery{}, err
+	}
+	if err := validateReservedStdioEnvironment(envelope); err != nil {
 		return domain.StagedDelivery{}, err
 	}
 	if err := os.MkdirAll(plan.TargetRoot, 0o700); err != nil {
@@ -140,11 +172,11 @@ func (stager Stager) Stage(
 	if plan.PackageMode == domain.PackageProjection {
 		switch plan.ClientID {
 		case domain.ClientCodex:
-			if err := projectOpenAI(stagingPath, envelope, plan, hints); err != nil {
+			if err := projectOpenAI(stagingPath, envelope, plan, hints, pluginDataPath); err != nil {
 				return domain.StagedDelivery{}, err
 			}
 		case domain.ClientChatGPT:
-			if err := projectChatGPT(stagingPath, envelope, plan, hints); err != nil {
+			if err := projectChatGPT(stagingPath, envelope, plan, hints, pluginDataPath); err != nil {
 				return domain.StagedDelivery{}, err
 			}
 		}
@@ -185,6 +217,39 @@ func (stager Stager) Stage(
 		ArtifactDigest: artifactDigest,
 		NativeObjects:  objects,
 	}, nil
+}
+
+func validateReservedStdioEnvironment(envelope domain.PackageEnvelope) error {
+	for name, server := range envelope.MCP.Servers {
+		if server.Type != "stdio" {
+			continue
+		}
+		switch env := server.Decoded["env"].(type) {
+		case map[string]any:
+			if _, ok := env["PLUGIN_ROOT"]; ok {
+				return fmt.Errorf("stdio MCP server %s defines reserved PLUGIN_ROOT", name)
+			}
+			if _, ok := env["PLUGIN_DATA"]; ok {
+				return fmt.Errorf("stdio MCP server %s defines reserved PLUGIN_DATA", name)
+			}
+		case map[string]string:
+			if _, ok := env["PLUGIN_ROOT"]; ok {
+				return fmt.Errorf("stdio MCP server %s defines reserved PLUGIN_ROOT", name)
+			}
+			if _, ok := env["PLUGIN_DATA"]; ok {
+				return fmt.Errorf("stdio MCP server %s defines reserved PLUGIN_DATA", name)
+			}
+		}
+	}
+	return nil
+}
+
+func (stager Stager) pluginDataPath(plan domain.DeliveryPlan) string {
+	base := stager.PluginDataRoot
+	if strings.TrimSpace(base) == "" {
+		base = filepath.Join(plan.TargetAnchor, "plugin-data")
+	}
+	return filepath.Join(base, plan.PhysicalArtifactID)
 }
 
 func validatePlanPaths(plan domain.DeliveryPlan) error {
@@ -328,7 +393,7 @@ func writeSanitizedExtensions(root string, plan domain.DeliveryPlan) error {
 	return writeJSON(path, document)
 }
 
-func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints) error {
+func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints, dataPath string) error {
 	manifest, err := projectedOpenAIManifest(envelope)
 	if err != nil {
 		return err
@@ -363,10 +428,10 @@ func projectOpenAI(root string, envelope domain.PackageEnvelope, plan domain.Del
 	if err := writeJSON(manifestPath, manifest); err != nil {
 		return fmt.Errorf("write OpenAI compatibility manifest: %w", err)
 	}
-	return projectOpenAIMCP(root, envelope, serverNames, hints)
+	return projectOpenAIMCP(root, envelope, serverNames, hints, plan.ActivePath, dataPath)
 }
 
-func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames []string, hints domain.CompatibilityHints) error {
+func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames []string, hints domain.CompatibilityHints, pluginRoot, dataPath string) error {
 	if len(serverNames) == 0 {
 		if err := os.Remove(filepath.Join(root, ".mcp.json")); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove empty OpenAI MCP projection: %w", err)
@@ -380,6 +445,9 @@ func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames 
 		switch server.Type {
 		case "stdio":
 			delete(config, "type")
+			if err := applyStdioDataContract(config, pluginRoot, dataPath); err != nil {
+				return fmt.Errorf("stdio MCP server %s: %w", name, err)
+			}
 		case "streamable-http":
 			config["type"] = "http"
 		case "sse":
@@ -400,7 +468,7 @@ func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames 
 	return writeJSON(filepath.Join(root, ".mcp.json"), map[string]any{"mcpServers": servers})
 }
 
-func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints) error {
+func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints, dataPath string) error {
 	manifest, err := projectedOpenAIManifest(envelope)
 	if err != nil {
 		return err
@@ -424,7 +492,7 @@ func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.De
 	if err := writeJSON(filepath.Join(root, ".codex-plugin", "plugin.json"), manifest); err != nil {
 		return fmt.Errorf("write ChatGPT plugin manifest: %w", err)
 	}
-	if err := projectOpenAIMCP(root, envelope, serverNames, hints); err != nil {
+	if err := projectOpenAIMCP(root, envelope, serverNames, hints, plan.ActivePath, dataPath); err != nil {
 		return err
 	}
 	for _, portableManifest := range []string{"plugin.json", "mcp.json"} {
@@ -489,6 +557,72 @@ func cloneObject(source map[string]any) map[string]any {
 		result[key] = value
 	}
 	return result
+}
+
+func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) error {
+	expand := func(value string) string {
+		value = strings.ReplaceAll(value, "${PLUGIN_ROOT}", pluginRoot)
+		return strings.ReplaceAll(value, "${PLUGIN_DATA}", dataPath)
+	}
+	switch env := config["env"].(type) {
+	case map[string]any:
+		if _, exists := env["PLUGIN_ROOT"]; exists {
+			return fmt.Errorf("PLUGIN_ROOT is reserved and client-managed")
+		}
+		if _, exists := env["PLUGIN_DATA"]; exists {
+			return fmt.Errorf("PLUGIN_DATA is reserved and client-managed")
+		}
+		for key, value := range env {
+			if text, ok := value.(string); ok {
+				env[key] = expand(text)
+			}
+		}
+		env["PLUGIN_ROOT"], env["PLUGIN_DATA"] = pluginRoot, dataPath
+	case map[string]string:
+		if _, exists := env["PLUGIN_ROOT"]; exists {
+			return fmt.Errorf("PLUGIN_ROOT is reserved and client-managed")
+		}
+		if _, exists := env["PLUGIN_DATA"]; exists {
+			return fmt.Errorf("PLUGIN_DATA is reserved and client-managed")
+		}
+		for key, value := range env {
+			env[key] = expand(value)
+		}
+		env["PLUGIN_ROOT"], env["PLUGIN_DATA"] = pluginRoot, dataPath
+	case nil:
+		config["env"] = map[string]any{"PLUGIN_ROOT": pluginRoot, "PLUGIN_DATA": dataPath}
+	default:
+		return fmt.Errorf("stdio env must be an object")
+	}
+	switch args := config["args"].(type) {
+	case []any:
+		for index, value := range args {
+			if text, ok := value.(string); ok {
+				args[index] = expand(text)
+			}
+		}
+	case []string:
+		for index := range args {
+			args[index] = expand(args[index])
+		}
+	}
+	if cwd, ok := config["cwd"].(string); ok && cwd != "" {
+		cwd = expand(cwd)
+		if !filepath.IsAbs(cwd) {
+			cwd = filepath.Join(pluginRoot, cwd)
+		}
+		cwd = filepath.Clean(cwd)
+		if !pathContainedBy(pluginRoot, cwd) && !pathContainedBy(dataPath, cwd) {
+			return fmt.Errorf("stdio cwd escapes PLUGIN_ROOT and PLUGIN_DATA")
+		}
+		config["cwd"] = cwd
+	}
+	return nil
+}
+
+func pathContainedBy(root, candidate string) bool {
+	relative, err := filepath.Rel(filepath.Clean(root), filepath.Clean(candidate))
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func writeJSON(path string, value any) error {

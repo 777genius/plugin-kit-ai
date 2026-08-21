@@ -16,6 +16,7 @@ type BindingChangeMode string
 const (
 	BindingChangeRebind        BindingChangeMode = "rebind"
 	BindingChangeMigrateFormat BindingChangeMode = "migrate_format"
+	BindingChangeSwitch        BindingChangeMode = "switch"
 )
 
 type ProvenanceSummary struct {
@@ -78,6 +79,72 @@ func (service Service) MigrateFormat(ctx context.Context, input BindingChangeInp
 	return service.changeBinding(ctx, input, BindingChangeMigrateFormat)
 }
 
+// SwitchRetained changes source only for a data_retained installation. Active
+// installations must use SwitchGroup so every physical binding participates in
+// the staged group transaction.
+func (service Service) SwitchRetained(ctx context.Context, input BindingChangeInput, origin domain.OriginMode, directory *domain.DirectoryOrigin) (BindingChangeResult, error) {
+	if service.StateStore == nil {
+		return BindingChangeResult{}, fmt.Errorf("state store is required")
+	}
+	if origin == "" && directory != nil {
+		origin = domain.OriginModeDirectory
+	}
+	if err := validateOperationOrigin(origin, directory); err != nil {
+		return BindingChangeResult{}, err
+	}
+	release, err := service.beginMutation(ctx, false, input.Confirmed)
+	if err != nil {
+		return BindingChangeResult{}, err
+	}
+	if release != nil {
+		defer func() { _ = release() }()
+	}
+	state, err := service.StateStore.Load()
+	if err != nil {
+		return BindingChangeResult{}, err
+	}
+	index, installation, err := findInstallation(state, input.Selector)
+	if err != nil {
+		return BindingChangeResult{}, err
+	}
+	plan := buildBindingChangePlan(BindingChangeSwitch, installation, input.Envelope)
+	plan.PluginDataDecision = "preserved_with_cross_distribution_compatibility_warning"
+	result := BindingChangeResult{Plan: plan}
+	if !installation.DataRetained || len(installation.Clients) != 0 {
+		return result, fmt.Errorf("active installation switch requires SwitchGroup")
+	}
+	if installation.DeclaredName != input.Envelope.Manifest.Name {
+		return result, fmt.Errorf("switch must preserve manifest identity")
+	}
+	if installation.OriginMode == domain.OriginModeDirectory && normalizedOriginMode(origin) == domain.OriginModeDirectory && installation.Directory != nil && directory != nil && installation.Directory.ProductID != directory.ProductID {
+		return result, fmt.Errorf("switch must remain within one Directory product")
+	}
+	if !input.Confirmed {
+		result.RequiresConfirmation = true
+		return result, nil
+	}
+	sourceID := domain.ComputeSourceBindingID(input.Envelope.Source)
+	for otherIndex, other := range state.Installations {
+		if otherIndex != index && other.Source.SourceBindingID == sourceID {
+			return result, fmt.Errorf("new source is already bound to installation %s", other.InstallationID)
+		}
+	}
+	installation.Source = domain.SourceBinding{SourceBindingID: sourceID, RequestedSource: input.Envelope.Source.RequestedSource,
+		CanonicalSource: input.Envelope.Source.CanonicalSource, Repository: input.Envelope.Source.Repository, PackageSubpath: input.Envelope.Source.PackageSubpath,
+		ResolvedRevision: input.Envelope.Source.ResolvedRevision, TreeDigest: input.Envelope.TreeDigest}
+	installation.Package = domain.PackageBinding{LoaderKind: input.Envelope.LoaderKind, FormatID: input.Envelope.FormatID, SchemaURI: input.Envelope.SchemaURI,
+		DeclaredName: input.Envelope.Manifest.Name, Version: input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest, Inventory: input.Envelope.Inventory}
+	installation.OriginMode = normalizedOriginMode(origin)
+	installation.Directory = cloneDirectoryOrigin(directory)
+	installation.UpdatedAt = service.now().Format(time.RFC3339Nano)
+	state.Installations[index] = installation
+	if err := service.StateStore.Save(state); err != nil {
+		return result, err
+	}
+	result.Mutated = true
+	return result, nil
+}
+
 func (service Service) changeBinding(ctx context.Context, input BindingChangeInput, mode BindingChangeMode) (BindingChangeResult, error) {
 	if err := ctx.Err(); err != nil {
 		return BindingChangeResult{}, err
@@ -105,6 +172,9 @@ func (service Service) changeBinding(ctx context.Context, input BindingChangeInp
 	}
 	if mode == BindingChangeRebind && installation.Package.LoaderKind != input.Envelope.LoaderKind {
 		return BindingChangeResult{}, fmt.Errorf("rebind cannot change package format; use migrate-format")
+	}
+	if mode == BindingChangeRebind && !installation.NeedsRebind {
+		return BindingChangeResult{}, fmt.Errorf("rebind is only for broken provenance recovery; use switch to change a healthy source")
 	}
 	if mode == BindingChangeMigrateFormat && installation.Package.LoaderKind == input.Envelope.LoaderKind && installation.Package.FormatID == input.Envelope.FormatID {
 		return BindingChangeResult{}, fmt.Errorf("installation already uses Agent Plugins 1.0; use rebind")

@@ -45,14 +45,36 @@ type DirectoryMutation struct {
 }
 
 type DirectoryRemoval struct {
-	OperationID     string
-	InstallationID  string
-	ClientBindingID string
-	Sequence        int
-	OwnedBase       string
-	ActivePath      string
-	BeforeDigest    string
-	Verify          func(context.Context, string) error
+	OperationGroupID string
+	OperationID      string
+	InstallationID   string
+	ClientBindingID  string
+	Sequence         int
+	OwnedBase        string
+	ActivePath       string
+	BeforeDigest     string
+	Verify           func(context.Context, string) error
+}
+
+// DirectoryGroup is one commit decision for a fully preflighted set of
+// physical backends. Every directory is activated and verified before state is
+// made authoritative. A failure before that decision rolls all activated
+// directories back in reverse order.
+type DirectoryGroup struct {
+	OperationGroupID string
+	Mutations        []DirectoryMutation
+	DesiredState     domain.StateFileV2
+}
+
+type DirectoryRemovalGroup struct {
+	OperationGroupID string
+	Removals         []DirectoryRemoval
+	DesiredState     domain.StateFileV2
+}
+
+type appliedGroupMutation struct {
+	receipt dirswap.Receipt
+	state   domain.MutationReceipt
 }
 
 type Kernel struct {
@@ -63,6 +85,9 @@ type Kernel struct {
 func (kernel Kernel) ApplyDirectory(ctx context.Context, mutation DirectoryMutation) (domain.MutationReceipt, error) {
 	if kernel.StateStore == nil {
 		return domain.MutationReceipt{}, fmt.Errorf("transaction state store is required")
+	}
+	if err := requireMutationReady(kernel.StateStore); err != nil {
+		return domain.MutationReceipt{}, err
 	}
 	if mutation.Sequence < 1 {
 		return domain.MutationReceipt{}, fmt.Errorf("mutation sequence must be positive")
@@ -101,16 +126,17 @@ func (kernel Kernel) ApplyDirectory(ctx context.Context, mutation DirectoryMutat
 		}
 	}
 	receipt := domain.MutationReceipt{
-		OperationID:     mutation.OperationID,
-		Sequence:        mutation.Sequence,
-		MutationType:    "directory_swap",
-		ClientBindingID: mutation.ClientBindingID,
-		ActivePath:      directoryReceipt.ActivePath,
-		StagingPath:     directoryReceipt.StagingPath,
-		BackupPath:      directoryReceipt.BackupPath,
-		BeforeDigest:    mutation.BeforeDigest,
-		AfterDigest:     mutation.AfterDigest,
-		Phase:           ReceiptPhaseStateCommitted,
+		OperationID:      mutation.OperationID,
+		OperationGroupID: mutation.OperationID,
+		Sequence:         mutation.Sequence,
+		MutationType:     "directory_swap",
+		ClientBindingID:  mutation.ClientBindingID,
+		ActivePath:       directoryReceipt.ActivePath,
+		StagingPath:      directoryReceipt.StagingPath,
+		BackupPath:       directoryReceipt.BackupPath,
+		BeforeDigest:     mutation.BeforeDigest,
+		AfterDigest:      mutation.AfterDigest,
+		Phase:            ReceiptPhaseStateCommitted,
 	}
 	client.Receipts = append(client.Receipts, receipt)
 	client.NativeObjects = append([]domain.NativeObjectOwnership(nil), mutation.NativeObjects...)
@@ -120,6 +146,7 @@ func (kernel Kernel) ApplyDirectory(ctx context.Context, mutation DirectoryMutat
 	client.Policy = mutation.Policy
 	client.Verification = mutation.Verification
 	installation := state.Installations[installationIndex]
+	installation.OperationGroupID = mutation.OperationID
 	installation.Clients[mutation.ClientBindingID] = client
 	state.Installations[installationIndex] = installation
 	if oldState, err := kernel.persistCommitDecision(state, beforeStateJSON); err != nil {
@@ -141,9 +168,165 @@ func (kernel Kernel) ApplyDirectory(ctx context.Context, mutation DirectoryMutat
 	return receipt, nil
 }
 
+func (kernel Kernel) ApplyDirectoryGroup(ctx context.Context, group DirectoryGroup) ([]domain.MutationReceipt, error) {
+	if kernel.StateStore == nil {
+		return nil, fmt.Errorf("transaction state store is required")
+	}
+	if err := requireMutationReady(kernel.StateStore); err != nil {
+		return nil, err
+	}
+	if len(group.Mutations) == 0 {
+		return nil, fmt.Errorf("directory transaction group is empty")
+	}
+	if group.OperationGroupID == "" {
+		return nil, fmt.Errorf("operation group id is required")
+	}
+	before, err := kernel.StateStore.Load()
+	if err != nil {
+		return nil, fmt.Errorf("load state before directory transaction group: %w", err)
+	}
+	beforeJSON, err := marshalComparableState(before)
+	if err != nil {
+		return nil, err
+	}
+	if operationGroupIDExists(before, group.OperationGroupID) {
+		return nil, fmt.Errorf("operation group id %q was already used", group.OperationGroupID)
+	}
+	state := group.DesiredState
+	seenOperations := map[string]struct{}{}
+	seenPaths := map[string]struct{}{}
+	for index, mutation := range group.Mutations {
+		if mutation.Sequence < 1 || mutation.OperationID == "" {
+			return nil, fmt.Errorf("mutation %d has incomplete identity", index)
+		}
+		if _, duplicate := seenOperations[mutation.OperationID]; duplicate || operationIDExists(before, mutation.OperationID) {
+			return nil, fmt.Errorf("mutation operation id %q was already used", mutation.OperationID)
+		}
+		seenOperations[mutation.OperationID] = struct{}{}
+		if _, duplicate := seenPaths[mutation.ActivePath]; duplicate {
+			return nil, fmt.Errorf("physical backend %q occurs more than once in operation group", mutation.ActivePath)
+		}
+		seenPaths[mutation.ActivePath] = struct{}{}
+		if _, _, err := loadClientFromState(state, mutation.InstallationID, mutation.ClientBindingID); err != nil {
+			return nil, err
+		}
+	}
+	seenOperations, seenPaths = map[string]struct{}{}, map[string]struct{}{}
+	applied := make([]appliedGroupMutation, 0, len(group.Mutations))
+	rollback := func() error {
+		var rollbackErr error
+		for index := len(applied) - 1; index >= 0; index-- {
+			if err := kernel.Directory.Rollback(context.Background(), applied[index].receipt); err != nil && rollbackErr == nil {
+				rollbackErr = err
+			}
+		}
+		return rollbackErr
+	}
+	for index, mutation := range group.Mutations {
+		if mutation.Sequence < 1 || mutation.OperationID == "" {
+			return nil, fmt.Errorf("mutation %d has incomplete identity", index)
+		}
+		if _, duplicate := seenOperations[mutation.OperationID]; duplicate || operationIDExists(before, mutation.OperationID) {
+			return nil, fmt.Errorf("mutation operation id %q was already used", mutation.OperationID)
+		}
+		seenOperations[mutation.OperationID] = struct{}{}
+		if _, duplicate := seenPaths[mutation.ActivePath]; duplicate {
+			return nil, fmt.Errorf("physical backend %q occurs more than once in operation group", mutation.ActivePath)
+		}
+		seenPaths[mutation.ActivePath] = struct{}{}
+		installationIndex, client, err := loadClientFromState(state, mutation.InstallationID, mutation.ClientBindingID)
+		if err != nil {
+			return nil, err
+		}
+		directoryReceipt, err := kernel.Directory.Apply(ctx, dirswap.Input{
+			OperationID: mutation.OperationID, ClientBindingID: mutation.ClientBindingID, Sequence: mutation.Sequence,
+			OwnedBase: mutation.OwnedBase, ActivePath: mutation.ActivePath, StagingPath: mutation.StagingPath,
+		})
+		if err != nil {
+			if directoryReceipt.OperationID != "" {
+				applied = append(applied, appliedGroupMutation{receipt: directoryReceipt})
+			}
+			if rollbackErr := rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("apply grouped directory mutation: %v; rollback failed: %w", err, rollbackErr)
+			}
+			return nil, err
+		}
+		applied = append(applied, appliedGroupMutation{receipt: directoryReceipt})
+		if mutation.Verify != nil {
+			if err := mutation.Verify(ctx, directoryReceipt.ActivePath); err != nil {
+				if rollbackErr := rollback(); rollbackErr != nil {
+					return nil, fmt.Errorf("verify grouped directory mutation: %v; rollback failed: %w", err, rollbackErr)
+				}
+				return nil, fmt.Errorf("verify grouped directory mutation: %w", err)
+			}
+		}
+		receipt := domain.MutationReceipt{OperationID: mutation.OperationID, OperationGroupID: group.OperationGroupID,
+			Sequence: mutation.Sequence, MutationType: "directory_swap", ClientBindingID: mutation.ClientBindingID,
+			ActivePath: directoryReceipt.ActivePath, StagingPath: directoryReceipt.StagingPath, BackupPath: directoryReceipt.BackupPath,
+			BeforeDigest: mutation.BeforeDigest, AfterDigest: mutation.AfterDigest, Phase: ReceiptPhaseStateCommitted}
+		client.Receipts = append(client.Receipts, receipt)
+		client.NativeObjects = append([]domain.NativeObjectOwnership(nil), mutation.NativeObjects...)
+		client.Materialization, client.Activation, client.Authentication = domain.MaterializationMaterialized, mutation.Activation, mutation.Authentication
+		client.Policy, client.Verification = mutation.Policy, mutation.Verification
+		installation := state.Installations[installationIndex]
+		installation.OperationGroupID = group.OperationGroupID
+		installation.Clients[mutation.ClientBindingID] = client
+		state.Installations[installationIndex] = installation
+		applied[len(applied)-1].state = receipt
+	}
+	if oldState, err := kernel.persistCommitDecision(state, beforeJSON); err != nil {
+		if oldState {
+			if rollbackErr := rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("commit grouped transaction state: %v; rollback failed: %w", err, rollbackErr)
+			}
+		}
+		if !oldState {
+			return groupReceipts(applied), fmt.Errorf("commit grouped transaction state: %w", err)
+		}
+		return nil, fmt.Errorf("commit grouped transaction state: %w", err)
+	}
+	for _, item := range applied {
+		if err := kernel.Directory.Commit(ctx, item.receipt); err != nil {
+			return groupReceipts(applied), fmt.Errorf("finalize grouped directory mutation %s: %w", item.state.OperationID, err)
+		}
+	}
+	for installationIndex, installation := range state.Installations {
+		for clientKey, client := range installation.Clients {
+			for receiptIndex := range client.Receipts {
+				if client.Receipts[receiptIndex].OperationGroupID == group.OperationGroupID {
+					client.Receipts[receiptIndex].Phase = ReceiptPhaseCommitted
+				}
+			}
+			installation.Clients[clientKey] = client
+		}
+		state.Installations[installationIndex] = installation
+	}
+	if err := kernel.StateStore.Save(state); err != nil {
+		return groupReceipts(applied), fmt.Errorf("finalize grouped receipt state: %w", err)
+	}
+	result := groupReceipts(applied)
+	for index := range result {
+		result[index].Phase = ReceiptPhaseCommitted
+	}
+	return result, nil
+}
+
+func groupReceipts(items []appliedGroupMutation) []domain.MutationReceipt {
+	result := make([]domain.MutationReceipt, 0, len(items))
+	for _, item := range items {
+		if item.state.OperationID != "" {
+			result = append(result, item.state)
+		}
+	}
+	return result
+}
+
 func (kernel Kernel) RemoveDirectory(ctx context.Context, removal DirectoryRemoval) (domain.MutationReceipt, error) {
 	if kernel.StateStore == nil {
 		return domain.MutationReceipt{}, fmt.Errorf("transaction state store is required")
+	}
+	if err := requireMutationReady(kernel.StateStore); err != nil {
+		return domain.MutationReceipt{}, err
 	}
 	if removal.Sequence < 1 {
 		return domain.MutationReceipt{}, fmt.Errorf("removal sequence must be positive")
@@ -175,14 +358,15 @@ func (kernel Kernel) RemoveDirectory(ctx context.Context, removal DirectoryRemov
 		return domain.MutationReceipt{}, err
 	}
 	receipt := domain.MutationReceipt{
-		OperationID:     removal.OperationID,
-		Sequence:        removal.Sequence,
-		MutationType:    "directory_remove",
-		ClientBindingID: removal.ClientBindingID,
-		ActivePath:      directoryReceipt.ActivePath,
-		BackupPath:      directoryReceipt.BackupPath,
-		BeforeDigest:    removal.BeforeDigest,
-		Phase:           ReceiptPhaseStateCommitted,
+		OperationID:      removal.OperationID,
+		OperationGroupID: firstNonEmpty(removal.OperationGroupID, removal.OperationID),
+		Sequence:         removal.Sequence,
+		MutationType:     "directory_remove",
+		ClientBindingID:  removal.ClientBindingID,
+		ActivePath:       directoryReceipt.ActivePath,
+		BackupPath:       directoryReceipt.BackupPath,
+		BeforeDigest:     removal.BeforeDigest,
+		Phase:            ReceiptPhaseStateCommitted,
 	}
 	client.Receipts = append(client.Receipts, receipt)
 	client.NativeObjects = nil
@@ -192,6 +376,7 @@ func (kernel Kernel) RemoveDirectory(ctx context.Context, removal DirectoryRemov
 	client.Policy = domain.PolicyAllowed
 	client.Verification = domain.VerificationNotRun
 	installation := state.Installations[installationIndex]
+	installation.OperationGroupID = receipt.OperationGroupID
 	installation.Clients[removal.ClientBindingID] = client
 	state.Installations[installationIndex] = installation
 	if oldState, err := kernel.persistCommitDecision(state, beforeStateJSON); err != nil {
@@ -211,6 +396,137 @@ func (kernel Kernel) RemoveDirectory(ctx context.Context, removal DirectoryRemov
 		return receipt, fmt.Errorf("finalize removal receipt state: %w", err)
 	}
 	return receipt, nil
+}
+
+func (kernel Kernel) RemoveDirectoryGroup(ctx context.Context, group DirectoryRemovalGroup) ([]domain.MutationReceipt, error) {
+	if kernel.StateStore == nil || len(group.Removals) == 0 || group.OperationGroupID == "" {
+		return nil, fmt.Errorf("complete directory removal group is required")
+	}
+	if err := requireMutationReady(kernel.StateStore); err != nil {
+		return nil, err
+	}
+	before, err := kernel.StateStore.Load()
+	if err != nil {
+		return nil, err
+	}
+	beforeJSON, err := marshalComparableState(before)
+	if err != nil {
+		return nil, err
+	}
+	if operationGroupIDExists(before, group.OperationGroupID) {
+		return nil, fmt.Errorf("operation group id %q was already used", group.OperationGroupID)
+	}
+	state := group.DesiredState
+	applied := make([]appliedGroupMutation, 0, len(group.Removals))
+	seenOperations, seenPaths := map[string]struct{}{}, map[string]struct{}{}
+	for index, removal := range group.Removals {
+		if removal.OperationID == "" || removal.Sequence < 1 {
+			return nil, fmt.Errorf("removal %d has incomplete identity", index)
+		}
+		if _, ok := seenOperations[removal.OperationID]; ok || operationIDExists(before, removal.OperationID) {
+			return nil, fmt.Errorf("mutation operation id %q was already used", removal.OperationID)
+		}
+		seenOperations[removal.OperationID] = struct{}{}
+		if _, ok := seenPaths[removal.ActivePath]; ok {
+			return nil, fmt.Errorf("physical backend %q occurs more than once in removal group", removal.ActivePath)
+		}
+		seenPaths[removal.ActivePath] = struct{}{}
+		if _, _, err := loadClientFromState(state, removal.InstallationID, removal.ClientBindingID); err != nil {
+			return nil, err
+		}
+		if removal.Verify != nil {
+			if err := removal.Verify(ctx, removal.ActivePath); err != nil {
+				return nil, fmt.Errorf("verify directory before grouped removal: %w", err)
+			}
+		}
+	}
+	seenOperations, seenPaths = map[string]struct{}{}, map[string]struct{}{}
+	rollback := func() error {
+		var result error
+		for index := len(applied) - 1; index >= 0; index-- {
+			if err := kernel.Directory.Rollback(context.Background(), applied[index].receipt); err != nil && result == nil {
+				result = err
+			}
+		}
+		return result
+	}
+	for index, removal := range group.Removals {
+		if removal.OperationID == "" || removal.Sequence < 1 {
+			return nil, fmt.Errorf("removal %d has incomplete identity", index)
+		}
+		if _, ok := seenOperations[removal.OperationID]; ok || operationIDExists(before, removal.OperationID) {
+			return nil, fmt.Errorf("mutation operation id %q was already used", removal.OperationID)
+		}
+		seenOperations[removal.OperationID] = struct{}{}
+		if _, ok := seenPaths[removal.ActivePath]; ok {
+			return nil, fmt.Errorf("physical backend %q occurs more than once in removal group", removal.ActivePath)
+		}
+		seenPaths[removal.ActivePath] = struct{}{}
+		installationIndex, client, err := loadClientFromState(state, removal.InstallationID, removal.ClientBindingID)
+		if err != nil {
+			return nil, err
+		}
+		directoryReceipt, err := kernel.Directory.Apply(ctx, dirswap.Input{OperationID: removal.OperationID, ClientBindingID: removal.ClientBindingID,
+			Sequence: removal.Sequence, OwnedBase: removal.OwnedBase, ActivePath: removal.ActivePath, Remove: true})
+		if err != nil {
+			if directoryReceipt.OperationID != "" {
+				applied = append(applied, appliedGroupMutation{receipt: directoryReceipt})
+			}
+			if rollbackErr := rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("apply grouped removal: %v; rollback failed: %w", err, rollbackErr)
+			}
+			return nil, err
+		}
+		receipt := domain.MutationReceipt{OperationID: removal.OperationID, OperationGroupID: group.OperationGroupID,
+			Sequence: removal.Sequence, MutationType: "directory_remove", ClientBindingID: removal.ClientBindingID,
+			ActivePath: directoryReceipt.ActivePath, BackupPath: directoryReceipt.BackupPath, BeforeDigest: removal.BeforeDigest,
+			Phase: ReceiptPhaseStateCommitted}
+		client.Receipts = append(client.Receipts, receipt)
+		client.NativeObjects = nil
+		client.Materialization, client.Activation = domain.MaterializationAbsent, domain.ActivationNotRequired
+		client.Authentication, client.Policy = domain.AuthenticationNotRequired, domain.PolicyAllowed
+		client.Verification = domain.VerificationNotRun
+		installation := state.Installations[installationIndex]
+		installation.OperationGroupID = group.OperationGroupID
+		installation.Clients[removal.ClientBindingID] = client
+		state.Installations[installationIndex] = installation
+		applied = append(applied, appliedGroupMutation{receipt: directoryReceipt, state: receipt})
+	}
+	if old, err := kernel.persistCommitDecision(state, beforeJSON); err != nil {
+		if old {
+			if rollbackErr := rollback(); rollbackErr != nil {
+				return nil, fmt.Errorf("commit grouped removal: %v; rollback failed: %w", err, rollbackErr)
+			}
+		}
+		if !old {
+			return groupReceipts(applied), fmt.Errorf("commit grouped removal state: %w", err)
+		}
+		return nil, fmt.Errorf("commit grouped removal state: %w", err)
+	}
+	for _, item := range applied {
+		if err := kernel.Directory.Commit(ctx, item.receipt); err != nil {
+			return groupReceipts(applied), fmt.Errorf("finalize grouped removal %s: %w", item.state.OperationID, err)
+		}
+	}
+	for installationIndex, installation := range state.Installations {
+		for clientKey, client := range installation.Clients {
+			for receiptIndex := range client.Receipts {
+				if client.Receipts[receiptIndex].OperationGroupID == group.OperationGroupID {
+					client.Receipts[receiptIndex].Phase = ReceiptPhaseCommitted
+				}
+			}
+			installation.Clients[clientKey] = client
+		}
+		state.Installations[installationIndex] = installation
+	}
+	if err := kernel.StateStore.Save(state); err != nil {
+		return groupReceipts(applied), fmt.Errorf("finalize grouped removal receipt state: %w", err)
+	}
+	result := groupReceipts(applied)
+	for index := range result {
+		result[index].Phase = ReceiptPhaseCommitted
+	}
+	return result, nil
 }
 
 func (kernel Kernel) Recover(ctx context.Context) error {
@@ -403,4 +719,36 @@ func operationIDExists(state domain.StateFileV2, operationID string) bool {
 		}
 	}
 	return false
+}
+
+func requireMutationReady(store StateStore) error {
+	if guard, ok := store.(interface{ RequireMutationReady() error }); ok {
+		return guard.RequireMutationReady()
+	}
+	return nil
+}
+
+func operationGroupIDExists(state domain.StateFileV2, operationGroupID string) bool {
+	for _, installation := range state.Installations {
+		if installation.OperationGroupID == operationGroupID {
+			return true
+		}
+		for _, client := range installation.Clients {
+			for _, receipt := range client.Receipts {
+				if receipt.OperationGroupID == operationGroupID {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

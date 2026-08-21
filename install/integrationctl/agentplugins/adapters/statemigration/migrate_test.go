@@ -1,14 +1,17 @@
 package statemigration
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statev2"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 )
 
 func TestMigrateCopiesLegacyStateAndPreservesLegacyLoaderBinding(t *testing.T) {
@@ -84,6 +87,83 @@ func TestMigrateCopiesLegacyStateAndPreservesLegacyLoaderBinding(t *testing.T) {
 			t.Fatalf("client states = %+v", client)
 		}
 	}
+}
+
+func TestMigrateCurrentV2IsDigestCheckedBackedUpAndFixedForward(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	path := filepath.Join(root, "state-v2.json")
+	original := `{"schema_version":2,"installations":[{"installation_id":"00000000-0000-4000-8000-000000000001","declared_name":"demo","source":{"source_binding_id":"src_demo","requested_source":"./demo","canonical_source":"/fixtures/demo","resolved_revision":"local","tree_digest":"sha256:tree"},"package":{"loader_kind":"agent_plugins","format_id":"agent-plugins/1.0.0","schema_uri":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","declared_name":"demo","manifest_digest":"sha256:manifest","inventory":{}},"clients":{},"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z"}]}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	lock := &migrationTestLock{}
+	migrator := Migrator{V2Store: statev2.Store{Path: path}, Lock: lock,
+		RecoverJournal: func(context.Context) error { return nil },
+		Now:            func() time.Time { return time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC) }}
+	plan, err := migrator.PlanCurrentV2()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.SourceSchema != 2 || plan.Installations != 1 {
+		t.Fatalf("plan = %+v", plan)
+	}
+	if _, err := migrator.MigrateCurrentV2(context.Background(), "sha256:stale"); err == nil {
+		t.Fatal("stale reviewed digest was accepted")
+	}
+	report, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := os.ReadFile(report.BackupPath)
+	if err != nil || string(backup) != original {
+		t.Fatalf("backup mismatch: %v", err)
+	}
+	state, err := migrator.V2Store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Installations[0].OriginMode != domain.OriginModeDirect || state.Installations[0].Directory != nil {
+		t.Fatalf("direct provenance changed: %+v", state.Installations[0])
+	}
+	if lock.acquired < 2 {
+		t.Fatalf("migration lock acquisitions = %d", lock.acquired)
+	}
+	if _, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest); err == nil {
+		t.Fatal("current schema was rewritten instead of fixed-forward refusal")
+	}
+}
+
+func TestMigrateCurrentV2RefusesWithoutSuccessfulJournalRecovery(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "state-v2.json")
+	original := `{"schema_version":2,"installations":[]}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrator := Migrator{V2Store: statev2.Store{Path: path}, Lock: &migrationTestLock{}}
+	plan, err := migrator.PlanCurrentV2()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest); err == nil || !strings.Contains(err.Error(), "journal recovery check") {
+		t.Fatalf("missing recovery check was accepted: %v", err)
+	}
+	migrator.RecoverJournal = func(context.Context) error { return fmt.Errorf("degraded operation") }
+	if _, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest); err == nil || !strings.Contains(err.Error(), "degraded operation") {
+		t.Fatalf("unresolved recovery was accepted: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil || string(body) != original {
+		t.Fatalf("refused migration changed state: %v %q", err, body)
+	}
+}
+
+type migrationTestLock struct{ acquired int }
+
+func (lock *migrationTestLock) Acquire(context.Context) (ports.UnlockFunc, error) {
+	lock.acquired++
+	return func() error { return nil }, nil
 }
 
 func TestMigrateMarksAmbiguousSourceForRebind(t *testing.T) {

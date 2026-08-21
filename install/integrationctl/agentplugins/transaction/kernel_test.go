@@ -50,6 +50,43 @@ func TestApplyDirectoryRollsBackWhenVerificationFails(t *testing.T) {
 	}
 }
 
+func TestApplyDirectoryGroupRollsBackEveryTargetWhenSecondVerificationFails(t *testing.T) {
+	t.Parallel()
+	kernel, first, store := transactionFixture(t, "group-first")
+	secondActive := filepath.Join(first.OwnedBase, "plugin-second")
+	secondStaging := filepath.Join(first.OwnedBase, "plugin-second.staging")
+	writeTransactionBody(t, secondActive, "old-second")
+	writeTransactionBody(t, secondStaging, "new-second")
+	desired := first.DesiredState
+	installation := desired.Installations[0]
+	secondClientID := domain.ComputeClientBindingID(installation.InstallationID, "cursor", "user", secondActive)
+	secondClient := onlyClient(installation)
+	secondClient.ClientBindingID = secondClientID
+	secondClient.ClientID = "cursor"
+	secondClient.TargetLocator = secondActive
+	secondClient.PhysicalArtifact = domain.ComputePhysicalArtifactID("demo", installation.InstallationID+"-cursor")
+	secondClient.Receipts = nil
+	installation.Clients[secondClientID] = secondClient
+	desired.Installations[0] = installation
+	second := DirectoryMutation{OperationID: "group-second", InstallationID: installation.InstallationID, ClientBindingID: secondClientID,
+		Sequence: 1, OwnedBase: first.OwnedBase, ActivePath: secondActive, StagingPath: secondStaging,
+		Activation: domain.ActivationPrepared, Authentication: domain.AuthenticationNotRequired, Policy: domain.PolicyAllowed,
+		Verification: domain.VerificationInstalled, Verify: func(context.Context, string) error { return errors.New("second verification failed") }}
+	_, err := kernel.ApplyDirectoryGroup(context.Background(), DirectoryGroup{OperationGroupID: "group-op", Mutations: []DirectoryMutation{first, second}, DesiredState: desired})
+	if err == nil {
+		t.Fatal("group verification failure was ignored")
+	}
+	assertTransactionBody(t, first.ActivePath, "old")
+	assertTransactionBody(t, secondActive, "old-second")
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations[0].Clients) != 1 || len(onlyClient(state.Installations[0]).Receipts) != 0 {
+		t.Fatalf("failed group changed state: %+v", state)
+	}
+}
+
 func TestApplyDirectoryNeverPersistsDesiredStateBeforeDurableDirectorySuccess(t *testing.T) {
 	t.Parallel()
 	kernel, mutation, store := transactionFixture(t, "crash-before-state-op")

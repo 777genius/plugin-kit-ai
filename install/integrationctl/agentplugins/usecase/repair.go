@@ -16,8 +16,17 @@ import (
 // resolved package. It never uses a persisted target until that target has
 // been matched to the target resolver's current safe result.
 func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, error) {
+	if input.OriginMode == "" && input.DirectoryResolution != nil {
+		input.OriginMode = domain.OriginModeDirectory
+	}
+	if err := validateOperationOrigin(input.OriginMode, input.DirectoryResolution); err != nil {
+		return AddResult{}, err
+	}
 	if service.StateStore == nil || service.Planner == nil || service.Targets == nil || service.Stager == nil {
 		return AddResult{}, fmt.Errorf("agentplugins repair dependencies are incomplete")
+	}
+	if input.ReleaseRevoked && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory {
+		return AddResult{}, fmt.Errorf("revoked release cannot be repaired or rematerialized; remove or update to a safe release")
 	}
 	release, err := service.beginMutation(ctx, input.DryRun, input.Confirmed)
 	if err != nil {
@@ -56,6 +65,13 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	result.Activation = lifecycleOutcome(client)
 	if !packageRevisionMatches(client.PackageRevision, input.Envelope) {
 		return result, fmt.Errorf("resolved repair package differs from the installed revision; use update")
+	}
+	if installation.OriginMode == domain.OriginModeDirectory {
+		if installation.Directory == nil || input.DirectoryResolution == nil || client.PackageRevision == nil ||
+			client.PackageRevision.DistributionID != installation.Directory.DistributionID || client.PackageRevision.ReleaseSequence < 1 ||
+			input.DirectoryResolution.DistributionID != client.PackageRevision.DistributionID || input.DirectoryResolution.DesiredReleaseSequence != client.PackageRevision.ReleaseSequence {
+			return result, fmt.Errorf("repair requires the exact recorded Directory release sequence")
+		}
 	}
 	if client.PackageRevision == nil || strings.TrimSpace(client.PackageRevision.ResolvedRevision) != strings.TrimSpace(input.Envelope.Source.ResolvedRevision) {
 		return result, fmt.Errorf("resolved repair package does not match the exact installed revision")
@@ -141,7 +157,21 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 			return result, err
 		}
 	}
-	delivery, err := service.Stager.Stage(ctx, input.Envelope, plan, operationID, input.Hints)
+	dataPath := ""
+	if packageNeedsPluginData(input.Envelope) {
+		if service.PluginData == nil {
+			return result, fmt.Errorf("PLUGIN_DATA manager is required for stdio repair")
+		}
+		receipt, ok := installation.DataReceipts[client.DataReceiptID]
+		if !ok || receipt.DataReceiptID == "" {
+			return result, fmt.Errorf("exact repair is missing its owned PLUGIN_DATA receipt; run reviewed state recovery")
+		}
+		if err := service.PluginData.ValidateData(ctx, receipt); err != nil {
+			return result, fmt.Errorf("validate repair PLUGIN_DATA ownership: %w", err)
+		}
+		dataPath = receipt.Locator
+	}
+	delivery, err := service.stagePackage(ctx, input.Envelope, plan, operationID, input.Hints, dataPath)
 	if err != nil {
 		return result, err
 	}
@@ -151,6 +181,12 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	}
 	if delivery.ArtifactDigest != expectedDigest {
 		return result, fmt.Errorf("resolved repair projection digest differs from the originally managed package")
+	}
+	// The user or client can change the native object while staging runs. Repair
+	// may replace the exact absent/digest-mismatched object reviewed above, but
+	// never a different object that appeared after preflight.
+	if err := service.verifyRepairPrecondition(ctx, target.ActivePath, expectedDigest, verification.Kind, beforeDigest); err != nil {
+		return result, err
 	}
 	kernel := service.Kernel
 	kernel.StateStore = service.StateStore
@@ -180,6 +216,24 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 	result.Mutated = true
 	result.Activation = verifiedState
 	return result, nil
+}
+
+func (service Service) verifyRepairPrecondition(ctx context.Context, activePath, managedDigest string, reviewedKind ports.VerificationKind, reviewedDigest string) error {
+	err := service.Stager.Verify(ctx, activePath, managedDigest)
+	var observed *ports.VerificationError
+	if !errors.As(err, &observed) {
+		if err == nil {
+			return fmt.Errorf("managed native object changed after repair preflight; rerun repair")
+		}
+		return fmt.Errorf("revalidate managed native object before repair commit: %w", err)
+	}
+	if observed.Kind != reviewedKind {
+		return fmt.Errorf("managed native object changed after repair preflight; rerun repair")
+	}
+	if reviewedKind == ports.VerificationDigestMismatch && (reviewedDigest == "" || observed.ActualDigest != reviewedDigest) {
+		return fmt.Errorf("managed native object digest changed after repair preflight; rerun repair")
+	}
+	return nil
 }
 
 func sameLifecycleOutcome(left, right domain.ActivationOutcome) bool {

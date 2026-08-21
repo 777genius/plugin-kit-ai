@@ -731,6 +731,37 @@ func TestRepairReceiptRecordsObservedDigestOrAbsence(t *testing.T) {
 	}
 }
 
+func TestRepairAbortsWhenNativeObjectChangesBetweenPreflightAndCommit(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/repair-race")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(installed.Plan.ActivePath, "plugin.json")
+	if err := os.WriteFile(manifestPath, []byte("reviewed-tamper"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.Stager = &changingRepairStager{PackageStager: service.Stager, changePath: manifestPath}
+	input.OperationID = "repair-race"
+	if _, err := service.Repair(context.Background(), input); err == nil || !strings.Contains(err.Error(), "changed after repair preflight") {
+		t.Fatalf("repair race error = %v", err)
+	}
+	after, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyBinding(after.Installations[0]).Receipts) != len(onlyBinding(before.Installations[0]).Receipts) {
+		t.Fatalf("repair race committed a receipt: %+v", onlyBinding(after.Installations[0]).Receipts)
+	}
+}
+
 func TestRepairCorrectsDegradedStateAndPreservesUnverifiedExternalLifecycle(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
@@ -1237,6 +1268,73 @@ func TestAddNewTargetEnforcesExistingPackageIdentity(t *testing.T) {
 	}
 }
 
+func TestDirectorySuspensionAndRevocationOperationBoundaries(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	directory := &domain.DirectoryOrigin{
+		ProductID: "demo", DistributionID: "publisher/demo", DistributionKind: domain.DistributionUpstream,
+		DesiredReleaseSequence: 7, SnapshotSchema: 1, SnapshotSequence: 42, SnapshotDigest: "sha256:snapshot",
+	}
+	installedInput := addInput(t, cursor, "publisher/demo")
+	installedInput.OriginMode, installedInput.DirectoryResolution = domain.OriginModeDirectory, directory
+	installedInput.Confirmed = true
+	installedInput.OperationID = "directory-initial"
+	installed, err := service.Add(context.Background(), installedInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	if binding.PackageRevision == nil || binding.PackageRevision.DistributionID != directory.DistributionID || binding.PackageRevision.ReleaseSequence != 7 {
+		t.Fatalf("Directory applied revision = %+v", binding.PackageRevision)
+	}
+
+	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
+	suspendedExposure := addInput(t, kiro, "publisher/demo")
+	suspendedExposure.OriginMode, suspendedExposure.DirectoryResolution = domain.OriginModeDirectory, directory
+	suspendedExposure.DistributionSuspended = true
+	suspendedExposure.Confirmed = true
+	if _, err := service.Add(context.Background(), suspendedExposure); err == nil || !strings.Contains(err.Error(), "suspended") {
+		t.Fatalf("suspended new-target exposure = %v", err)
+	}
+	if _, err := service.Repair(context.Background(), AddInput{
+		Envelope: installedInput.Envelope, Client: cursor, Scope: domain.ScopeUser, InstallationID: installed.InstallationID,
+		OriginMode: domain.OriginModeDirectory, DirectoryResolution: directory, DistributionSuspended: true,
+	}); err != nil {
+		t.Fatalf("suspension blocked exact non-revoked repair: %v", err)
+	}
+	revokedRepair := installedInput
+	revokedRepair.ReleaseRevoked = true
+	if _, err := service.Repair(context.Background(), revokedRepair); err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("revoked repair = %v", err)
+	}
+	revokedNew := addInput(t, kiro, "publisher/demo")
+	revokedNew.OriginMode, revokedNew.DirectoryResolution, revokedNew.ReleaseRevoked = domain.OriginModeDirectory, directory, true
+	if _, err := service.Add(context.Background(), revokedNew); err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("revoked new exposure = %v", err)
+	}
+
+	directService, _, directClient := serviceFixture(t)
+	directWarning := addInput(t, directClient, "./known-revoked-bytes")
+	directWarning.ReleaseRevoked, directWarning.DryRun = true, true
+	result, err := directService.Add(context.Background(), directWarning)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundRevokedWarning := false
+	for _, warning := range result.Plan.Warnings {
+		if strings.Contains(warning, "known_revoked") {
+			foundRevokedWarning = true
+		}
+	}
+	if !foundRevokedWarning {
+		t.Fatalf("direct revoked-digest warning = %+v", result.Plan.Warnings)
+	}
+}
+
 func TestRemoveCommitsReceiptAndLeavesBindingAbsent(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
@@ -1263,12 +1361,89 @@ func TestRemoveCommitsReceiptAndLeavesBindingAbsent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	binding := onlyBinding(state.Installations[0])
-	if binding.Materialization != domain.MaterializationAbsent || binding.Activation != domain.ActivationNotRequired || binding.Verification != domain.VerificationNotRun {
-		t.Fatalf("binding = %+v", binding)
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 0 || !state.Installations[0].DataRetained {
+		t.Fatalf("last-binding remove did not retain minimal installation: %+v", state.Installations)
 	}
-	if len(binding.Receipts) != 2 || binding.Receipts[1].MutationType != "directory_remove" || binding.Receipts[1].Phase != transaction.ReceiptPhaseCommitted {
-		t.Fatalf("receipts = %+v", binding.Receipts)
+	if len(state.Installations[0].DataReceipts) != 1 {
+		t.Fatalf("last-binding remove did not establish one owned PLUGIN_DATA receipt: %+v", state.Installations[0].DataReceipts)
+	}
+	for _, receipt := range state.Installations[0].DataReceipts {
+		if receipt.State != domain.DataReceiptOwned {
+			t.Fatalf("retained receipt = %+v", receipt)
+		}
+	}
+	if removed.Receipt.MutationType != "directory_remove" || removed.Receipt.Phase != transaction.ReceiptPhaseCommitted {
+		t.Fatalf("remove receipt = %+v", removed.Receipt)
+	}
+}
+
+func TestPluginDataMarkerSurvivesUpdateRepairAndNormalRemovalUntilOwnedPurge(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	codex := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}
+	withStdio := func(input *AddInput) {
+		input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"local": {Name: "local", Type: "stdio", Decoded: map[string]any{
+				"type": "stdio", "command": "sh", "args": []any{"-c", "echo ${PLUGIN_DATA}"},
+			}},
+		}}
+		input.Envelope.Inventory.MCPServers = []string{"local"}
+	}
+	add := addInput(t, codex, "./data-plugin")
+	withStdio(&add)
+	add.Confirmed, add.OperationID = true, "data-add"
+	installed, err := service.Add(context.Background(), add)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyBinding(state.Installations[0])
+	receipt := state.Installations[0].DataReceipts[binding.DataReceiptID]
+	marker := filepath.Join(receipt.Locator, "persistent-marker")
+	if err := os.WriteFile(marker, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	projected := readUsecaseObject(t, filepath.Join(installed.Plan.ActivePath, ".mcp.json"))
+	projectedEnv := projected["mcpServers"].(map[string]any)["local"].(map[string]any)["env"].(map[string]any)
+	if projectedEnv["PLUGIN_DATA"] != receipt.Locator {
+		t.Fatalf("projected PLUGIN_DATA %v != receipt %s", projectedEnv["PLUGIN_DATA"], receipt.Locator)
+	}
+
+	update := addInput(t, codex, "./data-plugin")
+	withStdio(&update)
+	setEnvelopeVersion(t, &update.Envelope, "2.0.0", "sha256:data-tree-v2", "sha256:data-manifest-v2")
+	update.Confirmed, update.OperationID = true, "data-update"
+	if result, err := service.Update(context.Background(), update); err != nil || !result.Mutated {
+		t.Fatalf("data-preserving update = %+v, %v", result, err)
+	}
+	if body, err := os.ReadFile(marker); err != nil || string(body) != "keep" {
+		t.Fatalf("update changed PLUGIN_DATA marker: %q %v", body, err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "damage"), []byte("repair me"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	update.OperationID = "data-repair"
+	if result, err := service.Repair(context.Background(), update); err != nil || !result.Mutated {
+		t.Fatalf("data-preserving repair = %+v, %v", result, err)
+	}
+	if body, err := os.ReadFile(marker); err != nil || string(body) != "keep" {
+		t.Fatalf("repair changed PLUGIN_DATA marker: %q %v", body, err)
+	}
+	if _, err := service.Remove(context.Background(), RemoveInput{Selector: installed.InstallationID, Client: codex, Scope: domain.ScopeUser,
+		Confirmed: true, ExternalUninstalled: true, OperationID: "data-remove"}); err != nil {
+		t.Fatal(err)
+	}
+	if body, err := os.ReadFile(marker); err != nil || string(body) != "keep" {
+		t.Fatalf("normal removal changed PLUGIN_DATA marker: %q %v", body, err)
+	}
+	if err := service.PurgeRetainedData(context.Background(), installed.InstallationID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(receipt.Locator); !os.IsNotExist(err) {
+		t.Fatalf("owned purge retained PLUGIN_DATA: %v", err)
 	}
 }
 
@@ -1314,8 +1489,8 @@ func TestRemovePlanExposesExternalUninstallAndPreservesCodexArtifactUntilAcknowl
 	if err != nil {
 		t.Fatal(err)
 	}
-	if onlyBinding(state.Installations[0]).Materialization != domain.MaterializationAbsent {
-		t.Fatalf("binding remained materialized: %+v", onlyBinding(state.Installations[0]))
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 0 || !state.Installations[0].DataRetained {
+		t.Fatalf("acknowledged external removal did not leave minimal data-retained state: %+v", state.Installations)
 	}
 }
 
@@ -1441,6 +1616,7 @@ func serviceFixture(t *testing.T) (Service, statev2.Store, domain.DetectedClient
 		Targets:    targetPlanner,
 		Stager:     stager,
 		Activator:  providers.Activator{},
+		PluginData: providers.PluginDataManager{Base: filepath.Join(root, "plugin-data")},
 		Lock:       processlock.Lock{Path: filepath.Join(root, "state", "mutation.lock")},
 		Kernel: transaction.Kernel{
 			Directory: dirswap.Manager{JournalDir: filepath.Join(root, "state", "operations-v2")},
@@ -1452,6 +1628,22 @@ func serviceFixture(t *testing.T) (Service, statev2.Store, domain.DetectedClient
 type verificationFailureStager struct {
 	ports.PackageStager
 	err error
+}
+
+type changingRepairStager struct {
+	ports.PackageStager
+	changePath string
+	verifies   int
+}
+
+func (stager *changingRepairStager) Verify(ctx context.Context, root, expected string) error {
+	stager.verifies++
+	if stager.verifies == 2 {
+		if err := os.WriteFile(stager.changePath, []byte("changed-after-preflight"), 0o644); err != nil {
+			return err
+		}
+	}
+	return stager.PackageStager.Verify(ctx, root, expected)
 }
 
 type observedActivator struct {
@@ -1555,6 +1747,19 @@ func onlyBinding(installation domain.Installation) domain.ClientBinding {
 		return client
 	}
 	return domain.ClientBinding{}
+}
+
+func readUsecaseObject(t *testing.T, path string) map[string]any {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(body, &value); err != nil {
+		t.Fatal(err)
+	}
+	return value
 }
 
 func setEnvelopeVersion(t *testing.T, envelope *domain.PackageEnvelope, version, treeDigest, manifestDigest string) {

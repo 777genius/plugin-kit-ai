@@ -21,6 +21,7 @@ type RemoveInput struct {
 	ExternalUninstalled bool
 	OperationID         string
 	BackendExecutable   string
+	PurgeData           bool
 }
 
 type RemoveResult struct {
@@ -31,6 +32,7 @@ type RemoveResult struct {
 	Mutated              bool                       `json:"mutated"`
 	Deactivation         domain.DeactivationOutcome `json:"deactivation,omitempty"`
 	Receipt              domain.MutationReceipt     `json:"-"`
+	AffectedSurfaces     []string                   `json:"affected_surfaces,omitempty"`
 }
 
 func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveResult, error) {
@@ -52,14 +54,31 @@ func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveRes
 	if err != nil {
 		return RemoveResult{}, err
 	}
+	if input.PurgeData {
+		if service.PluginData == nil {
+			return RemoveResult{}, fmt.Errorf("PLUGIN_DATA manager is required for purge")
+		}
+		for _, receipt := range installation.DataReceipts {
+			if receipt.State != domain.DataReceiptOwned {
+				return RemoveResult{}, fmt.Errorf("PLUGIN_DATA receipt %s is not safely owned; purge aborted before mutation", receipt.DataReceiptID)
+			}
+			if err := service.PluginData.ValidateData(ctx, receipt); err != nil {
+				return RemoveResult{}, fmt.Errorf("validate all PLUGIN_DATA receipts before purge: %w", err)
+			}
+		}
+	}
 	clientKey, client, err := findClientBinding(installation, input.Client.ClientID, input.Scope)
 	if err != nil {
 		return RemoveResult{}, err
 	}
 	result := RemoveResult{
-		InstallationID: installation.InstallationID,
-		Plugin:         installation.DeclaredName,
-		ClientID:       input.Client.ClientID,
+		InstallationID:   installation.InstallationID,
+		Plugin:           installation.DeclaredName,
+		ClientID:         input.Client.ClientID,
+		AffectedSurfaces: append([]string(nil), client.AffectedSurfaces...),
+	}
+	if len(result.AffectedSurfaces) == 0 {
+		result.AffectedSurfaces = []string{client.ClientID}
 	}
 	deactivation, err := service.Activator.Deactivate(ctx, domain.DeactivationRequest{
 		Client: input.Client, DeclaredName: installation.DeclaredName,
@@ -131,7 +150,126 @@ func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveRes
 		return result, err
 	}
 	result.Mutated = true
+	if err := service.finalizeRemovedBinding(ctx, installation.InstallationID, clientKey, input.PurgeData); err != nil {
+		return result, err
+	}
 	return result, nil
+}
+
+func (service Service) finalizeRemovedBinding(ctx context.Context, installationID, clientKey string, purge bool) error {
+	return service.finalizeRemovedBindings(ctx, installationID, []string{clientKey}, purge)
+}
+
+func (service Service) finalizeRemovedBindings(ctx context.Context, installationID string, clientKeys []string, purge bool) error {
+	state, err := service.StateStore.Load()
+	if err != nil {
+		return err
+	}
+	for index, installation := range state.Installations {
+		if installation.InstallationID != installationID {
+			continue
+		}
+		removed := make([]domain.ClientBinding, 0, len(clientKeys))
+		for _, clientKey := range clientKeys {
+			client, ok := installation.Clients[clientKey]
+			if !ok || client.Materialization != domain.MaterializationAbsent {
+				return fmt.Errorf("removed binding state is not authoritative")
+			}
+			removed = append(removed, client)
+			delete(installation.Clients, clientKey)
+		}
+		active := 0
+		for _, binding := range installation.Clients {
+			if binding.Materialization != domain.MaterializationAbsent {
+				active++
+			}
+		}
+		if active == 0 {
+			for key, binding := range installation.Clients {
+				if binding.Materialization == domain.MaterializationAbsent {
+					delete(installation.Clients, key)
+				}
+			}
+			// State written before PLUGIN_DATA receipts existed (and packages that
+			// did not need stdio data while installed) can reach their final-binding
+			// removal without a receipt. Establish the minimal owned data root now,
+			// before discarding the last binding's backend/scope provenance. Normal
+			// removal always retains it; purge is the only consuming operation.
+			if len(installation.DataReceipts) == 0 {
+				if service.PluginData == nil {
+					return fmt.Errorf("PLUGIN_DATA manager is required to retain final-binding data")
+				}
+				for _, client := range removed {
+					receipt, _, err := service.PluginData.EnsureData(ctx, installation.InstallationID, client.PhysicalArtifact, client.Scope)
+					if err != nil {
+						return fmt.Errorf("establish retained PLUGIN_DATA ownership: %w", err)
+					}
+					if installation.DataReceipts == nil {
+						installation.DataReceipts = map[string]domain.DataReceipt{}
+					}
+					installation.DataReceipts[receipt.DataReceiptID] = receipt
+				}
+			}
+			if purge {
+				for _, receipt := range installation.DataReceipts {
+					if err := service.PluginData.PurgeData(ctx, receipt); err != nil {
+						return fmt.Errorf("purge owned PLUGIN_DATA: %w", err)
+					}
+				}
+				state.Installations = append(state.Installations[:index], state.Installations[index+1:]...)
+				return service.StateStore.Save(state)
+			}
+			installation.DataRetained = true
+		}
+		installation.UpdatedAt = service.now().Format(time.RFC3339Nano)
+		state.Installations[index] = installation
+		return service.StateStore.Save(state)
+	}
+	return fmt.Errorf("installation disappeared after removal")
+}
+
+// PurgeRetainedData handles the only target-less removal: an explicit purge of
+// a data_retained installation after complete ownership preflight.
+func (service Service) PurgeRetainedData(ctx context.Context, selector string, confirmed bool) error {
+	if service.StateStore == nil || service.PluginData == nil {
+		return fmt.Errorf("state and PLUGIN_DATA managers are required")
+	}
+	release, err := service.beginMutation(ctx, false, confirmed)
+	if err != nil {
+		return err
+	}
+	if release != nil {
+		defer func() { _ = release() }()
+	}
+	state, err := service.StateStore.Load()
+	if err != nil {
+		return err
+	}
+	index, installation, err := findInstallation(state, selector)
+	if err != nil {
+		return err
+	}
+	if !installation.DataRetained || len(installation.Clients) != 0 {
+		return fmt.Errorf("installation is not a data_retained record")
+	}
+	for _, receipt := range installation.DataReceipts {
+		if receipt.State != domain.DataReceiptOwned {
+			return fmt.Errorf("PLUGIN_DATA receipt %s is not safely owned", receipt.DataReceiptID)
+		}
+		if err := service.PluginData.ValidateData(ctx, receipt); err != nil {
+			return err
+		}
+	}
+	if !confirmed {
+		return fmt.Errorf("explicit purge confirmation is required")
+	}
+	for _, receipt := range installation.DataReceipts {
+		if err := service.PluginData.PurgeData(ctx, receipt); err != nil {
+			return err
+		}
+	}
+	state.Installations = append(state.Installations[:index], state.Installations[index+1:]...)
+	return service.StateStore.Save(state)
 }
 
 func (service Service) markDeactivated(state domain.StateFileV2, installationIndex int, clientKey string) error {

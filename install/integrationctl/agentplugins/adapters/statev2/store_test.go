@@ -40,7 +40,7 @@ func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	}
 }
 
-func TestChatGPTStateIsExplicitlyV3AndOldReadersFailClosed(t *testing.T) {
+func TestChatGPTStateUsesCurrentSchemaAndOldReadersFailClosed(t *testing.T) {
 	t.Parallel()
 	store := Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}
 	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{
@@ -59,8 +59,8 @@ func TestChatGPTStateIsExplicitlyV3AndOldReadersFailClosed(t *testing.T) {
 	if err := json.Unmarshal(body, &header); err != nil {
 		t.Fatal(err)
 	}
-	if header.SchemaVersion != domain.StateSchemaVersion || header.SchemaVersion == domain.LegacyStateSchemaVersion {
-		t.Fatalf("ChatGPT state was not gated behind schema v3: %s", body)
+	if header.SchemaVersion != domain.StateSchemaVersion || header.SchemaVersion == domain.PreviousStateSchemaVersion {
+		t.Fatalf("ChatGPT state was not gated behind current schema: %s", body)
 	}
 	for _, required := range []string{`"catalog_evidence"`, `"app_present"`, `"app_bindings"`} {
 		if !bytes.Contains(body, []byte(required)) {
@@ -104,8 +104,8 @@ func TestStoreReadsLegacyV2LosslesslyWithoutMutatingUntilSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(afterSave, []byte(`"schema_version": 3`)) {
-		t.Fatalf("first explicit save did not persist state v3: %s", afterSave)
+	if !bytes.Contains(afterSave, []byte(`"schema_version": 4`)) {
+		t.Fatalf("first explicit save did not persist current state: %s", afterSave)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestStoreRejectsV3FieldsDisguisedAsLegacyV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body = bytes.Replace(body, []byte(`"schema_version":3`), []byte(`"schema_version":2`), 1)
+	body = bytes.Replace(body, []byte(`"schema_version":4`), []byte(`"schema_version":2`), 1)
 	path := filepath.Join(t.TempDir(), "state-v2.json")
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatal(err)
@@ -129,8 +129,8 @@ func TestStoreRejectsV3FieldsDisguisedAsLegacyV2(t *testing.T) {
 func TestStoreFailsClosedOnFutureOrUnknownState(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]string{
-		"future":  `{"schema_version":4,"installations":[]}`,
-		"unknown": `{"schema_version":3,"installations":[],"future":true}`,
+		"future":  `{"schema_version":5,"installations":[]}`,
+		"unknown": `{"schema_version":4,"installations":[],"future":true}`,
 	} {
 		name, body := name, body
 		t.Run(name, func(t *testing.T) {

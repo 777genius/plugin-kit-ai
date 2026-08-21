@@ -63,6 +63,38 @@ func TestStagerBuildsOpenAIProjectionWithoutMutatingPortableSnapshot(t *testing.
 	}
 }
 
+func TestStagerProjectsExactOwnedPluginDataContract(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	server := domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{
+		"type": "stdio", "command": "${PLUGIN_ROOT}/must-not-expand",
+		"args": []any{"${PLUGIN_ROOT}/bin/run", "${PLUGIN_DATA}/cache"},
+		"env":  map[string]any{"CACHE": "${PLUGIN_DATA}/cache"},
+		"cwd":  "${PLUGIN_DATA}/work",
+	}}
+	envelope.MCP.Servers = map[string]domain.MCPServer{"local": server}
+	plan := stagingPlan(t, domain.ClientCodex, domain.PackageProjection)
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportProjected}}
+	ownedData := filepath.Join(t.TempDir(), "owned-plugin-data")
+	delivery, err := (Stager{}).StageWithPluginData(context.Background(), envelope, plan, "operation-data", domain.CompatibilityHints{}, ownedData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := readObject(t, filepath.Join(delivery.StagingPath, ".mcp.json"))
+	projected := document["mcpServers"].(map[string]any)["local"].(map[string]any)
+	if projected["command"] != "${PLUGIN_ROOT}/must-not-expand" {
+		t.Fatalf("stdio command placeholder was expanded: %+v", projected)
+	}
+	env := projected["env"].(map[string]any)
+	if env["PLUGIN_ROOT"] != plan.ActivePath || env["PLUGIN_DATA"] != ownedData || env["CACHE"] != filepath.Join(ownedData, "cache") {
+		t.Fatalf("stdio env = %+v", env)
+	}
+	args := projected["args"].([]any)
+	if args[0] != filepath.Join(plan.ActivePath, "bin", "run") || args[1] != filepath.Join(ownedData, "cache") || projected["cwd"] != filepath.Join(ownedData, "work") {
+		t.Fatalf("stdio args/cwd = %+v / %v", args, projected["cwd"])
+	}
+}
+
 func TestStagerBuildsChatGPTAppProjectionWithBundledMCPParity(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)

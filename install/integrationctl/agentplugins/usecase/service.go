@@ -4,7 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -18,16 +22,45 @@ import (
 )
 
 type Service struct {
-	StateStore transaction.StateStore
-	Planner    ports.DeliveryPlanner
-	Targets    ports.DeliveryTargetResolver
-	Stager     ports.PackageStager
-	Activator  ports.ClientActivator
-	Legacy     ports.LegacyLifecycle
-	LegacyLock legacyports.LockManager
-	Lock       ports.MutationLock
-	Kernel     transaction.Kernel
-	Now        func() time.Time
+	StateStore     transaction.StateStore
+	Planner        ports.DeliveryPlanner
+	Targets        ports.DeliveryTargetResolver
+	Stager         ports.PackageStager
+	Activator      ports.ClientActivator
+	Legacy         ports.LegacyLifecycle
+	LegacyLock     legacyports.LockManager
+	Lock           ports.MutationLock
+	Kernel         transaction.Kernel
+	NativeObserver NativeIdentityObserver
+	PluginData     PluginDataManager
+	Now            func() time.Time
+}
+
+type NativeIdentityState = domain.NativeIdentityState
+type NativeIdentityObservation = domain.NativeIdentityObservation
+
+const (
+	NativeIdentityAbsent        = domain.NativeIdentityAbsent
+	NativeIdentityManaged       = domain.NativeIdentityManaged
+	NativeIdentityUnmanaged     = domain.NativeIdentityUnmanaged
+	NativeIdentityIndeterminate = domain.NativeIdentityIndeterminate
+)
+
+// NativeIdentityObserver lets a backend prove that a same-name native object
+// is absent or already owned. Unmanaged and indeterminate observations are
+// always blocking; there is deliberately no adoption result.
+type NativeIdentityObserver interface {
+	ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error)
+}
+
+type PluginDataManager interface {
+	EnsureData(context.Context, string, string, string) (domain.DataReceipt, bool, error)
+	ValidateData(context.Context, domain.DataReceipt) error
+	PurgeData(context.Context, domain.DataReceipt) error
+}
+
+type pluginDataAwareStager interface {
+	StageWithPluginData(context.Context, domain.PackageEnvelope, domain.DeliveryPlan, string, domain.CompatibilityHints, string) (domain.StagedDelivery, error)
 }
 
 type AddInput struct {
@@ -43,6 +76,13 @@ type AddInput struct {
 	BackendExecutable  string
 	ActivationComplete bool
 	AuthComplete       bool
+	// OriginMode and DirectoryResolution are supplied by the resolver. Omitting
+	// OriginMode is treated as an explicit direct source for compatibility with
+	// exact/local callers; Directory authority is never inferred from a name.
+	OriginMode            domain.OriginMode
+	DirectoryResolution   *domain.DirectoryOrigin
+	DistributionSuspended bool
+	ReleaseRevoked        bool
 	// PersistAuthoritativeObservations allows a read-only client verifier to
 	// record negative evidence even during a plan-first CLI pass. It does not
 	// authorize package, client, or user-requested lifecycle mutations.
@@ -68,6 +108,12 @@ func (service Service) Update(ctx context.Context, input AddInput) (AddResult, e
 }
 
 func (service Service) apply(ctx context.Context, input AddInput, replace bool) (AddResult, error) {
+	if input.OriginMode == "" && input.DirectoryResolution != nil {
+		input.OriginMode = domain.OriginModeDirectory
+	}
+	if err := validateOperationOrigin(input.OriginMode, input.DirectoryResolution); err != nil {
+		return AddResult{}, err
+	}
 	if service.StateStore == nil || service.Planner == nil || service.Stager == nil || service.Activator == nil {
 		return AddResult{}, fmt.Errorf("agentplugins service dependencies are incomplete")
 	}
@@ -86,7 +132,10 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		return AddResult{}, err
 	}
 	sourceBindingID := domain.ComputeSourceBindingID(input.Envelope.Source)
-	installationIndex, existing := findSourceInstallation(state, sourceBindingID)
+	installationIndex, existing, stickyMatch, err := findStickyInstallation(state, input, sourceBindingID)
+	if err != nil {
+		return AddResult{}, err
+	}
 	installationID := strings.TrimSpace(input.InstallationID)
 	if existing {
 		installation := state.Installations[installationIndex]
@@ -100,6 +149,12 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			return AddResult{}, fmt.Errorf("source is bound to a different package format; use migrate-format")
 		}
 		installationID = installation.InstallationID
+		if stickyMatch && installation.Source.SourceBindingID != sourceBindingID {
+			sameDistribution := installation.OriginMode == domain.OriginModeDirectory && installation.Directory != nil && input.DirectoryResolution != nil && installation.Directory.DistributionID == input.DirectoryResolution.DistributionID
+			if !sameDistribution {
+				return AddResult{}, fmt.Errorf("installation %s is sticky to %s; use switch to change source", installation.InstallationID, installation.Source.CanonicalSource)
+			}
+		}
 	}
 	if installationID == "" {
 		installationID, err = domain.NewInstallationID()
@@ -110,6 +165,34 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if replace && !existing {
 		return AddResult{}, fmt.Errorf("update source is not bound to an existing installation; use add or rebind")
 	}
+	// Validate identity/release transitions before emitting the more general
+	// "use update" diagnostic. A same-release digest conflict is a supply-chain
+	// failure regardless of whether the caller happened to be adding a target.
+	if existing {
+		if err := validatePackageTransition(state.Installations[installationIndex], input.Envelope); err != nil {
+			return AddResult{}, err
+		}
+		if err := validateDirectoryTransition(state.Installations[installationIndex], input); err != nil {
+			return AddResult{}, err
+		}
+	}
+	if existing && !replace && state.Installations[installationIndex].OriginMode == domain.OriginModeDirectory && state.Installations[installationIndex].Directory != nil && input.DirectoryResolution != nil && input.DirectoryResolution.DesiredReleaseSequence != state.Installations[installationIndex].Directory.DesiredReleaseSequence {
+		return AddResult{}, fmt.Errorf("adding a target must use recorded release sequence %d; run update separately", state.Installations[installationIndex].Directory.DesiredReleaseSequence)
+	}
+	if existing && !replace && state.Installations[installationIndex].Source.TreeDigest != input.Envelope.TreeDigest {
+		return AddResult{}, fmt.Errorf("adding a target must use the recorded desired package bytes; run update separately")
+	}
+	if replace && existing && state.Installations[installationIndex].OriginMode == domain.OriginModeDirect && immutableDirectGit(state.Installations[installationIndex].Source) {
+		return AddResult{}, fmt.Errorf("direct full-SHA installations have no update channel; use switch --to with a new full SHA")
+	}
+	if input.ReleaseRevoked && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory {
+		return AddResult{}, fmt.Errorf("release is revoked; new exposure, update, and repair are blocked while removal remains available")
+	}
+	if input.DistributionSuspended && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory {
+		if !existing || replace {
+			return AddResult{}, fmt.Errorf("distribution is suspended; new installs, new targets, and updates are blocked")
+		}
+	}
 	physicalID := domain.ComputePhysicalArtifactID(input.Envelope.Manifest.Name, installationID)
 	plan, err := service.Planner.Plan(ctx, input.Envelope, input.Client, input.Scope, physicalID)
 	if err != nil {
@@ -119,12 +202,18 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		plan.Authentication = domain.AuthenticationPending
 	}
 	result := AddResult{InstallationID: installationID, Plan: plan}
+	if input.ReleaseRevoked && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirect {
+		result.Plan.Warnings = append(result.Plan.Warnings, "direct_source_digest_matches_known_revoked_directory_release")
+	}
 	if plan.Status == domain.PlanUnsupported {
 		action := strings.Join(plan.UserActions, "; ")
 		if action != "" {
 			return result, fmt.Errorf("delivery plan for %s is unsupported. Next: %s", plan.ClientID, action)
 		}
 		return result, fmt.Errorf("delivery plan for %s is unsupported", plan.ClientID)
+	}
+	if err := preflightRuntime(input.Envelope, plan); err != nil {
+		return result, err
 	}
 	if err := rejectNativeNameCollision(state, installationID, input.Envelope.Manifest.Name, input.Client.ClientID); err != nil {
 		return result, err
@@ -135,12 +224,20 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 	}
 	clientBindingID := domain.ComputeClientBindingID(installationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
-	if existing {
-		if err := validatePackageTransition(state.Installations[installationIndex], input.Envelope); err != nil {
+	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
+	var managedBinding *domain.ClientBinding
+	if isMaterialized {
+		binding := state.Installations[installationIndex].Clients[clientBindingID]
+		managedBinding = &binding
+	}
+	if managedBinding == nil {
+		if err := service.observeNativeIdentity(ctx, input.Client, plan, nil); err != nil {
 			return result, err
 		}
 	}
-	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
+	if input.DistributionSuspended && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory && !isMaterialized {
+		return result, fmt.Errorf("distribution is suspended; adding a target is blocked")
+	}
 	if !isMaterialized && (input.ActivationComplete || input.AuthComplete) {
 		return result, fmt.Errorf("lifecycle completion flags require an already materialized package; run add first, then rerun add with the completion flags")
 	}
@@ -221,15 +318,59 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			return result, err
 		}
 	}
-	delivery, err := service.Stager.Stage(ctx, input.Envelope, plan, operationID, input.Hints)
+	var dataReceipt domain.DataReceipt
+	dataCreated := false
+	if packageNeedsPluginData(input.Envelope) {
+		if service.PluginData == nil {
+			return result, fmt.Errorf("PLUGIN_DATA manager is required for stdio MCP packages")
+		}
+		dataReceipt, dataCreated, err = service.PluginData.EnsureData(ctx, installationID, plan.PhysicalArtifactID, string(input.Scope))
+		if err != nil {
+			return result, err
+		}
+	}
+	delivery, err := service.stagePackage(ctx, input.Envelope, plan, operationID, input.Hints, dataReceipt.Locator)
 	if err != nil {
+		if dataCreated {
+			_ = service.PluginData.PurgeData(context.Background(), dataReceipt)
+		}
 		return result, err
+	}
+	keepCreatedData := false
+	defer func() {
+		if dataCreated && !keepCreatedData {
+			_ = service.PluginData.PurgeData(context.Background(), dataReceipt)
+		}
+	}()
+	if err := service.observeNativeIdentity(ctx, input.Client, plan, managedBinding); err != nil {
+		_ = service.Stager.Discard(context.Background(), delivery)
+		return result, fmt.Errorf("native identity changed before commit: %w", err)
 	}
 	previousClient := domain.ClientBinding{}
 	if existing {
 		previousClient = state.Installations[installationIndex].Clients[clientBindingID]
 	}
 	state, installationIndex = upsertPreparedInstallation(state, installationIndex, existing, input, plan, installationID, clientBindingID, sourceBindingID, service.now())
+	if dataReceipt.DataReceiptID == "" {
+		for _, retained := range state.Installations[installationIndex].DataReceipts {
+			if retained.PhysicalBackend == plan.PhysicalArtifactID && retained.Scope == string(input.Scope) {
+				dataReceipt = retained
+				break
+			}
+		}
+	}
+	if dataReceipt.DataReceiptID != "" {
+		installation := state.Installations[installationIndex]
+		if installation.DataReceipts == nil {
+			installation.DataReceipts = map[string]domain.DataReceipt{}
+		}
+		installation.DataReceipts[dataReceipt.DataReceiptID] = dataReceipt
+		client := installation.Clients[clientBindingID]
+		client.DataReceiptID = dataReceipt.DataReceiptID
+		installation.Clients[clientBindingID] = client
+		installation.DataRetained = false
+		state.Installations[installationIndex] = installation
+	}
 	kernel := service.Kernel
 	kernel.StateStore = service.StateStore
 	initialActivation, initialVerification := initialLifecycle(plan)
@@ -258,6 +399,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		_ = service.Stager.Discard(context.Background(), delivery)
 		return result, applyErr
 	}
+	keepCreatedData = true
 	result.Mutated = true
 	outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{
 		Client: input.Client, Plan: plan, Delivery: domain.StagedDelivery{
@@ -285,6 +427,17 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		return result, activationErr
 	}
 	return result, nil
+}
+
+func (service Service) stagePackage(ctx context.Context, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, operationID string, hints domain.CompatibilityHints, dataPath string) (domain.StagedDelivery, error) {
+	if strings.TrimSpace(dataPath) == "" {
+		return service.Stager.Stage(ctx, envelope, plan, operationID, hints)
+	}
+	aware, ok := service.Stager.(pluginDataAwareStager)
+	if !ok {
+		return domain.StagedDelivery{}, fmt.Errorf("package stager cannot bind the owned PLUGIN_DATA locator")
+	}
+	return aware.StageWithPluginData(ctx, envelope, plan, operationID, hints, dataPath)
 }
 
 func lifecycleConverged(client domain.ClientBinding) bool {
@@ -454,6 +607,12 @@ func (service Service) beginMutation(ctx context.Context, dryRun, confirmed bool
 	if err != nil {
 		return nil, err
 	}
+	if guard, ok := service.StateStore.(interface{ RequireMutationReady() error }); ok {
+		if err := guard.RequireMutationReady(); err != nil {
+			_ = release()
+			return nil, err
+		}
+	}
 	kernel := service.Kernel
 	kernel.StateStore = service.StateStore
 	if err := kernel.Recover(ctx); err != nil {
@@ -556,15 +715,22 @@ func upsertPreparedInstallation(
 			Version: input.Envelope.Manifest.Version, ManifestDigest: input.Envelope.ManifestDigest,
 			Inventory: input.Envelope.Inventory,
 		},
-		Clients:   map[string]domain.ClientBinding{},
-		CreatedAt: timestamp,
-		UpdatedAt: timestamp,
+		OriginMode: normalizedOriginMode(input.OriginMode),
+		Directory:  cloneDirectoryOrigin(input.DirectoryResolution),
+		Clients:    map[string]domain.ClientBinding{},
+		CreatedAt:  timestamp,
+		UpdatedAt:  timestamp,
 	}
 	if existing {
 		installation = state.Installations[installationIndex]
 		installation.DeclaredName = input.Envelope.Manifest.Name
 		installation.Source.ResolvedRevision = input.Envelope.Source.ResolvedRevision
 		installation.Source.TreeDigest = input.Envelope.TreeDigest
+		if installation.OriginMode == domain.OriginModeDirectory {
+			installation.Source = domain.SourceBinding{SourceBindingID: sourceBindingID, RequestedSource: input.Envelope.Source.RequestedSource,
+				CanonicalSource: input.Envelope.Source.CanonicalSource, Repository: input.Envelope.Source.Repository, PackageSubpath: input.Envelope.Source.PackageSubpath,
+				ResolvedRevision: input.Envelope.Source.ResolvedRevision, TreeDigest: input.Envelope.TreeDigest}
+		}
 		installation.Package = domain.PackageBinding{
 			LoaderKind: input.Envelope.LoaderKind, FormatID: input.Envelope.FormatID,
 			SchemaURI: input.Envelope.SchemaURI, DeclaredName: input.Envelope.Manifest.Name,
@@ -572,6 +738,9 @@ func upsertPreparedInstallation(
 			Inventory: input.Envelope.Inventory,
 		}
 		installation.UpdatedAt = timestamp
+		if installation.OriginMode == domain.OriginModeDirectory && input.DirectoryResolution != nil {
+			installation.Directory = cloneDirectoryOrigin(input.DirectoryResolution)
+		}
 		if installation.Clients == nil {
 			installation.Clients = map[string]domain.ClientBinding{}
 		}
@@ -583,7 +752,7 @@ func upsertPreparedInstallation(
 		Materialization: domain.MaterializationStaged, Activation: domain.ActivationPrepared,
 		Authentication: plan.Authentication, Policy: domain.PolicyAllowed,
 		Verification: domain.VerificationPackageValid, UpdatedAt: timestamp,
-		PackageRevision: packageRevisionFromEnvelope(input.Envelope),
+		PackageRevision: packageRevisionForInput(input),
 		Receipts:        append([]domain.MutationReceipt(nil), previousClient.Receipts...),
 		NativeObjects:   append([]domain.NativeObjectOwnership(nil), previousClient.NativeObjects...),
 	}
@@ -614,6 +783,15 @@ func cloneCatalogEvidence(source *domain.CatalogEvidence) *domain.CatalogEvidenc
 }
 
 func validatePackageTransition(installation domain.Installation, envelope domain.PackageEnvelope) error {
+	if installation.OriginMode == domain.OriginModeDirectory && installation.Directory != nil {
+		// Directory update ordering is validated by validateDirectoryTransition;
+		// author-controlled version strings are informational only.
+		return nil
+	}
+	if installation.OriginMode == domain.OriginModeDirect && directLocalSource(installation.Source) {
+		// An explicit local update is authorized by digest review, not SemVer.
+		return nil
+	}
 	incomingVersion := envelope.Manifest.Version
 	currentVersion := installation.Package.Version
 	if incomingVersion != currentVersion {
@@ -640,12 +818,56 @@ func validatePackageTransition(installation domain.Installation, envelope domain
 	return nil
 }
 
+func directLocalSource(source domain.SourceBinding) bool {
+	for _, value := range []string{source.RequestedSource, source.CanonicalSource} {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if filepath.IsAbs(value) || strings.HasPrefix(value, "./") || strings.HasPrefix(value, "../") || value == "." || value == ".." {
+			return true
+		}
+	}
+	return false
+}
+
+func immutableDirectGit(source domain.SourceBinding) bool {
+	value := source.RequestedSource + " " + source.CanonicalSource
+	marker := strings.LastIndex(value, "@")
+	if marker < 0 {
+		return false
+	}
+	revision := value[marker+1:]
+	if separator := strings.Index(revision, "//"); separator >= 0 {
+		revision = revision[:separator]
+	}
+	revision = strings.TrimSpace(revision)
+	if len(revision) != 40 {
+		return false
+	}
+	for _, character := range revision {
+		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
 func packageRevisionFromEnvelope(envelope domain.PackageEnvelope) *domain.ClientPackageRevision {
 	return &domain.ClientPackageRevision{
 		Version: envelope.Manifest.Version, ResolvedRevision: envelope.Source.ResolvedRevision,
 		TreeDigest: envelope.TreeDigest, ManifestDigest: envelope.ManifestDigest,
 		CatalogEvidence: cloneCatalogEvidence(envelope.CatalogEvidence),
 	}
+}
+
+func packageRevisionForInput(input AddInput) *domain.ClientPackageRevision {
+	revision := packageRevisionFromEnvelope(input.Envelope)
+	if normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory && input.DirectoryResolution != nil {
+		revision.DistributionID = input.DirectoryResolution.DistributionID
+		revision.ReleaseSequence = input.DirectoryResolution.DesiredReleaseSequence
+	}
+	return revision
 }
 
 func packageRevisionMatches(revision *domain.ClientPackageRevision, envelope domain.PackageEnvelope) bool {
@@ -660,6 +882,108 @@ func findSourceInstallation(state domain.StateFileV2, sourceBindingID string) (i
 		}
 	}
 	return -1, false
+}
+
+func findStickyInstallation(state domain.StateFileV2, input AddInput, sourceBindingID string) (int, bool, bool, error) {
+	if selector := strings.TrimSpace(input.InstallationID); selector != "" {
+		for index, installation := range state.Installations {
+			if installation.InstallationID == selector {
+				return index, true, true, nil
+			}
+		}
+		// An explicit, unused installation ID denotes a new installation. Do not
+		// silently reinterpret it as a request to mutate a same-name binding;
+		// backend collision checks below will fail closed with the useful native
+		// identity diagnostic.
+		return -1, false, false, nil
+	}
+	if input.DirectoryResolution != nil && input.DirectoryResolution.ProductID != "" {
+		for index, installation := range state.Installations {
+			if installation.OriginMode == domain.OriginModeDirectory && installation.Directory != nil && installation.Directory.ProductID == input.DirectoryResolution.ProductID {
+				return index, true, true, nil
+			}
+		}
+	}
+	nameMatch := -1
+	for index, installation := range state.Installations {
+		if installation.Source.SourceBindingID == sourceBindingID {
+			return index, true, false, nil
+		}
+		if installation.DeclaredName == input.Envelope.Manifest.Name {
+			if nameMatch >= 0 {
+				return -1, false, false, fmt.Errorf("installed manifest identity %q is ambiguous; use installation_id", input.Envelope.Manifest.Name)
+			}
+			nameMatch = index
+		}
+	}
+	if nameMatch >= 0 {
+		return nameMatch, true, true, nil
+	}
+	return -1, false, false, nil
+}
+
+func normalizedOriginMode(mode domain.OriginMode) domain.OriginMode {
+	if mode == "" {
+		return domain.OriginModeDirect
+	}
+	return mode
+}
+
+func cloneDirectoryOrigin(source *domain.DirectoryOrigin) *domain.DirectoryOrigin {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	return &result
+}
+
+func validateOperationOrigin(mode domain.OriginMode, directory *domain.DirectoryOrigin) error {
+	mode = normalizedOriginMode(mode)
+	if mode == domain.OriginModeDirect {
+		if directory != nil {
+			return fmt.Errorf("direct origin cannot carry Directory authority")
+		}
+		return nil
+	}
+	if mode != domain.OriginModeDirectory || directory == nil {
+		return fmt.Errorf("Directory origin metadata is required")
+	}
+	if directory.ProductID == "" || directory.DistributionID == "" || directory.DesiredReleaseSequence < 1 {
+		return fmt.Errorf("Directory release identity is incomplete")
+	}
+	switch directory.DistributionKind {
+	case domain.DistributionUpstream, domain.DistributionCommunityBridge, domain.DistributionCommunity:
+	default:
+		return fmt.Errorf("Directory distribution kind is invalid")
+	}
+	if directory.SnapshotSchema < 1 || directory.SnapshotSequence < 1 || directory.SnapshotDigest == "" {
+		return fmt.Errorf("Directory operation requires an authorized signed snapshot identity")
+	}
+	return nil
+}
+
+func validateDirectoryTransition(installation domain.Installation, input AddInput) error {
+	mode := normalizedOriginMode(input.OriginMode)
+	if installation.OriginMode != mode {
+		return fmt.Errorf("source origin change from %s to %s requires switch", installation.OriginMode, mode)
+	}
+	if mode != domain.OriginModeDirectory {
+		return nil
+	}
+	if installation.Directory == nil || input.DirectoryResolution == nil {
+		return fmt.Errorf("Directory lifecycle operation is missing immutable release provenance")
+	}
+	current, incoming := installation.Directory, input.DirectoryResolution
+	if current.ProductID != incoming.ProductID || current.DistributionID != incoming.DistributionID {
+		return fmt.Errorf("distribution change requires switch")
+	}
+	if incoming.DesiredReleaseSequence < current.DesiredReleaseSequence {
+		return fmt.Errorf("refuse Directory release downgrade from sequence %d to %d", current.DesiredReleaseSequence, incoming.DesiredReleaseSequence)
+	}
+	if incoming.DesiredReleaseSequence == current.DesiredReleaseSequence && installation.Source.TreeDigest != "" && installation.Source.TreeDigest != input.Envelope.TreeDigest {
+		return fmt.Errorf("signed Directory release sequence %d has conflicting package bytes", incoming.DesiredReleaseSequence)
+	}
+	return nil
 }
 
 func materializedClient(installation domain.Installation, clientBindingID string) bool {
@@ -734,6 +1058,50 @@ func newOperationID() (string, error) {
 	return "op-" + hex.EncodeToString(random[:]), nil
 }
 
+func packageNeedsPluginData(envelope domain.PackageEnvelope) bool {
+	for _, server := range envelope.MCP.Servers {
+		if server.Type == "stdio" {
+			return true
+		}
+	}
+	return false
+}
+
+func preflightRuntime(envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
+	managedActivation := plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode
+	for name, server := range envelope.MCP.Servers {
+		if server.Type != "stdio" {
+			continue
+		}
+		command, _ := server.Decoded["command"].(string)
+		command = strings.TrimSpace(command)
+		if command == "" {
+			if managedActivation {
+				return fmt.Errorf("stdio MCP server %s has no executable command", name)
+			}
+			continue
+		}
+		if strings.ContainsAny(command, "/\\") || strings.HasPrefix(command, ".") {
+			candidate := command
+			if !filepath.IsAbs(candidate) {
+				candidate = filepath.Join(envelope.SnapshotRoot, filepath.FromSlash(command))
+			}
+			if err := pathpolicy.RequireContainedChild(envelope.SnapshotRoot, candidate); err != nil {
+				return fmt.Errorf("stdio MCP server %s bundled command escapes PLUGIN_ROOT: %w", name, err)
+			}
+			info, err := os.Stat(candidate)
+			if err != nil || info.IsDir() || info.Mode().Perm()&0o111 == 0 {
+				return fmt.Errorf("stdio MCP server %s requires missing or non-executable bundled command %s", name, command)
+			}
+			continue
+		}
+		if _, err := exec.LookPath(command); err != nil && managedActivation {
+			return fmt.Errorf("stdio MCP server %s requires executable %q on PATH; install it explicitly before retrying (agentplugins never installs runtimes)", name, command)
+		}
+	}
+	return nil
+}
+
 func versionCompare(left, right string) (int, bool) {
 	normalize := func(value string) string {
 		value = strings.TrimSpace(value)
@@ -774,4 +1142,62 @@ func (service Service) verifyManagedTarget(
 		return fmt.Errorf("managed package was changed or is missing; refusing silent %s and retaining state: %w", operation, err)
 	}
 	return nil
+}
+
+func (service Service) observeNativeIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) error {
+	observation, err := service.nativeIdentityObservation(ctx, client, plan, managed)
+	if err != nil {
+		return fmt.Errorf("observe native identity for %s: %w", client.ClientID, err)
+	}
+	switch observation.State {
+	case NativeIdentityAbsent:
+		if managed != nil && managed.Materialization != domain.MaterializationAbsent {
+			return fmt.Errorf("managed native identity is unexpectedly absent")
+		}
+		return nil
+	case NativeIdentityManaged:
+		if managed == nil {
+			return fmt.Errorf("native identity already exists without matching agentplugins ownership; automatic adoption is disabled")
+		}
+		expected := managedDigest(*managed)
+		if expected == "" || observation.Digest == "" || expected != observation.Digest {
+			return fmt.Errorf("native identity ownership digest is stale or does not match")
+		}
+		return nil
+	case NativeIdentityUnmanaged:
+		return fmt.Errorf("native identity is unmanaged; remove it through its owning client or choose a distinct identity")
+	case NativeIdentityIndeterminate:
+		return fmt.Errorf("native identity ownership is indeterminate; refusing mutation")
+	default:
+		return fmt.Errorf("native identity observer returned an unknown state")
+	}
+}
+
+func (service Service) nativeIdentityObservation(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	if service.NativeObserver != nil {
+		return service.NativeObserver.ObserveNativeIdentity(ctx, client, plan, managed)
+	}
+	// Every backend gets a fail-closed filesystem observation even when it has
+	// no richer namespace-aware observer. A specialized observer may prove
+	// qualified coexistence; the fallback never does.
+	if _, err := os.Lstat(plan.ActivePath); os.IsNotExist(err) {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+	} else if err != nil {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, err
+	}
+	if managed == nil {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityUnmanaged}, nil
+	}
+	expected := managedDigest(*managed)
+	if expected == "" {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, nil
+	}
+	if err := service.Stager.Verify(ctx, plan.ActivePath, expected); err != nil {
+		var verification *ports.VerificationError
+		if errors.As(err, &verification) {
+			return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, Digest: verification.ActualDigest}, nil
+		}
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, err
+	}
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, Digest: expected}, nil
 }
