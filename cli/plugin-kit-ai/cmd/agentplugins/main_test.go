@@ -35,9 +35,15 @@ func TestMainUsesProductionDirectoryTrustAndFailsClosedWithoutBootstrap(t *testi
 	if len(client.Embedded.Snapshot) != 0 || len(client.Embedded.Envelope) != 0 {
 		t.Fatal("a non-production bootstrap was embedded")
 	}
+	if !client.RequireEmbeddedBootstrap {
+		t.Fatal("production Directory client did not require a release-bound bootstrap")
+	}
+	if _, ready, err := directoryv1.DecodeReleaseBootstrap(generatedProductionDirectoryBootstrap, client.Trust); err != nil || ready {
+		t.Fatalf("empty generated production bootstrap readiness = %v, %v", ready, err)
+	}
 	client.HTTPClient.Transport = failingRoundTripper{}
-	if _, err := client.Load(context.Background(), 0); err == nil {
-		t.Fatal("short-name Directory load succeeded without a published snapshot or cache")
+	if _, err := client.Load(context.Background(), 0); !errors.Is(err, directoryv1.ErrBootstrapNotReady) {
+		t.Fatalf("short-name Directory did not fail on empty release bootstrap: %v", err)
 	}
 }
 

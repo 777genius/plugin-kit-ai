@@ -90,51 +90,88 @@ func (cache Cache) Load(trust TrustStore) (VerifiedBundle, error) {
 // idempotent only when it authenticates the same snapshot digest; otherwise it
 // is publication equivocation and must fail closed.
 func (cache Cache) Store(candidate VerifiedBundle, trust TrustStore) error {
-	if cache.Path == "" {
-		return errors.New("directory cache path is empty")
-	}
 	verified, err := VerifyBundle(candidate.SnapshotBytes, candidate.EnvelopeBytes, trust)
 	if err != nil {
 		return err
 	}
+	authoritative, err := cache.reconcileVerified(verified, trust, true)
+	if err == nil && authoritative.Snapshot.Sequence > verified.Snapshot.Sequence {
+		return ErrCacheRollback
+	}
+	return err
+}
+
+// Reconcile linearizes a verified candidate with the process-shared cache and
+// returns the authoritative last-known-good bundle observed while holding the
+// OS lock. A caller must use the returned bundle rather than the candidate:
+// another process may have advanced the cache after the caller's initial read.
+// A same-sequence/different-digest publication is always returned as a
+// security error and is never hidden by a fallback.
+func (cache Cache) Reconcile(candidate VerifiedBundle, trust TrustStore) (VerifiedBundle, error) {
+	verified, err := VerifyBundle(candidate.SnapshotBytes, candidate.EnvelopeBytes, trust)
+	if err != nil {
+		return VerifiedBundle{}, err
+	}
+	return cache.reconcileVerified(verified, trust, true)
+}
+
+// Observe linearizes a local fallback with the cache without persisting an
+// embedded-only candidate. This preserves the bootstrap/cache separation while
+// still observing a concurrent higher or conflicting cache publication.
+func (cache Cache) Observe(candidate VerifiedBundle, trust TrustStore) (VerifiedBundle, error) {
+	verified, err := VerifyBundle(candidate.SnapshotBytes, candidate.EnvelopeBytes, trust)
+	if err != nil {
+		return VerifiedBundle{}, err
+	}
+	verified.Source = candidate.Source
+	return cache.reconcileVerified(verified, trust, false)
+}
+
+func (cache Cache) reconcileVerified(verified VerifiedBundle, trust TrustStore, persist bool) (VerifiedBundle, error) {
+	if cache.Path == "" {
+		return VerifiedBundle{}, errors.New("directory cache path is empty")
+	}
 	directory := filepath.Dir(cache.Path)
 	if err := os.MkdirAll(directory, 0700); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	if err := os.Chmod(directory, 0700); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	// The lock deliberately covers the read/compare and the complete durable
 	// replacement. Without that span, two independently verified writers can
 	// both compare against N and then publish N+2 followed by N+1.
 	unlock, err := lockCache(cache.Path + ".lock")
 	if err != nil {
-		return fmt.Errorf("lock directory cache: %w", err)
+		return VerifiedBundle{}, fmt.Errorf("lock directory cache: %w", err)
 	}
 	defer unlock()
 	if current, loadErr := cache.Load(trust); loadErr == nil && current.Snapshot.Sequence >= verified.Snapshot.Sequence {
 		if current.Snapshot.Sequence > verified.Snapshot.Sequence {
-			return ErrCacheRollback
+			return current, nil
 		}
 		if current.Digest != verified.Digest {
-			return fmt.Errorf("%w: sequence %d", ErrSequenceConflict, verified.Snapshot.Sequence)
+			return VerifiedBundle{}, fmt.Errorf("%w: sequence %d", ErrSequenceConflict, verified.Snapshot.Sequence)
 		}
-		return nil
+		return current, nil
+	}
+	if !persist {
+		return verified, nil
 	}
 	record := cacheRecord{SchemaVersion: SnapshotSchemaVersion, Sequence: verified.Snapshot.Sequence, Snapshot: base64.StdEncoding.EncodeToString(verified.SnapshotBytes), Envelope: base64.StdEncoding.EncodeToString(verified.EnvelopeBytes)}
 	body, err := json.Marshal(record)
 	if err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	body = append(body, '\n')
 	var nonce [8]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	temporary := filepath.Join(directory, "."+filepath.Base(cache.Path)+"."+hex.EncodeToString(nonce[:])+".tmp")
 	file, err := os.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	ok := false
 	defer func() {
@@ -144,27 +181,31 @@ func (cache Cache) Store(candidate VerifiedBundle, trust TrustStore) error {
 		}
 	}()
 	if _, err = file.Write(body); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	if err = file.Sync(); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	if err = file.Close(); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	if cache.BeforeRename != nil {
 		if err := cache.BeforeRename(temporary); err != nil {
-			return err
+			return VerifiedBundle{}, err
 		}
 	}
 	if err = os.Rename(temporary, cache.Path); err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	ok = true
 	dir, err := os.Open(directory)
 	if err != nil {
-		return err
+		return VerifiedBundle{}, err
 	}
 	defer dir.Close()
-	return dir.Sync()
+	if err := dir.Sync(); err != nil {
+		return VerifiedBundle{}, err
+	}
+	verified.Source = BundleSourceCache
+	return verified, nil
 }

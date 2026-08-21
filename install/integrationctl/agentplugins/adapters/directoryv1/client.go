@@ -46,17 +46,54 @@ type Client struct {
 	// AllowHTTPForTests is an explicit in-memory test switch. It is never read
 	// from or written to the cache.
 	AllowHTTPForTests bool
+	// RequireEmbeddedBootstrap is enabled by production wiring. It keeps short
+	// names closed until a release has bound the first signed publication into
+	// the binary; test/local clients may leave it false.
+	RequireEmbeddedBootstrap bool
+}
+
+// LoadLocal returns the highest authenticated embedded/cache publication at or
+// above installedFloor without performing network I/O. Expiry is deliberately
+// not an error here: this path is for read-only provenance and best-effort
+// safety warnings, never for authorizing installation or rematerialization.
+func (client Client) LoadLocal(installedFloor uint64) (VerifiedBundle, error) {
+	if len(client.Trust.Keys) == 0 {
+		return VerifiedBundle{}, ErrNoTrustedKeys
+	}
+	var embedded, cached VerifiedBundle
+	embeddedErr := errors.New("embedded directory bundle is empty")
+	if len(client.Embedded.Snapshot) > 0 || len(client.Embedded.Envelope) > 0 {
+		embedded, embeddedErr = client.Embedded.Verify(client.Trust)
+	}
+	cached, cacheErr := client.Cache.Load(client.Trust)
+	if embeddedErr == nil && cacheErr == nil && sameSequenceDifferentDigest(embedded, cached) {
+		return VerifiedBundle{}, fmt.Errorf("%w: sequence %d in cache and embedded bundle", ErrSequenceConflict, cached.Snapshot.Sequence)
+	}
+	best := VerifiedBundle{}
+	for _, candidate := range []VerifiedBundle{embedded, cached} {
+		if candidate.Snapshot.Sequence >= installedFloor && candidate.Snapshot.Sequence > best.Snapshot.Sequence {
+			best = candidate
+		}
+	}
+	if best.Snapshot.Sequence > 0 {
+		return best, nil
+	}
+	if embedded.Snapshot.Sequence > 0 || cached.Snapshot.Sequence > 0 {
+		return VerifiedBundle{}, fmt.Errorf("%w: local floor %d", ErrRollback, installedFloor)
+	}
+	return VerifiedBundle{}, fmt.Errorf("%w: no authenticated local bundle", ErrUnavailable)
 }
 
 var (
-	ErrUnsafeOrigin     = errors.New("unsafe directory origin")
-	ErrUnsafeRedirect   = errors.New("unsafe directory redirect")
-	ErrResponseTooLarge = errors.New("directory response exceeds declared limit")
-	ErrRollback         = errors.New("directory snapshot sequence is below local floor")
-	ErrSequenceConflict = errors.New("directory snapshot sequence has conflicting authenticated bytes")
-	ErrExpired          = errors.New("directory snapshot is expired")
-	ErrClockSkew        = errors.New("local clock is before directory generation time")
-	ErrUnavailable      = errors.New("no valid directory snapshot is available")
+	ErrUnsafeOrigin      = errors.New("unsafe directory origin")
+	ErrUnsafeRedirect    = errors.New("unsafe directory redirect")
+	ErrResponseTooLarge  = errors.New("directory response exceeds declared limit")
+	ErrRollback          = errors.New("directory snapshot sequence is below local floor")
+	ErrSequenceConflict  = errors.New("directory snapshot sequence has conflicting authenticated bytes")
+	ErrExpired           = errors.New("directory snapshot is expired")
+	ErrClockSkew         = errors.New("local clock is before directory generation time")
+	ErrUnavailable       = errors.New("no valid directory snapshot is available")
+	ErrBootstrapNotReady = errors.New("production directory bootstrap is not release-ready")
 )
 
 // Load obtains an unexpired schema-1 snapshot. installedFloor must be the
@@ -65,6 +102,11 @@ var (
 func (client Client) Load(ctx context.Context, installedFloor uint64) (VerifiedBundle, error) {
 	if len(client.Trust.Keys) == 0 {
 		return VerifiedBundle{}, ErrNoTrustedKeys
+	}
+	if client.RequireEmbeddedBootstrap {
+		if _, err := client.Embedded.Verify(client.Trust); err != nil {
+			return VerifiedBundle{}, fmt.Errorf("%w: %v", ErrBootstrapNotReady, err)
+		}
 	}
 	now := time.Now().UTC()
 	if client.Now != nil {
@@ -101,15 +143,27 @@ func (client Client) Load(ctx context.Context, installedFloor uint64) (VerifiedB
 			// cached or embedded copy. The caller needs the safety diagnostic.
 			return VerifiedBundle{}, fmt.Errorf("%w: sequence %d in remote and local bundle", ErrSequenceConflict, remote.Snapshot.Sequence)
 		} else if validityErr(remote.Snapshot, now) == nil {
-			if cacheErr != nil || remote.Snapshot.Sequence > cached.Snapshot.Sequence {
-				if err := client.Cache.Store(remote, client.Trust); err != nil {
-					remoteErr = fmt.Errorf("persist verified directory snapshot: %w", err)
-				} else {
-					return remote, nil
-				}
-			} else {
-				return remote, nil
+			// Reconcile every usable remote result, including one equal to our
+			// initial cache read. This is the linearization point that prevents a
+			// concurrent writer from advancing or equivocating the cache between
+			// the initial read and this load's return.
+			authoritative, reconcileErr := client.Cache.Reconcile(remote, client.Trust)
+			if reconcileErr != nil {
+				return VerifiedBundle{}, fmt.Errorf("persist verified directory snapshot: %w", reconcileErr)
 			}
+			if authoritative.Snapshot.Sequence < floor {
+				return VerifiedBundle{}, fmt.Errorf("%w: got %d, floor %d", ErrRollback, authoritative.Snapshot.Sequence, floor)
+			}
+			if sameSequenceDifferentDigest(authoritative, embedded) {
+				return VerifiedBundle{}, fmt.Errorf("%w: sequence %d in cache and embedded bundle", ErrSequenceConflict, authoritative.Snapshot.Sequence)
+			}
+			if err := validityErr(authoritative.Snapshot, now); err != nil {
+				return VerifiedBundle{}, err
+			}
+			if authoritative.Snapshot.Sequence == remote.Snapshot.Sequence && authoritative.Digest == remote.Digest {
+				authoritative.Source = BundleSourceRemote
+			}
+			return authoritative, nil
 		} else {
 			remoteErr = validityErr(remote.Snapshot, now)
 		}
@@ -123,7 +177,23 @@ func (client Client) Load(ctx context.Context, installedFloor uint64) (VerifiedB
 		}
 	}
 	if found {
-		return best, nil
+		// Linearize offline/local fallback too. A different process may have
+		// advanced or equivocated the cache while this load's network request was
+		// failing, and returning the stale initial read would violate the floor.
+		authoritative, err := client.Cache.Observe(best, client.Trust)
+		if err != nil {
+			return VerifiedBundle{}, fmt.Errorf("reconcile local directory snapshot: %w", err)
+		}
+		if authoritative.Snapshot.Sequence < floor {
+			return VerifiedBundle{}, fmt.Errorf("%w: got %d, floor %d", ErrRollback, authoritative.Snapshot.Sequence, floor)
+		}
+		if sameSequenceDifferentDigest(authoritative, embedded) {
+			return VerifiedBundle{}, fmt.Errorf("%w: sequence %d in cache and embedded bundle", ErrSequenceConflict, authoritative.Snapshot.Sequence)
+		}
+		if err := validityErr(authoritative.Snapshot, now); err != nil {
+			return VerifiedBundle{}, err
+		}
+		return authoritative, nil
 	}
 	// Preserve the specific safety diagnostic when all authenticated local data
 	// fails solely because of time.

@@ -150,12 +150,18 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("decode Directory public key")
 	}
+	trust := directoryv1.TrustStore{Keys: []directoryv1.TrustedKey{{ID: defaultDirectoryKeyID, PublicKey: ed25519.PublicKey(publicKey), State: directoryv1.KeyCurrent}}}
+	embedded, _, err := directoryv1.DecodeReleaseBootstrap(generatedProductionDirectoryBootstrap, trust)
+	if err != nil {
+		return nil, fmt.Errorf("load generated production Directory bootstrap: %w", err)
+	}
 	return &directoryv1.Client{
 		Origin: origin, HTTPClient: hardenedHTTPClient(),
-		Trust: directoryv1.TrustStore{Keys: []directoryv1.TrustedKey{{ID: defaultDirectoryKeyID, PublicKey: ed25519.PublicKey(publicKey), State: directoryv1.KeyCurrent}}},
+		Trust: trust,
 		// The production bootstrap is intentionally absent until the first
 		// post-merge Directory publication. Short-name resolution fails closed
-		// until remote publication or a valid cache supplies a signed snapshot.
+		// until a subsequent release binds that exact signed publication here.
+		Embedded: embedded, RequireEmbeddedBootstrap: true,
 		Cache: directoryv1.Cache{Path: filepath.Join(dataRoot, "directory-v1-cache.json")},
 	}, nil
 }

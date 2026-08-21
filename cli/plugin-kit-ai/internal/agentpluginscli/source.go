@@ -117,7 +117,11 @@ func (app App) acquireLocal(ctx context.Context, requested string) (loadedPackag
 		_ = packagedigest.Remove(snapshot)
 		return loadedPackage{}, err
 	}
-	return app.loadSnapshot(ctx, snapshot, domain.OriginModeDirect, nil, nil)
+	loaded, err := app.loadSnapshot(ctx, snapshot, domain.OriginModeDirect, nil, nil)
+	if err == nil {
+		app.warnDirectRevocation(snapshot.TreeDigest)
+	}
+	return loaded, err
 }
 
 func (app App) acquireGitHub(ctx context.Context, requested, repository, revision, subpath, expectedDigest string) (loadedPackage, error) {
@@ -141,7 +145,31 @@ func (app App) acquireGitHub(ctx context.Context, requested, repository, revisio
 			return loadedPackage{}, err
 		}
 	}
-	return app.loadSnapshot(ctx, snapshot, domain.OriginModeDirect, nil, nil)
+	loaded, err := app.loadSnapshot(ctx, snapshot, domain.OriginModeDirect, nil, nil)
+	if err == nil {
+		app.warnDirectRevocation(snapshot.TreeDigest)
+	}
+	return loaded, err
+}
+
+func (app App) warnDirectRevocation(treeDigest string) {
+	local, ok := app.DirectoryClient.(localDirectoryReader)
+	if !ok {
+		return
+	}
+	floor := uint64(0)
+	if app.StateStore != nil {
+		if state, err := app.StateStore.Load(); err == nil {
+			floor = installedDirectoryFloor(state)
+		}
+	}
+	bundle, err := local.LoadLocal(floor)
+	if err != nil {
+		return
+	}
+	for _, warning := range exactDigestWarnings(bundle.Snapshot, treeDigest, "the direct source") {
+		_, _ = fmt.Fprintf(app.errorOutput(), "WARNING [%s]: %s\n", warning.Code, warning.Message)
+	}
 }
 
 func (app App) acquireDirectory(ctx context.Context, selector string, request packageResolutionRequest) (loadedPackage, error) {
