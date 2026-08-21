@@ -29,7 +29,7 @@ type loadedPackage struct {
 }
 
 func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, error) {
-	if app.SourceResolver == nil || app.PackageLoader == nil {
+	if app.SourceResolver == nil || app.PackageLoader == nil || app.NativePackageLoader == nil {
 		return loadedPackage{}, fmt.Errorf("package source dependencies are unavailable")
 	}
 	requested := strings.TrimSpace(raw)
@@ -76,7 +76,7 @@ func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, erro
 		sourceIdentity.CanonicalSource = "https://github.com/" + sourceIdentity.Repository + "//" + sourceIdentity.PackageSubpath
 		hints = catalogResolution.Hints
 	}
-	envelope, err := app.PackageLoader.Load(ctx, domain.LoadInput{
+	envelope, err := app.loadAcquiredSnapshot(ctx, domain.LoadInput{
 		SnapshotRoot: resolved.LocalPath, TreeDigest: resolved.SourceDigest,
 		ExecutableFiles: resolved.ExecutableFiles, Source: sourceIdentity,
 	})
@@ -95,6 +95,21 @@ func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, erro
 		envelope.CatalogEvidence = &evidence
 	}
 	return loadedPackage{envelope: envelope, hints: hints, cleanup: cleanup}, nil
+}
+
+// loadAcquiredSnapshot selects a manifest format from the immutable snapshot.
+// A root plugin.json has absolute precedence: even a directory, symlink, or
+// malformed file is sent to the portable loader so its exact error is kept.
+func (app App) loadAcquiredSnapshot(ctx context.Context, input domain.LoadInput) (domain.PackageEnvelope, error) {
+	if _, err := os.Lstat(filepath.Join(input.SnapshotRoot, "plugin.json")); err == nil || !os.IsNotExist(err) {
+		return app.PackageLoader.Load(ctx, input)
+	}
+	if _, err := os.Lstat(filepath.Join(input.SnapshotRoot, ".codex-plugin", "plugin.json")); err == nil || !os.IsNotExist(err) {
+		return app.NativePackageLoader.Load(ctx, input)
+	}
+	// The compatibility importer owns the established diagnostic that names
+	// both accepted manifest locations when neither one exists.
+	return app.NativePackageLoader.Load(ctx, input)
 }
 
 func cloneCatalogCompatibility(source map[string]domain.CatalogCompatibility) map[string]domain.CatalogCompatibility {

@@ -1108,9 +1108,7 @@ func TestChatGPTUnsupportedUpdateRendersRecoveryWithoutMutation(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			fixture := newCLIFixture(t, nil)
-			plugin := writeCLIPlugin(t)
-			writeCLIMCP(t, plugin)
-			writeCLIApp(t, plugin)
+			plugin := writeCLIOfficialAppPlugin(t)
 			if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
 				t.Fatal(err)
 			}
@@ -1162,9 +1160,7 @@ func TestChatGPTUnsupportedUpdateRendersRecoveryWithoutMutation(t *testing.T) {
 func TestChatGPTUnsupportedRepairRendersStructuredRecoveryWithoutMutation(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, nil)
-	plugin := writeCLIPlugin(t)
-	writeCLIMCP(t, plugin)
-	writeCLIApp(t, plugin)
+	plugin := writeCLIOfficialAppPlugin(t)
 	if _, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt"); err != nil {
 		t.Fatal(err)
 	}
@@ -1310,12 +1306,7 @@ func TestRepairRestoresCatalogEvidenceFromSelectedClientRevision(t *testing.T) {
 func TestChatGPTAppPackagePreparesManualInstallWithoutDesktopDetection(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex)})
-	plugin := writeCLIPlugin(t)
-	writeCLIMCP(t, plugin)
-	app := `{"apps":{"demo":{"id":"asdk_app_demo_123","required":true}}}`
-	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(app), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	plugin := writeCLIOfficialAppPlugin(t)
 	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "chatgpt")
 	if err != nil {
 		t.Fatal(err)
@@ -1341,7 +1332,7 @@ func TestChatGPTAppPackagePreparesManualInstallWithoutDesktopDetection(t *testin
 	if _, err := os.Stat(filepath.Join(binding.TargetLocator, "plugin.json")); !os.IsNotExist(err) {
 		t.Fatalf("portable manifest shadows official ChatGPT projection: %v", err)
 	}
-	reloaded, err := fixture.app.PackageLoader.Load(context.Background(), domain.LoadInput{SnapshotRoot: binding.TargetLocator})
+	reloaded, err := fixture.app.NativePackageLoader.Load(context.Background(), domain.LoadInput{SnapshotRoot: binding.TargetLocator})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1537,11 +1528,7 @@ func TestCodexAndChatGPTUseIndependentBindings(t *testing.T) {
 		fixtureClient(t, domain.ClientCodex),
 		{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected},
 	})
-	plugin := writeCLIPlugin(t)
-	writeCLIMCP(t, plugin)
-	if err := os.WriteFile(filepath.Join(plugin, ".app.json"), []byte(`{"apps":{"demo":{"id":"asdk_app_demo_123"}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	plugin := writeCLIOfficialAppPlugin(t)
 	for _, target := range []string{"codex", "chatgpt"} {
 		if _, _, err := fixture.execute(false, "add", plugin, "--target", target); err != nil {
 			t.Fatalf("add %s: %v", target, err)
@@ -1943,6 +1930,7 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 	store := statev2.Store{Path: filepath.Join(root, "data", "state-v2.json")}
 	operations := filepath.Join(root, "data", "operations-v2")
 	runner := processadapter.OS{}
+	packageLoader := loader.Loader{Registry: registry}
 	return cliFixture{
 		root: root, store: store, operations: operations,
 		app: App{
@@ -1950,7 +1938,8 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 			ManagedRoot: filepath.Join(root, "data", "managed"), StateStore: store,
 			Directory: dirswap.Manager{JournalDir: operations}, Detector: staticDetector{clients: clients},
 			SourceResolver: sourceadapter.Resolver{Runner: runner, DisableAliases: true},
-			PackageLoader:  loader.Loader{Registry: registry}, Stager: providers.Stager{},
+			PackageLoader:  packageLoader, NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
+			Stager:          providers.Stager{},
 			Activator:       providers.Activator{},
 			LegacyStateLock: locks.FileLock{BaseDir: filepath.Join(root, "legacy-locks")},
 			MutationLock:    processlock.Lock{Path: filepath.Join(root, "data", "mutation.lock")},
@@ -2075,12 +2064,26 @@ func writeCLIMCP(t *testing.T, root string) {
 	}
 }
 
-func writeCLIApp(t *testing.T, root string) {
+func writeCLIOfficialAppPlugin(t *testing.T) string {
 	t.Helper()
+	root := t.TempDir()
+	manifestDirectory := filepath.Join(root, ".codex-plugin")
+	if err := os.MkdirAll(manifestDirectory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"name":"demo","version":"1.0.0","apps":"./.app.json","mcpServers":"./.mcp.json"}`
+	if err := os.WriteFile(filepath.Join(manifestDirectory, "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mcp := `{"mcpServers":{"demo":{"type":"streamable-http","url":"https://example.test/mcp"}}}`
+	if err := os.WriteFile(filepath.Join(root, ".mcp.json"), []byte(mcp), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	body := `{"apps":{"demo":{"id":"asdk_app_demo_123","required":true}}}`
 	if err := os.WriteFile(filepath.Join(root, ".app.json"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	return root
 }
 
 func readCLIObject(t *testing.T, path string) map[string]any {

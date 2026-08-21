@@ -13,31 +13,32 @@ import (
 )
 
 type App struct {
-	Version         string
-	UserHome        string
-	ManagedRoot     string
-	StateStore      transaction.StateStore
-	Directory       dirswap.Manager
-	Detector        ports.ClientDetector
-	SourceResolver  legacyports.SourceResolver
-	PackageLoader   ports.PackageLoader
-	Stager          ports.PackageStager
-	Activator       ports.ClientActivator
-	MutationLock    ports.MutationLock
-	StateMigrator   *statemigration.Migrator
-	LegacyLifecycle ports.LegacyLifecycle
-	LegacyStateLock legacyports.LockManager
-	SourceSwitcher  SourceSwitcher
-	DataPurger      DataPurger
-	GroupLifecycle  GroupLifecycle
-	HTTPClient      *http.Client
-	CatalogURL      string
-	CatalogDigest   string
-	CatalogBody     []byte
-	Input           io.Reader
-	Output          io.Writer
-	ErrorOutput     io.Writer
-	Terminal        bool
+	Version             string
+	UserHome            string
+	ManagedRoot         string
+	StateStore          transaction.StateStore
+	Directory           dirswap.Manager
+	Detector            ports.ClientDetector
+	SourceResolver      legacyports.SourceResolver
+	PackageLoader       ports.PackageLoader
+	NativePackageLoader ports.PackageLoader
+	Stager              ports.PackageStager
+	Activator           ports.ClientActivator
+	MutationLock        ports.MutationLock
+	StateMigrator       *statemigration.Migrator
+	LegacyLifecycle     ports.LegacyLifecycle
+	LegacyStateLock     legacyports.LockManager
+	SourceSwitcher      SourceSwitcher
+	DataPurger          DataPurger
+	GroupLifecycle      GroupLifecycle
+	HTTPClient          *http.Client
+	CatalogURL          string
+	CatalogDigest       string
+	CatalogBody         []byte
+	Input               io.Reader
+	Output              io.Writer
+	ErrorOutput         io.Writer
+	Terminal            bool
 }
 
 type options struct {

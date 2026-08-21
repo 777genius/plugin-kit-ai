@@ -55,6 +55,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	packageLoader := loader.Loader{Registry: registry}
 	runner := processadapter.OS{}
 	catalogURL := firstNonEmpty(os.Getenv("AGENTPLUGINS_CATALOG_URL"), defaultCatalogURL)
 	catalogDigest := firstNonEmpty(os.Getenv("AGENTPLUGINS_CATALOG_DIGEST"), defaultCatalogDigest)
@@ -69,28 +70,29 @@ func run() error {
 		V2Store:    v2Store,
 	}
 	app := agentpluginscli.App{
-		Version:         version,
-		UserHome:        home,
-		ManagedRoot:     filepath.Join(dataRoot, "managed"),
-		StateStore:      v2Store,
-		StateMigrator:   &migrator,
-		LegacyLifecycle: agentpluginscli.NewLegacyLifecycle(legacyStatePath),
-		LegacyStateLock: locks.FileLock{BaseDir: filepath.Join(home, ".plugin-kit-ai", "locks")},
-		Directory:       dirswap.Manager{JournalDir: filepath.Join(dataRoot, "operations-v2")},
-		Detector:        clientdetect.NewOS(home),
-		SourceResolver:  sourceadapter.Resolver{Runner: runner, DisableAliases: true},
-		PackageLoader:   loader.Loader{Registry: registry},
-		Stager:          providers.Stager{},
-		Activator:       providers.Activator{Runner: runner},
-		MutationLock:    processlock.Lock{Path: filepath.Join(dataRoot, "mutation.lock")},
-		HTTPClient:      hardenedHTTPClient(),
-		CatalogURL:      catalogURL,
-		CatalogDigest:   catalogDigest,
-		CatalogBody:     catalogBody,
-		Input:           os.Stdin,
-		Output:          os.Stdout,
-		ErrorOutput:     os.Stderr,
-		Terminal:        term.IsTerminal(int(os.Stdin.Fd())),
+		Version:             version,
+		UserHome:            home,
+		ManagedRoot:         filepath.Join(dataRoot, "managed"),
+		StateStore:          v2Store,
+		StateMigrator:       &migrator,
+		LegacyLifecycle:     agentpluginscli.NewLegacyLifecycle(legacyStatePath),
+		LegacyStateLock:     locks.FileLock{BaseDir: filepath.Join(home, ".plugin-kit-ai", "locks")},
+		Directory:           dirswap.Manager{JournalDir: filepath.Join(dataRoot, "operations-v2")},
+		Detector:            clientdetect.NewOS(home),
+		SourceResolver:      sourceadapter.Resolver{Runner: runner, DisableAliases: true},
+		PackageLoader:       packageLoader,
+		NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
+		Stager:              providers.Stager{},
+		Activator:           providers.Activator{Runner: runner},
+		MutationLock:        processlock.Lock{Path: filepath.Join(dataRoot, "mutation.lock")},
+		HTTPClient:          hardenedHTTPClient(),
+		CatalogURL:          catalogURL,
+		CatalogDigest:       catalogDigest,
+		CatalogBody:         catalogBody,
+		Input:               os.Stdin,
+		Output:              os.Stdout,
+		ErrorOutput:         os.Stderr,
+		Terminal:            term.IsTerminal(int(os.Stdin.Fd())),
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
