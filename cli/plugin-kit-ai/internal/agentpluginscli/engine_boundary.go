@@ -78,6 +78,10 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		planned, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope}, loaded.origin, loaded.directory)
 		output.Retained = &planned
 		if err != nil {
+			output.Status = "preflight_failed"
+			if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil {
+				return renderErr
+			}
 			return err
 		}
 		if opts.dryRun {
@@ -130,6 +134,10 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	planned, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, DryRun: true, Switch: true})
 	output.Group = &planned
 	if err != nil {
+		output.Status = "preflight_failed"
+		if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil {
+			return renderErr
+		}
 		return fmt.Errorf("switch preflight failed; no target was changed: %w", err)
 	}
 	if opts.dryRun {
@@ -171,6 +179,15 @@ func renderSwitchResult(writer io.Writer, format string, result switchOutput) er
 		_, _ = fmt.Fprintln(writer, "  retained PLUGIN_DATA: preserved")
 	}
 	return nil
+}
+
+func (result switchOutput) outputResult() string {
+	switch result.Status {
+	case "", "planned", "completed":
+		return outputResultSuccess
+	default:
+		return outputResultFailure
+	}
 }
 
 func runPurgeData(ctx context.Context, cmd *cobra.Command, app App, opts *options, installation domain.Installation) error {

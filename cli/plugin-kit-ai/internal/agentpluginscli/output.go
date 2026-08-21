@@ -8,6 +8,15 @@ import (
 
 const outputSchemaVersion = 1
 
+const (
+	outputResultSuccess = "success"
+	outputResultFailure = "failure"
+)
+
+type outputResultProvider interface {
+	outputResult() string
+}
+
 type outputEnvelope struct {
 	SchemaVersion int    `json:"schema_version"`
 	Command       string `json:"command"`
@@ -16,7 +25,13 @@ type outputEnvelope struct {
 }
 
 func writeJSONOutput(writer io.Writer, command string, data any) error {
-	return writeJSONResult(writer, command, "success", data)
+	result := outputResultSuccess
+	if provider, ok := data.(outputResultProvider); ok {
+		if provided := provider.outputResult(); provided != "" {
+			result = provided
+		}
+	}
+	return writeJSONResult(writer, command, result, data)
 }
 
 func writeJSONResult(writer io.Writer, command, result string, data any) error {

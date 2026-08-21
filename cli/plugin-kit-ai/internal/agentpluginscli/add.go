@@ -112,11 +112,7 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	planned, err := service.Add(ctx, input)
 	if err != nil {
 		if planned.Plan.Status == domain.PlanUnsupported {
-			if opts.format == "json" {
-				if renderErr := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun); renderErr != nil {
-					return renderErr
-				}
-			} else if renderErr := renderHumanPlan(cmd.OutOrStdout(), loaded.envelope, planned); renderErr != nil {
+			if renderErr := renderAddResultError(cmd.OutOrStdout(), opts.format, loaded.envelope, planned, opts.dryRun, err); renderErr != nil {
 				return renderErr
 			}
 		}
@@ -159,7 +155,7 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	input.Confirmed = true
 	input.InstallationID = planned.InstallationID
 	result, err := service.Add(ctx, input)
-	if renderErr := renderAddResult(cmd.OutOrStdout(), opts.format, loaded.envelope, result, false); renderErr != nil && err == nil {
+	if renderErr := renderAddResultError(cmd.OutOrStdout(), opts.format, loaded.envelope, result, false, err); renderErr != nil && err == nil {
 		err = renderErr
 	}
 	if err == nil && freshInstall && opts.format == "human" && app.Terminal {
@@ -243,6 +239,9 @@ func resumeInteractiveLifecycle(
 		resume.AuthComplete = false
 		current, err = service.Add(ctx, resume)
 		if err != nil {
+			if renderErr := renderAddResultError(cmd.OutOrStdout(), "human", envelope, current, false, err); renderErr != nil {
+				return renderErr
+			}
 			return err
 		}
 	}
@@ -267,6 +266,9 @@ func resumeInteractiveLifecycle(
 		resume.AuthComplete = true
 		current, err = service.Add(ctx, resume)
 		if err != nil {
+			if renderErr := renderAddResultError(cmd.OutOrStdout(), "human", envelope, current, false, err); renderErr != nil {
+				return renderErr
+			}
 			return err
 		}
 	}
@@ -411,9 +413,18 @@ func renderHumanPlan(writer io.Writer, envelope domain.PackageEnvelope, result u
 }
 
 func renderAddResult(writer io.Writer, format string, envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool) error {
+	return renderAddResultError(writer, format, envelope, result, dryRun, nil)
+}
+
+func renderAddResultError(writer io.Writer, format string, envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool, commandErr error) error {
 	data := newAddResultData(envelope, result, dryRun)
+	data.envelopeResult = addEnvelopeResult(result, commandErr)
 	if format == "json" {
 		return writeJSONOutput(writer, "add", data)
+	}
+	if failure := addFailureStatus(result, commandErr); failure != "" {
+		_, err := fmt.Fprintf(writer, "Add: %s\n", failure)
+		return err
 	}
 	if dryRun {
 		return renderHumanPlan(writer, envelope, result)
@@ -460,6 +471,43 @@ type addResultData struct {
 	NextAction     string            `json:"next_action,omitempty"`
 	DryRun         bool              `json:"dry_run"`
 	Result         usecase.AddResult `json:"result"`
+	envelopeResult string
+}
+
+func (data addResultData) outputResult() string {
+	return data.envelopeResult
+}
+
+func addEnvelopeResult(result usecase.AddResult, commandErr error) string {
+	if addFailureStatus(result, commandErr) != "" {
+		return outputResultFailure
+	}
+	return outputResultSuccess
+}
+
+func addFailureStatus(result usecase.AddResult, commandErr error) string {
+	if result.GroupPhase == usecase.GroupTargetManagedRolledBack ||
+		result.GroupPhase == usecase.GroupTargetManagedUnknown ||
+		result.GroupPhase == usecase.GroupTargetExternalFailed ||
+		result.GroupPhase == usecase.GroupTargetExternalPartial {
+		return string(result.GroupPhase)
+	}
+	if result.Plan.Status == domain.PlanUnsupported {
+		return string(domain.PlanUnsupported)
+	}
+	if result.Activation.Activation == domain.ActivationFailed {
+		return "activation_failed"
+	}
+	if result.Activation.Authentication == domain.AuthenticationFailed {
+		return "authentication_failed"
+	}
+	if result.Activation.Verification == domain.VerificationFailed {
+		return "verification_failed"
+	}
+	if commandErr != nil {
+		return "failed"
+	}
+	return ""
 }
 
 func newAddResultData(envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool) addResultData {
@@ -468,7 +516,7 @@ func newAddResultData(envelope domain.PackageEnvelope, result usecase.AddResult,
 		Version: envelope.Manifest.Version, Source: publicPackageSource(envelope.Source),
 		Revision: envelope.Source.ResolvedRevision, TreeDigest: envelope.TreeDigest,
 		ManifestDigest: envelope.ManifestDigest, NextAction: nextLifecycleAction(result),
-		DryRun: dryRun, Result: result,
+		DryRun: dryRun, Result: result, envelopeResult: addEnvelopeResult(result, nil),
 	}
 }
 
