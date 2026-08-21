@@ -37,6 +37,7 @@ type packageResolutionRequest struct {
 	Targets   []domain.ClientID
 	Operation domain.DirectoryOperation
 	Recorded  *domain.RecordedDirectoryRelease
+	Clients   map[domain.ClientID]domain.DetectedClient
 }
 
 func (app App) addResolutionRequest(selector string, targets []domain.ClientID) packageResolutionRequest {
@@ -54,17 +55,22 @@ func (app App) addResolutionRequest(selector string, targets []domain.ClientID) 
 	return request
 }
 
-func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64) (loadedPackage, error) {
+func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64, clients map[domain.ClientID]domain.DetectedClient) (loadedPackage, error) {
 	if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil {
-		return app.loadPackageFor(ctx, updateSource(installation), packageResolutionRequest{Targets: targets, Operation: operation})
+		return app.loadPackageFor(ctx, updateSource(installation), packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients})
 	}
 	sequence := releaseSequence
 	if sequence == 0 {
 		sequence = installation.Directory.DesiredReleaseSequence
 	}
-	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Recorded: &domain.RecordedDirectoryRelease{
+	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients, Recorded: &domain.RecordedDirectoryRelease{
 		ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence,
 	}})
+}
+
+func withDetectedClients(request packageResolutionRequest, clients map[domain.ClientID]domain.DetectedClient) packageResolutionRequest {
+	request.Clients = clients
+	return request
 }
 
 func locallyMatchedInstallation(state domain.StateFileV2, selector string) (domain.Installation, bool) {
@@ -189,11 +195,15 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	if operation == "" {
 		operation = domain.DirectoryInstall
 	}
-	selection, err := domain.ResolveDirectory(bundle.Snapshot, domain.DirectoryResolveRequest{
+	environment := directoryEnvironment(request.Clients)
+	environment.InstallerVersion = app.Version
+	resolveRequest := domain.DirectoryResolveRequest{
 		Selector: selector, Targets: append([]domain.ClientID(nil), request.Targets...), Scope: domain.ScopeUser,
-		InstallerVersion: app.Version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
-		SchemaVersion: "1.0.0", Operation: operation, Recorded: request.Recorded,
-	})
+		InstallerVersion: app.Version, ClientVersions: environment.ClientVersions, OS: environment.OS, Architecture: environment.Architecture,
+		DependencyIdentity: environment.DependencyIdentity,
+		SchemaVersion:      "1.0.0", Operation: operation, Recorded: request.Recorded,
+	}
+	selection, err := domain.ResolveDirectory(bundle.Snapshot, resolveRequest)
 	if err != nil {
 		return loadedPackage{}, err
 	}
@@ -227,11 +237,23 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 		_ = loaded.cleanup()
 		return loadedPackage{}, fmt.Errorf("signed Directory identity does not match acquired package manifest")
 	}
+	environment.DependencyIdentity = deterministicDependencyIdentity(loaded.envelope, request.Targets)
+	exactRequest := resolveRequest
+	exactRequest.Selector = selection.DistributionID
+	exactRequest.Operation = domain.DirectoryNewTarget
+	exactRequest.Recorded = &domain.RecordedDirectoryRelease{ProductID: selection.ProductID, DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence}
+	exactRequest.DependencyIdentity = environment.DependencyIdentity
+	checked, err := domain.ResolveDirectory(bundle.Snapshot, exactRequest)
+	if err != nil || checked.DistributionID != selection.DistributionID || checked.ReleaseSequence != selection.ReleaseSequence {
+		_ = loaded.cleanup()
+		if err != nil {
+			return loadedPackage{}, fmt.Errorf("acquired exact Directory release failed compatibility recheck: %w", err)
+		}
+		return loadedPackage{}, fmt.Errorf("acquired exact Directory release changed during compatibility recheck")
+	}
 	loaded.distributionSuspended = distribution.Status == domain.DistributionSuspended
 	loaded.releaseRevoked = policy.Status == domain.ReleaseRevoked || snapshotRevokes(bundle.Snapshot, selection)
-	if err := applyDirectoryCompatibility(&loaded, bundle, selection, *policy, directoryEvidenceEnvironment{
-		InstallerVersion: app.Version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
-	}); err != nil {
+	if err := applyDirectoryCompatibility(&loaded, bundle, selection, *policy, environment); err != nil {
 		_ = loaded.cleanup()
 		return loadedPackage{}, err
 	}
@@ -308,6 +330,40 @@ type directoryEvidenceEnvironment struct {
 	DependencyIdentity map[domain.ClientID]string
 }
 
+func directoryEnvironment(clients map[domain.ClientID]domain.DetectedClient) directoryEvidenceEnvironment {
+	versions := make(map[domain.ClientID]string, len(clients))
+	for id, client := range clients {
+		if client.ClientID == id && client.Version != "" {
+			versions[id] = client.Version
+		}
+	}
+	return directoryEvidenceEnvironment{OS: runtime.GOOS, Architecture: runtime.GOARCH, ClientVersions: versions, DependencyIdentity: map[domain.ClientID]string{}}
+}
+
+// deterministicDependencyIdentity returns a value only when the immutable
+// package declares exactly one external stdio command. It inspects manifest
+// metadata only; it does not resolve or execute the dependency.
+func deterministicDependencyIdentity(envelope domain.PackageEnvelope, targets []domain.ClientID) map[domain.ClientID]string {
+	commands := map[string]struct{}{}
+	for _, server := range envelope.MCP.Servers {
+		if requirement := server.StdioRequirement; requirement != nil && requirement.Kind == domain.ExecutableBare && strings.TrimSpace(requirement.Command) != "" {
+			commands[requirement.Command] = struct{}{}
+		}
+	}
+	if len(commands) != 1 {
+		return map[domain.ClientID]string{}
+	}
+	var identity string
+	for command := range commands {
+		identity = command
+	}
+	result := make(map[domain.ClientID]string, len(targets))
+	for _, target := range targets {
+		result[target] = identity
+	}
+	return result
+}
+
 func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.VerifiedBundle, selection domain.DirectorySelection, policy domain.DirectoryReleasePolicy, environment directoryEvidenceEnvironment) error {
 	if err := validateDirectoryCompatibilityPolicy(policy); err != nil {
 		return err
@@ -364,7 +420,8 @@ func directoryEvidenceApplies(evidence domain.DirectoryEvidence, selection domai
 	if evidence.Level == "schema" {
 		return evidence.Client == ""
 	}
-	if evidence.Client != client || evidence.InstallerVersion != environment.InstallerVersion || evidence.OS != environment.OS || evidence.Architecture != environment.Architecture {
+	if evidence.Client != client || !directoryEvidenceDimensionMatches(evidence.InstallerVersion, environment.InstallerVersion) ||
+		!directoryEvidenceDimensionMatches(evidence.OS, environment.OS) || !directoryEvidenceDimensionMatches(evidence.Architecture, environment.Architecture) {
 		return false
 	}
 	if evidence.ClientVersion != "" && environment.ClientVersions[client] != evidence.ClientVersion {
@@ -374,6 +431,10 @@ func directoryEvidenceApplies(evidence domain.DirectoryEvidence, selection domai
 		return false
 	}
 	return true
+}
+
+func directoryEvidenceDimensionMatches(recorded, actual string) bool {
+	return recorded == "" || recorded == actual
 }
 
 func directoryVerification(evidence []domain.DirectoryEvidence) string {

@@ -75,7 +75,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 			return err
 		}
 	}
-	loaded, err := app.loadPackageFor(ctx, source, packageResolutionRequest{Targets: targetIDs, Operation: domain.DirectoryInstall})
+	loaded, err := app.loadPackageFor(ctx, source, packageResolutionRequest{Targets: targetIDs, Operation: domain.DirectoryInstall, Clients: detected})
 	if err != nil {
 		return err
 	}

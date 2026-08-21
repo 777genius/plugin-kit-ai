@@ -98,9 +98,9 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		request := requests[key]
 		var loaded loadedPackage
 		if installation.OriginMode == domain.OriginModeDirectory {
-			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence)
+			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence, detected)
 		} else {
-			loaded, err = app.loadPackageFor(ctx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair})
+			loaded, err = app.loadPackageFor(ctx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair, Clients: detected})
 		}
 		if err != nil {
 			return err

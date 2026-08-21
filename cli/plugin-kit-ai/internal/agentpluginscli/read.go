@@ -43,6 +43,7 @@ type publicDetectedClient struct {
 	ClientID    domain.ClientID        `json:"client_id"`
 	DisplayName string                 `json:"display_name"`
 	Status      domain.DetectionStatus `json:"status"`
+	Version     string                 `json:"version,omitempty"`
 	Surfaces    []domain.ClientSurface `json:"surfaces,omitempty"`
 }
 
@@ -166,7 +167,7 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	publicClients := make([]publicDetectedClient, 0, len(clients))
 	for _, client := range clients {
 		publicClients = append(publicClients, publicDetectedClient{
-			ClientID: client.ClientID, DisplayName: client.DisplayName, Status: client.Status,
+			ClientID: client.ClientID, DisplayName: client.DisplayName, Status: client.Status, Version: client.Version,
 			Surfaces: append([]domain.ClientSurface(nil), client.Surfaces...),
 		})
 	}

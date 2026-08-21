@@ -58,6 +58,7 @@ type DetectedClient struct {
 	ClientID    ClientID        `json:"client_id"`
 	DisplayName string          `json:"display_name"`
 	Status      DetectionStatus `json:"status"`
+	Version     string          `json:"version,omitempty"`
 	Surfaces    []ClientSurface `json:"surfaces,omitempty"`
 	// ExecutablePath and ConfigRoot are operational locators. They must never be
 	// emitted by the public JSON renderer because they can reveal the user home.

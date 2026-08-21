@@ -27,7 +27,20 @@ func testDirectory() DirectorySnapshot {
 	bridge := testDistribution("community/tool-bridge", DistributionCommunityBridge, []DirectoryRelease{testRelease(8, "99.0.0")}, []DirectoryReleasePolicy{testPolicy(8, ClientCodex, ClientCursor)})
 	community := testDistribution("other/tool", DistributionCommunity, []DirectoryRelease{testRelease(1, "1.0.0")}, []DirectoryReleasePolicy{testPolicy(1, ClientCodex, ClientCursor)})
 	product := DirectoryProduct{SchemaVersion: 1, ID: "tool", DisplayName: "Tool", Description: "Tool", ManifestName: "tool", Aliases: []string{"tool", "old-tool"}, ReservedAliases: []string{"tool"}, Categories: []string{"tools"}, MinimumCapabilities: DirectoryMinimumCapabilities{MCP: "required", Skills: "optional"}, DefaultDistribution: "owner/tool", Distributions: []string{"other/tool", "community/tool-bridge", "owner/tool"}}
-	return DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 42, Products: []DirectoryProduct{product}, Distributions: []DirectoryDistribution{community, bridge, upstream}, Evidence: []DirectoryEvidence{}, Revocations: []DirectoryRevocation{}}
+	snapshot := DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 42, Products: []DirectoryProduct{product}, Distributions: []DirectoryDistribution{community, bridge, upstream}, Evidence: []DirectoryEvidence{}, Revocations: []DirectoryRevocation{}}
+	upstreamDistribution := &snapshot.Distributions[2]
+	for policyIndex := range upstreamDistribution.ReleasePolicies {
+		policy := &upstreamDistribution.ReleasePolicies[policyIndex]
+		release := upstreamDistribution.Releases[policyIndex]
+		for _, target := range policy.Targets {
+			id := "passed/materialization/" + string(target.Client) + "/" + release.PackageVersion
+			policy.CurrentEvidence = append(policy.CurrentEvidence, id)
+			snapshot.Evidence = append(snapshot.Evidence, DirectoryEvidence{ID: id, DistributionID: upstreamDistribution.ID, ReleaseSequence: release.Sequence,
+				PackageTreeDigest: release.TreeDigest, Level: "materialization", Outcome: "passed", Client: target.Client,
+				InstallerVersion: "promotion-installer", ClientVersion: "promotion-client", OS: "promotion-os", Architecture: "promotion-arch"})
+		}
+	}
+	return snapshot
 }
 
 func request(selector string, targets ...ClientID) DirectoryResolveRequest {
@@ -124,7 +137,11 @@ func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 		t.Fatalf("remove: %v", err)
 	}
 	d.Releases = append(d.Releases, testRelease(4, "0.0.1"))
-	d.ReleasePolicies = append(d.ReleasePolicies, testPolicy(4, ClientCodex))
+	updatePolicy := testPolicy(4, ClientCodex)
+	updatePolicy.CurrentEvidence = []string{"passed/materialization/codex/4"}
+	d.ReleasePolicies = append(d.ReleasePolicies, updatePolicy)
+	s.Evidence = append(s.Evidence, DirectoryEvidence{ID: updatePolicy.CurrentEvidence[0], DistributionID: d.ID, ReleaseSequence: 4,
+		PackageTreeDigest: d.Releases[len(d.Releases)-1].TreeDigest, Level: "materialization", Outcome: "passed", Client: ClientCodex})
 	r = base
 	r.Operation = DirectoryUpdate
 	if got, err := ResolveDirectory(s, r); err != nil || got.ReleaseSequence != 4 {
@@ -214,5 +231,77 @@ func TestResolveDirectoryGates(t *testing.T) {
 	p.CurrentEvidence = []string{"failed/schema"}
 	if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err == nil {
 		t.Fatal("schema evidence gate")
+	}
+}
+
+func TestResolveDirectoryUpstreamMaterializationAndExactFailedTuple(t *testing.T) {
+	s := testDirectory()
+	policy := &s.Distributions[2].ReleasePolicies[1]
+	passed := append([]string(nil), policy.CurrentEvidence...)
+	policy.CurrentEvidence = nil
+	if selected, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err != nil || selected.ReleaseSequence != 2 {
+		t.Fatalf("newest upstream without passed materialization did not fall back to eligible release 2: %+v %v", selected, err)
+	}
+	policy.CurrentEvidence = passed
+	s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
+	exactFailure := DirectoryEvidence{ID: "failed/exact", DistributionID: "owner/tool", ReleaseSequence: 3,
+		PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex,
+		ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "npx"}
+	s.Evidence = append(s.Evidence, exactFailure)
+	policy.CurrentEvidence = append(policy.CurrentEvidence, exactFailure.ID)
+	exact := request("owner/tool", ClientCodex)
+	exact.DependencyIdentity = map[ClientID]string{ClientCodex: "npx"}
+	if _, err := ResolveDirectory(s, exact); !errors.Is(err, ErrDirectoryIneligible) {
+		t.Fatalf("exact failed tuple was eligible: %v", err)
+	}
+	for name, change := range map[string]func(*DirectoryResolveRequest){
+		"client version":             func(value *DirectoryResolveRequest) { value.ClientVersions[ClientCodex] = "changed" },
+		"unavailable client version": func(value *DirectoryResolveRequest) { delete(value.ClientVersions, ClientCodex) },
+		"dependency":                 func(value *DirectoryResolveRequest) { value.DependencyIdentity[ClientCodex] = "node" },
+		"os":                         func(value *DirectoryResolveRequest) { value.OS = "darwin" },
+		"architecture":               func(value *DirectoryResolveRequest) { value.Architecture = "arm64" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := exact
+			changed.ClientVersions = map[ClientID]string{ClientCodex: exact.ClientVersions[ClientCodex]}
+			changed.DependencyIdentity = map[ClientID]string{ClientCodex: exact.DependencyIdentity[ClientCodex]}
+			change(&changed)
+			if _, err := ResolveDirectory(s, changed); err != nil {
+				t.Fatalf("changed tuple blocked by historical failure: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveDirectoryExactFailedCompatibilityLevelsBlock(t *testing.T) {
+	for _, level := range []string{"materialization", "discovery", "runtime"} {
+		t.Run(level, func(t *testing.T) {
+			s := testDirectory()
+			s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
+			policy := &s.Distributions[2].ReleasePolicies[1]
+			failure := DirectoryEvidence{ID: "failed/" + level, DistributionID: "owner/tool", ReleaseSequence: 3,
+				PackageTreeDigest: testRelease(3, "").TreeDigest, Level: level, Outcome: "failed", Client: ClientCodex,
+				ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"}
+			s.Evidence = append(s.Evidence, failure)
+			policy.CurrentEvidence = append(policy.CurrentEvidence, failure.ID)
+			if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); !errors.Is(err, ErrDirectoryIneligible) {
+				t.Fatalf("exact failed %s evidence did not block: %v", level, err)
+			}
+		})
+	}
+}
+
+func TestResolveDirectoryMultiTargetOrderIsDeterministic(t *testing.T) {
+	s := testDirectory()
+	first, err := ResolveDirectory(s, request("tool", ClientCodex, ClientCursor))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ResolveDirectory(s, request("tool", ClientCursor, ClientCodex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.DistributionID != second.DistributionID || first.ReleaseSequence != second.ReleaseSequence {
+		t.Fatalf("target order changed selection: %+v != %+v", first, second)
 	}
 }

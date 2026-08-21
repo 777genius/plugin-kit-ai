@@ -41,7 +41,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 					return err
 				}
 				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
-				loaded, err := app.loadPackageFor(cmd.Context(), args[0], app.addResolutionRequest(args[0], targets))
+				loaded, err := app.loadPackageFor(cmd.Context(), args[0], withDetectedClients(app.addResolutionRequest(args[0], targets), detected))
 				if err != nil {
 					return err
 				}
@@ -79,7 +79,7 @@ func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *o
 		return err
 	}
 	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
-	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, targets))
+	loaded, err := app.loadPackageFor(ctx, source, withDetectedClients(app.addResolutionRequest(source, targets), detected))
 	if err != nil {
 		return err
 	}

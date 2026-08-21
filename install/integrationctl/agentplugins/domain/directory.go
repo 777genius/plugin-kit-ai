@@ -428,6 +428,9 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		if !supported || entry.Delivery != delivery {
 			return &eligibilityReason{"incompatible_delivery", fmt.Sprintf("release delivery %q is incompatible with %s; expected %q", entry.Delivery, target, delivery)}
 		}
+		if distribution.Kind == DistributionUpstream && !hasPassedUpstreamMaterialization(snapshot, distribution, release, policy, target) {
+			return &eligibilityReason{"upstream_materialization_required", "upstream release lacks current passed materialization evidence for " + string(target)}
+		}
 		for _, evidenceID := range policy.CurrentEvidence {
 			if e := evidenceByID(snapshot, evidenceID); e != nil && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
 				return &eligibilityReason{"blocking_evidence", "current trusted " + e.Level + " evidence failed for " + string(target)}
@@ -449,6 +452,20 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 	return nil
 }
 
+// hasPassedUpstreamMaterialization is the static promotion/package gate. Its
+// environment dimensions describe the isolated promotion run and must not be
+// mistaken for evidence about the caller's local environment.
+func hasPassedUpstreamMaterialization(snapshot DirectorySnapshot, distribution DirectoryDistribution, release DirectoryRelease, policy DirectoryReleasePolicy, client ClientID) bool {
+	for _, evidenceID := range policy.CurrentEvidence {
+		evidence := evidenceByID(snapshot, evidenceID)
+		if evidence != nil && evidence.DistributionID == distribution.ID && evidence.ReleaseSequence == release.Sequence &&
+			evidence.PackageTreeDigest == release.TreeDigest && evidence.Client == client && evidence.Level == "materialization" && evidence.Outcome == "passed" {
+			return true
+		}
+	}
+	return false
+}
+
 func directoryEvidenceApplies(e DirectoryEvidence, distribution DirectoryDistribution, release DirectoryRelease, client ClientID, request DirectoryResolveRequest) bool {
 	if e.DistributionID != distribution.ID || e.ReleaseSequence != release.Sequence || e.PackageTreeDigest != release.TreeDigest {
 		return false
@@ -456,7 +473,8 @@ func directoryEvidenceApplies(e DirectoryEvidence, distribution DirectoryDistrib
 	if e.Level == "schema" {
 		return e.Client == ""
 	}
-	if e.Client != client || e.InstallerVersion != request.InstallerVersion || e.OS != request.OS || e.Architecture != request.Architecture {
+	if e.Client != client || !evidenceDimensionMatches(e.InstallerVersion, request.InstallerVersion) ||
+		!evidenceDimensionMatches(e.OS, request.OS) || !evidenceDimensionMatches(e.Architecture, request.Architecture) {
 		return false
 	}
 	if e.ClientVersion != "" && request.ClientVersions[e.Client] != e.ClientVersion {
@@ -466,6 +484,10 @@ func directoryEvidenceApplies(e DirectoryEvidence, distribution DirectoryDistrib
 		return false
 	}
 	return true
+}
+
+func evidenceDimensionMatches(recorded, actual string) bool {
+	return recorded == "" || recorded == actual
 }
 
 func selectionFrom(snapshot DirectorySnapshot, product DirectoryProduct, distribution DirectoryDistribution, release DirectoryRelease, fallback bool, diagnostics []DirectoryDiagnostic) DirectorySelection {

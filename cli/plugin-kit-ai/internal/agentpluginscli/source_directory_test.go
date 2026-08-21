@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -136,6 +137,56 @@ func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 	}
 }
 
+func TestDirectoryPostAcquisitionDependencyRecheckFailsClosed(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCursor)
+	client.Version = "0.50.0"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	plugin := writeCLIPlugin(t)
+	mcp := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"stdio","command":"npx"}}}`
+	if err := os.WriteFile(filepath.Join(plugin, "mcp.json"), []byte(mcp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	local, err := fixture.app.acquireLocal(context.Background(), plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeDigest, manifestDigest := local.envelope.TreeDigest, local.envelope.ManifestDigest
+	if err := local.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	revision := strings.Repeat("a", 40)
+	release := domain.DirectoryRelease{Sequence: 1, PackageVersion: "1.0.0", ManifestName: "demo",
+		AgentPluginsSchema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", PackageSource: domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
+		TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: treeDigest, ManifestDigest: manifestDigest, Components: []string{"mcp"}}
+	passed := domain.DirectoryEvidence{ID: "passed/materialization", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}
+	failed := domain.DirectoryEvidence{ID: "failed/runtime/npx", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+		Level: "runtime", Outcome: "failed", Client: domain.ClientCursor, ClientVersion: client.Version, InstallerVersion: fixture.app.Version,
+		OS: runtime.GOOS, Architecture: runtime.GOARCH, DependencyIdentity: "npx"}
+	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 1, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0",
+		Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"}}, CurrentEvidence: []string{passed.ID, failed.ID}}
+	snapshot := domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 1,
+		Products: []domain.DirectoryProduct{{SchemaVersion: 1, ID: "demo", ManifestName: "demo", DefaultDistribution: "owner/demo", Distributions: []string{"owner/demo"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}}},
+		Distributions: []domain.DirectoryDistribution{{SchemaVersion: 1, ID: "owner/demo", ProductID: "demo", Kind: domain.DistributionUpstream, Status: domain.DistributionActive,
+			Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}}, Evidence: []domain.DirectoryEvidence{passed, failed}}
+	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("b", 64)}}
+	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+	fixture.app.DirectoryClient, fixture.app.SourceAcquirer = directory, acquirer
+	_, err = fixture.app.acquireDirectory(context.Background(), "demo", packageResolutionRequest{Targets: []domain.ClientID{domain.ClientCursor},
+		Clients: map[domain.ClientID]domain.DetectedClient{domain.ClientCursor: client}})
+	if err == nil || !strings.Contains(err.Error(), "failed compatibility recheck") {
+		t.Fatalf("exact dependency failure did not fail closed after acquisition: %v", err)
+	}
+	state, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if acquirer.verifiedCalls != 1 || len(state.Installations) != 0 {
+		t.Fatalf("dependency recheck acquisition/mutation = calls:%d state:%+v", acquirer.verifiedCalls, state)
+	}
+}
+
 func withDirectoryEvidence(source domain.DirectoryEvidence, mutate func(*domain.DirectoryEvidence)) domain.DirectoryEvidence {
 	mutate(&source)
 	return source
@@ -206,7 +257,7 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 	policy := domain.DirectoryReleasePolicy{
 		ReleaseSequence: 3, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0",
 		Targets:         []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}},
-		CurrentEvidence: []string{},
+		CurrentEvidence: []string{"passed/materialization/cursor"},
 	}
 	snapshot := domain.DirectorySnapshot{
 		SnapshotSchemaVersion: 1, Sequence: 17, SourceCommit: strings.Repeat("b", 40),
@@ -231,7 +282,8 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 				Targets: policy.Targets, CurrentEvidence: []string{},
 			}},
 		}},
-		Evidence: []domain.DirectoryEvidence{}, Revocations: []domain.DirectoryRevocation{},
+		Evidence: []domain.DirectoryEvidence{{ID: policy.CurrentEvidence[0], DistributionID: "owner/demo", ReleaseSequence: release.Sequence,
+			PackageTreeDigest: release.TreeDigest, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}}, Revocations: []domain.DirectoryRevocation{},
 	}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("c", 64)}}
 	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
@@ -350,7 +402,7 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 			Targets: []domain.DirectoryTarget{
 				{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"},
 				{Client: domain.ClientKiro, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"},
-			}, CurrentEvidence: []string{}}
+			}, CurrentEvidence: []string{fmt.Sprintf("passed/materialization/cursor/%d", sequence), fmt.Sprintf("passed/materialization/kiro/%d", sequence)}}
 	}
 	distribution := domain.DirectoryDistribution{SchemaVersion: 1, ID: "owner/mixed", ProductID: "mixed-demo", Kind: domain.DistributionUpstream,
 		Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release(1, v1)}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy(1)}}
@@ -358,7 +410,10 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 		Products: []domain.DirectoryProduct{{SchemaVersion: 1, ID: "mixed-demo", DisplayName: "Mixed Demo", Description: "Mixed Demo", ManifestName: "demo",
 			Aliases: []string{"mixed-demo"}, ReservedAliases: []string{"mixed-demo"}, Categories: []string{},
 			MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}, DefaultDistribution: "owner/mixed", Distributions: []string{"owner/mixed"}}},
-		Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{}, Revocations: []domain.DirectoryRevocation{}}
+		Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{
+			{ID: "passed/materialization/cursor/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor},
+			{ID: "passed/materialization/kiro/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro},
+		}, Revocations: []domain.DirectoryRevocation{}}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("a", 64)}}
 	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer,
 		revisionRoots: map[string]string{v1.revision: v1.root, v2.revision: v2.root}, revisionCalls: map[string]int{}}
@@ -369,6 +424,9 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 	}
 	directory.bundle.Snapshot.Distributions[0].Releases = append(directory.bundle.Snapshot.Distributions[0].Releases, release(2, v2))
 	directory.bundle.Snapshot.Distributions[0].ReleasePolicies = append(directory.bundle.Snapshot.Distributions[0].ReleasePolicies, policy(2))
+	directory.bundle.Snapshot.Evidence = append(directory.bundle.Snapshot.Evidence,
+		domain.DirectoryEvidence{ID: "passed/materialization/cursor/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor},
+		domain.DirectoryEvidence{ID: "passed/materialization/kiro/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro})
 	directory.bundle.Snapshot.Sequence = 2
 	directory.bundle.Digest = "sha256:" + strings.Repeat("b", 64)
 	if _, _, err := fixture.execute(false, "update", "demo", "--target", "cursor"); err != nil {

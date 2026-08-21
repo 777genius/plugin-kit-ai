@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
@@ -156,6 +157,51 @@ func TestDetectorRecognizesKiroCLIAndPreservesLegacyEvidence(t *testing.T) {
 	kiro := clientOf(clients, domain.ClientKiro)
 	if kiro.ExecutablePath != modern || !surfaceDetected(kiro.Surfaces, "kiro_cli") || !surfaceDetected(kiro.Surfaces, "kiro_legacy_cli") {
 		t.Fatalf("Kiro detection = %+v", kiro)
+	}
+}
+
+func TestDetectorProbesNormalizedClientVersionWithoutMakingDetectionFatal(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	cursorPath := filepath.Join(home, "bin", "cursor")
+	detector := testDetector(home, map[string]string{"cursor": cursorPath, "code": filepath.Join(home, "bin", "code")})
+	detector.ProbeVersion = func(_ context.Context, executable string) (string, error) {
+		if executable == cursorPath {
+			return "Cursor 0.50.7\nsynthetic-build", nil
+		}
+		return "", context.DeadlineExceeded
+	}
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := clientOf(clients, domain.ClientCursor).Version; version != "0.50.7" {
+		t.Fatalf("Cursor version = %q, want 0.50.7", version)
+	}
+	if version := clientOf(clients, domain.ClientVSCode).Version; version != "" {
+		t.Fatalf("unavailable VS Code version = %q, want empty", version)
+	}
+}
+
+func TestDetectorBoundsVersionProbe(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	detector := testDetector(home, map[string]string{"cursor": filepath.Join(home, "bin", "cursor")})
+	detector.VersionTimeout = 10 * time.Millisecond
+	detector.ProbeVersion = func(ctx context.Context, _ string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	started := time.Now()
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded version probe took %s", elapsed)
+	}
+	if clientOf(clients, domain.ClientCursor).Version != "" {
+		t.Fatal("timed-out version probe populated a version")
 	}
 }
 

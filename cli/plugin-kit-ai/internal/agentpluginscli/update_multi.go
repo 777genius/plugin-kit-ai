@@ -65,7 +65,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		// instead of incorrectly requiring a still newer release.
 		operation = domain.DirectoryNewTarget
 	}
-	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, operation, 0)
+	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, operation, 0, detected)
 	if err != nil {
 		return err
 	}

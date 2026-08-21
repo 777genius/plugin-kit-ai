@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -60,15 +61,17 @@ func newRolloutDirectoryFixture(t *testing.T, clients, releaseTwoTargets []domai
 	}
 	policy := func(sequence uint64, targets []domain.ClientID) domain.DirectoryReleasePolicy {
 		entries := make([]domain.DirectoryTarget, 0, len(targets))
+		evidence := make([]string, 0, len(targets))
 		for _, target := range targets {
 			delivery, _ := domain.ExpectedDirectoryDelivery(target)
 			entries = append(entries, domain.DirectoryTarget{Client: target, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: delivery, Authentication: domain.AuthenticationRequirementUnknown})
+			evidence = append(evidence, "passed/materialization/"+string(target)+"/"+strconv.FormatUint(sequence, 10))
 		}
 		status := domain.ReleaseActive
 		if sequence == 2 {
 			status = domain.ReleaseSuperseded
 		}
-		return domain.DirectoryReleasePolicy{ReleaseSequence: sequence, Status: status, MinimumInstallerVersion: "0.1.0", Targets: entries, CurrentEvidence: []string{}}
+		return domain.DirectoryReleasePolicy{ReleaseSequence: sequence, Status: status, MinimumInstallerVersion: "0.1.0", Targets: entries, CurrentEvidence: evidence}
 	}
 	distribution := domain.DirectoryDistribution{SchemaVersion: 1, ID: "owner/rollout", ProductID: "rollout-demo", Kind: domain.DistributionUpstream,
 		Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release(1, v1), release(2, v2)},
@@ -78,6 +81,15 @@ func newRolloutDirectoryFixture(t *testing.T, clients, releaseTwoTargets []domai
 			Aliases: []string{"rollout-demo"}, ReservedAliases: []string{"rollout-demo"}, Categories: []string{},
 			MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}, DefaultDistribution: "owner/rollout", Distributions: []string{"owner/rollout"}}},
 		Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{}, Revocations: []domain.DirectoryRevocation{}}
+	for releaseIndex, release := range distribution.Releases {
+		for targetIndex, target := range distribution.ReleasePolicies[releaseIndex].Targets {
+			snapshot.Evidence = append(snapshot.Evidence, domain.DirectoryEvidence{
+				ID: distribution.ReleasePolicies[releaseIndex].CurrentEvidence[targetIndex], DistributionID: distribution.ID,
+				ReleaseSequence: release.Sequence, PackageTreeDigest: release.TreeDigest,
+				Level: "materialization", Outcome: "passed", Client: target.Client,
+			})
+		}
+	}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("a", 64)}}
 	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer,
 		revisionRoots: map[string]string{v1.revision: v1.root, v2.revision: v2.root}, revisionCalls: map[string]int{}}
