@@ -25,7 +25,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			}
 			var detectedClients []domain.DetectedClient
 			if strings.TrimSpace(opts.target) == "" && app.Terminal {
-				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app)
+				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app, !opts.dryRun && isDirectorySelector(args[0]))
 				if err != nil {
 					return err
 				}
@@ -36,7 +36,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				_, detected, err := preflightSelectedTargets(cmd.Context(), app, targets, detectedClients)
+				_, detected, err := preflightSelectedTargets(cmd.Context(), app, targets, detectedClients, false)
 				if err != nil {
 					return err
 				}
@@ -74,7 +74,7 @@ func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *o
 	if err != nil {
 		return err
 	}
-	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients, !opts.dryRun && isDirectorySelector(source))
 	if err != nil {
 		return err
 	}
@@ -165,8 +165,8 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	return err
 }
 
-func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App) (string, []domain.DetectedClient, error) {
-	clients, err := app.Detector.Detect(ctx)
+func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App, probeVersion bool) (string, []domain.DetectedClient, error) {
+	clients, err := detectClientsForLifecycleResolution(ctx, app.Detector, probeVersion)
 	if err != nil {
 		return "", nil, fmt.Errorf("detect AI clients: %w", err)
 	}

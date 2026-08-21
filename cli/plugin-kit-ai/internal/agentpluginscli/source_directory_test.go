@@ -71,6 +71,7 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 		name           string
 		authentication domain.AuthenticationRequirement
 		record         domain.DirectoryEvidence
+		withoutVersion bool
 		wantVerify     string
 		wantLevel      string
 		wantOutcome    string
@@ -82,6 +83,7 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 		{name: "wrong client", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.Client = domain.ClientCodex }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong OS", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.OS = "darwin" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong client version", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.ClientVersion = "0.49.0" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "missing client version", authentication: domain.AuthenticationRequirementRequired, record: exact, withoutVersion: true, wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong installer version", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.InstallerVersion = "1.2.2" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong dependency", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.DependencyIdentity = "node@20" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "failed current materialization", authentication: domain.AuthenticationRequirementNotRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) {
@@ -93,10 +95,14 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			testEnvironment := environment
+			if test.withoutVersion {
+				testEnvironment.ClientVersions = map[domain.ClientID]string{}
+			}
 			policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Delivery: "managed", Authentication: test.authentication}}, CurrentEvidence: []string{test.record.ID}}
 			bundle := directoryv1.VerifiedBundle{Digest: "sha256:directory", Snapshot: domain.DirectorySnapshot{SourceCommit: strings.Repeat("e", 40), Evidence: []domain.DirectoryEvidence{test.record}}}
 			loaded := loadedPackage{}
-			if err := applyDirectoryCompatibility(&loaded, bundle, selection, policy, environment); err != nil {
+			if err := applyDirectoryCompatibility(&loaded, bundle, selection, policy, testEnvironment); err != nil {
 				t.Fatal(err)
 			}
 			compatibility := loaded.envelope.CatalogEvidence.Compatibility[string(domain.ClientCursor)]

@@ -7,15 +7,23 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 )
+
+func detectClientsForLifecycleResolution(ctx context.Context, detector ports.ClientDetector, probeVersion bool) ([]domain.DetectedClient, error) {
+	if probing, ok := detector.(ports.VersionProbingClientDetector); probeVersion && ok {
+		return probing.DetectWithVersionProbe(ctx)
+	}
+	return detector.Detect(ctx)
+}
 
 // preflightSelectedTargets resolves the complete caller-selected client set
 // before any package or Directory work begins. ChatGPT is the sole synthetic
 // client: signed compatibility may authorize preparing its local package even
 // though the remote product cannot be detected locally.
-func preflightSelectedTargets(ctx context.Context, app App, targets []domain.ClientID, clients []domain.DetectedClient) ([]domain.DetectedClient, map[domain.ClientID]domain.DetectedClient, error) {
+func preflightSelectedTargets(ctx context.Context, app App, targets []domain.ClientID, clients []domain.DetectedClient, probeVersion bool) ([]domain.DetectedClient, map[domain.ClientID]domain.DetectedClient, error) {
 	if clients == nil {
-		detected, err := app.Detector.Detect(ctx)
+		detected, err := detectClientsForLifecycleResolution(ctx, app.Detector, probeVersion)
 		if err != nil {
 			return nil, nil, fmt.Errorf("detect AI clients: %w", err)
 		}

@@ -51,7 +51,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		}
 	}
 	allTargets := installationTargets(installation, opts.scope)
-	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil)
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil, !opts.dryRun && installation.OriginMode == domain.OriginModeDirectory)
 	if err != nil {
 		return err
 	}

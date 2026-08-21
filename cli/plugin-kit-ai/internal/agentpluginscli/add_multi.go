@@ -42,7 +42,7 @@ func runAddMany(ctx context.Context, cmd *cobra.Command, app App, opts *options,
 }
 
 func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
-	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients, !opts.dryRun && isDirectorySelector(source))
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		Directory: cloneDirectoryOrigin(loaded.directory),
 		DryRun:    opts.dryRun, Targets: make([]addTargetResult, 0, len(targets)),
 	}
-	selected, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	selected, detected, err := preflightSelectedTargets(ctx, app, targets, clients, false)
 	if err != nil {
 		return err
 	}

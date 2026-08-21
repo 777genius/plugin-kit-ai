@@ -2,15 +2,37 @@ package clientdetect
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
+
+func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		name := strings.TrimSuffix(filepath.Base(os.Args[0]), filepath.Ext(os.Args[0]))
+		if strings.Contains(name, "slow-version-probe") {
+			time.Sleep(5 * time.Second)
+			os.Exit(0)
+		}
+		stdin, _ := io.ReadAll(os.Stdin)
+		cwd, _ := os.Getwd()
+		_ = json.NewEncoder(os.Stdout).Encode(struct {
+			CWD   string   `json:"cwd"`
+			Env   []string `json:"env"`
+			Stdin string   `json:"stdin"`
+		}{CWD: cwd, Env: os.Environ(), Stdin: string(stdin)})
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 func TestDetectorReturnsAllSupportedClientsWithoutAmbientDiscovery(t *testing.T) {
 	t.Parallel()
@@ -160,7 +182,23 @@ func TestDetectorRecognizesKiroCLIAndPreservesLegacyEvidence(t *testing.T) {
 	}
 }
 
-func TestDetectorProbesNormalizedClientVersionWithoutMakingDetectionFatal(t *testing.T) {
+func TestDetectorReadOnlyDetectionNeverProbesClientVersion(t *testing.T) {
+	home := t.TempDir()
+	detector := testDetector(home, map[string]string{"cursor": filepath.Join(home, "bin", "cursor")})
+	detector.ProbeVersion = func(context.Context, string) (string, error) {
+		t.Fatal("read-only Detect executed a client version probe")
+		return "", nil
+	}
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client := clientOf(clients, domain.ClientCursor); client.Status != domain.DetectionDetected || client.Version != "" {
+		t.Fatalf("read-only Cursor detection = %+v", client)
+	}
+}
+
+func TestExplicitDetectorProbeNormalizesClientVersionWithoutMakingDetectionFatal(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	cursorPath := filepath.Join(home, "bin", "cursor")
@@ -171,7 +209,7 @@ func TestDetectorProbesNormalizedClientVersionWithoutMakingDetectionFatal(t *tes
 		}
 		return "", context.DeadlineExceeded
 	}
-	clients, err := detector.Detect(context.Background())
+	clients, err := detector.DetectWithVersionProbe(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +221,7 @@ func TestDetectorProbesNormalizedClientVersionWithoutMakingDetectionFatal(t *tes
 	}
 }
 
-func TestDetectorBoundsVersionProbe(t *testing.T) {
+func TestExplicitDetectorBoundsInjectedVersionProbe(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	detector := testDetector(home, map[string]string{"cursor": filepath.Join(home, "bin", "cursor")})
@@ -193,7 +231,7 @@ func TestDetectorBoundsVersionProbe(t *testing.T) {
 		return "", ctx.Err()
 	}
 	started := time.Now()
-	clients, err := detector.Detect(context.Background())
+	clients, err := detector.DetectWithVersionProbe(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,6 +240,53 @@ func TestDetectorBoundsVersionProbe(t *testing.T) {
 	}
 	if clientOf(clients, domain.ClientCursor).Version != "" {
 		t.Fatal("timed-out version probe populated a version")
+	}
+}
+
+func TestExecutableVersionProbeIsSanitizedAndIsolated(t *testing.T) {
+	t.Setenv("AGENTPLUGINS_TEST_CREDENTIAL", "must-not-leak")
+	executable := copyTestExecutable(t, "inspect-version-probe")
+	userCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := probeExecutableVersion(context.Background(), executable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observed struct {
+		CWD   string   `json:"cwd"`
+		Env   []string `json:"env"`
+		Stdin string   `json:"stdin"`
+	}
+	if err := json.Unmarshal([]byte(output), &observed); err != nil {
+		t.Fatalf("decode probe observation %q: %v", output, err)
+	}
+	if observed.CWD == "" || filepath.Clean(observed.CWD) == filepath.Clean(userCWD) || !strings.Contains(filepath.Base(observed.CWD), "agentplugins-version-probe-") {
+		t.Fatalf("probe cwd = %q, user cwd = %q", observed.CWD, userCWD)
+	}
+	for _, value := range observed.Env {
+		name, _, _ := strings.Cut(value, "=")
+		if !strings.EqualFold(name, "SYSTEMROOT") {
+			t.Fatalf("probe inherited unexpected environment value %q", value)
+		}
+	}
+	if observed.Stdin != "" {
+		t.Fatalf("probe stdin = %q, want EOF", observed.Stdin)
+	}
+}
+
+func TestExecutableVersionProbeHonorsContextBound(t *testing.T) {
+	t.Parallel()
+	executable := copyTestExecutable(t, "slow-version-probe")
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	if _, err := probeExecutableVersion(ctx, executable); err == nil {
+		t.Fatal("timed-out executable probe succeeded")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("executable probe exceeded bound: %s", elapsed)
 	}
 }
 
@@ -290,6 +375,23 @@ func testDetector(home string, binaries map[string]string) Detector {
 		},
 		Lstat: os.Lstat,
 	}
+}
+
+func copyTestExecutable(t *testing.T, prefix string) string {
+	t.Helper()
+	source, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(t.TempDir(), prefix+filepath.Ext(source))
+	if err := os.WriteFile(destination, contents, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return destination
 }
 
 func statusOf(clients []domain.DetectedClient, id domain.ClientID) domain.DetectionStatus {

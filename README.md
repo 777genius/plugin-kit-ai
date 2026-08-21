@@ -52,6 +52,13 @@ merged with, converted into, or allowed to silently override `plugin.json`.
 
 Before changing anything, the CLI resolves and validates the source and
 preflights every selected client. `--dry-run` prints that same read-only plan.
+`doctor` only inspects paths and filesystem metadata; it never launches a
+discovered client executable, and neither does a `--dry-run`. Non-dry-run
+lifecycle resolution may explicitly run a bounded `--version` probe when an
+exact client version is needed for signed Directory evidence. That probe
+receives an empty stdin and credential-free environment and runs outside the
+caller's working directory. If it cannot obtain a matching version,
+version-bound evidence remains unavailable rather than being inferred.
 Managed files and state are staged and committed together; a failure rolls back
 changes when ownership can be proven, or stops with recovery guidance without
 claiming success. Client-controlled activation happens separately: some clients

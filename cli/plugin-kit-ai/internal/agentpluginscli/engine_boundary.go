@@ -70,7 +70,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	targetIDs := installationTargets(installation, string(domain.ScopeUser))
 	var detected map[domain.ClientID]domain.DetectedClient
 	if len(targetIDs) > 0 {
-		_, detected, err = preflightSelectedTargets(ctx, app, targetIDs, nil)
+		_, detected, err = preflightSelectedTargets(ctx, app, targetIDs, nil, !opts.dryRun && isDirectorySelector(source))
 		if err != nil {
 			return err
 		}

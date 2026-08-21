@@ -612,6 +612,55 @@ func TestDryRunAndDoctorAreStrictlyReadOnly(t *testing.T) {
 	}
 }
 
+func TestDoctorNeverUsesExplicitLifecycleVersionProbe(t *testing.T) {
+	fixture := newCLIFixture(t, nil)
+	detector := &observedProbingDetector{}
+	fixture.app.Detector = detector
+	if _, _, err := fixture.execute(false, "doctor", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 1 || detector.probeCalls != 0 {
+		t.Fatalf("doctor detection calls: read-only=%d probe=%d", detector.readOnlyCalls, detector.probeCalls)
+	}
+}
+
+func TestLifecycleResolutionExplicitlyRequestsVersionProbe(t *testing.T) {
+	detector := &observedProbingDetector{}
+	if _, err := detectClientsForLifecycleResolution(context.Background(), detector, true); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 0 || detector.probeCalls != 1 {
+		t.Fatalf("lifecycle detection calls: read-only=%d probe=%d", detector.readOnlyCalls, detector.probeCalls)
+	}
+}
+
+func TestDryRunLifecycleResolutionNeverUsesVersionProbe(t *testing.T) {
+	client := fixtureClient(t, domain.ClientCursor)
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{client}}
+	fixture := newCLIFixture(t, nil)
+	fixture.app.Detector = detector
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor", "--dry-run", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 1 || detector.probeCalls != 0 {
+		t.Fatalf("dry-run detection calls: read-only=%d probe=%d", detector.readOnlyCalls, detector.probeCalls)
+	}
+}
+
+func TestDirectLifecycleResolutionNeverUsesVersionProbe(t *testing.T) {
+	client := fixtureClient(t, domain.ClientCursor)
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{client}}
+	fixture := newCLIFixture(t, nil)
+	fixture.app.Detector = detector
+	if _, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "cursor", "--format", "json"); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 1 || detector.probeCalls != 0 {
+		t.Fatalf("direct-source detection calls: read-only=%d probe=%d", detector.readOnlyCalls, detector.probeCalls)
+	}
+}
+
 func TestDoctorDiagnosesManagedDirectoryChangesWithRecovery(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
@@ -2343,6 +2392,22 @@ func (fixture cliFixture) executeInput(terminal bool, input string, args ...stri
 
 type staticDetector struct {
 	clients []domain.DetectedClient
+}
+
+type observedProbingDetector struct {
+	readOnlyCalls int
+	probeCalls    int
+	clients       []domain.DetectedClient
+}
+
+func (detector *observedProbingDetector) Detect(context.Context) ([]domain.DetectedClient, error) {
+	detector.readOnlyCalls++
+	return append([]domain.DetectedClient(nil), detector.clients...), nil
+}
+
+func (detector *observedProbingDetector) DetectWithVersionProbe(context.Context) ([]domain.DetectedClient, error) {
+	detector.probeCalls++
+	return append([]domain.DetectedClient(nil), detector.clients...), nil
 }
 
 type failingVerifyStager struct {
