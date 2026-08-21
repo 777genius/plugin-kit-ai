@@ -195,6 +195,13 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	if err != nil {
 		return loadedPackage{}, err
 	}
+	product, distribution, release, policy := directoryRecords(bundle.Snapshot, selection)
+	if product == nil || distribution == nil || release == nil || policy == nil {
+		return loadedPackage{}, fmt.Errorf("signed Directory selection cannot be reproduced from its snapshot")
+	}
+	if err := validateDirectoryCompatibilityPolicy(*policy); err != nil {
+		return loadedPackage{}, err
+	}
 	snapshot, err := app.SourceAcquirer.AcquireGitHubVerified(ctx, selection.Source.Repository, selection.Source.Revision, selection.Source.Path, selection.TreeDigest)
 	if err != nil {
 		return loadedPackage{}, err
@@ -214,18 +221,16 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 		_ = loaded.cleanup()
 		return loadedPackage{}, fmt.Errorf("acquired package manifest digest %s does not match signed Directory digest %s", loaded.envelope.ManifestDigest, selection.ManifestDigest)
 	}
-	product, distribution, release, policy := directoryRecords(bundle.Snapshot, selection)
-	if product == nil || distribution == nil || release == nil || policy == nil {
-		_ = loaded.cleanup()
-		return loadedPackage{}, fmt.Errorf("signed Directory selection cannot be reproduced from its snapshot")
-	}
 	if loaded.envelope.Manifest.Name != product.ManifestName || loaded.envelope.Manifest.Name != release.ManifestName {
 		_ = loaded.cleanup()
 		return loadedPackage{}, fmt.Errorf("signed Directory identity does not match acquired package manifest")
 	}
 	loaded.distributionSuspended = distribution.Status == domain.DistributionSuspended
 	loaded.releaseRevoked = policy.Status == domain.ReleaseRevoked || snapshotRevokes(bundle.Snapshot, selection)
-	applyDirectoryCompatibility(&loaded, bundle, *policy)
+	if err := applyDirectoryCompatibility(&loaded, bundle, *policy); err != nil {
+		_ = loaded.cleanup()
+		return loadedPackage{}, err
+	}
 	return loaded, nil
 }
 
@@ -256,13 +261,49 @@ func (app App) loadAcquiredSnapshot(ctx context.Context, input domain.LoadInput)
 	return app.NativePackageLoader.Load(ctx, input)
 }
 
-func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.VerifiedBundle, policy domain.DirectoryReleasePolicy) {
-	compatibility := make(map[string]domain.CatalogCompatibility, len(policy.Targets))
+func stableCatalogPackageMode(mode domain.PackageMode) (string, bool) {
+	switch mode {
+	case domain.PackageNative:
+		return "native", true
+	case domain.PackageProjection:
+		return "projected", true
+	case domain.PackagePrepared:
+		return "prepared", true
+	default:
+		return "", false
+	}
+}
+
+func validateDirectoryCompatibilityPolicy(policy domain.DirectoryReleasePolicy) error {
 	for _, target := range policy.Targets {
 		capabilities, ok := clientplanner.Capabilities(target.Client)
 		if !ok {
-			continue
+			return fmt.Errorf("signed Directory target %q is unsupported", target.Client)
 		}
+		packageMode, ok := stableCatalogPackageMode(capabilities.PackageMode)
+		if !ok {
+			return fmt.Errorf("signed Directory target %q has unsupported package mode %q", target.Client, capabilities.PackageMode)
+		}
+		expectedDelivery, ok := domain.ExpectedDirectoryDelivery(target.Client)
+		if !ok || target.Delivery != expectedDelivery {
+			return fmt.Errorf("signed Directory delivery %q is incompatible with target %q; expected %q", target.Delivery, target.Client, expectedDelivery)
+		}
+		deliveryPackageMode := map[string]string{"managed": "native", "prepared": "prepared", "manual_activation": "projected"}[target.Delivery]
+		if deliveryPackageMode == "" || deliveryPackageMode != packageMode {
+			return fmt.Errorf("signed Directory delivery %q does not match package mode %q for target %q", target.Delivery, packageMode, target.Client)
+		}
+	}
+	return nil
+}
+
+func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.VerifiedBundle, policy domain.DirectoryReleasePolicy) error {
+	if err := validateDirectoryCompatibilityPolicy(policy); err != nil {
+		return err
+	}
+	compatibility := make(map[string]domain.CatalogCompatibility, len(policy.Targets))
+	for _, target := range policy.Targets {
+		capabilities, _ := clientplanner.Capabilities(target.Client)
+		packageMode, _ := stableCatalogPackageMode(capabilities.PackageMode)
 		verification := "not_tested"
 		for _, evidenceID := range policy.CurrentEvidence {
 			for _, evidence := range bundle.Snapshot.Evidence {
@@ -271,7 +312,7 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 				}
 			}
 		}
-		entry := domain.CatalogCompatibility{Package: string(capabilities.PackageMode), Verification: verification, Authentication: domain.AuthenticationRequirementUnknown}
+		entry := domain.CatalogCompatibility{Package: packageMode, Verification: verification, Authentication: domain.AuthenticationRequirementUnknown}
 		if target.AppBinding != nil {
 			mcpURL := ""
 			if server, ok := loaded.envelope.MCP.Servers[target.AppBinding.MCPServer]; ok {
@@ -287,6 +328,7 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 		Revision: bundle.Snapshot.SourceCommit, MinimumCLIVersion: policy.MinimumInstallerVersion,
 		AgentPluginsSchema: loaded.envelope.SchemaURI, Compatibility: cloneCatalogCompatibility(compatibility),
 	}
+	return nil
 }
 
 func directoryRecords(snapshot domain.DirectorySnapshot, selection domain.DirectorySelection) (*domain.DirectoryProduct, *domain.DirectoryDistribution, *domain.DirectoryRelease, *domain.DirectoryReleasePolicy) {

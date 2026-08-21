@@ -124,7 +124,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
 		}
-		client, ok := detected[target]
+		client, ok := detectedSharedClient(target, detected)
 		if target == domain.ClientChatGPT && !ok {
 			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
 			detected[target] = client

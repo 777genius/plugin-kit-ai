@@ -887,7 +887,9 @@ func TestCLIAddAndUpdatePersistConvergedNegativeObservationBeforeConfirmation(t 
 	t.Parallel()
 	client := fixtureClient(t, domain.ClientCopilot)
 	client.ExecutablePath = "/test/bin/copilot"
-	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	notDetectedVSCode := fixtureClient(t, domain.ClientVSCode)
+	notDetectedVSCode.Status = domain.DetectionNotDetected
+	fixture := newCLIFixture(t, []domain.DetectedClient{client, notDetectedVSCode})
 	plugin := writeCLIPlugin(t)
 	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot"); err != nil {
 		t.Fatal(err)
@@ -937,6 +939,106 @@ func TestCLIAddAndUpdatePersistConvergedNegativeObservationBeforeConfirmation(t 
 		if binding.Activation != domain.ActivationFailed || binding.Verification != domain.VerificationFailed || len(binding.Receipts) != receiptCount {
 			t.Fatalf("%s state=%+v", command, binding)
 		}
+	}
+}
+
+func TestSharedBackendUpdateUsesSingleCopilotDetector(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipts := len(onlyCLIClient(before.Installations[0]).Receipts)
+	manifest := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"demo","version":"2.0.0","description":"updated shared backend"}`
+	if err := os.WriteFile(filepath.Join(plugin, "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "copilot"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Installations) != 1 || len(after.Installations[0].Clients) != 1 {
+		t.Fatalf("shared update created another physical binding: %+v", after)
+	}
+	binding := onlyCLIClient(after.Installations[0])
+	if !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != receipts+1 {
+		t.Fatalf("shared update binding = %+v", binding)
+	}
+}
+
+func TestSharedBackendRepairUsesSingleCopilotDetector(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	notDetectedVSCode := fixtureClient(t, domain.ClientVSCode)
+	notDetectedVSCode.Status = domain.DetectionNotDetected
+	fixture := newCLIFixture(t, []domain.DetectedClient{client, notDetectedVSCode})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding := onlyCLIClient(before.Installations[0])
+	receipts := len(binding.Receipts)
+	if err := os.RemoveAll(binding.TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "repair", "demo", "--target", "vscode"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Installations) != 1 || len(after.Installations[0].Clients) != 1 {
+		t.Fatalf("shared repair created another physical binding: %+v", after)
+	}
+	binding = onlyCLIClient(after.Installations[0])
+	if !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != receipts+1 {
+		t.Fatalf("shared repair binding = %+v", binding)
+	}
+	if _, err := os.Stat(binding.TargetLocator); err != nil {
+		t.Fatalf("shared repair did not restore physical package: %v", err)
+	}
+}
+
+func TestSharedBackendUpdateRejectsWhenNeitherSurfaceIsDetected(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientCopilot)
+	client.ExecutablePath = "/test/bin/copilot"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "copilot"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipts := len(onlyCLIClient(before.Installations[0]).Receipts)
+	fixture.app.Detector = staticDetector{}
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "copilot"); err == nil || !strings.Contains(err.Error(), "was not detected") {
+		t.Fatalf("missing shared backend error = %v", err)
+	}
+	after, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Installations) != 1 || len(after.Installations[0].Clients) != 1 || len(onlyCLIClient(after.Installations[0]).Receipts) != receipts {
+		t.Fatalf("missing shared backend mutated state: %+v", after)
 	}
 }
 

@@ -320,7 +320,8 @@ func validatePolicy(p domain.DirectoryReleasePolicy) error {
 	}
 	clients := map[domain.ClientID]bool{}
 	for _, t := range p.Targets {
-		if !validClient(t.Client) || clients[t.Client] || len(t.Scopes) != 1 || t.Scopes[0] != domain.ScopeUser || !oneOf(t.Delivery, "managed", "prepared", "manual_activation") {
+		expectedDelivery, supportedDelivery := domain.ExpectedDirectoryDelivery(t.Client)
+		if !validClient(t.Client) || clients[t.Client] || len(t.Scopes) != 1 || t.Scopes[0] != domain.ScopeUser || !supportedDelivery || t.Delivery != expectedDelivery {
 			return fmt.Errorf("invalid target")
 		}
 		clients[t.Client] = true

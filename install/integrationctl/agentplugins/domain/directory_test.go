@@ -12,7 +12,8 @@ func testRelease(sequence uint64, version string) DirectoryRelease {
 func testPolicy(sequence uint64, clients ...ClientID) DirectoryReleasePolicy {
 	targets := make([]DirectoryTarget, len(clients))
 	for i, c := range clients {
-		targets[i] = DirectoryTarget{Client: c, Scopes: []InstallScope{ScopeUser}, Delivery: "managed"}
+		delivery, _ := ExpectedDirectoryDelivery(c)
+		targets[i] = DirectoryTarget{Client: c, Scopes: []InstallScope{ScopeUser}, Delivery: delivery}
 	}
 	return DirectoryReleasePolicy{ReleaseSequence: sequence, Status: ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: targets, CurrentEvidence: []string{}}
 }
@@ -46,6 +47,24 @@ func TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence(t *testing.
 	got, err = ResolveDirectory(s, request("other/tool", ClientCursor))
 	if err != nil || got.DistributionID != "other/tool" {
 		t.Fatalf("qualified: %+v %v", got, err)
+	}
+}
+
+func TestResolveDirectoryRejectsUnknownAndMismatchedDelivery(t *testing.T) {
+	for _, test := range []struct {
+		name, delivery string
+	}{
+		{name: "unknown", delivery: "future_delivery"},
+		{name: "mismatched", delivery: "managed"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			s := testDirectory()
+			s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
+			s.Distributions[2].ReleasePolicies[1].Targets[0].Delivery = test.delivery
+			if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); !errors.Is(err, ErrDirectoryIneligible) {
+				t.Fatalf("delivery %q was accepted: %v", test.delivery, err)
+			}
+		})
 	}
 }
 

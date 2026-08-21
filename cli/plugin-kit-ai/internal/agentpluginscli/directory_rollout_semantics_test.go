@@ -61,7 +61,8 @@ func newRolloutDirectoryFixture(t *testing.T, clients, releaseTwoTargets []domai
 	policy := func(sequence uint64, targets []domain.ClientID) domain.DirectoryReleasePolicy {
 		entries := make([]domain.DirectoryTarget, 0, len(targets))
 		for _, target := range targets {
-			entries = append(entries, domain.DirectoryTarget{Client: target, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"})
+			delivery, _ := domain.ExpectedDirectoryDelivery(target)
+			entries = append(entries, domain.DirectoryTarget{Client: target, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: delivery})
 		}
 		status := domain.ReleaseActive
 		if sequence == 2 {
@@ -146,6 +147,30 @@ func TestDesiredReleaseConvergenceStillRejectsRevokedRelease(t *testing.T) {
 	}
 }
 
+func TestDirectoryInvalidDeliveryFailsBeforeAcquisitionOrMutation(t *testing.T) {
+	for _, test := range []struct {
+		name, delivery string
+	}{
+		{name: "unknown", delivery: "future_delivery"},
+		{name: "mismatched", delivery: "prepared"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rollout := newRolloutDirectoryFixture(t, []domain.ClientID{domain.ClientCursor}, []domain.ClientID{domain.ClientCursor})
+			rollout.directory.bundle.Snapshot.Distributions[0].ReleasePolicies[0].Targets[0].Delivery = test.delivery
+			if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "cursor"); err == nil || !strings.Contains(err.Error(), "delivery") {
+				t.Fatalf("delivery %q error = %v", test.delivery, err)
+			}
+			state, err := rollout.cli.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rollout.acquirer.verifiedCalls != 0 || len(state.Installations) != 0 {
+				t.Fatalf("invalid delivery acquired or mutated: acquisitions=%d state=%+v", rollout.acquirer.verifiedCalls, state)
+			}
+		})
+	}
+}
+
 func TestSharedSurfaceUpdateRejectsDirectoryPolicyThatOmitsCopilot(t *testing.T) {
 	t.Parallel()
 	rollout := newRolloutDirectoryFixture(t,
@@ -174,7 +199,7 @@ func TestSingleVSCodeAddRequiresDirectoryCompatibilityForCopilotSurface(t *testi
 		[]domain.ClientID{domain.ClientCopilot, domain.ClientVSCode},
 		[]domain.ClientID{domain.ClientCopilot, domain.ClientVSCode})
 	rollout.directory.bundle.Snapshot.Distributions[0].ReleasePolicies[0].Targets = []domain.DirectoryTarget{{
-		Client: domain.ClientVSCode, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed",
+		Client: domain.ClientVSCode, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "prepared",
 	}}
 	if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "vscode"); err == nil || !strings.Contains(err.Error(), "missing copilot") {
 		t.Fatalf("single-surface add accepted incomplete shared policy: %v", err)
@@ -208,7 +233,7 @@ func TestSharedVSCodeRepairRequiresDirectoryCompatibilityForCopilotSurface(t *te
 		t.Fatal(err)
 	}
 	rollout.directory.bundle.Snapshot.Distributions[0].ReleasePolicies[0].Targets = []domain.DirectoryTarget{{
-		Client: domain.ClientVSCode, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed",
+		Client: domain.ClientVSCode, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "prepared",
 	}}
 	if _, _, err := rollout.cli.execute(false, "repair", "demo", "--target", "vscode"); err == nil || !strings.Contains(err.Error(), "missing copilot") {
 		t.Fatalf("shared repair accepted incomplete current policy: %v", err)

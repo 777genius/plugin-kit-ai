@@ -358,6 +358,30 @@ func backendExecutable(selected domain.DetectedClient, clients map[domain.Client
 	return selected.ExecutablePath
 }
 
+// detectedSharedClient resolves the VS Code logical surface through an already
+// detected Copilot backend. It deliberately does not invent a backend when
+// neither shared surface is present.
+func detectedSharedClient(target domain.ClientID, clients map[domain.ClientID]domain.DetectedClient) (domain.DetectedClient, bool) {
+	client, exact := clients[target]
+	if exact && (target != domain.ClientVSCode || client.Status == domain.DetectionDetected) {
+		return client, true
+	}
+	if target != domain.ClientVSCode {
+		return client, exact
+	}
+	copilot, ok := clients[domain.ClientCopilot]
+	if !ok || copilot.Status != domain.DetectionDetected {
+		return client, exact
+	}
+	client = copilot
+	client.ClientID = domain.ClientVSCode
+	client.DisplayName = "VS Code (shared GitHub Copilot backend)"
+	client.ExecutablePath = ""
+	client.ConfigRoot = ""
+	clients[target] = client
+	return client, true
+}
+
 func promptYesNo(reader io.Reader, writer io.Writer, prompt string) (bool, error) {
 	if _, err := fmt.Fprint(writer, prompt+" "); err != nil {
 		return false, err

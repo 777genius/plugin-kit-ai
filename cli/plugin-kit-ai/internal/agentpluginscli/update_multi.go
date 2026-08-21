@@ -90,7 +90,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		DryRun: opts.dryRun, Targets: make([]updateTargetResult, 0, len(targets)),
 	}
 	for _, target := range allTargets {
-		client, ok := detected[target]
+		client, ok := detectedSharedClient(target, detected)
 		if target == domain.ClientChatGPT && !ok {
 			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
 			detected[target] = client

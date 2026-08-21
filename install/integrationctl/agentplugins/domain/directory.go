@@ -112,6 +112,22 @@ type DirectoryTarget struct {
 	AppBinding *DirectoryAppBinding `json:"app_binding,omitempty"`
 }
 
+// ExpectedDirectoryDelivery returns the signed Directory delivery contract for
+// a logical client surface. Directory delivery describes the public packaging
+// boundary, not the installer's internal PackageMode spelling.
+func ExpectedDirectoryDelivery(client ClientID) (string, bool) {
+	switch client {
+	case ClientCursor, ClientCopilot, ClientKiro:
+		return "managed", true
+	case ClientVSCode:
+		return "prepared", true
+	case ClientCodex, ClientChatGPT:
+		return "manual_activation", true
+	default:
+		return "", false
+	}
+}
+
 type DirectoryAppBinding struct {
 	AppKey    string `json:"app_key"`
 	ID        string `json:"id"`
@@ -394,6 +410,10 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		entry := targetByClient(policy.Targets, target)
 		if entry == nil || !containsScope(entry.Scopes, request.Scope) {
 			return &eligibilityReason{"incomplete_targets", "release does not support complete target set; missing " + string(target)}
+		}
+		delivery, supported := ExpectedDirectoryDelivery(target)
+		if !supported || entry.Delivery != delivery {
+			return &eligibilityReason{"incompatible_delivery", fmt.Sprintf("release delivery %q is incompatible with %s; expected %q", entry.Delivery, target, delivery)}
 		}
 		for _, evidenceID := range policy.CurrentEvidence {
 			if e := evidenceByID(snapshot, evidenceID); e != nil && e.DistributionID == distribution.ID && e.ReleaseSequence == release.Sequence && e.Client == target && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime") && e.Outcome == "failed" {

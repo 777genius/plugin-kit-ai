@@ -35,6 +35,24 @@ type localBackedSourceAcquirer struct {
 	verifiedCalls  int
 }
 
+func TestDirectoryCompatibilityUsesStablePublicPackageModes(t *testing.T) {
+	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
+		{Client: domain.ClientCodex, Delivery: "manual_activation"},
+		{Client: domain.ClientCursor, Delivery: "managed"},
+		{Client: domain.ClientVSCode, Delivery: "prepared"},
+	}}
+	loaded := loadedPackage{}
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Digest: "sha256:directory"}, policy); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"codex": "projected", "cursor": "native", "vscode": "prepared"}
+	for client, packageMode := range want {
+		if got := loaded.envelope.CatalogEvidence.Compatibility[client].Package; got != packageMode {
+			t.Fatalf("%s package mode = %q, want %q", client, got, packageMode)
+		}
+	}
+}
+
 func (acquirer *localBackedSourceAcquirer) AcquireLocal(ctx context.Context, path string) (domain.PackageSnapshot, error) {
 	acquirer.localCalls++
 	return acquirer.delegate.AcquireLocal(ctx, path)
