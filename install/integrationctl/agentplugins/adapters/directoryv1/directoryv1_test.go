@@ -677,12 +677,46 @@ func TestAuthenticatedSameSequenceEquivocationFailsClosed(t *testing.T) {
 }
 
 func TestDirectExactRequiresNoDirectory(t *testing.T) {
-	selection, err := ResolveDirectExact(domain.SourceIdentity{CanonicalSource: "owner/repo@0123456789012345678901234567890123456789//plugin", Repository: "owner/repo", ResolvedRevision: "0123456789012345678901234567890123456789"})
-	if err != nil || selection.Label != "direct source" {
-		t.Fatalf("exact source: %+v %v", selection, err)
+	revision := "0123456789012345678901234567890123456789"
+	for _, canonical := range []string{
+		"owner/repo@" + revision + "//plugin",
+		"github:owner/repo@" + revision + "//plugin",
+		"https://github.com/owner/repo@" + revision + "//plugin",
+	} {
+		t.Run(canonical, func(t *testing.T) {
+			selection, err := ResolveDirectExact(domain.SourceIdentity{
+				RequestedSource: "owner/repo@" + revision + "//plugin",
+				CanonicalSource: canonical,
+				Repository:      "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision,
+			})
+			if err != nil || selection.Label != "direct source" {
+				t.Fatalf("exact source: %+v %v", selection, err)
+			}
+		})
 	}
-	if _, err := ResolveDirectExact(domain.SourceIdentity{CanonicalSource: "owner/repo@main//plugin", Repository: "owner/repo", ResolvedRevision: "main"}); err == nil {
-		t.Fatal("mutable direct source accepted")
+
+	invalid := map[string]domain.SourceIdentity{
+		"branch":              {CanonicalSource: "owner/repo@main//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: "main"},
+		"tag":                 {CanonicalSource: "owner/repo@v1.0.0//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"unpinned":            {CanonicalSource: "owner/repo//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"repository mismatch": {CanonicalSource: "other/repo@" + revision + "//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"SHA mismatch":        {CanonicalSource: "owner/repo@" + strings.Repeat("a", 40) + "//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"subpath escape":      {CanonicalSource: "owner/repo@" + revision + "//plugin/../other", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"subpath mismatch":    {CanonicalSource: "owner/repo@" + revision + "//other", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"alternate host":      {CanonicalSource: "https://example.com/owner/repo@" + revision + "//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"query":               {CanonicalSource: "https://github.com/owner/repo@" + revision + "//plugin?ref=main", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"fragment":            {CanonicalSource: "https://github.com/owner/repo@" + revision + "//plugin#main", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"empty query":         {CanonicalSource: "https://github.com/owner/repo@" + revision + "//plugin?", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"empty fragment":      {CanonicalSource: "https://github.com/owner/repo@" + revision + "//plugin#", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"malformed URL":       {CanonicalSource: "https://github.com//owner/repo@" + revision + "//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+		"requested mismatch":  {RequestedSource: "owner/repo@" + revision + "//other", CanonicalSource: "https://github.com/owner/repo@" + revision + "//plugin", Repository: "owner/repo", PackageSubpath: "plugin", ResolvedRevision: revision},
+	}
+	for name, source := range invalid {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ResolveDirectExact(source); err == nil {
+				t.Fatal("unsafe or mismatched direct source accepted")
+			}
+		})
 	}
 	if _, err := ResolveDirectExact(domain.SourceIdentity{CanonicalSource: "./plugin"}); err != nil {
 		t.Fatalf("local direct source rejected: %v", err)

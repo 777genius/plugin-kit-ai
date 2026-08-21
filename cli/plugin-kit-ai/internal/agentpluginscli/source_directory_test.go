@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/sourceacquisition"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
@@ -217,7 +219,7 @@ func (acquirer *localBackedSourceAcquirer) gitSnapshot(ctx context.Context, repo
 	}
 	snapshot.Source = domain.SourceIdentity{
 		RequestedSource: repository + "@" + revision + "//" + path,
-		CanonicalSource: repository + "@" + revision + "//" + path,
+		CanonicalSource: "https://github.com/" + repository + "@" + revision + "//" + path,
 		Repository:      repository, PackageSubpath: path, ResolvedRevision: revision,
 	}
 	return snapshot, nil
@@ -508,6 +510,56 @@ func TestDirectLocalAndFullSHASourcesBypassDirectory(t *testing.T) {
 				t.Fatalf("direct source received Directory provenance: %+v", state)
 			}
 		})
+	}
+}
+
+func TestProductionGitHubAcquirerOutputResolvesAsDirectExactSource(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is unavailable")
+	}
+	repositoryRoot := t.TempDir()
+	pluginRoot := filepath.Join(repositoryRoot, "plugins", "demo")
+	if err := os.MkdirAll(pluginRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"demo","version":"1.0.0"}`
+	if err := os.WriteFile(filepath.Join(pluginRoot, "plugin.json"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit := func(args ...string) string {
+		t.Helper()
+		output, err := exec.Command("git", args...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	runGit("init", "--quiet", "--initial-branch=main", repositoryRoot)
+	runGit("-C", repositoryRoot, "config", "user.email", "fixture@example.invalid")
+	runGit("-C", repositoryRoot, "config", "user.name", "Fixture")
+	runGit("-C", repositoryRoot, "add", ".")
+	runGit("-C", repositoryRoot, "commit", "--quiet", "-m", "fixture")
+	revision := runGit("-C", repositoryRoot, "rev-parse", "HEAD")
+
+	fixture := newCLIFixture(t, nil)
+	fixture.app.SourceAcquirer = sourceacquisition.Acquirer{
+		TempRoot: fixture.root,
+		URLForRepo: func(repository string) string {
+			if repository != "owner/repo" {
+				t.Fatalf("unexpected repository %q", repository)
+			}
+			return repositoryRoot
+		},
+	}
+	requested := "owner/repo@" + revision + "//plugins/demo"
+	loaded, err := fixture.app.acquireGitHub(context.Background(), requested, "owner/repo", revision, "plugins/demo", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loaded.cleanup()
+	wantCanonical := "https://github.com/owner/repo@" + revision + "//plugins/demo"
+	if loaded.envelope.Source.CanonicalSource != wantCanonical || loaded.envelope.Source.RequestedSource != requested {
+		t.Fatalf("production acquisition identity = %+v", loaded.envelope.Source)
 	}
 }
 

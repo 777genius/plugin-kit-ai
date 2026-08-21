@@ -376,15 +376,51 @@ func ResolveDirectExact(source domain.SourceIdentity) (DirectSelection, error) {
 	local := strings.HasPrefix(canonical, "./") || strings.HasPrefix(canonical, "../") || strings.HasPrefix(canonical, `.\`) || strings.HasPrefix(canonical, `..\`) || filepath.IsAbs(canonical)
 	exactGit := false
 	if shaPattern.MatchString(source.ResolvedRevision) && repositoryPattern.MatchString(source.Repository) {
-		prefix := source.Repository + "@" + source.ResolvedRevision + "//"
-		subpath := strings.TrimPrefix(canonical, prefix)
-		exactGit = strings.HasPrefix(canonical, prefix) && subpath != "" && validateSource(domain.DirectorySource{Repository: source.Repository, Revision: source.ResolvedRevision, Path: subpath}) == nil
-		if source.PackageSubpath != "" && source.PackageSubpath != subpath {
-			exactGit = false
+		expected := domain.DirectorySource{Repository: source.Repository, Revision: source.ResolvedRevision, Path: source.PackageSubpath}
+		if canonicalIdentity, ok := parseImmutableGitHubIdentity(canonical); ok && canonicalIdentity == expected {
+			exactGit = true
+			if requested != "" {
+				requestedIdentity, requestedOK := parseImmutableGitHubIdentity(requested)
+				exactGit = requestedOK && requestedIdentity == expected
+			}
 		}
 	}
 	if !local && !exactGit {
 		return DirectSelection{}, errors.New("direct source must be a local path or immutable repository revision")
 	}
 	return DirectSelection{Source: source, Label: "direct source"}, nil
+}
+
+// parseImmutableGitHubIdentity converts the documented shorthand and HTTPS
+// display forms into the same structured identity. URL syntax is deliberately
+// strict so alternate authorities and query/fragment aliases cannot acquire a
+// meaning distinct from the repository, commit, and package path we validate.
+func parseImmutableGitHubIdentity(value string) (domain.DirectorySource, bool) {
+	value = strings.TrimSpace(value)
+	switch {
+	case strings.HasPrefix(value, "https://"):
+		if strings.ContainsAny(value, "?#") {
+			return domain.DirectorySource{}, false
+		}
+		parsed, err := url.Parse(value)
+		if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.RawPath != "" || parsed.Opaque != "" || !strings.HasPrefix(parsed.Path, "/") || strings.HasPrefix(parsed.Path, "//") {
+			return domain.DirectorySource{}, false
+		}
+		value = strings.TrimPrefix(parsed.Path, "/")
+	case strings.HasPrefix(value, "github:"):
+		value = strings.TrimPrefix(value, "github:")
+	}
+	if strings.Contains(value, "://") || strings.Count(value, "//") != 1 {
+		return domain.DirectorySource{}, false
+	}
+	repositoryRevision, subpath, ok := strings.Cut(value, "//")
+	if !ok || strings.Count(repositoryRevision, "@") != 1 {
+		return domain.DirectorySource{}, false
+	}
+	repository, revision, ok := strings.Cut(repositoryRevision, "@")
+	identity := domain.DirectorySource{Repository: repository, Revision: revision, Path: subpath}
+	if !ok || validateSource(identity) != nil {
+		return domain.DirectorySource{}, false
+	}
+	return identity, true
 }
