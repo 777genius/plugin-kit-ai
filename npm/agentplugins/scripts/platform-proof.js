@@ -32,6 +32,31 @@ function jsonCommand(command, args, options) {
   }
 }
 
+function assertPublicJSONPathFree(value, label, privateRoots) {
+  const roots = privateRoots.filter(Boolean).map((root) => path.resolve(root).replaceAll("\\", "/"));
+  const visit = (item) => {
+    if (typeof item === "string") {
+      const normalized = item.replaceAll("\\", "/");
+      if (path.posix.isAbsolute(item) || path.win32.isAbsolute(item) ||
+          roots.some((root) => normalized.includes(root)) ||
+          /(^|[\s"'`(=])\/(?:[^\s"'`;,)]+\/?)+/.test(item) ||
+          /(^|[\s"'`(=])[A-Za-z]:[\\/]/.test(item) ||
+          /(^|[\s"'`(=])\\\\[^\\\s]+\\/.test(item)) {
+        fail(`${label} exposed an absolute local filesystem path: ${item}`);
+      }
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const entry of item) visit(entry);
+      return;
+    }
+    if (item && typeof item === "object") {
+      for (const entry of Object.values(item)) visit(entry);
+    }
+  };
+  visit(value);
+}
+
 function sha256(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
@@ -182,7 +207,12 @@ function main() {
   const launcher = path.join(packageRoot, "bin", "agentplugins.js");
   const commandOptions = { cwd: project, env };
   const invoke = (args) => run(process.execPath, [launcher, ...args], commandOptions);
-  const invokeJSON = (args) => jsonCommand(process.execPath, [launcher, ...args, "--format", "json"], commandOptions);
+  const privateRoots = [root, process.env.GITHUB_WORKSPACE, process.env.RUNNER_TEMP];
+  const invokeJSON = (args) => {
+    const output = jsonCommand(process.execPath, [launcher, ...args, "--format", "json"], commandOptions);
+    assertPublicJSONPathFree(output, `agentplugins ${args[0]} JSON`, privateRoots);
+    return output;
+  };
 
   const versionOutput = invoke(["version"]).trim();
   if (versionOutput !== `agentplugins ${version}`) fail(`unexpected version output: ${versionOutput}`);
@@ -267,4 +297,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { frozenReleaseAsset, lifecycleCommands, npmInvocation, parseBootstrapMode, parseLifecycle };
+module.exports = { assertPublicJSONPathFree, frozenReleaseAsset, lifecycleCommands, npmInvocation, parseBootstrapMode, parseLifecycle };

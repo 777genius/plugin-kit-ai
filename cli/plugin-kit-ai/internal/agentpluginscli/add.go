@@ -485,7 +485,7 @@ func renderAddResultError(writer io.Writer, format string, envelope domain.Packa
 			_, _ = fmt.Fprintln(writer, "Package prepared. Activation is not complete yet.")
 		}
 	}
-	if action := nextLifecycleAction(result); action != "" && !fullyInstalled(result.Activation) {
+	if action := nextLocalLifecycleAction(result); action != "" && !fullyInstalled(result.Activation) {
 		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil
@@ -552,12 +552,22 @@ func newAddResultData(envelope domain.PackageEnvelope, result usecase.AddResult,
 }
 
 func nextLifecycleAction(result usecase.AddResult) string {
+	return lifecycleAction(result, false)
+}
+
+// nextLocalLifecycleAction is private terminal guidance. Provider LocalActions
+// may contain host paths, so public JSON must use nextLifecycleAction instead.
+func nextLocalLifecycleAction(result usecase.AddResult) string {
+	return lifecycleAction(result, true)
+}
+
+func lifecycleAction(result usecase.AddResult, includePrivate bool) string {
 	action := ""
-	if len(result.Activation.LocalActions) > 0 {
+	if includePrivate && len(result.Activation.LocalActions) > 0 {
 		action = result.Activation.LocalActions[0]
 	} else if len(result.Activation.UserActions) > 0 {
 		action = result.Activation.UserActions[0]
-	} else if len(result.Plan.LocalActions) > 0 {
+	} else if includePrivate && len(result.Plan.LocalActions) > 0 {
 		action = result.Plan.LocalActions[0]
 	} else if len(result.Plan.UserActions) > 0 {
 		action = result.Plan.UserActions[0]
@@ -566,7 +576,7 @@ func nextLifecycleAction(result usecase.AddResult) string {
 		if action != "" {
 			return fmt.Sprintf("%s; complete authentication, then rerun add to verify activation and authentication", action)
 		}
-		return fmt.Sprintf("complete authentication for the prepared package at %s, then rerun add to verify activation and authentication", result.Plan.ActivePath)
+		return "complete authentication for the prepared plugin in the selected client, then rerun add to verify activation and authentication"
 	}
 	if result.Activation.Authentication == domain.AuthenticationNotChecked {
 		if action != "" {

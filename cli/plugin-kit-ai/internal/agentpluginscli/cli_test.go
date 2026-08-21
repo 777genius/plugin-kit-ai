@@ -93,18 +93,54 @@ func TestOperationalAndReadCommandsProduceVersionedJSON(t *testing.T) {
 	}
 }
 
-func TestStructuredLifecycleOutputCarriesTheExactNextAction(t *testing.T) {
+func TestLifecycleOutputKeepsPrivatePathsOutOfPublicJSON(t *testing.T) {
 	t.Parallel()
+	privatePath := "/home/private-user/.codex/plugins/demo"
 	addResult := usecase.AddResult{Activation: domain.ActivationOutcome{
 		Authentication: domain.AuthenticationPending,
-		LocalActions:   []string{"open the client plugin settings"},
+		UserActions:    []string{"open the prepared plugin in the selected client"},
+		LocalActions:   []string{"open the client plugin settings for " + privatePath},
 	}}
-	wantAdd := "open the client plugin settings; complete authentication, then rerun add to verify activation and authentication"
+	wantAdd := "open the prepared plugin in the selected client; complete authentication, then rerun add to verify activation and authentication"
 	if got := nextLifecycleAction(addResult); got != wantAdd {
 		t.Fatalf("add next action = %q, want %q", got, wantAdd)
 	}
-	if got := newAddResultData(domain.PackageEnvelope{}, addResult, false).NextAction; got != wantAdd {
-		t.Fatalf("structured add next action = %q, want %q", got, wantAdd)
+	if got := nextLocalLifecycleAction(addResult); !strings.Contains(got, privatePath) {
+		t.Fatalf("local add next action lost actionable path: %q", got)
+	}
+	var public bytes.Buffer
+	if err := renderAddResult(&public, "json", domain.PackageEnvelope{}, addResult, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(public.String(), privatePath) {
+		t.Fatalf("public add JSON leaked provider local action: %s", public.String())
+	}
+	var structured struct {
+		Data addResultData `json:"data"`
+	}
+	if err := json.Unmarshal(public.Bytes(), &structured); err != nil {
+		t.Fatal(err)
+	}
+	if structured.Data.NextAction != wantAdd {
+		t.Fatalf("structured add next action = %q, want %q", structured.Data.NextAction, wantAdd)
+	}
+	var human bytes.Buffer
+	if err := renderAddResult(&human, "human", domain.PackageEnvelope{}, addResult, false); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(human.String(), privatePath) {
+		t.Fatalf("human add output lost actionable provider guidance: %q", human.String())
+	}
+	fallbackResult := usecase.AddResult{
+		Plan: domain.DeliveryPlan{
+			ActivePath:   privatePath,
+			LocalActions: []string{"open the prepared package at " + privatePath},
+		},
+		Activation: domain.ActivationOutcome{Authentication: domain.AuthenticationPending},
+	}
+	fallback := newAddResultData(domain.PackageEnvelope{}, fallbackResult, false).NextAction
+	if strings.Contains(fallback, privatePath) || fallback != "complete authentication for the prepared plugin in the selected client, then rerun add to verify activation and authentication" {
+		t.Fatalf("path-free fallback next action = %q", fallback)
 	}
 	removeResult := usecase.RemoveResult{Deactivation: domain.DeactivationOutcome{
 		LocalActions: []string{"retain data at the owned data path"},

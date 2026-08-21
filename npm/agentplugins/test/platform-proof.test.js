@@ -8,7 +8,28 @@ const path = require("node:path");
 const test = require("node:test");
 
 const script = path.resolve(__dirname, "..", "scripts", "platform-proof.js");
-const { frozenReleaseAsset, lifecycleCommands, npmInvocation, parseBootstrapMode, parseLifecycle } = require(script);
+const {
+  assertPublicJSONPathFree,
+  frozenReleaseAsset,
+  lifecycleCommands,
+  npmInvocation,
+  parseBootstrapMode,
+  parseLifecycle
+} = require(script);
+
+test("platform proof rejects absolute paths anywhere in public lifecycle JSON", () => {
+  const privateRoot = path.join(os.tmpdir(), "agentplugins-private-root");
+  assert.doesNotThrow(() => assertPublicJSONPathFree({
+    source: "https://agent-plugins.org/releases/demo",
+    next_action: "open the prepared plugin in the selected client"
+  }, "safe JSON", [privateRoot]));
+  assert.throws(() => assertPublicJSONPathFree({
+    result: { activation: { next_action: `open ${privateRoot}/plugins/demo` } }
+  }, "leaking JSON", [privateRoot]), /absolute local filesystem path/);
+  assert.throws(() => assertPublicJSONPathFree({
+    next_action: "open C:\\Users\\runner\\agentplugins\\demo"
+  }, "Windows leaking JSON", []), /absolute local filesystem path/);
+});
 
 test("platform proof rejects lifecycle values other than exact true or false", () => {
   for (const value of ["TRUE", "False", "1", "yes"]) {

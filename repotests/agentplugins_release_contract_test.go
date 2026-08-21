@@ -18,7 +18,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
 	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
 	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
-	npmPlatformProofJob := yamlJob(t, npmWorkflow, "platform-proof")
+	npmPrepublishConformanceJob := yamlJob(t, npmWorkflow, "prepublish-conformance")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
@@ -94,12 +94,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, npmReleaseIdentityJob, "npm publish workflow source does not match the exact tagged main commit")
 	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
 	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
-	mustContain(t, npmPlatformProofJob, "needs: release-identity")
-	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
-	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
-	mustContain(t, npmPlatformProofJob, "contents: read")
+	mustContain(t, npmPrepublishConformanceJob, "needs: release-identity")
+	mustContain(t, npmPrepublishConformanceJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmPrepublishConformanceJob, "allow_legacy_manifest: false")
+	mustContain(t, npmPrepublishConformanceJob, "contents: read")
 	for _, want := range []string{
-		"needs: [release-identity, platform-proof]",
+		"needs: [release-identity, prepublish-conformance]",
 		"if: ${{ !inputs.verify_only }}",
 		"environment: npm-agentplugins",
 		"id-token: write",
@@ -243,7 +243,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, platformWorkflow, "target_commitish")
 	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)
 	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
-	mustContain(t, npmWorkflow, "test \"${{ needs.platform-proof.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, npmWorkflow, "test \"${{ needs.prepublish-conformance.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, readRepoFile(t, root, "npm", "agentplugins", "scripts", "platform-proof.js"), "assertPublicJSONPathFree")
+	mustAppearBefore(t, npmWorkflow, "prepublish-conformance:", "npm publish --access public --tag latest --provenance")
 	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")
 	mustNotContain(t, npmWorkflow, "add context7")
 
