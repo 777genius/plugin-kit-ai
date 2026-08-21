@@ -168,7 +168,10 @@ func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRo
 	}
 
 	originalStager := service.Stager
-	service.Stager = verificationFailureStager{PackageStager: originalStager, err: errors.New("injected switch verification failure")}
+	service.Stager = &failNthVerificationStager{
+		verificationFailureStager: verificationFailureStager{PackageStager: originalStager, err: errors.New("injected switch verification failure")},
+		failAt:                    3,
+	}
 	rolledBack, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{toBridge}, OperationGroupID: "bridge-rollback", Confirmed: true, Switch: true})
 	if err == nil || rolledBack.Phase != GroupPhaseManagedRolledBack {
 		t.Fatalf("switch rollback = %+v, %v", rolledBack, err)
@@ -319,6 +322,20 @@ func TestGroupedRepairAtomicallyRestoresHeterogeneousRecordedRevisions(t *testin
 type fixedNativeObserver struct {
 	observation domain.NativeIdentityObservation
 	err         error
+}
+
+type failNthVerificationStager struct {
+	verificationFailureStager
+	calls  int
+	failAt int
+}
+
+func (stager *failNthVerificationStager) Verify(ctx context.Context, root, expected string) error {
+	stager.calls++
+	if stager.calls == stager.failAt {
+		return stager.err
+	}
+	return stager.PackageStager.Verify(ctx, root, expected)
 }
 
 type failNthGroupActivator struct {

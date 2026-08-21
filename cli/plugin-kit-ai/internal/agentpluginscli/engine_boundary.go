@@ -87,7 +87,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	output := switchOutput{DryRun: true, Status: "planned", Source: publicPackageSource(loaded.envelope.Source), Revision: loaded.envelope.Source.ResolvedRevision,
 		TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest, Directory: cloneDirectoryOrigin(loaded.directory),
-		PluginData: switchOutputPluginData(installation)}
+	}
 	service := app.Lifecycle
 	service.StateStore = app.StateStore
 	if installation.DataRetained && len(installation.Clients) == 0 {
@@ -172,15 +172,6 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	return err
 }
 
-func containsClientID(values []domain.ClientID, wanted domain.ClientID) bool {
-	for _, value := range values {
-		if value == wanted {
-			return true
-		}
-	}
-	return false
-}
-
 func renderSwitchResult(writer io.Writer, format string, result switchOutput) error {
 	if format == "json" {
 		return writeJSONOutput(writer, "switch", result)
@@ -208,22 +199,6 @@ func renderSwitchResult(writer io.Writer, format string, result switchOutput) er
 		_, _ = fmt.Fprintln(writer, "  No active targets; source metadata switched and retained data was not changed.")
 	}
 	return nil
-}
-
-func switchOutputPluginData(installation domain.Installation) domain.PluginDataDecision {
-	decision := domain.PluginDataDecision{Disposition: domain.PluginDataNone, Ownership: domain.PluginDataOwnershipNone, Compatibility: domain.PluginDataCompatibilityNotApplicable}
-	if len(installation.DataReceipts) == 0 {
-		return decision
-	}
-	decision.Disposition, decision.Present, decision.ReceiptCount = domain.PluginDataRetained, true, len(installation.DataReceipts)
-	decision.Ownership, decision.Compatibility, decision.Warning = domain.PluginDataOwnershipOwned, domain.PluginDataCompatibilityNotProven, domain.PluginDataCompatibilityWarning
-	for _, receipt := range installation.DataReceipts {
-		if receipt.State != domain.DataReceiptOwned || receipt.OwnershipDigest == "" {
-			decision.Ownership = domain.PluginDataOwnershipIndeterminate
-			break
-		}
-	}
-	return decision
 }
 
 func switchTargets(group usecase.GroupResult) []switchTargetOutput {
