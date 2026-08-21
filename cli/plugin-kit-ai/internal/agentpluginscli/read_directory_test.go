@@ -236,7 +236,7 @@ func readModelBundle() directoryv1.VerifiedBundle {
 			PackageSource:       domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
 			TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: tree, ManifestDigest: manifest, Components: []string{"mcp"}}
 	}
-	target := domain.DirectoryTarget{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"}
+	target := domain.DirectoryTarget{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}
 	policy := func(sequence uint64, status domain.ReleaseStatus, evidence []string) domain.DirectoryReleasePolicy {
 		return domain.DirectoryReleasePolicy{ReleaseSequence: sequence, Status: status, MinimumInstallerVersion: "0.1.0", Targets: []domain.DirectoryTarget{target}, CurrentEvidence: evidence}
 	}

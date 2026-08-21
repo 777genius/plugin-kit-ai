@@ -37,12 +37,12 @@ type localBackedSourceAcquirer struct {
 
 func TestDirectoryCompatibilityUsesStablePublicPackageModes(t *testing.T) {
 	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
-		{Client: domain.ClientCodex, Delivery: "manual_activation"},
-		{Client: domain.ClientCursor, Delivery: "managed"},
-		{Client: domain.ClientVSCode, Delivery: "prepared"},
+		{Client: domain.ClientCodex, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementUnknown},
+		{Client: domain.ClientCursor, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown},
+		{Client: domain.ClientVSCode, Delivery: "prepared", Authentication: domain.AuthenticationRequirementUnknown},
 	}}
 	loaded := loadedPackage{}
-	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Digest: "sha256:directory"}, policy); err != nil {
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Digest: "sha256:directory"}, domain.DirectorySelection{}, policy, directoryEvidenceEnvironment{}); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]string{"codex": "projected", "cursor": "native", "vscode": "prepared"}
@@ -51,6 +51,94 @@ func TestDirectoryCompatibilityUsesStablePublicPackageModes(t *testing.T) {
 			t.Fatalf("%s package mode = %q, want %q", client, got, packageMode)
 		}
 	}
+}
+
+func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing.T) {
+	t.Parallel()
+	digest := "sha256:" + strings.Repeat("a", 64)
+	selection := domain.DirectorySelection{DistributionID: "owner/notion", ReleaseSequence: 7, TreeDigest: digest}
+	environment := directoryEvidenceEnvironment{
+		InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64",
+		ClientVersions:     map[domain.ClientID]string{domain.ClientCursor: "0.50.0"},
+		DependencyIdentity: map[domain.ClientID]string{domain.ClientCursor: "node@22"},
+	}
+	artifact := domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("b", 40), Path: "evidence/result.json", Digest: "sha256:" + strings.Repeat("c", 64)}
+	schema := domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed", Artifact: artifact}
+	exact := domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-oauth", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "oauth", Outcome: "passed", Client: domain.ClientCursor, ClientVersion: "0.50.0", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "node@22", ObservedAt: "2026-08-21T00:00:00Z", Artifact: artifact}
+
+	tests := []struct {
+		name           string
+		authentication domain.AuthenticationRequirement
+		record         domain.DirectoryEvidence
+		wantVerify     string
+		wantLevel      string
+		wantOutcome    string
+		wantApplicable int
+	}{
+		{name: "Notion schema-only with authentication required", authentication: domain.AuthenticationRequirementRequired, record: schema, wantVerify: "schema_only", wantLevel: "schema", wantOutcome: "passed", wantApplicable: 1},
+		{name: "OAuth exact target pass", authentication: domain.AuthenticationRequirementRequired, record: exact, wantVerify: "tested", wantLevel: "oauth", wantOutcome: "passed", wantApplicable: 1},
+		{name: "stale digest", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.PackageTreeDigest = "sha256:" + strings.Repeat("d", 64) }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "wrong client", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.Client = domain.ClientCodex }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "wrong OS", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.OS = "darwin" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "wrong client version", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.ClientVersion = "0.49.0" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "wrong installer version", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.InstallerVersion = "1.2.2" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "wrong dependency", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.DependencyIdentity = "node@20" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
+		{name: "failed current materialization", authentication: domain.AuthenticationRequirementNotRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) {
+			e.ID = "notion-materialization"
+			e.Level = "materialization"
+			e.Outcome = "failed"
+		}), wantVerify: "not_tested", wantLevel: "materialization", wantOutcome: "failed", wantApplicable: 1},
+		{name: "unknown authentication", authentication: domain.AuthenticationRequirementUnknown, record: schema, wantVerify: "schema_only", wantLevel: "schema", wantOutcome: "passed", wantApplicable: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Delivery: "managed", Authentication: test.authentication}}, CurrentEvidence: []string{test.record.ID}}
+			bundle := directoryv1.VerifiedBundle{Digest: "sha256:directory", Snapshot: domain.DirectorySnapshot{SourceCommit: strings.Repeat("e", 40), Evidence: []domain.DirectoryEvidence{test.record}}}
+			loaded := loadedPackage{}
+			if err := applyDirectoryCompatibility(&loaded, bundle, selection, policy, environment); err != nil {
+				t.Fatal(err)
+			}
+			compatibility := loaded.envelope.CatalogEvidence.Compatibility[string(domain.ClientCursor)]
+			if compatibility.Authentication != test.authentication || compatibility.Verification != test.wantVerify || len(compatibility.Evidence) != test.wantApplicable {
+				t.Fatalf("compatibility = %+v", compatibility)
+			}
+			if got := compatibility.EvidenceOutcomes[test.wantLevel]; got != test.wantOutcome {
+				t.Fatalf("%s outcome = %q, want %q", test.wantLevel, got, test.wantOutcome)
+			}
+			if compatibility.EvidenceOutcomes["runtime"] == "" || compatibility.EvidenceOutcomes["oauth"] == "" {
+				t.Fatalf("missing level outcomes: %+v", compatibility.EvidenceOutcomes)
+			}
+			catalogEvidence := loaded.envelope.CatalogEvidence
+			if len(catalogEvidence.CurrentEvidence) != 1 || catalogEvidence.CurrentEvidence[0].ID != test.record.ID {
+				t.Fatalf("current signed evidence not preserved: %+v", catalogEvidence)
+			}
+		})
+	}
+}
+
+func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	selection := domain.DirectorySelection{DistributionID: "owner/package", ReleaseSequence: 1, TreeDigest: digest}
+	evidence := domain.DirectoryEvidence{ID: "package-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed"}
+	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
+		{Client: domain.ClientCursor, Delivery: "managed", Authentication: domain.AuthenticationRequirementNotRequired},
+		{Client: domain.ClientCodex, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementRequired},
+	}, CurrentEvidence: []string{evidence.ID}}
+	loaded := loadedPackage{}
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Snapshot: domain.DirectorySnapshot{Evidence: []domain.DirectoryEvidence{evidence}}}, selection, policy, directoryEvidenceEnvironment{}); err != nil {
+		t.Fatal(err)
+	}
+	for _, client := range []domain.ClientID{domain.ClientCursor, domain.ClientCodex} {
+		compatibility := loaded.envelope.CatalogEvidence.Compatibility[string(client)]
+		if compatibility.Verification != "schema_only" || compatibility.EvidenceOutcomes["runtime"] != "not_tested" || compatibility.EvidenceOutcomes["oauth"] != "not_tested" {
+			t.Fatalf("%s compatibility = %+v", client, compatibility)
+		}
+	}
+}
+
+func withDirectoryEvidence(source domain.DirectoryEvidence, mutate func(*domain.DirectoryEvidence)) domain.DirectoryEvidence {
+	mutate(&source)
+	return source
 }
 
 func (acquirer *localBackedSourceAcquirer) AcquireLocal(ctx context.Context, path string) (domain.PackageSnapshot, error) {
@@ -117,7 +205,7 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 	}
 	policy := domain.DirectoryReleasePolicy{
 		ReleaseSequence: 3, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0",
-		Targets:         []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"}},
+		Targets:         []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}},
 		CurrentEvidence: []string{},
 	}
 	snapshot := domain.DirectorySnapshot{

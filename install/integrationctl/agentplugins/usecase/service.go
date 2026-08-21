@@ -797,9 +797,17 @@ func cloneCatalogEvidence(source *domain.CatalogEvidence) *domain.CatalogEvidenc
 		return nil
 	}
 	result := *source
+	result.CurrentEvidence = append([]domain.DirectoryEvidence(nil), source.CurrentEvidence...)
 	if len(source.Compatibility) > 0 {
 		result.Compatibility = make(map[string]domain.CatalogCompatibility, len(source.Compatibility))
 		for client, compatibility := range source.Compatibility {
+			compatibility.Evidence = append([]domain.DirectoryEvidence(nil), compatibility.Evidence...)
+			if compatibility.EvidenceOutcomes != nil {
+				compatibility.EvidenceOutcomes = make(map[string]string, len(compatibility.EvidenceOutcomes))
+				for level, outcome := range source.Compatibility[client].EvidenceOutcomes {
+					compatibility.EvidenceOutcomes[level] = outcome
+				}
+			}
 			if compatibility.AppBinding != nil {
 				binding := *compatibility.AppBinding
 				compatibility.AppBinding = &binding

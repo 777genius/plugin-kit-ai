@@ -62,7 +62,7 @@ func newRolloutDirectoryFixture(t *testing.T, clients, releaseTwoTargets []domai
 		entries := make([]domain.DirectoryTarget, 0, len(targets))
 		for _, target := range targets {
 			delivery, _ := domain.ExpectedDirectoryDelivery(target)
-			entries = append(entries, domain.DirectoryTarget{Client: target, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: delivery})
+			entries = append(entries, domain.DirectoryTarget{Client: target, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: delivery, Authentication: domain.AuthenticationRequirementUnknown})
 		}
 		status := domain.ReleaseActive
 		if sequence == 2 {

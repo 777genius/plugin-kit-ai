@@ -106,10 +106,11 @@ type DirectoryReleasePolicy struct {
 }
 
 type DirectoryTarget struct {
-	Client     ClientID             `json:"client"`
-	Scopes     []InstallScope       `json:"scopes"`
-	Delivery   string               `json:"delivery"`
-	AppBinding *DirectoryAppBinding `json:"app_binding,omitempty"`
+	Client         ClientID                  `json:"client"`
+	Scopes         []InstallScope            `json:"scopes"`
+	Delivery       string                    `json:"delivery"`
+	Authentication AuthenticationRequirement `json:"authentication"`
+	AppBinding     *DirectoryAppBinding      `json:"app_binding,omitempty"`
 }
 
 // ExpectedDirectoryDelivery returns the signed Directory delivery contract for
@@ -150,6 +151,14 @@ type DirectoryEvidence struct {
 	DependencyIdentity string                    `json:"dependency_identity,omitempty"`
 	ObservedAt         string                    `json:"observed_at,omitempty"`
 	Artifact           DirectoryEvidenceArtifact `json:"artifact"`
+	Trust              *DirectoryEvidenceTrust   `json:"trust,omitempty"`
+}
+
+type DirectoryEvidenceTrust struct {
+	Kind         string `json:"kind"`
+	Workflow     string `json:"workflow,omitempty"`
+	SourceRef    string `json:"source_ref,omitempty"`
+	SourceDigest string `json:"source_digest,omitempty"`
 }
 
 type DirectoryEvidenceArtifact struct {
@@ -187,6 +196,10 @@ type DirectoryResolveRequest struct {
 	Targets            []ClientID
 	Scope              InstallScope
 	InstallerVersion   string
+	ClientVersions     map[ClientID]string
+	OS                 string
+	Architecture       string
+	DependencyIdentity map[ClientID]string
 	SchemaVersion      string
 	RequiredComponents []string
 	Operation          DirectoryOperation
@@ -402,7 +415,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		}
 	}
 	for _, evidenceID := range policy.CurrentEvidence {
-		if e := evidenceByID(snapshot, evidenceID); e != nil && e.DistributionID == distribution.ID && e.ReleaseSequence == release.Sequence && e.Level == "schema" && e.Outcome == "failed" {
+		if e := evidenceByID(snapshot, evidenceID); e != nil && directoryEvidenceApplies(*e, distribution, release, "", request) && e.Level == "schema" && e.Outcome == "failed" {
 			return &eligibilityReason{"blocking_evidence", "current trusted schema evidence failed"}
 		}
 	}
@@ -416,7 +429,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 			return &eligibilityReason{"incompatible_delivery", fmt.Sprintf("release delivery %q is incompatible with %s; expected %q", entry.Delivery, target, delivery)}
 		}
 		for _, evidenceID := range policy.CurrentEvidence {
-			if e := evidenceByID(snapshot, evidenceID); e != nil && e.DistributionID == distribution.ID && e.ReleaseSequence == release.Sequence && e.Client == target && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime") && e.Outcome == "failed" {
+			if e := evidenceByID(snapshot, evidenceID); e != nil && directoryEvidenceApplies(*e, distribution, release, target, request) && (e.Level == "materialization" || e.Level == "discovery" || e.Level == "runtime" || e.Level == "oauth") && e.Outcome == "failed" {
 				return &eligibilityReason{"blocking_evidence", "current trusted " + e.Level + " evidence failed for " + string(target)}
 			}
 		}
@@ -434,6 +447,25 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		}
 	}
 	return nil
+}
+
+func directoryEvidenceApplies(e DirectoryEvidence, distribution DirectoryDistribution, release DirectoryRelease, client ClientID, request DirectoryResolveRequest) bool {
+	if e.DistributionID != distribution.ID || e.ReleaseSequence != release.Sequence || e.PackageTreeDigest != release.TreeDigest {
+		return false
+	}
+	if e.Level == "schema" {
+		return e.Client == ""
+	}
+	if e.Client != client || e.InstallerVersion != request.InstallerVersion || e.OS != request.OS || e.Architecture != request.Architecture {
+		return false
+	}
+	if e.ClientVersion != "" && request.ClientVersions[e.Client] != e.ClientVersion {
+		return false
+	}
+	if e.DependencyIdentity != "" && request.DependencyIdentity[e.Client] != e.DependencyIdentity {
+		return false
+	}
+	return true
 }
 
 func selectionFrom(snapshot DirectorySnapshot, product DirectoryProduct, distribution DirectoryDistribution, release DirectoryRelease, fallback bool, diagnostics []DirectoryDiagnostic) DirectorySelection {

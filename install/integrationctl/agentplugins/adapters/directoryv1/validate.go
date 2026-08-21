@@ -242,7 +242,6 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 	}
 
 	evidence := map[string]domain.DirectoryEvidence{}
-	tuples := map[string]bool{}
 	for i, e := range v.Evidence {
 		where := fmt.Sprintf("evidence[%d]", i)
 		if e.SchemaVersion != 1 || !evidenceIDPattern.MatchString(e.ID) || !distributionPattern.MatchString(e.DistributionID) || e.ReleaseSequence < 1 || !digestPattern.MatchString(e.PackageTreeDigest) {
@@ -274,14 +273,19 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 		if !repositoryPattern.MatchString(e.Artifact.Repository) || !shaPattern.MatchString(e.Artifact.Revision) || e.Artifact.Path == "" || !digestPattern.MatchString(e.Artifact.Digest) {
 			return strictError("%s invalid artifact", where)
 		}
-		tuple := strings.Join([]string{e.DistributionID, fmt.Sprint(e.ReleaseSequence), e.Level, string(e.Client), e.ClientVersion, e.InstallerVersion, e.DependencyIdentity, e.OS, e.Architecture}, "\x00")
-		if tuples[tuple] {
-			return strictError("multiple current evidence records for applicability tuple")
+		if e.Trust != nil {
+			if e.Trust.Kind == "github_actions" {
+				if !workflowPattern.MatchString(e.Trust.Workflow) || !sourceRefPattern.MatchString(e.Trust.SourceRef) || !shaPattern.MatchString(e.Trust.SourceDigest) {
+					return strictError("%s invalid trust", where)
+				}
+			} else if e.Trust.Kind != "reviewed_external" || e.Trust.Workflow != "" || e.Trust.SourceRef != "" || e.Trust.SourceDigest != "" {
+				return strictError("%s invalid trust", where)
+			}
 		}
-		tuples[tuple] = true
 		evidence[e.ID] = e
 	}
 	selected := map[string]bool{}
+	tuples := map[string]bool{}
 	for identity, p := range policies {
 		for _, id := range p.CurrentEvidence {
 			if selected[id] {
@@ -291,6 +295,11 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 			if !ok || releaseKey(e.DistributionID, e.ReleaseSequence) != identity {
 				return strictError("policy references inapplicable evidence %q", id)
 			}
+			tuple := strings.Join([]string{e.DistributionID, fmt.Sprint(e.ReleaseSequence), e.PackageTreeDigest, e.Level, string(e.Client), e.ClientVersion, e.InstallerVersion, e.DependencyIdentity, e.OS, e.Architecture}, "\x00")
+			if tuples[tuple] {
+				return strictError("multiple current evidence records for applicability tuple")
+			}
+			tuples[tuple] = true
 			selected[id] = true
 		}
 	}
@@ -325,6 +334,9 @@ func validatePolicy(p domain.DirectoryReleasePolicy) error {
 			return fmt.Errorf("invalid target")
 		}
 		clients[t.Client] = true
+		if t.Authentication != domain.AuthenticationRequirementNotRequired && t.Authentication != domain.AuthenticationRequirementRequired && t.Authentication != domain.AuthenticationRequirementUnknown {
+			return fmt.Errorf("invalid target authentication")
+		}
 		if t.Client == domain.ClientChatGPT {
 			if t.AppBinding == nil || t.AppBinding.AppKey == "" || t.AppBinding.ID == "" || t.AppBinding.MCPServer == "" {
 				return fmt.Errorf("chatgpt app binding required")
@@ -520,7 +532,7 @@ func requireSnapshotFields(body []byte) error {
 				return err
 			}
 			for _, target := range targets {
-				if err := requiredMap(target, "client", "scopes", "delivery"); err != nil {
+				if err := requiredMap(target, "client", "scopes", "delivery", "authentication"); err != nil {
 					return err
 				}
 				if raw, ok := target["app_binding"]; ok {

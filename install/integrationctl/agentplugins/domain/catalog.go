@@ -6,10 +6,12 @@ const (
 )
 
 type CatalogCompatibility struct {
-	Package        string                    `json:"package"`
-	Verification   string                    `json:"verification"`
-	Authentication AuthenticationRequirement `json:"authentication"`
-	AppBinding     *CatalogAppBinding        `json:"app_binding,omitempty"`
+	Package          string                    `json:"package"`
+	Verification     string                    `json:"verification"`
+	Authentication   AuthenticationRequirement `json:"authentication"`
+	AppBinding       *CatalogAppBinding        `json:"app_binding,omitempty"`
+	Evidence         []DirectoryEvidence       `json:"evidence,omitempty"`
+	EvidenceOutcomes map[string]string         `json:"evidence_outcomes,omitempty"`
 }
 
 type CatalogAppBinding struct {
@@ -73,4 +75,5 @@ type CatalogEvidence struct {
 	MinimumCLIVersion  string                          `json:"minimum_cli_version"`
 	AgentPluginsSchema string                          `json:"agent_plugins_schema"`
 	Compatibility      map[string]CatalogCompatibility `json:"compatibility,omitempty"`
+	CurrentEvidence    []DirectoryEvidence             `json:"current_evidence,omitempty"`
 }

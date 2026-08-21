@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/catalog"
@@ -190,7 +191,8 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	}
 	selection, err := domain.ResolveDirectory(bundle.Snapshot, domain.DirectoryResolveRequest{
 		Selector: selector, Targets: append([]domain.ClientID(nil), request.Targets...), Scope: domain.ScopeUser,
-		InstallerVersion: app.Version, SchemaVersion: "1.0.0", Operation: operation, Recorded: request.Recorded,
+		InstallerVersion: app.Version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
+		SchemaVersion: "1.0.0", Operation: operation, Recorded: request.Recorded,
 	})
 	if err != nil {
 		return loadedPackage{}, err
@@ -227,7 +229,9 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	}
 	loaded.distributionSuspended = distribution.Status == domain.DistributionSuspended
 	loaded.releaseRevoked = policy.Status == domain.ReleaseRevoked || snapshotRevokes(bundle.Snapshot, selection)
-	if err := applyDirectoryCompatibility(&loaded, bundle, *policy); err != nil {
+	if err := applyDirectoryCompatibility(&loaded, bundle, selection, *policy, directoryEvidenceEnvironment{
+		InstallerVersion: app.Version, OS: runtime.GOOS, Architecture: runtime.GOARCH,
+	}); err != nil {
 		_ = loaded.cleanup()
 		return loadedPackage{}, err
 	}
@@ -296,23 +300,30 @@ func validateDirectoryCompatibilityPolicy(policy domain.DirectoryReleasePolicy) 
 	return nil
 }
 
-func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.VerifiedBundle, policy domain.DirectoryReleasePolicy) error {
+type directoryEvidenceEnvironment struct {
+	InstallerVersion   string
+	OS                 string
+	Architecture       string
+	ClientVersions     map[domain.ClientID]string
+	DependencyIdentity map[domain.ClientID]string
+}
+
+func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.VerifiedBundle, selection domain.DirectorySelection, policy domain.DirectoryReleasePolicy, environment directoryEvidenceEnvironment) error {
 	if err := validateDirectoryCompatibilityPolicy(policy); err != nil {
 		return err
 	}
 	compatibility := make(map[string]domain.CatalogCompatibility, len(policy.Targets))
+	current := currentDirectoryEvidence(bundle.Snapshot.Evidence, policy.CurrentEvidence)
 	for _, target := range policy.Targets {
 		capabilities, _ := clientplanner.Capabilities(target.Client)
 		packageMode, _ := stableCatalogPackageMode(capabilities.PackageMode)
-		verification := "not_tested"
-		for _, evidenceID := range policy.CurrentEvidence {
-			for _, evidence := range bundle.Snapshot.Evidence {
-				if evidence.ID == evidenceID && (evidence.Client == "" || evidence.Client == target.Client) && evidence.Outcome == "passed" {
-					verification = "tested"
-				}
+		applicable := make([]domain.DirectoryEvidence, 0, len(current))
+		for _, evidence := range current {
+			if directoryEvidenceApplies(evidence, selection, target.Client, environment) {
+				applicable = append(applicable, evidence)
 			}
 		}
-		entry := domain.CatalogCompatibility{Package: packageMode, Verification: verification, Authentication: domain.AuthenticationRequirementUnknown}
+		entry := domain.CatalogCompatibility{Package: packageMode, Verification: directoryVerification(applicable), Authentication: target.Authentication, Evidence: applicable, EvidenceOutcomes: directoryEvidenceOutcomes(applicable)}
 		if target.AppBinding != nil {
 			mcpURL := ""
 			if server, ok := loaded.envelope.MCP.Servers[target.AppBinding.MCPServer]; ok {
@@ -327,8 +338,68 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 		SchemaVersion: 1, CatalogVersion: "directory-snapshot-1", Digest: bundle.Digest,
 		Revision: bundle.Snapshot.SourceCommit, MinimumCLIVersion: policy.MinimumInstallerVersion,
 		AgentPluginsSchema: loaded.envelope.SchemaURI, Compatibility: cloneCatalogCompatibility(compatibility),
+		CurrentEvidence: append([]domain.DirectoryEvidence(nil), current...),
 	}
 	return nil
+}
+
+func currentDirectoryEvidence(history []domain.DirectoryEvidence, ids []string) []domain.DirectoryEvidence {
+	byID := make(map[string]domain.DirectoryEvidence, len(history))
+	for _, evidence := range history {
+		byID[evidence.ID] = evidence
+	}
+	current := make([]domain.DirectoryEvidence, 0, len(ids))
+	for _, id := range ids {
+		if evidence, ok := byID[id]; ok {
+			current = append(current, evidence)
+		}
+	}
+	return current
+}
+
+func directoryEvidenceApplies(evidence domain.DirectoryEvidence, selection domain.DirectorySelection, client domain.ClientID, environment directoryEvidenceEnvironment) bool {
+	if evidence.DistributionID != selection.DistributionID || evidence.ReleaseSequence != selection.ReleaseSequence || evidence.PackageTreeDigest != selection.TreeDigest {
+		return false
+	}
+	if evidence.Level == "schema" {
+		return evidence.Client == ""
+	}
+	if evidence.Client != client || evidence.InstallerVersion != environment.InstallerVersion || evidence.OS != environment.OS || evidence.Architecture != environment.Architecture {
+		return false
+	}
+	if evidence.ClientVersion != "" && environment.ClientVersions[client] != evidence.ClientVersion {
+		return false
+	}
+	if evidence.DependencyIdentity != "" && environment.DependencyIdentity[client] != evidence.DependencyIdentity {
+		return false
+	}
+	return true
+}
+
+func directoryVerification(evidence []domain.DirectoryEvidence) string {
+	schemaPassed := false
+	for _, record := range evidence {
+		if record.Outcome != "passed" {
+			continue
+		}
+		if record.Level == "schema" {
+			schemaPassed = true
+			continue
+		}
+		return "tested"
+	}
+	if schemaPassed {
+		return "schema_only"
+	}
+	return "not_tested"
+}
+
+func directoryEvidenceOutcomes(evidence []domain.DirectoryEvidence) map[string]string {
+	outcomes := map[string]string{"schema": "not_tested", "materialization": "not_tested", "discovery": "not_tested", "runtime": "not_tested", "oauth": "not_tested"}
+	for _, record := range evidence {
+		outcomes[record.Level] = record.Outcome
+	}
+	return outcomes
 }
 
 func directoryRecords(snapshot domain.DirectorySnapshot, selection domain.DirectorySelection) (*domain.DirectoryProduct, *domain.DirectoryDistribution, *domain.DirectoryRelease, *domain.DirectoryReleasePolicy) {
@@ -406,6 +477,13 @@ func cloneCatalogCompatibility(source map[string]domain.CatalogCompatibility) ma
 	}
 	result := make(map[string]domain.CatalogCompatibility, len(source))
 	for client, compatibility := range source {
+		compatibility.Evidence = append([]domain.DirectoryEvidence(nil), compatibility.Evidence...)
+		if compatibility.EvidenceOutcomes != nil {
+			compatibility.EvidenceOutcomes = make(map[string]string, len(compatibility.EvidenceOutcomes))
+			for level, outcome := range source[client].EvidenceOutcomes {
+				compatibility.EvidenceOutcomes[level] = outcome
+			}
+		}
 		if compatibility.AppBinding != nil {
 			binding := *compatibility.AppBinding
 			compatibility.AppBinding = &binding

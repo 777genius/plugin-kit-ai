@@ -117,6 +117,8 @@ var (
 	timestampPattern    = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$`)
 	semverPattern       = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
 	iconPathPattern     = regexp.MustCompile(`^assets/plugin-icons/[A-Za-z0-9._-]+$`)
+	workflowPattern     = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*/\.github/workflows/[A-Za-z0-9._-]+\.ya?ml$`)
+	sourceRefPattern    = regexp.MustCompile(`^refs/heads/[A-Za-z0-9._/-]+$`)
 )
 
 func ParsePointer(body []byte) (Pointer, error) {

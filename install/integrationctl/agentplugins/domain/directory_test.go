@@ -13,7 +13,7 @@ func testPolicy(sequence uint64, clients ...ClientID) DirectoryReleasePolicy {
 	targets := make([]DirectoryTarget, len(clients))
 	for i, c := range clients {
 		delivery, _ := ExpectedDirectoryDelivery(c)
-		targets[i] = DirectoryTarget{Client: c, Scopes: []InstallScope{ScopeUser}, Delivery: delivery}
+		targets[i] = DirectoryTarget{Client: c, Scopes: []InstallScope{ScopeUser}, Delivery: delivery, Authentication: AuthenticationRequirementUnknown}
 	}
 	return DirectoryReleasePolicy{ReleaseSequence: sequence, Status: ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: targets, CurrentEvidence: []string{}}
 }
@@ -31,7 +31,7 @@ func testDirectory() DirectorySnapshot {
 }
 
 func request(selector string, targets ...ClientID) DirectoryResolveRequest {
-	return DirectoryResolveRequest{Selector: selector, Targets: targets, Scope: ScopeUser, InstallerVersion: "1.2.3", SchemaVersion: "1.0.0", Operation: DirectoryInstall}
+	return DirectoryResolveRequest{Selector: selector, Targets: targets, Scope: ScopeUser, InstallerVersion: "1.2.3", ClientVersions: map[ClientID]string{ClientCodex: "test-client"}, OS: "linux", Architecture: "amd64", SchemaVersion: "1.0.0", Operation: DirectoryInstall}
 }
 
 func TestResolveDirectoryDeclaredDefaultFallbackQualifiedAndSequence(t *testing.T) {
@@ -75,7 +75,7 @@ func TestResolveDirectoryDeclaredDefaultPrecedesKindAndFallbackUsesKindOrder(t *
 	if err != nil || got.DistributionID != "other/tool" || got.Fallback {
 		t.Fatalf("eligible declared community default was implicitly promoted away: %+v %v", got, err)
 	}
-	s.Distributions[0].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed"}}
+	s.Distributions[0].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed", Authentication: AuthenticationRequirementUnknown}}
 	got, err = ResolveDirectory(s, request("tool", ClientCodex))
 	if err != nil || got.DistributionID != "owner/tool" || !got.Fallback {
 		t.Fatalf("fallback did not prefer eligible upstream: %+v %v", got, err)
@@ -84,8 +84,8 @@ func TestResolveDirectoryDeclaredDefaultPrecedesKindAndFallbackUsesKindOrder(t *
 
 func TestResolveDirectoryNoMixingAndAmbiguity(t *testing.T) {
 	s := testDirectory()
-	s.Distributions[0].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed"}}
-	s.Distributions[1].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed"}}
+	s.Distributions[0].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed", Authentication: AuthenticationRequirementUnknown}}
+	s.Distributions[1].ReleasePolicies[0].Targets = []DirectoryTarget{{Client: ClientCursor, Scopes: []InstallScope{ScopeUser}, Delivery: "managed", Authentication: AuthenticationRequirementUnknown}}
 	if _, err := ResolveDirectory(s, request("tool", ClientCodex, ClientCursor)); !errors.Is(err, ErrDirectoryIneligible) {
 		t.Fatalf("mixing: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestResolveDirectoryGates(t *testing.T) {
 		t.Fatal("installer gate")
 	}
 	p.MinimumInstallerVersion = "1.0.0"
-	s.Evidence = []DirectoryEvidence{{ID: "failed/runtime", DistributionID: "owner/tool", ReleaseSequence: 3, Level: "runtime", Outcome: "failed", Client: ClientCodex}}
+	s.Evidence = []DirectoryEvidence{{ID: "failed/runtime", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "runtime", Outcome: "failed", Client: ClientCodex, ClientVersion: "test-client", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"}}
 	p.CurrentEvidence = []string{"failed/runtime"}
 	if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err == nil {
 		t.Fatal("evidence gate")
@@ -210,7 +210,7 @@ func TestResolveDirectoryGates(t *testing.T) {
 	s = testDirectory()
 	p = &s.Distributions[2].ReleasePolicies[1]
 	s.Distributions[2].ReleasePolicies[0].Status = ReleaseSuperseded
-	s.Evidence = []DirectoryEvidence{{ID: "failed/schema", DistributionID: "owner/tool", ReleaseSequence: 3, Level: "schema", Outcome: "failed"}}
+	s.Evidence = []DirectoryEvidence{{ID: "failed/schema", DistributionID: "owner/tool", ReleaseSequence: 3, PackageTreeDigest: testRelease(3, "").TreeDigest, Level: "schema", Outcome: "failed"}}
 	p.CurrentEvidence = []string{"failed/schema"}
 	if _, err := ResolveDirectory(s, request("owner/tool", ClientCodex)); err == nil {
 		t.Fatal("schema evidence gate")
