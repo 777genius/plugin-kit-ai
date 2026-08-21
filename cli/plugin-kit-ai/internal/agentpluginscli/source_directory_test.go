@@ -145,6 +145,89 @@ func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 	}
 }
 
+func TestRetainDirectoryReleaseAfterStableProductResolution(t *testing.T) {
+	baseSnapshot := domain.DirectorySnapshot{
+		Products: []domain.DirectoryProduct{
+			{ID: "product-a", ManifestName: "demo", Aliases: []string{"stable-alias"}, DefaultDistribution: "new/demo", Distributions: []string{"old/demo", "new/demo"}},
+			{ID: "product-b", ManifestName: "other", Aliases: []string{"other-alias"}, DefaultDistribution: "other/demo", Distributions: []string{"other/demo"}},
+		},
+		Distributions: []domain.DirectoryDistribution{
+			{ID: "old/demo", ProductID: "product-a"},
+			{ID: "new/demo", ProductID: "product-a"},
+			{ID: "other/demo", ProductID: "product-b"},
+		},
+	}
+	retained := domain.Installation{
+		InstallationID: "install-a", DeclaredName: "demo", OriginMode: domain.OriginModeDirectory,
+		Source:    domain.SourceBinding{RequestedSource: "stable-alias"},
+		Directory: &domain.DirectoryOrigin{ProductID: "product-a", DistributionID: "old/demo", DesiredReleaseSequence: 7},
+	}
+	tests := []struct {
+		name         string
+		selector     string
+		mutate       func(*domain.DirectorySnapshot, *domain.StateFileV2)
+		wantRecorded bool
+		wantProduct  string
+		wantDist     string
+		wantSequence uint64
+		wantErr      string
+	}{
+		{name: "alias default rotation", selector: "stable-alias", wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
+		{name: "alias reassignment to different product", selector: "stable-alias", mutate: func(snapshot *domain.DirectorySnapshot, _ *domain.StateFileV2) {
+			snapshot.Products[0].Aliases = nil
+			snapshot.Products[1].Aliases = []string{"stable-alias"}
+		}, wantErr: "now resolves to product"},
+		{name: "direct product ID", selector: "product-a", wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
+		{name: "declared name", selector: "demo", wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
+		{name: "no retained state", selector: "stable-alias", mutate: func(_ *domain.DirectorySnapshot, state *domain.StateFileV2) {
+			state.Installations = nil
+		}},
+		{name: "corrupt retained state", selector: "stable-alias", mutate: func(_ *domain.DirectorySnapshot, state *domain.StateFileV2) {
+			state.Installations[0].Directory.DesiredReleaseSequence = 0
+		}, wantErr: "incomplete or corrupt"},
+		{name: "ambiguous retained state", selector: "stable-alias", mutate: func(_ *domain.DirectorySnapshot, state *domain.StateFileV2) {
+			duplicate := state.Installations[0]
+			duplicate.InstallationID = "install-b"
+			state.Installations = append(state.Installations, duplicate)
+		}, wantErr: "ambiguous"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			snapshot := baseSnapshot
+			snapshot.Products = append([]domain.DirectoryProduct(nil), baseSnapshot.Products...)
+			for index := range snapshot.Products {
+				snapshot.Products[index].Aliases = append([]string(nil), baseSnapshot.Products[index].Aliases...)
+			}
+			state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{retained}}
+			copyOrigin := *retained.Directory
+			state.Installations[0].Directory = &copyOrigin
+			if test.mutate != nil {
+				test.mutate(&snapshot, &state)
+			}
+			request, err := retainDirectoryRelease(snapshot, state, test.selector, packageResolutionRequest{Operation: domain.DirectoryInstall, RetainRecorded: true})
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("error = %v, want containing %q", err, test.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !test.wantRecorded {
+				if request.Recorded != nil || request.Operation != domain.DirectoryInstall {
+					t.Fatalf("request = %+v, want unrecorded install", request)
+				}
+				return
+			}
+			if request.Recorded == nil || request.Operation != domain.DirectoryNewTarget || request.Recorded.ProductID != test.wantProduct ||
+				request.Recorded.DistributionID != test.wantDist || request.Recorded.ReleaseSequence != test.wantSequence {
+				t.Fatalf("retained request = %+v", request)
+			}
+		})
+	}
+}
+
 func TestDirectoryPostAcquisitionDependencyRecheckFailsClosed(t *testing.T) {
 	t.Parallel()
 	client := fixtureClient(t, domain.ClientCursor)
@@ -324,7 +407,7 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 	directory.bundle.Snapshot.Products[0].DefaultDistribution = "new/demo"
 	directory.bundle.Snapshot.Sequence = 18
 	directory.bundle.Digest = "sha256:" + strings.Repeat("d", 64)
-	if _, _, err := fixture.execute(false, "add", "demo", "--target", "cursor"); err != nil {
+	if _, _, err := fixture.execute(false, "add", "demo-alias", "--target", "cursor"); err != nil {
 		t.Fatal(err)
 	}
 	state, err = fixture.store.Load()

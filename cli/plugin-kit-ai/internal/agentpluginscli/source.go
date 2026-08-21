@@ -34,25 +34,15 @@ type loadedPackage struct {
 }
 
 type packageResolutionRequest struct {
-	Targets   []domain.ClientID
-	Operation domain.DirectoryOperation
-	Recorded  *domain.RecordedDirectoryRelease
-	Clients   map[domain.ClientID]domain.DetectedClient
+	Targets        []domain.ClientID
+	Operation      domain.DirectoryOperation
+	Recorded       *domain.RecordedDirectoryRelease
+	Clients        map[domain.ClientID]domain.DetectedClient
+	RetainRecorded bool
 }
 
 func (app App) addResolutionRequest(selector string, targets []domain.ClientID) packageResolutionRequest {
-	request := packageResolutionRequest{Targets: append([]domain.ClientID(nil), targets...), Operation: domain.DirectoryInstall}
-	state, err := app.StateStore.Load()
-	if err != nil {
-		return request
-	}
-	installation, ok := locallyMatchedInstallation(state, selector)
-	if !ok || installation.Directory == nil {
-		return request
-	}
-	request.Operation = domain.DirectoryNewTarget
-	request.Recorded = &domain.RecordedDirectoryRelease{ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: installation.Directory.DesiredReleaseSequence}
-	return request
+	return packageResolutionRequest{Targets: append([]domain.ClientID(nil), targets...), Operation: domain.DirectoryInstall, RetainRecorded: true}
 }
 
 func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64, clients map[domain.ClientID]domain.DetectedClient) (loadedPackage, error) {
@@ -89,6 +79,104 @@ func locallyMatchedInstallation(state domain.StateFileV2, selector string) (doma
 		return domain.Installation{}, false
 	}
 	return matches[0], true
+}
+
+// retainDirectoryRelease resolves mutable Directory selectors only far enough
+// to establish product identity, then binds a re-add to the installation's
+// recorded immutable release. Selecting today's default first would let an
+// alias rotation change the distribution before local state was considered.
+func retainDirectoryRelease(snapshot domain.DirectorySnapshot, state domain.StateFileV2, selector string, request packageResolutionRequest) (packageResolutionRequest, error) {
+	if request.Recorded != nil || !request.RetainRecorded {
+		return request, nil
+	}
+	productID, err := directorySelectorProductID(snapshot, selector)
+	if err != nil {
+		return request, err
+	}
+	installation, found, err := retainedDirectoryInstallation(state, selector, productID)
+	if err != nil || !found {
+		return request, err
+	}
+	request.Operation = domain.DirectoryNewTarget
+	request.Recorded = &domain.RecordedDirectoryRelease{
+		ProductID:       installation.Directory.ProductID,
+		DistributionID:  installation.Directory.DistributionID,
+		ReleaseSequence: installation.Directory.DesiredReleaseSequence,
+	}
+	return request, nil
+}
+
+func directorySelectorProductID(snapshot domain.DirectorySnapshot, rawSelector string) (string, error) {
+	selector := strings.TrimSpace(rawSelector)
+	if strings.Contains(selector, "/") {
+		matches := []string{}
+		for _, distribution := range snapshot.Distributions {
+			if distribution.ID != selector {
+				continue
+			}
+			for _, product := range snapshot.Products {
+				if product.ID == distribution.ProductID && containsDirectoryValue(product.Distributions, selector) {
+					matches = append(matches, product.ID)
+				}
+			}
+		}
+		if len(matches) == 0 {
+			return "", fmt.Errorf("%w: distribution %q", domain.ErrDirectoryNotFound, selector)
+		}
+		if len(matches) != 1 {
+			return "", fmt.Errorf("%w: qualified distribution %q", domain.ErrDirectoryAmbiguous, selector)
+		}
+		return matches[0], nil
+	}
+	matches := []string{}
+	for _, product := range snapshot.Products {
+		if product.ID == selector || product.ManifestName == selector || containsDirectoryValue(product.Aliases, selector) {
+			matches = append(matches, product.ID)
+		}
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("%w: %q", domain.ErrDirectoryNotFound, selector)
+	}
+	if len(matches) != 1 {
+		return "", fmt.Errorf("%w: %q", domain.ErrDirectoryAmbiguous, selector)
+	}
+	return matches[0], nil
+}
+
+func containsDirectoryValue(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
+func retainedDirectoryInstallation(state domain.StateFileV2, selector, productID string) (domain.Installation, bool, error) {
+	matches := []domain.Installation{}
+	for _, installation := range state.Installations {
+		directoryMatch := installation.Directory != nil && (installation.Directory.ProductID == productID || installation.Directory.DistributionID == selector)
+		historicalSelectorMatch := strings.TrimSpace(installation.Source.RequestedSource) == selector
+		declaredMatch := installation.InstallationID == selector || installation.DeclaredName == selector
+		if !directoryMatch && !historicalSelectorMatch && !declaredMatch {
+			continue
+		}
+		if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil ||
+			strings.TrimSpace(installation.Directory.ProductID) == "" || strings.TrimSpace(installation.Directory.DistributionID) == "" || installation.Directory.DesiredReleaseSequence < 1 {
+			return domain.Installation{}, false, fmt.Errorf("retained installation %q has incomplete or corrupt Directory release identity", installation.InstallationID)
+		}
+		if installation.Directory.ProductID != productID {
+			return domain.Installation{}, false, fmt.Errorf("Directory selector %q now resolves to product %q, but retained installation %q records product %q", selector, productID, installation.InstallationID, installation.Directory.ProductID)
+		}
+		matches = append(matches, installation)
+	}
+	if len(matches) == 0 {
+		return domain.Installation{}, false, nil
+	}
+	if len(matches) != 1 {
+		return domain.Installation{}, false, fmt.Errorf("retained Directory state for product %q is ambiguous; use installation_id", productID)
+	}
+	return matches[0], true, nil
 }
 
 func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, error) {
@@ -190,6 +278,10 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	bundle, err := app.DirectoryClient.Load(ctx, installedDirectoryFloor(state))
 	if err != nil {
 		return loadedPackage{}, fmt.Errorf("load signed Directory: %w", err)
+	}
+	request, err = retainDirectoryRelease(bundle.Snapshot, state, selector, request)
+	if err != nil {
+		return loadedPackage{}, err
 	}
 	operation := request.Operation
 	if operation == "" {
