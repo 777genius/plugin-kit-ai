@@ -70,6 +70,16 @@ func (planner Planner) Plan(
 	plan.ActivePath = target.ActivePath
 	plan.Components = componentDecisions(envelope, capabilities)
 	applyCatalogCompatibility(&plan, envelope.CatalogEvidence)
+	chatGPTCompatibility, hasChatGPTCompatibility := domain.CatalogCompatibility{}, false
+	if envelope.CatalogEvidence != nil {
+		chatGPTCompatibility, hasChatGPTCompatibility = envelope.CatalogEvidence.Compatibility[string(domain.ClientChatGPT)]
+	}
+	if client.ClientID == domain.ClientChatGPT && hasChatGPTCompatibility && chatGPTCompatibility.AppBinding != nil && hasSupportedKind(plan.Components, domain.ComponentApp) {
+		// ChatGPT app bindings are added only from validated signed Directory
+		// compatibility evidence. This authorizes local preparation, not a claim
+		// about the unobservable remote Plugins registry.
+		plan.LocalPreparationAuthorized = true
+	}
 	hasComponentErrors := false
 	for _, diagnostic := range envelope.Diagnostics {
 		plan.Diagnostics = append(plan.Diagnostics, diagnostic)

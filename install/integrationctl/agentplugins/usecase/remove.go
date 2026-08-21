@@ -85,7 +85,7 @@ func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveRes
 		InstallationID:   installation.InstallationID,
 		Plugin:           installation.DeclaredName,
 		ClientID:         input.Client.ClientID,
-		AffectedSurfaces: append([]string(nil), client.AffectedSurfaces...),
+		AffectedSurfaces: preparedAffectedSurfaces(client, input.Client.ClientID),
 	}
 	if len(result.AffectedSurfaces) == 0 {
 		result.AffectedSurfaces = []string{client.ClientID}

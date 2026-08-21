@@ -1093,19 +1093,8 @@ func TestLifecycleConvergenceRequiresActivationAuthenticationAndVerificationForE
 	}
 }
 
-func TestCopilotAndVSCodeShareOneNativeBackend(t *testing.T) {
+func TestCopilotAndVSCodeNativeBackendFamilyMapping(t *testing.T) {
 	t.Parallel()
-	installation := domain.Installation{Clients: map[string]domain.ClientBinding{
-		"copilot": {
-			ClientID: string(domain.ClientCopilot), Materialization: domain.MaterializationMaterialized,
-		},
-	}}
-	if err := rejectSharedCopilotBackendDuplicate(installation, domain.ClientVSCode); err == nil || !strings.Contains(err.Error(), "available in both") {
-		t.Fatalf("shared backend error = %v", err)
-	}
-	if err := rejectSharedCopilotBackendDuplicate(installation, domain.ClientCopilot); err != nil {
-		t.Fatalf("same target was rejected: %v", err)
-	}
 	if !sameNativeBackend(domain.ClientCopilot, domain.ClientVSCode) || sameNativeBackend(domain.ClientCursor, domain.ClientVSCode) {
 		t.Fatal("native backend family mapping is incorrect")
 	}

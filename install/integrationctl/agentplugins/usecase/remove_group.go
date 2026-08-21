@@ -99,7 +99,7 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 			}
 		}
 		result.Targets[targetIndex] = RemoveResult{InstallationID: installation.InstallationID, Plugin: installation.DeclaredName, ClientID: targetInput.Client.ClientID,
-			AffectedSurfaces: append([]string(nil), client.AffectedSurfaces...)}
+			AffectedSurfaces: preparedAffectedSurfaces(client, targetInput.Client.ClientID)}
 		if prior, ok := byBinding[clientKey]; ok {
 			planned[prior].resultIndexes = append(planned[prior].resultIndexes, targetIndex)
 			continue

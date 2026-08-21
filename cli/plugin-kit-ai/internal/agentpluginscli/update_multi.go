@@ -54,7 +54,14 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	allTargets := installationTargets(installation, opts.scope)
 	writeProgress(app, opts.format, "Resolving and validating one updated Agent Plugin package for every selected target...")
-	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, domain.DirectoryUpdate, 0)
+	operation := domain.DirectoryUpdate
+	if selectedTargetsNeedDesiredRelease(installation, targets, opts.scope) {
+		// A prior partial rollout already accepted the installation-wide desired
+		// release. Resolve that exact release so remaining bindings converge to it
+		// instead of incorrectly requiring a still newer release.
+		operation = domain.DirectoryNewTarget
+	}
+	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, operation, 0)
 	if err != nil {
 		return err
 	}
@@ -148,7 +155,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 
 func installationHasTarget(installation domain.Installation, target domain.ClientID, scope string) bool {
 	for _, binding := range installation.Clients {
-		if binding.ClientID == string(target) && binding.Scope == scope && binding.Materialization != domain.MaterializationAbsent {
+		if binding.Scope == scope && binding.Materialization != domain.MaterializationAbsent && bindingAffectsTarget(binding, target) {
 			return true
 		}
 	}
@@ -159,18 +166,93 @@ func installationTargets(installation domain.Installation, scope string) []domai
 	seen := make(map[domain.ClientID]struct{}, len(installation.Clients))
 	result := make([]domain.ClientID, 0, len(installation.Clients))
 	for _, binding := range installation.Clients {
-		target := domain.ClientID(binding.ClientID)
-		if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent || !supportedTarget(target) {
+		if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent {
 			continue
 		}
-		if _, duplicate := seen[target]; duplicate {
+		for _, target := range bindingSurfaceTargets(binding) {
+			if !supportedTarget(target) {
+				continue
+			}
+			if _, duplicate := seen[target]; duplicate {
+				continue
+			}
+			seen[target] = struct{}{}
+			result = append(result, target)
+		}
+	}
+	sortTargets(result)
+	return result
+}
+
+func bindingAffectsTarget(binding domain.ClientBinding, target domain.ClientID) bool {
+	for _, surface := range bindingSurfaceTargets(binding) {
+		if surface == target {
+			return true
+		}
+	}
+	return false
+}
+
+func bindingSurfaceTargets(binding domain.ClientBinding) []domain.ClientID {
+	// The physical binding's own client identity is always an affected logical
+	// surface, including when reading an older or partially written surface list.
+	// Union it with the persisted list so target selection and compatibility
+	// preflight can heal omissions instead of silently perpetuating them.
+	values := append([]string(nil), binding.AffectedSurfaces...)
+	values = append(values, binding.ClientID)
+	if domain.ClientID(binding.ClientID) == domain.ClientCopilot || domain.ClientID(binding.ClientID) == domain.ClientVSCode {
+		values = append(values, string(domain.ClientCopilot), string(domain.ClientVSCode))
+	}
+	result := make([]domain.ClientID, 0, len(values))
+	seen := map[domain.ClientID]struct{}{}
+	for _, value := range values {
+		target := domain.ClientID(value)
+		if _, ok := seen[target]; ok {
 			continue
 		}
 		seen[target] = struct{}{}
 		result = append(result, target)
 	}
-	sortTargets(result)
 	return result
+}
+
+func expandAffectedSurfaceTargets(targets []domain.ClientID) []domain.ClientID {
+	result := append([]domain.ClientID(nil), targets...)
+	for _, target := range targets {
+		if target == domain.ClientCopilot || target == domain.ClientVSCode {
+			result = append(result, domain.ClientCopilot, domain.ClientVSCode)
+			break
+		}
+	}
+	seen := make(map[domain.ClientID]struct{}, len(result))
+	unique := result[:0]
+	for _, target := range result {
+		if _, ok := seen[target]; ok {
+			continue
+		}
+		seen[target] = struct{}{}
+		unique = append(unique, target)
+	}
+	sortTargets(unique)
+	return unique
+}
+
+func selectedTargetsNeedDesiredRelease(installation domain.Installation, targets []domain.ClientID, scope string) bool {
+	if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil {
+		return false
+	}
+	desired := installation.Directory.DesiredReleaseSequence
+	for _, target := range targets {
+		for _, binding := range installation.Clients {
+			if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent || !bindingAffectsTarget(binding, target) || binding.PackageRevision == nil {
+				continue
+			}
+			if binding.PackageRevision.DistributionID == installation.Directory.DistributionID && binding.PackageRevision.ReleaseSequence < desired {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func renderUpdateMultiResult(cmd *cobra.Command, opts *options, result updateMultiResult) error {

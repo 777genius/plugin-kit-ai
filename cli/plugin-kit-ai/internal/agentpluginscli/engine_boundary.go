@@ -108,15 +108,20 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
-	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients))
+	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients)+1)
 	for _, client := range clients {
 		detected[client.ClientID] = client
+	}
+	if containsClientID(targetIDs, domain.ClientChatGPT) {
+		if _, ok := detected[domain.ClientChatGPT]; !ok {
+			detected[domain.ClientChatGPT] = domain.DetectedClient{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
+		}
 	}
 	service = lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
 		client, ok := detected[targetID]
-		if !ok || client.Status != domain.DetectionDetected {
+		if !ok || (client.Status != domain.DetectionDetected && targetID != domain.ClientChatGPT) {
 			return fmt.Errorf("switch target %s is not detected; no target was changed", targetID)
 		}
 		clientPackage := cloneLoadedPackage(loaded)
@@ -159,6 +164,15 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		err = renderErr
 	}
 	return err
+}
+
+func containsClientID(values []domain.ClientID, wanted domain.ClientID) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func renderSwitchResult(writer io.Writer, format string, result switchOutput) error {

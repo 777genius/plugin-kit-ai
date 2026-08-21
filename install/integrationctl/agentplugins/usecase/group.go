@@ -396,10 +396,21 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		existing = true
 		installation := desired.Installations[installationIndex]
 		client := installation.Clients[target.clientBindingID]
+		if target.managed != nil {
+			// Addressing a shared backend through another logical surface must not
+			// rewrite the persisted physical binding identity (and thereby make its
+			// deterministic binding ID inconsistent).
+			client.ClientID = target.managed.ClientID
+			client.AffectedSurfaces = append(client.AffectedSurfaces, target.managed.AffectedSurfaces...)
+			client.AffectedSurfaces = append(client.AffectedSurfaces, target.managed.ClientID)
+		}
+		if sameNativeBackend(target.input.Client.ClientID, domain.ClientCopilot) {
+			client.AffectedSurfaces = append(client.AffectedSurfaces, string(domain.ClientCopilot), string(domain.ClientVSCode))
+		}
 		for _, resultIndex := range target.resultIndexes {
 			client.AffectedSurfaces = append(client.AffectedSurfaces, string(input.Targets[resultIndex].Client.ClientID))
 		}
-		sort.Strings(client.AffectedSurfaces)
+		client.AffectedSurfaces = uniqueSortedSurfaces(client.AffectedSurfaces)
 		if target.dataReceipt.DataReceiptID != "" {
 			if installation.DataReceipts == nil {
 				installation.DataReceipts = map[string]domain.DataReceipt{}
@@ -598,6 +609,24 @@ func containsSurface(values []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+func uniqueSortedSurfaces(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
 }
 
 func groupPackageUnchanged(binding domain.ClientBinding, input AddInput) bool {

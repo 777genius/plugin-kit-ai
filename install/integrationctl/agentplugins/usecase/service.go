@@ -219,12 +219,19 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 	if err := rejectNativeNameCollision(state, installationID, input.Envelope.Manifest.Name, input.Client.ClientID); err != nil {
 		return result, err
 	}
-	if existing {
-		if err := rejectSharedCopilotBackendDuplicate(state.Installations[installationIndex], input.Client.ClientID); err != nil {
-			return result, err
+	clientBindingID := domain.ComputeClientBindingID(installationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
+	if existing && sameNativeBackend(input.Client.ClientID, domain.ClientCopilot) {
+		for key, binding := range state.Installations[installationIndex].Clients {
+			if binding.Scope != string(input.Scope) || binding.Materialization == domain.MaterializationAbsent || binding.PhysicalArtifact != plan.PhysicalArtifactID || !sameNativeBackend(domain.ClientID(binding.ClientID), input.Client.ClientID) {
+				continue
+			}
+			clientBindingID = key
+			plan.ActivePath = binding.TargetLocator
+			plan.TargetRoot = filepath.Dir(binding.TargetLocator)
+			result.Plan = plan
+			break
 		}
 	}
-	clientBindingID := domain.ComputeClientBindingID(installationID, string(input.Client.ClientID), string(input.Scope), plan.ActivePath)
 	isMaterialized := existing && materializedClient(state.Installations[installationIndex], clientBindingID)
 	var managedBinding *domain.ClientBinding
 	if isMaterialized {
@@ -750,15 +757,20 @@ func upsertPreparedInstallation(
 		}
 	}
 	previousClient := installation.Clients[clientBindingID]
+	bindingClientID := string(input.Client.ClientID)
+	if previousClient.ClientID != "" {
+		bindingClientID = previousClient.ClientID
+	}
 	installation.Clients[clientBindingID] = domain.ClientBinding{
-		ClientBindingID: clientBindingID, ClientID: string(input.Client.ClientID), Scope: string(input.Scope),
+		ClientBindingID: clientBindingID, ClientID: bindingClientID, Scope: string(input.Scope),
 		TargetLocator: plan.ActivePath, PhysicalArtifact: plan.PhysicalArtifactID,
 		Materialization: domain.MaterializationStaged, Activation: domain.ActivationPrepared,
 		Authentication: plan.Authentication, Policy: domain.PolicyAllowed,
 		Verification: domain.VerificationPackageValid, UpdatedAt: timestamp,
-		PackageRevision: packageRevisionForInput(input),
-		Receipts:        append([]domain.MutationReceipt(nil), previousClient.Receipts...),
-		NativeObjects:   append([]domain.NativeObjectOwnership(nil), previousClient.NativeObjects...),
+		PackageRevision:  packageRevisionForInput(input),
+		Receipts:         append([]domain.MutationReceipt(nil), previousClient.Receipts...),
+		NativeObjects:    append([]domain.NativeObjectOwnership(nil), previousClient.NativeObjects...),
+		AffectedSurfaces: preparedAffectedSurfaces(previousClient, input.Client.ClientID),
 	}
 	if existing {
 		state.Installations[installationIndex] = installation
@@ -766,6 +778,18 @@ func upsertPreparedInstallation(
 	}
 	state.Installations = append(state.Installations, installation)
 	return state, len(state.Installations) - 1
+}
+
+func preparedAffectedSurfaces(previous domain.ClientBinding, requested domain.ClientID) []string {
+	values := append([]string(nil), previous.AffectedSurfaces...)
+	if previous.ClientID != "" {
+		values = append(values, previous.ClientID)
+	}
+	values = append(values, string(requested))
+	if sameNativeBackend(requested, domain.ClientCopilot) {
+		values = append(values, string(domain.ClientCopilot), string(domain.ClientVSCode))
+	}
+	return uniqueSortedSurfaces(values)
 }
 
 func cloneCatalogEvidence(source *domain.CatalogEvidence) *domain.CatalogEvidence {
@@ -1010,19 +1034,6 @@ func rejectNativeNameCollision(state domain.StateFileV2, installationID, declare
 	return nil
 }
 
-func rejectSharedCopilotBackendDuplicate(installation domain.Installation, requested domain.ClientID) error {
-	if !sameNativeBackend(requested, domain.ClientCopilot) {
-		return nil
-	}
-	for _, client := range installation.Clients {
-		bound := domain.ClientID(client.ClientID)
-		if bound != requested && sameNativeBackend(bound, requested) && client.Materialization != domain.MaterializationAbsent {
-			return fmt.Errorf("plugin is already installed through %s and is available in both GitHub Copilot CLI and VS Code", bound)
-		}
-	}
-	return nil
-}
-
 func sameNativeBackend(first, second domain.ClientID) bool {
 	if first == second {
 		return true
@@ -1135,7 +1146,14 @@ func (service Service) verifyManagedTarget(
 	if expectedDigest == "" {
 		return fmt.Errorf("managed package digest is missing; refusing %s and retaining state for reviewed recovery", operation)
 	}
-	target, err := service.Targets.ResolveTarget(ctx, client, scope, binding.PhysicalArtifact)
+	targetClient := client
+	if sameNativeBackend(domain.ClientID(binding.ClientID), client.ClientID) {
+		// Validate the persisted path against the physical binding's canonical
+		// owner, even when the caller addressed the shared backend through its
+		// other logical surface.
+		targetClient.ClientID = domain.ClientID(binding.ClientID)
+	}
+	target, err := service.Targets.ResolveTarget(ctx, targetClient, scope, binding.PhysicalArtifact)
 	if err != nil {
 		return fmt.Errorf("resolve managed %s target: %w", operation, err)
 	}

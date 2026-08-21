@@ -43,7 +43,7 @@ func runAddMany(ctx context.Context, cmd *cobra.Command, app App, opts *options,
 
 func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
 	writeProgress(app, opts.format, "Resolving and validating one Agent Plugin package for every selected target...")
-	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, targets))
+	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, expandAffectedSurfaceTargets(targets)))
 	if err != nil {
 		return err
 	}

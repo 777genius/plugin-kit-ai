@@ -346,7 +346,7 @@ func defaultBoundTargets(app App, selector, scope string, degradedOnly bool) ([]
 		if degradedOnly && binding.Materialization != domain.MaterializationDegraded && binding.Activation != domain.ActivationFailed && binding.Activation != domain.ActivationManual && binding.Activation != domain.ActivationPrepared && binding.Authentication != domain.AuthenticationFailed && binding.Authentication != domain.AuthenticationPending && binding.Verification != domain.VerificationFailed {
 			continue
 		}
-		targets = append(targets, domain.ClientID(binding.ClientID))
+		targets = append(targets, bindingSurfaceTargets(binding)...)
 	}
 	if len(targets) == 0 {
 		if degradedOnly {
@@ -576,7 +576,7 @@ func updateSource(installation domain.Installation) string {
 func selectedRepairBinding(installation domain.Installation, clientID domain.ClientID, scope domain.InstallScope) (domain.ClientBinding, error) {
 	var matches []domain.ClientBinding
 	for _, binding := range installation.Clients {
-		if binding.ClientID == string(clientID) && binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent {
+		if binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent && bindingAffectsTarget(binding, clientID) {
 			matches = append(matches, binding)
 		}
 	}

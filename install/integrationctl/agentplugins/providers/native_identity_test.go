@@ -140,14 +140,14 @@ func TestNativeIdentityKiroReadsGlobalMCPRegistry(t *testing.T) {
 	}
 }
 
-func TestNativeIdentityKiroManualPowerFailsClosedWithoutRegistryContract(t *testing.T) {
+func TestNativeIdentityKiroManualPowerAuthorizesOnlyLocalPreparation(t *testing.T) {
 	configRoot := filepath.Join(t.TempDir(), ".kiro")
 	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
 	plan.NativeRegistryRoot = configRoot
 	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentSkill, Name: "docs", Support: domain.SupportNative}}
 
 	observation, err := (NativeIdentityObserver{}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientKiro}, plan, nil)
-	if err != nil || observation.State != domain.NativeIdentityIndeterminate {
+	if err != nil || observation.State != domain.NativeIdentityAbsent {
 		t.Fatalf("observation = %+v, err = %v", observation, err)
 	}
 }

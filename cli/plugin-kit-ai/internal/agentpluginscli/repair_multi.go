@@ -77,9 +77,9 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		}
 		targetRevision[target] = key
 		if existing := requests[key]; existing != nil {
-			existing.targets = append(existing.targets, target)
+			existing.targets = expandAffectedSurfaceTargets(append(existing.targets, bindingSurfaceTargets(binding)...))
 		} else {
-			request.targets = []domain.ClientID{target}
+			request.targets = expandAffectedSurfaceTargets(bindingSurfaceTargets(binding))
 			requests[key] = &request
 		}
 	}

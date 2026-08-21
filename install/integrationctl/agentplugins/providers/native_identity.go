@@ -101,8 +101,13 @@ func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context
 		return inspectCodexFiles(plan, managed)
 	case domain.ClientChatGPT:
 		// ChatGPT's installed-plugin registry is remote and this adapter has no
-		// authenticated read-only API. The local prepared marketplace is checked
-		// above, but it cannot prove the remote name is free.
+		// authenticated read-only API. A signed explicit app binding authorizes
+		// only preparation of a new local package, while an existing ownership
+		// receipt authorizes replacement of that owned local package. Neither is
+		// treated as proof of remote activation or registry availability.
+		if plan.LocalPreparationAuthorized || managed != nil {
+			return registryClear, nil
+		}
 		return registryIndeterminate, nil
 	case domain.ClientCursor:
 		// TargetRoot is Cursor's authoritative plugins/local registry and was
@@ -357,12 +362,14 @@ func inspectKiroRegistry(plan domain.DeliveryPlan, managed *domain.ClientBinding
 	if root == "" {
 		return registryIndeterminate, nil
 	}
-	// Custom Powers are activated manually and the adapter has no documented
-	// read-only registry contract for their installed identities. The prepared
-	// package boundary was inspected above, but it cannot prove that Kiro has no
-	// existing Power with the same name.
-	if !mcpOnly(plan.Components) {
-		return registryIndeterminate, nil
+	// Custom Powers without MCP are activated manually and the adapter has no
+	// documented read-only registry contract for their installed identities.
+	// Their local prepared-package boundary was inspected above, so an
+	// absent/owned local package may be prepared safely. Mixed Powers still have
+	// to inspect every supported MCP name below; a manual skill surface must not
+	// hide a positive collision in Kiro's authoritative global MCP registry.
+	if !hasSupportedMCP(plan.Components) {
+		return registryClear, nil
 	}
 	if _, err := os.Lstat(root); os.IsNotExist(err) {
 		return registryClear, nil
@@ -398,6 +405,15 @@ func inspectKiroRegistry(plan domain.DeliveryPlan, managed *domain.ClientBinding
 		}
 	}
 	return finding, nil
+}
+
+func hasSupportedMCP(components []domain.ComponentDecision) bool {
+	for _, component := range components {
+		if component.Kind == domain.ComponentMCPServer && component.Support != domain.SupportUnsupported {
+			return true
+		}
+	}
+	return false
 }
 
 func inspectPreparedRegistry(plan domain.DeliveryPlan, name string, owned bool) (registryFinding, error) {
