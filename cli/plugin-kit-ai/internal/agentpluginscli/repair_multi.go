@@ -10,9 +10,10 @@ import (
 )
 
 type repairTargetResult struct {
-	Target string           `json:"target"`
-	Status string           `json:"status"`
-	Output repairResultData `json:"output"`
+	Target     string           `json:"target"`
+	Status     string           `json:"status"`
+	NextAction string           `json:"next_action,omitempty"`
+	Output     repairResultData `json:"output"`
 }
 
 type repairMultiResult struct {
@@ -38,6 +39,49 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
 		return fmt.Errorf("repair requires a bound Agent Plugins installation")
 	}
+	var recordedSequence uint64
+	var directSource string
+	for index, target := range targets {
+		binding, err := selectedRepairBinding(installation, target, domain.ScopeUser)
+		if err != nil {
+			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
+		}
+		if binding.PackageRevision == nil {
+			return fmt.Errorf("repair target %s has no recorded package revision", target)
+		}
+		if installation.OriginMode == domain.OriginModeDirectory {
+			if index == 0 {
+				recordedSequence = binding.PackageRevision.ReleaseSequence
+			}
+			if binding.PackageRevision.ReleaseSequence != recordedSequence {
+				return fmt.Errorf("grouped repair requires one recorded immutable release; run update to converge mixed revisions")
+			}
+		} else {
+			source, err := repairSource(installation, binding)
+			if err != nil {
+				return err
+			}
+			if index == 0 {
+				directSource = source
+			}
+			if source != directSource {
+				return fmt.Errorf("grouped repair requires one recorded immutable package")
+			}
+		}
+	}
+	writeProgress(app, opts.format, "Resolving and validating one exact installed package revision...")
+	var loaded loadedPackage
+	if installation.OriginMode == domain.OriginModeDirectory {
+		loaded, err = app.loadInstalledPackage(ctx, installation, targets, domain.DirectoryRepair, recordedSequence)
+	} else {
+		loaded, err = app.loadPackageFor(ctx, directSource, packageResolutionRequest{Targets: targets, Operation: domain.DirectoryRepair})
+	}
+	if err != nil {
+		return err
+	}
+	if loaded.cleanup != nil {
+		defer loaded.cleanup()
+	}
 	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
@@ -47,37 +91,11 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		detected[client.ClientID] = client
 	}
 	service := lifecycleService(app, detected)
-	packages := make(map[string]loadedPackage)
-	defer func() {
-		for _, loaded := range packages {
-			if loaded.cleanup != nil {
-				_ = loaded.cleanup()
-			}
-		}
-	}()
 	inputs := make([]usecase.AddInput, 0, len(targets))
 	result := repairMultiResult{Batch: true, Status: "planned", Plugin: installation.DeclaredName, DryRun: opts.dryRun, Targets: make([]repairTargetResult, 0, len(targets))}
 	for _, target := range targets {
-		binding, err := selectedRepairBinding(installation, target, domain.ScopeUser)
-		if err != nil {
-			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
-		}
-		source, err := repairSource(installation, binding)
-		if err != nil {
-			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
-		}
-		base, ok := packages[source]
-		if !ok {
-			writeProgress(app, opts.format, "Resolving and validating one exact installed package revision...")
-			base, err = app.loadPackage(ctx, source)
-			if err != nil {
-				return err
-			}
-			packages[source] = base
-		}
-		loaded := cloneLoadedPackage(base)
-		restoreCatalogEvidence(&loaded, binding)
-		if err := prepareLoadedPackageForClient(&loaded, target); err != nil {
+		clientPackage := cloneLoadedPackage(loaded)
+		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
 		}
 		client, ok := detected[target]
@@ -90,77 +108,54 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			return fmt.Errorf("target %q was not detected; no target was changed", target)
 		}
 		input := usecase.AddInput{
-			Envelope: loaded.envelope, Client: client, Scope: domain.ScopeUser,
-			DryRun: true, Interactive: false, Hints: loaded.hints,
+			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
+			Interactive: false, Hints: clientPackage.hints,
 			InstallationID:    installation.InstallationID,
 			BackendExecutable: backendExecutable(client, detected),
+			OriginMode:        loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
 		}
-		planned, planErr := service.Repair(ctx, input)
-		result.Targets = append(result.Targets, repairTargetResult{Target: string(target), Status: string(planned.Plan.Status), Output: newRepairResultData(installation, planned, true)})
-		if planErr != nil || planned.Plan.Status == domain.PlanUnsupported {
-			result.Status = "preflight_failed"
-			result.Failed++
-			_ = renderRepairMultiResult(cmd, opts, result)
-			if planErr != nil {
-				return fmt.Errorf("preflight target %s: %w; no target was changed", target, planErr)
-			}
-			return fmt.Errorf("preflight target %s is unsupported; no target was changed", target)
-		}
-		result.Succeeded++
-		input.DryRun = opts.dryRun
 		inputs = append(inputs, input)
 	}
-	if opts.dryRun {
-		return renderRepairMultiResult(cmd, opts, result)
-	}
-	if opts.format == "human" {
-		if err := renderRepairMultiResult(cmd, opts, result); err != nil {
-			return err
-		}
-	}
-	result.Status = "completed"
 	operationID, err := newOperationGroupID()
 	if err != nil {
 		return err
 	}
 	result.OperationID = operationID
+	planned, err := service.RepairGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, DryRun: true, Repair: true})
+	for index, targetResult := range planned.Targets {
+		output := newRepairResultData(installation, targetResult, true)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: string(targetResult.Plan.Status), NextAction: output.NextAction, Output: output})
+	}
+	result.Succeeded = len(planned.Targets)
+	if err != nil {
+		result.Status, result.Failed, result.Succeeded = "preflight_failed", len(inputs), 0
+		_ = renderRepairMultiResult(cmd, opts, result)
+		return fmt.Errorf("group repair preflight failed; no target was changed: %w", err)
+	}
+	if opts.dryRun {
+		return renderRepairMultiResult(cmd, opts, result)
+	}
+	result.Status = "completed"
 	result.Succeeded = 0
 	result.Failed = 0
 	result.Targets = result.Targets[:0]
-	for index := range inputs {
-		inputs[index].Confirmed = true
+	appliedGroup, groupErr := service.RepairGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, Confirmed: true, Repair: true})
+	appliedResults := appliedGroup.Targets
+	if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
+		return fmt.Errorf("install engine returned %d repair results for %d targets", len(appliedResults), len(inputs))
 	}
-	if app.GroupLifecycle != nil {
-		appliedResults, groupErr := app.GroupLifecycle.RepairGroup(ctx, AddGroupInput{OperationID: operationID, Inputs: inputs})
-		if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
-			return fmt.Errorf("install engine returned %d repair results for %d targets", len(appliedResults), len(inputs))
-		}
-		for index, applied := range appliedResults {
-			result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: string(applied.Plan.Status), Output: newRepairResultData(installation, applied, false)})
-			result.Succeeded++
-		}
-		if groupErr != nil {
-			for index := len(appliedResults); index < len(inputs); index++ {
-				result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: "rolled_back", Output: newRepairResultData(installation, usecase.AddResult{}, false)})
-			}
-			result.Status = "group_rolled_back"
-			result.Failed = len(inputs)
-			result.Succeeded = 0
-			_ = renderRepairMultiResult(cmd, opts, result)
-			return groupErr
-		}
-		return renderRepairMultiResult(cmd, opts, result)
-	}
-	for index, input := range inputs {
-		applied, applyErr := service.Repair(ctx, input)
-		result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: string(applied.Plan.Status), Output: newRepairResultData(installation, applied, false)})
-		if applyErr != nil {
-			result.Status = "partial_failure"
-			result.Failed++
-			_ = renderRepairMultiResult(cmd, opts, result)
-			return fmt.Errorf("apply target %s failed after complete preflight: %w", targets[index], applyErr)
-		}
+	for index, applied := range appliedResults {
+		output := newRepairResultData(installation, applied, false)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: string(applied.Plan.Status), NextAction: output.NextAction, Output: output})
 		result.Succeeded++
+	}
+	if groupErr != nil {
+		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		_ = renderRepairMultiResult(cmd, opts, result)
+		return groupErr
 	}
 	return renderRepairMultiResult(cmd, opts, result)
 }
@@ -173,9 +168,23 @@ func renderRepairMultiResult(cmd *cobra.Command, opts *options, result repairMul
 		}
 		return writeJSONResult(cmd.OutOrStdout(), "repair", overall, result)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repair %s: %s\n", result.Plugin, result.Status)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Repair %s: %s\n", result.Plugin, result.Status); err != nil {
+		return err
+	}
 	for _, target := range result.Targets {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status); err != nil {
+			return err
+		}
+		if target.NextAction != "" {
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "    Next: %s\n", target.NextAction); err != nil {
+				return err
+			}
+		}
+	}
+	if result.Status == "completed" {
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Managed package repaired from the exact installed revision and its package digest verified; external client activation and authentication were not reverified."); err != nil {
+			return err
+		}
 	}
 	return nil
 }

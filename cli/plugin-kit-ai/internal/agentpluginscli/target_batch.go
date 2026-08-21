@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
-	"github.com/spf13/cobra"
 )
 
 func newOperationGroupID() (string, error) {
@@ -80,22 +79,6 @@ func supportedTarget(target domain.ClientID) bool {
 	default:
 		return false
 	}
-}
-
-func runForTargets(cmd *cobra.Command, opts *options, command string, run func() error) error {
-	targets, err := parseTargetOption(opts.target)
-	if err != nil {
-		return err
-	}
-	if len(targets) > 1 {
-		return fmt.Errorf("internal %s dispatch error: multi-target commands require one combined plan", command)
-	}
-	if len(targets) == 1 {
-		original := opts.target
-		opts.target = string(targets[0])
-		defer func() { opts.target = original }()
-	}
-	return run()
 }
 
 func joinTargets(targets []domain.ClientID) string {

@@ -1,40 +1,43 @@
 package agentpluginscli
 
 import (
+	"context"
 	"io"
-	"net/http"
 	"strings"
 
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
+
+type DirectoryClient interface {
+	Load(context.Context, uint64) (directoryv1.VerifiedBundle, error)
+}
+
+type SourceAcquirer interface {
+	AcquireLocal(context.Context, string) (domain.PackageSnapshot, error)
+	AcquireGitHub(context.Context, string, string, string) (domain.PackageSnapshot, error)
+	AcquireGitHubVerified(context.Context, string, string, string, string) (domain.PackageSnapshot, error)
+}
 
 type App struct {
 	Version             string
 	UserHome            string
 	ManagedRoot         string
 	StateStore          transaction.StateStore
-	Directory           dirswap.Manager
 	Detector            ports.ClientDetector
-	SourceResolver      legacyports.SourceResolver
+	DirectoryClient     DirectoryClient
+	SourceAcquirer      SourceAcquirer
 	PackageLoader       ports.PackageLoader
 	NativePackageLoader ports.PackageLoader
-	Stager              ports.PackageStager
-	Activator           ports.ClientActivator
-	MutationLock        ports.MutationLock
+	Lifecycle           usecase.Service
 	StateMigrator       *statemigration.Migrator
 	LegacyLifecycle     ports.LegacyLifecycle
 	LegacyStateLock     legacyports.LockManager
-	SourceSwitcher      SourceSwitcher
-	DataPurger          DataPurger
-	GroupLifecycle      GroupLifecycle
-	HTTPClient          *http.Client
-	CatalogURL          string
-	CatalogDigest       string
-	CatalogBody         []byte
 	Input               io.Reader
 	Output              io.Writer
 	ErrorOutput         io.Writer

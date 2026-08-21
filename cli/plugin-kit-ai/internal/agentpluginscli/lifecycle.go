@@ -12,7 +12,6 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -64,12 +63,8 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if len(targets) > 1 {
-				return runRepairMany(cmd.Context(), cmd, app, opts, args[0], targets)
-			}
-			return runForTargets(cmd, opts, "repair", func() error {
-				return runRepair(cmd.Context(), cmd, app, opts, args[0], stdin)
-			})
+			_ = stdin
+			return runRepairMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
 }
@@ -320,12 +315,13 @@ func newRemoveCommand(app App, opts *options) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if len(targets) > 1 {
-				return runRemoveMany(cmd.Context(), cmd, app, opts, args[0], targets)
-			}
-			return runForTargets(cmd, opts, "remove", func() error {
+			if len(targets) == 0 {
 				return runRemove(cmd.Context(), cmd, app, opts, args[0])
-			})
+			}
+			if len(targets) == 1 && targets[0] == "legacy-all" {
+				return runRemove(cmd.Context(), cmd, app, opts, args[0])
+			}
+			return runRemoveMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
 	command.Flags().BoolVar(&opts.externalUninstalled, "external-uninstalled", false, "confirm the selected client plugin was uninstalled manually or was never activated/imported")
@@ -485,10 +481,10 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) != "legacy-all" {
 		return fmt.Errorf("automated legacy removal requires --target legacy-all")
 	}
-	service := usecase.Service{
-		StateStore: app.StateStore, Legacy: app.LegacyLifecycle, LegacyLock: app.LegacyStateLock, Lock: app.MutationLock,
-		Kernel: transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	service.Legacy = app.LegacyLifecycle
+	service.LegacyLock = app.LegacyStateLock
 	input := usecase.LegacyRemoveInput{Selector: installation.InstallationID, DryRun: opts.dryRun}
 	planned, err := service.RemoveLegacy(ctx, input)
 	if err != nil {
@@ -553,12 +549,11 @@ func renderLegacyRemovePlan(writer io.Writer, result usecase.LegacyRemoveResult)
 
 func lifecycleService(app App, detected map[domain.ClientID]domain.DetectedClient) usecase.Service {
 	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detected}
-	return usecase.Service{
-		StateStore: app.StateStore, Planner: planner, Targets: planner,
-		Stager: app.Stager, Activator: app.Activator,
-		Lock:   app.MutationLock,
-		Kernel: transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	service.Planner = planner
+	service.Targets = planner
+	return service
 }
 
 func updateSource(installation domain.Installation) string {
@@ -783,19 +778,24 @@ func renderRemoveResult(writer io.Writer, format string, installation domain.Ins
 }
 
 type removeResultData struct {
-	OperationID string               `json:"operation_id,omitempty"`
-	Plugin      string               `json:"plugin"`
-	Version     string               `json:"version,omitempty"`
-	Source      string               `json:"source"`
-	NextAction  string               `json:"next_action,omitempty"`
-	DryRun      bool                 `json:"dry_run"`
-	Result      usecase.RemoveResult `json:"result"`
+	OperationID    string                  `json:"operation_id,omitempty"`
+	Plugin         string                  `json:"plugin"`
+	Version        string                  `json:"version,omitempty"`
+	Source         string                  `json:"source"`
+	Revision       string                  `json:"revision,omitempty"`
+	TreeDigest     string                  `json:"tree_digest,omitempty"`
+	ManifestDigest string                  `json:"manifest_digest,omitempty"`
+	Directory      *domain.DirectoryOrigin `json:"directory,omitempty"`
+	NextAction     string                  `json:"next_action,omitempty"`
+	DryRun         bool                    `json:"dry_run"`
+	Result         usecase.RemoveResult    `json:"result"`
 }
 
 func newRemoveResultData(installation domain.Installation, result usecase.RemoveResult, dryRun bool) removeResultData {
 	return removeResultData{
 		OperationID: result.Receipt.OperationID, Plugin: installation.DeclaredName,
-		Version: installation.Package.Version, Source: publicSource(installation.Source),
+		Version: installation.Package.Version, Source: publicSource(installation.Source), Revision: installation.Source.ResolvedRevision,
+		TreeDigest: installation.Source.TreeDigest, ManifestDigest: installation.Package.ManifestDigest, Directory: cloneDirectoryOrigin(installation.Directory),
 		NextAction: nextRemoveAction(result), DryRun: dryRun, Result: result,
 	}
 }

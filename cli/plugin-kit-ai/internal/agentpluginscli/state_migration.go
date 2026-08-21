@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/spf13/cobra"
 )
 
@@ -52,10 +51,10 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
 		return nil
 	}
-	if app.MutationLock == nil {
+	if app.Lifecycle.Lock == nil {
 		return fmt.Errorf("agentplugins mutation lock is required")
 	}
-	release, err := app.MutationLock.Acquire(ctx)
+	release, err := app.Lifecycle.Lock.Acquire(ctx)
 	if err != nil {
 		return err
 	}
@@ -68,7 +67,8 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 		return fmt.Errorf("acquire legacy state lock: %w", err)
 	}
 	defer func() { _ = legacyRelease() }()
-	kernel := transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory}
+	kernel := app.Lifecycle.Kernel
+	kernel.StateStore = app.StateStore
 	if err := kernel.Recover(ctx); err != nil {
 		return fmt.Errorf("recover interrupted mutation before state migration: %w", err)
 	}

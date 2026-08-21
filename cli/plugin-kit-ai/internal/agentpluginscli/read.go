@@ -130,7 +130,7 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
-	open, err := app.Directory.ListOpen()
+	open, err := app.Lifecycle.Kernel.Directory.ListOpen()
 	if err != nil {
 		return err
 	}
@@ -311,10 +311,10 @@ func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedC
 			expected = receipt.AfterDigest
 		}
 	}
-	if expected == "" || app.Stager == nil {
+	if expected == "" || app.Lifecycle.Stager == nil {
 		return []doctorFinding{scopedFinding("unknown", "managed_integrity_not_checked", installation, binding.ClientID, "managed-directory integrity evidence is unavailable", repairAction(installation, binding))}
 	}
-	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
+	if err := app.Lifecycle.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
 		var verification *ports.VerificationError
 		if errors.As(err, &verification) && verification.Kind == ports.VerificationExcludedMarker {
 			return []doctorFinding{scopedFinding("unknown", "excluded_ownership_marker", installation, binding.ClientID, "the managed package contains an ownership marker excluded from digest verification", "manually review and remove the excluded ownership marker, then rerun doctor; automatic repair is intentionally blocked")}

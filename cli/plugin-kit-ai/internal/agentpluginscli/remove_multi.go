@@ -16,14 +16,17 @@ type removeTargetResult struct {
 }
 
 type removeMultiResult struct {
-	OperationID string               `json:"operation_id,omitempty"`
-	Batch       bool                 `json:"batch"`
-	Status      string               `json:"status"`
-	Succeeded   int                  `json:"succeeded"`
-	Failed      int                  `json:"failed"`
-	Plugin      string               `json:"plugin"`
-	DryRun      bool                 `json:"dry_run"`
-	Targets     []removeTargetResult `json:"targets"`
+	OperationID         string               `json:"operation_id,omitempty"`
+	Batch               bool                 `json:"batch"`
+	Status              string               `json:"status"`
+	Succeeded           int                  `json:"succeeded"`
+	Failed              int                  `json:"failed"`
+	Plugin              string               `json:"plugin"`
+	PluginDataPreserved bool                 `json:"plugin_data_preserved"`
+	DataRetained        bool                 `json:"data_retained"`
+	RetainedData        []string             `json:"retained_data,omitempty"`
+	DryRun              bool                 `json:"dry_run"`
+	Targets             []removeTargetResult `json:"targets"`
 }
 
 func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string, targets []domain.ClientID) error {
@@ -49,7 +52,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	service := lifecycleService(app, detected)
 	inputs := make([]usecase.RemoveInput, 0, len(targets))
 	selected := make([]domain.DetectedClient, 0, len(targets))
-	result := removeMultiResult{Batch: true, Status: "planned", Plugin: installation.DeclaredName, DryRun: opts.dryRun, Targets: make([]removeTargetResult, 0, len(targets))}
+	result := removeMultiResult{Batch: true, Status: "planned", Plugin: installation.DeclaredName, PluginDataPreserved: !opts.purgeData, DryRun: opts.dryRun, Targets: make([]removeTargetResult, 0, len(targets))}
 	for _, target := range targets {
 		if !installationHasTarget(installation, target, opts.scope) {
 			return fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
@@ -64,81 +67,64 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			DryRun: true, Interactive: false, ExternalUninstalled: opts.externalUninstalled,
 			BackendExecutable: backendExecutable(client, detected),
 		}
-		planned, planErr := service.Remove(ctx, input)
-		status := "planned"
-		if !planned.Deactivation.ArtifactRemovalAllowed {
-			status = "blocked"
-		}
-		result.Targets = append(result.Targets, removeTargetResult{Target: string(target), Status: status, Output: newRemoveResultData(installation, planned, true)})
-		if planErr != nil || !planned.Deactivation.ArtifactRemovalAllowed {
-			result.Status = "preflight_failed"
-			result.Failed++
-			_ = renderRemoveMultiResult(cmd, opts, result)
-			if planErr != nil {
-				return fmt.Errorf("preflight target %s: %w; no target was changed", target, planErr)
-			}
-			return fmt.Errorf("preflight target %s blocks removal; no target was changed", target)
-		}
-		result.Succeeded++
-		input.DryRun = opts.dryRun
 		inputs = append(inputs, input)
 		selected = append(selected, client)
 	}
-	if opts.dryRun {
-		return renderRemoveMultiResult(cmd, opts, result)
-	}
-	if opts.format == "human" {
-		if err := renderRemoveMultiResult(cmd, opts, result); err != nil {
-			return err
-		}
-	}
-	result.Status = "completed"
 	operationID, err := newOperationGroupID()
 	if err != nil {
 		return err
 	}
 	result.OperationID = operationID
+	plannedGroup, planErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: selector, Targets: inputs, OperationGroupID: operationID, DryRun: true, PurgeData: opts.purgeData})
+	for index, planned := range plannedGroup.Targets {
+		status := "planned"
+		if !planned.Deactivation.ArtifactRemovalAllowed {
+			status = "blocked"
+		}
+		output := newRemoveResultData(installation, planned, true)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: status, Output: output})
+	}
+	result.Succeeded = len(plannedGroup.Targets)
+	if planErr != nil {
+		result.Status, result.Failed, result.Succeeded = "preflight_failed", len(inputs), 0
+		_ = renderRemoveMultiResult(cmd, opts, result)
+		return fmt.Errorf("group remove preflight failed; no target was changed: %w", planErr)
+	}
+	if opts.dryRun {
+		return renderRemoveMultiResult(cmd, opts, result)
+	}
+	result.Status = "completed"
 	result.Succeeded = 0
 	result.Failed = 0
 	result.Targets = result.Targets[:0]
 	for index := range inputs {
 		inputs[index].Confirmed = true
 	}
-	if app.GroupLifecycle != nil {
-		appliedResults, groupErr := app.GroupLifecycle.RemoveGroup(ctx, RemoveGroupInput{OperationID: operationID, Inputs: inputs})
-		if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
-			return fmt.Errorf("install engine returned %d remove results for %d targets", len(appliedResults), len(inputs))
-		}
-		for index, applied := range appliedResults {
-			result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: "removed", Output: newRemoveResultData(installation, applied, false)})
-			result.Succeeded++
-		}
-		if groupErr != nil {
-			for index := len(appliedResults); index < len(inputs); index++ {
-				result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: "rolled_back", Output: newRemoveResultData(installation, usecase.RemoveResult{}, false)})
-			}
-			result.Status = "group_rolled_back"
-			result.Failed = len(inputs)
-			result.Succeeded = 0
-			_ = renderRemoveMultiResult(cmd, opts, result)
-			return groupErr
-		}
-		return renderRemoveMultiResult(cmd, opts, result)
+	appliedGroup, groupErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: selector, Targets: inputs, OperationGroupID: operationID, Confirmed: true, PurgeData: opts.purgeData})
+	appliedResults := appliedGroup.Targets
+	if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
+		return fmt.Errorf("install engine returned %d remove results for %d targets", len(appliedResults), len(inputs))
 	}
-	for index, input := range inputs {
-		applied, applyErr := service.Remove(ctx, input)
-		status := "removed"
-		if applyErr != nil {
-			status = "failed"
-		}
-		result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: status, Output: newRemoveResultData(installation, applied, false)})
-		if applyErr != nil {
-			result.Status = "partial_failure"
-			result.Failed++
-			_ = renderRemoveMultiResult(cmd, opts, result)
-			return fmt.Errorf("apply target %s failed after complete preflight: %w", selected[index].ClientID, applyErr)
-		}
+	for index, applied := range appliedResults {
+		output := newRemoveResultData(installation, applied, false)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: "removed", Output: output})
 		result.Succeeded++
+	}
+	if groupErr != nil {
+		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		_ = renderRemoveMultiResult(cmd, opts, result)
+		return groupErr
+	}
+	if after, loadErr := app.StateStore.Load(); loadErr == nil {
+		if retained, ok := locallyMatchedInstallation(after, installation.InstallationID); ok && retained.DataRetained {
+			result.DataRetained = true
+			result.Status = "data_retained"
+			for _, receipt := range retained.DataReceipts {
+				result.RetainedData = append(result.RetainedData, receipt.Locator)
+			}
+		}
 	}
 	return renderRemoveMultiResult(cmd, opts, result)
 }
@@ -151,9 +137,18 @@ func renderRemoveMultiResult(cmd *cobra.Command, opts *options, result removeMul
 		}
 		return writeJSONResult(cmd.OutOrStdout(), "remove", overall, result)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Remove %s: %s\n", result.Plugin, result.Status)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Remove %s: %s\n", result.Plugin, result.Status); err != nil {
+		return err
+	}
 	for _, target := range result.Targets {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status); err != nil {
+			return err
+		}
+	}
+	if result.PluginDataPreserved {
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "  PLUGIN_DATA: preserved"); err != nil {
+			return err
+		}
 	}
 	return nil
 }

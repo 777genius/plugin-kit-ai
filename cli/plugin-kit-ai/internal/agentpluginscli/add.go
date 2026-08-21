@@ -9,8 +9,6 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
-	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -27,14 +25,6 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 			}
 			var detectedClients []domain.DetectedClient
 			if strings.TrimSpace(opts.target) == "" && app.Terminal {
-				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
-				loaded, err := app.loadPackage(cmd.Context(), args[0])
-				if err != nil {
-					return err
-				}
-				if loaded.cleanup != nil {
-					defer loaded.cleanup()
-				}
 				selection, clients, err := promptDetectedTargets(cmd.Context(), cmd, app)
 				if err != nil {
 					return err
@@ -46,21 +36,24 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if len(targets) > 1 {
-					return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClients)
+				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
+				loaded, err := app.loadPackageFor(cmd.Context(), args[0], app.addResolutionRequest(args[0], targets))
+				if err != nil {
+					return err
 				}
-				return runAddLoaded(cmd.Context(), cmd, app, opts, loaded, activationComplete, authComplete, detectedClients)
+				if loaded.cleanup != nil {
+					defer loaded.cleanup()
+				}
+				return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClients)
 			}
 			targets, err := parseTargetOption(opts.target)
 			if err != nil {
 				return err
 			}
-			if len(targets) > 1 {
-				return runAddManyWithClients(cmd.Context(), cmd, app, opts, args[0], targets, activationComplete, authComplete, detectedClients)
+			if len(targets) == 0 {
+				return fmt.Errorf("automated installation requires --target")
 			}
-			return runForTargets(cmd, opts, "add", func() error {
-				return runAddWithClients(cmd.Context(), cmd, app, opts, args[0], activationComplete, authComplete, detectedClients)
-			})
+			return runAddManyWithClients(cmd.Context(), cmd, app, opts, args[0], targets, activationComplete, authComplete, detectedClients)
 		},
 	}
 	command.Flags().BoolVar(&activationComplete, "activation-complete", false, "attest that manual client activation is complete")
@@ -74,7 +67,11 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 
 func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
 	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
-	loaded, err := app.loadPackage(ctx, source)
+	targets, err := parseTargetOption(opts.target)
+	if err != nil {
+		return err
+	}
+	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, targets))
 	if err != nil {
 		return err
 	}
@@ -102,22 +99,15 @@ func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *option
 	if err := prepareLoadedPackageForClient(&loaded, selected.ClientID); err != nil {
 		return err
 	}
-	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detectedMap}
-	service := usecase.Service{
-		StateStore: app.StateStore,
-		Planner:    planner,
-		Targets:    planner,
-		Stager:     app.Stager,
-		Activator:  app.Activator,
-		Lock:       app.MutationLock,
-		Kernel:     transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := lifecycleService(app, detectedMap)
 	input := usecase.AddInput{
 		Envelope: loaded.envelope, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Confirmed: false, Interactive: app.Terminal,
 		Hints: loaded.hints, BackendExecutable: backendExecutable(selected, detectedMap),
 		ActivationComplete: activationComplete, AuthComplete: authComplete,
 		PersistAuthoritativeObservations: true,
+		OriginMode:                       loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+		DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
 	}
 	planned, err := service.Add(ctx, input)
 	if err != nil {

@@ -11,77 +11,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// GroupLifecycle is the narrow install-engine boundary required to turn the
-// CLI's combined preflight into one durable operation group. Until the install
-// engine supplies this API, the CLI can reuse one package and preflight every
-// target, but the existing per-target use cases cannot provide group rollback.
-type GroupLifecycle interface {
-	AddGroup(context.Context, AddGroupInput) ([]usecase.AddResult, error)
-	UpdateGroup(context.Context, AddGroupInput) ([]usecase.AddResult, error)
-	RepairGroup(context.Context, AddGroupInput) ([]usecase.AddResult, error)
-	RemoveGroup(context.Context, RemoveGroupInput) ([]usecase.RemoveResult, error)
-}
-
-type AddGroupInput struct {
-	OperationID string
-	Inputs      []usecase.AddInput
-}
-
-type RemoveGroupInput struct {
-	OperationID string
-	Inputs      []usecase.RemoveInput
-}
-
-// SourceSwitcher is the narrow install-engine boundary needed by the public
-// switch command. The CLI owns selection, source acquisition, validation and
-// output; the install domain owns its cross-binding transaction and recovery.
-type SourceSwitcher interface {
-	Switch(context.Context, SwitchInput) (SwitchResult, error)
-}
-
-type SwitchInput struct {
-	Installation domain.Installation
-	Package      domain.PackageEnvelope
-	DryRun       bool
-	Confirmed    bool
-}
-
-type SwitchResult struct {
-	OperationID string               `json:"operation_id,omitempty"`
-	Status      string               `json:"status"`
-	Source      string               `json:"source"`
-	Revision    string               `json:"revision,omitempty"`
-	TreeDigest  string               `json:"tree_digest,omitempty"`
-	Targets     []SwitchTargetResult `json:"targets"`
-	NextActions []string             `json:"next_actions,omitempty"`
-}
-
-type SwitchTargetResult struct {
-	Target     string   `json:"target"`
-	Status     string   `json:"status"`
-	NextAction string   `json:"next_action,omitempty"`
-	Warnings   []string `json:"warnings,omitempty"`
-}
-
-// DataPurger is separate because permanent PLUGIN_DATA deletion requires an
-// ownership-checked all-or-nothing preflight that the CLI must not emulate.
-type DataPurger interface {
-	PurgeData(context.Context, PurgeDataInput) (PurgeDataResult, error)
-}
-
-type PurgeDataInput struct {
-	Installation domain.Installation
-	Targets      []domain.ClientID
-	DryRun       bool
-	Confirmed    bool
-}
-
-type PurgeDataResult struct {
-	OperationID string   `json:"operation_id,omitempty"`
-	Status      string   `json:"status"`
-	Targets     []string `json:"targets,omitempty"`
-	Purged      []string `json:"purged_receipts,omitempty"`
-	NextActions []string `json:"next_actions,omitempty"`
+type switchOutput struct {
+	DryRun         bool                         `json:"dry_run"`
+	Source         string                       `json:"source"`
+	Revision       string                       `json:"revision,omitempty"`
+	TreeDigest     string                       `json:"tree_digest"`
+	ManifestDigest string                       `json:"manifest_digest"`
+	Directory      *domain.DirectoryOrigin      `json:"directory,omitempty"`
+	Group          *usecase.GroupResult         `json:"group,omitempty"`
+	Retained       *usecase.BindingChangeResult `json:"retained,omitempty"`
 }
 
 func newSwitchCommand(app App, opts *options) *cobra.Command {
@@ -100,6 +38,9 @@ func newSwitchCommand(app App, opts *options) *cobra.Command {
 			if strings.TrimSpace(destination) == "" {
 				return fmt.Errorf("switch requires --to with a qualified distribution or exact source")
 			}
+			if isShortName(strings.TrimSpace(destination)) && !localDirectoryExists(strings.TrimSpace(destination)) {
+				return fmt.Errorf("switch --to requires a qualified distribution ID or exact local/full-SHA source; a short name could select a changing default")
+			}
 			return runSwitch(cmd.Context(), cmd, app, opts, args[0], destination)
 		},
 	}
@@ -109,9 +50,6 @@ func newSwitchCommand(app App, opts *options) *cobra.Command {
 }
 
 func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector, source string) error {
-	if app.SourceSwitcher == nil {
-		return fmt.Errorf("switch requires the install engine source-switch transaction API")
-	}
 	state, err := app.StateStore.Load()
 	if err != nil {
 		return err
@@ -120,7 +58,8 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
-	loaded, err := app.loadPackage(ctx, source)
+	targetIDs := installationTargets(installation, string(domain.ScopeUser))
+	loaded, err := app.loadPackageFor(ctx, source, packageResolutionRequest{Targets: targetIDs, Operation: domain.DirectoryInstall})
 	if err != nil {
 		return err
 	}
@@ -130,88 +69,136 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if loaded.envelope.Manifest.Name != installation.DeclaredName {
 		return fmt.Errorf("switch source manifest name %q does not match installed product %q", loaded.envelope.Manifest.Name, installation.DeclaredName)
 	}
-	input := SwitchInput{Installation: installation, Package: loaded.envelope, DryRun: true, Confirmed: false}
-	planned, err := app.SourceSwitcher.Switch(ctx, input)
+	output := switchOutput{DryRun: true, Source: publicPackageSource(loaded.envelope.Source), Revision: loaded.envelope.Source.ResolvedRevision,
+		TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest, Directory: cloneDirectoryOrigin(loaded.directory)}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	if installation.DataRetained && len(installation.Clients) == 0 {
+		planned, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope}, loaded.origin, loaded.directory)
+		output.Retained = &planned
+		if err != nil {
+			return err
+		}
+		if opts.dryRun {
+			return renderSwitchResult(cmd.OutOrStdout(), opts.format, output)
+		}
+		if opts.format == "human" {
+			if err := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); err != nil {
+				return err
+			}
+		}
+		applied, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope, Confirmed: true}, loaded.origin, loaded.directory)
+		output.DryRun, output.Retained = false, &applied
+		if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil && err == nil {
+			err = renderErr
+		}
+		return err
+	}
+	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
 		return err
 	}
+	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients))
+	for _, client := range clients {
+		detected[client.ClientID] = client
+	}
+	service = lifecycleService(app, detected)
+	inputs := make([]usecase.AddInput, 0, len(targetIDs))
+	for _, targetID := range targetIDs {
+		client, ok := detected[targetID]
+		if !ok || client.Status != domain.DetectionDetected {
+			return fmt.Errorf("switch target %s is not detected; no target was changed", targetID)
+		}
+		clientPackage := cloneLoadedPackage(loaded)
+		if err := prepareLoadedPackageForClient(&clientPackage, targetID); err != nil {
+			return err
+		}
+		inputs = append(inputs, usecase.AddInput{Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser, Hints: clientPackage.hints,
+			BackendExecutable: backendExecutable(client, detected), OriginMode: loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked})
+	}
+	operationID, err := newOperationGroupID()
+	if err != nil {
+		return err
+	}
+	planned, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, DryRun: true, Switch: true})
+	output.Group = &planned
+	if err != nil {
+		return fmt.Errorf("switch preflight failed; no target was changed: %w", err)
+	}
 	if opts.dryRun {
-		return renderSwitchResult(cmd.OutOrStdout(), opts.format, planned)
+		return renderSwitchResult(cmd.OutOrStdout(), opts.format, output)
 	}
 	if opts.format == "human" {
-		if err := renderSwitchResult(cmd.OutOrStdout(), opts.format, planned); err != nil {
+		if err := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); err != nil {
 			return err
 		}
 	}
-	input.DryRun = false
-	input.Confirmed = true
-	result, err := app.SourceSwitcher.Switch(ctx, input)
-	if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, result); renderErr != nil && err == nil {
+	applied, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, Confirmed: true, Switch: true})
+	output.DryRun, output.Group = false, &applied
+	if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil && err == nil {
 		err = renderErr
 	}
 	return err
 }
 
-func renderSwitchResult(writer io.Writer, format string, result SwitchResult) error {
+func renderSwitchResult(writer io.Writer, format string, result switchOutput) error {
 	if format == "json" {
 		return writeJSONOutput(writer, "switch", result)
 	}
-	_, _ = fmt.Fprintf(writer, "Switch: %s\n", result.Status)
-	for _, target := range result.Targets {
-		_, _ = fmt.Fprintf(writer, "  %s: %s\n", target.Target, target.Status)
-		if target.NextAction != "" {
-			_, _ = fmt.Fprintf(writer, "    Next: %s\n", target.NextAction)
+	status := "planned"
+	if !result.DryRun {
+		status = "completed"
+	}
+	_, _ = fmt.Fprintf(writer, "Switch: %s\n", status)
+	if result.Group != nil {
+		for _, target := range result.Group.Targets {
+			_, _ = fmt.Fprintf(writer, "  %s: %s\n", target.Plan.ClientID, target.Plan.Status)
 		}
+	}
+	if result.Retained != nil {
+		_, _ = fmt.Fprintln(writer, "  retained PLUGIN_DATA: preserved")
 	}
 	return nil
 }
 
 func runPurgeData(ctx context.Context, cmd *cobra.Command, app App, opts *options, installation domain.Installation) error {
-	if app.DataPurger == nil {
-		return fmt.Errorf("--purge-data requires the install engine ownership-checked data purge API")
-	}
 	targets, err := parseTargetOption(opts.target)
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 && hasMaterializedBindings(installation, opts.scope) {
-		return fmt.Errorf("removing active bindings with --purge-data requires an explicit --target list")
-	}
-	input := PurgeDataInput{Installation: installation, Targets: targets, DryRun: true, Confirmed: false}
-	planned, err := app.DataPurger.PurgeData(ctx, input)
-	if err != nil {
-		return err
-	}
-	if opts.dryRun {
-		return renderPurgeDataResult(cmd.OutOrStdout(), opts.format, planned)
-	}
-	if opts.format == "human" {
-		if err := renderPurgeDataResult(cmd.OutOrStdout(), opts.format, planned); err != nil {
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	if installation.DataRetained && len(installation.Clients) == 0 {
+		if len(targets) != 0 {
+			return fmt.Errorf("a data_retained purge does not accept --target")
+		}
+		if err := service.PurgeRetainedData(ctx, installation.InstallationID, false); err != nil {
 			return err
 		}
-	}
-	input.DryRun = false
-	input.Confirmed = true
-	result, err := app.DataPurger.PurgeData(ctx, input)
-	if renderErr := renderPurgeDataResult(cmd.OutOrStdout(), opts.format, result); renderErr != nil && err == nil {
-		err = renderErr
-	}
-	return err
-}
-
-func hasMaterializedBindings(installation domain.Installation, scope string) bool {
-	for _, binding := range installation.Clients {
-		if binding.Scope == scope && binding.Materialization != domain.MaterializationAbsent {
-			return true
+		if opts.dryRun {
+			return renderPurgeDataResult(cmd.OutOrStdout(), opts.format, installation, true)
 		}
+		if err := service.PurgeRetainedData(ctx, installation.InstallationID, true); err != nil {
+			return err
+		}
+		return renderPurgeDataResult(cmd.OutOrStdout(), opts.format, installation, false)
 	}
-	return false
+	if len(targets) == 0 {
+		return fmt.Errorf("removing active bindings with --purge-data requires an explicit --target list")
+	}
+	return runRemoveMany(ctx, cmd, app, opts, installation.InstallationID, targets)
 }
 
-func renderPurgeDataResult(writer io.Writer, format string, result PurgeDataResult) error {
+func renderPurgeDataResult(writer io.Writer, format string, installation domain.Installation, dryRun bool) error {
+	data := struct {
+		Plugin string `json:"plugin"`
+		DryRun bool   `json:"dry_run"`
+		Status string `json:"status"`
+	}{Plugin: installation.DeclaredName, DryRun: dryRun, Status: map[bool]string{true: "planned", false: "purged"}[dryRun]}
 	if format == "json" {
-		return writeJSONOutput(writer, "remove", result)
+		return writeJSONOutput(writer, "remove", data)
 	}
-	_, err := fmt.Fprintf(writer, "Data purge: %s\n", result.Status)
+	_, err := fmt.Fprintf(writer, "Data purge: %s\n", data.Status)
 	return err
 }

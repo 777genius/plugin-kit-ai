@@ -6,8 +6,6 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
-	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -20,18 +18,20 @@ type addTargetResult struct {
 }
 
 type addMultiResult struct {
-	OperationID string            `json:"operation_id,omitempty"`
-	Batch       bool              `json:"batch"`
-	Status      string            `json:"status"`
-	Succeeded   int               `json:"succeeded"`
-	Failed      int               `json:"failed"`
-	Plugin      string            `json:"plugin"`
-	Version     string            `json:"version,omitempty"`
-	Source      string            `json:"source"`
-	Revision    string            `json:"revision,omitempty"`
-	TreeDigest  string            `json:"tree_digest,omitempty"`
-	DryRun      bool              `json:"dry_run"`
-	Targets     []addTargetResult `json:"targets"`
+	OperationID    string                  `json:"operation_id,omitempty"`
+	Batch          bool                    `json:"batch"`
+	Status         string                  `json:"status"`
+	Succeeded      int                     `json:"succeeded"`
+	Failed         int                     `json:"failed"`
+	Plugin         string                  `json:"plugin"`
+	Version        string                  `json:"version,omitempty"`
+	Source         string                  `json:"source"`
+	Revision       string                  `json:"revision,omitempty"`
+	TreeDigest     string                  `json:"tree_digest,omitempty"`
+	ManifestDigest string                  `json:"manifest_digest,omitempty"`
+	Directory      *domain.DirectoryOrigin `json:"directory,omitempty"`
+	DryRun         bool                    `json:"dry_run"`
+	Targets        []addTargetResult       `json:"targets"`
 }
 
 // runAddMany is deliberately not implemented as repeated CLI invocations. It
@@ -43,7 +43,7 @@ func runAddMany(ctx context.Context, cmd *cobra.Command, app App, opts *options,
 
 func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
 	writeProgress(app, opts.format, "Resolving and validating one Agent Plugin package for every selected target...")
-	loaded, err := app.loadPackage(ctx, source)
+	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, targets))
 	if err != nil {
 		return err
 	}
@@ -54,11 +54,22 @@ func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opt
 }
 
 func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *options, loaded loadedPackage, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
+	if len(targets) == 1 {
+		if activationComplete || authComplete {
+			return runAddLoaded(ctx, cmd, app, opts, loaded, activationComplete, authComplete, clients)
+		}
+		if state, err := app.StateStore.Load(); err == nil {
+			if installation, ok := locallyMatchedInstallation(state, loaded.envelope.Manifest.Name); ok && installationHasTarget(installation, targets[0], string(domain.ScopeUser)) {
+				return runAddLoaded(ctx, cmd, app, opts, loaded, false, false, clients)
+			}
+		}
+	}
 	combined := addMultiResult{
 		Batch: true, Status: "planned", Plugin: loaded.envelope.Manifest.Name,
 		Version: loaded.envelope.Manifest.Version, Source: publicPackageSource(loaded.envelope.Source),
-		Revision: loaded.envelope.Source.ResolvedRevision, TreeDigest: loaded.envelope.TreeDigest,
-		DryRun: opts.dryRun, Targets: make([]addTargetResult, 0, len(targets)),
+		Revision: loaded.envelope.Source.ResolvedRevision, TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest,
+		Directory: cloneDirectoryOrigin(loaded.directory),
+		DryRun:    opts.dryRun, Targets: make([]addTargetResult, 0, len(targets)),
 	}
 	if clients == nil {
 		detectedClients, err := app.Detector.Detect(ctx)
@@ -95,14 +106,8 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		return fmt.Errorf("target %q was not detected; no target was changed", missingTarget)
 	}
 	combined.Targets = combined.Targets[:0]
-	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detected}
-	service := usecase.Service{
-		StateStore: app.StateStore, Planner: planner, Targets: planner,
-		Stager: app.Stager, Activator: app.Activator, Lock: app.MutationLock,
-		Kernel: transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, len(selected))
-	plannedInstallationID := ""
 	for index, client := range selected {
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, client.ClientID); err != nil {
@@ -110,93 +115,62 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		}
 		input := usecase.AddInput{
 			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
-			DryRun: true, Interactive: false, Hints: clientPackage.hints,
+			DryRun: true, Interactive: app.Terminal, Hints: clientPackage.hints,
 			BackendExecutable:  backendExecutable(client, detected),
 			ActivationComplete: activationComplete, AuthComplete: authComplete,
 			PersistAuthoritativeObservations: false,
-			InstallationID:                   plannedInstallationID,
+			OriginMode:                       loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
 		}
-		planned, planErr := service.Add(ctx, input)
-		if plannedInstallationID == "" {
-			plannedInstallationID = planned.InstallationID
-		}
-		entry := addTargetResult{Target: string(client.ClientID), Status: string(planned.Plan.Status), Output: newAddResultData(clientPackage.envelope, planned, true), NextAction: nextLifecycleAction(planned)}
-		combined.Targets = append(combined.Targets, entry)
-		if planErr != nil || planned.Plan.Status == domain.PlanUnsupported {
-			combined.Status = "preflight_failed"
-			combined.Failed++
-			_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
-			if planErr != nil {
-				return fmt.Errorf("preflight target %s: %w; no target was changed", client.ClientID, planErr)
-			}
-			return fmt.Errorf("preflight target %s is unsupported; no target was changed", client.ClientID)
-		}
-		combined.Succeeded++
-		input.DryRun = opts.dryRun
 		inputs[index] = input
 	}
-	if opts.dryRun {
-		return renderAddMultiResult(cmd, opts, combined, loaded.envelope)
-	}
-	if opts.format == "human" {
-		if err := renderAddMultiResult(cmd, opts, combined, loaded.envelope); err != nil {
-			return err
-		}
-	}
-
-	writeProgress(app, opts.format, "Applying the completely preflighted multi-target plan...")
 	operationID, err := newOperationGroupID()
 	if err != nil {
 		return err
 	}
-	combined.Status = "completed"
 	combined.OperationID = operationID
-	combined.Succeeded = 0
-	combined.Failed = 0
+	groupInput := usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, DryRun: true}
+	planned, err := service.AddGroup(ctx, groupInput)
 	combined.Targets = combined.Targets[:0]
-	installationID := plannedInstallationID
-	for index := range inputs {
-		inputs[index].Confirmed = true
-		inputs[index].InstallationID = installationID
+	for index, result := range planned.Targets {
+		output := newAddResultData(inputs[index].Envelope, result, true)
+		output.OperationID = operationID
+		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: output, NextAction: nextLifecycleAction(result)})
 	}
-	if app.GroupLifecycle != nil {
-		applied, groupErr := app.GroupLifecycle.AddGroup(ctx, AddGroupInput{OperationID: operationID, Inputs: inputs})
-		if len(applied) > len(inputs) || len(applied) != len(inputs) && groupErr == nil {
-			return fmt.Errorf("install engine returned %d add results for %d targets", len(applied), len(inputs))
-		}
-		for index, result := range applied {
-			entry := addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: newAddResultData(inputs[index].Envelope, result, false), NextAction: nextLifecycleAction(result)}
-			combined.Targets = append(combined.Targets, entry)
-			combined.Succeeded++
-		}
-		if groupErr != nil {
-			for index := len(applied); index < len(inputs); index++ {
-				combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: "rolled_back", Output: newAddResultData(inputs[index].Envelope, usecase.AddResult{}, false)})
-			}
-			combined.Status = "group_rolled_back"
-			combined.Failed = len(inputs)
-			combined.Succeeded = 0
-			_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
-			return groupErr
-		}
+	combined.Succeeded = len(planned.Targets)
+	if err != nil {
+		combined.Status, combined.Failed, combined.Succeeded = "preflight_failed", len(inputs), 0
+		_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
+		return fmt.Errorf("group preflight failed; no target was changed: %w%s", err, addGroupNextAction(combined.Targets))
+	}
+	if opts.dryRun {
 		return renderAddMultiResult(cmd, opts, combined, loaded.envelope)
 	}
-	for index, input := range inputs {
-		result, applyErr := service.Add(ctx, input)
-		if installationID == "" {
-			installationID = result.InstallationID
-		}
-		entry := addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: newAddResultData(input.Envelope, result, false), NextAction: nextLifecycleAction(result)}
-		combined.Targets = append(combined.Targets, entry)
-		if applyErr != nil {
-			combined.Status = "partial_failure"
-			combined.Failed++
-			_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
-			return fmt.Errorf("apply target %s failed after complete preflight: %w", selected[index].ClientID, applyErr)
-		}
+	writeProgress(app, opts.format, "Applying the completely preflighted multi-target plan...")
+	groupInput.DryRun, groupInput.Confirmed = false, true
+	applied, err := service.AddGroup(ctx, groupInput)
+	combined.Status, combined.Targets, combined.Succeeded = "completed", combined.Targets[:0], 0
+	for index, result := range applied.Targets {
+		output := newAddResultData(inputs[index].Envelope, result, false)
+		output.OperationID = operationID
+		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: output, NextAction: nextLifecycleAction(result)})
 		combined.Succeeded++
 	}
-	return renderAddMultiResult(cmd, opts, combined, loaded.envelope)
+	if err != nil {
+		combined.Status, combined.Failed, combined.Succeeded = "group_rolled_back", len(inputs), 0
+		_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
+		return err
+	}
+	if err := renderAddMultiResult(cmd, opts, combined, loaded.envelope); err != nil {
+		return err
+	}
+	if app.Terminal && opts.format == "human" && len(applied.Targets) == 1 {
+		input := inputs[0]
+		input.DryRun = false
+		input.InstallationID = applied.Targets[0].InstallationID
+		return resumeInteractiveLifecycle(ctx, cmd, service, input, inputs[0].Envelope, applied.Targets[0])
+	}
+	return nil
 }
 
 func publicPackageSource(source domain.SourceIdentity) string {
@@ -234,16 +208,29 @@ func renderAddMultiResult(cmd *cobra.Command, opts *options, result addMultiResu
 		}
 		return writeJSONResult(cmd.OutOrStdout(), "add", overall, result)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Plugin: %s %s\n", result.Plugin, result.Version)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Targets: %s\n", addResultTargets(result.Targets))
+	if len(result.Targets) == 1 {
+		return renderAddResult(cmd.OutOrStdout(), "human", envelope, result.Targets[0].Output.Result, result.DryRun)
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Plugin: %s %s\n", result.Plugin, result.Version); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Targets: %s\n", addResultTargets(result.Targets)); err != nil {
+		return err
+	}
 	for _, target := range result.Targets {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s\n", target.Target, target.Status); err != nil {
+			return err
+		}
 		if target.NextAction != "" && !fullyInstalled(target.Output.Result.Activation) {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Next: %s\n", target.NextAction)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "    Next: %s\n", target.NextAction); err != nil {
+				return err
+			}
 		}
 	}
 	if result.DryRun {
-		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made (dry run).")
+		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "No changes made (dry run)."); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -254,4 +241,13 @@ func addResultTargets(results []addTargetResult) string {
 		values[index] = result.Target
 	}
 	return strings.Join(values, ",")
+}
+
+func addGroupNextAction(targets []addTargetResult) string {
+	for _, target := range targets {
+		if target.NextAction != "" {
+			return "; next action: " + target.NextAction
+		}
+	}
+	return ""
 }

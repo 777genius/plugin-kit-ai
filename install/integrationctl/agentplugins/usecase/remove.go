@@ -261,7 +261,7 @@ func (service Service) PurgeRetainedData(ctx context.Context, selector string, c
 		}
 	}
 	if !confirmed {
-		return fmt.Errorf("explicit purge confirmation is required")
+		return nil
 	}
 	for _, receipt := range installation.DataReceipts {
 		if err := service.PluginData.PurgeData(ctx, receipt); err != nil {

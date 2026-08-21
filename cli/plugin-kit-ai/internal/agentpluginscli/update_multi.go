@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -34,50 +33,6 @@ type updateMultiResult struct {
 	Targets     []updateTargetResult `json:"targets"`
 }
 
-type updatePreflightFailure struct {
-	target         domain.ClientID
-	input          usecase.AddInput
-	err            error
-	observation    domain.ActivationOutcome
-	observationErr error
-	observed       bool
-}
-
-// observedActivation replays the exact read-only native observation produced
-// during preflight. This lets the use case persist recognized negative evidence
-// after the whole plan has been reviewed, without invoking the client a second
-// time or authorizing package materialization.
-type observedActivation struct {
-	delegate ports.ClientActivator
-	outcome  domain.ActivationOutcome
-	err      error
-}
-
-type recordingActivation struct {
-	delegate ports.ClientActivator
-	outcome  domain.ActivationOutcome
-	err      error
-	observed bool
-}
-
-func (activation *recordingActivation) Activate(ctx context.Context, request domain.ActivationRequest) (domain.ActivationOutcome, error) {
-	activation.outcome, activation.err = activation.delegate.Activate(ctx, request)
-	activation.observed = true
-	return activation.outcome, activation.err
-}
-
-func (activation *recordingActivation) Deactivate(ctx context.Context, request domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
-	return activation.delegate.Deactivate(ctx, request)
-}
-
-func (activation observedActivation) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
-	return activation.outcome, activation.err
-}
-
-func (activation observedActivation) Deactivate(ctx context.Context, request domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
-	return activation.delegate.Deactivate(ctx, request)
-}
-
 func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string, targets []domain.ClientID) error {
 	state, err := app.StateStore.Load()
 	if err != nil {
@@ -90,15 +45,23 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
 		return fmt.Errorf("update requires a bound Agent Plugins installation")
 	}
+	selectedSet := make(map[domain.ClientID]bool, len(targets))
+	for _, target := range targets {
+		if !installationHasTarget(installation, target, opts.scope) {
+			return fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
+		}
+		selectedSet[target] = true
+	}
+	allTargets := installationTargets(installation, opts.scope)
 	writeProgress(app, opts.format, "Resolving and validating one updated Agent Plugin package for every selected target...")
-	loaded, err := app.loadPackage(ctx, updateSource(installation))
+	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, domain.DirectoryUpdate, 0)
 	if err != nil {
 		return err
 	}
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
-	if domain.ComputeSourceBindingID(loaded.envelope.Source) != installation.Source.SourceBindingID {
+	if installation.OriginMode != domain.OriginModeDirectory && domain.ComputeSourceBindingID(loaded.envelope.Source) != installation.Source.SourceBindingID {
 		return fmt.Errorf("resolved source identity changed; use agentplugins switch after reviewing provenance")
 	}
 	clients, err := app.Detector.Detect(ctx)
@@ -110,25 +73,16 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		detected[client.ClientID] = client
 	}
 	service := lifecycleService(app, detected)
-	selectedTargets := make(map[domain.ClientID]struct{}, len(targets))
-	for _, target := range targets {
-		if !installationHasTarget(installation, target, opts.scope) {
-			return fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
-		}
-		selectedTargets[target] = struct{}{}
-	}
-	preflightTargets := installationTargets(installation, opts.scope)
 	inputs := make([]usecase.AddInput, 0, len(targets))
-	applyTargets := make([]domain.ClientID, 0, len(targets))
-	preflightFailures := make([]updatePreflightFailure, 0)
+	compatibility := make([]usecase.AddInput, 0, len(allTargets))
+	selected := make([]domain.ClientID, 0, len(targets))
 	result := updateMultiResult{
 		Batch: true, Status: "planned", Plugin: loaded.envelope.Manifest.Name,
 		Version: loaded.envelope.Manifest.Version, Source: publicPackageSource(loaded.envelope.Source),
 		Revision: loaded.envelope.Source.ResolvedRevision, TreeDigest: loaded.envelope.TreeDigest,
-		DryRun: opts.dryRun, Targets: make([]updateTargetResult, 0, len(preflightTargets)),
+		DryRun: opts.dryRun, Targets: make([]updateTargetResult, 0, len(targets)),
 	}
-	for _, target := range preflightTargets {
-		_, selectedForRollout := selectedTargets[target]
+	for _, target := range allTargets {
 		client, ok := detected[target]
 		if target == domain.ClientChatGPT && !ok {
 			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
@@ -144,119 +98,48 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		}
 		input := usecase.AddInput{
 			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
-			DryRun: true, Interactive: false, Hints: clientPackage.hints,
-			BackendExecutable:                backendExecutable(client, detected),
-			PersistAuthoritativeObservations: !opts.dryRun,
+			Interactive: false, Hints: clientPackage.hints, BackendExecutable: backendExecutable(client, detected),
+			OriginMode: loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
 		}
-		recorder := &recordingActivation{delegate: app.Activator}
-		preflightService := service
-		preflightService.Activator = recorder
-		planned, planErr := preflightService.Update(ctx, input)
-		entry := updateTargetResult{Target: string(target), Selected: selectedForRollout, Status: string(planned.Plan.Status), Output: newAddResultData(clientPackage.envelope, planned, true), NextAction: nextLifecycleAction(planned)}
-		result.Targets = append(result.Targets, entry)
-		if planErr != nil || planned.Plan.Status == domain.PlanUnsupported {
-			result.Status = "preflight_failed"
-			result.Failed++
-			if planErr == nil {
-				planErr = fmt.Errorf("target is unsupported")
-			}
-			preflightFailures = append(preflightFailures, updatePreflightFailure{
-				target: target, input: input, err: planErr,
-				observation: recorder.outcome, observationErr: recorder.err, observed: recorder.observed,
-			})
-			continue
-		}
-		result.Succeeded++
-		if selectedForRollout {
-			input.DryRun = opts.dryRun
+		compatibility = append(compatibility, input)
+		if selectedSet[target] {
 			inputs = append(inputs, input)
-			applyTargets = append(applyTargets, target)
+			selected = append(selected, target)
 		}
 	}
-	if len(preflightFailures) > 0 {
-		_ = renderUpdateMultiResult(cmd, opts, result)
-		if !opts.dryRun && mutationConfirmed(app, opts) {
-			for _, failure := range preflightFailures {
-				if !failure.observed || !failure.observation.AuthoritativeObservation {
-					continue
-				}
-				input := failure.input
-				input.DryRun = false
-				input.Confirmed = true
-				input.PersistAuthoritativeObservations = true
-				observationService := service
-				observationService.Activator = observedActivation{delegate: app.Activator, outcome: failure.observation, err: failure.observationErr}
-				persisted, persistErr := observationService.Update(ctx, input)
-				if persistErr == nil || !persisted.Mutated {
-					if persistErr == nil {
-						persistErr = fmt.Errorf("native verifier observation did not return its preflight error")
-					}
-					return fmt.Errorf("persist authoritative observation for target %s after complete preflight: %w", failure.target, persistErr)
-				}
-			}
-		}
-		failure := preflightFailures[0]
-		return fmt.Errorf("preflight target %s: %w; no package target was changed", failure.target, failure.err)
-	}
-	if opts.dryRun {
-		return renderUpdateMultiResult(cmd, opts, result)
-	}
-	if opts.format == "human" {
-		if err := renderUpdateMultiResult(cmd, opts, result); err != nil {
-			return err
-		}
-	}
-	result.Status = "completed"
 	operationID, err := newOperationGroupID()
 	if err != nil {
 		return err
 	}
 	result.OperationID = operationID
-	result.Succeeded = len(result.Targets) - result.Failed
-	result.Failed = 0
-	targetIndexes := make(map[domain.ClientID]int, len(result.Targets))
-	for index := range result.Targets {
-		targetIndexes[domain.ClientID(result.Targets[index].Target)] = index
+	planned, err := service.UpdateGroup(ctx, usecase.GroupInput{Targets: inputs, CompatibilityChecks: compatibility, OperationGroupID: operationID, DryRun: true})
+	for index, targetResult := range planned.Targets {
+		output := newAddResultData(inputs[index].Envelope, targetResult, true)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: string(targetResult.Plan.Status), Output: output, NextAction: nextLifecycleAction(targetResult)})
 	}
-	for index := range inputs {
-		inputs[index].Confirmed = true
-		inputs[index].PersistAuthoritativeObservations = true
+	result.Succeeded = len(planned.Targets)
+	if err != nil {
+		result.Status, result.Failed, result.Succeeded = "preflight_failed", len(inputs), 0
+		_ = renderUpdateMultiResult(cmd, opts, result)
+		return fmt.Errorf("group update preflight failed; no target was changed: %w%s", err, groupNextAction(result.Targets))
 	}
-	if app.GroupLifecycle != nil {
-		appliedResults, groupErr := app.GroupLifecycle.UpdateGroup(ctx, AddGroupInput{OperationID: operationID, Inputs: inputs})
-		if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
-			return fmt.Errorf("install engine returned %d update results for %d targets", len(appliedResults), len(inputs))
-		}
-		for index, applied := range appliedResults {
-			target := applyTargets[index]
-			result.Targets[targetIndexes[target]] = updateTargetResult{Target: string(target), Selected: true, Status: string(applied.Plan.Status), Output: newAddResultData(inputs[index].Envelope, applied, false), NextAction: nextLifecycleAction(applied)}
-		}
-		if groupErr != nil {
-			for _, target := range applyTargets {
-				entry := result.Targets[targetIndexes[target]]
-				entry.Status = "rolled_back"
-				result.Targets[targetIndexes[target]] = entry
-			}
-			result.Status = "group_rolled_back"
-			result.Failed = len(inputs)
-			result.Succeeded = 0
-			_ = renderUpdateMultiResult(cmd, opts, result)
-			return groupErr
-		}
+	if opts.dryRun {
 		return renderUpdateMultiResult(cmd, opts, result)
 	}
-	for index, input := range inputs {
-		applied, applyErr := service.Update(ctx, input)
-		target := applyTargets[index]
-		entry := updateTargetResult{Target: string(target), Selected: true, Status: string(applied.Plan.Status), Output: newAddResultData(input.Envelope, applied, false), NextAction: nextLifecycleAction(applied)}
-		result.Targets[targetIndexes[target]] = entry
-		if applyErr != nil {
-			result.Status = "partial_failure"
-			result.Failed++
-			result.Succeeded--
-			_ = renderUpdateMultiResult(cmd, opts, result)
-			return fmt.Errorf("apply target %s failed after complete preflight: %w", target, applyErr)
-		}
+	applied, groupErr := service.UpdateGroup(ctx, usecase.GroupInput{Targets: inputs, CompatibilityChecks: compatibility, OperationGroupID: operationID, Confirmed: true})
+	result.Status, result.Targets, result.Succeeded = "completed", result.Targets[:0], 0
+	for index, targetResult := range applied.Targets {
+		output := newAddResultData(inputs[index].Envelope, targetResult, false)
+		output.OperationID = operationID
+		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: string(targetResult.Plan.Status), Output: output, NextAction: nextLifecycleAction(targetResult)})
+		result.Succeeded++
+	}
+	if groupErr != nil {
+		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		_ = renderUpdateMultiResult(cmd, opts, result)
+		return groupErr
 	}
 	return renderUpdateMultiResult(cmd, opts, result)
 }
@@ -290,12 +173,15 @@ func installationTargets(installation domain.Installation, scope string) []domai
 
 func renderUpdateMultiResult(cmd *cobra.Command, opts *options, result updateMultiResult) error {
 	if opts.format == "json" {
-		// The command error is returned separately. Keep a successfully emitted
-		// versioned envelope consistent with single-target lifecycle output, and
-		// carry operation failure in data.status/failed and each target status.
-		return writeJSONOutput(cmd.OutOrStdout(), "update", result)
+		overall := "success"
+		if result.Failed > 0 {
+			overall = "failure"
+		}
+		return writeJSONResult(cmd.OutOrStdout(), "update", overall, result)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Plugin: %s %s\n", result.Plugin, result.Version)
+	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Plugin: %s %s\n", result.Plugin, result.Version); err != nil {
+		return err
+	}
 	values := make([]string, len(result.Targets))
 	for index, target := range result.Targets {
 		values[index] = target.Target
@@ -303,11 +189,24 @@ func renderUpdateMultiResult(cmd *cobra.Command, opts *options, result updateMul
 		if target.Selected {
 			rollout = "selected"
 		}
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s (%s)\n", target.Target, target.Status, rollout)
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  %s: %s (%s)\n", target.Target, target.Status, rollout); err != nil {
+			return err
+		}
 		if target.NextAction != "" && !fullyInstalled(target.Output.Result.Activation) {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "    Next: %s\n", target.NextAction)
+			if _, err := fmt.Fprintf(cmd.OutOrStdout(), "    Next: %s\n", target.NextAction); err != nil {
+				return err
+			}
 		}
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Targets: %s\n", strings.Join(values, ","))
-	return nil
+	_, err := fmt.Fprintf(cmd.OutOrStdout(), "Targets: %s\n", strings.Join(values, ","))
+	return err
+}
+
+func groupNextAction(targets []updateTargetResult) string {
+	for _, target := range targets {
+		if target.NextAction != "" {
+			return "; next action: " + target.NextAction
+		}
+	}
+	return ""
 }

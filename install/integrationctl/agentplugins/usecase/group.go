@@ -90,6 +90,7 @@ type plannedGroupTarget struct {
 	delivery        domain.StagedDelivery
 	dataReceipt     domain.DataReceipt
 	dataCreated     bool
+	noChange        bool
 }
 
 func (service Service) applyGroup(ctx context.Context, input GroupInput, replace bool) (GroupResult, error) {
@@ -268,8 +269,13 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		if err := service.observeGroupNativeIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
 			return result, err
 		}
+		noChange := managed != nil && !input.Repair && !input.Switch && groupPackageUnchanged(*managed, target) && containsSurface(managed.AffectedSurfaces, string(target.Client.ClientID))
+		if noChange {
+			result.Targets[targetIndex].NoChange = true
+			result.Targets[targetIndex].Activation = domain.ActivationOutcome{Activation: managed.Activation, Authentication: managed.Authentication, Policy: managed.Policy, Verification: managed.Verification}
+		}
 		physical[key] = len(planned)
-		planned = append(planned, plannedGroupTarget{input: target, plan: plan, resultIndexes: []int{targetIndex}, clientBindingID: clientID, managed: managed})
+		planned = append(planned, plannedGroupTarget{input: target, plan: plan, resultIndexes: []int{targetIndex}, clientBindingID: clientID, managed: managed, noChange: noChange})
 	}
 	if replace && existing && !input.Repair {
 		compatibleBindings := map[string]bool{}
@@ -326,6 +332,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	for targetIndex := range planned {
 		target := &planned[targetIndex]
+		if target.noChange {
+			continue
+		}
 		operationID := fmt.Sprintf("%s-%03d", groupID, targetIndex+1)
 		if packageNeedsPluginData(target.input.Envelope) {
 			if service.PluginData == nil {
@@ -354,6 +363,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	desired := state
 	for _, target := range planned {
+		if target.noChange {
+			continue
+		}
 		desired, installationIndex = upsertPreparedInstallation(desired, installationIndex, existing, target.input, target.plan, installationID, target.clientBindingID, sourceID, service.now())
 		existing = true
 		installation := desired.Installations[installationIndex]
@@ -392,6 +404,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	mutations := make([]transaction.DirectoryMutation, 0, len(planned))
 	for targetIndex, target := range planned {
+		if target.noChange {
+			continue
+		}
 		client := desired.Installations[installationIndex].Clients[target.clientBindingID]
 		before := ""
 		if target.managed != nil {
@@ -409,27 +424,57 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	kernel := service.Kernel
 	kernel.StateStore = service.StateStore
-	receipts, err := kernel.ApplyDirectoryGroup(ctx, transaction.DirectoryGroup{OperationGroupID: groupID, Mutations: mutations, DesiredState: desired})
-	if err != nil {
-		result.Receipts = receipts
-		if len(receipts) > 0 {
-			for index := range planned {
-				planned[index].dataCreated = false
+	var receipts []domain.MutationReceipt
+	if len(mutations) > 0 {
+		receipts, err = kernel.ApplyDirectoryGroup(ctx, transaction.DirectoryGroup{OperationGroupID: groupID, Mutations: mutations, DesiredState: desired})
+		if err != nil {
+			result.Receipts = receipts
+			if len(receipts) > 0 {
+				for index := range planned {
+					planned[index].dataCreated = false
+				}
 			}
+			return result, err
 		}
-		return result, err
+		result.Receipts, result.Mutated = receipts, true
 	}
-	result.Receipts, result.Mutated = receipts, true
 	for index := range planned {
 		planned[index].dataCreated = false
 	}
 	for _, target := range planned {
-		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{Client: target.input.Client, Plan: target.plan, Delivery: target.delivery,
-			DeclaredName: target.input.Envelope.Manifest.Name, Replacing: replace, Interactive: target.input.Interactive, BackendExecutable: target.input.BackendExecutable})
-		_, persistErr := service.updateLifecycle(installationID, target.clientBindingID, outcome)
+		delivery := target.delivery
+		if target.noChange && target.managed != nil {
+			delivery = domain.StagedDelivery{
+				ClientID: target.input.Client.ClientID, OwnedBase: target.plan.TargetRoot,
+				ActivePath: target.managed.TargetLocator, ArtifactDigest: managedDigest(*target.managed),
+				NativeObjects: append([]domain.NativeObjectOwnership(nil), target.managed.NativeObjects...),
+			}
+		}
+		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{Client: target.input.Client, Plan: target.plan, Delivery: delivery,
+			DeclaredName: target.input.Envelope.Manifest.Name, Replacing: replace, Interactive: target.input.Interactive, BackendExecutable: target.input.BackendExecutable,
+			VerifyOnly: target.noChange, ActivationComplete: target.input.ActivationComplete})
+		if target.noChange && target.managed != nil {
+			if activationErr == nil && !clientVerifierAvailable(target.input, target.plan) && target.managed.Activation == domain.ActivationActive && target.managed.Verification == domain.VerificationInstalled {
+				outcome.Activation = target.managed.Activation
+				outcome.Verification = target.managed.Verification
+			}
+			if (target.managed.Authentication == domain.AuthenticationPending || target.managed.Authentication == domain.AuthenticationNotChecked) && target.input.AuthComplete {
+				outcome.Authentication = domain.AuthenticationComplete
+				outcome.AuthenticationAttested = true
+			} else if target.managed.Authentication != "" {
+				outcome.Authentication = target.managed.Authentication
+			}
+		}
+		lifecycleChanged, persistErr := service.updateLifecycle(installationID, target.clientBindingID, outcome)
+		if lifecycleChanged {
+			result.Mutated = true
+		}
 		for _, resultIndex := range target.resultIndexes {
 			result.Targets[resultIndex].Activation = outcome
-			result.Targets[resultIndex].Mutated = true
+			result.Targets[resultIndex].Mutated = !target.noChange || lifecycleChanged
+			if lifecycleChanged {
+				result.Targets[resultIndex].NoChange = false
+			}
 		}
 		if activationErr != nil {
 			return result, activationErr
@@ -439,6 +484,26 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		}
 	}
 	return result, nil
+}
+
+func containsSurface(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func groupPackageUnchanged(binding domain.ClientBinding, input AddInput) bool {
+	revision := binding.PackageRevision
+	if !packageRevisionMatches(revision, input.Envelope) || revision.ResolvedRevision != input.Envelope.Source.ResolvedRevision {
+		return false
+	}
+	if normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory {
+		return input.DirectoryResolution != nil && revision.DistributionID == input.DirectoryResolution.DistributionID && revision.ReleaseSequence == input.DirectoryResolution.DesiredReleaseSequence
+	}
+	return true
 }
 
 // Repair is the one lifecycle operation where an owned native object may be

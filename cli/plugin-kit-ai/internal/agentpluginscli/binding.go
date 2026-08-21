@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -58,11 +57,8 @@ func runBindingChange(
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
-	service := usecase.Service{
-		StateStore: app.StateStore,
-		Lock:       app.MutationLock,
-		Kernel:     transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
 	input := usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope}
 	planned, err := executeBindingChange(ctx, service, mode, input)
 	if err != nil {
