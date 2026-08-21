@@ -8,92 +8,79 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/777genius/plugin-kit-ai/cli/cmd/agentplugins/internal/bootstrapio"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
-func TestDirectoryConformanceConfigurationIsCompleteExplicitAndVerified(t *testing.T) {
-	for _, name := range conformanceDirectoryVariables {
-		if name == "AGENTPLUGINS_DIRECTORY_ORIGIN" {
-			continue
-		}
-		t.Run("partial-"+name, func(t *testing.T) {
-			clearConformanceEnvironment(t)
-			t.Setenv(name, "1")
-			if _, err := newDirectoryClient(t.TempDir()); err == nil || !strings.Contains(err.Error(), "partial test-only") {
-				t.Fatalf("partial %s configuration error = %v", name, err)
-			}
-		})
+var forbiddenProductionDirectoryVariables = []string{
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY",
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_SNAPSHOT",
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_ENVELOPE",
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_TRUST",
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_CACHE",
+	"AGENTPLUGINS_DIRECTORY_SNAPSHOT",
+	"AGENTPLUGINS_DIRECTORY_ENVELOPE",
+	"AGENTPLUGINS_DIRECTORY_TRUST",
+	"AGENTPLUGINS_DIRECTORY_CACHE",
+}
+
+func TestProductionDirectoryIgnoresCallerSuppliedConformanceData(t *testing.T) {
+	clearDirectoryEnvironment(t)
+	root := t.TempDir()
+	fixture := writeConformanceFixture(t, root)
+	for _, name := range forbiddenProductionDirectoryVariables {
+		t.Setenv(name, fixtureValue(name, fixture))
+	}
+	productionRoot := filepath.Join(root, "production")
+	client, err := newDirectoryClient(productionRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Origin != defaultDirectoryOrigin || client.Cache.Path != filepath.Join(productionRoot, "directory-v1-cache.json") || len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != defaultDirectoryKeyID {
+		t.Fatalf("conformance environment changed production Directory configuration: %+v", client)
+	}
+	if _, err := os.Lstat(fixture["AGENTPLUGINS_DIRECTORY_CACHE"]); !os.IsNotExist(err) {
+		t.Fatalf("production configuration touched caller cache: %v", err)
+	}
+}
+
+func TestTestOnlyDependencyInjectionPreservesExactLaunchConformance(t *testing.T) {
+	clearDirectoryEnvironment(t)
+	root := t.TempDir()
+	fixture := writeConformanceFixture(t, root)
+	client, err := newConformanceDirectoryClient(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Now = func() time.Time { return time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC) }
+	bundle, err := client.Load(context.Background(), 0)
+	if err != nil || bundle.Source != directoryv1.BundleSourceRemote || bundle.Snapshot.Sequence != 41 {
+		t.Fatalf("verified conformance fixture load = sequence %d source %q err %v", bundle.Snapshot.Sequence, bundle.Source, err)
+	}
+	if _, err := os.Stat(fixture["AGENTPLUGINS_DIRECTORY_CACHE"]); err != nil {
+		t.Fatalf("verified fixture was not reconciled to its test-only cache: %v", err)
 	}
 
-	t.Run("complete verified fixture", func(t *testing.T) {
-		clearConformanceEnvironment(t)
-		root := t.TempDir()
-		environment := writeConformanceFixture(t, root)
-		for name, value := range environment {
-			t.Setenv(name, value)
-		}
-		client, err := newDirectoryClient(filepath.Join(root, "production-cache-must-not-be-used"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if client.Origin != environment["AGENTPLUGINS_DIRECTORY_ORIGIN"] || client.Cache.Path != environment["AGENTPLUGINS_DIRECTORY_CACHE"] || len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != "launch-conformance-test" {
-			t.Fatalf("test-only Directory tuple was not consumed coherently: %+v", client)
-		}
-		client.Now = func() time.Time { return time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC) }
-		bundle, err := client.Load(context.Background(), 0)
-		if err != nil || bundle.Source != directoryv1.BundleSourceRemote || bundle.Snapshot.Sequence != 41 {
-			t.Fatalf("verified conformance fixture load = sequence %d source %q err %v", bundle.Snapshot.Sequence, bundle.Source, err)
-		}
-		if _, err := os.Stat(environment["AGENTPLUGINS_DIRECTORY_CACHE"]); err != nil {
-			t.Fatalf("verified fixture was not reconciled to configured cache: %v", err)
-		}
-	})
-
-	t.Run("tampered tuple", func(t *testing.T) {
-		clearConformanceEnvironment(t)
-		root := t.TempDir()
-		environment := writeConformanceFixture(t, root)
-		for name, value := range environment {
-			t.Setenv(name, value)
-		}
-		if err := os.WriteFile(environment["AGENTPLUGINS_DIRECTORY_SNAPSHOT"], []byte("{}"), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := newDirectoryClient(t.TempDir()); err == nil || !strings.Contains(err.Error(), "verify Directory bootstrap inputs") {
-			t.Fatalf("tampered conformance tuple error = %v", err)
-		}
-	})
-
-	for name, change := range map[string]func(map[string]string){
-		"non-exact opt-in": func(environment map[string]string) { environment["AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY"] = "true" },
-		"unsafe origin": func(environment map[string]string) {
-			environment["AGENTPLUGINS_DIRECTORY_ORIGIN"] = "https://user@example.invalid/registry/"
-		},
-		"relative cache": func(environment map[string]string) { environment["AGENTPLUGINS_DIRECTORY_CACHE"] = "relative-cache" },
-	} {
-		t.Run(name, func(t *testing.T) {
-			clearConformanceEnvironment(t)
-			environment := writeConformanceFixture(t, t.TempDir())
-			change(environment)
-			for variable, value := range environment {
-				t.Setenv(variable, value)
-			}
-			if _, err := newDirectoryClient(t.TempDir()); err == nil {
-				t.Fatal("malformed test-only Directory tuple was accepted")
-			}
-		})
+	originalFactory, originalArgs := directoryClientFactory, os.Args
+	directoryClientFactory = func(string) (*directoryv1.Client, error) { return client, nil }
+	os.Args = []string{"agentplugins", "version"}
+	t.Cleanup(func() { directoryClientFactory, os.Args = originalFactory, originalArgs })
+	if err := run(); err != nil {
+		t.Fatalf("exact CLI launch with test-only injected Directory client: %v", err)
 	}
 }
 
 func TestOrdinaryDirectoryOriginPreservesProductionTrustAndBootstrap(t *testing.T) {
-	clearConformanceEnvironment(t)
+	clearDirectoryEnvironment(t)
 	t.Setenv("AGENTPLUGINS_DIRECTORY_ORIGIN", "https://mirror.example/registry/schemas/1/")
 	client, err := newDirectoryClient(t.TempDir())
 	if err != nil {
@@ -104,26 +91,48 @@ func TestOrdinaryDirectoryOriginPreservesProductionTrustAndBootstrap(t *testing.
 	}
 }
 
-func TestMalformedConformanceTupleFailsBeforeNetworkOrMutation(t *testing.T) {
-	clearConformanceEnvironment(t)
-	t.Setenv("AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY", "1")
+func TestMalformedDirectoryEnvironmentCausesZeroMutation(t *testing.T) {
+	clearDirectoryEnvironment(t)
 	t.Setenv("HOME", t.TempDir())
 	dataRoot := filepath.Join(t.TempDir(), "must-not-exist")
 	t.Setenv("AGENTPLUGINS_HOME", dataRoot)
 	originalArgs := os.Args
-	os.Args = []string{"agentplugins", "add", "tool", "--target", "cursor"}
+	os.Args = []string{"agentplugins", "version"}
 	t.Cleanup(func() { os.Args = originalArgs })
-	if err := run(); err == nil || !strings.Contains(err.Error(), "partial test-only") {
-		t.Fatalf("malformed tuple error = %v", err)
+	for _, name := range forbiddenProductionDirectoryVariables {
+		t.Setenv(name, "malformed-caller-value")
+	}
+	if err := run(); err != nil {
+		t.Fatalf("production binary interpreted forbidden conformance variables: %v", err)
 	}
 	if _, err := os.Lstat(dataRoot); !os.IsNotExist(err) {
-		t.Fatalf("malformed tuple mutated agentplugins home: %v", err)
+		t.Fatalf("ignored malformed conformance environment mutated agentplugins home: %v", err)
+	}
+	t.Setenv("AGENTPLUGINS_DIRECTORY_ORIGIN", "https://caller.example/registry/../trust/")
+	if err := run(); err == nil || !strings.Contains(err.Error(), "AGENTPLUGINS_DIRECTORY_ORIGIN") {
+		t.Fatalf("malformed production origin error = %v", err)
+	}
+	if _, err := os.Lstat(dataRoot); !os.IsNotExist(err) {
+		t.Fatalf("malformed production origin mutated agentplugins home: %v", err)
 	}
 }
 
-func clearConformanceEnvironment(t *testing.T) {
+func TestProductionDirectoryOriginValidation(t *testing.T) {
+	for _, value := range []string{
+		"http://mirror.example/registry/", "https://user@mirror.example/registry/", "https://mirror.example/registry",
+		"https://mirror.example/registry/../trust/", "https://mirror.example/registry/%2e%2e/trust/", "https://mirror.example/registry/?source=caller", "//mirror.example/registry/",
+	} {
+		t.Run(value, func(t *testing.T) {
+			if _, err := productionDirectoryOrigin(value); err == nil {
+				t.Fatalf("unsafe Directory origin accepted: %q", value)
+			}
+		})
+	}
+}
+
+func clearDirectoryEnvironment(t *testing.T) {
 	t.Helper()
-	for _, name := range conformanceDirectoryVariables {
+	for _, name := range append(append([]string{}, forbiddenProductionDirectoryVariables...), "AGENTPLUGINS_DIRECTORY_ORIGIN") {
 		value, existed := os.LookupEnv(name)
 		if err := os.Unsetenv(name); err != nil {
 			t.Fatal(err)
@@ -137,6 +146,58 @@ func clearConformanceEnvironment(t *testing.T) {
 			}
 		})
 	}
+}
+
+func fixtureValue(name string, fixture map[string]string) string {
+	if value := fixture[name]; value != "" {
+		return value
+	}
+	return "malformed-caller-value"
+}
+
+func newConformanceDirectoryClient(configuration map[string]string) (*directoryv1.Client, error) {
+	bundle, trust, err := bootstrapio.LoadVerifiedBundle(configuration["AGENTPLUGINS_DIRECTORY_SNAPSHOT"], configuration["AGENTPLUGINS_DIRECTORY_ENVELOPE"], configuration["AGENTPLUGINS_DIRECTORY_TRUST"])
+	if err != nil {
+		return nil, fmt.Errorf("load test-only Directory conformance tuple: %w", err)
+	}
+	return &directoryv1.Client{
+		Origin: configuration["AGENTPLUGINS_DIRECTORY_ORIGIN"],
+		HTTPClient: &http.Client{Timeout: 20 * time.Second, Transport: conformanceFixtureTransport{
+			sequence: bundle.Snapshot.Sequence, snapshot: bundle.SnapshotBytes, envelope: bundle.EnvelopeBytes,
+		}},
+		Trust: trust, Embedded: directoryv1.EmbeddedBundle{Snapshot: bundle.SnapshotBytes, Envelope: bundle.EnvelopeBytes},
+		RequireEmbeddedBootstrap: true, Cache: directoryv1.Cache{Path: configuration["AGENTPLUGINS_DIRECTORY_CACHE"]},
+	}, nil
+}
+
+type conformanceFixtureTransport struct {
+	sequence           uint64
+	snapshot, envelope []byte
+}
+
+func (transport conformanceFixtureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	stem := fmt.Sprintf("%020d", transport.sequence)
+	pointer, err := json.Marshal(directoryv1.Pointer{
+		PointerSchemaVersion: 1, SnapshotSchemaVersion: 1, Sequence: transport.sequence,
+		SnapshotPath: "snapshots/" + stem + ".json", EnvelopePath: "snapshots/" + stem + ".envelope.json",
+		FetchContract: directoryv1.FetchContract{HTTPSRequired: true, SameOriginRedirectsOnly: true, MaxRedirects: 2, LatestMaxBytes: directoryv1.MaxLatestBytes, SnapshotMaxBytes: directoryv1.MaxSnapshotBytes, EnvelopeMaxBytes: directoryv1.MaxEnvelopeBytes, RetryAttempts: 1},
+	})
+	if err != nil {
+		return nil, err
+	}
+	status, body := http.StatusOK, pointer
+	switch {
+	case request.Method != http.MethodGet:
+		status, body = http.StatusMethodNotAllowed, nil
+	case strings.HasSuffix(request.URL.Path, "/latest.json"):
+	case strings.HasSuffix(request.URL.Path, "/snapshots/"+stem+".json"):
+		body = transport.snapshot
+	case strings.HasSuffix(request.URL.Path, "/snapshots/"+stem+".envelope.json"):
+		body = transport.envelope
+	default:
+		status, body = http.StatusNotFound, nil
+	}
+	return &http.Response{StatusCode: status, Status: http.StatusText(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: request}, nil
 }
 
 func writeConformanceFixture(t *testing.T, root string) map[string]string {
