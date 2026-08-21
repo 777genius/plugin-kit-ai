@@ -2071,7 +2071,7 @@ func newCLIFixture(t *testing.T, clients []domain.DetectedClient) cliFixture {
 	mutationLock := processlock.Lock{Path: filepath.Join(root, "data", "mutation.lock")}
 	directory := dirswap.Manager{JournalDir: operations}
 	lifecycle := usecase.Service{StateStore: store, Planner: planner, Targets: planner, Stager: stager, Activator: providers.Activator{}, Lock: mutationLock,
-		Kernel: transaction.Kernel{StateStore: store, Directory: directory}, NativeObserver: providers.NativeIdentityObserver{Stager: stager}, PluginData: providers.PluginDataManager{Base: filepath.Join(root, "data", "plugin-data")}}
+		Kernel: transaction.Kernel{StateStore: store, Directory: directory}, NativeObserver: selectiveNativeObserver{}, PluginData: providers.PluginDataManager{Base: filepath.Join(root, "data", "plugin-data")}}
 	return cliFixture{
 		root: root, store: store, operations: operations,
 		app: App{
