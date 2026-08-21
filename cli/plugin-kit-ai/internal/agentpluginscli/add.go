@@ -423,6 +423,12 @@ func renderAddResultError(writer io.Writer, format string, envelope domain.Packa
 		return writeJSONOutput(writer, "add", data)
 	}
 	if failure := addFailureStatus(result, commandErr); failure != "" {
+		if result.Plan.Status == domain.PlanUnsupported {
+			if _, err := fmt.Fprintf(writer, "Add: %s\n", failure); err != nil {
+				return err
+			}
+			return renderHumanPlan(writer, envelope, result)
+		}
 		_, err := fmt.Fprintf(writer, "Add: %s\n", failure)
 		return err
 	}
