@@ -177,7 +177,7 @@ func inspectInstalledProduct(ctx context.Context, app App, state domain.StateFil
 			view.CurrentReleaseSequence, view.CurrentEvidence = current.ReleaseSequence, current.Evidence
 		}
 	}
-	targets := installationTargets(installation)
+	targets := installationTargets(installation, string(domain.ScopeUser))
 	selection, err := domain.ResolveDirectory(bundle.Snapshot, domain.DirectoryResolveRequest{Selector: origin.DistributionID,
 		Targets: targets, Scope: domain.ScopeUser, InstallerVersion: app.Version, SchemaVersion: "1.0.0", Operation: domain.DirectoryInstall})
 	if err == nil {
@@ -303,17 +303,6 @@ func evidenceIDsForClient(snapshot domain.DirectorySnapshot, distribution string
 		}
 	}
 	return ids
-}
-
-func installationTargets(installation domain.Installation) []domain.ClientID {
-	result := []domain.ClientID{}
-	for _, binding := range installation.Clients {
-		if binding.Materialization != domain.MaterializationAbsent {
-			result = append(result, domain.ClientID(binding.ClientID))
-		}
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
-	return result
 }
 
 func installedDirectoryWarnings(snapshot domain.DirectorySnapshot, installation domain.Installation) []publicSafetyWarning {
