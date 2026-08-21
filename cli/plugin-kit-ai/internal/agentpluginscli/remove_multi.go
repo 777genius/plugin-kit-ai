@@ -15,6 +15,15 @@ type removeTargetResult struct {
 	Output removeResultData `json:"output"`
 }
 
+// retainedDataResult proves that owned plugin data remains without exposing
+// its host-specific locator. The actionable locator remains in private state.
+type retainedDataResult struct {
+	DataReceiptID   string                  `json:"data_receipt_id"`
+	PhysicalBackend string                  `json:"physical_backend_id"`
+	Scope           string                  `json:"scope"`
+	State           domain.DataReceiptState `json:"state"`
+}
+
 type removeMultiResult struct {
 	OperationID         string               `json:"operation_id,omitempty"`
 	Batch               bool                 `json:"batch"`
@@ -24,7 +33,8 @@ type removeMultiResult struct {
 	Plugin              string               `json:"plugin"`
 	PluginDataPreserved bool                 `json:"plugin_data_preserved"`
 	DataRetained        bool                 `json:"data_retained"`
-	RetainedData        []string             `json:"retained_data,omitempty"`
+	RetainedData        []retainedDataResult `json:"retained_data,omitempty"`
+	RetainedDataAction  string               `json:"retained_data_action,omitempty"`
 	DryRun              bool                 `json:"dry_run"`
 	Targets             []removeTargetResult `json:"targets"`
 }
@@ -129,8 +139,12 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			result.DataRetained = true
 			result.Status = "data_retained"
 			for _, receipt := range retained.DataReceipts {
-				result.RetainedData = append(result.RetainedData, receipt.Locator)
+				result.RetainedData = append(result.RetainedData, retainedDataResult{
+					DataReceiptID: receipt.DataReceiptID, PhysicalBackend: receipt.PhysicalBackend,
+					Scope: receipt.Scope, State: receipt.State,
+				})
 			}
+			result.RetainedDataAction = fmt.Sprintf("run `agentplugins remove %s --purge-data` to delete retained plugin data", installation.InstallationID)
 		}
 	}
 	return renderRemoveMultiResult(cmd, opts, result)
@@ -154,6 +168,11 @@ func renderRemoveMultiResult(cmd *cobra.Command, opts *options, result removeMul
 	}
 	if result.PluginDataPreserved {
 		if _, err := fmt.Fprintln(cmd.OutOrStdout(), "  PLUGIN_DATA: preserved"); err != nil {
+			return err
+		}
+	}
+	if result.RetainedDataAction != "" {
+		if _, err := fmt.Fprintf(cmd.OutOrStdout(), "  Next: %s\n", result.RetainedDataAction); err != nil {
 			return err
 		}
 	}

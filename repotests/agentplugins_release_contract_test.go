@@ -126,12 +126,22 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
-		`run_agentplugins add "${synthetic}" --target cursor --format json > add.json`,
-		`run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`,
-		`.data.result.activation.authentication == "not_checked"`,
-		`.data.result.activation.activation_attested == true`,
-		`.data.result.activation.authentication_attested == true`,
-		`.data.result.no_change == true and .data.result.mutated == false`,
+		`lifecycle_targets="codex,cursor"`,
+		`run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --format json > add.json`,
+		`run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`,
+		`.data.batch == true and .data.succeeded == 2 and .data.failed == 0`,
+		`([.data.targets[].target] == ["codex", "cursor"])`,
+		`.output.operation_id == $operation_id`,
+		`.output.result.installation_id == $installation_id`,
+		`.output.result.activation.activation_attested == true`,
+		`.output.result.activation.authentication_attested == true`,
+		`.output.result.no_change == true and .output.result.mutated == false`,
+		`.data.status == "data_retained"`,
+		`.data.plugin_data_preserved == true`,
+		`(.data.retained_data | length) > 0`,
+		`(keys | sort) == ["data_receipt_id", "physical_backend_id", "scope", "state"]`,
+		`contains("agentplugins remove " + $installation_id + " --purge-data")`,
+		`select(type == "string" and startswith("/"))`,
 	} {
 		mustContain(t, npmVerifyJob, want)
 	}
@@ -159,8 +169,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`)
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json`)
+	mustNotContain(t, npmVerifyJob, `.data.result.`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --format json > add.json`, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target "${lifecycle_targets}" --format json > update.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins update registry-proof-synthetic --target "${lifecycle_targets}" --format json > update.json`, `run_agentplugins remove registry-proof-synthetic --target "${lifecycle_targets}" --external-uninstalled --format json > remove.json`)
 
 	for _, want := range []string{
 		"workflow_call:",

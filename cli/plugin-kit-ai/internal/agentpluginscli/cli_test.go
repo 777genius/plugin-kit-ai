@@ -170,12 +170,52 @@ func TestCommaSeparatedTargetsRunAddUpdateAndRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertBatchJSON(t, stdout, "remove", 2, 0)
+	var removed struct {
+		Data struct {
+			DataRetained       bool                 `json:"data_retained"`
+			RetainedData       []retainedDataResult `json:"retained_data"`
+			RetainedDataAction string               `json:"retained_data_action"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &removed); err != nil {
+		t.Fatal(err)
+	}
+	if !removed.Data.DataRetained || len(removed.Data.RetainedData) == 0 || removed.Data.RetainedDataAction == "" {
+		t.Fatalf("grouped remove retained-data output = %+v", removed.Data)
+	}
+	for _, receipt := range removed.Data.RetainedData {
+		if receipt.DataReceiptID == "" || receipt.PhysicalBackend == "" || receipt.Scope != string(domain.ScopeUser) || receipt.State != domain.DataReceiptOwned {
+			t.Fatalf("path-free retained-data receipt = %+v", receipt)
+		}
+	}
+	if strings.Contains(stdout, fixture.root) || strings.Contains(stdout, string(os.PathSeparator)+"tmp"+string(os.PathSeparator)) {
+		t.Fatalf("grouped remove JSON leaked an absolute path: %s", stdout)
+	}
 	state, err := fixture.store.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(state.Installations) != 1 || !state.Installations[0].DataRetained || len(state.Installations[0].Clients) != 0 || len(state.Installations[0].DataReceipts) == 0 {
 		t.Fatalf("normal grouped remove did not retain owned data: %+v", state)
+	}
+}
+
+func TestMultiTargetRemoveHumanOutputExplainsHowToPurgeRetainedData(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{
+		fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor),
+	})
+	if _, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "codex,cursor"); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(false, "remove", "demo", "--target", "codex,cursor", "--external-uninstalled")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"PLUGIN_DATA: preserved", "Next: run `agentplugins remove ", " --purge-data` to delete retained plugin data"} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("human grouped remove output %q omitted %q", stdout, want)
+		}
 	}
 }
 
