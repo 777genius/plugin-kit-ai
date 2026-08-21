@@ -16,6 +16,27 @@ type Planner struct {
 	Detected    map[domain.ClientID]domain.DetectedClient
 }
 
+// DetectedPhysicalClient returns a genuinely detected client that can address
+// an installed physical binding. Copilot and VS Code share one backend, so an
+// installed binding owned by either logical client can be maintained through
+// the other when that is the surface actually present on this machine. The
+// returned client keeps its real identity; callers must not use this to claim
+// that an explicitly requested, undetected logical client is installed.
+func DetectedPhysicalClient(bindingClient domain.ClientID, detected map[domain.ClientID]domain.DetectedClient) (domain.DetectedClient, bool) {
+	if client, ok := detected[bindingClient]; ok && client.Status == domain.DetectionDetected {
+		return client, true
+	}
+	if bindingClient != domain.ClientCopilot && bindingClient != domain.ClientVSCode {
+		return domain.DetectedClient{}, false
+	}
+	alternate := domain.ClientCopilot
+	if bindingClient == domain.ClientCopilot {
+		alternate = domain.ClientVSCode
+	}
+	client, ok := detected[alternate]
+	return client, ok && client.Status == domain.DetectionDetected
+}
+
 func (planner Planner) Plan(
 	ctx context.Context,
 	envelope domain.PackageEnvelope,

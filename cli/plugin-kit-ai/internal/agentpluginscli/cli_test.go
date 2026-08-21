@@ -323,7 +323,8 @@ func TestCopilotAndVSCodeShareOneGroupedPhysicalMutation(t *testing.T) {
 	fixture := newCLIFixture(t, []domain.DetectedClient{copilot, fixtureClient(t, domain.ClientVSCode)})
 	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
 	fixture.app.SourceAcquirer = counter
-	stdout, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "copilot,vscode", "--format", "json")
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "copilot,vscode", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -338,6 +339,26 @@ func TestCopilotAndVSCodeShareOneGroupedPhysicalMutation(t *testing.T) {
 	binding := onlyCLIClient(state.Installations[0])
 	if len(binding.Receipts) != 1 || !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) {
 		t.Fatalf("shared backend binding = %+v", binding)
+	}
+	body, err := os.ReadFile(filepath.Join(plugin, "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "plugin.json"), []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err = fixture.execute(false, "update", "demo", "--target", "copilot,vscode", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertBatchJSON(t, stdout, "update", 2, 0)
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	binding = onlyCLIClient(state.Installations[0])
+	if len(state.Installations[0].Clients) != 1 || len(binding.Receipts) != 2 || binding.PackageRevision.Version != "2.0.0" {
+		t.Fatalf("shared backend grouped update = %+v", state.Installations[0])
 	}
 }
 

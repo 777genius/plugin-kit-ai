@@ -164,6 +164,20 @@ func TestPlannerPromotesDetectedCopilotExecutableToReady(t *testing.T) {
 	}
 }
 
+func TestDetectedPhysicalClientUsesRealSharedSurfaceIdentity(t *testing.T) {
+	t.Parallel()
+	vscode := detectedClient(domain.ClientVSCode, filepath.Join(t.TempDir(), "Code", "User"))
+	detected := map[domain.ClientID]domain.DetectedClient{domain.ClientVSCode: vscode}
+
+	client, ok := DetectedPhysicalClient(domain.ClientCopilot, detected)
+	if !ok || client.ClientID != domain.ClientVSCode || client.ConfigRoot != vscode.ConfigRoot {
+		t.Fatalf("shared physical client = %+v, %v", client, ok)
+	}
+	if _, ok := DetectedPhysicalClient(domain.ClientCursor, detected); ok {
+		t.Fatal("unrelated detected client was accepted for Cursor binding")
+	}
+}
+
 func TestPlannerFailsClosedForUndetectedClientAndUnsupportedScope(t *testing.T) {
 	t.Parallel()
 	planner := Planner{ManagedRoot: t.TempDir()}

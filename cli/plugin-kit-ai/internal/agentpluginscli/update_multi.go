@@ -45,15 +45,17 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
 		return fmt.Errorf("update requires a bound Agent Plugins installation")
 	}
-	selectedSet := make(map[domain.ClientID]bool, len(targets))
 	for _, target := range targets {
 		if !installationHasTarget(installation, target, opts.scope) {
 			return fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
 		}
-		selectedSet[target] = true
 	}
 	allTargets := installationTargets(installation, opts.scope)
-	_, detected, err := preflightSelectedTargets(ctx, app, allTargets, nil)
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil)
+	if err != nil {
+		return err
+	}
+	installedClients, err := preflightInstalledBindings(installedBindingTargets(installation, opts.scope), detected)
 	if err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	service := lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targets))
-	compatibility := make([]usecase.AddInput, 0, len(allTargets))
+	compatibility := make([]usecase.AddInput, 0, len(installedClients))
 	selected := make([]domain.ClientID, 0, len(targets))
 	result := updateMultiResult{
 		Batch: true, Status: "planned", Plugin: loaded.envelope.Manifest.Name,
@@ -85,8 +87,8 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		Revision: loaded.envelope.Source.ResolvedRevision, TreeDigest: loaded.envelope.TreeDigest,
 		DryRun: opts.dryRun, Targets: make([]updateTargetResult, 0, len(targets)),
 	}
-	for _, target := range allTargets {
-		client := detected[target]
+	for _, client := range installedClients {
+		target := client.ClientID
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
@@ -98,10 +100,20 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
 		}
 		compatibility = append(compatibility, input)
-		if selectedSet[target] {
-			inputs = append(inputs, input)
-			selected = append(selected, target)
+	}
+	for _, target := range targets {
+		client := detected[target]
+		clientPackage := cloneLoadedPackage(loaded)
+		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
+			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
 		}
+		inputs = append(inputs, usecase.AddInput{
+			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
+			Interactive: false, Hints: clientPackage.hints, BackendExecutable: backendExecutable(client, detected),
+			OriginMode: loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
+			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked,
+		})
+		selected = append(selected, target)
 	}
 	operationID, err := newOperationGroupID()
 	if err != nil {
@@ -167,6 +179,24 @@ func installationTargets(installation domain.Installation, scope string) []domai
 			seen[target] = struct{}{}
 			result = append(result, target)
 		}
+	}
+	sortTargets(result)
+	return result
+}
+
+func installedBindingTargets(installation domain.Installation, scope string) []domain.ClientID {
+	seen := make(map[domain.ClientID]struct{}, len(installation.Clients))
+	result := make([]domain.ClientID, 0, len(installation.Clients))
+	for _, binding := range installation.Clients {
+		target := domain.ClientID(binding.ClientID)
+		if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent || !supportedTarget(target) {
+			continue
+		}
+		if _, duplicate := seen[target]; duplicate {
+			continue
+		}
+		seen[target] = struct{}{}
+		result = append(result, target)
 	}
 	sortTargets(result)
 	return result

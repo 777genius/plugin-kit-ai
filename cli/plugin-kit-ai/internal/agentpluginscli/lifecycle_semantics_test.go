@@ -87,9 +87,7 @@ func writePortableChatGPTPlugin(t *testing.T) string {
 
 func TestSharedCopilotVSCodeSurfacesSurviveUpdateRepairAndVscodeRemoval(t *testing.T) {
 	t.Parallel()
-	copilot := fixtureClient(t, domain.ClientCopilot)
-	copilot.ExecutablePath = "/test/bin/copilot"
-	fixture := newCLIFixture(t, []domain.DetectedClient{copilot, fixtureClient(t, domain.ClientVSCode)})
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientVSCode)})
 	plugin := writeCLIPlugin(t)
 	if _, _, err := fixture.execute(false, "add", plugin, "--target", "vscode"); err != nil {
 		t.Fatal(err)
@@ -140,5 +138,38 @@ func TestSharedCopilotVSCodeSurfacesSurviveUpdateRepairAndVscodeRemoval(t *testi
 	}
 	if len(removed.Installations[0].Clients) != 0 || !removed.Installations[0].DataRetained {
 		t.Fatalf("shared physical binding was not removed once: %+v", removed.Installations[0])
+	}
+}
+
+func TestVSCodeOnlySharedUpdateRejectsExplicitUndetectedCopilotWithoutMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientVSCode)})
+	plugin := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", plugin, "--target", "vscode"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingBefore := onlyCLIClient(before.Installations[0])
+	body, err := os.ReadFile(filepath.Join(plugin, "plugin.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "plugin.json"), []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "copilot,vscode"); err == nil || !strings.Contains(err.Error(), `target "copilot" was not detected`) {
+		t.Fatalf("explicit undetected Copilot update error = %v", err)
+	}
+	after, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingAfter := onlyCLIClient(after.Installations[0])
+	if bindingAfter.PackageRevision.Version != bindingBefore.PackageRevision.Version || len(bindingAfter.Receipts) != len(bindingBefore.Receipts) || bindingAfter.TargetLocator != bindingBefore.TargetLocator {
+		t.Fatalf("failed explicit shared update mutated binding: before=%+v after=%+v", bindingBefore, bindingAfter)
 	}
 }
