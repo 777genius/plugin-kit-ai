@@ -21,6 +21,7 @@ func TestSingleTargetServiceResolvesEitherLogicalSharedSurfaceToOnePhysicalBindi
 		t.Fatal(err)
 	}
 	update := addInput(t, vscode, "https://example.com/shared-service")
+	update.OperationID = "operation-two"
 	setEnvelopeVersion(t, &update.Envelope, "2.0.0", "sha256:shared-v2", "sha256:shared-manifest-v2")
 	update.Confirmed = true
 	if _, err := service.Update(context.Background(), update); err != nil {
