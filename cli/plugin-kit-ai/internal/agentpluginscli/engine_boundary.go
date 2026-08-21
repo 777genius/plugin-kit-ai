@@ -60,6 +60,13 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		return err
 	}
 	targetIDs := installationTargets(installation, string(domain.ScopeUser))
+	var detected map[domain.ClientID]domain.DetectedClient
+	if len(targetIDs) > 0 {
+		_, detected, err = preflightSelectedTargets(ctx, app, targetIDs, nil)
+		if err != nil {
+			return err
+		}
+	}
 	loaded, err := app.loadPackageFor(ctx, source, packageResolutionRequest{Targets: targetIDs, Operation: domain.DirectoryInstall})
 	if err != nil {
 		return err
@@ -104,26 +111,10 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		}
 		return err
 	}
-	clients, err := app.Detector.Detect(ctx)
-	if err != nil {
-		return err
-	}
-	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients)+1)
-	for _, client := range clients {
-		detected[client.ClientID] = client
-	}
-	if containsClientID(targetIDs, domain.ClientChatGPT) {
-		if _, ok := detected[domain.ClientChatGPT]; !ok {
-			detected[domain.ClientChatGPT] = domain.DetectedClient{ClientID: domain.ClientChatGPT, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
-		}
-	}
 	service = lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targetIDs))
 	for _, targetID := range targetIDs {
-		client, ok := detected[targetID]
-		if !ok || (client.Status != domain.DetectionDetected && targetID != domain.ClientChatGPT) {
-			return fmt.Errorf("switch target %s is not detected; no target was changed", targetID)
-		}
+		client := detected[targetID]
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, targetID); err != nil {
 			return err

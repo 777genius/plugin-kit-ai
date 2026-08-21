@@ -213,7 +213,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		return result, fmt.Errorf("delivery plan for %s is unsupported", plan.ClientID)
 	}
-	if err := preflightRuntime(input.Envelope, plan); err != nil {
+	if err := preflightRuntime(input.Envelope, plan, service.automaticallyActivates(input, plan)); err != nil {
 		return result, err
 	}
 	if err := rejectNativeNameCollision(state, installationID, input.Envelope.Manifest.Name, input.Client.ClientID); err != nil {
@@ -1090,8 +1090,21 @@ func packageNeedsPluginData(envelope domain.PackageEnvelope) bool {
 	return false
 }
 
-func preflightRuntime(envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
-	managedActivation := plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode
+type automaticActivationClassifier interface {
+	AutomaticallyActivates(domain.ActivationRequest) bool
+}
+
+func (service Service) automaticallyActivates(input AddInput, plan domain.DeliveryPlan) bool {
+	classifier, ok := service.Activator.(automaticActivationClassifier)
+	if !ok {
+		return false
+	}
+	return classifier.AutomaticallyActivates(domain.ActivationRequest{
+		Client: input.Client, Plan: plan, BackendExecutable: input.BackendExecutable,
+	})
+}
+
+func preflightRuntime(envelope domain.PackageEnvelope, plan domain.DeliveryPlan, automaticActivation bool) error {
 	for name, server := range envelope.MCP.Servers {
 		if server.Type != "stdio" {
 			continue
@@ -1099,7 +1112,7 @@ func preflightRuntime(envelope domain.PackageEnvelope, plan domain.DeliveryPlan)
 		command, _ := server.Decoded["command"].(string)
 		command = strings.TrimSpace(command)
 		if command == "" {
-			if managedActivation {
+			if automaticActivation {
 				return fmt.Errorf("stdio MCP server %s has no executable command", name)
 			}
 			continue
@@ -1118,7 +1131,7 @@ func preflightRuntime(envelope domain.PackageEnvelope, plan domain.DeliveryPlan)
 			}
 			continue
 		}
-		if _, err := exec.LookPath(command); err != nil && managedActivation {
+		if _, err := exec.LookPath(command); err != nil && automaticActivation {
 			return fmt.Errorf("stdio MCP server %s requires executable %q on PATH; install it explicitly before retrying (agentplugins never installs runtimes)", name, command)
 		}
 	}

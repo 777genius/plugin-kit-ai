@@ -42,6 +42,10 @@ func runAddMany(ctx context.Context, cmd *cobra.Command, app App, opts *options,
 }
 
 func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	if err != nil {
+		return err
+	}
 	writeProgress(app, opts.format, "Resolving and validating one Agent Plugin package for every selected target...")
 	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, expandAffectedSurfaceTargets(targets)))
 	if err != nil {
@@ -50,7 +54,7 @@ func runAddManyWithClients(ctx context.Context, cmd *cobra.Command, app App, opt
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
-	return runAddManyLoaded(ctx, cmd, app, opts, loaded, targets, activationComplete, authComplete, clients)
+	return runAddManyLoaded(ctx, cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClientValues(detected))
 }
 
 func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *options, loaded loadedPackage, targets []domain.ClientID, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
@@ -71,39 +75,9 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		Directory: cloneDirectoryOrigin(loaded.directory),
 		DryRun:    opts.dryRun, Targets: make([]addTargetResult, 0, len(targets)),
 	}
-	if clients == nil {
-		detectedClients, err := app.Detector.Detect(ctx)
-		if err != nil {
-			return fmt.Errorf("detect AI clients: %w", err)
-		}
-		clients = detectedClients
-	}
-	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients)+1)
-	for _, client := range clients {
-		detected[client.ClientID] = client
-	}
-	selected := make([]domain.DetectedClient, 0, len(targets))
-	missingTarget := domain.ClientID("")
-	for _, target := range targets {
-		client, ok := detected[target]
-		if target == domain.ClientChatGPT && !ok {
-			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
-			detected[target] = client
-			ok = true
-		}
-		if !ok || (client.Status != domain.DetectionDetected && target != domain.ClientChatGPT) {
-			missingTarget = target
-			combined.Failed++
-			combined.Targets = append(combined.Targets, addTargetResult{Target: string(target), Status: "not_detected", Output: newAddResultData(loaded.envelope, usecase.AddResult{}, true)})
-			continue
-		}
-		combined.Targets = append(combined.Targets, addTargetResult{Target: string(target), Status: "detected", Output: newAddResultData(loaded.envelope, usecase.AddResult{}, true)})
-		selected = append(selected, client)
-	}
-	if missingTarget != "" {
-		combined.Status = "preflight_failed"
-		_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
-		return fmt.Errorf("target %q was not detected; no target was changed", missingTarget)
+	selected, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	if err != nil {
+		return err
 	}
 	combined.Targets = combined.Targets[:0]
 	service := lifecycleService(app, detected)

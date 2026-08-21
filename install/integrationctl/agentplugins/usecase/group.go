@@ -246,7 +246,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		if plan.Status == domain.PlanUnsupported {
 			return result, fmt.Errorf("target %s is unsupported; group preflight caused no mutation", target.Client.ClientID)
 		}
-		if err := preflightRuntime(target.Envelope, plan); err != nil {
+		if err := preflightRuntime(target.Envelope, plan, service.automaticallyActivates(target, plan)); err != nil {
 			return result, err
 		}
 		key := plan.ActivePath
@@ -325,7 +325,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			if plan.Status == domain.PlanUnsupported {
 				return result, fmt.Errorf("update candidate is incompatible with installed binding %s", check.Client.ClientID)
 			}
-			if err := preflightRuntime(check.Envelope, plan); err != nil {
+			if err := preflightRuntime(check.Envelope, plan, service.automaticallyActivates(check, plan)); err != nil {
 				return result, err
 			}
 			for _, binding := range state.Installations[installationIndex].Clients {

@@ -301,26 +301,59 @@ func TestCopilotAndVSCodeShareOneGroupedPhysicalMutation(t *testing.T) {
 	}
 }
 
-func TestMissingManagedStdioRuntimeFailsGroupedPreflightWithoutMutation(t *testing.T) {
+func TestMissingManagedStdioRuntimeFailsAutomaticActivationPreflightWithoutMutation(t *testing.T) {
 	t.Parallel()
-	copilot := fixtureClient(t, domain.ClientCopilot)
-	copilot.ExecutablePath = "/test/bin/copilot"
-	fixture := newCLIFixture(t, []domain.DetectedClient{copilot})
-	plugin := writeCLIPlugin(t)
-	mcp := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"stdio","command":"uap-runtime-that-does-not-exist"}}}`
-	if err := os.WriteFile(filepath.Join(plugin, "mcp.json"), []byte(mcp), 0o644); err != nil {
-		t.Fatal(err)
+	for _, test := range []struct {
+		client     domain.ClientID
+		executable string
+	}{
+		{client: domain.ClientCodex, executable: "/test/bin/codex"},
+		{client: domain.ClientCopilot, executable: "/test/bin/copilot"},
+		{client: domain.ClientKiro, executable: "/test/bin/kiro-cli"},
+	} {
+		t.Run(string(test.client), func(t *testing.T) {
+			client := fixtureClient(t, test.client)
+			client.ExecutablePath = test.executable
+			fixture := newCLIFixture(t, []domain.DetectedClient{client})
+			fixture.app.Lifecycle.Activator = providers.Activator{Runner: &cliCommandRunner{}}
+			plugin := writeCLIPlugin(t)
+			mcp := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"stdio","command":"uap-runtime-that-does-not-exist"}}}`
+			if err := os.WriteFile(filepath.Join(plugin, "mcp.json"), []byte(mcp), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, _, err := fixture.execute(false, "add", plugin, "--target", string(test.client))
+			if err == nil || !strings.Contains(err.Error(), `requires executable "uap-runtime-that-does-not-exist" on PATH`) || !strings.Contains(err.Error(), "install it explicitly") || !strings.Contains(err.Error(), "never installs runtimes") {
+				t.Fatalf("missing runtime guidance = %v", err)
+			}
+			state, loadErr := fixture.store.Load()
+			if loadErr != nil {
+				t.Fatal(loadErr)
+			}
+			if len(state.Installations) != 0 {
+				t.Fatalf("missing runtime mutated state: %+v", state)
+			}
+		})
 	}
-	_, _, err := fixture.execute(false, "add", plugin, "--target", "copilot")
-	if err == nil || !strings.Contains(err.Error(), `requires executable "uap-runtime-that-does-not-exist" on PATH`) || !strings.Contains(err.Error(), "install it explicitly") || !strings.Contains(err.Error(), "never installs runtimes") {
-		t.Fatalf("missing runtime guidance = %v", err)
+}
+
+func TestUnavailableSelectedTargetFailsBeforePackageAcquisition(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
+	fixture.app.SourceAcquirer = counter
+	_, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "kiro")
+	if err == nil || !strings.Contains(err.Error(), `target "kiro" was not detected`) || !strings.Contains(err.Error(), "no target was changed") {
+		t.Fatalf("unavailable target error = %v", err)
+	}
+	if counter.calls != 0 {
+		t.Fatalf("unavailable target acquired package %d times", counter.calls)
 	}
 	state, loadErr := fixture.store.Load()
 	if loadErr != nil {
 		t.Fatal(loadErr)
 	}
 	if len(state.Installations) != 0 {
-		t.Fatalf("missing runtime mutated state: %+v", state)
+		t.Fatalf("unavailable target mutated state: %+v", state)
 	}
 }
 
@@ -1127,6 +1160,35 @@ func TestRepairExplicitlyRestoresMissingManagedDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "plugin.json")); err != nil {
 		t.Fatalf("repaired package: %v", err)
+	}
+}
+
+func TestRepairUnavailableSelectedTargetFailsBeforePackageAcquisition(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	if _, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
+	fixture.app.SourceAcquirer = counter
+	fixture.app.Detector = staticDetector{}
+	_, _, err = fixture.execute(false, "repair", "demo", "--target", "cursor")
+	if err == nil || !strings.Contains(err.Error(), `target "cursor" was not detected`) || !strings.Contains(err.Error(), "no target was changed") {
+		t.Fatalf("unavailable repair target error = %v", err)
+	}
+	if counter.calls != 0 {
+		t.Fatalf("unavailable repair target acquired package %d times", counter.calls)
+	}
+	after, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("unavailable repair target mutated state: before=%+v after=%+v", before, after)
 	}
 }
 

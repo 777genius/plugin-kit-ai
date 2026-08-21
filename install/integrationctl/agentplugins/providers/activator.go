@@ -24,6 +24,13 @@ type Activator struct {
 	Runner CommandRunner
 }
 
+// AutomaticallyActivates reports whether Activate will use a managed client
+// CLI for this exact request. Runtime preflight consumes this same predicate so
+// it cannot drift from the provider's activation paths.
+func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
+	return activationObservable(request, activator.Runner != nil)
+}
+
 func (activator Activator) Deactivate(ctx context.Context, request domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.DeactivationOutcome{}, err
@@ -107,7 +114,7 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		Policy:         domain.PolicyAllowed,
 		Verification:   domain.VerificationPackageValid,
 	}
-	if request.ActivationComplete && !activationObservable(request, activator.Runner != nil) {
+	if request.ActivationComplete && !activator.AutomaticallyActivates(request) {
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
 		outcome.ActivationAttested = true

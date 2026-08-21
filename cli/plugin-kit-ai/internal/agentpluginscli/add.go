@@ -36,6 +36,10 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				_, detected, err := preflightSelectedTargets(cmd.Context(), app, targets, detectedClients)
+				if err != nil {
+					return err
+				}
 				writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
 				loaded, err := app.loadPackageFor(cmd.Context(), args[0], app.addResolutionRequest(args[0], targets))
 				if err != nil {
@@ -44,7 +48,7 @@ func newAddCommand(app App, opts *options) *cobra.Command {
 				if loaded.cleanup != nil {
 					defer loaded.cleanup()
 				}
-				return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClients)
+				return runAddManyLoaded(cmd.Context(), cmd, app, opts, loaded, targets, activationComplete, authComplete, detectedClientValues(detected))
 			}
 			targets, err := parseTargetOption(opts.target)
 			if err != nil {
@@ -66,11 +70,15 @@ func runAdd(ctx context.Context, cmd *cobra.Command, app App, opts *options, sou
 }
 
 func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *options, source string, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
-	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
 	targets, err := parseTargetOption(opts.target)
 	if err != nil {
 		return err
 	}
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, clients)
+	if err != nil {
+		return err
+	}
+	writeProgress(app, opts.format, "Resolving and validating Agent Plugin...")
 	loaded, err := app.loadPackageFor(ctx, source, app.addResolutionRequest(source, targets))
 	if err != nil {
 		return err
@@ -78,17 +86,10 @@ func runAddWithClients(ctx context.Context, cmd *cobra.Command, app App, opts *o
 	if loaded.cleanup != nil {
 		defer loaded.cleanup()
 	}
-	return runAddLoaded(ctx, cmd, app, opts, loaded, activationComplete, authComplete, clients)
+	return runAddLoaded(ctx, cmd, app, opts, loaded, activationComplete, authComplete, detectedClientValues(detected))
 }
 
 func runAddLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *options, loaded loadedPackage, activationComplete, authComplete bool, clients []domain.DetectedClient) error {
-	if clients == nil {
-		detectedClients, err := app.Detector.Detect(ctx)
-		if err != nil {
-			return fmt.Errorf("detect AI clients: %w", err)
-		}
-		clients = detectedClients
-	}
 	if automatedMutation(app, opts) && strings.TrimSpace(opts.target) == "" {
 		return fmt.Errorf("automated installation requires --target")
 	}

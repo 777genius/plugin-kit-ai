@@ -83,6 +83,10 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			requests[key] = &request
 		}
 	}
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil)
+	if err != nil {
+		return err
+	}
 	writeProgress(app, opts.format, "Resolving and validating each unique exact installed package revision once...")
 	keys := make([]string, 0, len(requests))
 	for key := range requests {
@@ -106,14 +110,6 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			defer loaded.cleanup()
 		}
 	}
-	clients, err := app.Detector.Detect(ctx)
-	if err != nil {
-		return fmt.Errorf("detect AI clients: %w", err)
-	}
-	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients)+1)
-	for _, client := range clients {
-		detected[client.ClientID] = client
-	}
 	service := lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targets))
 	result := repairMultiResult{Batch: true, Status: "planned", Plugin: installation.DeclaredName, DryRun: opts.dryRun, Targets: make([]repairTargetResult, 0, len(targets))}
@@ -124,15 +120,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
 		}
-		client, ok := detectedSharedClient(target, detected)
-		if target == domain.ClientChatGPT && !ok {
-			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
-			detected[target] = client
-			ok = true
-		}
-		if !ok || (client.Status != domain.DetectionDetected && target != domain.ClientChatGPT) {
-			return fmt.Errorf("target %q was not detected; no target was changed", target)
-		}
+		client := detected[target]
 		input := usecase.AddInput{
 			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
 			Interactive: false, Hints: clientPackage.hints,

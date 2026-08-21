@@ -53,6 +53,10 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		selectedSet[target] = true
 	}
 	allTargets := installationTargets(installation, opts.scope)
+	_, detected, err := preflightSelectedTargets(ctx, app, allTargets, nil)
+	if err != nil {
+		return err
+	}
 	writeProgress(app, opts.format, "Resolving and validating one updated Agent Plugin package for every selected target...")
 	operation := domain.DirectoryUpdate
 	if selectedTargetsNeedDesiredRelease(installation, targets, opts.scope) {
@@ -71,14 +75,6 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.OriginMode != domain.OriginModeDirectory && domain.ComputeSourceBindingID(loaded.envelope.Source) != installation.Source.SourceBindingID {
 		return fmt.Errorf("resolved source identity changed; use agentplugins switch after reviewing provenance")
 	}
-	clients, err := app.Detector.Detect(ctx)
-	if err != nil {
-		return fmt.Errorf("detect AI clients: %w", err)
-	}
-	detected := make(map[domain.ClientID]domain.DetectedClient, len(clients)+1)
-	for _, client := range clients {
-		detected[client.ClientID] = client
-	}
 	service := lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targets))
 	compatibility := make([]usecase.AddInput, 0, len(allTargets))
@@ -90,15 +86,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		DryRun: opts.dryRun, Targets: make([]updateTargetResult, 0, len(targets)),
 	}
 	for _, target := range allTargets {
-		client, ok := detectedSharedClient(target, detected)
-		if target == domain.ClientChatGPT && !ok {
-			client = domain.DetectedClient{ClientID: target, DisplayName: "ChatGPT", Status: domain.DetectionNotDetected}
-			detected[target] = client
-			ok = true
-		}
-		if !ok || (client.Status != domain.DetectionDetected && target != domain.ClientChatGPT) {
-			return fmt.Errorf("target %q was not detected; no target was changed", target)
-		}
+		client := detected[target]
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
