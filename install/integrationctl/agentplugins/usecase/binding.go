@@ -65,10 +65,11 @@ type BindingChangeInput struct {
 }
 
 type BindingChangeResult struct {
-	Plan                 BindingChangePlan `json:"plan"`
-	RequiresConfirmation bool              `json:"requires_confirmation"`
-	Mutated              bool              `json:"mutated"`
-	NoChange             bool              `json:"no_change,omitempty"`
+	Plan                 BindingChangePlan         `json:"plan"`
+	PluginData           domain.PluginDataDecision `json:"plugin_data"`
+	RequiresConfirmation bool                      `json:"requires_confirmation"`
+	Mutated              bool                      `json:"mutated"`
+	NoChange             bool                      `json:"no_change,omitempty"`
 }
 
 func (service Service) Rebind(ctx context.Context, input BindingChangeInput) (BindingChangeResult, error) {
@@ -109,7 +110,7 @@ func (service Service) SwitchRetained(ctx context.Context, input BindingChangeIn
 	}
 	plan := buildBindingChangePlan(BindingChangeSwitch, installation, input.Envelope)
 	plan.PluginDataDecision = "preserved_with_cross_distribution_compatibility_warning"
-	result := BindingChangeResult{Plan: plan}
+	result := BindingChangeResult{Plan: plan, PluginData: switchPluginDataDecision(installation)}
 	if !installation.DataRetained || len(installation.Clients) != 0 {
 		return result, fmt.Errorf("active installation switch requires SwitchGroup")
 	}

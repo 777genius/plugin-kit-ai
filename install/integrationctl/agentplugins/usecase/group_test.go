@@ -119,6 +119,102 @@ func TestGroupedPreflightFailureMutatesNoTarget(t *testing.T) {
 	}
 }
 
+func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRollback(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	upstream := &domain.DirectoryOrigin{
+		ProductID: "demo", DistributionID: "publisher/demo", DistributionKind: domain.DistributionUpstream,
+		DesiredReleaseSequence: 1, SnapshotSchema: 1, SnapshotSequence: 1, SnapshotDigest: "sha256:upstream-snapshot",
+	}
+	bridge := &domain.DirectoryOrigin{
+		ProductID: "demo", DistributionID: "community/demo-bridge", DistributionKind: domain.DistributionCommunityBridge,
+		DesiredReleaseSequence: 2, SnapshotSchema: 1, SnapshotSequence: 2, SnapshotDigest: "sha256:bridge-snapshot",
+	}
+	stateful := func(source string, directory *domain.DirectoryOrigin, version, tree, manifest string) AddInput {
+		input := addInput(t, cursor, source)
+		input.OriginMode, input.DirectoryResolution = domain.OriginModeDirectory, directory
+		setEnvelopeVersion(t, &input.Envelope, version, tree, manifest)
+		input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
+			"local": {Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "sh", "args": []any{"-c", "echo ${PLUGIN_DATA}"}}},
+		}}
+		input.Envelope.Inventory.MCPServers = []string{"local"}
+		return input
+	}
+	initial := stateful("publisher/demo", upstream, "1.0.0", "sha256:upstream-tree", "sha256:upstream-manifest")
+	added, err := service.AddGroup(context.Background(), GroupInput{Targets: []AddInput{initial}, OperationGroupID: "upstream-add", Confirmed: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := onlyBinding(state.Installations[0])
+	receipt := state.Installations[0].DataReceipts[before.DataReceiptID]
+	marker := filepath.Join(receipt.Locator, "switch-marker")
+	if err := os.WriteFile(marker, []byte("preserve"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	toBridge := addInput(t, cursor, "community/demo-bridge")
+	toBridge.OriginMode, toBridge.DirectoryResolution = domain.OriginModeDirectory, bridge
+	setEnvelopeVersion(t, &toBridge.Envelope, "2.0.0", "sha256:bridge-tree", "sha256:bridge-manifest")
+	preview, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{toBridge}, OperationGroupID: "bridge-preview", DryRun: true, Switch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview.PluginData.Disposition != domain.PluginDataRetained || preview.PluginData.Ownership != domain.PluginDataOwnershipOwned || preview.PluginData.Compatibility != domain.PluginDataCompatibilityNotProven || preview.PluginData.Warning != domain.PluginDataCompatibilityWarning {
+		t.Fatalf("switch preview data decision = %+v", preview.PluginData)
+	}
+
+	originalStager := service.Stager
+	service.Stager = verificationFailureStager{PackageStager: originalStager, err: errors.New("injected switch verification failure")}
+	rolledBack, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{toBridge}, OperationGroupID: "bridge-rollback", Confirmed: true, Switch: true})
+	if err == nil || rolledBack.Phase != GroupPhaseManagedRolledBack {
+		t.Fatalf("switch rollback = %+v, %v", rolledBack, err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterRollback := onlyBinding(state.Installations[0])
+	if afterRollback.DataReceiptID != receipt.DataReceiptID || state.Installations[0].Directory.DistributionID != upstream.DistributionID {
+		t.Fatalf("rollback changed data ownership or distribution: %+v", state.Installations[0])
+	}
+	if body, readErr := os.ReadFile(marker); readErr != nil || string(body) != "preserve" {
+		t.Fatalf("rollback changed PLUGIN_DATA marker: %q %v", body, readErr)
+	}
+
+	service.Stager = originalStager
+	applied, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{toBridge}, OperationGroupID: "bridge-apply", Confirmed: true, Switch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied.PluginData.Disposition != domain.PluginDataRetained || onlyBinding(state.Installations[0]).DataReceiptID != receipt.DataReceiptID || state.Installations[0].Directory.DistributionID != bridge.DistributionID {
+		t.Fatalf("bridge switch lost retained data: result=%+v state=%+v", applied, state.Installations[0])
+	}
+
+	reverse := stateful("publisher/demo", upstream, "3.0.0", "sha256:upstream-return-tree", "sha256:upstream-return-manifest")
+	reversed, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{reverse}, OperationGroupID: "upstream-return", Confirmed: true, Switch: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reversed.InstallationID != added.InstallationID || reversed.PluginData.Disposition != domain.PluginDataRetained || onlyBinding(state.Installations[0]).DataReceiptID != receipt.DataReceiptID || len(state.Installations[0].DataReceipts) != 1 {
+		t.Fatalf("reverse switch lost data ownership: result=%+v state=%+v", reversed, state.Installations[0])
+	}
+	if body, readErr := os.ReadFile(marker); readErr != nil || string(body) != "preserve" {
+		t.Fatalf("reverse switch changed PLUGIN_DATA marker: %q %v", body, readErr)
+	}
+}
+
 func TestGroupedRepairAllowsRecordedObjectToBeAbsentButNeverAdoptsForeignIdentity(t *testing.T) {
 	t.Parallel()
 	managed := &domain.ClientBinding{NativeObjects: []domain.NativeObjectOwnership{{Kind: "managed_package_directory", ManagedDigest: "sha256:owned"}}}

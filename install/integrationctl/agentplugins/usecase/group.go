@@ -22,12 +22,13 @@ type GroupInput struct {
 }
 
 type GroupResult struct {
-	InstallationID   string                   `json:"installation_id"`
-	OperationGroupID string                   `json:"operation_group_id,omitempty"`
-	Targets          []AddResult              `json:"targets"`
-	Receipts         []domain.MutationReceipt `json:"-"`
-	Mutated          bool                     `json:"mutated"`
-	Phase            GroupPhase               `json:"phase"`
+	InstallationID   string                    `json:"installation_id"`
+	OperationGroupID string                    `json:"operation_group_id,omitempty"`
+	Targets          []AddResult               `json:"targets"`
+	PluginData       domain.PluginDataDecision `json:"plugin_data"`
+	Receipts         []domain.MutationReceipt  `json:"-"`
+	Mutated          bool                      `json:"mutated"`
+	Phase            GroupPhase                `json:"phase"`
 }
 
 type GroupPhase string
@@ -213,6 +214,9 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		}
 	}
 	result := GroupResult{InstallationID: installationID, OperationGroupID: groupID, Targets: make([]AddResult, len(input.Targets)), Phase: GroupPhasePlanned}
+	if input.Switch && lifecycleBaseline != nil {
+		result.PluginData = switchPluginDataDecision(*lifecycleBaseline)
+	}
 	physical := map[string]int{}
 	planned := make([]plannedGroupTarget, 0, len(input.Targets))
 	for targetIndex, target := range input.Targets {
@@ -417,6 +421,11 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			}
 			installation.DataReceipts[target.dataReceipt.DataReceiptID] = target.dataReceipt
 			client.DataReceiptID = target.dataReceipt.DataReceiptID
+		} else if input.Switch && target.managed != nil {
+			// A destination that does not consume PLUGIN_DATA must not sever the
+			// retained receipt from the active binding. A later reverse switch
+			// can therefore recover the same owned directory.
+			client.DataReceiptID = target.managed.DataReceiptID
 		}
 		installation.DataRetained = false
 		installation.OperationGroupID = groupID
@@ -584,6 +593,29 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 	}
 	result.Phase = GroupPhaseCompleted
 	return result, nil
+}
+
+func switchPluginDataDecision(installation domain.Installation) domain.PluginDataDecision {
+	decision := domain.PluginDataDecision{
+		Disposition: domain.PluginDataNone, Ownership: domain.PluginDataOwnershipNone,
+		Compatibility: domain.PluginDataCompatibilityNotApplicable,
+	}
+	if len(installation.DataReceipts) == 0 {
+		return decision
+	}
+	decision.Disposition = domain.PluginDataRetained
+	decision.Present = true
+	decision.ReceiptCount = len(installation.DataReceipts)
+	decision.Ownership = domain.PluginDataOwnershipOwned
+	decision.Compatibility = domain.PluginDataCompatibilityNotProven
+	decision.Warning = domain.PluginDataCompatibilityWarning
+	for _, receipt := range installation.DataReceipts {
+		if receipt.State != domain.DataReceiptOwned || receipt.OwnershipDigest == "" {
+			decision.Ownership = domain.PluginDataOwnershipIndeterminate
+			break
+		}
+	}
+	return decision
 }
 
 func assignGroupReceipts(targets []AddResult, planned []plannedGroupTarget, receipts []domain.MutationReceipt) {

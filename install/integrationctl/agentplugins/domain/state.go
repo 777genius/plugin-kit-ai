@@ -15,6 +15,9 @@ type OriginMode string
 type DistributionKind string
 type DataReceiptState string
 type NativeIdentityState string
+type PluginDataDisposition string
+type PluginDataOwnership string
+type PluginDataCompatibility string
 
 const (
 	OriginModeDirectory OriginMode = "directory"
@@ -32,7 +35,30 @@ const (
 	NativeIdentityManaged       NativeIdentityState = "managed"
 	NativeIdentityUnmanaged     NativeIdentityState = "unmanaged"
 	NativeIdentityIndeterminate NativeIdentityState = "indeterminate"
+
+	PluginDataNone     PluginDataDisposition = "none"
+	PluginDataRetained PluginDataDisposition = "retained"
+
+	PluginDataOwnershipNone          PluginDataOwnership = "none"
+	PluginDataOwnershipOwned         PluginDataOwnership = "owned"
+	PluginDataOwnershipIndeterminate PluginDataOwnership = "indeterminate"
+
+	PluginDataCompatibilityNotApplicable PluginDataCompatibility = "not_applicable"
+	PluginDataCompatibilityNotProven     PluginDataCompatibility = "not_proven"
 )
+
+const PluginDataCompatibilityWarning = "existing PLUGIN_DATA is retained, but cross-distribution data compatibility is not guaranteed unless proven by the plugin distributions"
+
+// PluginDataDecision is the public switch decision for persistent plugin data.
+// It deliberately exposes ownership evidence without exposing the owned path.
+type PluginDataDecision struct {
+	Disposition   PluginDataDisposition   `json:"disposition"`
+	Present       bool                    `json:"present"`
+	ReceiptCount  int                     `json:"receipt_count"`
+	Ownership     PluginDataOwnership     `json:"ownership"`
+	Compatibility PluginDataCompatibility `json:"compatibility"`
+	Warning       string                  `json:"warning,omitempty"`
+}
 
 type NativeIdentityObservation struct {
 	State  NativeIdentityState `json:"state"`

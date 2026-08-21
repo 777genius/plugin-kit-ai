@@ -20,7 +20,15 @@ type switchOutput struct {
 	Directory      *domain.DirectoryOrigin      `json:"directory,omitempty"`
 	Group          *usecase.GroupResult         `json:"group,omitempty"`
 	Retained       *usecase.BindingChangeResult `json:"retained,omitempty"`
+	PluginData     domain.PluginDataDecision    `json:"plugin_data"`
+	Targets        []switchTargetOutput         `json:"targets"`
 	Status         string                       `json:"status"`
+}
+
+type switchTargetOutput struct {
+	ClientID   domain.ClientID `json:"client_id"`
+	Status     string          `json:"status"`
+	NextAction string          `json:"next_action"`
 }
 
 func newSwitchCommand(app App, opts *options) *cobra.Command {
@@ -78,12 +86,14 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		return fmt.Errorf("switch source manifest name %q does not match installed product %q", loaded.envelope.Manifest.Name, installation.DeclaredName)
 	}
 	output := switchOutput{DryRun: true, Status: "planned", Source: publicPackageSource(loaded.envelope.Source), Revision: loaded.envelope.Source.ResolvedRevision,
-		TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest, Directory: cloneDirectoryOrigin(loaded.directory)}
+		TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest, Directory: cloneDirectoryOrigin(loaded.directory),
+		PluginData: switchOutputPluginData(installation)}
 	service := app.Lifecycle
 	service.StateStore = app.StateStore
 	if installation.DataRetained && len(installation.Clients) == 0 {
 		planned, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope}, loaded.origin, loaded.directory)
 		output.Retained = &planned
+		output.PluginData = planned.PluginData
 		if err != nil {
 			output.Status = "preflight_failed"
 			if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil {
@@ -101,6 +111,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		}
 		applied, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope, Confirmed: true}, loaded.origin, loaded.directory)
 		output.DryRun, output.Retained = false, &applied
+		output.PluginData = applied.PluginData
 		if err != nil {
 			output.Status = "apply_failed"
 		} else {
@@ -129,6 +140,8 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	planned, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, DryRun: true, Switch: true})
 	output.Group = &planned
+	output.PluginData = planned.PluginData
+	output.Targets = switchTargets(planned)
 	if err != nil {
 		output.Status = "preflight_failed"
 		if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil {
@@ -146,6 +159,8 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	applied, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, Confirmed: true, Switch: true})
 	output.DryRun, output.Group = false, &applied
+	output.PluginData = applied.PluginData
+	output.Targets = switchTargets(applied)
 	if err != nil {
 		output.Status = groupFailureStatus(applied.Phase)
 	} else {
@@ -174,16 +189,90 @@ func renderSwitchResult(writer io.Writer, format string, result switchOutput) er
 	if status == "" {
 		status = "planned"
 	}
-	_, _ = fmt.Fprintf(writer, "Switch: %s\n", status)
-	if result.Group != nil {
-		for _, target := range result.Group.Targets {
-			_, _ = fmt.Fprintf(writer, "  %s: %s\n", target.Plan.ClientID, target.Plan.Status)
+	if status == string(usecase.GroupPhaseCompleted) && (result.PluginData.Present || switchHasPendingActions(result.Targets)) {
+		_, _ = fmt.Fprintln(writer, "Switch: completed; follow-up required")
+	} else {
+		_, _ = fmt.Fprintf(writer, "Switch: %s\n", status)
+	}
+	if result.PluginData.Present {
+		_, _ = fmt.Fprintf(writer, "  PLUGIN_DATA: retained (%s; compatibility %s)\n", result.PluginData.Ownership, result.PluginData.Compatibility)
+		_, _ = fmt.Fprintf(writer, "  Warning: %s\n", result.PluginData.Warning)
+	}
+	for _, target := range result.Targets {
+		_, _ = fmt.Fprintf(writer, "  %s: %s\n", target.ClientID, target.Status)
+		if target.NextAction != "" {
+			_, _ = fmt.Fprintf(writer, "    Next: %s\n", target.NextAction)
 		}
 	}
 	if result.Retained != nil {
-		_, _ = fmt.Fprintln(writer, "  retained PLUGIN_DATA: preserved")
+		_, _ = fmt.Fprintln(writer, "  No active targets; source metadata switched and retained data was not changed.")
 	}
 	return nil
+}
+
+func switchOutputPluginData(installation domain.Installation) domain.PluginDataDecision {
+	decision := domain.PluginDataDecision{Disposition: domain.PluginDataNone, Ownership: domain.PluginDataOwnershipNone, Compatibility: domain.PluginDataCompatibilityNotApplicable}
+	if len(installation.DataReceipts) == 0 {
+		return decision
+	}
+	decision.Disposition, decision.Present, decision.ReceiptCount = domain.PluginDataRetained, true, len(installation.DataReceipts)
+	decision.Ownership, decision.Compatibility, decision.Warning = domain.PluginDataOwnershipOwned, domain.PluginDataCompatibilityNotProven, domain.PluginDataCompatibilityWarning
+	for _, receipt := range installation.DataReceipts {
+		if receipt.State != domain.DataReceiptOwned || receipt.OwnershipDigest == "" {
+			decision.Ownership = domain.PluginDataOwnershipIndeterminate
+			break
+		}
+	}
+	return decision
+}
+
+func switchTargets(group usecase.GroupResult) []switchTargetOutput {
+	targets := make([]switchTargetOutput, 0, len(group.Targets))
+	for _, target := range group.Targets {
+		status := groupTargetStatus(target)
+		if status == "" {
+			status = string(target.Plan.Status)
+		}
+		targets = append(targets, switchTargetOutput{ClientID: target.Plan.ClientID, Status: status, NextAction: nextSwitchAction(target)})
+	}
+	return targets
+}
+
+func nextSwitchAction(result usecase.AddResult) string {
+	var action string
+	if len(result.Activation.UserActions) > 0 {
+		action = result.Activation.UserActions[0]
+	} else if len(result.Plan.UserActions) > 0 {
+		action = result.Plan.UserActions[0]
+	}
+	if result.Activation.Authentication == domain.AuthenticationPending || (result.Activation.Authentication == "" && result.Plan.Authentication == domain.AuthenticationPending) {
+		if action != "" {
+			return action + "; complete authentication, then verify activation and authentication in the target client"
+		}
+		return "complete authentication, then verify activation and authentication in the target client"
+	}
+	if result.Activation.Authentication == domain.AuthenticationNotChecked || (result.Activation.Authentication == "" && result.Plan.Authentication == domain.AuthenticationNotChecked) {
+		if action != "" {
+			return action + "; verify authentication requirements before using the plugin"
+		}
+		return "verify authentication requirements before using the plugin"
+	}
+	if action != "" {
+		return action
+	}
+	if fullyInstalled(result.Activation) {
+		return "start a new client session and verify the switched plugin is available"
+	}
+	return "finish activation in the target client, authenticate if requested, then verify the switched plugin is available"
+}
+
+func switchHasPendingActions(targets []switchTargetOutput) bool {
+	for _, target := range targets {
+		if target.NextAction != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (result switchOutput) outputResult() string {
