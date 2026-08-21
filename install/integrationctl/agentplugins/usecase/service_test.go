@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1444,6 +1445,165 @@ func TestPluginDataMarkerSurvivesUpdateRepairAndNormalRemovalUntilOwnedPurge(t *
 	}
 	if _, err := os.Lstat(receipt.Locator); !os.IsNotExist(err) {
 		t.Fatalf("owned purge retained PLUGIN_DATA: %v", err)
+	}
+}
+
+func TestNormalRemoveRollbackDoesNotStrandNewPluginDataOwnership(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	add := addInput(t, client, "./rollback-data")
+	add.Confirmed = true
+	installed, err := service.Add(context.Background(), add)
+	if err != nil {
+		t.Fatal(err)
+	}
+	faulted := false
+	service.Kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.PhaseActivationPending && !faulted {
+			faulted = true
+			return fmt.Errorf("injected removal failure")
+		}
+		return nil
+	}
+	_, err = service.Remove(context.Background(), RemoveInput{Selector: installed.InstallationID, Client: client, Scope: domain.ScopeUser,
+		Confirmed: true, OperationID: "rollback-data-remove"})
+	if err == nil || transaction.FailurePhase(err) != transaction.GroupFailureRolledBack {
+		t.Fatalf("removal failure = %v, phase=%q", err, transaction.FailurePhase(err))
+	}
+	state, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 1 || len(state.Installations[0].DataReceipts) != 0 {
+		t.Fatalf("rolled-back removal stranded state: %+v", state)
+	}
+	if _, statErr := os.Stat(installed.Plan.ActivePath); statErr != nil {
+		t.Fatalf("rolled-back managed package was not restored: %v", statErr)
+	}
+	dataBase := service.PluginData.(providers.PluginDataManager).Base
+	if entries, readErr := os.ReadDir(dataBase); readErr == nil && len(entries) != 0 {
+		t.Fatalf("rolled-back removal stranded PLUGIN_DATA: %v", entries)
+	} else if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatal(readErr)
+	}
+}
+
+func TestRetainedDataPurgePreflightsEveryReceiptBeforeRename(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	add := addInput(t, cursor, "./preflight-data")
+	add.Confirmed = true
+	added, err := service.Add(context.Background(), add)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Remove(context.Background(), RemoveInput{Selector: added.InstallationID, Client: cursor, Scope: domain.ScopeUser,
+		Confirmed: true, OperationID: "preflight-data-remove"}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := service.PluginData.(providers.PluginDataManager)
+	second, _, err := manager.EnsureData(context.Background(), added.InstallationID, "second-backend", string(domain.ScopeUser))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state.Installations[0].DataReceipts[second.DataReceiptID] = second
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].DataReceipts) != 2 {
+		t.Fatalf("retained data state = %+v", state)
+	}
+	paths := make([]string, 0, 2)
+	for key, receipt := range state.Installations[0].DataReceipts {
+		paths = append(paths, receipt.Locator)
+		receipt.OwnershipDigest = "sha256:stale"
+		state.Installations[0].DataReceipts[key] = receipt
+		break
+	}
+	for _, receipt := range state.Installations[0].DataReceipts {
+		if !slices.Contains(paths, receipt.Locator) {
+			paths = append(paths, receipt.Locator)
+		}
+	}
+	if err := store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.PurgeRetainedData(context.Background(), added.InstallationID, true); err == nil {
+		t.Fatal("purge accepted a stale ownership receipt")
+	}
+	after, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after.Installations) != 1 {
+		t.Fatalf("failed purge changed retained state: %+v", after)
+	}
+	for _, path := range paths {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("failed purge renamed data before complete preflight: %s: %v", path, err)
+		}
+	}
+}
+
+func TestRetainedDataPurgeRollsBackAndRetriesAfterRenameFailure(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	add := addInput(t, client, "./retry-purge")
+	add.Confirmed = true
+	added, err := service.Add(context.Background(), add)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Remove(context.Background(), RemoveInput{Selector: added.InstallationID, Client: client, Scope: domain.ScopeUser,
+		Confirmed: true, OperationID: "retry-purge-remove"}); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dataPath string
+	for _, receipt := range state.Installations[0].DataReceipts {
+		dataPath = receipt.Locator
+	}
+	faulted := false
+	service.Kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.PhaseActivationPending && !faulted {
+			faulted = true
+			return fmt.Errorf("injected purge failure")
+		}
+		return nil
+	}
+	if err := service.PurgeRetainedData(context.Background(), added.InstallationID, true); err == nil || transaction.FailurePhase(err) != transaction.GroupFailureRolledBack {
+		t.Fatalf("purge failure = %v, phase=%q", err, transaction.FailurePhase(err))
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 {
+		t.Fatalf("rolled-back purge changed state: %+v", state)
+	}
+	if _, err := os.Stat(dataPath); err != nil {
+		t.Fatalf("rolled-back purge did not restore data: %v", err)
+	}
+	service.Kernel.Directory.Fault = nil
+	if err := service.PurgeRetainedData(context.Background(), added.InstallationID, true); err != nil {
+		t.Fatal(err)
+	}
+	state, err = store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("retried purge retained state: %+v", state)
+	}
+	if _, err := os.Stat(dataPath); !os.IsNotExist(err) {
+		t.Fatalf("retried purge retained data: %v", err)
 	}
 }
 

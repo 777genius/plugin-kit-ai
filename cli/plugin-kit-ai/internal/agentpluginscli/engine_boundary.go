@@ -20,6 +20,7 @@ type switchOutput struct {
 	Directory      *domain.DirectoryOrigin      `json:"directory,omitempty"`
 	Group          *usecase.GroupResult         `json:"group,omitempty"`
 	Retained       *usecase.BindingChangeResult `json:"retained,omitempty"`
+	Status         string                       `json:"status"`
 }
 
 func newSwitchCommand(app App, opts *options) *cobra.Command {
@@ -69,7 +70,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if loaded.envelope.Manifest.Name != installation.DeclaredName {
 		return fmt.Errorf("switch source manifest name %q does not match installed product %q", loaded.envelope.Manifest.Name, installation.DeclaredName)
 	}
-	output := switchOutput{DryRun: true, Source: publicPackageSource(loaded.envelope.Source), Revision: loaded.envelope.Source.ResolvedRevision,
+	output := switchOutput{DryRun: true, Status: "planned", Source: publicPackageSource(loaded.envelope.Source), Revision: loaded.envelope.Source.ResolvedRevision,
 		TreeDigest: loaded.envelope.TreeDigest, ManifestDigest: loaded.envelope.ManifestDigest, Directory: cloneDirectoryOrigin(loaded.directory)}
 	service := app.Lifecycle
 	service.StateStore = app.StateStore
@@ -89,6 +90,11 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		}
 		applied, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope, Confirmed: true}, loaded.origin, loaded.directory)
 		output.DryRun, output.Retained = false, &applied
+		if err != nil {
+			output.Status = "apply_failed"
+		} else {
+			output.Status = "completed"
+		}
 		if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil && err == nil {
 			err = renderErr
 		}
@@ -136,6 +142,11 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	applied, err := service.SwitchGroup(ctx, usecase.GroupInput{Targets: inputs, OperationGroupID: operationID, Confirmed: true, Switch: true})
 	output.DryRun, output.Group = false, &applied
+	if err != nil {
+		output.Status = groupFailureStatus(applied.Phase)
+	} else {
+		output.Status = string(applied.Phase)
+	}
 	if renderErr := renderSwitchResult(cmd.OutOrStdout(), opts.format, output); renderErr != nil && err == nil {
 		err = renderErr
 	}
@@ -146,9 +157,9 @@ func renderSwitchResult(writer io.Writer, format string, result switchOutput) er
 	if format == "json" {
 		return writeJSONOutput(writer, "switch", result)
 	}
-	status := "planned"
-	if !result.DryRun {
-		status = "completed"
+	status := result.Status
+	if status == "" {
+		status = "planned"
 	}
 	_, _ = fmt.Fprintf(writer, "Switch: %s\n", status)
 	if result.Group != nil {

@@ -191,6 +191,7 @@ type Installation struct {
 }
 
 type StateFileV2 struct {
-	SchemaVersion int            `json:"schema_version"`
-	Installations []Installation `json:"installations"`
+	SchemaVersion       int               `json:"schema_version"`
+	Installations       []Installation    `json:"installations"`
+	TransactionReceipts []MutationReceipt `json:"transaction_receipts,omitempty"`
 }

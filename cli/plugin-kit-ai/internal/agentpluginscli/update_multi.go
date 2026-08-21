@@ -117,7 +117,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	for index, targetResult := range planned.Targets {
 		output := newAddResultData(inputs[index].Envelope, targetResult, true)
 		output.OperationID = operationID
-		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: string(targetResult.Plan.Status), Output: output, NextAction: nextLifecycleAction(targetResult)})
+		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: groupTargetStatus(targetResult), Output: output, NextAction: nextLifecycleAction(targetResult)})
 	}
 	result.Succeeded = len(planned.Targets)
 	if err != nil {
@@ -129,15 +129,17 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		return renderUpdateMultiResult(cmd, opts, result)
 	}
 	applied, groupErr := service.UpdateGroup(ctx, usecase.GroupInput{Targets: inputs, CompatibilityChecks: compatibility, OperationGroupID: operationID, Confirmed: true})
-	result.Status, result.Targets, result.Succeeded = "completed", result.Targets[:0], 0
+	result.Status, result.Targets, result.Succeeded = string(applied.Phase), result.Targets[:0], 0
 	for index, targetResult := range applied.Targets {
 		output := newAddResultData(inputs[index].Envelope, targetResult, false)
 		output.OperationID = operationID
-		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: string(targetResult.Plan.Status), Output: output, NextAction: nextLifecycleAction(targetResult)})
-		result.Succeeded++
+		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: groupTargetStatus(targetResult), Output: output, NextAction: nextLifecycleAction(targetResult)})
+		if targetResult.GroupPhase == usecase.GroupTargetExternalCompleted {
+			result.Succeeded++
+		}
 	}
 	if groupErr != nil {
-		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		result.Status, result.Failed = groupFailureStatus(applied.Phase), len(inputs)-result.Succeeded
 		_ = renderUpdateMultiResult(cmd, opts, result)
 		return groupErr
 	}

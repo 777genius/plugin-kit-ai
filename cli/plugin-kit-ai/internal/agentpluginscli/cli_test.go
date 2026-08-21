@@ -45,6 +45,19 @@ func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
 	}
 }
 
+func TestSwitchRendererNeverClaimsCompletedAfterApplyFailure(t *testing.T) {
+	t.Parallel()
+	var output bytes.Buffer
+	result := switchOutput{DryRun: false, Status: string(usecase.GroupPhaseManagedActivationFailed),
+		Group: &usecase.GroupResult{Phase: usecase.GroupPhaseManagedActivationFailed}}
+	if err := renderSwitchResult(&output, "human", result); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "Switch: completed") || !strings.Contains(output.String(), "managed_committed_activation_failed") {
+		t.Fatalf("failure rendering = %q", output.String())
+	}
+}
+
 func TestOperationalAndReadCommandsProduceVersionedJSON(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})

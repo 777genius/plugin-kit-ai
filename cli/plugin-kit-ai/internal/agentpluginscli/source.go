@@ -393,7 +393,12 @@ func prepareLoadedPackageForClient(loaded *loadedPackage, clientID domain.Client
 }
 
 func restoreCatalogEvidence(loaded *loadedPackage, binding domain.ClientBinding) {
-	if loaded == nil || loaded.envelope.CatalogEvidence != nil || binding.PackageRevision == nil || binding.PackageRevision.CatalogEvidence == nil {
+	if loaded == nil || binding.PackageRevision == nil {
+		return
+	}
+	if binding.PackageRevision.CatalogEvidence == nil {
+		loaded.envelope.CatalogEvidence = nil
+		loaded.hints.Compatibility = nil
 		return
 	}
 	evidence := *binding.PackageRevision.CatalogEvidence

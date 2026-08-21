@@ -3,6 +3,8 @@ package agentpluginscli
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strconv"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
@@ -39,9 +41,15 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
 		return fmt.Errorf("repair requires a bound Agent Plugins installation")
 	}
-	var recordedSequence uint64
-	var directSource string
-	for index, target := range targets {
+	type revisionRequest struct {
+		sequence uint64
+		source   string
+		targets  []domain.ClientID
+	}
+	requests := map[string]*revisionRequest{}
+	targetRevision := make(map[domain.ClientID]string, len(targets))
+	recordedBindings := make(map[domain.ClientID]domain.ClientBinding, len(targets))
+	for _, target := range targets {
 		binding, err := selectedRepairBinding(installation, target, domain.ScopeUser)
 		if err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
@@ -49,38 +57,54 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		if binding.PackageRevision == nil {
 			return fmt.Errorf("repair target %s has no recorded package revision", target)
 		}
+		recordedBindings[target] = binding
+		key := ""
+		request := revisionRequest{}
 		if installation.OriginMode == domain.OriginModeDirectory {
-			if index == 0 {
-				recordedSequence = binding.PackageRevision.ReleaseSequence
-			}
-			if binding.PackageRevision.ReleaseSequence != recordedSequence {
-				return fmt.Errorf("grouped repair requires one recorded immutable release; run update to converge mixed revisions")
-			}
+			request.sequence = binding.PackageRevision.ReleaseSequence
+			key = "directory:" + binding.PackageRevision.DistributionID + ":" + strconv.FormatUint(request.sequence, 10)
 		} else {
 			source, err := repairSource(installation, binding)
 			if err != nil {
 				return err
 			}
-			if index == 0 {
-				directSource = source
-			}
-			if source != directSource {
-				return fmt.Errorf("grouped repair requires one recorded immutable package")
-			}
+			request.source = source
+			key = "direct:" + source
+		}
+		key += ":" + binding.PackageRevision.ResolvedRevision + ":" + binding.PackageRevision.TreeDigest + ":" + binding.PackageRevision.ManifestDigest
+		if binding.PackageRevision.CatalogEvidence != nil {
+			key += ":" + binding.PackageRevision.CatalogEvidence.Digest
+		}
+		targetRevision[target] = key
+		if existing := requests[key]; existing != nil {
+			existing.targets = append(existing.targets, target)
+		} else {
+			request.targets = []domain.ClientID{target}
+			requests[key] = &request
 		}
 	}
-	writeProgress(app, opts.format, "Resolving and validating one exact installed package revision...")
-	var loaded loadedPackage
-	if installation.OriginMode == domain.OriginModeDirectory {
-		loaded, err = app.loadInstalledPackage(ctx, installation, targets, domain.DirectoryRepair, recordedSequence)
-	} else {
-		loaded, err = app.loadPackageFor(ctx, directSource, packageResolutionRequest{Targets: targets, Operation: domain.DirectoryRepair})
+	writeProgress(app, opts.format, "Resolving and validating each unique exact installed package revision once...")
+	keys := make([]string, 0, len(requests))
+	for key := range requests {
+		keys = append(keys, key)
 	}
-	if err != nil {
-		return err
-	}
-	if loaded.cleanup != nil {
-		defer loaded.cleanup()
+	sort.Strings(keys)
+	loadedByRevision := make(map[string]loadedPackage, len(keys))
+	for _, key := range keys {
+		request := requests[key]
+		var loaded loadedPackage
+		if installation.OriginMode == domain.OriginModeDirectory {
+			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence)
+		} else {
+			loaded, err = app.loadPackageFor(ctx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair})
+		}
+		if err != nil {
+			return err
+		}
+		loadedByRevision[key] = loaded
+		if loaded.cleanup != nil {
+			defer loaded.cleanup()
+		}
 	}
 	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
@@ -94,7 +118,9 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	inputs := make([]usecase.AddInput, 0, len(targets))
 	result := repairMultiResult{Batch: true, Status: "planned", Plugin: installation.DeclaredName, DryRun: opts.dryRun, Targets: make([]repairTargetResult, 0, len(targets))}
 	for _, target := range targets {
+		loaded := loadedByRevision[targetRevision[target]]
 		clientPackage := cloneLoadedPackage(loaded)
+		restoreCatalogEvidence(&clientPackage, recordedBindings[target])
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
 			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
 		}
@@ -137,7 +163,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if opts.dryRun {
 		return renderRepairMultiResult(cmd, opts, result)
 	}
-	result.Status = "completed"
+	result.Status = "applying"
 	result.Succeeded = 0
 	result.Failed = 0
 	result.Targets = result.Targets[:0]
@@ -149,14 +175,17 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	for index, applied := range appliedResults {
 		output := newRepairResultData(installation, applied, false)
 		output.OperationID = operationID
-		result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: string(applied.Plan.Status), NextAction: output.NextAction, Output: output})
-		result.Succeeded++
+		result.Targets = append(result.Targets, repairTargetResult{Target: string(targets[index]), Status: groupTargetStatus(applied), NextAction: output.NextAction, Output: output})
+		if applied.GroupPhase == usecase.GroupTargetExternalCompleted {
+			result.Succeeded++
+		}
 	}
 	if groupErr != nil {
-		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		result.Status, result.Failed = groupFailureStatus(appliedGroup.Phase), len(inputs)-result.Succeeded
 		_ = renderRepairMultiResult(cmd, opts, result)
 		return groupErr
 	}
+	result.Status = string(appliedGroup.Phase)
 	return renderRepairMultiResult(cmd, opts, result)
 }
 

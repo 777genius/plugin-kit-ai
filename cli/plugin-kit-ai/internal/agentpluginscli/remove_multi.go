@@ -94,7 +94,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if opts.dryRun {
 		return renderRemoveMultiResult(cmd, opts, result)
 	}
-	result.Status = "completed"
+	result.Status = "applying"
 	result.Succeeded = 0
 	result.Failed = 0
 	result.Targets = result.Targets[:0]
@@ -109,14 +109,21 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	for index, applied := range appliedResults {
 		output := newRemoveResultData(installation, applied, false)
 		output.OperationID = operationID
-		result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: "removed", Output: output})
-		result.Succeeded++
+		status := string(applied.GroupPhase)
+		if status == "" {
+			status = "apply_failed"
+		}
+		result.Targets = append(result.Targets, removeTargetResult{Target: string(selected[index].ClientID), Status: status, Output: output})
+		if applied.GroupPhase == usecase.GroupTargetExternalCompleted {
+			result.Succeeded++
+		}
 	}
 	if groupErr != nil {
-		result.Status, result.Failed, result.Succeeded = "group_rolled_back", len(inputs), 0
+		result.Status, result.Failed = groupFailureStatus(appliedGroup.Phase), len(inputs)-result.Succeeded
 		_ = renderRemoveMultiResult(cmd, opts, result)
 		return groupErr
 	}
+	result.Status = string(appliedGroup.Phase)
 	if after, loadErr := app.StateStore.Load(); loadErr == nil {
 		if retained, ok := locallyMatchedInstallation(after, installation.InstallationID); ok && retained.DataRetained {
 			result.DataRetained = true

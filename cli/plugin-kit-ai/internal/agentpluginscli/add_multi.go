@@ -135,7 +135,7 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 	for index, result := range planned.Targets {
 		output := newAddResultData(inputs[index].Envelope, result, true)
 		output.OperationID = operationID
-		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: output, NextAction: nextLifecycleAction(result)})
+		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: groupTargetStatus(result), Output: output, NextAction: nextLifecycleAction(result)})
 	}
 	combined.Succeeded = len(planned.Targets)
 	if err != nil {
@@ -149,15 +149,18 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 	writeProgress(app, opts.format, "Applying the completely preflighted multi-target plan...")
 	groupInput.DryRun, groupInput.Confirmed = false, true
 	applied, err := service.AddGroup(ctx, groupInput)
-	combined.Status, combined.Targets, combined.Succeeded = "completed", combined.Targets[:0], 0
+	combined.Status, combined.Targets, combined.Succeeded = string(applied.Phase), combined.Targets[:0], 0
 	for index, result := range applied.Targets {
 		output := newAddResultData(inputs[index].Envelope, result, false)
 		output.OperationID = operationID
-		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: string(result.Plan.Status), Output: output, NextAction: nextLifecycleAction(result)})
-		combined.Succeeded++
+		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: groupTargetStatus(result), Output: output, NextAction: nextLifecycleAction(result)})
+		if result.GroupPhase == usecase.GroupTargetExternalCompleted {
+			combined.Succeeded++
+		}
 	}
 	if err != nil {
-		combined.Status, combined.Failed, combined.Succeeded = "group_rolled_back", len(inputs), 0
+		combined.Status = groupFailureStatus(applied.Phase)
+		combined.Failed = len(inputs) - combined.Succeeded
 		_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
 		return err
 	}
@@ -171,6 +174,25 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		return resumeInteractiveLifecycle(ctx, cmd, service, input, inputs[0].Envelope, applied.Targets[0])
 	}
 	return nil
+}
+
+func groupFailureStatus(phase usecase.GroupPhase) string {
+	switch phase {
+	case usecase.GroupPhaseManagedRolledBack, usecase.GroupPhaseManagedCommitUnknown,
+		usecase.GroupPhaseManagedActivationFailed, usecase.GroupPhaseExternalPartialFailure:
+		return string(phase)
+	case usecase.GroupPhaseManagedCommitted:
+		return "managed_committed_finalization_failed"
+	default:
+		return "apply_failed"
+	}
+}
+
+func groupTargetStatus(result usecase.AddResult) string {
+	if result.GroupPhase != "" {
+		return string(result.GroupPhase)
+	}
+	return string(result.Plan.Status)
 }
 
 func publicPackageSource(source domain.SourceIdentity) string {

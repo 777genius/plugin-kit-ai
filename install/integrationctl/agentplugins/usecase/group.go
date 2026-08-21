@@ -27,7 +27,33 @@ type GroupResult struct {
 	Targets          []AddResult              `json:"targets"`
 	Receipts         []domain.MutationReceipt `json:"-"`
 	Mutated          bool                     `json:"mutated"`
+	Phase            GroupPhase               `json:"phase"`
 }
+
+type GroupPhase string
+
+const (
+	GroupPhasePlanned                 GroupPhase = "planned"
+	GroupPhaseManagedUnchanged        GroupPhase = "managed_unchanged"
+	GroupPhaseManagedRolledBack       GroupPhase = "managed_rolled_back"
+	GroupPhaseManagedCommitUnknown    GroupPhase = "managed_commit_unknown"
+	GroupPhaseManagedCommitted        GroupPhase = "managed_committed"
+	GroupPhaseManagedActivationFailed GroupPhase = "managed_committed_activation_failed"
+	GroupPhaseExternalPartialFailure  GroupPhase = "external_partial_failure"
+	GroupPhaseCompleted               GroupPhase = "completed"
+)
+
+type GroupTargetPhase string
+
+const (
+	GroupTargetPlanned           GroupTargetPhase = "planned"
+	GroupTargetManagedRolledBack GroupTargetPhase = "managed_rolled_back"
+	GroupTargetManagedCommitted  GroupTargetPhase = "managed_committed"
+	GroupTargetManagedUnknown    GroupTargetPhase = "managed_commit_unknown"
+	GroupTargetExternalCompleted GroupTargetPhase = "external_completed"
+	GroupTargetExternalFailed    GroupTargetPhase = "external_failed"
+	GroupTargetExternalPartial   GroupTargetPhase = "external_completed_managed_incomplete"
+)
 
 func (service Service) AddGroup(ctx context.Context, input GroupInput) (GroupResult, error) {
 	return service.applyGroup(ctx, input, false)
@@ -186,7 +212,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			return GroupResult{}, err
 		}
 	}
-	result := GroupResult{InstallationID: installationID, OperationGroupID: groupID, Targets: make([]AddResult, len(input.Targets))}
+	result := GroupResult{InstallationID: installationID, OperationGroupID: groupID, Targets: make([]AddResult, len(input.Targets)), Phase: GroupPhasePlanned}
 	physical := map[string]int{}
 	planned := make([]plannedGroupTarget, 0, len(input.Targets))
 	for targetIndex, target := range input.Targets {
@@ -197,7 +223,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		if err := validateOperationOrigin(target.OriginMode, target.DirectoryResolution); err != nil {
 			return result, err
 		}
-		if target.Envelope.TreeDigest != first.Envelope.TreeDigest || target.Envelope.ManifestDigest != first.Envelope.ManifestDigest || domain.ComputeSourceBindingID(target.Envelope.Source) != sourceID {
+		if !input.Repair && (target.Envelope.TreeDigest != first.Envelope.TreeDigest || target.Envelope.ManifestDigest != first.Envelope.ManifestDigest || domain.ComputeSourceBindingID(target.Envelope.Source) != sourceID) {
 			return result, fmt.Errorf("all targets in one operation group must use one immutable package")
 		}
 		if target.Scope != domain.ScopeUser {
@@ -386,6 +412,18 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		installation.Clients[target.clientBindingID] = client
 		desired.Installations[installationIndex] = installation
 	}
+	if input.Repair && lifecycleBaseline != nil {
+		// Repair restores each binding's own recorded projection. It must not let
+		// iteration order move the installation-wide desired release/source back
+		// to whichever heterogeneous binding happened to be repaired last.
+		installation := desired.Installations[installationIndex]
+		installation.DeclaredName = lifecycleBaseline.DeclaredName
+		installation.Source = lifecycleBaseline.Source
+		installation.Package = lifecycleBaseline.Package
+		installation.OriginMode = lifecycleBaseline.OriginMode
+		installation.Directory = cloneDirectoryOrigin(lifecycleBaseline.Directory)
+		desired.Installations[installationIndex] = installation
+	}
 	if input.Switch {
 		installation := desired.Installations[installationIndex]
 		installation.Source = domain.SourceBinding{SourceBindingID: sourceID, RequestedSource: first.Envelope.Source.RequestedSource,
@@ -429,7 +467,39 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		receipts, err = kernel.ApplyDirectoryGroup(ctx, transaction.DirectoryGroup{OperationGroupID: groupID, Mutations: mutations, DesiredState: desired})
 		if err != nil {
 			result.Receipts = receipts
-			if len(receipts) > 0 {
+			assignGroupReceipts(result.Targets, planned, receipts)
+			failure := transaction.FailurePhase(err)
+			switch failure {
+			case transaction.GroupFailureRolledBack:
+				result.Phase = GroupPhaseManagedRolledBack
+				for index := range result.Targets {
+					result.Targets[index].GroupPhase = GroupTargetManagedRolledBack
+				}
+			case transaction.GroupFailureCommitted:
+				result.Phase = GroupPhaseManagedCommitted
+			case transaction.GroupFailureUnknown:
+				result.Phase = GroupPhaseManagedCommitUnknown
+				for index := range result.Targets {
+					result.Targets[index].GroupPhase = GroupTargetManagedUnknown
+				}
+			default:
+				result.Phase = GroupPhaseManagedUnchanged
+			}
+			if failure == transaction.GroupFailureCommitted {
+				receipted := make(map[string]bool, len(receipts))
+				for _, receipt := range receipts {
+					receipted[receipt.ClientBindingID] = true
+				}
+				for _, target := range planned {
+					if !receipted[target.clientBindingID] {
+						continue
+					}
+					for _, resultIndex := range target.resultIndexes {
+						result.Targets[resultIndex].GroupPhase = GroupTargetManagedCommitted
+					}
+				}
+			}
+			if failure == transaction.GroupFailureCommitted || failure == transaction.GroupFailureUnknown {
 				for index := range planned {
 					planned[index].dataCreated = false
 				}
@@ -437,10 +507,16 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			return result, err
 		}
 		result.Receipts, result.Mutated = receipts, true
+		assignGroupReceipts(result.Targets, planned, receipts)
+		result.Phase = GroupPhaseManagedCommitted
+		for index := range result.Targets {
+			result.Targets[index].GroupPhase = GroupTargetManagedCommitted
+		}
 	}
 	for index := range planned {
 		planned[index].dataCreated = false
 	}
+	externalCompleted := 0
 	for _, target := range planned {
 		delivery := target.delivery
 		if target.noChange && target.managed != nil {
@@ -475,15 +551,44 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			if lifecycleChanged {
 				result.Targets[resultIndex].NoChange = false
 			}
+			if activationErr == nil && persistErr == nil {
+				result.Targets[resultIndex].GroupPhase = GroupTargetExternalCompleted
+			} else {
+				result.Targets[resultIndex].GroupPhase = GroupTargetExternalFailed
+			}
 		}
 		if activationErr != nil {
+			if externalCompleted > 0 {
+				result.Phase = GroupPhaseExternalPartialFailure
+			} else {
+				result.Phase = GroupPhaseManagedActivationFailed
+			}
 			return result, activationErr
 		}
 		if persistErr != nil {
+			result.Phase = GroupPhaseManagedActivationFailed
 			return result, persistErr
 		}
+		externalCompleted += len(target.resultIndexes)
 	}
+	result.Phase = GroupPhaseCompleted
 	return result, nil
+}
+
+func assignGroupReceipts(targets []AddResult, planned []plannedGroupTarget, receipts []domain.MutationReceipt) {
+	byBinding := make(map[string]domain.MutationReceipt, len(receipts))
+	for _, receipt := range receipts {
+		byBinding[receipt.ClientBindingID] = receipt
+	}
+	for _, target := range planned {
+		receipt, ok := byBinding[target.clientBindingID]
+		if !ok {
+			continue
+		}
+		for _, resultIndex := range target.resultIndexes {
+			targets[resultIndex].Receipt = receipt
+		}
+	}
 }
 
 func containsSurface(values []string, wanted string) bool {

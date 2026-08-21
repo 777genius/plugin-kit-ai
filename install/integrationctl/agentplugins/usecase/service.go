@@ -97,6 +97,7 @@ type AddResult struct {
 	Mutated              bool                     `json:"mutated"`
 	NoChange             bool                     `json:"no_change,omitempty"`
 	Receipt              domain.MutationReceipt   `json:"-"`
+	GroupPhase           GroupTargetPhase         `json:"group_phase,omitempty"`
 }
 
 func (service Service) Add(ctx context.Context, input AddInput) (AddResult, error) {

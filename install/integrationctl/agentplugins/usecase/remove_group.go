@@ -27,6 +27,8 @@ type RemoveGroupResult struct {
 	Targets          []RemoveResult           `json:"targets"`
 	Receipts         []domain.MutationReceipt `json:"-"`
 	Mutated          bool                     `json:"mutated"`
+	Phase            GroupPhase               `json:"phase"`
+	ManagedPhase     GroupPhase               `json:"managed_phase,omitempty"`
 }
 
 type plannedRemoval struct {
@@ -66,7 +68,7 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 			return RemoveGroupResult{}, err
 		}
 	}
-	result := RemoveGroupResult{InstallationID: installation.InstallationID, OperationGroupID: groupID, Targets: make([]RemoveResult, len(input.Targets))}
+	result := RemoveGroupResult{InstallationID: installation.InstallationID, OperationGroupID: groupID, Targets: make([]RemoveResult, len(input.Targets)), Phase: GroupPhasePlanned}
 	if input.PurgeData {
 		if service.PluginData == nil {
 			return result, fmt.Errorf("PLUGIN_DATA manager is required for purge")
@@ -130,9 +132,21 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 		byBinding[clientKey] = len(planned)
 		planned = append(planned, plannedRemoval{input: targetInput, clientKey: clientKey, client: client, targetRoot: target.TargetRoot, resultIndexes: []int{targetIndex}})
 	}
+	if input.PurgeData {
+		selectedBindings := make(map[string]bool, len(planned))
+		for _, item := range planned {
+			selectedBindings[item.clientKey] = true
+		}
+		for clientKey, binding := range installation.Clients {
+			if binding.Materialization != domain.MaterializationAbsent && !selectedBindings[clientKey] {
+				return result, fmt.Errorf("--purge-data requires ownership-preflight and removal of every active target")
+			}
+		}
+	}
 	if input.DryRun || !input.Confirmed {
 		return result, nil
 	}
+	externalCompleted := 0
 	for plannedIndex := range planned {
 		item := &planned[plannedIndex]
 		outcome, err := service.Activator.Deactivate(ctx, domain.DeactivationRequest{Client: item.input.Client, DeclaredName: installation.DeclaredName,
@@ -142,11 +156,27 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 			result.Targets[resultIndex].Deactivation = outcome
 		}
 		if err != nil {
+			for _, resultIndex := range item.resultIndexes {
+				result.Targets[resultIndex].GroupPhase = GroupTargetExternalFailed
+			}
+			if externalCompleted > 0 {
+				result.Phase = GroupPhaseExternalPartialFailure
+			} else {
+				result.Phase = GroupPhaseManagedUnchanged
+			}
 			return result, fmt.Errorf("external deactivation failed; managed materialization was retained for repair: %w", err)
 		}
 		if !outcome.ArtifactRemovalAllowed {
+			result.Phase = GroupPhaseManagedUnchanged
+			if externalCompleted > 0 {
+				result.Phase = GroupPhaseExternalPartialFailure
+			}
 			return result, fmt.Errorf("client did not authorize managed artifact removal")
 		}
+		for _, resultIndex := range item.resultIndexes {
+			result.Targets[resultIndex].GroupPhase = GroupTargetExternalCompleted
+		}
+		externalCompleted += len(item.resultIndexes)
 	}
 	removals := make([]transaction.DirectoryRemoval, 0, len(planned))
 	for index, item := range planned {
@@ -159,26 +189,89 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 				return service.Stager.Verify(verifyContext, path, expected)
 			}})
 	}
-	installation.OperationGroupID = groupID
-	state.Installations[installationIndex] = installation
-	kernel := service.Kernel
-	kernel.StateStore = service.StateStore
-	receipts, err := kernel.RemoveDirectoryGroup(ctx, transaction.DirectoryRemovalGroup{OperationGroupID: groupID, Removals: removals, DesiredState: state})
-	result.Receipts = receipts
-	if err != nil {
-		return result, err
-	}
-	result.Mutated = true
-	for index := range result.Targets {
-		result.Targets[index].Mutated = true
-	}
 	keys := make([]string, 0, len(planned))
 	for _, item := range planned {
 		keys = append(keys, item.clientKey)
 	}
 	sort.Strings(keys)
-	if err := service.finalizeRemovedBindings(ctx, installation.InstallationID, keys, input.PurgeData); err != nil {
+	desired, purgeReceipts, createdData, err := service.prepareRemovedBindingsState(ctx, state, installationIndex, keys, input.PurgeData, groupID)
+	if err != nil {
+		service.cleanupUncommittedPluginData(createdData, transaction.FailurePhase(err))
+		result.Phase = GroupPhaseExternalPartialFailure
+		for index := range result.Targets {
+			result.Targets[index].GroupPhase = GroupTargetExternalPartial
+		}
 		return result, err
+	}
+	for index, dataReceipt := range purgeReceipts {
+		receipt := dataReceipt
+		operationID := fmt.Sprintf("%s-data-%03d", groupID, index+1)
+		removals = append(removals, transaction.DirectoryRemoval{OperationID: operationID, OperationGroupID: groupID,
+			ClientBindingID: receipt.DataReceiptID, Sequence: 1, OwnedBase: filepath.Dir(receipt.Locator), ActivePath: receipt.Locator,
+			BeforeDigest: receipt.OwnershipDigest, Standalone: true, Verify: func(verifyContext context.Context, _ string) error {
+				return service.PluginData.ValidateData(verifyContext, receipt)
+			}})
+	}
+	kernel := service.Kernel
+	kernel.StateStore = service.StateStore
+	receipts, err := kernel.RemoveDirectoryGroup(ctx, transaction.DirectoryRemovalGroup{OperationGroupID: groupID, Removals: removals, DesiredState: desired})
+	result.Receipts = receipts
+	byReceiptBinding := make(map[string]domain.MutationReceipt, len(receipts))
+	for _, receipt := range receipts {
+		byReceiptBinding[receipt.ClientBindingID] = receipt
+	}
+	for _, item := range planned {
+		receipt, ok := byReceiptBinding[item.clientKey]
+		if !ok {
+			continue
+		}
+		for _, resultIndex := range item.resultIndexes {
+			result.Targets[resultIndex].Receipt = receipt
+		}
+	}
+	if err != nil {
+		service.cleanupUncommittedPluginData(createdData, transaction.FailurePhase(err))
+		switch transaction.FailurePhase(err) {
+		case transaction.GroupFailureRolledBack:
+			result.ManagedPhase = GroupPhaseManagedRolledBack
+			for index := range result.Targets {
+				result.Targets[index].GroupPhase = GroupTargetExternalPartial
+			}
+		case transaction.GroupFailureCommitted:
+			result.ManagedPhase = GroupPhaseManagedCommitted
+			for _, item := range planned {
+				if _, ok := byReceiptBinding[item.clientKey]; !ok {
+					continue
+				}
+				for _, resultIndex := range item.resultIndexes {
+					result.Targets[resultIndex].GroupPhase = GroupTargetManagedCommitted
+				}
+			}
+		case transaction.GroupFailureUnknown:
+			result.ManagedPhase = GroupPhaseManagedCommitUnknown
+			for index := range result.Targets {
+				result.Targets[index].GroupPhase = GroupTargetExternalPartial
+			}
+		default:
+			result.ManagedPhase = GroupPhaseManagedUnchanged
+			for index := range result.Targets {
+				result.Targets[index].GroupPhase = GroupTargetExternalPartial
+			}
+		}
+		if result.ManagedPhase == GroupPhaseManagedCommitted {
+			result.Phase = GroupPhaseManagedCommitted
+		} else if externalCompleted > 0 {
+			result.Phase = GroupPhaseExternalPartialFailure
+		} else {
+			result.Phase = result.ManagedPhase
+		}
+		return result, err
+	}
+	result.Phase = GroupPhaseCompleted
+	result.Mutated = true
+	for index := range result.Targets {
+		result.Targets[index].Mutated = true
+		result.Targets[index].GroupPhase = GroupTargetExternalCompleted
 	}
 	return result, nil
 }
