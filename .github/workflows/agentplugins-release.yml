@@ -17,6 +17,10 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOTOOLCHAIN: local
+      GOFLAGS: -buildvcs=false -p=1
     permissions:
       checks: read
       contents: read
@@ -96,10 +100,22 @@ jobs:
         with:
           go-version: 1.25.13
           cache: false
+      - name: Verify exact release-bound Directory bootstrap
+        working-directory: cli/plugin-kit-ai
+        run: |
+          release_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          go run ./cmd/agentplugins/bootstrapgen \
+            -snapshot cmd/agentplugins/directory_bootstrap_inputs/snapshot.json \
+            -envelope cmd/agentplugins/directory_bootstrap_inputs/envelope.json \
+            -trust cmd/agentplugins/directory_bootstrap_inputs/trusted-keys.json \
+            -check cmd/agentplugins/directory_bootstrap_generated.go \
+            -expected-key-id uap-directory-2026-01 \
+            -expected-public-key HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI= \
+            -release-at "${release_at}"
       - name: Test standard-first engine and CLI
         run: |
-          go test ./install/integrationctl/agentplugins/... ./install/integrationctl/adapters/dirswap ./install/integrationctl/adapters/source
-          go test ./cli/plugin-kit-ai/internal/agentpluginscli ./cli/plugin-kit-ai/cmd/agentplugins
+          (cd install/integrationctl && go test ./agentplugins/... ./adapters/dirswap ./adapters/source)
+          (cd cli/plugin-kit-ai && go test ./internal/agentpluginscli ./cmd/agentplugins/...)
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
@@ -111,6 +127,10 @@ jobs:
   build:
     needs: validate
     runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      GOTOOLCHAIN: local
+      GOFLAGS: -buildvcs=false -p=1
     strategy:
       fail-fast: false
       matrix:

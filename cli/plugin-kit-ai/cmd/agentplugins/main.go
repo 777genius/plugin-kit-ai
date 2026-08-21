@@ -4,15 +4,20 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/777genius/plugin-kit-ai/cli/cmd/agentplugins/internal/bootstrapio"
 	"github.com/777genius/plugin-kit-ai/cli/internal/agentpluginscli"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/locks"
@@ -56,6 +61,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	directoryClient, err := newDirectoryClient(dataRoot)
+	if err != nil {
+		return err
+	}
 	registry, err := specregistry.New()
 	if err != nil {
 		return err
@@ -79,10 +88,6 @@ func run() error {
 		V2Store:        v2Store,
 		Lock:           mutationLock,
 		RecoverJournal: lifecycle.Kernel.Recover,
-	}
-	directoryClient, err := newDirectoryClient(dataRoot)
-	if err != nil {
-		return err
 	}
 	app := agentpluginscli.App{
 		Version:             version,
@@ -145,7 +150,21 @@ func (acquirer lazySourceAcquirer) AcquireGitHubVerified(ctx context.Context, re
 }
 
 func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
-	origin := firstNonEmpty(os.Getenv("AGENTPLUGINS_DIRECTORY_ORIGIN"), defaultDirectoryOrigin)
+	configuration, configured, err := testOnlyDirectoryConfiguration()
+	if err != nil {
+		return nil, err
+	}
+	if configured {
+		bundle, trust, err := bootstrapio.LoadVerifiedBundle(configuration.snapshot, configuration.envelope, configuration.trust)
+		if err != nil {
+			return nil, fmt.Errorf("load test-only Directory conformance tuple: %w", err)
+		}
+		return &directoryv1.Client{
+			Origin: configuration.origin, HTTPClient: &http.Client{Timeout: 20 * time.Second, Transport: conformanceFixtureTransport{sequence: bundle.Snapshot.Sequence, snapshot: bundle.SnapshotBytes, envelope: bundle.EnvelopeBytes}},
+			Trust: trust, Embedded: directoryv1.EmbeddedBundle{Snapshot: bundle.SnapshotBytes, Envelope: bundle.EnvelopeBytes},
+			RequireEmbeddedBootstrap: true, Cache: directoryv1.Cache{Path: configuration.cache},
+		}, nil
+	}
 	publicKey, err := base64.StdEncoding.Strict().DecodeString(defaultDirectoryPublicKey)
 	if err != nil || len(publicKey) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("decode Directory public key")
@@ -156,7 +175,7 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 		return nil, fmt.Errorf("load generated production Directory bootstrap: %w", err)
 	}
 	return &directoryv1.Client{
-		Origin: origin, HTTPClient: hardenedHTTPClient(),
+		Origin: firstNonEmpty(os.Getenv("AGENTPLUGINS_DIRECTORY_ORIGIN"), defaultDirectoryOrigin), HTTPClient: hardenedHTTPClient(),
 		Trust: trust,
 		// The production bootstrap is intentionally absent until the first
 		// post-merge Directory publication. Short-name resolution fails closed
@@ -164,6 +183,110 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 		Embedded: embedded, RequireEmbeddedBootstrap: true,
 		Cache: directoryv1.Cache{Path: filepath.Join(dataRoot, "directory-v1-cache.json")},
 	}, nil
+}
+
+var conformanceDirectoryVariables = []string{
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY",
+	"AGENTPLUGINS_DIRECTORY_ORIGIN",
+	"AGENTPLUGINS_DIRECTORY_SNAPSHOT",
+	"AGENTPLUGINS_DIRECTORY_ENVELOPE",
+	"AGENTPLUGINS_DIRECTORY_TRUST",
+	"AGENTPLUGINS_DIRECTORY_CACHE",
+}
+
+var testOnlyConformanceVariables = []string{
+	"AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY",
+	"AGENTPLUGINS_DIRECTORY_SNAPSHOT",
+	"AGENTPLUGINS_DIRECTORY_ENVELOPE",
+	"AGENTPLUGINS_DIRECTORY_TRUST",
+	"AGENTPLUGINS_DIRECTORY_CACHE",
+}
+
+type testDirectoryConfiguration struct {
+	origin, snapshot, envelope, trust, cache string
+}
+
+// testOnlyDirectoryConfiguration recognizes only the complete launch fixture
+// tuple. Production trust, origin, and bootstrap cannot be replaced by a lone
+// ordinary environment variable.
+func testOnlyDirectoryConfiguration() (testDirectoryConfiguration, bool, error) {
+	testOnlyPresent := false
+	for _, name := range testOnlyConformanceVariables {
+		if _, exists := os.LookupEnv(name); exists {
+			testOnlyPresent = true
+		}
+	}
+	if !testOnlyPresent {
+		return testDirectoryConfiguration{}, false, nil
+	}
+	values := map[string]string{}
+	for _, name := range conformanceDirectoryVariables {
+		value, exists := os.LookupEnv(name)
+		if !exists {
+			return testDirectoryConfiguration{}, false, fmt.Errorf("partial test-only Directory conformance configuration is forbidden; require the complete %s tuple", strings.Join(conformanceDirectoryVariables, ", "))
+		}
+		values[name] = strings.TrimSpace(value)
+	}
+	for _, name := range conformanceDirectoryVariables {
+		if values[name] == "" {
+			return testDirectoryConfiguration{}, false, fmt.Errorf("test-only Directory conformance variable %s cannot be empty", name)
+		}
+	}
+	if values["AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY"] != "1" {
+		return testDirectoryConfiguration{}, false, fmt.Errorf("AGENTPLUGINS_DIRECTORY_CONFORMANCE_ONLY must equal 1 exactly")
+	}
+	origin, err := url.Parse(values["AGENTPLUGINS_DIRECTORY_ORIGIN"])
+	if err != nil || origin.Scheme != "https" || origin.Host == "" || origin.User != nil || origin.RawQuery != "" || origin.Fragment != "" {
+		return testDirectoryConfiguration{}, false, fmt.Errorf("test-only Directory origin must be an absolute credential-free HTTPS URL")
+	}
+	escapedOriginPath := strings.ToLower(origin.EscapedPath())
+	cleanOriginPath := strings.TrimSuffix(origin.Path, "/")
+	if cleanOriginPath == "" {
+		cleanOriginPath = "/"
+	}
+	if strings.Contains(escapedOriginPath, "%2f") || strings.Contains(escapedOriginPath, "%5c") || strings.Contains(escapedOriginPath, "%2e") || pathpkg.Clean(origin.Path) != cleanOriginPath {
+		return testDirectoryConfiguration{}, false, fmt.Errorf("test-only Directory origin contains an unsafe path")
+	}
+	for _, name := range []string{"AGENTPLUGINS_DIRECTORY_SNAPSHOT", "AGENTPLUGINS_DIRECTORY_ENVELOPE", "AGENTPLUGINS_DIRECTORY_TRUST", "AGENTPLUGINS_DIRECTORY_CACHE"} {
+		value := values[name]
+		if !filepath.IsAbs(value) || filepath.Clean(value) != value {
+			return testDirectoryConfiguration{}, false, fmt.Errorf("test-only Directory path %s must be clean and absolute", name)
+		}
+	}
+	return testDirectoryConfiguration{
+		origin: origin.String(), snapshot: values["AGENTPLUGINS_DIRECTORY_SNAPSHOT"], envelope: values["AGENTPLUGINS_DIRECTORY_ENVELOPE"],
+		trust: values["AGENTPLUGINS_DIRECTORY_TRUST"], cache: values["AGENTPLUGINS_DIRECTORY_CACHE"],
+	}, true, nil
+}
+
+type conformanceFixtureTransport struct {
+	sequence           uint64
+	snapshot, envelope []byte
+}
+
+func (transport conformanceFixtureTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	stem := fmt.Sprintf("%020d", transport.sequence)
+	pointer, err := json.Marshal(directoryv1.Pointer{
+		PointerSchemaVersion: 1, SnapshotSchemaVersion: 1, Sequence: transport.sequence,
+		SnapshotPath: "snapshots/" + stem + ".json", EnvelopePath: "snapshots/" + stem + ".envelope.json",
+		FetchContract: directoryv1.FetchContract{HTTPSRequired: true, SameOriginRedirectsOnly: true, MaxRedirects: 2, LatestMaxBytes: directoryv1.MaxLatestBytes, SnapshotMaxBytes: directoryv1.MaxSnapshotBytes, EnvelopeMaxBytes: directoryv1.MaxEnvelopeBytes, RetryAttempts: 1},
+	})
+	if err != nil {
+		return nil, err
+	}
+	status, body := http.StatusOK, pointer
+	switch {
+	case request.Method != http.MethodGet:
+		status, body = http.StatusMethodNotAllowed, nil
+	case strings.HasSuffix(request.URL.Path, "/latest.json"):
+	case strings.HasSuffix(request.URL.Path, "/snapshots/"+stem+".json"):
+		body = transport.snapshot
+	case strings.HasSuffix(request.URL.Path, "/snapshots/"+stem+".envelope.json"):
+		body = transport.envelope
+	default:
+		status, body = http.StatusNotFound, nil
+	}
+	return &http.Response{StatusCode: status, Status: http.StatusText(status), Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: request}, nil
 }
 
 func agentpluginsHome() (string, error) {
