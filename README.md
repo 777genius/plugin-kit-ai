@@ -16,56 +16,54 @@ The honest promise is `one repo / many supported outputs`, not fake parity every
 ## Install Agent Plugins 1.0
 
 Want to use a plugin rather than author one? `universal-agent-plugins` is the
-standard-first npm installer built on this repository's lifecycle engine:
+public npm package. It installs the `agentplugins` binary; both names run the
+same installer and lifecycle manager (Node.js 22+):
 
 ```bash
 npx universal-agent-plugins add context7
 ```
 
-It reads the root `plugin.json` defined by Agent Plugins 1.0 and plans, prepares,
-or installs one or more explicit targets across Codex, ChatGPT, Cursor, GitHub
-Copilot/VS Code, and Kiro. v0.1 supports user scope; client-native limits are
-reported before mutation. The first catalog contains [26 portable plugins](https://github.com/777genius/universal-agent-plugins).
-Accepted source shapes are either a portable root `plugin.json` with optional
-`mcp.json`, `.app.json`, and `skills/`, or an official `.codex-plugin/plugin.json`
-with its declared root `.mcp.json`, `.app.json`, and `skills/` inputs. A portable
-root manifest wins when both exist. Codex and ChatGPT retain bundled `.mcp.json`;
-ChatGPT MCP additionally requires a valid `.app.json` mapping to a connection
-registered in Developer Mode. Both targets receive an official generated
-`.codex-plugin/plugin.json`.
-Starting with agentplugins 0.1.6, direct package sources can use `--target
-chatgpt`; catalog short names stay fail-closed unless their catalog v2 entry
-includes pinned ChatGPT compatibility evidence. Catalog v1 remains readable
-without ChatGPT binding metadata.
-
-When GitHub Copilot CLI is detected, `agentplugins` installs, updates, and
-removes the plugin automatically through a managed local marketplace. VS Code
-discovers that installation automatically, so selecting either Copilot or VS
-Code once is enough. Codex, ChatGPT, and Kiro keep their
-required client confirmation and receive an exact, path-specific next step in
-human-readable output.
+Short names resolve to immutable releases through the signed
+[Universal Agent Plugins Directory](https://github.com/777genius/universal-agent-plugins).
+The command shows the selected publisher, source, and verification status, so a
+community bridge is not mistaken for its upstream project. Direct local paths
+and exact GitHub revisions work without Directory submission.
 
 ```bash
 npx universal-agent-plugins add context7 --dry-run --target cursor
-npx universal-agent-plugins add context7 --target cursor
-npx universal-agent-plugins add context7 --target codex,cursor
+npx universal-agent-plugins add context7 --target codex,cursor,kiro
+npx universal-agent-plugins update context7 --target codex,cursor,kiro
+npx universal-agent-plugins repair context7 --target codex,cursor,kiro
+npx universal-agent-plugins remove context7 --target codex,cursor,kiro
+npx universal-agent-plugins switch context7 --to upstash/context7
+npx universal-agent-plugins add ./my-plugin --target cursor
+npx universal-agent-plugins add owner/repo@0123456789abcdef0123456789abcdef01234567//plugins/my-plugin --target cursor
 ```
 
-Comma-separated targets run through the same client-specific lifecycle one by
-one. Successful targets remain installed if another target fails, and the CLI
-returns a non-zero status with an exact per-target summary.
+Replace the example SHA with the full lowercase 40-character commit SHA you
+reviewed; branches, tags, and abbreviated SHAs are rejected. `add`, `update`,
+`repair`, and `remove` accept comma-separated targets. `repair` reapplies the
+recorded revision; `update` selects a newer eligible release. `switch` moves the
+whole installation to a qualified Directory distribution or exact source.
 
-Short names resolve through the pinned catalog, while a local directory or an
-exact GitHub source such as `owner/repo@ref//path/to/plugin` can install any
-valid Agent Plugins 1.0 package directly. The installed command is
-`agentplugins`.
+For Agent Plugins 1.0, the root `plugin.json` is the install authority. A
+`plugin.yaml` file is legacy `plugin-kit-ai` authoring input only: it is not
+merged with, converted into, or allowed to silently override `plugin.json`.
 
-`universal-agent-plugins` is an independent community installer, not an official OpenAI
-CLI. OAuth and required client confirmations remain under the user's client.
-Prepared, auth-pending, and manual-activation states are never labelled installed.
+Before changing anything, the CLI resolves and validates the source and
+preflights every selected client. `--dry-run` prints that same read-only plan.
+Managed files and state are staged and committed together; a failure rolls back
+changes when ownership can be proven, or stops with recovery guidance without
+claiming success. Client-controlled activation happens separately: some clients
+activate automatically, while others finish as prepared and print a manual
+activation step. OAuth and consent prompts stay visible and user-controlled;
+cancelling one preserves the package and reports authentication as pending or
+cancelled.
+Verification is reported for the exact plugin, client, runtime, and OAuth
+evidence available—not as a claim that every combination has been tested.
 
-This is separate from the `plugin-kit-ai` authoring flow below: `plugin.json`
-and legacy `plugin/plugin.yaml` are never merged or silently converted.
+`universal-agent-plugins` is an independent community installer, not an official
+OpenAI CLI.
 
 Docs site:
 

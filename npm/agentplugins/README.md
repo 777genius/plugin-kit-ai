@@ -1,8 +1,9 @@
 # Universal Agent Plugins
 
-Install and manage portable Agent Plugins 1.0 packages across Codex, Cursor,
-GitHub Copilot/VS Code, and Kiro. Agentplugins 0.1.6 adds the separate ChatGPT
-target for official app-bound packages and catalog v2 entries.
+`universal-agent-plugins` is the public npm package for installing and managing
+portable Agent Plugins 1.0 packages. It installs the `agentplugins` binary;
+`npx universal-agent-plugins` and a globally installed `agentplugins` run the
+same lifecycle manager, not separate engines.
 
 Prerequisite: Node.js 22 or newer.
 
@@ -38,77 +39,50 @@ the binary runs.
 npx universal-agent-plugins doctor
 npx universal-agent-plugins list
 npx universal-agent-plugins add context7 --dry-run --target cursor
-npx universal-agent-plugins add context7 --target cursor
-npx universal-agent-plugins add context7 --target codex,cursor
-npx universal-agent-plugins update context7 --target cursor
-npx universal-agent-plugins remove context7 --target cursor
+npx universal-agent-plugins add context7 --target codex,cursor,kiro
+npx universal-agent-plugins update context7 --target codex,cursor,kiro
+npx universal-agent-plugins repair context7 --target codex,cursor,kiro
+npx universal-agent-plugins remove context7 --target codex,cursor,kiro
+npx universal-agent-plugins switch context7 --to upstash/context7
 ```
 
-For GitHub Copilot CLI, `agentplugins` performs the native install, update, and
-remove automatically through a managed local marketplace. VS Code discovers
-the same installation automatically, so selecting either target once is
-enough. Codex, ChatGPT (0.1.6+), and Kiro print one exact, path-specific next step when
-their client UI must finish the installation.
+`add`, `update`, `repair`, and `remove` accept comma-separated targets. `repair`
+reapplies or reactivates the recorded revision; it does not update or change
+source. `switch` moves the complete installation to a qualified Directory
+distribution or exact source, so it uses `--to` instead of `--target`.
 
-Short names resolve through the pinned
-[`universal-agent-plugins`](https://github.com/777genius/universal-agent-plugins)
-catalog. You can also install a different valid Agent Plugins 1.0 package from
-a local directory or an exact GitHub source:
+Short names resolve through the signed
+[Universal Agent Plugins Directory](https://github.com/777genius/universal-agent-plugins).
+The CLI shows the selected immutable release, publisher, source, and verification
+status before installation. A community bridge remains clearly attributed and
+is not presented as its upstream publisher. You can also install a valid package
+directly from a local directory or exact GitHub source without Directory
+submission:
 
 ```bash
 npx universal-agent-plugins add ./my-plugin --target cursor
-npx universal-agent-plugins add owner/repo@commit//plugins/my-plugin --target cursor
+npx universal-agent-plugins add owner/repo@0123456789abcdef0123456789abcdef01234567//plugins/my-plugin --target cursor
 ```
 
-Accepted packages have either a portable root `plugin.json` with optional
-`mcp.json`, `.app.json`, and `skills/`, or an official
-`.codex-plugin/plugin.json` with its declared root `.mcp.json`, `.app.json`, and
-`skills/` sidecars. The downloaded binary and installed command remain
-`agentplugins`.
+Replace `0123456789abcdef0123456789abcdef01234567` with the full lowercase
+40-character commit SHA you reviewed. A branch, tag, abbreviated SHA, or the
+word `commit` is not accepted.
 
-Each mutation changes one or more explicitly selected clients. Use a
-comma-separated value such as `--target codex,cursor`; every target keeps its
-own lifecycle result, and a partial failure returns a non-zero status without
-rolling back successful clients. Human TTY sessions ask before each client
-change; non-TTY and JSON automation auto-confirm only when `--target` is
-explicit, without requiring `--yes`. v0.1 supports user scope and reports
-whether a client can install automatically or requires manual activation. For
-older `plugin-kit-ai` installations, run the explicit migration before the
-first standard installation:
+For Agent Plugins 1.0, the root `plugin.json` is the install authority and may
+reference standard components such as `mcp.json` and `skills/`. `plugin.yaml`
+is legacy authoring input only. It cannot be merged with or silently override a
+`plugin.json`; changing a legacy package format is a separate explicit action.
 
-```bash
-npx universal-agent-plugins migrate-state --dry-run
-npx universal-agent-plugins migrate-state
-```
+Every operation validates the source and preflights all affected targets before
+changing managed files or state. `--dry-run` prints the same plan without
+writing. Managed changes are staged and committed together; on failure the CLI
+rolls back what it can prove it owns, or preserves the safe state and prints a
+repair action. It never overwrites an unowned client installation.
 
-The migration validates the complete State v3 result, creates a byte-for-byte
-backup, and keeps legacy `plugin.yaml` packages on their original lifecycle
-until an explicit `migrate-format`. agentplugins 0.1.6 reads existing State v2
-without rewriting it; the first explicit mutation saves State v3. After that,
-0.1.5 fails closed and no silent downgrade is supported.
-
-Legacy migration intentionally shares the old `plugin-kit-ai` sentinel lock. If
-a crash leaves `~/.plugin-kit-ai/locks/state.lock`, first stop every
-`plugin-kit-ai`, `integrationctl`, and `agentplugins` process (or reboot), then
-inspect the PID recorded in that JSON file. Only when no owner can still be
-running, preserve it instead of deleting it:
-
-```bash
-mv -n ~/.plugin-kit-ai/locks/state.lock ~/.plugin-kit-ai/locks/state.lock.stale
-```
-
-On Windows:
-
-```powershell
-Move-Item $HOME\.plugin-kit-ai\locks\state.lock $HOME\.plugin-kit-ai\locks\state.lock.stale
-```
-
-If ownership is uncertain, do not move the lock.
-
-OAuth remains client-managed. Prepared or auth-pending packages are never
-reported as installed.
-
-If update or remove detects a missing or modified managed directory, v0.1.0 stops
-without changing state or deleting files. Preserve any changed directory and
-restore the exact tracked package before retrying; automatic drift repair is not
-part of v0.1.
+Activation is reported per client. The CLI completes supported automatic steps;
+when a client requires its UI, it reports `prepared` or manual activation and
+prints the next action. OAuth and consent prompts remain visible and
+user-controlled. Cancelling keeps the package and reports authentication as
+pending or cancelled rather than runtime success. Directory badges and status
+describe only the exact schema, materialization, discovery, runtime, or OAuth
+evidence collected—not every plugin/client/environment combination.
