@@ -16,6 +16,27 @@ type Planner struct {
 	Detected    map[domain.ClientID]domain.DetectedClient
 }
 
+// DetectedPhysicalClient returns a genuinely detected client that can address
+// an installed physical binding. Copilot and VS Code share one backend, so an
+// installed binding owned by either logical client can be maintained through
+// the other when that is the surface actually present on this machine. The
+// returned client keeps its real identity; callers must not use this to claim
+// that an explicitly requested, undetected logical client is installed.
+func DetectedPhysicalClient(bindingClient domain.ClientID, detected map[domain.ClientID]domain.DetectedClient) (domain.DetectedClient, bool) {
+	if client, ok := detected[bindingClient]; ok && client.Status == domain.DetectionDetected {
+		return client, true
+	}
+	if bindingClient != domain.ClientCopilot && bindingClient != domain.ClientVSCode {
+		return domain.DetectedClient{}, false
+	}
+	alternate := domain.ClientCopilot
+	if bindingClient == domain.ClientCopilot {
+		alternate = domain.ClientVSCode
+	}
+	client, ok := detected[alternate]
+	return client, ok && client.Status == domain.DetectionDetected
+}
+
 func (planner Planner) Plan(
 	ctx context.Context,
 	envelope domain.PackageEnvelope,
@@ -46,7 +67,9 @@ func (planner Planner) Plan(
 		Policy:             domain.PolicyAllowed,
 		Verification:       domain.VerificationPackageValid,
 		PhysicalArtifactID: physicalArtifactID,
+		DeclaredName:       envelope.Manifest.Name,
 	}
+	planner.setNativeRegistry(&plan, client)
 	if client.Status != domain.DetectionDetected && client.ClientID != domain.ClientChatGPT {
 		plan.Status = domain.PlanUnsupported
 		plan.Activation = domain.ActivationFailed
@@ -68,6 +91,16 @@ func (planner Planner) Plan(
 	plan.ActivePath = target.ActivePath
 	plan.Components = componentDecisions(envelope, capabilities)
 	applyCatalogCompatibility(&plan, envelope.CatalogEvidence)
+	chatGPTCompatibility, hasChatGPTCompatibility := domain.CatalogCompatibility{}, false
+	if envelope.CatalogEvidence != nil {
+		chatGPTCompatibility, hasChatGPTCompatibility = envelope.CatalogEvidence.Compatibility[string(domain.ClientChatGPT)]
+	}
+	if client.ClientID == domain.ClientChatGPT && hasChatGPTCompatibility && chatGPTCompatibility.AppBinding != nil && hasSupportedKind(plan.Components, domain.ComponentApp) {
+		// ChatGPT app bindings are added only from validated signed Directory
+		// compatibility evidence. This authorizes local preparation, not a claim
+		// about the unobservable remote Plugins registry.
+		plan.LocalPreparationAuthorized = true
+	}
 	hasComponentErrors := false
 	for _, diagnostic := range envelope.Diagnostics {
 		plan.Diagnostics = append(plan.Diagnostics, diagnostic)
@@ -142,6 +175,16 @@ func (planner Planner) Plan(
 	return plan, nil
 }
 
+func (planner Planner) setNativeRegistry(plan *domain.DeliveryPlan, client domain.DetectedClient) {
+	plan.NativeRegistryRoot = client.ConfigRoot
+	plan.NativeRegistryExecutable = client.ExecutablePath
+	if client.ClientID == domain.ClientVSCode {
+		copilot := planner.Detected[domain.ClientCopilot]
+		plan.NativeRegistryRoot = copilot.ConfigRoot
+		plan.NativeRegistryExecutable = copilot.ExecutablePath
+	}
+}
+
 func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.CatalogEvidence) {
 	if evidence == nil {
 		plan.Warnings = appendUnique(plan.Warnings, "authentication_not_catalog_verified")
@@ -177,10 +220,20 @@ func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.Catal
 	}
 	if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
 		plan.Warnings = appendUnique(plan.Warnings, "catalog_"+compatibility.Verification)
-		if plan.Status != domain.PlanUnsupported {
-			plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+	}
+	if !hasTrustedRuntimePass(compatibility, plan.ClientID) && plan.Status != domain.PlanUnsupported {
+		plan.Warnings = appendUnique(plan.Warnings, "catalog_runtime_not_tested")
+		plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+	}
+}
+
+func hasTrustedRuntimePass(compatibility domain.CatalogCompatibility, client domain.ClientID) bool {
+	for _, evidence := range compatibility.Evidence {
+		if evidence.Level == "runtime" && evidence.Outcome == "passed" && evidence.Client == client && evidence.HasTrustedEligibilityProvenance() {
+			return true
 		}
 	}
+	return false
 }
 
 func catalogPackageMatches(value string, mode domain.PackageMode) bool {

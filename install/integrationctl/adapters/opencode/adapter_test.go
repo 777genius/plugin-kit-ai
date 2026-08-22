@@ -210,7 +210,6 @@ func TestPlanUpdateUsesMetadataConfigPathAndPersistedWorkspaceRoot(t *testing.T)
 }
 
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")

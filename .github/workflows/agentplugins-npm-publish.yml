@@ -49,7 +49,7 @@ jobs:
           test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${commit}" >> "${GITHUB_OUTPUT}"
 
-  platform-proof:
+  prepublish-conformance:
     needs: release-identity
     if: ${{ !inputs.verify_only }}
     uses: ./.github/workflows/agentplugins-platform-proof.yml
@@ -62,7 +62,7 @@ jobs:
       allow_legacy_manifest: false
 
   publish:
-    needs: [release-identity, platform-proof]
+    needs: [release-identity, prepublish-conformance]
     if: ${{ !inputs.verify_only }}
     runs-on: ubuntu-latest
     environment: npm-agentplugins
@@ -99,7 +99,7 @@ jobs:
           git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"
           head_commit="$(git rev-parse HEAD)"
           test "${head_commit}" = "${{ needs.release-identity.outputs.commit }}"
-          test "${{ needs.platform-proof.outputs.gate_eligible }}" = "true"
+          test "${{ needs.prepublish-conformance.outputs.gate_eligible }}" = "true"
           test "${head_commit}" = "$(git rev-parse refs/remotes/origin/main)"
           test "${head_commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"
           echo "commit=${head_commit}" >> "${GITHUB_OUTPUT}"
@@ -144,13 +144,13 @@ jobs:
       - name: Download exact six-platform-tested npm tarball
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ needs.platform-proof.outputs.tarball_artifact }}
+          name: ${{ needs.prepublish-conformance.outputs.tarball_artifact }}
           path: ${{ runner.temp }}/agentplugins-tested-package
       - name: Revalidate exact tested tarball publication identity
         env:
           TAG: ${{ inputs.tag }}
-          TARBALL_FILE: ${{ needs.platform-proof.outputs.tarball_file }}
-          EXPECTED_PACKAGE: ${{ needs.platform-proof.outputs.package_name }}
+          TARBALL_FILE: ${{ needs.prepublish-conformance.outputs.tarball_file }}
+          EXPECTED_PACKAGE: ${{ needs.prepublish-conformance.outputs.package_name }}
         run: |
           version="${TAG#agentplugins-v}"
           tarball="${RUNNER_TEMP}/agentplugins-tested-package/${TARBALL_FILE}"
@@ -177,7 +177,7 @@ jobs:
           ' "${package_root}/assets.json" "${RUNNER_TEMP}/agentplugins-tested-package/verified-release.json"
       - name: Publish stable release with provenance
         env:
-          TARBALL: ${{ runner.temp }}/agentplugins-tested-package/${{ needs.platform-proof.outputs.tarball_file }}
+          TARBALL: ${{ runner.temp }}/agentplugins-tested-package/${{ needs.prepublish-conformance.outputs.tarball_file }}
         run: npm publish --access public --tag latest --provenance "${TARBALL}"
 
   verify:
@@ -225,7 +225,7 @@ jobs:
           version="${TAG#agentplugins-v}"
           project="${RUNNER_TEMP}/agentplugins-registry-smoke"
           test_home="${project}/home"
-          mkdir -p "${project}" "${test_home}/.cursor" "${project}/tmp"
+          mkdir -p "${project}" "${test_home}/.codex" "${test_home}/.cursor" "${project}/tmp"
           synthetic="${project}/synthetic-plugin"
           mkdir -p "${synthetic}"
           printf '%s\n' \
@@ -279,23 +279,113 @@ jobs:
             npm exec --yes --package="${NPM_PACKAGE}@${version}" -- agentplugins "$@"
           }
           run_agentplugins version | grep -Fx "agentplugins ${version}"
-          run_agentplugins add "${synthetic}" --target cursor --format json > add.json
-          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.authentication == "not_checked"' add.json
-          run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json
-          jq -e '.schema_version == 1 and .command == "add" and .data.result.mutated == true and .data.result.activation.activation_attested == true and .data.result.activation.authentication_attested == true' complete.json
+          lifecycle_targets="codex,cursor"
+          run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --format json > add.json
+          jq -e '
+            .data.operation_id as $operation_id |
+            .data.tree_digest as $tree_digest |
+            .data.manifest_digest as $manifest_digest |
+            .schema_version == 1 and .command == "add" and .result == "success" and
+            .data.batch == true and .data.succeeded == 2 and .data.failed == 0 and
+            ([.data.targets[].target] == ["codex", "cursor"]) and
+            (.data.operation_id | type == "string" and length > 0) and
+            (.data.tree_digest | type == "string" and startswith("sha256:")) and
+            (.data.manifest_digest | type == "string" and startswith("sha256:")) and
+            ([.data.targets[] | select(
+              .status == "external_completed" and
+              .output.operation_id == $operation_id and
+              .output.tree_digest == $tree_digest and
+              .output.manifest_digest == $manifest_digest and
+              (.output.result.installation_id | type == "string" and length > 0) and
+              .output.result.mutated == true and
+              .output.result.activation.authentication == "not_checked"
+            )] | length) == 2 and
+            ([.data.targets[].output.result.installation_id] | unique | length) == 1
+          ' add.json
+          installation_id="$(jq -er '.data.targets[0].output.result.installation_id' add.json)"
+          tree_digest="$(jq -er '.data.tree_digest' add.json)"
+          manifest_digest="$(jq -er '.data.manifest_digest' add.json)"
+          run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json
+          jq -e --arg installation_id "${installation_id}" --arg tree_digest "${tree_digest}" --arg manifest_digest "${manifest_digest}" '
+            .data.operation_id as $operation_id |
+            .schema_version == 1 and .command == "add" and .result == "success" and
+            .data.batch == true and .data.succeeded == 2 and .data.failed == 0 and
+            ([.data.targets[].target] == ["codex", "cursor"]) and
+            (.data.operation_id | type == "string" and length > 0) and
+            .data.tree_digest == $tree_digest and .data.manifest_digest == $manifest_digest and
+            ([.data.targets[] | select(
+              .status == "external_completed" and
+              .output.operation_id == $operation_id and
+              .output.tree_digest == $tree_digest and
+              .output.manifest_digest == $manifest_digest and
+              .output.result.installation_id == $installation_id and
+              .output.result.mutated == true and
+              .output.result.activation.activation_attested == true and
+              .output.result.activation.authentication_attested == true
+            )] | length) == 2
+          ' complete.json
           run_agentplugins info registry-proof-synthetic --format json > info.json
-          jq -e '.schema_version == 1 and .command == "info" and .data.name == "registry-proof-synthetic"' info.json
+          jq -e --arg installation_id "${installation_id}" --arg tree_digest "${tree_digest}" --arg manifest_digest "${manifest_digest}" '
+            .schema_version == 1 and .command == "info" and
+            .data.name == "registry-proof-synthetic" and .data.installation_id == $installation_id and
+            ([.data.clients[].client_id] == ["codex", "cursor"]) and
+            ([.data.clients[] | select(.package_revision.tree_digest == $tree_digest and .package_revision.manifest_digest == $manifest_digest)] | length) == 2
+          ' info.json
           state_before_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
           run_agentplugins doctor registry-proof-synthetic --format json > doctor.json
           state_after_doctor="$(sha256sum "${AGENTPLUGINS_HOME}/state-v2.json")"
           test "${state_before_doctor}" = "${state_after_doctor}"
           jq -e '.schema_version == 1 and .command == "doctor" and .data.read_only == true' doctor.json
-          run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json
-          jq -e '.schema_version == 1 and .command == "update" and .data.result.no_change == true and .data.result.mutated == false' update.json
-          run_agentplugins remove registry-proof-synthetic --target cursor --format json > remove.json
-          jq -e '.schema_version == 1 and .command == "remove" and .data.result.mutated == true' remove.json
+          run_agentplugins update registry-proof-synthetic --target "${lifecycle_targets}" --format json > update.json
+          jq -e --arg installation_id "${installation_id}" --arg tree_digest "${tree_digest}" --arg manifest_digest "${manifest_digest}" '
+            .data.operation_id as $operation_id |
+            .schema_version == 1 and .command == "update" and .result == "success" and
+            .data.batch == true and .data.succeeded == 2 and .data.failed == 0 and
+            ([.data.targets[].target] == ["codex", "cursor"]) and
+            (.data.operation_id | type == "string" and length > 0) and
+            .data.tree_digest == $tree_digest and
+            ([.data.targets[] | select(
+              .selected == true and .status == "external_completed" and
+              .output.operation_id == $operation_id and
+              .output.tree_digest == $tree_digest and
+              .output.manifest_digest == $manifest_digest and
+              .output.result.installation_id == $installation_id and
+              .output.result.no_change == true and .output.result.mutated == false
+            )] | length) == 2
+          ' update.json
+          run_agentplugins remove registry-proof-synthetic --target "${lifecycle_targets}" --external-uninstalled --format json > remove.json
+          jq -e --arg installation_id "${installation_id}" --arg tree_digest "${tree_digest}" --arg manifest_digest "${manifest_digest}" '
+            .data.operation_id as $operation_id |
+            .schema_version == 1 and .command == "remove" and .result == "success" and
+            .data.batch == true and .data.status == "data_retained" and
+            .data.succeeded == 2 and .data.failed == 0 and .data.data_retained == true and
+            .data.plugin_data_preserved == true and
+            ([.data.targets[].target] == ["codex", "cursor"]) and
+            (.data.operation_id | type == "string" and length > 0) and
+            ([.data.targets[] | select(
+              .status == "external_completed" and
+              .output.operation_id == $operation_id and
+              .output.tree_digest == $tree_digest and
+              .output.manifest_digest == $manifest_digest and
+              .output.result.installation_id == $installation_id and
+              .output.result.mutated == true
+            )] | length) == 2 and
+            (.data.retained_data | length) > 0 and
+            ([.data.retained_data[] | select(
+              (.data_receipt_id | type == "string" and length > 0) and
+              (.physical_backend_id | type == "string" and length > 0) and
+              .scope == "user" and .state == "owned" and
+              (keys | sort) == ["data_receipt_id", "physical_backend_id", "scope", "state"]
+            )] | length) == (.data.retained_data | length) and
+            (.data.retained_data_action | contains("agentplugins remove " + $installation_id + " --purge-data")) and
+            ([paths(scalars) as $path | getpath($path) | select(type == "string" and startswith("/"))] | length) == 0
+          ' remove.json
           run_agentplugins info registry-proof-synthetic --format json > removed.json
-          jq -e '.data.clients as $clients | ($clients | length) == 1 and $clients[0].materialization == "absent"' removed.json
+          jq -e --arg installation_id "${installation_id}" '
+            .schema_version == 1 and .command == "info" and
+            .data.installation_id == $installation_id and .data.name == "registry-proof-synthetic" and
+            (.data.clients | length) == 0
+          ' removed.json
           if grep -F "${RUNNER_TEMP}" add.json complete.json info.json doctor.json update.json remove.json removed.json; then
             echo "agentplugins JSON output leaked an absolute runner path" >&2
             exit 1

@@ -37,12 +37,12 @@ type legacySourceBindingV2 struct {
 }
 
 type legacyPackageBindingV2 struct {
-	LoaderKind     string                    `json:"loader_kind"`
-	FormatID       string                    `json:"format_id"`
-	SchemaURI      string                    `json:"schema_uri"`
-	DeclaredName   string                    `json:"declared_name"`
-	Version        string                    `json:"version,omitempty"`
-	ManifestDigest string                    `json:"manifest_digest"`
+	LoaderKind     string                     `json:"loader_kind"`
+	FormatID       string                     `json:"format_id"`
+	SchemaURI      string                     `json:"schema_uri"`
+	DeclaredName   string                     `json:"declared_name"`
+	Version        string                     `json:"version,omitempty"`
+	ManifestDigest string                     `json:"manifest_digest"`
 	Inventory      legacyComponentInventoryV2 `json:"inventory"`
 }
 

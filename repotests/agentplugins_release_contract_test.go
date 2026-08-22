@@ -18,7 +18,7 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	releaseProofJob := yamlJob(t, releaseWorkflow, "platform-proof")
 	releasePromoteJob := yamlJob(t, releaseWorkflow, "promote-release")
 	npmReleaseIdentityJob := yamlJob(t, npmWorkflow, "release-identity")
-	npmPlatformProofJob := yamlJob(t, npmWorkflow, "platform-proof")
+	npmPrepublishConformanceJob := yamlJob(t, npmWorkflow, "prepublish-conformance")
 	npmPublishJob := yamlJob(t, npmWorkflow, "publish")
 	npmVerifyJob := yamlJob(t, npmWorkflow, "verify")
 	removedBoundaryScript := readRepoFile(t, root, "scripts", "check-removed-contract-boundary.sh")
@@ -94,12 +94,12 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustContain(t, npmReleaseIdentityJob, "npm publish workflow source does not match the exact tagged main commit")
 	mustContain(t, npmReleaseIdentityJob, `git fetch --force origin main:refs/remotes/origin/main "refs/tags/${TAG}:refs/tags/${TAG}"`)
 	mustContain(t, npmReleaseIdentityJob, `test "${commit}" = "$(git rev-list -n 1 "refs/tags/${TAG}")"`)
-	mustContain(t, npmPlatformProofJob, "needs: release-identity")
-	mustContain(t, npmPlatformProofJob, "if: ${{ !inputs.verify_only }}")
-	mustContain(t, npmPlatformProofJob, "allow_legacy_manifest: false")
-	mustContain(t, npmPlatformProofJob, "contents: read")
+	mustContain(t, npmPrepublishConformanceJob, "needs: release-identity")
+	mustContain(t, npmPrepublishConformanceJob, "if: ${{ !inputs.verify_only }}")
+	mustContain(t, npmPrepublishConformanceJob, "allow_legacy_manifest: false")
+	mustContain(t, npmPrepublishConformanceJob, "contents: read")
 	for _, want := range []string{
-		"needs: [release-identity, platform-proof]",
+		"needs: [release-identity, prepublish-conformance]",
 		"if: ${{ !inputs.verify_only }}",
 		"environment: npm-agentplugins",
 		"id-token: write",
@@ -126,12 +126,22 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 		`npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`,
 		"npm audit signatures --json --include-attestations",
 		`.attestations.provenance.predicateType == "https://slsa.dev/provenance/v1"`,
-		`run_agentplugins add "${synthetic}" --target cursor --format json > add.json`,
-		`run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`,
-		`.data.result.activation.authentication == "not_checked"`,
-		`.data.result.activation.activation_attested == true`,
-		`.data.result.activation.authentication_attested == true`,
-		`.data.result.no_change == true and .data.result.mutated == false`,
+		`lifecycle_targets="codex,cursor"`,
+		`run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --format json > add.json`,
+		`run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`,
+		`.data.batch == true and .data.succeeded == 2 and .data.failed == 0`,
+		`([.data.targets[].target] == ["codex", "cursor"])`,
+		`.output.operation_id == $operation_id`,
+		`.output.result.installation_id == $installation_id`,
+		`.output.result.activation.activation_attested == true`,
+		`.output.result.activation.authentication_attested == true`,
+		`.output.result.no_change == true and .output.result.mutated == false`,
+		`.data.status == "data_retained"`,
+		`.data.plugin_data_preserved == true`,
+		`(.data.retained_data | length) > 0`,
+		`(keys | sort) == ["data_receipt_id", "physical_backend_id", "scope", "state"]`,
+		`contains("agentplugins remove " + $installation_id + " --purge-data")`,
+		`select(type == "string" and startswith("/"))`,
 	} {
 		mustContain(t, npmVerifyJob, want)
 	}
@@ -159,8 +169,10 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustAppearBefore(t, npmVerifyJob, `test "${available}" = true`, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`)
 	mustAppearBefore(t, npmVerifyJob, `npm install --ignore-scripts --save-exact "${NPM_PACKAGE}@${version}"`, "npm audit signatures --json --include-attestations")
 	mustAppearBefore(t, npmVerifyJob, "npm audit signatures --json --include-attestations", "run_agentplugins version")
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --format json > add.json`, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`)
-	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target cursor --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target cursor --format json > update.json`)
+	mustNotContain(t, npmVerifyJob, `.data.result.`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --format json > add.json`, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins add "${synthetic}" --target "${lifecycle_targets}" --activation-complete --auth-complete --format json > complete.json`, `run_agentplugins update registry-proof-synthetic --target "${lifecycle_targets}" --format json > update.json`)
+	mustAppearBefore(t, npmVerifyJob, `run_agentplugins update registry-proof-synthetic --target "${lifecycle_targets}" --format json > update.json`, `run_agentplugins remove registry-proof-synthetic --target "${lifecycle_targets}" --external-uninstalled --format json > remove.json`)
 
 	for _, want := range []string{
 		"workflow_call:",
@@ -231,7 +243,9 @@ func TestAgentpluginsReleaseContractsStayFailClosed(t *testing.T) {
 	mustNotContain(t, platformWorkflow, "target_commitish")
 	mustNotContain(t, platformWorkflow, `releases/tags/${TAG}`)
 	mustContain(t, npmWorkflow, "uses: ./.github/workflows/agentplugins-platform-proof.yml")
-	mustContain(t, npmWorkflow, "test \"${{ needs.platform-proof.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, npmWorkflow, "test \"${{ needs.prepublish-conformance.outputs.gate_eligible }}\" = \"true\"")
+	mustContain(t, readRepoFile(t, root, "npm", "agentplugins", "scripts", "platform-proof.js"), "assertPublicJSONPathFree")
+	mustAppearBefore(t, npmWorkflow, "prepublish-conformance:", "npm publish --access public --tag latest --provenance")
 	mustContain(t, npmWorkflow, "npm publish --access public --tag latest --provenance \"${TARBALL}\"")
 	mustNotContain(t, npmWorkflow, "add context7")
 

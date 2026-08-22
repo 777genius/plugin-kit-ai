@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -15,8 +16,41 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
+var fullLowercaseSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
 type Store struct {
 	Path string
+}
+
+func (store Store) SchemaVersion() (int, error) {
+	body, err := os.ReadFile(store.Path)
+	if os.IsNotExist(err) {
+		return domain.StateSchemaVersion, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var header struct {
+		SchemaVersion int `json:"schema_version"`
+	}
+	if err := json.Unmarshal(body, &header); err != nil {
+		return 0, fmt.Errorf("decode state header: %w", err)
+	}
+	return header.SchemaVersion, nil
+}
+
+func (store Store) RequireMutationReady() error {
+	version, err := store.SchemaVersion()
+	if err != nil {
+		return err
+	}
+	if version == domain.LegacyStateSchemaVersion || version == domain.PreviousStateSchemaVersion {
+		return fmt.Errorf("state schema %d requires explicit migration; run agentplugins migrate-state --dry-run, then agentplugins migrate-state", version)
+	}
+	if version != domain.StateSchemaVersion {
+		return fmt.Errorf("unsupported state schema_version %d", version)
+	}
+	return nil
 }
 
 func (store Store) Load() (domain.StateFileV2, error) {
@@ -40,10 +74,14 @@ func (store Store) Load() (domain.StateFileV2, error) {
 	switch header.SchemaVersion {
 	case domain.LegacyStateSchemaVersion:
 		state, err = decodeLegacyStateV2(body)
+		normalizeCurrentState(&state)
+	case domain.PreviousStateSchemaVersion:
+		state, err = decodeLegacyStateV3(body)
+		normalizeCurrentState(&state)
 	case domain.StateSchemaVersion:
 		err = decodeStrictJSON(body, &state)
 	default:
-		return domain.StateFileV2{}, fmt.Errorf("unsupported state schema_version %d; this build reads %d and %d and writes only %d", header.SchemaVersion, domain.LegacyStateSchemaVersion, domain.StateSchemaVersion, domain.StateSchemaVersion)
+		return domain.StateFileV2{}, fmt.Errorf("unsupported state schema_version %d; this build reads %d, %d, and %d and writes only %d", header.SchemaVersion, domain.LegacyStateSchemaVersion, domain.PreviousStateSchemaVersion, domain.StateSchemaVersion, domain.StateSchemaVersion)
 	}
 	if err != nil {
 		return domain.StateFileV2{}, err
@@ -61,6 +99,7 @@ func (store Store) Save(state domain.StateFileV2) error {
 	if state.SchemaVersion == 0 {
 		state.SchemaVersion = domain.StateSchemaVersion
 	}
+	normalizeCurrentState(&state)
 	if err := Validate(state); err != nil {
 		return fmt.Errorf("refuse invalid state: %w", err)
 	}
@@ -81,6 +120,22 @@ func (store Store) Save(state domain.StateFileV2) error {
 		return fmt.Errorf("protect state v2 directory: %w", err)
 	}
 	return atomicfile.Write(store.Path, body, 0o600)
+}
+
+// normalizeCurrentState keeps programmatic callers compiled against the v2
+// model from accidentally writing an origin-ambiguous v3 document. Historical
+// callers can only describe direct provenance; Directory provenance is never
+// invented here and must be supplied explicitly by resolution or migration.
+func normalizeCurrentState(state *domain.StateFileV2) {
+	for index := range state.Installations {
+		installation := &state.Installations[index]
+		if installation.OriginMode == "" {
+			installation.OriginMode = domain.OriginModeDirect
+		}
+		if installation.Clients == nil {
+			installation.Clients = map[string]domain.ClientBinding{}
+		}
+	}
 }
 
 func decodeStrictJSON(body []byte, target any) error {
@@ -114,6 +169,61 @@ func Validate(state domain.StateFileV2) error {
 		installationIDs[installation.InstallationID] = struct{}{}
 		if strings.TrimSpace(installation.DeclaredName) == "" || installation.DeclaredName != installation.Package.DeclaredName {
 			return fmt.Errorf("%s declared_name does not match package binding", prefix)
+		}
+		if installation.OperationGroupID != "" {
+			if err := pathpolicy.ValidateLeafID(installation.OperationGroupID); err != nil {
+				return fmt.Errorf("%s has invalid operation group id: %w", prefix, err)
+			}
+		}
+		switch installation.OriginMode {
+		case domain.OriginModeDirect:
+			if installation.Directory != nil {
+				return fmt.Errorf("%s direct origin must not contain Directory provenance", prefix)
+			}
+		case domain.OriginModeDirectory:
+			if installation.Directory == nil {
+				return fmt.Errorf("%s directory origin is missing Directory provenance", prefix)
+			}
+			directory := installation.Directory
+			if strings.TrimSpace(directory.ProductID) == "" || strings.TrimSpace(directory.DistributionID) == "" || directory.DesiredReleaseSequence < 1 {
+				return fmt.Errorf("%s directory release identity is incomplete", prefix)
+			}
+			if !fullLowercaseSHA.MatchString(installation.Source.ResolvedRevision) {
+				return fmt.Errorf("%s Directory source resolved_revision must be a full lowercase 40-character SHA", prefix)
+			}
+			switch directory.DistributionKind {
+			case domain.DistributionUpstream, domain.DistributionCommunityBridge, domain.DistributionCommunity:
+			default:
+				return fmt.Errorf("%s directory distribution kind is invalid", prefix)
+			}
+			if (directory.SnapshotSequence > 0 || directory.SnapshotSchema > 0 || directory.SnapshotDigest != "") &&
+				(directory.SnapshotSequence < 1 || directory.SnapshotSchema < 1 || strings.TrimSpace(directory.SnapshotDigest) == "") {
+				return fmt.Errorf("%s Directory snapshot provenance is incomplete", prefix)
+			}
+		default:
+			return fmt.Errorf("%s origin_mode must be directory or direct", prefix)
+		}
+		if installation.DataRetained && len(installation.Clients) != 0 {
+			return fmt.Errorf("%s data_retained installation must have no client bindings", prefix)
+		}
+		if installation.DataRetained && len(installation.DataReceipts) == 0 {
+			return fmt.Errorf("%s data_retained installation has no data receipts", prefix)
+		}
+		for receiptKey, receipt := range installation.DataReceipts {
+			if receiptKey == "" || receiptKey != receipt.DataReceiptID {
+				return fmt.Errorf("%s data receipt map key does not match data_receipt_id", prefix)
+			}
+			if err := pathpolicy.ValidateLeafID(receipt.DataReceiptID); err != nil {
+				return fmt.Errorf("%s has invalid data receipt id: %w", prefix, err)
+			}
+			if strings.TrimSpace(receipt.PhysicalBackend) == "" || strings.TrimSpace(receipt.Scope) == "" || strings.TrimSpace(receipt.Locator) == "" || strings.TrimSpace(receipt.OwnershipDigest) == "" {
+				return fmt.Errorf("%s data receipt %q is incomplete", prefix, receipt.DataReceiptID)
+			}
+			switch receipt.State {
+			case domain.DataReceiptOwned, domain.DataReceiptUnknown, domain.DataReceiptStale:
+			default:
+				return fmt.Errorf("%s data receipt %q has invalid state", prefix, receipt.DataReceiptID)
+			}
 		}
 		if strings.TrimSpace(installation.Source.SourceBindingID) == "" {
 			return fmt.Errorf("%s source_binding_id is required", prefix)
@@ -157,6 +267,22 @@ func Validate(state domain.StateFileV2) error {
 			if client.PackageRevision != nil && (strings.TrimSpace(client.PackageRevision.TreeDigest) == "" || strings.TrimSpace(client.PackageRevision.ManifestDigest) == "") {
 				return fmt.Errorf("%s client binding %q has an incomplete package revision", prefix, client.ClientBindingID)
 			}
+			if installation.OriginMode == domain.OriginModeDirectory {
+				if client.PackageRevision == nil {
+					return fmt.Errorf("%s client binding %q has no applied Directory revision", prefix, client.ClientBindingID)
+				}
+				if client.PackageRevision.DistributionID != installation.Directory.DistributionID || client.PackageRevision.ReleaseSequence < 1 || client.PackageRevision.ReleaseSequence > installation.Directory.DesiredReleaseSequence {
+					return fmt.Errorf("%s client binding %q has invalid applied Directory revision", prefix, client.ClientBindingID)
+				}
+				if !fullLowercaseSHA.MatchString(client.PackageRevision.ResolvedRevision) {
+					return fmt.Errorf("%s client binding %q Directory resolved_revision must be a full lowercase 40-character SHA", prefix, client.ClientBindingID)
+				}
+			}
+			if client.DataReceiptID != "" {
+				if _, ok := installation.DataReceipts[client.DataReceiptID]; !ok {
+					return fmt.Errorf("%s client binding %q references unknown data receipt", prefix, client.ClientBindingID)
+				}
+			}
 			objectIDs := map[string]struct{}{}
 			for _, object := range client.NativeObjects {
 				if strings.TrimSpace(object.ObjectID) == "" || strings.TrimSpace(object.Kind) == "" {
@@ -173,6 +299,11 @@ func Validate(state domain.StateFileV2) error {
 				}
 				if receipt.ClientBindingID != client.ClientBindingID || receipt.Sequence < 1 || receipt.Phase == "" {
 					return fmt.Errorf("%s client binding %q receipt[%d] is incomplete", prefix, client.ClientBindingID, receiptIndex)
+				}
+				if receipt.OperationGroupID != "" {
+					if err := pathpolicy.ValidateLeafID(receipt.OperationGroupID); err != nil {
+						return fmt.Errorf("%s client binding %q receipt[%d] has invalid operation group id: %w", prefix, client.ClientBindingID, receiptIndex, err)
+					}
 				}
 				if _, duplicate := operationIDs[receipt.OperationID]; duplicate {
 					return fmt.Errorf("duplicate receipt operation_id %q", receipt.OperationID)

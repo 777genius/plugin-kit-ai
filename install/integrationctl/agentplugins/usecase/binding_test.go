@@ -8,7 +8,7 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
 
-func TestRebindRequiresAllManagedTargetsRemovedThenChangesOnlyBinding(t *testing.T) {
+func TestRebindRequiresBrokenProvenanceAndSwitchSupportsRetainedState(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
 	first := addInput(t, client, "https://example.com/one")
@@ -18,15 +18,8 @@ func TestRebindRequiresAllManagedTargetsRemovedThenChangesOnlyBinding(t *testing
 		t.Fatal(err)
 	}
 	second := addInput(t, client, "https://example.com/two").Envelope
-	blocked, err := service.Rebind(context.Background(), BindingChangeInput{Selector: installed.InstallationID, Envelope: second})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if blocked.Plan.CanApply || len(blocked.Plan.Blockers) == 0 || blocked.Plan.PluginDataDecision != "not_transferred" {
-		t.Fatalf("blocked plan = %+v", blocked.Plan)
-	}
-	if _, err := service.Rebind(context.Background(), BindingChangeInput{Selector: installed.InstallationID, Envelope: second, Confirmed: true}); err == nil || !strings.Contains(err.Error(), "remove") {
-		t.Fatalf("confirmed blocked rebind error = %v", err)
+	if _, err := service.Rebind(context.Background(), BindingChangeInput{Selector: installed.InstallationID, Envelope: second}); err == nil || !strings.Contains(err.Error(), "broken provenance recovery") {
+		t.Fatalf("healthy installation rebind error = %v", err)
 	}
 	if _, err := service.Remove(context.Background(), RemoveInput{
 		Selector: installed.InstallationID, Client: client, Scope: domain.ScopeUser,
@@ -34,14 +27,17 @@ func TestRebindRequiresAllManagedTargetsRemovedThenChangesOnlyBinding(t *testing
 	}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := service.Rebind(context.Background(), BindingChangeInput{
+	if _, err := service.Rebind(context.Background(), BindingChangeInput{Selector: installed.InstallationID, Envelope: second, Confirmed: true}); err == nil || !strings.Contains(err.Error(), "broken provenance recovery") {
+		t.Fatalf("healthy retained installation rebind error = %v", err)
+	}
+	result, err := service.SwitchRetained(context.Background(), BindingChangeInput{
 		Selector: installed.InstallationID, Envelope: second, Confirmed: true,
-	})
+	}, domain.OriginModeDirect, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !result.Mutated || !result.Plan.CanApply {
-		t.Fatalf("rebind result = %+v", result)
+		t.Fatalf("switch result = %+v", result)
 	}
 	state, err := store.Load()
 	if err != nil {
@@ -50,8 +46,8 @@ func TestRebindRequiresAllManagedTargetsRemovedThenChangesOnlyBinding(t *testing
 	if state.Installations[0].Source.SourceBindingID != domain.ComputeSourceBindingID(second.Source) || state.Installations[0].Source.TreeDigest != second.TreeDigest {
 		t.Fatalf("source binding = %+v", state.Installations[0].Source)
 	}
-	if binding := onlyBinding(state.Installations[0]); binding.Materialization != domain.MaterializationAbsent || len(binding.Receipts) != 2 {
-		t.Fatalf("rebind changed lifecycle history: %+v", binding)
+	if len(state.Installations[0].Clients) != 0 || !state.Installations[0].DataRetained || len(state.Installations[0].DataReceipts) != 1 {
+		t.Fatalf("switch changed retained-data lifecycle state: %+v", state.Installations[0])
 	}
 }
 

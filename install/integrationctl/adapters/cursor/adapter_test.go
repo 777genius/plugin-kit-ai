@@ -258,7 +258,6 @@ func TestInspectCursorPluginRootFromRecord(t *testing.T) {
 }
 
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")
@@ -305,7 +304,6 @@ func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 }
 
 func TestPlanUpdateUsesPersistedWorkspaceRootConfigPath(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")

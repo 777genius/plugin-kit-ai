@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/spf13/cobra"
 )
 
@@ -26,9 +26,20 @@ func newMigrateStateCommand(app App, opts *options) *cobra.Command {
 
 func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *options) error {
 	if app.StateMigrator == nil {
-		return fmt.Errorf("legacy state migration is not configured")
+		return fmt.Errorf("state migration is not configured")
 	}
-	plan, err := app.StateMigrator.Plan()
+	_, statErr := os.Stat(app.StateMigrator.V2Store.Path)
+	current := statErr == nil
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return statErr
+	}
+	var plan statemigration.Plan
+	var err error
+	if current {
+		plan, err = app.StateMigrator.PlanCurrentV2()
+	} else {
+		plan, err = app.StateMigrator.Plan()
+	}
 	if err != nil {
 		return err
 	}
@@ -52,10 +63,17 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "No changes made.")
 		return nil
 	}
-	if app.MutationLock == nil {
+	if current {
+		report, err := app.StateMigrator.MigrateCurrentV2(ctx, plan.LegacyDigest)
+		if err != nil {
+			return err
+		}
+		return renderStateMigration(cmd.OutOrStdout(), opts.format, plan, report, false)
+	}
+	if app.Lifecycle.Lock == nil {
 		return fmt.Errorf("agentplugins mutation lock is required")
 	}
-	release, err := app.MutationLock.Acquire(ctx)
+	release, err := app.Lifecycle.Lock.Acquire(ctx)
 	if err != nil {
 		return err
 	}
@@ -68,7 +86,8 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 		return fmt.Errorf("acquire legacy state lock: %w", err)
 	}
 	defer func() { _ = legacyRelease() }()
-	kernel := transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory}
+	kernel := app.Lifecycle.Kernel
+	kernel.StateStore = app.StateStore
 	if err := kernel.Recover(ctx); err != nil {
 		return fmt.Errorf("recover interrupted mutation before state migration: %w", err)
 	}
@@ -82,12 +101,13 @@ func runMigrateState(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 func renderStateMigration(writer io.Writer, format string, plan statemigration.Plan, report statemigration.Report, dryRun bool) error {
 	data := struct {
 		DryRun        bool `json:"dry_run"`
+		SourceSchema  int  `json:"source_schema,omitempty"`
 		Installations int  `json:"installations"`
 		NeedsRebind   int  `json:"needs_rebind"`
 		Migrated      int  `json:"migrated"`
 		BackupCreated bool `json:"backup_created"`
 	}{
-		DryRun: dryRun, Installations: plan.Installations, NeedsRebind: plan.NeedsRebind,
+		DryRun: dryRun, SourceSchema: plan.SourceSchema, Installations: plan.Installations, NeedsRebind: plan.NeedsRebind,
 		Migrated: report.Migrated, BackupCreated: report.BackupPath != "",
 	}
 	if format == "json" {
@@ -97,16 +117,30 @@ func renderStateMigration(writer io.Writer, format string, plan statemigration.P
 		renderStateMigrationPlan(writer, plan)
 		return nil
 	}
-	_, _ = fmt.Fprintf(writer, "Migrated %d legacy installation(s); backup created before Agent Plugins state commit.\n", report.Migrated)
+	if plan.SourceSchema != 0 {
+		_, _ = fmt.Fprintf(writer, "Migrated %d authoritative schema %d installation(s); backup created before Agent Plugins state commit.\n", report.Migrated, plan.SourceSchema)
+	} else {
+		_, _ = fmt.Fprintf(writer, "Migrated %d legacy installation(s); backup created before Agent Plugins state commit.\n", report.Migrated)
+	}
 	if report.NeedsRebind > 0 {
 		_, _ = fmt.Fprintf(writer, "%d installation(s) require explicit rebind before update.\n", report.NeedsRebind)
 	}
-	_, _ = fmt.Fprintln(writer, "Legacy packages remain removable with plugin-kit-ai integrations remove.")
+	if plan.SourceSchema == 0 {
+		_, _ = fmt.Fprintln(writer, "Legacy packages remain removable with plugin-kit-ai integrations remove.")
+	}
 	return nil
 }
 
 func renderStateMigrationPlan(writer io.Writer, plan statemigration.Plan) {
-	_, _ = fmt.Fprintf(writer, "Legacy installations: %d\n", plan.Installations)
+	if plan.SourceSchema != 0 {
+		_, _ = fmt.Fprintf(writer, "Authoritative schema %d installations: %d\n", plan.SourceSchema, plan.Installations)
+	} else {
+		_, _ = fmt.Fprintf(writer, "Legacy installations: %d\n", plan.Installations)
+	}
 	_, _ = fmt.Fprintf(writer, "Require rebind: %d\n", plan.NeedsRebind)
-	_, _ = fmt.Fprintln(writer, "The legacy state remains unchanged and is backed up before Agent Plugins state is committed.")
+	if plan.SourceSchema != 0 {
+		_, _ = fmt.Fprintln(writer, "The authoritative state remains unchanged during planning and is backed up before the migrated state is committed.")
+	} else {
+		_, _ = fmt.Fprintln(writer, "The legacy state remains unchanged and is backed up before Agent Plugins state is committed.")
+	}
 }

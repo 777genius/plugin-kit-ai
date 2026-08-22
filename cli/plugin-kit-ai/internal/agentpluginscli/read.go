@@ -18,29 +18,46 @@ import (
 )
 
 type publicClient struct {
-	ClientID        string                      `json:"client_id"`
-	Scope           string                      `json:"scope"`
-	Materialization domain.MaterializationState `json:"materialization"`
-	Activation      domain.ActivationState      `json:"activation"`
-	Authentication  domain.AuthenticationState  `json:"authentication"`
-	Policy          domain.PolicyState          `json:"policy"`
-	Verification    domain.VerificationState    `json:"verification"`
+	ClientID         string                      `json:"client_id"`
+	Scope            string                      `json:"scope"`
+	Materialization  domain.MaterializationState `json:"materialization"`
+	Activation       domain.ActivationState      `json:"activation"`
+	Authentication   domain.AuthenticationState  `json:"authentication"`
+	Policy           domain.PolicyState          `json:"policy"`
+	Verification     domain.VerificationState    `json:"verification"`
+	PackageRevision  *publicClientRevision       `json:"package_revision,omitempty"`
+	AffectedSurfaces []string                    `json:"affected_surfaces,omitempty"`
+}
+
+type publicClientRevision struct {
+	Version          string           `json:"version,omitempty"`
+	ResolvedRevision string           `json:"resolved_revision,omitempty"`
+	DistributionID   string           `json:"distribution_id,omitempty"`
+	ReleaseSequence  uint64           `json:"release_sequence,omitempty"`
+	TreeDigest       string           `json:"tree_digest"`
+	ManifestDigest   string           `json:"manifest_digest"`
+	Evidence         []publicEvidence `json:"evidence,omitempty"`
 }
 
 type publicDetectedClient struct {
 	ClientID    domain.ClientID        `json:"client_id"`
 	DisplayName string                 `json:"display_name"`
 	Status      domain.DetectionStatus `json:"status"`
+	Version     string                 `json:"version,omitempty"`
 	Surfaces    []domain.ClientSurface `json:"surfaces,omitempty"`
 }
 
 type publicInstallation struct {
-	InstallationID string         `json:"installation_id"`
-	Name           string         `json:"name"`
-	Version        string         `json:"version,omitempty"`
-	Source         string         `json:"source"`
-	NeedsRebind    bool           `json:"needs_rebind,omitempty"`
-	Clients        []publicClient `json:"clients"`
+	InstallationID    string                    `json:"installation_id"`
+	Name              string                    `json:"name"`
+	Version           string                    `json:"version,omitempty"`
+	Source            string                    `json:"source"`
+	NeedsRebind       bool                      `json:"needs_rebind,omitempty"`
+	Clients           []publicClient            `json:"clients"`
+	Directory         *publicInstalledDirectory `json:"directory,omitempty"`
+	Warnings          []publicSafetyWarning     `json:"warnings,omitempty"`
+	MixedVersion      bool                      `json:"mixed_version"`
+	ConvergenceAction string                    `json:"convergence_action,omitempty"`
 }
 
 type doctorFinding struct {
@@ -96,9 +113,22 @@ func newInfoCommand(app App, opts *options) *cobra.Command {
 			}
 			installation, err := selectInstallation(state, args[0])
 			if err != nil {
-				return err
+				if strings.Contains(err.Error(), "ambiguous") || !isDirectorySelector(strings.TrimSpace(args[0])) {
+					return err
+				}
+				product, inspectErr := inspectDirectoryProduct(cmd.Context(), app, state, args[0], opts.target)
+				if inspectErr != nil {
+					return inspectErr
+				}
+				if opts.format == "json" {
+					return writeJSONOutput(cmd.OutOrStdout(), "info", product)
+				}
+				return renderProductInspection(cmd.OutOrStdout(), product)
 			}
-			public := publicInstallationView(installation, true)
+			public, err := inspectInstalledProduct(cmd.Context(), app, state, installation)
+			if err != nil {
+				return fmt.Errorf("inspect signed Directory: %w", err)
+			}
 			if opts.format == "json" {
 				return writeJSONOutput(cmd.OutOrStdout(), "info", public)
 			}
@@ -130,14 +160,14 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
-	open, err := app.Directory.ListOpen()
+	open, err := app.Lifecycle.Kernel.Directory.ListOpen()
 	if err != nil {
 		return err
 	}
 	publicClients := make([]publicDetectedClient, 0, len(clients))
 	for _, client := range clients {
 		publicClients = append(publicClients, publicDetectedClient{
-			ClientID: client.ClientID, DisplayName: client.DisplayName, Status: client.Status,
+			ClientID: client.ClientID, DisplayName: client.DisplayName, Status: client.Status, Version: client.Version,
 			Surfaces: append([]domain.ClientSurface(nil), client.Surfaces...),
 		})
 	}
@@ -158,11 +188,27 @@ func runDoctor(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		if err != nil {
 			return err
 		}
-		value := publicInstallationView(installation, true)
+		value, err := inspectInstalledProduct(ctx, app, state, installation)
+		if err != nil {
+			return fmt.Errorf("inspect signed Directory: %w", err)
+		}
 		report.Installation = &value
 		selected = &installation
 	}
 	report.Findings = doctorFindings(ctx, app, clients, state, open, selected)
+	safety, err := doctorDirectorySafetyFindings(ctx, app, state, selected, report.Installation)
+	if err != nil {
+		return fmt.Errorf("inspect signed Directory: %w", err)
+	}
+	if len(safety) > 0 {
+		filtered := report.Findings[:0]
+		for _, finding := range report.Findings {
+			if finding.Code != "no_degradation_detected" {
+				filtered = append(filtered, finding)
+			}
+		}
+		report.Findings = append(filtered, safety...)
+	}
 	if opts.format == "json" {
 		return writeJSONOutput(cmd.OutOrStdout(), "doctor", report)
 	}
@@ -311,10 +357,10 @@ func checkManagedIntegrity(ctx context.Context, app App, client domain.DetectedC
 			expected = receipt.AfterDigest
 		}
 	}
-	if expected == "" || app.Stager == nil {
+	if expected == "" || app.Lifecycle.Stager == nil {
 		return []doctorFinding{scopedFinding("unknown", "managed_integrity_not_checked", installation, binding.ClientID, "managed-directory integrity evidence is unavailable", repairAction(installation, binding))}
 	}
-	if err := app.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
+	if err := app.Lifecycle.Stager.Verify(ctx, target.ActivePath, expected); err != nil {
 		var verification *ports.VerificationError
 		if errors.As(err, &verification) && verification.Kind == ports.VerificationExcludedMarker {
 			return []doctorFinding{scopedFinding("unknown", "excluded_ownership_marker", installation, binding.ClientID, "the managed package contains an ownership marker excluded from digest verification", "manually review and remove the excluded ownership marker, then rerun doctor; automatic repair is intentionally blocked")}
@@ -396,17 +442,52 @@ func publicInstallationView(installation domain.Installation, includeAbsent bool
 		Name:           installation.DeclaredName, Version: installation.Package.Version,
 		Source: publicSource(installation.Source), NeedsRebind: installation.NeedsRebind,
 	}
+	if installation.Directory != nil {
+		origin := installation.Directory
+		value.Directory = &publicInstalledDirectory{ProductID: origin.ProductID,
+			RecordedDistribution: origin.DistributionID, CurrentDistribution: origin.DistributionID,
+			RecordedRevision: installation.Source.ResolvedRevision, CurrentRevision: installation.Source.ResolvedRevision,
+			RecordedReleaseSequence: origin.DesiredReleaseSequence, CurrentReleaseSequence: origin.DesiredReleaseSequence,
+			RecordedSnapshotSequence: origin.SnapshotSequence}
+	}
 	for _, client := range installation.Clients {
 		if client.Materialization == domain.MaterializationAbsent && !includeAbsent {
 			continue
 		}
+		affectedSurfaces := append([]string(nil), client.AffectedSurfaces...)
+		sort.Strings(affectedSurfaces)
 		value.Clients = append(value.Clients, publicClient{
 			ClientID: client.ClientID, Scope: client.Scope, Materialization: client.Materialization,
 			Activation: client.Activation, Authentication: client.Authentication,
 			Policy: client.Policy, Verification: client.Verification,
+			PackageRevision:  publicPackageRevision(client.PackageRevision),
+			AffectedSurfaces: affectedSurfaces,
 		})
 	}
 	sort.Slice(value.Clients, func(i, j int) bool { return value.Clients[i].ClientID < value.Clients[j].ClientID })
+	value.MixedVersion, value.ConvergenceAction = convergenceState(installation)
+	return value
+}
+
+func publicPackageRevision(revision *domain.ClientPackageRevision) *publicClientRevision {
+	if revision == nil {
+		return nil
+	}
+	return &publicClientRevision{Version: revision.Version, ResolvedRevision: publicImmutableRevision(revision.ResolvedRevision),
+		DistributionID: revision.DistributionID, ReleaseSequence: revision.ReleaseSequence,
+		TreeDigest: revision.TreeDigest, ManifestDigest: revision.ManifestDigest}
+}
+
+func publicImmutableRevision(value string) string {
+	value = strings.TrimSpace(value)
+	if len(value) != 40 {
+		return ""
+	}
+	for _, character := range value {
+		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
+			return ""
+		}
+	}
 	return value
 }
 
@@ -439,7 +520,7 @@ func selectInstallation(state domain.StateFileV2, selector string) (domain.Insta
 		if installation.InstallationID == selector {
 			return installation, nil
 		}
-		if installation.DeclaredName == selector {
+		if installationMatchesSelector(installation, selector) {
 			matches = append(matches, installation)
 		}
 	}
@@ -471,6 +552,21 @@ func renderInstallation(writer io.Writer, installation publicInstallation) error
 	for _, client := range installation.Clients {
 		_, _ = fmt.Fprintf(writer, "  %s: materialization=%s activation=%s auth=%s verification=%s\n",
 			client.ClientID, client.Materialization, client.Activation, client.Authentication, client.Verification)
+	}
+	if installation.Directory != nil {
+		value := installation.Directory
+		_, _ = fmt.Fprintf(writer, "  Directory: recorded=%s@%s release=%d current=%s@%s release=%d\n",
+			value.RecordedDistribution, value.RecordedRevision, value.RecordedReleaseSequence,
+			value.CurrentDistribution, value.CurrentRevision, value.CurrentReleaseSequence)
+	}
+	if installation.MixedVersion {
+		_, _ = fmt.Fprintf(writer, "  Mixed version: true\n  Convergence: %s\n", installation.ConvergenceAction)
+	}
+	for _, warning := range installation.Warnings {
+		_, _ = fmt.Fprintf(writer, "  WARNING [%s]: %s\n", warning.Code, warning.Message)
+		if warning.Action != "" {
+			_, _ = fmt.Fprintf(writer, "    Action: %s\n", warning.Action)
+		}
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package clientdetect
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
@@ -24,6 +26,8 @@ type Detector struct {
 	LinuxApplicationDirs  []string
 	LookPath              func(string) (string, error)
 	Lstat                 func(string) (fs.FileInfo, error)
+	ProbeVersion          func(context.Context, string) (string, error)
+	VersionTimeout        time.Duration
 }
 
 func NewOS(homeDir string) Detector {
@@ -47,12 +51,25 @@ func NewOS(homeDir string) Detector {
 			userApplications,
 			"/usr/local/share/applications", "/usr/share/applications",
 		),
-		LookPath: exec.LookPath,
-		Lstat:    os.Lstat,
+		LookPath:       exec.LookPath,
+		Lstat:          os.Lstat,
+		ProbeVersion:   probeExecutableVersion,
+		VersionTimeout: 2 * time.Second,
 	}
 }
 
 func (detector Detector) Detect(ctx context.Context) ([]domain.DetectedClient, error) {
+	return detector.detect(ctx, false)
+}
+
+// DetectWithVersionProbe is reserved for explicit lifecycle resolution that
+// needs the installed client version to bind signed Directory evidence. Detect
+// itself is strictly observational and never executes a discovered binary.
+func (detector Detector) DetectWithVersionProbe(ctx context.Context) ([]domain.DetectedClient, error) {
+	return detector.detect(ctx, true)
+}
+
+func (detector Detector) detect(ctx context.Context, probeVersion bool) ([]domain.DetectedClient, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -63,18 +80,18 @@ func (detector Detector) Detect(ctx context.Context) ([]domain.DetectedClient, e
 		return nil, fmt.Errorf("client detector probes are required")
 	}
 	clients := []domain.DetectedClient{
-		detector.detectCodex(),
-		detector.detectChatGPT(),
-		detector.detectCursor(),
-		detector.detectCopilot(),
-		detector.detectVSCode(),
-		detector.detectKiro(),
+		detector.detectCodex(ctx, probeVersion),
+		detector.detectChatGPT(ctx, probeVersion),
+		detector.detectCursor(ctx, probeVersion),
+		detector.detectCopilot(ctx, probeVersion),
+		detector.detectVSCode(ctx, probeVersion),
+		detector.detectKiro(ctx, probeVersion),
 	}
 	sort.Slice(clients, func(i, j int) bool { return clients[i].ClientID < clients[j].ClientID })
 	return clients, nil
 }
 
-func (detector Detector) detectCodex() domain.DetectedClient {
+func (detector Detector) detectCodex(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	configRoot := filepath.Join(detector.HomeDir, ".codex")
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("codex_cli", "codex"),
@@ -85,10 +102,10 @@ func (detector Detector) detectCodex() domain.DetectedClient {
 	} else if detector.GOOS == "linux" {
 		surfaces = append(surfaces, detector.linuxDesktopSurface("codex_desktop", "codex.desktop"))
 	}
-	return detected(domain.ClientCodex, "OpenAI Codex", configRoot, detector.lookup("codex"), surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientCodex, "OpenAI Codex", configRoot, detector.lookup("codex"), surfaces)
 }
 
-func (detector Detector) detectChatGPT() domain.DetectedClient {
+func (detector Detector) detectChatGPT(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	var surfaces []domain.ClientSurface
 	switch detector.GOOS {
 	case "darwin":
@@ -104,10 +121,10 @@ func (detector Detector) detectChatGPT() domain.DetectedClient {
 	}
 	// ChatGPT is a remote/manual host. It intentionally has no executable and
 	// does not inherit the Codex CLI or config directory.
-	return detected(domain.ClientChatGPT, "ChatGPT", "", "", surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientChatGPT, "ChatGPT", "", "", surfaces)
 }
 
-func (detector Detector) detectCursor() domain.DetectedClient {
+func (detector Detector) detectCursor(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	configRoot := filepath.Join(detector.HomeDir, ".cursor")
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("cursor_cli", "cursor"),
@@ -120,19 +137,19 @@ func (detector Detector) detectCursor() domain.DetectedClient {
 	} else if detector.GOOS == "linux" {
 		surfaces = append(surfaces, detector.linuxDesktopSurface("cursor_desktop", "cursor.desktop"))
 	}
-	return detected(domain.ClientCursor, "Cursor", configRoot, detector.lookup("cursor"), surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientCursor, "Cursor", configRoot, detector.lookup("cursor"), surfaces)
 }
 
-func (detector Detector) detectCopilot() domain.DetectedClient {
+func (detector Detector) detectCopilot(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	configRoot := filepath.Join(detector.HomeDir, ".copilot")
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("copilot_cli", "copilot"),
 		detector.directorySurface("copilot_config", configRoot),
 	}
-	return detected(domain.ClientCopilot, "GitHub Copilot CLI", configRoot, detector.lookup("copilot"), surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientCopilot, "GitHub Copilot CLI", configRoot, detector.lookup("copilot"), surfaces)
 }
 
-func (detector Detector) detectVSCode() domain.DetectedClient {
+func (detector Detector) detectVSCode(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	configRoot := detector.vscodeConfigRoot()
 	surfaces := []domain.ClientSurface{
 		detector.binarySurface("vscode_cli", "code"),
@@ -145,10 +162,10 @@ func (detector Detector) detectVSCode() domain.DetectedClient {
 	} else if detector.GOOS == "linux" {
 		surfaces = append(surfaces, detector.linuxDesktopSurface("vscode_desktop", "code.desktop", "visual-studio-code.desktop"))
 	}
-	return detected(domain.ClientVSCode, "Visual Studio Code", configRoot, detector.lookup("code"), surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientVSCode, "Visual Studio Code", configRoot, detector.lookup("code"), surfaces)
 }
 
-func (detector Detector) detectKiro() domain.DetectedClient {
+func (detector Detector) detectKiro(ctx context.Context, probeVersion bool) domain.DetectedClient {
 	configRoot := filepath.Join(detector.HomeDir, ".kiro")
 	kiroCLI := detector.lookup("kiro-cli")
 	legacyCLI := detector.lookup("kiro")
@@ -164,7 +181,7 @@ func (detector Detector) detectKiro() domain.DetectedClient {
 	} else if detector.GOOS == "linux" {
 		surfaces = append(surfaces, detector.linuxDesktopSurface("kiro_desktop", "kiro.desktop"))
 	}
-	return detected(domain.ClientKiro, "Kiro", configRoot, firstPath(kiroCLI, legacyCLI), surfaces)
+	return detector.detectedClient(ctx, probeVersion, domain.ClientKiro, "Kiro", configRoot, firstPath(kiroCLI, legacyCLI), surfaces)
 }
 
 func (detector Detector) vscodeConfigRoot() string {
@@ -269,7 +286,7 @@ func firstPath(paths ...string) string {
 	return ""
 }
 
-func detected(clientID domain.ClientID, displayName, configRoot, executablePath string, surfaces []domain.ClientSurface) domain.DetectedClient {
+func (detector Detector) detectedClient(ctx context.Context, probeVersion bool, clientID domain.ClientID, displayName, configRoot, executablePath string, surfaces []domain.ClientSurface) domain.DetectedClient {
 	status := domain.DetectionNotDetected
 	for _, surface := range surfaces {
 		if surface.Detected {
@@ -277,7 +294,7 @@ func detected(clientID domain.ClientID, displayName, configRoot, executablePath 
 			break
 		}
 	}
-	return domain.DetectedClient{
+	client := domain.DetectedClient{
 		ClientID:       clientID,
 		DisplayName:    displayName,
 		Status:         status,
@@ -285,6 +302,75 @@ func detected(clientID domain.ClientID, displayName, configRoot, executablePath 
 		ExecutablePath: executablePath,
 		ConfigRoot:     configRoot,
 	}
+	if probeVersion && status == domain.DetectionDetected && executablePath != "" && detector.ProbeVersion != nil {
+		timeout := detector.VersionTimeout
+		if timeout <= 0 {
+			timeout = 2 * time.Second
+		}
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		if version, err := detector.ProbeVersion(ctx, executablePath); err == nil {
+			client.Version = normalizeVersion(version)
+		}
+	}
+	return client
+}
+
+const maximumVersionOutput = 4096
+
+type cappedBuffer struct {
+	bytes.Buffer
+	remaining int
+}
+
+func (buffer *cappedBuffer) Write(value []byte) (int, error) {
+	if len(value) > buffer.remaining {
+		return 0, fmt.Errorf("version output exceeds %d bytes", maximumVersionOutput)
+	}
+	buffer.remaining -= len(value)
+	return buffer.Buffer.Write(value)
+}
+
+func probeExecutableVersion(ctx context.Context, executable string) (string, error) {
+	isolatedDir, err := os.MkdirTemp("", "agentplugins-version-probe-")
+	if err != nil {
+		return "", fmt.Errorf("create isolated version probe directory: %w", err)
+	}
+	defer os.RemoveAll(isolatedDir)
+
+	output := &cappedBuffer{remaining: maximumVersionOutput}
+	command := exec.CommandContext(ctx, executable, "--version")
+	command.Dir = isolatedDir
+	command.Env = []string{}
+	command.Stdin = strings.NewReader("")
+	command.Stdout, command.Stderr = output, output
+	command.WaitDelay = 100 * time.Millisecond
+	if err := command.Run(); err != nil {
+		return "", err
+	}
+	return output.String(), nil
+}
+
+func normalizeVersion(value string) string {
+	for _, field := range strings.Fields(value) {
+		candidate := strings.Trim(field, "vV,;()[]{}")
+		parts := strings.SplitN(strings.SplitN(candidate, "+", 2)[0], "-", 2)
+		core := strings.Split(parts[0], ".")
+		if len(core) < 2 {
+			continue
+		}
+		valid := true
+		for _, segment := range core {
+			if segment == "" || strings.Trim(segment, "0123456789") != "" {
+				valid = false
+				break
+			}
+		}
+		if valid {
+			return candidate
+		}
+	}
+	return ""
 }
 
 func evidence(ok bool, value string) string {

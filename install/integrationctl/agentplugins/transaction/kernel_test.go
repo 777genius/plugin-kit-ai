@@ -50,6 +50,97 @@ func TestApplyDirectoryRollsBackWhenVerificationFails(t *testing.T) {
 	}
 }
 
+func TestApplyDirectoryGroupRollsBackEveryTargetWhenSecondVerificationFails(t *testing.T) {
+	t.Parallel()
+	kernel, first, store := transactionFixture(t, "group-first")
+	secondActive := filepath.Join(first.OwnedBase, "plugin-second")
+	secondStaging := filepath.Join(first.OwnedBase, "plugin-second.staging")
+	writeTransactionBody(t, secondActive, "old-second")
+	writeTransactionBody(t, secondStaging, "new-second")
+	desired := first.DesiredState
+	installation := desired.Installations[0]
+	secondClientID := domain.ComputeClientBindingID(installation.InstallationID, "cursor", "user", secondActive)
+	secondClient := onlyClient(installation)
+	secondClient.ClientBindingID = secondClientID
+	secondClient.ClientID = "cursor"
+	secondClient.TargetLocator = secondActive
+	secondClient.PhysicalArtifact = domain.ComputePhysicalArtifactID("demo", installation.InstallationID+"-cursor")
+	secondClient.Receipts = nil
+	installation.Clients[secondClientID] = secondClient
+	desired.Installations[0] = installation
+	second := DirectoryMutation{OperationID: "group-second", InstallationID: installation.InstallationID, ClientBindingID: secondClientID,
+		Sequence: 1, OwnedBase: first.OwnedBase, ActivePath: secondActive, StagingPath: secondStaging,
+		Activation: domain.ActivationPrepared, Authentication: domain.AuthenticationNotRequired, Policy: domain.PolicyAllowed,
+		Verification: domain.VerificationInstalled, Verify: func(context.Context, string) error { return errors.New("second verification failed") }}
+	_, err := kernel.ApplyDirectoryGroup(context.Background(), DirectoryGroup{OperationGroupID: "group-op", Mutations: []DirectoryMutation{first, second}, DesiredState: desired})
+	if err == nil {
+		t.Fatal("group verification failure was ignored")
+	}
+	if phase := FailurePhase(err); phase != GroupFailureRolledBack {
+		t.Fatalf("failure phase = %q, want kernel-proven rollback", phase)
+	}
+	assertTransactionBody(t, first.ActivePath, "old")
+	assertTransactionBody(t, secondActive, "old-second")
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations[0].Clients) != 1 || len(onlyClient(state.Installations[0]).Receipts) != 0 {
+		t.Fatalf("failed group changed state: %+v", state)
+	}
+}
+
+func TestGroupedRemovalRecoversFinalStateAndRenamedDataAfterRestart(t *testing.T) {
+	t.Parallel()
+	kernel, mutation, store := transactionFixture(t, "restart-remove")
+	if err := os.RemoveAll(mutation.StagingPath); err != nil {
+		t.Fatal(err)
+	}
+	dataPath := filepath.Join(mutation.OwnedBase, "plugin-data")
+	writeTransactionBody(t, dataPath, "persistent")
+	desired := mutation.DesiredState
+	desired.Installations = nil
+	faulted := false
+	kernel.Directory.Fault = func(phase string) error {
+		if phase == dirswap.PhaseCommitPending && !faulted {
+			faulted = true
+			return errors.New("simulated restart")
+		}
+		return nil
+	}
+	_, err := kernel.RemoveDirectoryGroup(context.Background(), DirectoryRemovalGroup{OperationGroupID: "restart-remove-group", DesiredState: desired,
+		Removals: []DirectoryRemoval{
+			{OperationID: "restart-remove-native", InstallationID: mutation.InstallationID, ClientBindingID: mutation.ClientBindingID,
+				Sequence: mutation.Sequence, OwnedBase: mutation.OwnedBase, ActivePath: mutation.ActivePath},
+			{OperationID: "restart-remove-data", ClientBindingID: "owned-data", Sequence: 1,
+				OwnedBase: mutation.OwnedBase, ActivePath: dataPath, Standalone: true},
+		}})
+	if err == nil || FailurePhase(err) != GroupFailureCommitted {
+		t.Fatalf("interrupted finalization = %v, phase=%q", err, FailurePhase(err))
+	}
+	kernel.Directory.Fault = nil
+	if err := kernel.Recover(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{mutation.ActivePath, dataPath} {
+		if _, err := os.Lstat(path); !os.IsNotExist(err) {
+			t.Fatalf("recovered path %s still exists: %v", path, err)
+		}
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 || len(state.TransactionReceipts) != 2 {
+		t.Fatalf("recovered final state = %+v", state)
+	}
+	for _, receipt := range state.TransactionReceipts {
+		if receipt.Phase != ReceiptPhaseCommitted {
+			t.Fatalf("receipt not finalized: %+v", receipt)
+		}
+	}
+}
+
 func TestApplyDirectoryNeverPersistsDesiredStateBeforeDurableDirectorySuccess(t *testing.T) {
 	t.Parallel()
 	kernel, mutation, store := transactionFixture(t, "crash-before-state-op")

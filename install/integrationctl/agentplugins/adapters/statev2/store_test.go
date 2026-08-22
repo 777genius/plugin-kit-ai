@@ -40,7 +40,7 @@ func TestStoreRoundTripAndDuplicateDeclaredNames(t *testing.T) {
 	}
 }
 
-func TestChatGPTStateIsExplicitlyV3AndOldReadersFailClosed(t *testing.T) {
+func TestChatGPTStateUsesCurrentSchemaAndOldReadersFailClosed(t *testing.T) {
 	t.Parallel()
 	store := Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}
 	state := domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{
@@ -59,8 +59,8 @@ func TestChatGPTStateIsExplicitlyV3AndOldReadersFailClosed(t *testing.T) {
 	if err := json.Unmarshal(body, &header); err != nil {
 		t.Fatal(err)
 	}
-	if header.SchemaVersion != domain.StateSchemaVersion || header.SchemaVersion == domain.LegacyStateSchemaVersion {
-		t.Fatalf("ChatGPT state was not gated behind schema v3: %s", body)
+	if header.SchemaVersion != domain.StateSchemaVersion || header.SchemaVersion == domain.PreviousStateSchemaVersion {
+		t.Fatalf("ChatGPT state was not gated behind current schema: %s", body)
 	}
 	for _, required := range []string{`"catalog_evidence"`, `"app_present"`, `"app_bindings"`} {
 		if !bytes.Contains(body, []byte(required)) {
@@ -104,8 +104,8 @@ func TestStoreReadsLegacyV2LosslesslyWithoutMutatingUntilSave(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(afterSave, []byte(`"schema_version": 3`)) {
-		t.Fatalf("first explicit save did not persist state v3: %s", afterSave)
+	if !bytes.Contains(afterSave, []byte(`"schema_version": 4`)) {
+		t.Fatalf("first explicit save did not persist current state: %s", afterSave)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestStoreRejectsV3FieldsDisguisedAsLegacyV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body = bytes.Replace(body, []byte(`"schema_version":3`), []byte(`"schema_version":2`), 1)
+	body = bytes.Replace(body, []byte(`"schema_version":4`), []byte(`"schema_version":2`), 1)
 	path := filepath.Join(t.TempDir(), "state-v2.json")
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatal(err)
@@ -129,8 +129,8 @@ func TestStoreRejectsV3FieldsDisguisedAsLegacyV2(t *testing.T) {
 func TestStoreFailsClosedOnFutureOrUnknownState(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]string{
-		"future":  `{"schema_version":4,"installations":[]}`,
-		"unknown": `{"schema_version":3,"installations":[],"future":true}`,
+		"future":  `{"schema_version":5,"installations":[]}`,
+		"unknown": `{"schema_version":4,"installations":[],"future":true}`,
 	} {
 		name, body := name, body
 		t.Run(name, func(t *testing.T) {
@@ -199,6 +199,56 @@ func TestStoreRejectsUnknownLifecycleState(t *testing.T) {
 	err := (Store{Path: filepath.Join(t.TempDir(), "state-v2.json")}).Save(state)
 	if err == nil || !strings.Contains(err.Error(), "unknown lifecycle state") {
 		t.Fatalf("save error = %v", err)
+	}
+}
+
+func TestValidateRequiresFullDirectoryResolvedRevisionsButAllowsAbsentDirectLocalRevision(t *testing.T) {
+	directoryInstallation := func() domain.Installation {
+		installation := validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001")
+		installation.OriginMode = domain.OriginModeDirectory
+		installation.Directory = &domain.DirectoryOrigin{ProductID: "demo", DistributionID: "owner/demo", DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
+		installation.Source.ResolvedRevision = strings.Repeat("a", 40)
+		for key, client := range installation.Clients {
+			client.PackageRevision = &domain.ClientPackageRevision{ResolvedRevision: strings.Repeat("a", 40), TreeDigest: "sha256:tree", ManifestDigest: "sha256:manifest", DistributionID: "owner/demo", ReleaseSequence: 1}
+			installation.Clients[key] = client
+		}
+		return installation
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*domain.Installation)
+	}{
+		{name: "missing installation revision", mutate: func(installation *domain.Installation) { installation.Source.ResolvedRevision = "" }},
+		{name: "malformed installation revision", mutate: func(installation *domain.Installation) {
+			installation.Source.ResolvedRevision = strings.Repeat("A", 40)
+		}},
+		{name: "missing client revision", mutate: func(installation *domain.Installation) {
+			for key, client := range installation.Clients {
+				client.PackageRevision.ResolvedRevision = ""
+				installation.Clients[key] = client
+			}
+		}},
+		{name: "malformed client revision", mutate: func(installation *domain.Installation) {
+			for key, client := range installation.Clients {
+				client.PackageRevision.ResolvedRevision = "not-a-full-sha"
+				installation.Clients[key] = client
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			installation := directoryInstallation()
+			test.mutate(&installation)
+			err := Validate(domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{installation}})
+			if err == nil || !strings.Contains(err.Error(), "resolved_revision") {
+				t.Fatalf("invalid Directory revision accepted: %v", err)
+			}
+		})
+	}
+	direct := validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001")
+	direct.OriginMode = domain.OriginModeDirect
+	direct.Source.ResolvedRevision = ""
+	if err := Validate(domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{direct}}); err != nil {
+		t.Fatalf("direct local state with absent Git revision was rejected: %v", err)
 	}
 }
 

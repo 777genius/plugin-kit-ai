@@ -81,6 +81,50 @@ func TestPlannerFailsClosedWhenPinnedCatalogEvidenceOmitsSelectedClient(t *testi
 	}
 }
 
+func TestPlannerKeepsManualVerificationGuidanceForUntrustedEvidence(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+		"cursor": {Package: "native", Verification: "not_tested", Authentication: domain.AuthenticationRequirementNotRequired,
+			Evidence: []domain.DirectoryEvidence{{Level: "runtime", Outcome: "passed"}}},
+	}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope,
+		detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")), domain.ScopeUser, "demo-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(plan.Warnings, "catalog_not_tested") || !contains(plan.UserActions, "verify the plugin in the selected client before relying on it") {
+		t.Fatalf("planner suppressed verification guidance: warnings=%v actions=%v", plan.Warnings, plan.UserActions)
+	}
+}
+
+func TestPlannerSuppressesManualVerificationOnlyForTrustedRuntimePass(t *testing.T) {
+	t.Parallel()
+	client := detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor"))
+	trusted := func(level string) domain.DirectoryEvidence {
+		artifact := domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("a", 40)}
+		evidence := domain.DirectoryEvidence{Level: level, Outcome: "passed", Client: domain.ClientCursor, Artifact: artifact}
+		evidence.Trust = &domain.DirectoryEvidenceTrust{Kind: "reviewed_external"}
+		return evidence
+	}
+	for _, level := range []string{"materialization", "discovery", "oauth", "runtime"} {
+		t.Run(level, func(t *testing.T) {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired, Evidence: []domain.DirectoryEvidence{trusted(level)}},
+			}}
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, client, domain.ScopeUser, "demo-0123456789ab")
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasAction := contains(plan.UserActions, "verify the plugin in the selected client before relying on it")
+			if hasAction != (level != "runtime") {
+				t.Fatalf("level %s manual runtime verification action = %t, actions=%v", level, hasAction, plan.UserActions)
+			}
+		})
+	}
+}
+
 func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
 	t.Parallel()
 	envelope := testEnvelope()
@@ -106,6 +150,9 @@ func TestPlannerUsesNativeCursorTargetAndDoesNotExposeItInJSON(t *testing.T) {
 	if plan.ActivePath != want || plan.Status != domain.PlanManualActivationRequired || plan.PackageMode != domain.PackageNative {
 		t.Fatalf("plan = %+v, want active %s", plan, want)
 	}
+	if plan.DeclaredName != "demo" || plan.NativeRegistryRoot != config {
+		t.Fatalf("native identity inputs = name %q root %q", plan.DeclaredName, plan.NativeRegistryRoot)
+	}
 	body, err := json.Marshal(plan)
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +177,7 @@ func TestPlannerPromotesVSCodeToReadyWhenCopilotIsDetected(t *testing.T) {
 		ManagedRoot: t.TempDir(),
 		Detected: map[domain.ClientID]domain.DetectedClient{
 			domain.ClientCopilot: {
-				ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ExecutablePath: "/test/bin/copilot",
+				ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ConfigRoot: "/test/home/.copilot", ExecutablePath: "/test/bin/copilot",
 			},
 		},
 	}
@@ -140,6 +187,9 @@ func TestPlannerPromotesVSCodeToReadyWhenCopilotIsDetected(t *testing.T) {
 	}
 	if bridged.Status != domain.PlanReady || bridged.PackageMode != domain.PackagePrepared || bridged.Activation != domain.ActivationPrepared {
 		t.Fatalf("bridged plan = %+v", bridged)
+	}
+	if bridged.NativeRegistryExecutable != "/test/bin/copilot" || bridged.NativeRegistryRoot != "/test/home/.copilot" {
+		t.Fatalf("shared native registry = executable %q root %q", bridged.NativeRegistryExecutable, bridged.NativeRegistryRoot)
 	}
 }
 
@@ -155,6 +205,20 @@ func TestPlannerPromotesDetectedCopilotExecutableToReady(t *testing.T) {
 	}
 	if plan.Status != domain.PlanReady || plan.Activation != domain.ActivationPrepared {
 		t.Fatalf("plan = %+v", plan)
+	}
+}
+
+func TestDetectedPhysicalClientUsesRealSharedSurfaceIdentity(t *testing.T) {
+	t.Parallel()
+	vscode := detectedClient(domain.ClientVSCode, filepath.Join(t.TempDir(), "Code", "User"))
+	detected := map[domain.ClientID]domain.DetectedClient{domain.ClientVSCode: vscode}
+
+	client, ok := DetectedPhysicalClient(domain.ClientCopilot, detected)
+	if !ok || client.ClientID != domain.ClientVSCode || client.ConfigRoot != vscode.ConfigRoot {
+		t.Fatalf("shared physical client = %+v, %v", client, ok)
+	}
+	if _, ok := DetectedPhysicalClient(domain.ClientCursor, detected); ok {
+		t.Fatal("unrelated detected client was accepted for Cursor binding")
 	}
 }
 

@@ -88,10 +88,28 @@ type VersionedDocument struct {
 }
 
 type MCPServer struct {
-	Name    string          `json:"name"`
-	Type    string          `json:"type"`
-	Raw     json.RawMessage `json:"-"`
-	Decoded map[string]any  `json:"config"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"`
+	Raw              json.RawMessage   `json:"-"`
+	Decoded          map[string]any    `json:"config"`
+	StdioRequirement *StdioRequirement `json:"stdio_requirement,omitempty"`
+}
+
+type ExecutableKind string
+
+const (
+	ExecutableBare    ExecutableKind = "bare"
+	ExecutableBundled ExecutableKind = "bundled"
+)
+
+// StdioRequirement is inert preflight metadata. Loading a package records the
+// executable and standard environment contract but never resolves or runs it.
+type StdioRequirement struct {
+	Command             string         `json:"command"`
+	Kind                ExecutableKind `json:"kind"`
+	BundledRelativePath string         `json:"bundled_relative_path,omitempty"`
+	UsesPluginRoot      bool           `json:"uses_plugin_root,omitempty"`
+	UsesPluginData      bool           `json:"uses_plugin_data,omitempty"`
 }
 
 type MCPComponent struct {

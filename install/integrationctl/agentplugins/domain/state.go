@@ -1,8 +1,9 @@
 package domain
 
 const (
-	LegacyStateSchemaVersion = 2
-	StateSchemaVersion       = 3
+	LegacyStateSchemaVersion   = 2
+	PreviousStateSchemaVersion = 3
+	StateSchemaVersion         = 4
 )
 
 type MaterializationState string
@@ -10,6 +11,59 @@ type ActivationState string
 type AuthenticationState string
 type PolicyState string
 type VerificationState string
+type OriginMode string
+type DistributionKind string
+type DataReceiptState string
+type NativeIdentityState string
+type PluginDataDisposition string
+type PluginDataOwnership string
+type PluginDataCompatibility string
+
+const (
+	OriginModeDirectory OriginMode = "directory"
+	OriginModeDirect    OriginMode = "direct"
+
+	DistributionUpstream        DistributionKind = "upstream"
+	DistributionCommunityBridge DistributionKind = "community_bridge"
+	DistributionCommunity       DistributionKind = "community"
+
+	DataReceiptOwned   DataReceiptState = "owned"
+	DataReceiptUnknown DataReceiptState = "unknown"
+	DataReceiptStale   DataReceiptState = "stale"
+
+	NativeIdentityAbsent        NativeIdentityState = "absent"
+	NativeIdentityManaged       NativeIdentityState = "managed"
+	NativeIdentityUnmanaged     NativeIdentityState = "unmanaged"
+	NativeIdentityIndeterminate NativeIdentityState = "indeterminate"
+
+	PluginDataNone     PluginDataDisposition = "none"
+	PluginDataRetained PluginDataDisposition = "retained"
+
+	PluginDataOwnershipNone          PluginDataOwnership = "none"
+	PluginDataOwnershipOwned         PluginDataOwnership = "owned"
+	PluginDataOwnershipIndeterminate PluginDataOwnership = "indeterminate"
+
+	PluginDataCompatibilityNotApplicable PluginDataCompatibility = "not_applicable"
+	PluginDataCompatibilityNotProven     PluginDataCompatibility = "not_proven"
+)
+
+const PluginDataCompatibilityWarning = "existing PLUGIN_DATA is retained, but cross-distribution data compatibility is not guaranteed unless proven by the plugin distributions"
+
+// PluginDataDecision is the public switch decision for persistent plugin data.
+// It deliberately exposes ownership evidence without exposing the owned path.
+type PluginDataDecision struct {
+	Disposition   PluginDataDisposition   `json:"disposition"`
+	Present       bool                    `json:"present"`
+	ReceiptCount  int                     `json:"receipt_count"`
+	Ownership     PluginDataOwnership     `json:"ownership"`
+	Compatibility PluginDataCompatibility `json:"compatibility"`
+	Warning       string                  `json:"warning,omitempty"`
+}
+
+type NativeIdentityObservation struct {
+	State  NativeIdentityState `json:"state"`
+	Digest string              `json:"digest,omitempty"`
+}
 
 const (
 	MaterializationAbsent       MaterializationState = "absent"
@@ -73,16 +127,17 @@ type NativeObjectOwnership struct {
 }
 
 type MutationReceipt struct {
-	OperationID     string `json:"operation_id"`
-	Sequence        int    `json:"sequence"`
-	MutationType    string `json:"mutation_type"`
-	ClientBindingID string `json:"client_binding_id"`
-	ActivePath      string `json:"active_path,omitempty"`
-	StagingPath     string `json:"staging_path,omitempty"`
-	BackupPath      string `json:"backup_path,omitempty"`
-	BeforeDigest    string `json:"before_digest,omitempty"`
-	AfterDigest     string `json:"after_digest,omitempty"`
-	Phase           string `json:"phase"`
+	OperationID      string `json:"operation_id"`
+	OperationGroupID string `json:"operation_group_id,omitempty"`
+	Sequence         int    `json:"sequence"`
+	MutationType     string `json:"mutation_type"`
+	ClientBindingID  string `json:"client_binding_id"`
+	ActivePath       string `json:"active_path,omitempty"`
+	StagingPath      string `json:"staging_path,omitempty"`
+	BackupPath       string `json:"backup_path,omitempty"`
+	BeforeDigest     string `json:"before_digest,omitempty"`
+	AfterDigest      string `json:"after_digest,omitempty"`
+	Phase            string `json:"phase"`
 }
 
 // ClientPackageRevision records the exact portable package revision that was
@@ -93,6 +148,8 @@ type ClientPackageRevision struct {
 	ResolvedRevision string           `json:"resolved_revision,omitempty"`
 	TreeDigest       string           `json:"tree_digest"`
 	ManifestDigest   string           `json:"manifest_digest"`
+	DistributionID   string           `json:"distribution_id,omitempty"`
+	ReleaseSequence  uint64           `json:"release_sequence,omitempty"`
 	CatalogEvidence  *CatalogEvidence `json:"catalog_evidence,omitempty"`
 }
 
@@ -108,23 +165,60 @@ type ClientBinding struct {
 	Policy           PolicyState             `json:"policy"`
 	Verification     VerificationState       `json:"verification"`
 	PackageRevision  *ClientPackageRevision  `json:"package_revision,omitempty"`
+	DataReceiptID    string                  `json:"data_receipt_id,omitempty"`
+	AffectedSurfaces []string                `json:"affected_surfaces,omitempty"`
 	NativeObjects    []NativeObjectOwnership `json:"native_objects,omitempty"`
 	Receipts         []MutationReceipt       `json:"receipts,omitempty"`
 	UpdatedAt        string                  `json:"updated_at"`
 }
 
+// DirectoryOrigin is the minimum signed Directory provenance needed to make
+// lifecycle decisions without copying mutable product or policy metadata into
+// local state. DistributionID and DesiredReleaseSequence, bound to
+// Installation.Source.ResolvedRevision, form the immutable desired release
+// identity.
+type DirectoryOrigin struct {
+	ProductID              string           `json:"product_id"`
+	DistributionID         string           `json:"distribution_id"`
+	DistributionKind       DistributionKind `json:"distribution_kind"`
+	DesiredReleaseSequence uint64           `json:"desired_release_sequence"`
+	SnapshotSchema         int              `json:"snapshot_schema,omitempty"`
+	SnapshotSequence       uint64           `json:"snapshot_sequence,omitempty"`
+	SnapshotDigest         string           `json:"snapshot_digest,omitempty"`
+}
+
+// DataReceipt proves ownership of one persistent PLUGIN_DATA directory. It is
+// installation-level because multiple logical clients can share one physical
+// backend. Package replacement and binding removal never consume the receipt.
+type DataReceipt struct {
+	DataReceiptID   string           `json:"data_receipt_id"`
+	PhysicalBackend string           `json:"physical_backend_id"`
+	Scope           string           `json:"scope"`
+	Locator         string           `json:"locator"`
+	OwnershipDigest string           `json:"ownership_digest"`
+	State           DataReceiptState `json:"state"`
+	CreatedAt       string           `json:"created_at,omitempty"`
+	UpdatedAt       string           `json:"updated_at,omitempty"`
+}
+
 type Installation struct {
-	InstallationID string                   `json:"installation_id"`
-	DeclaredName   string                   `json:"declared_name"`
-	Source         SourceBinding            `json:"source"`
-	Package        PackageBinding           `json:"package"`
-	Clients        map[string]ClientBinding `json:"clients"`
-	NeedsRebind    bool                     `json:"needs_rebind,omitempty"`
-	CreatedAt      string                   `json:"created_at"`
-	UpdatedAt      string                   `json:"updated_at"`
+	InstallationID   string                   `json:"installation_id"`
+	DeclaredName     string                   `json:"declared_name"`
+	Source           SourceBinding            `json:"source"`
+	Package          PackageBinding           `json:"package"`
+	OriginMode       OriginMode               `json:"origin_mode,omitempty"`
+	Directory        *DirectoryOrigin         `json:"directory,omitempty"`
+	OperationGroupID string                   `json:"operation_group_id,omitempty"`
+	DataReceipts     map[string]DataReceipt   `json:"data_receipts,omitempty"`
+	DataRetained     bool                     `json:"data_retained,omitempty"`
+	Clients          map[string]ClientBinding `json:"clients"`
+	NeedsRebind      bool                     `json:"needs_rebind,omitempty"`
+	CreatedAt        string                   `json:"created_at"`
+	UpdatedAt        string                   `json:"updated_at"`
 }
 
 type StateFileV2 struct {
-	SchemaVersion int            `json:"schema_version"`
-	Installations []Installation `json:"installations"`
+	SchemaVersion       int               `json:"schema_version"`
+	Installations       []Installation    `json:"installations"`
+	TransactionReceipts []MutationReceipt `json:"transaction_receipts,omitempty"`
 }

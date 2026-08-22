@@ -12,7 +12,6 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/transaction"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
@@ -20,15 +19,25 @@ import (
 func newUpdateCommand(app App, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "update <name-or-installation-id>",
-		Short: "Safely update one tracked Agent Plugin",
+		Short: "Safely update a tracked Agent Plugin across selected or installed clients",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runForTargets(cmd, opts, "update", func() error {
-				return runUpdate(cmd.Context(), cmd, app, opts, args[0])
-			})
+			if strings.TrimSpace(opts.target) == "" {
+				targets, err := defaultBoundTargets(app, args[0], opts.scope, false)
+				if err != nil {
+					return err
+				}
+				opts.target = joinTargets(targets)
+				defer func() { opts.target = "" }()
+			}
+			targets, err := parseTargetOption(opts.target)
+			if err != nil {
+				return err
+			}
+			return runUpdateMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
 }
@@ -41,10 +50,21 @@ func newRepairCommand(app App, opts *options) *cobra.Command {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
+			if strings.TrimSpace(opts.target) == "" {
+				targets, err := defaultBoundTargets(app, args[0], opts.scope, true)
+				if err != nil {
+					return err
+				}
+				opts.target = joinTargets(targets)
+				defer func() { opts.target = "" }()
+			}
 			stdin := bufio.NewReader(cmd.InOrStdin())
-			return runForTargets(cmd, opts, "repair", func() error {
-				return runRepair(cmd.Context(), cmd, app, opts, args[0], stdin)
-			})
+			targets, err := parseTargetOption(opts.target)
+			if err != nil {
+				return err
+			}
+			_ = stdin
+			return runRepairMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
 }
@@ -135,11 +155,7 @@ func runRepair(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 }
 
 func renderRepairResult(writer io.Writer, format string, installation domain.Installation, result usecase.AddResult, dryRun bool) error {
-	data := struct {
-		Plugin string            `json:"plugin"`
-		DryRun bool              `json:"dry_run"`
-		Result usecase.AddResult `json:"result"`
-	}{installation.DeclaredName, dryRun, result}
+	data := newRepairResultData(installation, result, dryRun)
 	if format == "json" {
 		return writeJSONOutput(writer, "repair", data)
 	}
@@ -161,6 +177,27 @@ func renderRepairResult(writer io.Writer, format string, installation domain.Ins
 		}
 	}
 	return nil
+}
+
+type repairResultData struct {
+	OperationID    string            `json:"operation_id,omitempty"`
+	Plugin         string            `json:"plugin"`
+	Version        string            `json:"version,omitempty"`
+	Source         string            `json:"source"`
+	TreeDigest     string            `json:"tree_digest"`
+	ManifestDigest string            `json:"manifest_digest"`
+	NextAction     string            `json:"next_action,omitempty"`
+	DryRun         bool              `json:"dry_run"`
+	Result         usecase.AddResult `json:"result"`
+}
+
+func newRepairResultData(installation domain.Installation, result usecase.AddResult, dryRun bool) repairResultData {
+	return repairResultData{
+		OperationID: result.Receipt.OperationID, Plugin: installation.DeclaredName,
+		Version: installation.Package.Version, Source: publicSource(installation.Source),
+		TreeDigest: installation.Source.TreeDigest, ManifestDigest: installation.Package.ManifestDigest,
+		NextAction: nextLifecycleAction(result), DryRun: dryRun, Result: result,
+	}
 }
 
 func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
@@ -257,19 +294,105 @@ func runUpdate(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 func newRemoveCommand(app App, opts *options) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "remove <name-or-installation-id>",
-		Short: "Safely remove one tracked Agent Plugin target",
+		Short: "Safely remove selected targets while retaining plugin data by default",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
 			}
-			return runForTargets(cmd, opts, "remove", func() error {
+			if strings.TrimSpace(opts.target) == "" && app.Terminal && !opts.purgeData {
+				selection, err := promptBoundTargets(cmd, app, args[0], opts.scope)
+				if err != nil {
+					return err
+				}
+				opts.target = selection
+				defer func() { opts.target = "" }()
+			}
+			if opts.purgeData {
 				return runRemove(cmd.Context(), cmd, app, opts, args[0])
-			})
+			}
+			targets, err := parseTargetOption(opts.target)
+			if err != nil {
+				return err
+			}
+			if len(targets) == 0 {
+				return runRemove(cmd.Context(), cmd, app, opts, args[0])
+			}
+			if len(targets) == 1 && targets[0] == "legacy-all" {
+				return runRemove(cmd.Context(), cmd, app, opts, args[0])
+			}
+			return runRemoveMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
 	command.Flags().BoolVar(&opts.externalUninstalled, "external-uninstalled", false, "confirm the selected client plugin was uninstalled manually or was never activated/imported")
+	command.Flags().BoolVar(&opts.purgeData, "purge-data", false, "permanently delete ownership-verified plugin data after removal")
 	return command
+}
+
+func defaultBoundTargets(app App, selector, scope string, degradedOnly bool) ([]domain.ClientID, error) {
+	state, err := app.StateStore.Load()
+	if err != nil {
+		return nil, err
+	}
+	installation, err := selectInstallation(state, selector)
+	if err != nil {
+		return nil, err
+	}
+	var targets []domain.ClientID
+	for _, binding := range installation.Clients {
+		if binding.Scope != scope || binding.Materialization == domain.MaterializationAbsent {
+			continue
+		}
+		if degradedOnly && binding.Materialization != domain.MaterializationDegraded && binding.Activation != domain.ActivationFailed && binding.Activation != domain.ActivationManual && binding.Activation != domain.ActivationPrepared && binding.Authentication != domain.AuthenticationFailed && binding.Authentication != domain.AuthenticationPending && binding.Verification != domain.VerificationFailed {
+			continue
+		}
+		targets = append(targets, bindingSurfaceTargets(binding)...)
+	}
+	if len(targets) == 0 {
+		if degradedOnly {
+			return defaultBoundTargets(app, selector, scope, false)
+		}
+		return nil, fmt.Errorf("plugin has no materialized target in %s scope", scope)
+	}
+	sortTargets(targets)
+	return targets, nil
+}
+
+func promptBoundTargets(cmd *cobra.Command, app App, selector, scope string) (string, error) {
+	targets, err := defaultBoundTargets(app, selector, scope, false)
+	if err != nil {
+		return "", err
+	}
+	if len(targets) == 1 {
+		return string(targets[0]), nil
+	}
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Installed targets (all selected by default):")
+	for index, target := range targets {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. [x] %s\n", index+1, target)
+	}
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), "Choose targets by number, comma-separated [all]: ")
+	line, readErr := readInputLine(cmd.InOrStdin())
+	if readErr != nil && readErr != io.EOF {
+		return "", readErr
+	}
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return joinTargets(targets), nil
+	}
+	seen := map[int]struct{}{}
+	var selected []domain.ClientID
+	for _, raw := range strings.Split(line, ",") {
+		choice, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil || choice < 1 || choice > len(targets) {
+			return "", fmt.Errorf("invalid installed-target multiselect")
+		}
+		if _, duplicate := seen[choice]; duplicate {
+			return "", fmt.Errorf("duplicate installed-target multiselect choice %d", choice)
+		}
+		seen[choice] = struct{}{}
+		selected = append(selected, targets[choice-1])
+	}
+	return joinTargets(selected), nil
 }
 
 func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string) error {
@@ -280,6 +403,9 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	installation, err := selectInstallation(state, selector)
 	if err != nil {
 		return err
+	}
+	if opts.purgeData {
+		return runPurgeData(ctx, cmd, app, opts, installation)
 	}
 	if installation.Package.LoaderKind == domain.LoaderKindLegacy {
 		return runLegacyRemove(ctx, cmd, app, opts, installation)
@@ -297,7 +423,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	service := lifecycleService(app, detectedMap)
 	input := usecase.RemoveInput{
-		Selector: selector, Client: selected, Scope: domain.InstallScope(opts.scope),
+		Selector: installation.InstallationID, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Interactive: app.Terminal,
 		ExternalUninstalled: opts.externalUninstalled,
 		BackendExecutable:   backendExecutable(selected, detectedMap),
@@ -355,10 +481,10 @@ func runLegacyRemove(ctx context.Context, cmd *cobra.Command, app App, opts *opt
 	if !opts.dryRun && automatedMutation(app, opts) && strings.TrimSpace(opts.target) != "legacy-all" {
 		return fmt.Errorf("automated legacy removal requires --target legacy-all")
 	}
-	service := usecase.Service{
-		StateStore: app.StateStore, Legacy: app.LegacyLifecycle, LegacyLock: app.LegacyStateLock, Lock: app.MutationLock,
-		Kernel: transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	service.Legacy = app.LegacyLifecycle
+	service.LegacyLock = app.LegacyStateLock
 	input := usecase.LegacyRemoveInput{Selector: installation.InstallationID, DryRun: opts.dryRun}
 	planned, err := service.RemoveLegacy(ctx, input)
 	if err != nil {
@@ -423,12 +549,11 @@ func renderLegacyRemovePlan(writer io.Writer, result usecase.LegacyRemoveResult)
 
 func lifecycleService(app App, detected map[domain.ClientID]domain.DetectedClient) usecase.Service {
 	planner := clientplanner.Planner{ManagedRoot: app.ManagedRoot, Detected: detected}
-	return usecase.Service{
-		StateStore: app.StateStore, Planner: planner, Targets: planner,
-		Stager: app.Stager, Activator: app.Activator,
-		Lock:   app.MutationLock,
-		Kernel: transaction.Kernel{StateStore: app.StateStore, Directory: app.Directory},
-	}
+	service := app.Lifecycle
+	service.StateStore = app.StateStore
+	service.Planner = planner
+	service.Targets = planner
+	return service
 }
 
 func updateSource(installation domain.Installation) string {
@@ -451,7 +576,7 @@ func updateSource(installation domain.Installation) string {
 func selectedRepairBinding(installation domain.Installation, clientID domain.ClientID, scope domain.InstallScope) (domain.ClientBinding, error) {
 	var matches []domain.ClientBinding
 	for _, binding := range installation.Clients {
-		if binding.ClientID == string(clientID) && binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent {
+		if binding.Scope == string(scope) && binding.Materialization != domain.MaterializationAbsent && bindingAffectsTarget(binding, clientID) {
 			matches = append(matches, binding)
 		}
 	}
@@ -493,16 +618,15 @@ func requireNonInteractiveMutation(app App, opts *options, action string) error 
 	return fmt.Errorf("automated %s requires --target", action)
 }
 
-// automatedMutation identifies invocations where prompting is unavailable,
-// would break the machine-readable JSON contract, or was explicitly bypassed
-// with the hidden compatibility flag. These flows still require every
+// automatedMutation identifies invocations where prompting is unavailable or
+// would break the machine-readable JSON contract. These flows still require every
 // command-specific selector/target guard.
 func automatedMutation(app App, opts *options) bool {
-	return !app.Terminal || opts.format == "json" || opts.yes
+	return !app.Terminal || opts.format == "json"
 }
 
 func mutationConfirmed(app App, opts *options) bool {
-	return opts.yes || automatedMutation(app, opts)
+	return automatedMutation(app, opts) || strings.TrimSpace(opts.target) != ""
 }
 
 func selectBoundClient(
@@ -556,7 +680,7 @@ func selectBoundClient(
 		client, err := choose(ids[0])
 		return client, detectedMap, err
 	}
-	if !app.Terminal || opts.yes || opts.format == "json" {
+	if !app.Terminal || opts.format == "json" {
 		return domain.DetectedClient{}, detectedMap, fmt.Errorf("plugin has multiple installed targets; choose one or more with --target codex,cursor")
 	}
 	if _, err := fmt.Fprintln(cmd.OutOrStdout(), "Installed targets:"); err != nil {
@@ -588,12 +712,7 @@ func selectBoundClient(
 }
 
 func renderUpdateResult(writer io.Writer, format string, envelope domain.PackageEnvelope, result usecase.AddResult, dryRun bool) error {
-	data := struct {
-		Plugin  string            `json:"plugin"`
-		Version string            `json:"version,omitempty"`
-		DryRun  bool              `json:"dry_run"`
-		Result  usecase.AddResult `json:"result"`
-	}{Plugin: envelope.Manifest.Name, Version: envelope.Manifest.Version, DryRun: dryRun, Result: result}
+	data := newAddResultData(envelope, result, dryRun)
 	if format == "json" {
 		return writeJSONOutput(writer, "update", data)
 	}
@@ -628,12 +747,7 @@ func renderUpdateResult(writer io.Writer, format string, envelope domain.Package
 }
 
 func renderRemoveResult(writer io.Writer, format string, installation domain.Installation, result usecase.RemoveResult, dryRun bool) error {
-	data := struct {
-		Plugin  string               `json:"plugin"`
-		Version string               `json:"version,omitempty"`
-		DryRun  bool                 `json:"dry_run"`
-		Result  usecase.RemoveResult `json:"result"`
-	}{Plugin: installation.DeclaredName, Version: installation.Package.Version, DryRun: dryRun, Result: result}
+	data := newRemoveResultData(installation, result, dryRun)
 	if format == "json" {
 		return writeJSONOutput(writer, "remove", data)
 	}
@@ -661,4 +775,37 @@ func renderRemoveResult(writer io.Writer, format string, installation domain.Ins
 		_, _ = fmt.Fprintf(writer, "Next: %s\n", action)
 	}
 	return nil
+}
+
+type removeResultData struct {
+	OperationID    string                  `json:"operation_id,omitempty"`
+	Plugin         string                  `json:"plugin"`
+	Version        string                  `json:"version,omitempty"`
+	Source         string                  `json:"source"`
+	Revision       string                  `json:"revision,omitempty"`
+	TreeDigest     string                  `json:"tree_digest,omitempty"`
+	ManifestDigest string                  `json:"manifest_digest,omitempty"`
+	Directory      *domain.DirectoryOrigin `json:"directory,omitempty"`
+	NextAction     string                  `json:"next_action,omitempty"`
+	DryRun         bool                    `json:"dry_run"`
+	Result         usecase.RemoveResult    `json:"result"`
+}
+
+func newRemoveResultData(installation domain.Installation, result usecase.RemoveResult, dryRun bool) removeResultData {
+	return removeResultData{
+		OperationID: result.Receipt.OperationID, Plugin: installation.DeclaredName,
+		Version: installation.Package.Version, Source: publicSource(installation.Source), Revision: installation.Source.ResolvedRevision,
+		TreeDigest: installation.Source.TreeDigest, ManifestDigest: installation.Package.ManifestDigest, Directory: cloneDirectoryOrigin(installation.Directory),
+		NextAction: nextRemoveAction(result), DryRun: dryRun, Result: result,
+	}
+}
+
+func nextRemoveAction(result usecase.RemoveResult) string {
+	if len(result.Deactivation.LocalActions) > 0 {
+		return result.Deactivation.LocalActions[0]
+	}
+	if len(result.Deactivation.UserActions) > 0 {
+		return result.Deactivation.UserActions[0]
+	}
+	return ""
 }

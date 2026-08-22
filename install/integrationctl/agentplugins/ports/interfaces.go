@@ -47,6 +47,12 @@ type ClientDetector interface {
 	Detect(context.Context) ([]domain.DetectedClient, error)
 }
 
+// VersionProbingClientDetector is an opt-in capability for mutating lifecycle
+// resolution that must bind signed evidence to an exact installed version.
+type VersionProbingClientDetector interface {
+	DetectWithVersionProbe(context.Context) ([]domain.DetectedClient, error)
+}
+
 type DeliveryPlanner interface {
 	Plan(context.Context, domain.PackageEnvelope, domain.DetectedClient, domain.InstallScope, string) (domain.DeliveryPlan, error)
 }

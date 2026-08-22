@@ -1,36 +1,102 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
+	"context"
+	"encoding/base64"
+	"errors"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/catalog"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
 )
 
-func TestEmbeddedCatalogIsPinnedAndContainsAllLaunchPlugins(t *testing.T) {
-	sum := sha256.Sum256(embeddedCatalog)
-	digest := "sha256:" + hex.EncodeToString(sum[:])
-	if digest != defaultCatalogDigest {
-		t.Fatalf("embedded catalog digest = %s, want %s", digest, defaultCatalogDigest)
-	}
-	loaded, err := (catalog.Loader{CurrentCLIVersion: "0.1.6"}).Load(embeddedCatalog, defaultCatalogDigest)
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("publication unavailable")
+}
+
+func TestMainUsesProductionDirectoryTrustAndFailsClosedWithoutBootstrap(t *testing.T) {
+	t.Setenv("AGENTPLUGINS_DIRECTORY_KEY_ID", "test-current")
+	t.Setenv("AGENTPLUGINS_DIRECTORY_PUBLIC_KEY", "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=")
+	client, err := newDirectoryClient(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Catalog.SchemaVersion != 2 {
-		t.Fatalf("embedded catalog schema_version = %d, want 2", loaded.Catalog.SchemaVersion)
+	if len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != "uap-directory-2026-01" || client.Trust.Keys[0].State != directoryv1.KeyCurrent {
+		t.Fatalf("production Directory trust = %+v", client.Trust.Keys)
 	}
-	if len(loaded.Catalog.Plugins) != 26 {
-		t.Fatalf("catalog plugins = %d", len(loaded.Catalog.Plugins))
+	if encoded := base64.StdEncoding.EncodeToString(client.Trust.Keys[0].PublicKey); encoded != "HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI=" {
+		t.Fatalf("unexpected production Directory public key: %x", client.Trust.Keys[0].PublicKey)
 	}
-	resolution, err := loaded.Resolve("context7")
-	if err != nil {
-		t.Fatal(err)
+	if len(client.Embedded.Snapshot) != 0 || len(client.Embedded.Envelope) != 0 {
+		t.Fatal("a non-production bootstrap was embedded")
 	}
-	want := fmt.Sprintf("777genius/universal-agent-plugins@%s//plugins/context7", loaded.Catalog.Revision)
-	if resolution.SourceReference != want {
-		t.Fatalf("context7 source = %s", resolution.SourceReference)
+	if !client.RequireEmbeddedBootstrap {
+		t.Fatal("production Directory client did not require a release-bound bootstrap")
+	}
+	if _, ready, err := directoryv1.DecodeReleaseBootstrap(generatedProductionDirectoryBootstrap, client.Trust); err != nil || ready {
+		t.Fatalf("empty generated production bootstrap readiness = %v, %v", ready, err)
+	}
+	client.HTTPClient.Transport = failingRoundTripper{}
+	if _, err := client.Load(context.Background(), 0); !errors.Is(err, directoryv1.ErrBootstrapNotReady) {
+		t.Fatalf("short-name Directory did not fail on empty release bootstrap: %v", err)
+	}
+}
+
+func TestHardenedHTTPClientRedirectPolicy(t *testing.T) {
+	check := hardenedHTTPClient().CheckRedirect
+	original, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/latest.json", nil)
+	first, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/one.json", nil)
+	first.Header.Set("Authorization", "secret")
+	first.Header.Set("Cookie", "secret=yes")
+	first.Header.Set("Proxy-Authorization", "secret")
+	if err := check(first, []*http.Request{original}); err != nil {
+		t.Fatalf("first same-origin redirect: %v", err)
+	}
+	if first.Header.Get("Authorization") != "" || first.Header.Get("Cookie") != "" || first.Header.Get("Proxy-Authorization") != "" {
+		t.Fatal("credentials were forwarded on redirect")
+	}
+	second, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/two.json", nil)
+	if err := check(second, []*http.Request{original, first}); err != nil {
+		t.Fatalf("second same-origin redirect: %v", err)
+	}
+	third, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/three.json", nil)
+	if err := check(third, []*http.Request{original, first, second}); err == nil {
+		t.Fatal("third redirect was accepted")
+	}
+	crossOrigin, _ := http.NewRequest(http.MethodGet, "https://other.example/registry/latest.json", nil)
+	if err := check(crossOrigin, []*http.Request{original}); err == nil {
+		t.Fatal("cross-origin redirect was accepted")
+	}
+	downgrade, _ := http.NewRequest(http.MethodGet, "http://directory.example/registry/latest.json", nil)
+	if err := check(downgrade, []*http.Request{original}); err == nil {
+		t.Fatal("HTTPS downgrade redirect was accepted")
+	}
+}
+
+func TestInvalidScopeAndTargetDoNotCreateDataRoot(t *testing.T) {
+	originalArgs := os.Args
+	defer func() { os.Args = originalArgs }()
+	t.Setenv("HOME", t.TempDir())
+	for name, args := range map[string][]string{
+		"project-scope":  {"agentplugins", "add", "demo", "--scope", "project"},
+		"invalid-target": {"agentplugins", "add", "demo", "--target", "not-a-client"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dataRoot := filepath.Join(t.TempDir(), "must-not-exist")
+			t.Setenv("AGENTPLUGINS_HOME", dataRoot)
+			os.Args = args
+			err := run()
+			if err == nil || (name == "project-scope" && !strings.Contains(err.Error(), "user scope")) {
+				t.Fatalf("invalid invocation error = %v", err)
+			}
+			if _, statErr := os.Lstat(dataRoot); !os.IsNotExist(statErr) {
+				t.Fatalf("invalid invocation mutated data root: %v", statErr)
+			}
+		})
 	}
 }

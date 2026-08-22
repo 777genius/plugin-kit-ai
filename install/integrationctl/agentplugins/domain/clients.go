@@ -58,6 +58,7 @@ type DetectedClient struct {
 	ClientID    ClientID        `json:"client_id"`
 	DisplayName string          `json:"display_name"`
 	Status      DetectionStatus `json:"status"`
+	Version     string          `json:"version,omitempty"`
 	Surfaces    []ClientSurface `json:"surfaces,omitempty"`
 	// ExecutablePath and ConfigRoot are operational locators. They must never be
 	// emitted by the public JSON renderer because they can reveal the user home.
@@ -93,8 +94,19 @@ type DeliveryPlan struct {
 	Policy             PolicyState         `json:"policy"`
 	Verification       VerificationState   `json:"verification"`
 	PhysicalArtifactID string              `json:"physical_artifact_id"`
-	Components         []ComponentDecision `json:"components,omitempty"`
-	UserActions        []string            `json:"user_actions,omitempty"`
+	// DeclaredName and NativeRegistry* are preflight-only identity inputs. They
+	// are deliberately excluded from public output because registry locators
+	// can reveal local user paths.
+	DeclaredName             string `json:"-"`
+	NativeRegistryRoot       string `json:"-"`
+	NativeRegistryExecutable string `json:"-"`
+	// LocalPreparationAuthorized records signed package evidence that permits
+	// creation of the local prepared package even when a remote, manually
+	// activated registry cannot be observed. It is never evidence that the
+	// remote identity is free, activated, authenticated, or verified.
+	LocalPreparationAuthorized bool                `json:"-"`
+	Components                 []ComponentDecision `json:"components,omitempty"`
+	UserActions                []string            `json:"user_actions,omitempty"`
 	// LocalActions can contain operational paths and are rendered only in
 	// human-readable output. They must never be emitted by the public JSON API.
 	LocalActions []string     `json:"-"`
