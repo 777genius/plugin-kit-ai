@@ -12,6 +12,7 @@ const {
   assertPublicJSONPathFree,
   frozenReleaseAsset,
   lifecycleCommands,
+  lifecycleResult,
   npmInvocation,
   parseBootstrapMode,
   parseLifecycle
@@ -62,6 +63,48 @@ test("platform proof lifecycle commands use the default no-confirmation flow", (
   for (const command of commands) {
     assert.equal(command.includes("--yes"), false, `unexpected --yes in ${command.join(" ")}`);
   }
+});
+
+test("platform proof reads exact single-target results from direct and batch envelopes", () => {
+  const direct = lifecycleResult({
+    schema_version: 1,
+    command: "add",
+    result: "success",
+    data: { result: { mutated: true } }
+  }, "add", "cursor");
+  assert.deepEqual(direct, { mutated: true });
+
+  const batch = lifecycleResult({
+    schema_version: 1,
+    command: "update",
+    result: "success",
+    data: {
+      batch: true,
+      succeeded: 1,
+      failed: 0,
+      targets: [{ target: "cursor", output: { result: { no_change: true } } }]
+    }
+  }, "update", "cursor");
+  assert.deepEqual(batch, { no_change: true });
+
+  assert.throws(() => lifecycleResult({
+    schema_version: 1,
+    command: "add",
+    result: "success",
+    data: { batch: true, result: { mutated: true } }
+  }, "add", "cursor"), /ambiguous direct and batch lifecycle results/);
+
+  assert.throws(() => lifecycleResult({
+    schema_version: 1,
+    command: "remove",
+    result: "success",
+    data: {
+      batch: true,
+      succeeded: 1,
+      failed: 0,
+      targets: [{ target: "codex", output: { result: { mutated: true } } }]
+    }
+  }, "remove", "cursor"), /exactly one successful cursor lifecycle result/);
 });
 
 test("platform proof accepts only explicit bootstrap evidence modes", () => {
