@@ -112,6 +112,26 @@ function lifecycleCommands(synthetic) {
   ];
 }
 
+function lifecycleResult(output, command, target) {
+  if (!output || output.schema_version !== 1 || output.command !== command || output.result !== "success" ||
+      !output.data || typeof output.data !== "object") {
+    fail(`agentplugins ${command} did not return a successful lifecycle envelope`);
+  }
+  if (output.data.result && typeof output.data.result === "object") {
+    if (output.data.targets !== undefined) {
+      fail(`agentplugins ${command} returned ambiguous direct and batch lifecycle results`);
+    }
+    return output.data.result;
+  }
+  const targets = output.data.targets;
+  if (output.data.batch !== true || output.data.succeeded !== 1 || output.data.failed !== 0 ||
+      !Array.isArray(targets) || targets.length !== 1 || targets[0]?.target !== target ||
+      !targets[0]?.output?.result || typeof targets[0].output.result !== "object") {
+    fail(`agentplugins ${command} did not return exactly one successful ${target} lifecycle result`);
+  }
+  return targets[0].output.result;
+}
+
 function main() {
   const [tarballArg, version, expectedTarget, lifecycleArg, resultArg, expectedCommit, bootstrapModeArg, releaseAssetsArg] = process.argv.slice(2);
   if (!tarballArg || !version || !expectedTarget || !lifecycleArg || !resultArg || !expectedCommit || !bootstrapModeArg || !releaseAssetsArg) {
@@ -247,10 +267,14 @@ function main() {
     const complete = invokeJSON(completeCommand);
     const update = invokeJSON(updateCommand);
     const remove = invokeJSON(removeCommand);
-    if (add.data.result.mutated !== true || add.data.result.activation.authentication !== "not_checked" ||
-        complete.data.result.mutated !== true || complete.data.result.activation.activation_attested !== true ||
-        complete.data.result.activation.authentication_attested !== true || update.data.result.no_change !== true ||
-        update.data.result.mutated !== false || remove.data.result.mutated !== true) {
+    const addResult = lifecycleResult(add, "add", "cursor");
+    const completeResult = lifecycleResult(complete, "add", "cursor");
+    const updateResult = lifecycleResult(update, "update", "cursor");
+    const removeResult = lifecycleResult(remove, "remove", "cursor");
+    if (addResult.mutated !== true || addResult.activation.authentication !== "not_checked" ||
+        completeResult.mutated !== true || completeResult.activation.activation_attested !== true ||
+        completeResult.activation.authentication_attested !== true || updateResult.no_change !== true ||
+        updateResult.mutated !== false || removeResult.mutated !== true) {
       fail("isolated synthetic add/update/remove lifecycle contract failed");
     }
     const after = invokeJSON(["list"]);
@@ -297,4 +321,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { assertPublicJSONPathFree, frozenReleaseAsset, lifecycleCommands, npmInvocation, parseBootstrapMode, parseLifecycle };
+module.exports = { assertPublicJSONPathFree, frozenReleaseAsset, lifecycleCommands, lifecycleResult, npmInvocation, parseBootstrapMode, parseLifecycle };
