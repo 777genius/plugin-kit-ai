@@ -169,11 +169,23 @@ func migrateV2Origin(installation *domain.Installation) {
 	if evidence == nil && !directoryShaped {
 		return
 	}
-	revision, ok := exactLegacyGitRevision(installation.Source.ResolvedRevision)
-	if !ok {
+	revision, installationRevisionOK := exactFullGitRevision(installation.Source.ResolvedRevision)
+	clientRevisionsOK := true
+	for _, client := range installation.Clients {
+		if client.PackageRevision == nil {
+			clientRevisionsOK = false
+			break
+		}
+		if _, ok := exactFullGitRevision(client.PackageRevision.ResolvedRevision); !ok {
+			clientRevisionsOK = false
+			break
+		}
+	}
+	if !installationRevisionOK || !clientRevisionsOK {
 		// Old catalog evidence and short-name sources identify a likely Directory
-		// record, but not an immutable Directory release. Keep its direct source
-		// provenance and require an explicit rebind instead of inventing one.
+		// record, but every installation and applied client revision must independently
+		// prove its immutable Directory release. Keep the original direct provenance,
+		// revisions, and digests instead of relabeling them with invented provenance.
 		installation.NeedsRebind = true
 		return
 	}
@@ -185,11 +197,6 @@ func migrateV2Origin(installation *domain.Installation) {
 	installation.Directory = &domain.DirectoryOrigin{ProductID: installation.DeclaredName, DistributionID: distributionID,
 		DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
 	for key, client := range installation.Clients {
-		if client.PackageRevision == nil {
-			client.PackageRevision = &domain.ClientPackageRevision{Version: installation.Package.Version,
-				TreeDigest: installation.Source.TreeDigest, ManifestDigest: installation.Package.ManifestDigest}
-		}
-		client.PackageRevision.ResolvedRevision = revision
 		client.PackageRevision.DistributionID = distributionID
 		client.PackageRevision.ReleaseSequence = 1
 		installation.Clients[key] = client
@@ -343,9 +350,16 @@ func digest(body []byte) string {
 }
 
 func needsRebind(record legacyInstallation) bool {
-	return strings.TrimSpace(record.RequestedSourceRef.Value) == "" ||
+	if strings.TrimSpace(record.RequestedSourceRef.Value) == "" ||
 		strings.TrimSpace(record.ResolvedSourceRef.Value) == "" ||
-		strings.TrimSpace(record.SourceDigest) == ""
+		strings.TrimSpace(record.SourceDigest) == "" {
+		return true
+	}
+	if legacyDirectoryShaped(record) {
+		_, exactRevision := exactLegacyGitRevision(record.ResolvedSourceRef.Value)
+		return !exactRevision || strings.TrimSpace(record.ManifestDigest) == ""
+	}
+	return false
 }
 
 func legacySourceBindingID(record legacyInstallation) string {
@@ -486,10 +500,7 @@ func legacyOriginMode(directory *domain.DirectoryOrigin) domain.OriginMode {
 }
 
 func legacyDirectoryOrigin(record legacyInstallation) *domain.DirectoryOrigin {
-	kind := strings.ToLower(strings.TrimSpace(record.RequestedSourceRef.Kind))
-	value := strings.TrimSpace(record.RequestedSourceRef.Value)
-	if kind != "github_repo_path" || value == "" || strings.TrimSpace(record.SourceDigest) == "" || strings.TrimSpace(record.ManifestDigest) == "" ||
-		strings.Contains(value, "/") || strings.HasPrefix(value, ".") || filepath.IsAbs(value) {
+	if !legacyDirectoryShaped(record) || strings.TrimSpace(record.SourceDigest) == "" || strings.TrimSpace(record.ManifestDigest) == "" {
 		return nil
 	}
 	if _, ok := exactLegacyGitRevision(record.ResolvedSourceRef.Value); !ok {
@@ -497,6 +508,26 @@ func legacyDirectoryOrigin(record legacyInstallation) *domain.DirectoryOrigin {
 	}
 	return &domain.DirectoryOrigin{ProductID: record.IntegrationID, DistributionID: "777genius/" + record.IntegrationID,
 		DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
+}
+
+func legacyDirectoryShaped(record legacyInstallation) bool {
+	kind := strings.ToLower(strings.TrimSpace(record.RequestedSourceRef.Kind))
+	value := strings.TrimSpace(record.RequestedSourceRef.Value)
+	return kind == "github_repo_path" && value != "" && !strings.Contains(value, "/") &&
+		!strings.HasPrefix(value, ".") && !filepath.IsAbs(value)
+}
+
+func exactFullGitRevision(source string) (string, bool) {
+	value := source
+	if len(value) != 40 {
+		return "", false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return "", false
+		}
+	}
+	return value, true
 }
 
 // exactLegacyGitRevision accepts only immutable legacy source forms whose Git
@@ -510,15 +541,7 @@ func exactLegacyGitRevision(source string) (string, bool) {
 			value = value[:subpath]
 		}
 	}
-	if len(value) != 40 {
-		return "", false
-	}
-	for _, char := range value {
-		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
-			return "", false
-		}
-	}
-	return value, true
+	return exactFullGitRevision(value)
 }
 
 func nativeObjectID(bindingID string, object legacyNativeObject) string {
