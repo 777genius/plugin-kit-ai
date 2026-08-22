@@ -60,9 +60,36 @@ func (app App) loadInstalledPackage(ctx context.Context, installation domain.Ins
 		resolvedRevision = installation.Source.ResolvedRevision
 	}
 	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients,
-		RequestedSelector: strings.TrimSpace(installation.Source.RequestedSource), Recorded: &domain.RecordedDirectoryRelease{
-			ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence, ResolvedRevision: resolvedRevision,
-		}})
+		RequestedSelector: strings.TrimSpace(installation.Source.RequestedSource), Recorded: recordedDirectoryRelease(installation, sequence, resolvedRevision)})
+}
+
+func recordedDirectoryRelease(installation domain.Installation, sequence uint64, resolvedRevision string) *domain.RecordedDirectoryRelease {
+	recorded := &domain.RecordedDirectoryRelease{
+		ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID,
+		ReleaseSequence: sequence, ResolvedRevision: strings.TrimSpace(resolvedRevision),
+	}
+	// Installation-level source and package provenance describe the current
+	// desired release. A per-client revision may describe an older partial
+	// rollout and retains only the immutable fields present on that binding.
+	if sequence == installation.Directory.DesiredReleaseSequence && recorded.ResolvedRevision == installation.Source.ResolvedRevision {
+		recorded.Repository = installation.Source.Repository
+		recorded.Path = installation.Source.PackageSubpath
+		recorded.TreeDigestAlgorithm = domain.TreeDigestAlgorithm
+		recorded.TreeDigest = installation.Source.TreeDigest
+		recorded.ManifestDigest = installation.Package.ManifestDigest
+		return recorded
+	}
+	for _, binding := range installation.Clients {
+		revision := binding.PackageRevision
+		if revision == nil || revision.ReleaseSequence != sequence || revision.ResolvedRevision != recorded.ResolvedRevision {
+			continue
+		}
+		recorded.TreeDigestAlgorithm = domain.TreeDigestAlgorithm
+		recorded.TreeDigest = revision.TreeDigest
+		recorded.ManifestDigest = revision.ManifestDigest
+		break
+	}
+	return recorded
 }
 
 func withDetectedClients(request packageResolutionRequest, clients map[domain.ClientID]domain.DetectedClient) packageResolutionRequest {
@@ -106,10 +133,15 @@ func retainDirectoryRelease(snapshot domain.DirectorySnapshot, state domain.Stat
 	}
 	request.Operation = domain.DirectoryNewTarget
 	request.Recorded = &domain.RecordedDirectoryRelease{
-		ProductID:        installation.Directory.ProductID,
-		DistributionID:   installation.Directory.DistributionID,
-		ReleaseSequence:  installation.Directory.DesiredReleaseSequence,
-		ResolvedRevision: installation.Source.ResolvedRevision,
+		ProductID:           installation.Directory.ProductID,
+		DistributionID:      installation.Directory.DistributionID,
+		ReleaseSequence:     installation.Directory.DesiredReleaseSequence,
+		Repository:          installation.Source.Repository,
+		ResolvedRevision:    installation.Source.ResolvedRevision,
+		Path:                installation.Source.PackageSubpath,
+		TreeDigestAlgorithm: domain.TreeDigestAlgorithm,
+		TreeDigest:          installation.Source.TreeDigest,
+		ManifestDigest:      installation.Package.ManifestDigest,
 	}
 	// Resolve the recorded qualified distribution, not a mutable or retired
 	// alias. The recorded product identity is checked above before this rewrite.
@@ -315,8 +347,9 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	if request.Selector != "" {
 		resolveSelector = request.Selector
 	}
+	affectedTargets := expandAffectedSurfaceTargets(request.Targets)
 	resolveRequest := domain.DirectoryResolveRequest{
-		Selector: resolveSelector, Targets: append([]domain.ClientID(nil), request.Targets...), Scope: domain.ScopeUser,
+		Selector: resolveSelector, Targets: affectedTargets, Scope: domain.ScopeUser,
 		InstallerVersion: app.Version, ClientVersions: environment.ClientVersions, OS: environment.OS, Architecture: environment.Architecture,
 		DependencyIdentity: environment.DependencyIdentity,
 		SchemaVersion:      "1.0.0", Operation: operation, Recorded: request.Recorded,
@@ -358,11 +391,15 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 		_ = loaded.cleanup()
 		return loadedPackage{}, fmt.Errorf("signed Directory identity does not match acquired package manifest")
 	}
-	environment.DependencyIdentity = deterministicDependencyIdentity(loaded.envelope, request.Targets)
+	environment.DependencyIdentity = deterministicDependencyIdentity(loaded.envelope, affectedTargets)
 	exactRequest := resolveRequest
 	exactRequest.Selector = selection.DistributionID
 	exactRequest.Operation = domain.DirectoryNewTarget
-	exactRequest.Recorded = &domain.RecordedDirectoryRelease{ProductID: selection.ProductID, DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, ResolvedRevision: selection.Source.Revision}
+	exactRequest.Recorded = &domain.RecordedDirectoryRelease{
+		ProductID: selection.ProductID, DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence,
+		Repository: selection.Source.Repository, ResolvedRevision: selection.Source.Revision, Path: selection.Source.Path,
+		TreeDigestAlgorithm: selection.TreeDigestAlgorithm, TreeDigest: selection.TreeDigest, ManifestDigest: selection.ManifestDigest,
+	}
 	exactRequest.DependencyIdentity = environment.DependencyIdentity
 	checked, err := domain.ResolveDirectory(bundle.Snapshot, exactRequest)
 	if err != nil || checked.DistributionID != selection.DistributionID || checked.ReleaseSequence != selection.ReleaseSequence {

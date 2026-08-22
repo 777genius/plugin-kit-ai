@@ -307,6 +307,83 @@ func TestDirectoryPostAcquisitionDependencyRecheckFailsClosed(t *testing.T) {
 	}
 }
 
+func TestInteractiveSharedBackendDependencyFailureOnPeerFailsClosed(t *testing.T) {
+	for _, test := range []struct {
+		name, input    string
+		selected, peer domain.ClientID
+	}{
+		{name: "copilot selected", input: "1\n", selected: domain.ClientCopilot, peer: domain.ClientVSCode},
+		{name: "vscode selected", input: "2\n", selected: domain.ClientVSCode, peer: domain.ClientCopilot},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			copilot := fixtureClient(t, domain.ClientCopilot)
+			vscode := fixtureClient(t, domain.ClientVSCode)
+			copilot.Version = "1.0.0"
+			vscode.Version = "1.0.0"
+			clients := []domain.DetectedClient{copilot, vscode}
+			clientByID := map[domain.ClientID]domain.DetectedClient{domain.ClientCopilot: copilot, domain.ClientVSCode: vscode}
+			fixture := newCLIFixture(t, clients)
+			activator := &cliObservedActivator{}
+			fixture.app.Lifecycle.Activator = activator
+			plugin := writeCLIPlugin(t)
+			mcp := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"stdio","command":"npx"}}}`
+			if err := os.WriteFile(filepath.Join(plugin, "mcp.json"), []byte(mcp), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			local, err := fixture.app.acquireLocal(context.Background(), plugin)
+			if err != nil {
+				t.Fatal(err)
+			}
+			treeDigest, manifestDigest := local.envelope.TreeDigest, local.envelope.ManifestDigest
+			if err := local.cleanup(); err != nil {
+				t.Fatal(err)
+			}
+			revision := strings.Repeat("a", 40)
+			release := domain.DirectoryRelease{Sequence: 1, PackageVersion: "1.0.0", ManifestName: "demo",
+				AgentPluginsSchema:  "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+				PackageSource:       domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
+				TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: treeDigest, ManifestDigest: manifestDigest, Components: []string{"mcp"}}
+			policy := domain.DirectoryReleasePolicy{ReleaseSequence: 1, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0"}
+			evidence := make([]domain.DirectoryEvidence, 0, 3)
+			for _, client := range clients {
+				delivery, _ := domain.ExpectedDirectoryDelivery(client.ClientID)
+				policy.Targets = append(policy.Targets, domain.DirectoryTarget{Client: client.ClientID, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: delivery})
+				passed := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/" + string(client.ClientID), DistributionID: "owner/demo",
+					ReleaseSequence: 1, PackageTreeDigest: treeDigest, Level: "materialization", Outcome: "passed", Client: client.ClientID})
+				policy.CurrentEvidence = append(policy.CurrentEvidence, passed.ID)
+				evidence = append(evidence, passed)
+			}
+			failed := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "failed/runtime/" + string(test.peer) + "/npx", DistributionID: "owner/demo",
+				ReleaseSequence: 1, PackageTreeDigest: treeDigest, Level: "runtime", Outcome: "failed", Client: test.peer,
+				ClientVersion: clientByID[test.peer].Version, InstallerVersion: fixture.app.Version, OS: runtime.GOOS, Architecture: runtime.GOARCH, DependencyIdentity: "npx"})
+			policy.CurrentEvidence = append(policy.CurrentEvidence, failed.ID)
+			evidence = append(evidence, failed)
+			snapshot := domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 1,
+				Products: []domain.DirectoryProduct{{SchemaVersion: 1, ID: "demo", ManifestName: "demo", DefaultDistribution: "owner/demo", Distributions: []string{"owner/demo"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}}},
+				Distributions: []domain.DirectoryDistribution{{SchemaVersion: 1, ID: "owner/demo", ProductID: "demo", Kind: domain.DistributionUpstream, Status: domain.DistributionActive,
+					Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}}, Evidence: evidence}
+			directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("b", 64)}}
+			acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+			fixture.app.DirectoryClient, fixture.app.SourceAcquirer = directory, acquirer
+
+			_, _, err = fixture.executeInput(true, test.input, "add", "demo")
+			if err == nil || !strings.Contains(err.Error(), "failed compatibility recheck") || !strings.Contains(err.Error(), string(test.peer)) {
+				t.Fatalf("interactive %s accepted dependency-specific peer failure: %v", test.selected, err)
+			}
+			state, loadErr := fixture.store.Load()
+			if loadErr != nil {
+				t.Fatal(loadErr)
+			}
+			if acquirer.verifiedCalls != 1 || len(state.Installations) != 0 || activator.calls != 0 {
+				t.Fatalf("peer rejection crossed immutable fetch boundary: acquisitions=%d installations=%d activations=%d", acquirer.verifiedCalls, len(state.Installations), activator.calls)
+			}
+			if _, statErr := os.Stat(filepath.Join(fixture.root, "data", "managed")); !os.IsNotExist(statErr) {
+				t.Fatalf("peer rejection created managed state: %v", statErr)
+			}
+		})
+	}
+}
+
 func TestDirectoryRepairFiltersRecordedRuntimeEvidenceForCurrentEnvironment(t *testing.T) {
 	client := fixtureClient(t, domain.ClientCursor)
 	client.Version = "0.50.0"

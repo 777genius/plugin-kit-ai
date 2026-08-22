@@ -231,13 +231,20 @@ const (
 	DirectoryReproduce     DirectoryOperation = "reproduce"
 )
 
-// RecordedDirectoryRelease binds a Directory tuple to the immutable Git
-// revision named by that release's package_source.
+// RecordedDirectoryRelease binds a Directory tuple to every immutable source
+// and package identity field retained by installed state. Empty optional fields
+// mean that older or per-client state did not retain that field; populated
+// fields must match the current signed snapshot exactly.
 type RecordedDirectoryRelease struct {
-	ProductID        string
-	DistributionID   string
-	ReleaseSequence  uint64
-	ResolvedRevision string
+	ProductID           string
+	DistributionID      string
+	ReleaseSequence     uint64
+	Repository          string
+	ResolvedRevision    string
+	Path                string
+	TreeDigestAlgorithm string
+	TreeDigest          string
+	ManifestDigest      string
 }
 
 type DirectoryResolveRequest struct {
@@ -347,12 +354,31 @@ func validateRecordedDirectoryRelease(distribution DirectoryDistribution, record
 	if revision == "" {
 		return fmt.Errorf("recorded Directory release %s sequence %d has no resolved package-source revision", recorded.DistributionID, recorded.ReleaseSequence)
 	}
+	if !directoryEvidenceRevisionPattern.MatchString(revision) {
+		return fmt.Errorf("recorded Directory release %s sequence %d has an invalid package-source revision; expected a full lowercase commit SHA", recorded.DistributionID, recorded.ReleaseSequence)
+	}
 	for _, release := range distribution.Releases {
 		if release.Sequence != recorded.ReleaseSequence {
 			continue
 		}
 		if release.PackageSource.Revision != revision {
-			return fmt.Errorf("recorded Directory release %s sequence %d package-source revision %s does not match current signed snapshot revision %s", recorded.DistributionID, recorded.ReleaseSequence, revision, release.PackageSource.Revision)
+			return fmt.Errorf("recorded Directory release %s sequence %d package-source revision does not match the current signed snapshot", recorded.DistributionID, recorded.ReleaseSequence)
+		}
+		checks := []struct {
+			name     string
+			recorded string
+			current  string
+		}{
+			{name: "repository", recorded: recorded.Repository, current: release.PackageSource.Repository},
+			{name: "path", recorded: recorded.Path, current: release.PackageSource.Path},
+			{name: "tree digest algorithm", recorded: recorded.TreeDigestAlgorithm, current: release.TreeDigestAlgorithm},
+			{name: "tree digest", recorded: recorded.TreeDigest, current: release.TreeDigest},
+			{name: "manifest digest", recorded: recorded.ManifestDigest, current: release.ManifestDigest},
+		}
+		for _, check := range checks {
+			if check.recorded != "" && check.recorded != check.current {
+				return fmt.Errorf("recorded Directory release %s sequence %d package-source %s does not match the current signed snapshot", recorded.DistributionID, recorded.ReleaseSequence, check.name)
+			}
 		}
 		return nil
 	}

@@ -1028,11 +1028,20 @@ func validateDirectoryTransition(installation domain.Installation, input AddInpu
 		return fmt.Errorf("refuse Directory release downgrade from sequence %d to %d", current.DesiredReleaseSequence, incoming.DesiredReleaseSequence)
 	}
 	if incoming.DesiredReleaseSequence == current.DesiredReleaseSequence {
+		if installation.Source.Repository != "" && installation.Source.Repository != input.Envelope.Source.Repository {
+			return fmt.Errorf("signed Directory release sequence %d has conflicting package-source repository", incoming.DesiredReleaseSequence)
+		}
+		if installation.Source.PackageSubpath != "" && installation.Source.PackageSubpath != input.Envelope.Source.PackageSubpath {
+			return fmt.Errorf("signed Directory release sequence %d has conflicting package-source path", incoming.DesiredReleaseSequence)
+		}
 		if installation.Source.ResolvedRevision != input.Envelope.Source.ResolvedRevision {
 			return fmt.Errorf("signed Directory release sequence %d has conflicting package-source revision", incoming.DesiredReleaseSequence)
 		}
 		if installation.Source.TreeDigest != "" && installation.Source.TreeDigest != input.Envelope.TreeDigest {
 			return fmt.Errorf("signed Directory release sequence %d has conflicting package bytes", incoming.DesiredReleaseSequence)
+		}
+		if installation.Package.ManifestDigest != "" && installation.Package.ManifestDigest != input.Envelope.ManifestDigest {
+			return fmt.Errorf("signed Directory release sequence %d has conflicting manifest bytes", incoming.DesiredReleaseSequence)
 		}
 	}
 	return nil

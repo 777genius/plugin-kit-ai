@@ -233,6 +233,40 @@ func TestResolveDirectoryRejectsRecordedPackageSourceRebindBeforeSelectingExactO
 	}
 }
 
+func TestResolveDirectoryRejectsEveryRecordedImmutableReleaseRebind(t *testing.T) {
+	release := testRelease(2, "1.0.0")
+	full := &RecordedDirectoryRelease{
+		ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: release.Sequence,
+		Repository: release.PackageSource.Repository, ResolvedRevision: release.PackageSource.Revision, Path: release.PackageSource.Path,
+		TreeDigestAlgorithm: release.TreeDigestAlgorithm, TreeDigest: release.TreeDigest, ManifestDigest: release.ManifestDigest,
+	}
+	tests := []struct {
+		name, field string
+		mutate      func(*DirectoryRelease)
+	}{
+		{name: "repository", field: "repository", mutate: func(value *DirectoryRelease) { value.PackageSource.Repository = "other/repo" }},
+		{name: "path", field: "path", mutate: func(value *DirectoryRelease) { value.PackageSource.Path = "other/plugin" }},
+		{name: "tree algorithm", field: "tree digest algorithm", mutate: func(value *DirectoryRelease) { value.TreeDigestAlgorithm = "other-tree-v1" }},
+		{name: "tree digest", field: "tree digest", mutate: func(value *DirectoryRelease) { value.TreeDigest = "sha256:" + strings.Repeat("c", 64) }},
+		{name: "manifest digest", field: "manifest digest", mutate: func(value *DirectoryRelease) { value.ManifestDigest = "sha256:" + strings.Repeat("d", 64) }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s := testDirectory()
+			distribution := &s.Distributions[2]
+			distribution.Releases[0] = release
+			test.mutate(&distribution.Releases[0])
+			r := request("owner/tool", ClientCodex)
+			r.Operation = DirectoryRepair
+			recorded := *full
+			r.Recorded = &recorded
+			if _, err := ResolveDirectory(s, r); err == nil || !strings.Contains(err.Error(), test.field) {
+				t.Fatalf("accepted recorded %s rebind: %v", test.field, err)
+			}
+		})
+	}
+}
+
 func TestResolveDirectoryRequiresCompleteSharedSurfaceEligibility(t *testing.T) {
 	for _, selected := range []ClientID{ClientCopilot, ClientVSCode} {
 		t.Run(string(selected), func(t *testing.T) {

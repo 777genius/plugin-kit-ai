@@ -297,6 +297,91 @@ func TestDirectoryRepairRejectsRecordedTuplePackageSourceRebindBeforeAcquisition
 	}
 }
 
+func TestDirectoryRepairRejectsRecordedImmutableIdentityRebindsBeforeAcquisition(t *testing.T) {
+	tests := []struct {
+		name, field string
+		mutate      func(*domain.DirectoryRelease)
+	}{
+		{name: "repository with same revision and bytes", field: "repository", mutate: func(release *domain.DirectoryRelease) {
+			release.PackageSource.Repository = "other/rollout"
+		}},
+		{name: "path with same revision and bytes", field: "path", mutate: func(release *domain.DirectoryRelease) {
+			release.PackageSource.Path = "other/plugin"
+		}},
+		{name: "tree algorithm identity", field: "tree digest algorithm", mutate: func(release *domain.DirectoryRelease) {
+			release.TreeDigestAlgorithm = "other-tree-v1"
+		}},
+		{name: "tree identity", field: "tree digest", mutate: func(release *domain.DirectoryRelease) {
+			release.TreeDigest = "sha256:" + strings.Repeat("c", 64)
+		}},
+		{name: "manifest identity", field: "manifest digest", mutate: func(release *domain.DirectoryRelease) {
+			release.ManifestDigest = "sha256:" + strings.Repeat("d", 64)
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rollout := newRolloutDirectoryFixture(t, []domain.ClientID{domain.ClientCursor}, []domain.ClientID{domain.ClientCursor})
+			if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "cursor"); err != nil {
+				t.Fatal(err)
+			}
+			beforeState, err := rollout.cli.store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			beforeBytes, err := os.ReadFile(rollout.cli.store.Path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			binding := onlyCLIClient(beforeState.Installations[0])
+			marker := filepath.Join(binding.TargetLocator, "immutable-identity-must-not-touch.txt")
+			if err := os.WriteFile(marker, []byte("unchanged"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			rollout.directory.bundle.Snapshot.Sequence++
+			rollout.directory.bundle.Digest = "sha256:" + strings.Repeat("e", 64)
+			test.mutate(&rollout.directory.bundle.Snapshot.Distributions[0].Releases[0])
+			rollout.acquirer.verifiedCalls = 0
+
+			_, _, err = rollout.cli.execute(false, "repair", "demo", "--target", "cursor")
+			if err == nil || !strings.Contains(err.Error(), test.field) {
+				t.Fatalf("repair accepted recorded %s rebind: %v", test.field, err)
+			}
+			afterBytes, readErr := os.ReadFile(rollout.cli.store.Path)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if rollout.acquirer.verifiedCalls != 0 || !reflect.DeepEqual(afterBytes, beforeBytes) {
+				t.Fatalf("rejected %s rebind acquired or changed state bytes: acquisitions=%d", test.field, rollout.acquirer.verifiedCalls)
+			}
+			if body, readErr := os.ReadFile(marker); readErr != nil || string(body) != "unchanged" {
+				t.Fatalf("rejected %s rebind changed managed artifact: body=%q err=%v", test.field, body, readErr)
+			}
+		})
+	}
+}
+
+func TestDirectoryUpdateAllowsHigherReleaseOwnImmutableSourceIdentity(t *testing.T) {
+	rollout := newRolloutDirectoryFixture(t, []domain.ClientID{domain.ClientCursor}, []domain.ClientID{domain.ClientCursor})
+	if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	rollout.publishV2()
+	release := &rollout.directory.bundle.Snapshot.Distributions[0].Releases[1]
+	release.PackageSource.Repository = "other/rollout-v2"
+	release.PackageSource.Path = "packages/plugin-v2"
+	if _, _, err := rollout.cli.execute(false, "update", "demo", "--target", "cursor"); err != nil {
+		t.Fatalf("higher release with its own immutable source identity was rejected: %v", err)
+	}
+	state, err := rollout.cli.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := state.Installations[0]
+	if installation.Directory.DesiredReleaseSequence != 2 || installation.Source.Repository != release.PackageSource.Repository || installation.Source.PackageSubpath != release.PackageSource.Path || installation.Source.ResolvedRevision != rollout.v2.revision {
+		t.Fatalf("higher release identity was not recorded exactly: %+v", installation)
+	}
+}
+
 func TestRetainedDirectoryNewTargetRejectsRecordedTuplePackageSourceRebind(t *testing.T) {
 	rollout := newRolloutDirectoryFixture(t,
 		[]domain.ClientID{domain.ClientCursor, domain.ClientKiro},
