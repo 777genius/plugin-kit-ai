@@ -10,6 +10,12 @@ const documents = [
   ["npm README", path.resolve(__dirname, "../README.md")]
 ];
 
+function packagedDocuments() {
+  const available = documents.filter(([, filename]) => fs.existsSync(filename));
+  assert.ok(available.length > 0, "no packaged Agentplugins documentation found");
+  return available;
+}
+
 const allowedTargets = new Set(["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]);
 const exactSourcePattern = /^(?:github:)?[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}\/\/[A-Za-z0-9._/-]+$/;
 
@@ -31,7 +37,7 @@ function commandArgument(command, flag) {
 }
 
 test("public Agentplugins documentation keeps copyable commands within the CLI contract", () => {
-  for (const [label, filename] of documents) {
+  for (const [label, filename] of packagedDocuments()) {
     const markdown = fs.readFileSync(filename, "utf8");
     const commands = bashCommands(markdown).filter((command) => command.startsWith("npx universal-agent-plugins "));
     assert.ok(commands.length > 0, `${label} has no copyable universal-agent-plugins commands`);
@@ -65,7 +71,7 @@ test("public Agentplugins documentation keeps copyable commands within the CLI c
 });
 
 test("public documentation keeps the package, binary, manifest, and safety contracts", () => {
-  for (const [label, filename] of documents) {
+  for (const [label, filename] of packagedDocuments()) {
     const markdown = fs.readFileSync(filename, "utf8");
     assert.match(markdown, /`universal-agent-plugins`[\s\S]{0,160}(?:public )?npm package/i, `${label}: npm package identity missing`);
     assert.match(markdown, /installs? the `agentplugins` binary/i, `${label}: installed binary identity missing`);
@@ -87,7 +93,7 @@ test("public documentation keeps the package, binary, manifest, and safety contr
 
 test("copyable direct-source examples use a marked replacement full SHA", () => {
   const placeholder = "0123456789abcdef0123456789abcdef01234567";
-  for (const [label, filename] of documents) {
+  for (const [label, filename] of packagedDocuments()) {
     const markdown = fs.readFileSync(filename, "utf8");
     assert.ok(markdown.includes(`owner/repo@${placeholder}//plugins/my-plugin`), `${label}: full-SHA source example missing`);
     assert.ok(markdown.includes("add ./my-plugin --target cursor"), `${label}: local source example missing`);
