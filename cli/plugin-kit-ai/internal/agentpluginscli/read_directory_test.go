@@ -81,13 +81,30 @@ func TestInfoShortNameShowsOneDirectoryProductDefaultAlternativesCompatibilityAn
 		`"repository":"owner/demo"`, `"package_path":"plugin"`,
 		`"tree_digest":"sha256:` + strings.Repeat("2", 64), `"manifest_digest":"sha256:` + strings.Repeat("4", 64),
 		`"target_compatibility"`, `"client":"cursor"`, `"immutable_evidence"`, `"id":"cursor-runtime-current"`,
-		`"artifact":{"repository":"owner/evidence"`, `"alternatives":[{"id":"community/demo"`} {
+		`"artifact":{"repository":"owner/evidence"`, `"trust":{"kind":"reviewed_external"}`, `"trusted_for_eligibility":true`,
+		`"alternatives":[{"id":"community/demo"`} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("Directory info omitted %q:\n%s", want, stdout)
 		}
 	}
 	if strings.Count(stdout, `"product_id":"demo"`) != 1 {
 		t.Fatalf("Directory info returned duplicate product cards:\n%s", stdout)
+	}
+}
+
+func TestPublicDirectoryEvidenceDistinguishesMissingTrust(t *testing.T) {
+	bundle := readModelBundle()
+	bundle.Snapshot.Evidence[0].Trust = nil
+	public := evidenceForRelease(bundle.Snapshot, "owner/demo", 1)
+	if len(public) != 1 || public[0].Trust != nil || public[0].TrustedForEligibility {
+		t.Fatalf("untrusted evidence provenance was misrepresented: %+v", public)
+	}
+	var output bytes.Buffer
+	if err := writeJSONOutput(&output, "test", public); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), `"trusted_for_eligibility":false`) || strings.Contains(output.String(), `"trust":`) {
+		t.Fatalf("public evidence did not distinguish missing trust: %s", output.String())
 	}
 }
 

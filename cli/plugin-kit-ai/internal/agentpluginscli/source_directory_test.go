@@ -66,8 +66,8 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 		DependencyIdentity: map[domain.ClientID]string{domain.ClientCursor: "node@22"},
 	}
 	artifact := domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("b", 40), Path: "evidence/result.json", Digest: "sha256:" + strings.Repeat("c", 64)}
-	schema := domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed", Artifact: artifact}
-	exact := domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-oauth", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "oauth", Outcome: "passed", Client: domain.ClientCursor, ClientVersion: "0.50.0", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "node@22", ObservedAt: "2026-08-21T00:00:00Z", Artifact: artifact}
+	schema := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed", Artifact: artifact})
+	exact := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{SchemaVersion: 1, ID: "notion-oauth", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "oauth", Outcome: "passed", Client: domain.ClientCursor, ClientVersion: "0.50.0", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64", DependencyIdentity: "node@22", ObservedAt: "2026-08-21T00:00:00Z", Artifact: artifact})
 
 	tests := []struct {
 		name           string
@@ -92,6 +92,7 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 			e.ID = "notion-materialization"
 			e.Level = "materialization"
 			e.Outcome = "failed"
+			e.Trust = &domain.DirectoryEvidenceTrust{Kind: "github_actions", Workflow: e.Artifact.Repository + "/.github/workflows/directory.yml", SourceRef: "refs/heads/main", SourceDigest: e.Artifact.Revision}
 		}), wantVerify: "not_tested", wantLevel: "materialization", wantOutcome: "failed", wantApplicable: 1},
 		{name: "unknown authentication", authentication: domain.AuthenticationRequirementUnknown, record: schema, wantVerify: "schema_only", wantLevel: "schema", wantOutcome: "passed", wantApplicable: 1},
 	}
@@ -128,7 +129,7 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 	digest := "sha256:" + strings.Repeat("a", 64)
 	selection := domain.DirectorySelection{DistributionID: "owner/package", ReleaseSequence: 1, TreeDigest: digest}
-	evidence := domain.DirectoryEvidence{ID: "package-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed"}
+	evidence := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "package-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed"})
 	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
 		{Client: domain.ClientCursor, Delivery: "managed", Authentication: domain.AuthenticationRequirementNotRequired},
 		{Client: domain.ClientCodex, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementRequired},
@@ -142,6 +143,31 @@ func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 		if compatibility.Verification != "schema_only" || compatibility.EvidenceOutcomes["runtime"] != "not_tested" || compatibility.EvidenceOutcomes["oauth"] != "not_tested" {
 			t.Fatalf("%s compatibility = %+v", client, compatibility)
 		}
+	}
+}
+
+func TestUntrustedCurrentEvidenceCannotCreateTestedCompatibility(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	selection := domain.DirectorySelection{DistributionID: "owner/demo", ReleaseSequence: 1, TreeDigest: digest}
+	environment := directoryEvidenceEnvironment{InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64",
+		ClientVersions: map[domain.ClientID]string{domain.ClientCursor: "0.50.0"}, DependencyIdentity: map[domain.ClientID]string{}}
+	pass := domain.DirectoryEvidence{ID: "self-reported-runtime", DistributionID: selection.DistributionID, ReleaseSequence: 1,
+		PackageTreeDigest: digest, Level: "runtime", Outcome: "passed", Client: domain.ClientCursor,
+		ClientVersion: "0.50.0", InstallerVersion: "1.2.3", OS: "linux", Architecture: "amd64"}
+	failure := pass
+	failure.ID, failure.Outcome = "self-reported-failure", "failed"
+	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Delivery: "managed"}},
+		CurrentEvidence: []string{pass.ID, failure.ID}}
+	loaded := loadedPackage{}
+	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Snapshot: domain.DirectorySnapshot{Evidence: []domain.DirectoryEvidence{pass, failure}}}, selection, policy, environment); err != nil {
+		t.Fatal(err)
+	}
+	compatibility := loaded.envelope.CatalogEvidence.Compatibility[string(domain.ClientCursor)]
+	if compatibility.Verification != "not_tested" || len(compatibility.Evidence) != 0 || compatibility.EvidenceOutcomes["runtime"] != "not_tested" {
+		t.Fatalf("untrusted evidence created compatibility claim: %+v", compatibility)
+	}
+	if len(loaded.envelope.CatalogEvidence.CurrentEvidence) != 2 {
+		t.Fatalf("signed informational evidence was not retained with provenance: %+v", loaded.envelope.CatalogEvidence.CurrentEvidence)
 	}
 }
 
@@ -177,6 +203,9 @@ func TestRetainDirectoryReleaseAfterStableProductResolution(t *testing.T) {
 			snapshot.Products[0].Aliases = nil
 			snapshot.Products[1].Aliases = []string{"stable-alias"}
 		}, wantErr: "now resolves to product"},
+		{name: "retired alias retains recorded identity", selector: "stable-alias", mutate: func(snapshot *domain.DirectorySnapshot, _ *domain.StateFileV2) {
+			snapshot.Products[0].Aliases = nil
+		}, wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
 		{name: "direct product ID", selector: "product-a", wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
 		{name: "declared name", selector: "demo", wantRecorded: true, wantProduct: "product-a", wantDist: "old/demo", wantSequence: 7},
 		{name: "no retained state", selector: "stable-alias", mutate: func(_ *domain.DirectorySnapshot, state *domain.StateFileV2) {
@@ -401,11 +430,44 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 		installation.Source.TreeDigest != treeDigest || installation.Package.ManifestDigest != manifestDigest {
 		t.Fatalf("persisted Directory origin = %+v", installation)
 	}
-	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "cursor"); err != nil {
+	if err := os.RemoveAll(onlyCLIClient(installation).TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "repair", "demo-alias", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	owner := &directory.bundle.Snapshot.Distributions[0]
+	newerOwner := owner.Releases[0]
+	newerOwner.Sequence = 4
+	newerOwner.PackageSource.Revision = strings.Repeat("f", 40)
+	owner.Releases = append(owner.Releases, newerOwner)
+	newerOwnerPolicy := owner.ReleasePolicies[0]
+	newerOwnerPolicy.ReleaseSequence = 4
+	newerOwnerPolicy.CurrentEvidence = []string{"passed/materialization/cursor/4"}
+	owner.ReleasePolicies = append(owner.ReleasePolicies, newerOwnerPolicy)
+	directory.bundle.Snapshot.Evidence = append(directory.bundle.Snapshot.Evidence, intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{
+		ID: newerOwnerPolicy.CurrentEvidence[0], DistributionID: owner.ID, ReleaseSequence: 4, PackageTreeDigest: treeDigest,
+		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor,
+	}))
+	directory.bundle.Snapshot.Sequence = 18
+	directory.bundle.Digest = "sha256:" + strings.Repeat("8", 64)
+	if _, _, err := fixture.execute(false, "update", "demo-alias", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Installations[0].Directory.DesiredReleaseSequence != 4 || state.Installations[0].Source.RequestedSource != "demo-alias" {
+		t.Fatalf("alias update lost retained identity: %+v", state.Installations[0])
+	}
+	if _, _, err := fixture.execute(false, "remove", "demo-alias", "--target", "cursor"); err != nil {
 		t.Fatal(err)
 	}
 	directory.bundle.Snapshot.Products[0].DefaultDistribution = "new/demo"
-	directory.bundle.Snapshot.Sequence = 18
+	directory.bundle.Snapshot.Products[0].Aliases = []string{"demo"}
+	directory.bundle.Snapshot.Products[0].ReservedAliases = append(directory.bundle.Snapshot.Products[0].ReservedAliases, "demo-alias")
+	directory.bundle.Snapshot.Sequence = 19
 	directory.bundle.Digest = "sha256:" + strings.Repeat("d", 64)
 	if _, _, err := fixture.execute(false, "add", "demo-alias", "--target", "cursor"); err != nil {
 		t.Fatal(err)
@@ -414,7 +476,7 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state.Installations[0].Directory.DistributionID != "owner/demo" || state.Installations[0].Directory.DesiredReleaseSequence != 3 {
+	if state.Installations[0].Directory.DistributionID != "owner/demo" || state.Installations[0].Directory.DesiredReleaseSequence != 4 {
 		t.Fatalf("re-add moved to changed Directory default: %+v", state.Installations[0].Directory)
 	}
 	if _, _, err := fixture.execute(false, "switch", "demo", "--to", "new/demo", "--format", "json"); err != nil {
@@ -453,6 +515,26 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 	if state.Installations[0].Directory.DistributionID != "new/demo" || state.Installations[0].Directory.DesiredReleaseSequence != 2 ||
 		state.Installations[0].Directory.SnapshotSequence != 19 || state.Installations[0].Directory.SnapshotDigest != directory.bundle.Digest || state.Installations[0].Package.Version != "1.0.0" {
 		t.Fatalf("sticky sequence update changed distribution or required SemVer change: %+v", state.Installations[0])
+	}
+}
+
+func TestInstalledHistoricalSelectorSelectionFailsClosedOnCollision(t *testing.T) {
+	installation := func(id string) domain.Installation {
+		return domain.Installation{InstallationID: id, DeclaredName: "demo", OriginMode: domain.OriginModeDirectory,
+			Source: domain.SourceBinding{RequestedSource: "demo-alias"}, Directory: &domain.DirectoryOrigin{ProductID: "demo", DistributionID: "owner/demo", DesiredReleaseSequence: 1}}
+	}
+	state := domain.StateFileV2{Installations: []domain.Installation{installation("install-a")}}
+	selected, err := selectInstallation(state, "demo-alias")
+	if err != nil || selected.InstallationID != "install-a" {
+		t.Fatalf("historical selector did not select retained installation: %+v %v", selected, err)
+	}
+	state.Installations = append(state.Installations, installation("install-b"))
+	if _, err := selectInstallation(state, "demo-alias"); err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Fatalf("historical selector collision did not fail closed: %v", err)
+	}
+	selected, err = selectInstallation(state, "install-a")
+	if err != nil || selected.InstallationID != "install-a" {
+		t.Fatalf("exact installation ID did not disambiguate: %+v %v", selected, err)
 	}
 }
 

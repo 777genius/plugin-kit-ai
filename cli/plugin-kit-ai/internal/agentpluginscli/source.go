@@ -3,6 +3,7 @@ package agentpluginscli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,11 +35,13 @@ type loadedPackage struct {
 }
 
 type packageResolutionRequest struct {
-	Targets        []domain.ClientID
-	Operation      domain.DirectoryOperation
-	Recorded       *domain.RecordedDirectoryRelease
-	Clients        map[domain.ClientID]domain.DetectedClient
-	RetainRecorded bool
+	Targets           []domain.ClientID
+	Operation         domain.DirectoryOperation
+	Recorded          *domain.RecordedDirectoryRelease
+	Clients           map[domain.ClientID]domain.DetectedClient
+	RetainRecorded    bool
+	Selector          string
+	RequestedSelector string
 }
 
 func (app App) addResolutionRequest(selector string, targets []domain.ClientID) packageResolutionRequest {
@@ -53,9 +56,10 @@ func (app App) loadInstalledPackage(ctx context.Context, installation domain.Ins
 	if sequence == 0 {
 		sequence = installation.Directory.DesiredReleaseSequence
 	}
-	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients, Recorded: &domain.RecordedDirectoryRelease{
-		ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence,
-	}})
+	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients,
+		RequestedSelector: strings.TrimSpace(installation.Source.RequestedSource), Recorded: &domain.RecordedDirectoryRelease{
+			ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence,
+		}})
 }
 
 func withDetectedClients(request packageResolutionRequest, clients map[domain.ClientID]domain.DetectedClient) packageResolutionRequest {
@@ -67,10 +71,7 @@ func locallyMatchedInstallation(state domain.StateFileV2, selector string) (doma
 	selector = strings.TrimSpace(selector)
 	var matches []domain.Installation
 	for _, installation := range state.Installations {
-		matched := installation.InstallationID == selector || installation.DeclaredName == selector
-		if installation.Directory != nil {
-			matched = matched || installation.Directory.ProductID == selector || installation.Directory.DistributionID == selector
-		}
+		matched := installationMatchesSelector(installation, selector)
 		if matched {
 			matches = append(matches, installation)
 		}
@@ -89,12 +90,15 @@ func retainDirectoryRelease(snapshot domain.DirectorySnapshot, state domain.Stat
 	if request.Recorded != nil || !request.RetainRecorded {
 		return request, nil
 	}
-	productID, err := directorySelectorProductID(snapshot, selector)
-	if err != nil {
-		return request, err
+	productID, selectorErr := directorySelectorProductID(snapshot, selector)
+	if selectorErr != nil && !errors.Is(selectorErr, domain.ErrDirectoryNotFound) {
+		return request, selectorErr
 	}
 	installation, found, err := retainedDirectoryInstallation(state, selector, productID)
 	if err != nil || !found {
+		if selectorErr != nil {
+			return request, selectorErr
+		}
 		return request, err
 	}
 	request.Operation = domain.DirectoryNewTarget
@@ -103,6 +107,9 @@ func retainDirectoryRelease(snapshot domain.DirectorySnapshot, state domain.Stat
 		DistributionID:  installation.Directory.DistributionID,
 		ReleaseSequence: installation.Directory.DesiredReleaseSequence,
 	}
+	// Resolve the recorded qualified distribution, not a mutable or retired
+	// alias. The recorded product identity is checked above before this rewrite.
+	request.Selector = installation.Directory.DistributionID
 	return request, nil
 }
 
@@ -155,7 +162,7 @@ func containsDirectoryValue(values []string, value string) bool {
 func retainedDirectoryInstallation(state domain.StateFileV2, selector, productID string) (domain.Installation, bool, error) {
 	matches := []domain.Installation{}
 	for _, installation := range state.Installations {
-		directoryMatch := installation.Directory != nil && (installation.Directory.ProductID == productID || installation.Directory.DistributionID == selector)
+		directoryMatch := installation.Directory != nil && ((productID != "" && installation.Directory.ProductID == productID) || installation.Directory.DistributionID == selector)
 		historicalSelectorMatch := strings.TrimSpace(installation.Source.RequestedSource) == selector
 		declaredMatch := installation.InstallationID == selector || installation.DeclaredName == selector
 		if !directoryMatch && !historicalSelectorMatch && !declaredMatch {
@@ -165,7 +172,7 @@ func retainedDirectoryInstallation(state domain.StateFileV2, selector, productID
 			strings.TrimSpace(installation.Directory.ProductID) == "" || strings.TrimSpace(installation.Directory.DistributionID) == "" || installation.Directory.DesiredReleaseSequence < 1 {
 			return domain.Installation{}, false, fmt.Errorf("retained installation %q has incomplete or corrupt Directory release identity", installation.InstallationID)
 		}
-		if installation.Directory.ProductID != productID {
+		if productID != "" && installation.Directory.ProductID != productID {
 			return domain.Installation{}, false, fmt.Errorf("Directory selector %q now resolves to product %q, but retained installation %q records product %q", selector, productID, installation.InstallationID, installation.Directory.ProductID)
 		}
 		matches = append(matches, installation)
@@ -177,6 +184,17 @@ func retainedDirectoryInstallation(state domain.StateFileV2, selector, productID
 		return domain.Installation{}, false, fmt.Errorf("retained Directory state for product %q is ambiguous; use installation_id", productID)
 	}
 	return matches[0], true, nil
+}
+
+func installationMatchesSelector(installation domain.Installation, selector string) bool {
+	if installation.InstallationID == selector || installation.DeclaredName == selector {
+		return true
+	}
+	if installation.Directory == nil {
+		return false
+	}
+	return installation.Directory.ProductID == selector || installation.Directory.DistributionID == selector ||
+		strings.TrimSpace(installation.Source.RequestedSource) == selector
 }
 
 func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, error) {
@@ -289,8 +307,12 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	}
 	environment := directoryEnvironment(request.Clients)
 	environment.InstallerVersion = app.Version
+	resolveSelector := selector
+	if request.Selector != "" {
+		resolveSelector = request.Selector
+	}
 	resolveRequest := domain.DirectoryResolveRequest{
-		Selector: selector, Targets: append([]domain.ClientID(nil), request.Targets...), Scope: domain.ScopeUser,
+		Selector: resolveSelector, Targets: append([]domain.ClientID(nil), request.Targets...), Scope: domain.ScopeUser,
 		InstallerVersion: app.Version, ClientVersions: environment.ClientVersions, OS: environment.OS, Architecture: environment.Architecture,
 		DependencyIdentity: environment.DependencyIdentity,
 		SchemaVersion:      "1.0.0", Operation: operation, Recorded: request.Recorded,
@@ -311,6 +333,9 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 		return loadedPackage{}, err
 	}
 	snapshot.Source.RequestedSource = selector
+	if request.RequestedSelector != "" {
+		snapshot.Source.RequestedSource = request.RequestedSelector
+	}
 	snapshot.Source.SourceBindingHint = "directory-v1"
 	origin := &domain.DirectoryOrigin{
 		ProductID: selection.ProductID, DistributionID: selection.DistributionID, DistributionKind: selection.DistributionKind,
@@ -467,7 +492,7 @@ func applyDirectoryCompatibility(loaded *loadedPackage, bundle directoryv1.Verif
 		packageMode, _ := stableCatalogPackageMode(capabilities.PackageMode)
 		applicable := make([]domain.DirectoryEvidence, 0, len(current))
 		for _, evidence := range current {
-			if directoryEvidenceApplies(evidence, selection, target.Client, environment) {
+			if evidence.HasTrustedEligibilityProvenance() && directoryEvidenceApplies(evidence, selection, target.Client, environment) {
 				applicable = append(applicable, evidence)
 			}
 		}

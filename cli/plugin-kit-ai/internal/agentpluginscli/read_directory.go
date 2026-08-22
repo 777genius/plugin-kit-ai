@@ -22,20 +22,22 @@ type publicSafetyWarning struct {
 }
 
 type publicEvidence struct {
-	ID                 string                           `json:"id"`
-	DistributionID     string                           `json:"distribution_id"`
-	ReleaseSequence    uint64                           `json:"release_sequence"`
-	Level              string                           `json:"level"`
-	Outcome            string                           `json:"outcome"`
-	Client             domain.ClientID                  `json:"client,omitempty"`
-	ClientVersion      string                           `json:"client_version,omitempty"`
-	InstallerVersion   string                           `json:"installer_version,omitempty"`
-	OS                 string                           `json:"os,omitempty"`
-	Architecture       string                           `json:"architecture,omitempty"`
-	DependencyIdentity string                           `json:"dependency_identity,omitempty"`
-	ObservedAt         string                           `json:"observed_at,omitempty"`
-	PackageTreeDigest  string                           `json:"package_tree_digest"`
-	Artifact           domain.DirectoryEvidenceArtifact `json:"artifact"`
+	ID                    string                           `json:"id"`
+	DistributionID        string                           `json:"distribution_id"`
+	ReleaseSequence       uint64                           `json:"release_sequence"`
+	Level                 string                           `json:"level"`
+	Outcome               string                           `json:"outcome"`
+	Client                domain.ClientID                  `json:"client,omitempty"`
+	ClientVersion         string                           `json:"client_version,omitempty"`
+	InstallerVersion      string                           `json:"installer_version,omitempty"`
+	OS                    string                           `json:"os,omitempty"`
+	Architecture          string                           `json:"architecture,omitempty"`
+	DependencyIdentity    string                           `json:"dependency_identity,omitempty"`
+	ObservedAt            string                           `json:"observed_at,omitempty"`
+	PackageTreeDigest     string                           `json:"package_tree_digest"`
+	Artifact              domain.DirectoryEvidenceArtifact `json:"artifact"`
+	Trust                 *domain.DirectoryEvidenceTrust   `json:"trust,omitempty"`
+	TrustedForEligibility bool                             `json:"trusted_for_eligibility"`
 }
 
 type publicTargetCompatibility struct {
@@ -288,7 +290,8 @@ func evidenceForRelease(snapshot domain.DirectorySnapshot, distribution string, 
 				Level: evidence.Level, Outcome: evidence.Outcome, Client: evidence.Client, ClientVersion: evidence.ClientVersion,
 				InstallerVersion: evidence.InstallerVersion, OS: evidence.OS, Architecture: evidence.Architecture,
 				DependencyIdentity: evidence.DependencyIdentity, ObservedAt: evidence.ObservedAt,
-				PackageTreeDigest: evidence.PackageTreeDigest, Artifact: evidence.Artifact})
+				PackageTreeDigest: evidence.PackageTreeDigest, Artifact: evidence.Artifact, Trust: evidence.Trust,
+				TrustedForEligibility: evidence.HasTrustedEligibilityProvenance()})
 		}
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })

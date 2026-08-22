@@ -423,7 +423,7 @@ func runRemove(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	}
 	service := lifecycleService(app, detectedMap)
 	input := usecase.RemoveInput{
-		Selector: selector, Client: selected, Scope: domain.InstallScope(opts.scope),
+		Selector: installation.InstallationID, Client: selected, Scope: domain.InstallScope(opts.scope),
 		DryRun: opts.dryRun, Interactive: app.Terminal,
 		ExternalUninstalled: opts.externalUninstalled,
 		BackendExecutable:   backendExecutable(selected, detectedMap),

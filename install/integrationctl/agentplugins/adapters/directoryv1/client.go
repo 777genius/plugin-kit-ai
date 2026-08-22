@@ -9,11 +9,14 @@ import (
 	"net/url"
 	pathpkg "path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
+
+var directRepositoryPattern = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38}[A-Za-z0-9])?/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$`)
 
 type EmbeddedBundle struct {
 	// Snapshot and Envelope are separate so production can populate them with
@@ -375,7 +378,7 @@ func ResolveDirectExact(source domain.SourceIdentity) (DirectSelection, error) {
 	}
 	local := strings.HasPrefix(canonical, "./") || strings.HasPrefix(canonical, "../") || strings.HasPrefix(canonical, `.\`) || strings.HasPrefix(canonical, `..\`) || filepath.IsAbs(canonical)
 	exactGit := false
-	if shaPattern.MatchString(source.ResolvedRevision) && repositoryPattern.MatchString(source.Repository) {
+	if shaPattern.MatchString(source.ResolvedRevision) && directRepositoryPattern.MatchString(source.Repository) {
 		expected := domain.DirectorySource{Repository: source.Repository, Revision: source.ResolvedRevision, Path: source.PackageSubpath}
 		if canonicalIdentity, ok := parseImmutableGitHubIdentity(canonical); ok && canonicalIdentity == expected {
 			exactGit = true
@@ -419,7 +422,7 @@ func parseImmutableGitHubIdentity(value string) (domain.DirectorySource, bool) {
 	}
 	repository, revision, ok := strings.Cut(repositoryRevision, "@")
 	identity := domain.DirectorySource{Repository: repository, Revision: revision, Path: subpath}
-	if !ok || validateSource(identity) != nil {
+	if !ok || !directRepositoryPattern.MatchString(identity.Repository) || !shaPattern.MatchString(identity.Revision) || validateSourcePath(identity.Path) != nil {
 		return domain.DirectorySource{}, false
 	}
 	return identity, true

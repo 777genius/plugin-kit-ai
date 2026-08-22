@@ -277,7 +277,7 @@ func TestEvidenceEligibilityTrustContract(t *testing.T) {
 	}{
 		{name: "trusted pass"},
 		{name: "trusted fail", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed" }},
-		{name: "missing trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust = nil }, wantErr: true},
+		{name: "missing trust remains informational", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust = nil }},
 		{name: "unknown trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust.Kind = "contributor_asserted" }, wantErr: true},
 		{name: "forged workflow repository", mutate: func(v *domain.DirectorySnapshot) {
 			v.Evidence[0].Trust.Workflow = "contributor/evidence/.github/workflows/directory.yml"
@@ -294,7 +294,7 @@ func TestEvidenceEligibilityTrustContract(t *testing.T) {
 			v.Evidence[0].Architecture = "amd64"
 			v.Evidence[0].ObservedAt = "2026-08-20T10:00:00Z"
 			v.Evidence[0].Trust = reviewed
-		}, wantErr: true},
+		}},
 		{name: "reviewed runtime fail accepted", mutate: func(v *domain.DirectorySnapshot) {
 			v.Evidence[0].Level = "runtime"
 			v.Evidence[0].Outcome = "failed"
@@ -310,9 +310,10 @@ func TestEvidenceEligibilityTrustContract(t *testing.T) {
 			v.Evidence[0].Architecture = ""
 			v.Evidence[0].ObservedAt = ""
 			v.Evidence[0].Trust = reviewed
-		}, wantErr: true},
+		}},
 		{name: "non-current evidence", mutate: func(v *domain.DirectorySnapshot) { v.Distributions[0].ReleasePolicies[0].CurrentEvidence = []string{} }, wantErr: true},
 		{name: "informational without trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "inconclusive"; v.Evidence[0].Trust = nil }},
+		{name: "failure without trust remains informational", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed"; v.Evidence[0].Trust = nil }},
 		{name: "reviewed informational accepted", mutate: func(v *domain.DirectorySnapshot) {
 			v.Evidence[0].Outcome = "inconclusive"
 			v.Evidence[0].Trust = reviewed
@@ -803,5 +804,19 @@ func TestDirectExactRequiresNoDirectory(t *testing.T) {
 	}
 	if _, err := ResolveDirectExact(domain.SourceIdentity{CanonicalSource: "./plugin"}); err != nil {
 		t.Fatalf("local direct source rejected: %v", err)
+	}
+}
+
+func TestDirectExactPreservesCaseSensitiveGitHubRepositoryIdentity(t *testing.T) {
+	revision := strings.Repeat("a", 40)
+	for _, prefix := range []string{"", "github:", "https://github.com/"} {
+		value := prefix + "Azure/PluginRepo@" + revision + "//Plugin/Path"
+		selection, err := ResolveDirectExact(domain.SourceIdentity{
+			RequestedSource: value, CanonicalSource: value, Repository: "Azure/PluginRepo",
+			PackageSubpath: "Plugin/Path", ResolvedRevision: revision,
+		})
+		if err != nil || selection.Source.Repository != "Azure/PluginRepo" {
+			t.Fatalf("case-preserving exact source %q: %+v %v", value, selection, err)
+		}
 	}
 }

@@ -295,9 +295,6 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 			if !ok || releaseKey(e.DistributionID, e.ReleaseSequence) != identity {
 				return strictError("policy references inapplicable evidence %q", id)
 			}
-			if evidenceAffectsEligibility(e) && !e.HasTrustedEligibilityProvenance() {
-				return strictError("evidence %q lacks trusted eligibility provenance", id)
-			}
 			tuple := strings.Join([]string{e.DistributionID, fmt.Sprint(e.ReleaseSequence), e.PackageTreeDigest, e.Level, string(e.Client), e.ClientVersion, e.InstallerVersion, e.DependencyIdentity, e.OS, e.Architecture}, "\x00")
 			if tuples[tuple] {
 				return strictError("multiple current evidence records for applicability tuple")
@@ -318,10 +315,6 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 		revoked[identity] = true
 	}
 	return nil
-}
-
-func evidenceAffectsEligibility(e domain.DirectoryEvidence) bool {
-	return e.Outcome == "failed" || (e.Level == "materialization" && e.Outcome == "passed")
 }
 
 func validatePolicy(p domain.DirectoryReleasePolicy) error {
@@ -366,10 +359,14 @@ func validateSource(s domain.DirectorySource) error {
 	if !repositoryPattern.MatchString(s.Repository) || !shaPattern.MatchString(s.Revision) {
 		return fmt.Errorf("malformed immutable source")
 	}
-	if s.Path == "" || strings.HasPrefix(s.Path, "/") || strings.Contains(s.Path, "\\") {
+	return validateSourcePath(s.Path)
+}
+
+func validateSourcePath(sourcePath string) error {
+	if sourcePath == "" || strings.HasPrefix(sourcePath, "/") || strings.Contains(sourcePath, "\\") {
 		return fmt.Errorf("unsafe source path")
 	}
-	for _, part := range strings.Split(s.Path, "/") {
+	for _, part := range strings.Split(sourcePath, "/") {
 		if part == "" || part == "." || part == ".." {
 			return fmt.Errorf("unsafe source path")
 		}

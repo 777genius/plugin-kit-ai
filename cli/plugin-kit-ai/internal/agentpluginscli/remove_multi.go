@@ -51,6 +51,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if installation.Package.LoaderKind == domain.LoaderKindLegacy {
 		return fmt.Errorf("legacy removal is integration-wide; use --target legacy-all")
 	}
+	installationSelector := installation.InstallationID
 	clients, err := app.Detector.Detect(ctx)
 	if err != nil {
 		return fmt.Errorf("detect AI clients: %w", err)
@@ -73,7 +74,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 			detected[target] = client
 		}
 		input := usecase.RemoveInput{
-			Selector: selector, Client: client, Scope: domain.ScopeUser,
+			Selector: installationSelector, Client: client, Scope: domain.ScopeUser,
 			DryRun: true, Interactive: false, ExternalUninstalled: opts.externalUninstalled,
 			BackendExecutable: backendExecutable(client, detected),
 		}
@@ -85,7 +86,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		return err
 	}
 	result.OperationID = operationID
-	plannedGroup, planErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: selector, Targets: inputs, OperationGroupID: operationID, DryRun: true, PurgeData: opts.purgeData})
+	plannedGroup, planErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: installationSelector, Targets: inputs, OperationGroupID: operationID, DryRun: true, PurgeData: opts.purgeData})
 	for index, planned := range plannedGroup.Targets {
 		status := "planned"
 		if !planned.Deactivation.ArtifactRemovalAllowed {
@@ -111,7 +112,7 @@ func runRemoveMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	for index := range inputs {
 		inputs[index].Confirmed = true
 	}
-	appliedGroup, groupErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: selector, Targets: inputs, OperationGroupID: operationID, Confirmed: true, PurgeData: opts.purgeData})
+	appliedGroup, groupErr := service.RemoveGroup(ctx, usecase.RemoveGroupInput{Selector: installationSelector, Targets: inputs, OperationGroupID: operationID, Confirmed: true, PurgeData: opts.purgeData})
 	appliedResults := appliedGroup.Targets
 	if len(appliedResults) > len(inputs) || len(appliedResults) != len(inputs) && groupErr == nil {
 		return fmt.Errorf("install engine returned %d remove results for %d targets", len(appliedResults), len(inputs))

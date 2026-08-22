@@ -520,11 +520,7 @@ func selectInstallation(state domain.StateFileV2, selector string) (domain.Insta
 		if installation.InstallationID == selector {
 			return installation, nil
 		}
-		if installation.DeclaredName == selector {
-			matches = append(matches, installation)
-			continue
-		}
-		if installation.Directory != nil && (installation.Directory.ProductID == selector || installation.Directory.DistributionID == selector) {
+		if installationMatchesSelector(installation, selector) {
 			matches = append(matches, installation)
 		}
 	}

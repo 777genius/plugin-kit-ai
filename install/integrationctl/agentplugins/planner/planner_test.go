@@ -81,6 +81,23 @@ func TestPlannerFailsClosedWhenPinnedCatalogEvidenceOmitsSelectedClient(t *testi
 	}
 }
 
+func TestPlannerKeepsManualVerificationGuidanceForUntrustedEvidence(t *testing.T) {
+	t.Parallel()
+	envelope := testEnvelope()
+	envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+		"cursor": {Package: "native", Verification: "not_tested", Authentication: domain.AuthenticationRequirementNotRequired,
+			Evidence: []domain.DirectoryEvidence{{Level: "runtime", Outcome: "passed"}}},
+	}}
+	plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope,
+		detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor")), domain.ScopeUser, "demo-0123456789ab")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !contains(plan.Warnings, "catalog_not_tested") || !contains(plan.UserActions, "verify the plugin in the selected client before relying on it") {
+		t.Fatalf("planner suppressed verification guidance: warnings=%v actions=%v", plan.Warnings, plan.UserActions)
+	}
+}
+
 func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
 	t.Parallel()
 	envelope := testEnvelope()
