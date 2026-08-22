@@ -89,6 +89,13 @@ test("platform proof reads exact single-target results from direct and batch env
 
   assert.throws(() => lifecycleResult({
     schema_version: 1,
+    command: "add",
+    result: "success",
+    data: { batch: true, result: { mutated: true } }
+  }, "add", "cursor"), /ambiguous direct and batch lifecycle results/);
+
+  assert.throws(() => lifecycleResult({
+    schema_version: 1,
     command: "remove",
     result: "success",
     data: {

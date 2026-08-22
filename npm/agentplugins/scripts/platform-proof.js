@@ -118,7 +118,7 @@ function lifecycleResult(output, command, target) {
     fail(`agentplugins ${command} did not return a successful lifecycle envelope`);
   }
   if (output.data.result && typeof output.data.result === "object") {
-    if (output.data.targets !== undefined) {
+    if (output.data.batch === true || output.data.targets !== undefined) {
       fail(`agentplugins ${command} returned ambiguous direct and batch lifecycle results`);
     }
     return output.data.result;
