@@ -178,7 +178,6 @@ func TestApplyInstallRejectsManagedManifestExtraOverride(t *testing.T) {
 }
 
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	home := t.TempDir()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a", "nested")

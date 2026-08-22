@@ -385,7 +385,6 @@ func TestInspectReturnsDisabledWhenSettingsDisableExtension(t *testing.T) {
 }
 
 func TestInspectProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	workspaceA := filepath.Join(root, "workspace-a")
@@ -474,7 +473,6 @@ func TestDisabledByScopeOverrideProjectScopeMatchesWorkspaceRoot(t *testing.T) {
 }
 
 func TestPlanEnableProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	workspaceA := filepath.Join(root, "workspace-a")
@@ -518,7 +516,6 @@ func TestPlanEnableProjectScopeUsesPersistedWorkspaceRoot(t *testing.T) {
 }
 
 func TestApplyDisableUsesNativeGeminiDisable(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	workspaceA := filepath.Join(root, "workspace-a")
 	workspaceB := filepath.Join(root, "workspace-b")
@@ -614,7 +611,6 @@ func TestPlanInstallAllowedExtensionsOverridesBlockGitExtensions(t *testing.T) {
 }
 
 func TestPlanUpdateProjectScopeReadsPersistedWorkspaceSettingsForSecurity(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
 	workspaceA := filepath.Join(root, "workspace-a")
