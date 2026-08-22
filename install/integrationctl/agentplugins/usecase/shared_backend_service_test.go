@@ -39,4 +39,20 @@ func TestSingleTargetServiceResolvesEitherLogicalSharedSurfaceToOnePhysicalBindi
 	if binding.ClientBindingID != added.Receipt.ClientBindingID || binding.ClientID != string(domain.ClientCopilot) || binding.PackageRevision.Version != "2.0.0" || !reflect.DeepEqual(binding.AffectedSurfaces, []string{"copilot", "vscode"}) || len(binding.Receipts) != 2 {
 		t.Fatalf("shared service binding = %+v", binding)
 	}
+
+	planned, err := service.RemoveGroup(context.Background(), RemoveGroupInput{
+		Selector: added.InstallationID,
+		Targets: []RemoveInput{
+			{Client: copilot, Scope: domain.ScopeUser, ExternalUninstalled: true},
+			{Client: vscode, Scope: domain.ScopeUser, ExternalUninstalled: true},
+		},
+		OperationGroupID: "shared-remove-plan",
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned.Targets) != 2 || !planned.Targets[0].Deactivation.ArtifactRemovalAllowed || !planned.Targets[1].Deactivation.ArtifactRemovalAllowed {
+		t.Fatalf("shared removal preflight = %+v", planned.Targets)
+	}
 }

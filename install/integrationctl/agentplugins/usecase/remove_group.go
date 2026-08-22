@@ -101,7 +101,9 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 		result.Targets[targetIndex] = RemoveResult{InstallationID: installation.InstallationID, Plugin: installation.DeclaredName, ClientID: targetInput.Client.ClientID,
 			AffectedSurfaces: preparedAffectedSurfaces(client, targetInput.Client.ClientID)}
 		if prior, ok := byBinding[clientKey]; ok {
-			planned[prior].resultIndexes = append(planned[prior].resultIndexes, targetIndex)
+			item := &planned[prior]
+			result.Targets[targetIndex].Deactivation = result.Targets[item.resultIndexes[0]].Deactivation
+			item.resultIndexes = append(item.resultIndexes, targetIndex)
 			continue
 		}
 		expected := managedDigest(client)

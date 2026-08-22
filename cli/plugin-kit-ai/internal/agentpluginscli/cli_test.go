@@ -396,6 +396,16 @@ func TestCopilotAndVSCodeShareOneGroupedPhysicalMutation(t *testing.T) {
 	if len(state.Installations[0].Clients) != 1 || len(binding.Receipts) != 2 || binding.PackageRevision.Version != "2.0.0" {
 		t.Fatalf("shared backend grouped update = %+v", state.Installations[0])
 	}
+	for _, targets := range []string{"copilot,vscode", "vscode,copilot"} {
+		stdout, _, err = fixture.execute(false, "remove", "demo", "--target", targets, "--external-uninstalled", "--dry-run", "--format", "json")
+		if err != nil {
+			t.Fatalf("shared backend removal preflight for %s: %v", targets, err)
+		}
+		assertBatchJSON(t, stdout, "remove", 2, 0)
+		if strings.Contains(stdout, `"status":"blocked"`) {
+			t.Fatalf("shared backend removal preflight for %s = %s", targets, stdout)
+		}
+	}
 }
 
 func TestMissingManagedStdioRuntimeFailsAutomaticActivationPreflightWithoutMutation(t *testing.T) {
