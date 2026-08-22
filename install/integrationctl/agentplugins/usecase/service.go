@@ -292,7 +292,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		if err := service.observeNativeIdentity(ctx, input.Client, plan, managedBinding); err != nil {
 			return result, err
 		}
-		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) {
+		if packageRevisionMatches(previousClient.PackageRevision, input.Envelope) && previousClient.PackageRevision.ResolvedRevision == input.Envelope.Source.ResolvedRevision {
 			if lifecycleConverged(previousClient) {
 				verified, verifyErr := service.verifyClientReadOnly(ctx, input, result, previousClient)
 				if verifyErr != nil {
@@ -911,14 +911,15 @@ func packageRevisionMatches(revision *domain.ClientPackageRevision, envelope dom
 		reflect.DeepEqual(revision.CatalogEvidence, envelope.CatalogEvidence)
 }
 
-// Directory repair must reproduce immutable package bytes while allowing
-// compatibility evidence to be recomposed for the currently detected
-// environment. Direct-source repair retains strict recorded evidence equality.
+// Directory repair must reproduce the immutable package revision and bytes
+// while allowing compatibility evidence to be recomposed for the currently
+// detected environment. Direct-source repair retains strict recorded evidence
+// equality.
 func repairPackageRevisionMatches(revision *domain.ClientPackageRevision, envelope domain.PackageEnvelope, directory bool) bool {
 	if !directory {
 		return packageRevisionMatches(revision, envelope)
 	}
-	return revision != nil && revision.TreeDigest == envelope.TreeDigest && revision.ManifestDigest == envelope.ManifestDigest
+	return revision != nil && revision.ResolvedRevision == envelope.Source.ResolvedRevision && revision.TreeDigest == envelope.TreeDigest && revision.ManifestDigest == envelope.ManifestDigest
 }
 
 func findSourceInstallation(state domain.StateFileV2, sourceBindingID string) (int, bool) {
@@ -1026,8 +1027,13 @@ func validateDirectoryTransition(installation domain.Installation, input AddInpu
 	if incoming.DesiredReleaseSequence < current.DesiredReleaseSequence {
 		return fmt.Errorf("refuse Directory release downgrade from sequence %d to %d", current.DesiredReleaseSequence, incoming.DesiredReleaseSequence)
 	}
-	if incoming.DesiredReleaseSequence == current.DesiredReleaseSequence && installation.Source.TreeDigest != "" && installation.Source.TreeDigest != input.Envelope.TreeDigest {
-		return fmt.Errorf("signed Directory release sequence %d has conflicting package bytes", incoming.DesiredReleaseSequence)
+	if incoming.DesiredReleaseSequence == current.DesiredReleaseSequence {
+		if installation.Source.ResolvedRevision != input.Envelope.Source.ResolvedRevision {
+			return fmt.Errorf("signed Directory release sequence %d has conflicting package-source revision", incoming.DesiredReleaseSequence)
+		}
+		if installation.Source.TreeDigest != "" && installation.Source.TreeDigest != input.Envelope.TreeDigest {
+			return fmt.Errorf("signed Directory release sequence %d has conflicting package bytes", incoming.DesiredReleaseSequence)
+		}
 	}
 	return nil
 }

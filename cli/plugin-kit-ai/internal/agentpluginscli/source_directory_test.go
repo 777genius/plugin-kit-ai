@@ -706,14 +706,19 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 		t.Fatal(err)
 	}
 	versions := map[string]string{}
+	revisions := map[string]string{}
 	for _, binding := range state.Installations[0].Clients {
 		versions[binding.ClientID] = binding.PackageRevision.Version
+		revisions[binding.ClientID] = binding.PackageRevision.ResolvedRevision
 		if _, err := os.Stat(binding.TargetLocator); err != nil {
 			t.Fatalf("repair did not restore %s: %v", binding.ClientID, err)
 		}
 	}
 	if versions[string(domain.ClientCursor)] != "2.0.0" || versions[string(domain.ClientKiro)] != "1.0.0" {
 		t.Fatalf("repair changed recorded revisions: %v", versions)
+	}
+	if revisions[string(domain.ClientCursor)] != v2.revision || revisions[string(domain.ClientKiro)] != v1.revision {
+		t.Fatalf("repair changed recorded package-source bindings: %v", revisions)
 	}
 	if state.Installations[0].Package.Version != "2.0.0" || state.Installations[0].Directory.DesiredReleaseSequence != 2 {
 		t.Fatalf("repair regressed installation-wide desired revision: %+v", state.Installations[0])

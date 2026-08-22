@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
+
+var fullLowercaseSHA = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 type Store struct {
 	Path string
@@ -185,6 +188,9 @@ func Validate(state domain.StateFileV2) error {
 			if strings.TrimSpace(directory.ProductID) == "" || strings.TrimSpace(directory.DistributionID) == "" || directory.DesiredReleaseSequence < 1 {
 				return fmt.Errorf("%s directory release identity is incomplete", prefix)
 			}
+			if !fullLowercaseSHA.MatchString(installation.Source.ResolvedRevision) {
+				return fmt.Errorf("%s Directory source resolved_revision must be a full lowercase 40-character SHA", prefix)
+			}
 			switch directory.DistributionKind {
 			case domain.DistributionUpstream, domain.DistributionCommunityBridge, domain.DistributionCommunity:
 			default:
@@ -267,6 +273,9 @@ func Validate(state domain.StateFileV2) error {
 				}
 				if client.PackageRevision.DistributionID != installation.Directory.DistributionID || client.PackageRevision.ReleaseSequence < 1 || client.PackageRevision.ReleaseSequence > installation.Directory.DesiredReleaseSequence {
 					return fmt.Errorf("%s client binding %q has invalid applied Directory revision", prefix, client.ClientBindingID)
+				}
+				if !fullLowercaseSHA.MatchString(client.PackageRevision.ResolvedRevision) {
+					return fmt.Errorf("%s client binding %q Directory resolved_revision must be a full lowercase 40-character SHA", prefix, client.ClientBindingID)
 				}
 			}
 			if client.DataReceiptID != "" {

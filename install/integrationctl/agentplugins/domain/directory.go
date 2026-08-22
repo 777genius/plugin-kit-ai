@@ -231,10 +231,13 @@ const (
 	DirectoryReproduce     DirectoryOperation = "reproduce"
 )
 
+// RecordedDirectoryRelease binds a Directory tuple to the immutable Git
+// revision named by that release's package_source.
 type RecordedDirectoryRelease struct {
-	ProductID       string
-	DistributionID  string
-	ReleaseSequence uint64
+	ProductID        string
+	DistributionID   string
+	ReleaseSequence  uint64
+	ResolvedRevision string
 }
 
 type DirectoryResolveRequest struct {
@@ -298,6 +301,12 @@ func ResolveDirectory(snapshot DirectorySnapshot, request DirectoryResolveReques
 		return DirectorySelection{}, err
 	}
 	if request.Recorded != nil {
+		if strings.TrimSpace(request.Recorded.ResolvedRevision) == "" {
+			return DirectorySelection{}, fmt.Errorf("recorded Directory release %s sequence %d has no resolved package-source revision", request.Recorded.DistributionID, request.Recorded.ReleaseSequence)
+		}
+		if strings.TrimSpace(request.Recorded.ProductID) == "" || strings.TrimSpace(request.Recorded.DistributionID) == "" || request.Recorded.ReleaseSequence < 1 {
+			return DirectorySelection{}, fmt.Errorf("recorded Directory release identity is incomplete")
+		}
 		if request.Recorded.ProductID != product.ID {
 			return DirectorySelection{}, fmt.Errorf("recorded product %q does not match %q", request.Recorded.ProductID, product.ID)
 		}
@@ -307,6 +316,9 @@ func ResolveDirectory(snapshot DirectorySnapshot, request DirectoryResolveReques
 		distribution := distributionByID(snapshot, product, qualified)
 		if distribution == nil {
 			return DirectorySelection{}, fmt.Errorf("%w: distribution %q", ErrDirectoryNotFound, qualified)
+		}
+		if err := validateRecordedDirectoryRelease(*distribution, request.Recorded); err != nil {
+			return DirectorySelection{}, err
 		}
 		release, reasons := chooseDirectoryRelease(snapshot, product, *distribution, request)
 		if release == nil {
@@ -325,6 +337,26 @@ func ResolveDirectory(snapshot DirectorySnapshot, request DirectoryResolveReques
 		}
 	}
 	return DirectorySelection{}, fmt.Errorf("%w for %q: %s", ErrDirectoryIneligible, selector, joinDiagnosticMessages(diagnostics))
+}
+
+func validateRecordedDirectoryRelease(distribution DirectoryDistribution, recorded *RecordedDirectoryRelease) error {
+	if recorded == nil {
+		return nil
+	}
+	revision := strings.TrimSpace(recorded.ResolvedRevision)
+	if revision == "" {
+		return fmt.Errorf("recorded Directory release %s sequence %d has no resolved package-source revision", recorded.DistributionID, recorded.ReleaseSequence)
+	}
+	for _, release := range distribution.Releases {
+		if release.Sequence != recorded.ReleaseSequence {
+			continue
+		}
+		if release.PackageSource.Revision != revision {
+			return fmt.Errorf("recorded Directory release %s sequence %d package-source revision %s does not match current signed snapshot revision %s", recorded.DistributionID, recorded.ReleaseSequence, revision, release.PackageSource.Revision)
+		}
+		return nil
+	}
+	return fmt.Errorf("%w: recorded release %s sequence %d", ErrDirectoryNotFound, recorded.DistributionID, recorded.ReleaseSequence)
 }
 
 type eligibilityReason struct{ code, message string }
@@ -465,7 +497,7 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 			return &eligibilityReason{"blocking_evidence", "current trusted schema evidence failed"}
 		}
 	}
-	for _, target := range uniqueClients(request.Targets) {
+	for _, target := range directoryEligibilityTargets(request.Targets) {
 		entry := targetByClient(policy.Targets, target)
 		if entry == nil || !containsScope(entry.Scopes, request.Scope) {
 			return &eligibilityReason{"incomplete_targets", "release does not support complete target set; missing " + string(target)}
@@ -496,6 +528,20 @@ func releaseEligibility(snapshot DirectorySnapshot, product DirectoryProduct, di
 		}
 	}
 	return nil
+}
+
+// Copilot CLI and VS Code are logical views of one physical native backend.
+// Directory policy, evidence, and delivery must authorize both surfaces even
+// when the user selected only one logical view.
+func directoryEligibilityTargets(targets []ClientID) []ClientID {
+	complete := append([]ClientID(nil), targets...)
+	for _, target := range targets {
+		if target == ClientCopilot || target == ClientVSCode {
+			complete = append(complete, ClientCopilot, ClientVSCode)
+			break
+		}
+	}
+	return uniqueClients(complete)
 }
 
 // hasPassedUpstreamMaterialization is the static promotion/package gate. Its

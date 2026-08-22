@@ -2,6 +2,7 @@ package domain
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -136,7 +137,7 @@ func TestResolveDirectoryNoMixingAndAmbiguity(t *testing.T) {
 func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 	s := testDirectory()
 	d := &s.Distributions[2]
-	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 3}
+	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 3, ResolvedRevision: testRelease(3, "").PackageSource.Revision}
 	base := request("owner/tool", ClientCodex)
 	base.Recorded = recorded
 	s.Revocations = []DirectoryRevocation{{DistributionID: "owner/tool", ReleaseSequence: 3}}
@@ -204,12 +205,44 @@ func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 
 func TestResolveDirectoryRecordedReAddRetainsExactRelease(t *testing.T) {
 	s := testDirectory()
-	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 2}
+	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 2, ResolvedRevision: testRelease(2, "").PackageSource.Revision}
 	r := request("tool", ClientCodex)
 	r.Recorded = recorded
 	got, err := ResolveDirectory(s, r)
 	if err != nil || got.DistributionID != recorded.DistributionID || got.ReleaseSequence != recorded.ReleaseSequence {
 		t.Fatalf("recorded re-add moved release: %+v %v", got, err)
+	}
+	recorded.ResolvedRevision = ""
+	if _, err := ResolveDirectory(s, r); err == nil || !strings.Contains(err.Error(), "no resolved package-source revision") {
+		t.Fatalf("recorded release without resolved revision was accepted: %v", err)
+	}
+}
+
+func TestResolveDirectoryRejectsRecordedPackageSourceRebindBeforeSelectingExactOrUpdate(t *testing.T) {
+	s := testDirectory()
+	recordedRevision := s.Distributions[2].Releases[0].PackageSource.Revision
+	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 2, ResolvedRevision: recordedRevision}
+	s.Distributions[2].Releases[0].PackageSource.Revision = "abcdefabcdefabcdefabcdefabcdefabcdefabcd"
+	for _, operation := range []DirectoryOperation{DirectoryRepair, DirectoryRematerialize, DirectoryNewTarget, DirectoryUpdate} {
+		r := request("owner/tool", ClientCodex)
+		r.Operation = operation
+		r.Recorded = recorded
+		if _, err := ResolveDirectory(s, r); err == nil || !strings.Contains(err.Error(), "package-source revision") {
+			t.Fatalf("%s accepted rebound recorded release: %v", operation, err)
+		}
+	}
+}
+
+func TestResolveDirectoryRequiresCompleteSharedSurfaceEligibility(t *testing.T) {
+	for _, selected := range []ClientID{ClientCopilot, ClientVSCode} {
+		t.Run(string(selected), func(t *testing.T) {
+			release := testRelease(1, "1.0.0")
+			distribution := testDistribution("owner/tool", DistributionCommunity, []DirectoryRelease{release}, []DirectoryReleasePolicy{testPolicy(1, selected)})
+			s := DirectorySnapshot{Sequence: 1, Products: []DirectoryProduct{{ID: "tool", ManifestName: "tool", DefaultDistribution: distribution.ID, Distributions: []string{distribution.ID}}}, Distributions: []DirectoryDistribution{distribution}}
+			if _, err := ResolveDirectory(s, request("tool", selected)); !errors.Is(err, ErrDirectoryIneligible) {
+				t.Fatalf("single %s shared-surface policy was accepted: %v", selected, err)
+			}
+		})
 	}
 }
 

@@ -43,6 +43,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	type revisionRequest struct {
 		sequence uint64
+		revision string
 		source   string
 		targets  []domain.ClientID
 	}
@@ -62,6 +63,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		request := revisionRequest{}
 		if installation.OriginMode == domain.OriginModeDirectory {
 			request.sequence = binding.PackageRevision.ReleaseSequence
+			request.revision = binding.PackageRevision.ResolvedRevision
 			key = "directory:" + binding.PackageRevision.DistributionID + ":" + strconv.FormatUint(request.sequence, 10)
 		} else {
 			source, err := repairSource(installation, binding)
@@ -98,7 +100,7 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		request := requests[key]
 		var loaded loadedPackage
 		if installation.OriginMode == domain.OriginModeDirectory {
-			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence, detected)
+			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence, request.revision, detected)
 		} else {
 			loaded, err = app.loadPackageFor(ctx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair, Clients: detected})
 		}

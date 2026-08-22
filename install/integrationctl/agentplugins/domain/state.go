@@ -174,8 +174,9 @@ type ClientBinding struct {
 
 // DirectoryOrigin is the minimum signed Directory provenance needed to make
 // lifecycle decisions without copying mutable product or policy metadata into
-// local state. DistributionID and DesiredReleaseSequence form the immutable
-// desired release identity.
+// local state. DistributionID and DesiredReleaseSequence, bound to
+// Installation.Source.ResolvedRevision, form the immutable desired release
+// identity.
 type DirectoryOrigin struct {
 	ProductID              string           `json:"product_id"`
 	DistributionID         string           `json:"distribution_id"`

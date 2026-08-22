@@ -48,7 +48,7 @@ func (app App) addResolutionRequest(selector string, targets []domain.ClientID) 
 	return packageResolutionRequest{Targets: append([]domain.ClientID(nil), targets...), Operation: domain.DirectoryInstall, RetainRecorded: true}
 }
 
-func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64, clients map[domain.ClientID]domain.DetectedClient) (loadedPackage, error) {
+func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64, resolvedRevision string, clients map[domain.ClientID]domain.DetectedClient) (loadedPackage, error) {
 	if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil {
 		return app.loadPackageFor(ctx, updateSource(installation), packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients})
 	}
@@ -56,9 +56,12 @@ func (app App) loadInstalledPackage(ctx context.Context, installation domain.Ins
 	if sequence == 0 {
 		sequence = installation.Directory.DesiredReleaseSequence
 	}
+	if releaseSequence == 0 && strings.TrimSpace(resolvedRevision) == "" {
+		resolvedRevision = installation.Source.ResolvedRevision
+	}
 	return app.loadPackageFor(ctx, installation.Directory.ProductID, packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients,
 		RequestedSelector: strings.TrimSpace(installation.Source.RequestedSource), Recorded: &domain.RecordedDirectoryRelease{
-			ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence,
+			ProductID: installation.Directory.ProductID, DistributionID: installation.Directory.DistributionID, ReleaseSequence: sequence, ResolvedRevision: resolvedRevision,
 		}})
 }
 
@@ -103,9 +106,10 @@ func retainDirectoryRelease(snapshot domain.DirectorySnapshot, state domain.Stat
 	}
 	request.Operation = domain.DirectoryNewTarget
 	request.Recorded = &domain.RecordedDirectoryRelease{
-		ProductID:       installation.Directory.ProductID,
-		DistributionID:  installation.Directory.DistributionID,
-		ReleaseSequence: installation.Directory.DesiredReleaseSequence,
+		ProductID:        installation.Directory.ProductID,
+		DistributionID:   installation.Directory.DistributionID,
+		ReleaseSequence:  installation.Directory.DesiredReleaseSequence,
+		ResolvedRevision: installation.Source.ResolvedRevision,
 	}
 	// Resolve the recorded qualified distribution, not a mutable or retired
 	// alias. The recorded product identity is checked above before this rewrite.
@@ -358,7 +362,7 @@ func (app App) acquireDirectory(ctx context.Context, selector string, request pa
 	exactRequest := resolveRequest
 	exactRequest.Selector = selection.DistributionID
 	exactRequest.Operation = domain.DirectoryNewTarget
-	exactRequest.Recorded = &domain.RecordedDirectoryRelease{ProductID: selection.ProductID, DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence}
+	exactRequest.Recorded = &domain.RecordedDirectoryRelease{ProductID: selection.ProductID, DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, ResolvedRevision: selection.Source.Revision}
 	exactRequest.DependencyIdentity = environment.DependencyIdentity
 	checked, err := domain.ResolveDirectory(bundle.Snapshot, exactRequest)
 	if err != nil || checked.DistributionID != selection.DistributionID || checked.ReleaseSequence != selection.ReleaseSequence {

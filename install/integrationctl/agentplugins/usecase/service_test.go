@@ -528,6 +528,22 @@ func TestPlanFirstAuthoritativePersistenceIsSurroundedByMutationLock(t *testing.
 	}
 }
 
+func TestValidateDirectoryTransitionRejectsSameReleaseRevisionRewrite(t *testing.T) {
+	installation := domain.Installation{
+		OriginMode: domain.OriginModeDirectory,
+		Directory:  &domain.DirectoryOrigin{ProductID: "demo", DistributionID: "owner/demo", DesiredReleaseSequence: 1},
+		Source:     domain.SourceBinding{ResolvedRevision: strings.Repeat("a", 40), TreeDigest: "sha256:tree"},
+	}
+	input := AddInput{
+		OriginMode:          domain.OriginModeDirectory,
+		DirectoryResolution: &domain.DirectoryOrigin{ProductID: "demo", DistributionID: "owner/demo", DesiredReleaseSequence: 1},
+		Envelope:            domain.PackageEnvelope{Source: domain.SourceIdentity{ResolvedRevision: strings.Repeat("b", 40)}, TreeDigest: "sha256:tree"},
+	}
+	if err := validateDirectoryTransition(installation, input); err == nil || !strings.Contains(err.Error(), "conflicting package-source revision") {
+		t.Fatalf("same-release revision rewrite was accepted: %v", err)
+	}
+}
+
 func TestPlanFirstAuthoritativePersistenceRejectsStaleObservedBinding(t *testing.T) {
 	service, store, _ := serviceFixture(t)
 	client := domain.DetectedClient{ClientID: domain.ClientCodex, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".codex")}

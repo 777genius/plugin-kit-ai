@@ -202,6 +202,56 @@ func TestStoreRejectsUnknownLifecycleState(t *testing.T) {
 	}
 }
 
+func TestValidateRequiresFullDirectoryResolvedRevisionsButAllowsAbsentDirectLocalRevision(t *testing.T) {
+	directoryInstallation := func() domain.Installation {
+		installation := validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001")
+		installation.OriginMode = domain.OriginModeDirectory
+		installation.Directory = &domain.DirectoryOrigin{ProductID: "demo", DistributionID: "owner/demo", DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
+		installation.Source.ResolvedRevision = strings.Repeat("a", 40)
+		for key, client := range installation.Clients {
+			client.PackageRevision = &domain.ClientPackageRevision{ResolvedRevision: strings.Repeat("a", 40), TreeDigest: "sha256:tree", ManifestDigest: "sha256:manifest", DistributionID: "owner/demo", ReleaseSequence: 1}
+			installation.Clients[key] = client
+		}
+		return installation
+	}
+	for _, test := range []struct {
+		name   string
+		mutate func(*domain.Installation)
+	}{
+		{name: "missing installation revision", mutate: func(installation *domain.Installation) { installation.Source.ResolvedRevision = "" }},
+		{name: "malformed installation revision", mutate: func(installation *domain.Installation) {
+			installation.Source.ResolvedRevision = strings.Repeat("A", 40)
+		}},
+		{name: "missing client revision", mutate: func(installation *domain.Installation) {
+			for key, client := range installation.Clients {
+				client.PackageRevision.ResolvedRevision = ""
+				installation.Clients[key] = client
+			}
+		}},
+		{name: "malformed client revision", mutate: func(installation *domain.Installation) {
+			for key, client := range installation.Clients {
+				client.PackageRevision.ResolvedRevision = "not-a-full-sha"
+				installation.Clients[key] = client
+			}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			installation := directoryInstallation()
+			test.mutate(&installation)
+			err := Validate(domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{installation}})
+			if err == nil || !strings.Contains(err.Error(), "resolved_revision") {
+				t.Fatalf("invalid Directory revision accepted: %v", err)
+			}
+		})
+	}
+	direct := validInstallation("00000000-0000-4000-8000-000000000001", "src_one", "demo-000000000001")
+	direct.OriginMode = domain.OriginModeDirect
+	direct.Source.ResolvedRevision = ""
+	if err := Validate(domain.StateFileV2{SchemaVersion: domain.StateSchemaVersion, Installations: []domain.Installation{direct}}); err != nil {
+		t.Fatalf("direct local state with absent Git revision was rejected: %v", err)
+	}
+}
+
 func validInstallation(installationID, sourceID, physicalID string) domain.Installation {
 	clientID := domain.ComputeClientBindingID(installationID, "codex", "user", "test-home")
 	return domain.Installation{
