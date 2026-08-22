@@ -85,7 +85,7 @@ func TestResolveDirectoryRejectsUnknownAndMismatchedDelivery(t *testing.T) {
 		name, delivery string
 	}{
 		{name: "unknown", delivery: "future_delivery"},
-		{name: "mismatched", delivery: "managed"},
+		{name: "mismatched", delivery: "manual_activation"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			s := testDirectory()

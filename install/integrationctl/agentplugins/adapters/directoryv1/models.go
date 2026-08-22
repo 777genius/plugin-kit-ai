@@ -8,6 +8,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -110,7 +111,7 @@ var (
 	simpleIDPattern     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	evidenceIDPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]*$`)
 	distributionPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	repositoryPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9._-]*$`)
+	repositoryPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$`)
 	shaPattern          = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	digestPattern       = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	publicationPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
@@ -200,10 +201,7 @@ func VerifyBundle(snapshotBytes, envelopeBytes []byte, trust TrustStore) (Verifi
 	if err != nil || len(signature) != ed25519.SignatureSize {
 		return VerifiedBundle{}, fmt.Errorf("%w: malformed base64", ErrInvalidSignature)
 	}
-	message := make([]byte, 0, len(signaturePrefix)+len(snapshotBytes))
-	message = append(message, signaturePrefix...)
-	message = append(message, snapshotBytes...)
-	if !ed25519.Verify(key.PublicKey, message, signature) {
+	if !ed25519.Verify(key.PublicKey, SnapshotSignatureMessage(snapshotBytes), signature) {
 		return VerifiedBundle{}, ErrInvalidSignature
 	}
 	snapshot, err := ParseSnapshot(snapshotBytes)
@@ -214,6 +212,15 @@ func VerifyBundle(snapshotBytes, envelopeBytes []byte, trust TrustStore) (Verifi
 		return VerifiedBundle{}, ErrSequenceMismatch
 	}
 	return VerifiedBundle{SnapshotBytes: append([]byte(nil), snapshotBytes...), EnvelopeBytes: append([]byte(nil), envelopeBytes...), Snapshot: snapshot, Envelope: envelope, Digest: digest, Source: BundleSourceVerified}, nil
+}
+
+// SnapshotSignatureMessage returns the byte-exact, domain-separated message
+// authenticated by a Directory snapshot envelope.
+func SnapshotSignatureMessage(snapshotBytes []byte) []byte {
+	message := make([]byte, 0, len(signaturePrefix)+8+len(snapshotBytes))
+	message = append(message, signaturePrefix...)
+	message = binary.BigEndian.AppendUint64(message, uint64(len(snapshotBytes)))
+	return append(message, snapshotBytes...)
 }
 
 func VerifyPointerBundle(pointer Pointer, snapshotBytes, envelopeBytes []byte, trust TrustStore) (VerifiedBundle, error) {

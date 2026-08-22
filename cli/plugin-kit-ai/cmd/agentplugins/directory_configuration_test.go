@@ -86,8 +86,12 @@ func TestOrdinaryDirectoryOriginPreservesProductionTrustAndBootstrap(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if client.Origin != "https://mirror.example/registry/schemas/1/" || len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != defaultDirectoryKeyID || len(client.Embedded.Snapshot) != 0 || !client.RequireEmbeddedBootstrap {
-		t.Fatalf("ordinary origin changed production trust/bootstrap: %+v", client)
+	if client.Origin != "https://mirror.example/registry/schemas/1/" || len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != defaultDirectoryKeyID || !client.RequireEmbeddedBootstrap {
+		t.Fatalf("ordinary origin changed production configuration: origin=%q keys=%d require_bootstrap=%v", client.Origin, len(client.Trust.Keys), client.RequireEmbeddedBootstrap)
+	}
+	bundle, err := client.Embedded.Verify(client.Trust)
+	if err != nil || bundle.Snapshot.Sequence != 2 || bundle.Digest != "sha256:fe6422853423f447d797a54c5c2af0b0eda6f89c23815f8945f5b6f48d50a460" {
+		t.Fatalf("ordinary origin changed production bootstrap identity: sequence=%d digest=%q err=%v", bundle.Snapshot.Sequence, bundle.Digest, err)
 	}
 }
 
@@ -219,7 +223,7 @@ func writeConformanceFixture(t *testing.T, root string) map[string]string {
 	}
 	snapshotBytes = append(snapshotBytes, '\n')
 	digest := sha256.Sum256(snapshotBytes)
-	signature := ed25519.Sign(privateKey, append([]byte(directoryv1.SignatureDomain+"\x00"), snapshotBytes...))
+	signature := ed25519.Sign(privateKey, directoryv1.SnapshotSignatureMessage(snapshotBytes))
 	envelope := directoryv1.Envelope{EnvelopeSchemaVersion: 1, SnapshotSchemaVersion: 1, Sequence: 41, KeyID: "launch-conformance-test", Algorithm: "Ed25519", SignatureDomain: directoryv1.SignatureDomain, SnapshotDigest: "sha256:" + hex.EncodeToString(digest[:]), Signature: base64.StdEncoding.EncodeToString(signature)}
 	envelopeBytes, err := json.Marshal(envelope)
 	if err != nil {

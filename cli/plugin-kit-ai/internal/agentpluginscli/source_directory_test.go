@@ -40,7 +40,7 @@ type localBackedSourceAcquirer struct {
 
 func TestDirectoryCompatibilityUsesStablePublicPackageModes(t *testing.T) {
 	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
-		{Client: domain.ClientCodex, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementUnknown},
+		{Client: domain.ClientCodex, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown},
 		{Client: domain.ClientCursor, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown},
 		{Client: domain.ClientVSCode, Delivery: "prepared", Authentication: domain.AuthenticationRequirementUnknown},
 	}}
@@ -132,7 +132,7 @@ func TestDirectoryPackageSchemaEvidenceAppliesToEveryTarget(t *testing.T) {
 	evidence := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "package-schema", DistributionID: selection.DistributionID, ReleaseSequence: selection.ReleaseSequence, PackageTreeDigest: digest, Level: "schema", Outcome: "passed"})
 	policy := domain.DirectoryReleasePolicy{Targets: []domain.DirectoryTarget{
 		{Client: domain.ClientCursor, Delivery: "managed", Authentication: domain.AuthenticationRequirementNotRequired},
-		{Client: domain.ClientCodex, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementRequired},
+		{Client: domain.ClientCodex, Delivery: "managed", Authentication: domain.AuthenticationRequirementRequired},
 	}, CurrentEvidence: []string{evidence.ID}}
 	loaded := loadedPackage{}
 	if err := applyDirectoryCompatibility(&loaded, directoryv1.VerifiedBundle{Snapshot: domain.DirectorySnapshot{Evidence: []domain.DirectoryEvidence{evidence}}}, selection, policy, directoryEvidenceEnvironment{}); err != nil {
