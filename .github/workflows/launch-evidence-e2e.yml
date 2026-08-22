@@ -1,0 +1,359 @@
+name: stable launch evidence E2E
+
+on:
+  pull_request:
+    paths:
+      - "scripts/run_launch_evidence_e2e.py"
+      - "scripts/observe_launch_scenario.py"
+      - "scripts/launch_observer_signatures.py"
+      - "scripts/prepare_launch_evidence.py"
+      - "scripts/observe_release_facade.py"
+      - "tests/e2e/**"
+      - "schemas/e2e/**"
+      - "tests/test_run_launch_evidence_e2e.py"
+      - "tests/test_workflow_contracts.py"
+      - ".github/workflows/launch-evidence-e2e.yml"
+  workflow_call:
+    inputs:
+      consent:
+        description: Protected release caller approved disposable live observations
+        required: true
+        type: boolean
+      publication_id:
+        description: Exact signed snapshot publication_id produced by the caller
+        required: true
+        type: string
+      publication_sequence:
+        description: Exact staged snapshot sequence produced by the caller
+        required: true
+        type: number
+      publication_snapshot_digest:
+        description: Exact sha256 digest of the caller's signed snapshot bytes
+        required: true
+        type: string
+      publication_source_commit:
+        description: Exact 40-hex source commit embedded in the signed snapshot
+        required: true
+        type: string
+      publication_ledger_commit:
+        description: Exact 40-hex materialized ledger commit containing the staged bytes
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      consent:
+        description: I approve disposable live observations
+        required: true
+        type: boolean
+      publication_id:
+        description: Exact signed snapshot publication_id to verify
+        required: true
+        type: string
+      publication_sequence:
+        description: Exact published snapshot sequence to verify
+        required: true
+        type: number
+      publication_snapshot_digest:
+        description: Exact sha256 digest of the signed snapshot bytes
+        required: true
+        type: string
+      publication_source_commit:
+        description: Exact 40-hex source commit embedded in the signed snapshot
+        required: true
+        type: string
+      publication_ledger_commit:
+        description: Exact 40-hex materialized ledger commit containing the staged bytes
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-launch-evidence-${{ github.repository }}-${{ github.sha }}-${{ github.run_attempt }}
+  cancel-in-progress: false
+
+jobs:
+  fixture-only-non-runtime:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install fixture contract dependencies
+        run: python -m pip install cryptography==46.0.3 jsonschema==4.25.1 PyYAML==6.0.3
+      - name: Run honest fixture-only contracts
+        run: |
+          run_root="${RUNNER_TEMP}/uap-fixture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python scripts/run_launch_evidence_e2e.py --mode fixture-only \
+            --consent tests/e2e/fixtures/fixture-only-consent.json \
+            --run-root "$run_root" --output "$run_root/evidence/launch-evidence.json"
+          python -m unittest tests.test_run_launch_evidence_e2e tests.test_workflow_contracts
+
+  native-release:
+    if: github.event_name != 'pull_request' && inputs.consent
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: macos-15, os: macos, architecture: arm64, asset: agentplugins_0.1.8_darwin_arm64}
+          - {runner: macos-15-intel, os: macos, architecture: amd64, asset: agentplugins_0.1.8_darwin_amd64}
+          - {runner: ubuntu-24.04-arm, os: linux, architecture: arm64, asset: agentplugins_0.1.8_linux_arm64}
+          - {runner: ubuntu-24.04, os: linux, architecture: amd64, asset: agentplugins_0.1.8_linux_amd64}
+          - {runner: windows-2025, os: windows, architecture: amd64, asset: agentplugins_0.1.8_windows_amd64.exe}
+          - {runner: windows-11-arm, os: windows, architecture: arm64, asset: agentplugins_0.1.8_windows_arm64.exe}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install verification dependencies
+        run: python -m pip install cryptography==46.0.3 jsonschema==4.25.1
+      - name: Resolve the fixed upstream CLI release and staged Directory
+        shell: bash
+        env:
+          ASSET_NAME: ${{ matrix.asset }}
+          PUBLICATION_ID: ${{ inputs.publication_id }}
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          PUBLICATION_SNAPSHOT_DIGEST: ${{ inputs.publication_snapshot_digest }}
+          PUBLICATION_SOURCE_COMMIT: ${{ inputs.publication_source_commit }}
+          PUBLICATION_LEDGER_COMMIT: ${{ inputs.publication_ledger_commit }}
+        run: |
+          run_root="${RUNNER_TEMP}/uap-native-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python scripts/prepare_launch_evidence.py --asset-name "$ASSET_NAME" \
+            --publication-id "$PUBLICATION_ID" --publication-sequence "$PUBLICATION_SEQUENCE" \
+            --publication-snapshot-digest "$PUBLICATION_SNAPSHOT_DIGEST" --publication-source-commit "$PUBLICATION_SOURCE_COMMIT" \
+            --publication-ledger-commit "$PUBLICATION_LEDGER_COMMIT" \
+            --run-root "$run_root" --output "$run_root/context.json"
+          python scripts/observe_release_facade.py --context "$run_root/context.json" \
+            --executable "$run_root/release/$ASSET_NAME" --asset-name "$ASSET_NAME" \
+            --kind binary --os "${{ matrix.os }}" --architecture "${{ matrix.architecture }}" \
+            --output native-observation.json
+          sha256sum native-observation.json > native-observation.SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-${{ matrix.os }}-${{ matrix.architecture }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            native-observation.json
+            native-observation.SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  node22-npm-facade:
+    if: github.event_name != 'pull_request' && inputs.consent
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: {node-version: "22"}
+      - run: python -m pip install cryptography==46.0.3 jsonschema==4.25.1
+      - name: Resolve and install the exact registry-authenticated npm facade
+        env:
+          PUBLICATION_ID: ${{ inputs.publication_id }}
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          PUBLICATION_SNAPSHOT_DIGEST: ${{ inputs.publication_snapshot_digest }}
+          PUBLICATION_SOURCE_COMMIT: ${{ inputs.publication_source_commit }}
+          PUBLICATION_LEDGER_COMMIT: ${{ inputs.publication_ledger_commit }}
+        run: |
+          run_root="${RUNNER_TEMP}/uap-node22-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.8_linux_amd64 --npm-facade \
+            --publication-id "$PUBLICATION_ID" --publication-sequence "$PUBLICATION_SEQUENCE" \
+            --publication-snapshot-digest "$PUBLICATION_SNAPSHOT_DIGEST" --publication-source-commit "$PUBLICATION_SOURCE_COMMIT" \
+            --publication-ledger-commit "$PUBLICATION_LEDGER_COMMIT" \
+            --run-root "$run_root" --output "$run_root/context.json"
+          mkdir "$run_root/npm-audit"
+          cd "$run_root/npm-audit"
+          npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.8
+          npm audit signatures
+          cd "$GITHUB_WORKSPACE"
+          npm install --global "$run_root/npm/universal-agent-plugins-0.1.8.tgz" --ignore-scripts=false
+          npm_package_root="$(npm root --global)/universal-agent-plugins"
+          test -d "$npm_package_root"
+          test "$(node --version | cut -d. -f1)" = v22
+          python scripts/observe_release_facade.py --context "$run_root/context.json" \
+            --executable agentplugins --asset-name agentplugins_0.1.8_linux_amd64 \
+            --kind npm --os any --architecture any --node-major 22 --npm-project "$run_root/npm-audit" \
+            --npm-package-root "$npm_package_root" \
+            --output npm-observation.json
+          sha256sum npm-observation.json > npm-observation.SHA256SUMS
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-node22-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            npm-observation.json
+            npm-observation.SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false
+
+  aggregate-one-release:
+    if: always() && github.event_name != 'pull_request' && inputs.consent
+    needs: [native-release, node22-npm-facade]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/download-artifact@b14cf4c92620c250e1c0745ffefa574f1c4531a9 # v8.0.1
+        with:
+          pattern: "native-*-${{ github.run_id }}-${{ github.run_attempt }}"
+          path: native
+          merge-multiple: false
+      - uses: actions/download-artifact@b14cf4c92620c250e1c0745ffefa574f1c4531a9 # v8.0.1
+        with:
+          name: npm-node22-${{ github.run_id }}-${{ github.run_attempt }}
+          path: npm
+      - name: Require six native slots and one identical release manifest
+        run: |
+          test "$(find native -name native-observation.json | wc -l)" -eq 6
+          find native -name native-observation.SHA256SUMS -execdir sha256sum --check native-observation.SHA256SUMS \;
+          (cd npm && sha256sum --check npm-observation.SHA256SUMS)
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          native=[json.loads(p.read_text()) for p in Path('native').rglob('native-observation.json')]
+          npm=json.loads(Path('npm/npm-observation.json').read_text())
+          config=json.loads(Path('tests/e2e/production-launch.json').read_text())
+          expected={('macos','arm64'),('macos','amd64'),('linux','arm64'),('linux','amd64'),('windows','amd64'),('windows','arm64')}
+          assert {(x['os'],x['architecture']) for x in native} == expected
+          records=[*native,npm]
+          assert {x['catalog_repository'] for x in records} == {config['catalog_repository']}
+          assert {x['catalog_sha'] for x in records} == {'${{ github.sha }}'}
+          assert {x['cli_release_repository'] for x in records} == {config['cli_release_repository']}
+          assert {x['cli_release_tag'] for x in records} == {config['cli_release_tag']}
+          assert len({json.dumps(x['github_release_identity'],sort_keys=True) for x in records}) == 1
+          release_identity=native[0]['github_release_identity']
+          assert release_identity['repository'] == config['cli_release_repository']
+          assert release_identity['tag'] == config['cli_release_tag'] and release_identity['immutable'] is True
+          expected_assets={
+              'agentplugins_0.1.8_darwin_arm64','agentplugins_0.1.8_darwin_amd64',
+              'agentplugins_0.1.8_linux_arm64','agentplugins_0.1.8_linux_amd64',
+              'agentplugins_0.1.8_windows_arm64.exe','agentplugins_0.1.8_windows_amd64.exe',
+          }
+          attestations=[x['github_asset_attestation'] for x in native]
+          assert {x['asset_name'] for x in attestations} == expected_assets
+          assert all(x['verified'] is True and x['repository'] == config['cli_release_repository'] and x['workflow'] == config['cli_release_workflow'] and x['tag_commit'] == release_identity['tag_commit'] for x in attestations)
+          assert all(x['github_asset_attestation']['asset_name'] == x['asset_name'] and x['github_asset_attestation']['asset_digest'] == x['asset_digest'] for x in native)
+          assert len({x['release_manifest_digest'] for x in records}) == 1
+          assert len({x['release_checksums_digest'] for x in records}) == 1
+          assert len({x['directory_digest'] for x in records}) == 1
+          PY
+
+  enforced-stable-gate:
+    if: github.event_name != 'pull_request' && inputs.consent
+    needs: [native-release, node22-npm-facade, aggregate-one-release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: stable-launch-e2e
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with: {python-version: "3.13"}
+      - run: python -m pip install cryptography==46.0.3 jsonschema==4.25.1 check-jsonschema==0.37.4
+      - uses: actions/download-artifact@b14cf4c92620c250e1c0745ffefa574f1c4531a9 # v8.0.1
+        with:
+          pattern: "native-*-${{ github.run_id }}-${{ github.run_attempt }}"
+          path: native-observations
+      - uses: actions/download-artifact@b14cf4c92620c250e1c0745ffefa574f1c4531a9 # v8.0.1
+        with:
+          name: npm-node22-${{ github.run_id }}-${{ github.run_attempt }}
+          path: native-observations/npm
+      - name: Verify native observation checksums
+        run: |
+          find native-observations -name native-observation.SHA256SUMS -execdir sha256sum --check native-observation.SHA256SUMS \;
+          (cd native-observations/npm && sha256sum --check npm-observation.SHA256SUMS)
+          find native-observations -name '*observation.json' -print0 | xargs -0 check-jsonschema --schemafile tests/e2e/schemas/native-release-observation.schema.json
+      - name: Prepare one fresh release/Directory/challenge context
+        env:
+          PUBLICATION_ID: ${{ inputs.publication_id }}
+          PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
+          PUBLICATION_SNAPSHOT_DIGEST: ${{ inputs.publication_snapshot_digest }}
+          PUBLICATION_SOURCE_COMMIT: ${{ inputs.publication_source_commit }}
+          PUBLICATION_LEDGER_COMMIT: ${{ inputs.publication_ledger_commit }}
+        run: |
+          run_root="${RUNNER_TEMP}/uap-stable-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.8_linux_amd64 \
+            --publication-id "$PUBLICATION_ID" --publication-sequence "$PUBLICATION_SEQUENCE" \
+            --publication-snapshot-digest "$PUBLICATION_SNAPSHOT_DIGEST" --publication-source-commit "$PUBLICATION_SOURCE_COMMIT" \
+            --publication-ledger-commit "$PUBLICATION_LEDGER_COMMIT" \
+            --run-root "$run_root" --output "$run_root/context.json"
+          echo "RUN_ROOT=$run_root" >> "$GITHUB_ENV"
+      - name: Obtain short-lived GitHub OIDC identity
+        run: |
+          response="$(curl --fail --silent --show-error --get \
+            --header "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            --data-urlencode 'audience=stable-launch-observer' \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}")"
+          ACTIONS_ID_TOKEN="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$response")"
+          echo "::add-mask::$ACTIONS_ID_TOKEN"
+          echo "ACTIONS_ID_TOKEN=$ACTIONS_ID_TOKEN" >> "$GITHUB_ENV"
+      - name: Request protected challenge-bound runtime and OAuth observations
+        env:
+          OBSERVER_ENDPOINT: ${{ vars.STABLE_LAUNCH_OBSERVER_ENDPOINT }}
+          OBSERVER_ED25519_PUBLIC_KEY: ${{ vars.STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY }}
+          OBSERVER_KEY_ID: ${{ vars.STABLE_LAUNCH_OBSERVER_KEY_ID }}
+        run: |
+          test -n "$OBSERVER_ENDPOINT" && test -n "$OBSERVER_ED25519_PUBLIC_KEY" && test -n "$OBSERVER_KEY_ID"
+          python scripts/request_launch_runtime_observations.py --endpoint "$OBSERVER_ENDPOINT" \
+            --context "$RUN_ROOT/context.json" --output-directory "$RUN_ROOT/live-inputs"
+          check-jsonschema --schemafile tests/e2e/schemas/observer-bundle.schema.json "$RUN_ROOT/live-inputs/observer-bundle.json"
+          check-jsonschema --schemafile tests/e2e/schemas/runtime-attestations.schema.json \
+            "$RUN_ROOT/live-inputs/runtime-attestations.json" \
+            "$RUN_ROOT/live-inputs/notion-oauth-attestations.json" \
+            "$RUN_ROOT/live-inputs/chatgpt-cloudflare-attestation.json"
+          check-jsonschema --schemafile tests/e2e/schemas/consent.schema.json "$RUN_ROOT/live-inputs/consent.json"
+      - name: Run repository-owned lifecycle and observer gate
+        env:
+          OBSERVER_ED25519_PUBLIC_KEY: ${{ vars.STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY }}
+          OBSERVER_KEY_ID: ${{ vars.STABLE_LAUNCH_OBSERVER_KEY_ID }}
+        run: |
+          python scripts/run_launch_evidence_e2e.py --prepared-context "$RUN_ROOT/context.json" \
+            --asset-name agentplugins_0.1.8_linux_amd64 \
+            --native-observations native-observations \
+            --observer-bundle "$RUN_ROOT/live-inputs/observer-bundle.json" \
+            --attestations "$RUN_ROOT/live-inputs/runtime-attestations.json" \
+            --notion-oauth-attestation "$RUN_ROOT/live-inputs/notion-oauth-attestations.json" \
+            --chatgpt-attestation "$RUN_ROOT/live-inputs/chatgpt-cloudflare-attestation.json" \
+            --consent "$RUN_ROOT/live-inputs/consent.json" --run-root "$RUN_ROOT" \
+            --output "$RUN_ROOT/evidence/launch-evidence.json"
+          check-jsonschema --schemafile tests/e2e/schemas/launch-evidence.schema.json "$RUN_ROOT/evidence/launch-evidence.json"
+          (cd "$RUN_ROOT/evidence" && sha256sum launch-evidence.json signed-observer-bundle.json > SHA256SUMS && sha256sum --check SHA256SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stable-launch-evidence-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.RUN_ROOT }}/evidence
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false

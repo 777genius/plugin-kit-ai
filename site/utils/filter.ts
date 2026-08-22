@@ -4,7 +4,7 @@ export interface CatalogFilters {
   query?: string
   category?: string
   component?: RegistryPlugin['components'][number]
-  source?: 'all' | 'built-in' | 'external'
+  source?: 'all' | 'upstream' | 'community_bridge' | 'community' | 'direct'
 }
 
 export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters): RegistryPlugin[] {
@@ -12,6 +12,7 @@ export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters
   return plugins.filter((plugin) => {
     const searchable = [
       plugin.name,
+      plugin.display_name,
       plugin.description,
       plugin.author.name,
       ...plugin.categories,
@@ -22,7 +23,7 @@ export function filterPlugins(plugins: RegistryPlugin[], filters: CatalogFilters
       && (!filters.category || plugin.categories.includes(filters.category))
       && (!filters.component || plugin.components.includes(filters.component))
       && (!filters.source || filters.source === 'all'
-        || (filters.source === 'built-in' ? plugin.built_in : !plugin.built_in))
+        || plugin.distributions.find(item => item.id === plugin.default_distribution)?.kind === filters.source)
   })
 }
 

@@ -28,13 +28,21 @@ class ReadmeClientTableTests(unittest.TestCase):
 
         for document in (readme, quickstart, contributing):
             with self.subTest(document=document[:40]):
-                self.assertIn("owner/repo@FULL_COMMIT_SHA//path/to/plugin", document)
+                self.assertRegex(
+                    document,
+                    r"(?:owner/repo@FULL_COMMIT_SHA|[a-z0-9-]+/[a-z0-9._-]+@[a-f0-9]{40})//[^\s\\]+",
+                )
                 self.assertIn("--target cursor", document)
 
         self.assertIn("add ./my-plugin --target cursor", readme)
-        self.assertIn("not limited to this catalog", readme)
+        self.assertIn("not limited to this Directory", readme)
         self.assertIn("do not need to be copied into it", readme)
-        self.assertIn("Catalog membership is needed only for a reviewed short name", quickstart)
+        self.assertIn("Directory membership is needed only for a reviewed short name", quickstart)
+        self.assertIn("add cloudflare-docs --target codex,cursor,kiro", readme)
+        self.assertIn(
+            "switch cloudflare-docs --to 777genius/cloudflare-docs", readme
+        )
+        self.assertNotIn("--yes", readme)
 
     def test_every_supported_client_has_a_sourced_logo(self) -> None:
         readme = README_PATH.read_text()
@@ -91,6 +99,7 @@ class ReadmeClientTableTests(unittest.TestCase):
 
     def test_chatgpt_claim_matches_recorded_evidence_boundary(self) -> None:
         readme = README_PATH.read_text()
+        normalized_readme = " ".join(readme.split())
         evidence = json.loads(CHATGPT_EVIDENCE_PATH.read_text())
         proved = set(evidence["scope"]["proved"])
         not_proved = set(evidence["scope"]["not_proved"])
@@ -112,8 +121,11 @@ class ReadmeClientTableTests(unittest.TestCase):
             }.issubset(not_proved)
         )
         self.assertIn("All 26 packages pass standard schema validation", readme)
-        self.assertIn("15/15 runtime checks across Codex, Cursor, and Kiro", readme)
-        self.assertIn("Installation coverage is\nbroader than runtime coverage", readme)
+        self.assertIn("15/15 runtime checks", normalized_readme)
+        self.assertIn(
+            "Installation coverage is broader than runtime coverage",
+            normalized_readme,
+        )
         self.assertIn("docs/TEST_MATRIX.md", readme)
         self.assertIn("docs/VERIFICATION.md", readme)
         self.assertNotIn(

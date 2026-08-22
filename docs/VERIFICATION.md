@@ -2,6 +2,17 @@
 
 Updated: 2026-08-10.
 
+Every committed evidence link below resolves through the exact commit that
+contains the cited bytes and is accompanied by their SHA-256. These are
+historical observations, not claims about current rolling clients or package
+trees. Current stable-launch runtime/OAuth evidence is unavailable until the
+protected launch workflow succeeds against one exact signed production
+publication and the attested `agentplugins-v0.1.8` release.
+
+Current distribution, release sequence, tree digest, and manifest digest are
+generated from [`registry/directory.json`](../registry/directory.json) and are
+checked there rather than duplicated in this historical record.
+
 ## Package conformance
 
 - 26 root `plugin.json` documents pass the Agent Plugins 1.0.0 JSON Schema.
@@ -9,8 +20,8 @@ Updated: 2026-08-10.
 - 4 skills pass `skills-ref` 0.1.1.
 - The repository semantic validator reports 26 plugins, 25 MCP servers, and 4
   skills.
-- Released catalog v1 and its schema remain byte-for-byte unchanged. Catalog v2
-  adds the optional ChatGPT binding and pins its evidence path to an immutable
+- Released legacy compatibility outputs remain byte-for-byte unchanged. The
+  later compatibility output adds the optional ChatGPT binding and pins its evidence path to an immutable
   full Git revision whose exact blob is verified before generation.
 - All 26 generated OpenAI compatibility packages pass the repository validator
   and OpenAI's `plugin-creator` validator in CI. The latter is fetched from a
@@ -27,13 +38,23 @@ Updated: 2026-08-10.
 
 The npm registry stable tags were checked before pinning:
 
-- `chrome-devtools-mcp@1.6.0`
+- `chrome-devtools-mcp@1.7.0`
 - `@upstash/context7-mcp@4.0.0`
 - `firebase-tools@15.26.0`
 - `@hubspot/cli@8.12.0`
 
 The Docker Hub package is pinned to the multi-architecture OCI digest recorded
 in `plugins/docker-hub/mcp.json`.
+
+## Generated-site browser verification
+
+Pages pull requests generate and CSP-finalize the static production HTML before
+loading it in Chromium with `@playwright/test@1.62.1`. Desktop and mobile
+projects exercise the hydrated multi-select, combobox, and select by keyboard;
+they also fail on browser console, page, request, response, or horizontal-overflow
+errors and verify that unsigned review previews expose no copyable install
+command. The separate fast accessibility tests are source-contract assertions,
+not screen-reader or assistive-technology E2E.
 
 ## Runtime E2E
 
@@ -43,7 +64,9 @@ in `plugins/docker-hub/mcp.json`.
   direct registered connection, not installation of this repository's generated
   package or the later personal-app UI path. The 2026-08-10 evidence date uses the
   repository operator's `Europe/Kyiv` local calendar. The sanitized record is
-  [`chatgpt-cloudflare-docs-direct-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json).
+  [`chatgpt-cloudflare-docs-direct-2026-08-10.json`](https://github.com/777genius/universal-agent-plugins/blob/fd77a74fa85724a57b328157ab82ef4dd991cda5/tests/e2e/results/chatgpt-cloudflare-docs-direct-2026-08-10.json)
+  at revision `fd77a74fa85724a57b328157ab82ef4dd991cda5`, SHA-256
+  `050a18c56cf3f6b98d12ad35ac3c4642bd18d9e862956447dc3dad8e3189bcc5`.
 - The registered Cloudflare Docs personal app appeared as Installed under
   Plugins > Personal. Its detail action opened a new Chat with the plugin chip
   selected. One read-only prompt made exactly one `list_resources` and one
@@ -53,7 +76,9 @@ in `plugins/docker-hub/mcp.json`.
   app-ID linkage.
   It does not prove local `.codex-plugin` ingestion, repository marketplace
   installation, or manager lifecycle. The sanitized record is
-  [`chatgpt-cloudflare-docs-personal-app-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json).
+  [`chatgpt-cloudflare-docs-personal-app-2026-08-10.json`](https://github.com/777genius/universal-agent-plugins/blob/2ddbb99dd190c1792b79904f9875e6322bccd243/tests/e2e/results/chatgpt-cloudflare-docs-personal-app-2026-08-10.json)
+  at revision `2ddbb99dd190c1792b79904f9875e6322bccd243`, SHA-256
+  `97ddb41b887eebb7629bff1ae88937448b0c23073688122ab8939c3d96372b37`.
 - ChatGPT desktop's bundled Codex backend 0.147.0-alpha.6.5 registered the public
   marketplace at exact merge `d37b49d`, installed and enabled Cloudflare Docs,
   materialized the official `.codex-plugin` package in its cache, and returned
@@ -62,7 +87,9 @@ in `plugins/docker-hub/mcp.json`.
   marketplace ingestion and desktop control-plane parsing, but package-routed
   app routing remains unproved; it does not prove ChatGPT Work UI discovery,
   activation, or runtime. See
-  [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](../tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json).
+  [`chatgpt-cloudflare-docs-desktop-package-2026-08-10.json`](https://github.com/777genius/universal-agent-plugins/blob/fa9d61e1fe49bf3d69f54e451f6320f27930143a/tests/e2e/results/chatgpt-cloudflare-docs-desktop-package-2026-08-10.json)
+  at revision `fa9d61e1fe49bf3d69f54e451f6320f27930143a`, SHA-256
+  `85abcc90d50f358eb3d216d73b4dd33dbd6493d39d530070032ae6f50ced9990`.
 - Public post-merge run
   [`31363316668`](https://github.com/777genius/universal-agent-plugins/actions/runs/31363316668)
   tested `universal-agent-plugins@0.1.6` at main commit
@@ -91,18 +118,26 @@ in `plugins/docker-hub/mcp.json`.
   project, team, or workspace was opened or listed; no returned identity fields
   or secrets were recorded. The managed package and disposable profiles were
   removed. This proves Figma OAuth/runtime in Codex only; see
-  [`codex-figma-oauth-2026-08-09.json`](../tests/e2e/results/codex-figma-oauth-2026-08-09.json).
-- Codex CLI 0.144.1, Cursor Agent 2026.07.09, and Kiro CLI 2.16.0 each
+  [`codex-figma-oauth-2026-08-09.json`](https://github.com/777genius/universal-agent-plugins/blob/2132333206f469fd4adb63beeefe8ddbd4991a62/tests/e2e/results/codex-figma-oauth-2026-08-09.json)
+  at revision `2132333206f469fd4adb63beeefe8ddbd4991a62`, SHA-256
+  `854ccb0d1987e7cc978d81d38e95cabcede60c78bb3baffb924987e7b11f2b53`.
+- At exact repository revision `d3c3155285d37aa555615cf4301e3ab5eb347a17`
+  and catalog digest `sha256:207df0cd3932d305bbc265357d1a7f6b68ef314ff725629db6ebe27d4c403915`,
+  Codex CLI 0.144.1, Cursor Agent 2026.07.09, and Kiro CLI 2.16.0 each
   completed real agent-to-plugin checks for Context7, Cloudflare Docs, Chrome
   DevTools, and Agent Code Navigator in one disposable project. That is 12/12
   no-auth runtime checks across three clients. Codex CLI 0.144.1, Cursor Agent
   2026.08.04, and Kiro CLI 2.16.0 then each completed Notion OAuth and one
   synthetic read-only search, bringing the hero matrix to 15/15. The sanitized
-  records are pinned to exact source commits in
-  [`agentplugins-hero-runtime-matrix-2026-08-08.json`](../tests/e2e/results/agentplugins-hero-runtime-matrix-2026-08-08.json).
-  A fail-closed test proves the stable catalog differs from those tested package
-  trees only in `plugins/*/README.md`; separate 26/26 and 25/25 lifecycle runs
-  cover the complete current package trees.
+  records are pinned to that exact historical package revision in
+  [`agentplugins-hero-runtime-matrix-2026-08-08.json`](https://github.com/777genius/universal-agent-plugins/blob/75658d84ee84f973818d0e0c6b4619eb1e98b624/tests/e2e/results/agentplugins-hero-runtime-matrix-2026-08-08.json)
+  at revision `75658d84ee84f973818d0e0c6b4619eb1e98b624`, SHA-256
+  `0c8795a67d223424cb612ea25497982145533a6befb5f64f8f0c1e1192520e2e`.
+  This is historical evidence for that exact package revision only. It does not
+  identify or validate today's Directory defaults; consult
+  [`registry/directory.json`](../registry/directory.json) for current release
+  identity. Separate lifecycle results remain valid only for the exact package
+  trees they record.
 
 - Codex CLI 0.147.0 completed the release-gated public install on Linux: pinned
   `v0.1.1`, installed Context7 into a fresh `CODEX_HOME`, and called
@@ -138,8 +173,8 @@ in `plugins/docker-hub/mcp.json`.
   revoke an unrelated existing MCP client, so it was not used and cleanup is
   recorded as partial rather than complete.
 
-Sanitized structured client evidence is committed under
-[`tests/e2e/results`](../tests/e2e/results).
+Sanitized structured client evidence is committed under `tests/e2e/results`;
+only the immutable, digest-bound links above are public verification pointers.
 
 ## Remote endpoint reachability
 

@@ -7,10 +7,10 @@
 [![Agent Plugins 1.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-7257FF)](https://agent-plugins.org/specification)
 [![License](https://img.shields.io/badge/license-Apache--2.0-20A4C8)](LICENSE)
 
-**One CLI installs Agent Plugins across Codex, ChatGPT, Cursor, GitHub
-Copilot/VS Code, and Kiro.** It adapts each package to the selected client and
-manages add, update, repair, and remove. When a client requires UI activation or
-OAuth, it prints the exact next step.
+**One CLI can add, update, remove, repair, and deliberately switch an Agent
+Plugins 1.0 package across one or several explicitly selected supported
+clients.** A prepared package, manual activation, runtime check, and OAuth are
+reported as separate outcomes—never collapsed into “installed.”
 
 Pick from 26 ready-made abilities: search current documentation, navigate code,
 debug browsers, work with cloud tools, and more. Install one plugin and add
@@ -37,60 +37,76 @@ pull request. This community directory is not an official OpenAI registry.
 
 ## Try one plugin
 
-Context7 is an easy first choice. It finds current library documentation and
-requires no account. You need Node.js 22 or newer:
+Cloudflare Docs is an easy first choice. It searches current Cloudflare
+documentation and requires no account. You need Node.js 22 or newer:
 
 ```bash
-npx universal-agent-plugins add context7
+npx universal-agent-plugins add cloudflare-docs --target codex,cursor,kiro
 ```
 
-The CLI detects Codex, Cursor, GitHub Copilot/VS Code, and Kiro. If more
-than one is present, choose one from the prompt. To choose directly:
+The npm launcher requires Node.js 22+. Pass every target explicitly in
+non-interactive use as one comma-separated value:
 
 ```bash
-npx universal-agent-plugins add context7 --target cursor
-npx universal-agent-plugins add context7 --target codex,cursor
+npx universal-agent-plugins add cloudflare-docs --target cursor
+npx universal-agent-plugins add cloudflare-docs --target codex,cursor
 ```
 
-Pass several explicit targets as one comma-separated value. The CLI handles
-each client through its own lifecycle, keeps successful installs if another
-target fails, and returns a non-zero status with a per-target summary.
+The CLI resolves and verifies one immutable package once, preflights the whole
+target set, and then reports each client outcome. It never mixes package sources
+between clients in one operation.
 
 The same CLI manages the rest of the plugin lifecycle:
 
 ```bash
-npx universal-agent-plugins update context7 --target cursor
-npx universal-agent-plugins repair context7 --target cursor
-npx universal-agent-plugins remove context7 --target cursor
+npx universal-agent-plugins update cloudflare-docs --target cursor
+npx universal-agent-plugins repair cloudflare-docs --target cursor
+npx universal-agent-plugins remove cloudflare-docs --target cursor
+```
+
+Switching source is deliberate. For example, an existing Cloudflare Docs
+installation can move from its bridge to the qualified community distribution:
+
+```bash
+npx universal-agent-plugins switch cloudflare-docs --to 777genius/cloudflare-docs
 ```
 
 Open a new chat or session in the client you selected and ask:
 
 ```text
-Use Context7 to find the current Playwright quick start and summarize it with source links.
+Use Cloudflare Docs to explain the current Workers environment variable and secret storage guidance with source links.
 ```
 
 That's it. Every plugin is independent, so you never need to install the whole
-catalog or follow a chain of plugins. Client activation and OAuth can still
+Directory or follow a chain of plugins. Client activation and OAuth can still
 require a visible confirmation; see the short [client setup guide](docs/QUICKSTART.md).
 
 ## Install any Agent Plugin
 
-The CLI is not limited to this catalog. Install any valid Agent Plugins 1.0
+The CLI is not limited to this Directory. Install any valid Agent Plugins 1.0
 package from a local directory or an immutable GitHub revision:
 
 ```bash
 npx universal-agent-plugins add ./my-plugin --target cursor
 npx universal-agent-plugins add \
-  owner/repo@FULL_COMMIT_SHA//path/to/plugin \
+  777genius/universal-agent-plugins@2ddbb99dd190c1792b79904f9875e6322bccd243//plugins/cloudflare-docs \
   --target cursor
 ```
 
 The package can use the portable root `plugin.json` layout or the official
 `.codex-plugin/plugin.json` layout with its declared sidecars. Pin GitHub
 sources to a full commit SHA so every install is reproducible. Short names such
-as `context7` resolve through this repository's reviewed catalog; external
+as `cloudflare-docs` resolve through this repository's reviewed Directory; external
 packages do not need to be copied into it.
+
+Directory source labels describe provenance, not endorsement. **Upstream**
+means the complete package is pinned in its upstream owner's repository;
+**community bridge** means a community-built package reproducibly combines
+pinned upstream content with a reviewed overlay; and **community** means an
+independently community-authored or packaged distribution. A full-SHA GitHub
+reference or local path is a **direct source** that bypasses Directory source
+selection. Community and community-bridge packages are not official vendor
+packages.
 
 ## All plugins
 
@@ -119,19 +135,26 @@ client-specific.
 | Client | Delivery | Activation |
 | --- | --- | --- |
 | <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> Codex | Official-layout `.codex-plugin` package | CLI prints the exact activation steps |
-| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Official-layout package + registered app binding | Manual Plugins UI; package-routed Work runtime is not yet proved |
+| <img src="assets/client-icons/openai.svg" width="20" height="20" alt=""> ChatGPT | Only a release with a registered app binding | Manual Plugins UI and OAuth consent; disabled when no binding exists |
 | <img src="assets/client-icons/cursor.svg" width="20" height="20" alt=""> Cursor | Native Agent Plugin | Reload, then verify discovery |
 | <img src="assets/client-icons/github-copilot.svg" width="20" height="20" alt=""> GitHub Copilot CLI | Native plugin + managed marketplace | Installed and verified automatically |
 | <img src="assets/client-icons/vscode.svg" width="20" height="20" alt=""> VS Code | Shared Copilot plugin when its CLI is available | Automatic; otherwise the exact setting is shown |
 | <img src="assets/client-icons/kiro.svg" width="20" height="20" alt=""> Kiro | Native folder package | Follow the exact Power import hint |
 
-All 26 packages pass standard schema validation. Five starter plugins passed
-15/15 runtime checks across Codex, Cursor, and Kiro, including Notion OAuth in
-all three; Figma OAuth passed separately in Codex. Installation coverage is
-broader than runtime coverage, and the standard itself is not a universal
-marketplace. See the [test matrix](docs/TEST_MATRIX.md), [verification
-report](docs/VERIFICATION.md), and [compatibility guide](docs/COMPATIBILITY.md)
-for exact per-client evidence.
+All 26 packages pass standard schema validation; that is schema-only evidence.
+Historical evidence includes 15/15 runtime checks for five starter packages
+across Codex, Cursor, and Kiro, with Notion OAuth tested in those three clients;
+Figma OAuth was tested separately in Codex only. A materialized or installed
+package does not by itself prove activation, tool runtime, or OAuth. ChatGPT and
+Copilot claims are narrower and are not generalized from other clients.
+
+Current Directory identity comes from
+[`registry/directory.json`](registry/directory.json), not copied release IDs or
+digests in this launch overview. Installation coverage is broader than runtime
+coverage, and the standard itself is not a universal marketplace. See the
+[test matrix](docs/TEST_MATRIX.md), [verification report](docs/VERIFICATION.md),
+and [compatibility guide](docs/COMPATIBILITY.md) for the exact schema-only,
+materialized, runtime-tested, OAuth-tested, read-only, and not-proven boundaries.
 
 ## Safety
 
@@ -150,5 +173,5 @@ without `plugin-kit-ai` as its authoring layer. Contributions are welcome; see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 This is an independent community project maintained by 777genius. It is not
-affiliated with or endorsed by OpenAI or the vendors represented in the catalog.
+affiliated with or endorsed by OpenAI or the vendors represented in the Directory.
 Original project material is licensed under [Apache 2.0](LICENSE).

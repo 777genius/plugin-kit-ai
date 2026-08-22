@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "contract_id": "acceptance-26.1-stable-release-v2",
+  "expected_counts": {
+    "directory_products": 26,
+    "directory_lifecycle_rows": 78,
+    "hero_lifecycle_rows": 12,
+    "hero_runtime_rows": 12,
+    "context7_grouped_rows": 4,
+    "chatgpt_rows": 1,
+    "shared_backend_rows": 1,
+    "acceptance_postcondition_rows": 13,
+    "native_platform_rows": 7,
+    "fault_rows": 23,
+    "journey_rows": 3
+  },
+  "directory_contract": "signed-snapshot-v1",
+  "all_package_client": "cursor",
+  "all_package_operations": ["add", "info", "remove"],
+  "heroes": [
+    "agent-code-navigator",
+    "context7",
+    "cloudflare-docs",
+    "notion"
+  ],
+  "runtime_clients": ["codex", "cursor", "kiro"],
+  "context7_targets": ["codex", "cursor", "kiro"],
+  "context7_lifecycle": ["add", "update", "repair", "remove"],
+  "shared_backend_targets": ["copilot", "vscode"],
+  "manual_consent_gates": [
+    "notion/codex/oauth",
+    "notion/cursor/oauth",
+    "notion/kiro/oauth",
+    "cloudflare-docs/chatgpt/oauth_runtime"
+  ],
+  "fault_scenarios": [
+    "state_schema_2_migration",
+    "crash_journal_recovery",
+    "directory_offline",
+    "directory_expired",
+    "directory_tampered",
+    "directory_sequence_rollback",
+    "managed_package_tamper"
+  ],
+  "adapter_repair_faults": ["repair_codex", "repair_cursor", "repair_kiro"],
+  "advanced_scenarios": [
+    "upstream_owned_short_name",
+    "community_bridge_short_name",
+    "plugin_data_update_repair_switch_remove_purge",
+    "stdio_environment_and_containment",
+    "missing_runtime_zero_mutation",
+    "explicit_source_switch",
+    "distribution_sticky_update",
+    "managed_rollback",
+    "external_activation_failure",
+    "promotion_gate_digest_match",
+    "promotion_gate_digest_mismatch"
+  ],
+  "source_identity_scenarios": {
+    "upstream_owned_short_name": {
+      "product_id": "context7",
+      "distribution_id": "upstash/context7",
+      "distribution_kind": "upstream"
+    },
+    "community_bridge_short_name": {
+      "product_id": "cloudflare-docs",
+      "distribution_id": "777genius/cloudflare-docs-bridge",
+      "distribution_kind": "community_bridge"
+    }
+  },
+  "acceptance_postconditions": [
+    "retained_data_readd_before_changed_default",
+    "schema_1_0_0_accepted",
+    "schema_draft_rejected",
+    "schema_unknown_rejected",
+    "project_scope_zero_mutation",
+    "direct_full_sha_immutable",
+    "public_help_no_hidden_yes",
+    "revoked_operations_boundary",
+    "readd_sticky_distribution",
+    "repair_sticky_distribution",
+    "missing_runtime_exact_guidance",
+    "plugin_data_lifecycle_boundary",
+    "signed_sequence_not_semver"
+  ],
+  "journeys": [
+    "direct_external_package",
+    "fork_submission",
+    "fork_submission_rejected"
+  ]
+}
