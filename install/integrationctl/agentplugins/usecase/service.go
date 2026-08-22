@@ -911,6 +911,16 @@ func packageRevisionMatches(revision *domain.ClientPackageRevision, envelope dom
 		reflect.DeepEqual(revision.CatalogEvidence, envelope.CatalogEvidence)
 }
 
+// Directory repair must reproduce immutable package bytes while allowing
+// compatibility evidence to be recomposed for the currently detected
+// environment. Direct-source repair retains strict recorded evidence equality.
+func repairPackageRevisionMatches(revision *domain.ClientPackageRevision, envelope domain.PackageEnvelope, directory bool) bool {
+	if !directory {
+		return packageRevisionMatches(revision, envelope)
+	}
+	return revision != nil && revision.TreeDigest == envelope.TreeDigest && revision.ManifestDigest == envelope.ManifestDigest
+}
+
 func findSourceInstallation(state domain.StateFileV2, sourceBindingID string) (int, bool) {
 	for index, installation := range state.Installations {
 		if installation.Source.SourceBindingID == sourceBindingID {

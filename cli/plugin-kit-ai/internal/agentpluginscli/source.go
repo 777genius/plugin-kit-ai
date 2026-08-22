@@ -724,6 +724,13 @@ func restoreCatalogEvidence(loaded *loadedPackage, binding domain.ClientBinding)
 	if loaded == nil || binding.PackageRevision == nil {
 		return
 	}
+	// Directory acquisition has already composed compatibility evidence for the
+	// currently detected installer, client, platform, and dependency tuple. The
+	// recorded copy identifies what was applicable when this binding was last
+	// written and must not replace that freshly filtered evidence during repair.
+	if loaded.origin == domain.OriginModeDirectory && loaded.envelope.CatalogEvidence != nil {
+		return
+	}
 	if binding.PackageRevision.CatalogEvidence == nil {
 		loaded.envelope.CatalogEvidence = nil
 		loaded.hints.Compatibility = nil

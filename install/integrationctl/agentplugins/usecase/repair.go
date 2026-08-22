@@ -63,7 +63,7 @@ func (service Service) Repair(ctx context.Context, input AddInput) (AddResult, e
 		return result, fmt.Errorf("managed repair target identity does not match the selected binding")
 	}
 	result.Activation = lifecycleOutcome(client)
-	if !packageRevisionMatches(client.PackageRevision, input.Envelope) {
+	if !repairPackageRevisionMatches(client.PackageRevision, input.Envelope, installation.OriginMode == domain.OriginModeDirectory) {
 		return result, fmt.Errorf("resolved repair package differs from the installed revision; use update")
 	}
 	if installation.OriginMode == domain.OriginModeDirectory {

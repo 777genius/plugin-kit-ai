@@ -307,6 +307,85 @@ func TestDirectoryPostAcquisitionDependencyRecheckFailsClosed(t *testing.T) {
 	}
 }
 
+func TestDirectoryRepairFiltersRecordedRuntimeEvidenceForCurrentEnvironment(t *testing.T) {
+	client := fixtureClient(t, domain.ClientCursor)
+	client.Version = "0.50.0"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	fixture.app.Version = "1.2.3"
+	plugin := writeCLIPlugin(t)
+	local, err := fixture.app.acquireLocal(context.Background(), plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeDigest, manifestDigest := local.envelope.TreeDigest, local.envelope.ManifestDigest
+	if err := local.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	revision := strings.Repeat("a", 40)
+	release := domain.DirectoryRelease{Sequence: 1, PackageVersion: "1.0.0", ManifestName: "demo",
+		AgentPluginsSchema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", PackageSource: domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
+		TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: treeDigest, ManifestDigest: manifestDigest, Components: []string{}}
+	runtimePass := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/runtime/cursor", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+		Level: "runtime", Outcome: "passed", Client: domain.ClientCursor, ClientVersion: client.Version, InstallerVersion: fixture.app.Version,
+		OS: runtime.GOOS, Architecture: runtime.GOARCH})
+	materializationPass := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/cursor", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor, ClientVersion: client.Version, InstallerVersion: fixture.app.Version,
+		OS: runtime.GOOS, Architecture: runtime.GOARCH})
+	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 1, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0",
+		Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"}}, CurrentEvidence: []string{materializationPass.ID, runtimePass.ID}}
+	snapshot := domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 1, SourceCommit: strings.Repeat("b", 40),
+		Products: []domain.DirectoryProduct{{SchemaVersion: 1, ID: "demo", ManifestName: "demo", DefaultDistribution: "owner/demo", Distributions: []string{"owner/demo"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}}},
+		Distributions: []domain.DirectoryDistribution{{SchemaVersion: 1, ID: "owner/demo", ProductID: "demo", Kind: domain.DistributionUpstream, Status: domain.DistributionActive,
+			Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}}, Evidence: []domain.DirectoryEvidence{materializationPass, runtimePass}}
+	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("c", 64)}}
+	fixture.app.DirectoryClient = directory
+	fixture.app.SourceAcquirer = &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+	if _, _, err := fixture.execute(false, "add", "demo", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorded := onlyCLIClient(state.Installations[0])
+	if recorded.PackageRevision == nil || recorded.PackageRevision.CatalogEvidence == nil ||
+		recorded.PackageRevision.CatalogEvidence.Compatibility["cursor"].Verification != "tested" {
+		t.Fatalf("initial applicable runtime evidence was not recorded: %+v", recorded.PackageRevision)
+	}
+	if err := os.RemoveAll(recorded.TargetLocator); err != nil {
+		t.Fatal(err)
+	}
+	changedClient := client
+	changedClient.Version = "0.51.0"
+	fixture.app.Version = "1.2.4"
+	fixture.app.Detector = staticDetector{clients: []domain.DetectedClient{changedClient}}
+	stdout, _, err := fixture.execute(false, "repair", "demo", "--target", "cursor", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"catalog_not_tested"`, `"catalog_runtime_not_tested"`, `"verify the plugin in the selected client before relying on it"`} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("repair JSON omitted current-tuple guidance %q: %s", want, stdout)
+		}
+	}
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	repaired := onlyCLIClient(state.Installations[0])
+	if repaired.PackageRevision == nil || repaired.PackageRevision.CatalogEvidence == nil {
+		t.Fatalf("repair dropped recorded package provenance: %+v", repaired.PackageRevision)
+	}
+	compatibility := repaired.PackageRevision.CatalogEvidence.Compatibility["cursor"]
+	if compatibility.Verification != "not_tested" || len(compatibility.Evidence) != 0 || compatibility.EvidenceOutcomes["runtime"] != "not_tested" {
+		t.Fatalf("repair restored stale compatibility evidence: %+v", compatibility)
+	}
+	if repaired.PackageRevision.DistributionID != "owner/demo" || repaired.PackageRevision.ReleaseSequence != 1 ||
+		repaired.PackageRevision.ResolvedRevision != revision || repaired.PackageRevision.TreeDigest != treeDigest || repaired.PackageRevision.ManifestDigest != manifestDigest {
+		t.Fatalf("repair changed recorded immutable package identity: %+v", repaired.PackageRevision)
+	}
+}
+
 func withDirectoryEvidence(source domain.DirectoryEvidence, mutate func(*domain.DirectoryEvidence)) domain.DirectoryEvidence {
 	mutate(&source)
 	return source

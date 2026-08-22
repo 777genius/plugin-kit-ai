@@ -91,7 +91,7 @@ func (service Service) RepairGroup(ctx context.Context, input GroupInput) (Group
 			if !sameNativeBackend(domain.ClientID(client.ClientID), target.Client.ClientID) || client.Scope != string(target.Scope) {
 				continue
 			}
-			if !packageRevisionMatches(client.PackageRevision, target.Envelope) {
+			if !repairPackageRevisionMatches(client.PackageRevision, target.Envelope, installation.OriginMode == domain.OriginModeDirectory) {
 				return GroupResult{}, fmt.Errorf("repair must use the exact applied package revision for %s", target.Client.ClientID)
 			}
 			if installation.OriginMode == domain.OriginModeDirectory && (target.DirectoryResolution == nil || client.PackageRevision.DistributionID != target.DirectoryResolution.DistributionID || client.PackageRevision.ReleaseSequence != target.DirectoryResolution.DesiredReleaseSequence) {
