@@ -253,14 +253,14 @@ func readModelBundle() directoryv1.VerifiedBundle {
 		Aliases: []string{"demo"}, ReservedAliases: []string{"demo"}, Categories: []string{"tools"},
 		MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"},
 		DefaultDistribution: "owner/demo", Distributions: []string{"owner/demo", "community/demo"}}
-	evidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "cursor-runtime", DistributionID: "owner/demo", ReleaseSequence: 1,
+	evidence := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{SchemaVersion: 1, ID: "cursor-runtime", DistributionID: "owner/demo", ReleaseSequence: 1,
 		PackageTreeDigest: tree1, Level: "runtime", Outcome: "passed", Client: domain.ClientCursor,
-		Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("e", 40), Path: "runtime/cursor.json", Digest: "sha256:" + strings.Repeat("f", 64)}}
+		Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("e", 40), Path: "runtime/cursor.json", Digest: "sha256:" + strings.Repeat("f", 64)}})
 	currentEvidence := evidence
 	currentEvidence.ID, currentEvidence.ReleaseSequence, currentEvidence.PackageTreeDigest = "cursor-runtime-current", 2, tree2
 	currentEvidence.Artifact.Path = "runtime/cursor-current.json"
-	materializationEvidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "cursor-materialization-current", DistributionID: "owner/demo", ReleaseSequence: 2,
-		PackageTreeDigest: tree2, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}
+	materializationEvidence := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{SchemaVersion: 1, ID: "cursor-materialization-current", DistributionID: "owner/demo", ReleaseSequence: 2,
+		PackageTreeDigest: tree2, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor})
 	return directoryv1.VerifiedBundle{Snapshot: domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 21, Products: []domain.DirectoryProduct{product},
 		Distributions: []domain.DirectoryDistribution{owner, community}, Evidence: []domain.DirectoryEvidence{evidence, currentEvidence, materializationEvidence},
 		Revocations: []domain.DirectoryRevocation{{DistributionID: "owner/demo", ReleaseSequence: 1}}}, Digest: "sha256:" + strings.Repeat("a", 64)}

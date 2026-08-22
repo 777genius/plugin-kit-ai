@@ -250,11 +250,11 @@ func TestDirectoryPostAcquisitionDependencyRecheckFailsClosed(t *testing.T) {
 	release := domain.DirectoryRelease{Sequence: 1, PackageVersion: "1.0.0", ManifestName: "demo",
 		AgentPluginsSchema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", PackageSource: domain.DirectorySource{Repository: "owner/demo", Revision: revision, Path: "plugin"},
 		TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: treeDigest, ManifestDigest: manifestDigest, Components: []string{"mcp"}}
-	passed := domain.DirectoryEvidence{ID: "passed/materialization", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
-		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}
-	failed := domain.DirectoryEvidence{ID: "failed/runtime/npx", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+	passed := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
+		Level: "materialization", Outcome: "passed", Client: domain.ClientCursor})
+	failed := intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "failed/runtime/npx", DistributionID: "owner/demo", ReleaseSequence: 1, PackageTreeDigest: treeDigest,
 		Level: "runtime", Outcome: "failed", Client: domain.ClientCursor, ClientVersion: client.Version, InstallerVersion: fixture.app.Version,
-		OS: runtime.GOOS, Architecture: runtime.GOARCH, DependencyIdentity: "npx"}
+		OS: runtime.GOOS, Architecture: runtime.GOARCH, DependencyIdentity: "npx"})
 	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 1, Status: domain.ReleaseActive, MinimumInstallerVersion: "0.1.0",
 		Targets: []domain.DirectoryTarget{{Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed"}}, CurrentEvidence: []string{passed.ID, failed.ID}}
 	snapshot := domain.DirectorySnapshot{SnapshotSchemaVersion: 1, Sequence: 1,
@@ -373,8 +373,8 @@ func TestSignedDirectorySelectionAcquiresOnceAndPersistsFullOrigin(t *testing.T)
 				Targets: policy.Targets, CurrentEvidence: []string{},
 			}},
 		}},
-		Evidence: []domain.DirectoryEvidence{{ID: policy.CurrentEvidence[0], DistributionID: "owner/demo", ReleaseSequence: release.Sequence,
-			PackageTreeDigest: release.TreeDigest, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}}, Revocations: []domain.DirectoryRevocation{},
+		Evidence: []domain.DirectoryEvidence{intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: policy.CurrentEvidence[0], DistributionID: "owner/demo", ReleaseSequence: release.Sequence,
+			PackageTreeDigest: release.TreeDigest, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor})}, Revocations: []domain.DirectoryRevocation{},
 	}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("c", 64)}}
 	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
@@ -502,8 +502,8 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 			Aliases: []string{"mixed-demo"}, ReservedAliases: []string{"mixed-demo"}, Categories: []string{},
 			MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "optional"}, DefaultDistribution: "owner/mixed", Distributions: []string{"owner/mixed"}}},
 		Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{
-			{ID: "passed/materialization/cursor/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor},
-			{ID: "passed/materialization/kiro/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro},
+			intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/cursor/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}),
+			intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/kiro/1", DistributionID: "owner/mixed", ReleaseSequence: 1, PackageTreeDigest: v1.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro}),
 		}, Revocations: []domain.DirectoryRevocation{}}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("a", 64)}}
 	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer,
@@ -516,8 +516,8 @@ func TestDirectoryMultiTargetRepairReacquiresEachRecordedRevisionOnce(t *testing
 	directory.bundle.Snapshot.Distributions[0].Releases = append(directory.bundle.Snapshot.Distributions[0].Releases, release(2, v2))
 	directory.bundle.Snapshot.Distributions[0].ReleasePolicies = append(directory.bundle.Snapshot.Distributions[0].ReleasePolicies, policy(2))
 	directory.bundle.Snapshot.Evidence = append(directory.bundle.Snapshot.Evidence,
-		domain.DirectoryEvidence{ID: "passed/materialization/cursor/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor},
-		domain.DirectoryEvidence{ID: "passed/materialization/kiro/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro})
+		intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/cursor/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientCursor}),
+		intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{ID: "passed/materialization/kiro/2", DistributionID: "owner/mixed", ReleaseSequence: 2, PackageTreeDigest: v2.tree, Level: "materialization", Outcome: "passed", Client: domain.ClientKiro}))
 	directory.bundle.Snapshot.Sequence = 2
 	directory.bundle.Digest = "sha256:" + strings.Repeat("b", 64)
 	if _, _, err := fixture.execute(false, "update", "demo", "--target", "cursor"); err != nil {

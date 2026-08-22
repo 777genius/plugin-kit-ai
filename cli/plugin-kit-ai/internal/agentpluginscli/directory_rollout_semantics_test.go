@@ -83,11 +83,11 @@ func newRolloutDirectoryFixture(t *testing.T, clients, releaseTwoTargets []domai
 		Distributions: []domain.DirectoryDistribution{distribution}, Evidence: []domain.DirectoryEvidence{}, Revocations: []domain.DirectoryRevocation{}}
 	for releaseIndex, release := range distribution.Releases {
 		for targetIndex, target := range distribution.ReleasePolicies[releaseIndex].Targets {
-			snapshot.Evidence = append(snapshot.Evidence, domain.DirectoryEvidence{
+			snapshot.Evidence = append(snapshot.Evidence, intendedTrustedDirectoryEvidence(domain.DirectoryEvidence{
 				ID: distribution.ReleasePolicies[releaseIndex].CurrentEvidence[targetIndex], DistributionID: distribution.ID,
 				ReleaseSequence: release.Sequence, PackageTreeDigest: release.TreeDigest,
 				Level: "materialization", Outcome: "passed", Client: target.Client,
-			})
+			}))
 		}
 	}
 	directory := &fixedDirectoryClient{bundle: directoryv1.VerifiedBundle{Snapshot: snapshot, Digest: "sha256:" + strings.Repeat("a", 64)}}
