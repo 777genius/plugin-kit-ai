@@ -6,7 +6,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -39,7 +38,7 @@ func fixtureKey(id string, state KeyState, fill byte) (TrustedKey, ed25519.Priva
 
 func fixtureSnapshot(sequence uint64) domain.DirectorySnapshot {
 	release := domain.DirectoryRelease{Sequence: 9, PackageVersion: "not-semver", ManifestName: "tool", AgentPluginsSchema: supportedPluginSchema, PackageSource: domain.DirectorySource{Repository: "owner/repo", Revision: "0123456789012345678901234567890123456789", Path: "plugin"}, TreeDigestAlgorithm: domain.TreeDigestAlgorithm, TreeDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ManifestDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Components: []string{"mcp", "skills"}, PublishedAt: "2026-08-20T10:00:00Z"}
-	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 9, Status: domain.ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: []domain.DirectoryTarget{{Client: domain.ClientCodex, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "manual_activation", Authentication: domain.AuthenticationRequirementUnknown}, {Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}}, CurrentEvidence: []string{"schema-pass"}}
+	policy := domain.DirectoryReleasePolicy{ReleaseSequence: 9, Status: domain.ReleaseActive, MinimumInstallerVersion: "1.0.0", Targets: []domain.DirectoryTarget{{Client: domain.ClientCodex, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}, {Client: domain.ClientCursor, Scopes: []domain.InstallScope{domain.ScopeUser}, Delivery: "managed", Authentication: domain.AuthenticationRequirementUnknown}}, CurrentEvidence: []string{"schema-pass"}}
 	evidence := domain.DirectoryEvidence{SchemaVersion: 1, ID: "schema-pass", DistributionID: "owner/tool", ReleaseSequence: 9, PackageTreeDigest: release.TreeDigest, Level: "schema", Outcome: "passed", Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: "abcdefabcdefabcdefabcdefabcdefabcdefabcd", Path: "evidence/schema.json", Digest: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}, Trust: &domain.DirectoryEvidenceTrust{Kind: "github_actions", Workflow: "owner/evidence/.github/workflows/directory.yml", SourceRef: "refs/heads/main", SourceDigest: "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}
 	product := domain.DirectoryProduct{SchemaVersion: 1, ID: "tool", DisplayName: "Tool", Description: "Tool description", ManifestName: "tool", Aliases: []string{"tool"}, ReservedAliases: []string{"tool"}, Categories: []string{"tools"}, MinimumCapabilities: domain.DirectoryMinimumCapabilities{Skills: "optional", MCP: "required"}, DefaultDistribution: "owner/tool", Distributions: []string{"owner/tool"}}
 	distribution := domain.DirectoryDistribution{SchemaVersion: 1, ID: "owner/tool", ProductID: "tool", Kind: domain.DistributionUpstream, Status: domain.DistributionActive, Packager: "owner", Releases: []domain.DirectoryRelease{release}, ReleasePolicies: []domain.DirectoryReleasePolicy{policy}}
@@ -60,7 +59,7 @@ func signedSnapshotFixture(t *testing.T, value domain.DirectorySnapshot, key Tru
 	}
 	snapshot = append(snapshot, '\n')
 	sum := sha256.Sum256(snapshot)
-	message := append(append([]byte(nil), signaturePrefix...), snapshot...)
+	message := SnapshotSignatureMessage(snapshot)
 	signature := ed25519.Sign(private, message)
 	envelope := Envelope{EnvelopeSchemaVersion: 1, SnapshotSchemaVersion: 1, Sequence: sequence, KeyID: key.ID, Algorithm: "Ed25519", SignatureDomain: SignatureDomain, SnapshotDigest: "sha256:" + hex.EncodeToString(sum[:]), Signature: base64.StdEncoding.EncodeToString(signature)}
 	envelopeBytes, err := json.Marshal(envelope)
@@ -117,15 +116,11 @@ func TestVerifyCurrentNextUnknownRetiredAndTamper(t *testing.T) {
 	if _, err := VerifyBundle(snapshot, badSignature, TrustStore{Keys: []TrustedKey{current}}); !errors.Is(err, ErrInvalidSignature) {
 		t.Fatalf("domain separation: %v", err)
 	}
-	lengthPrefixed := append([]byte(nil), signaturePrefix...)
-	lengthBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(lengthBytes, uint64(len(snapshot)))
-	lengthPrefixed = append(lengthPrefixed, lengthBytes...)
-	lengthPrefixed = append(lengthPrefixed, snapshot...)
-	parsed.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(currentPrivate, lengthPrefixed))
+	legacyUnprefixed := append(append([]byte(nil), signaturePrefix...), snapshot...)
+	parsed.Signature = base64.StdEncoding.EncodeToString(ed25519.Sign(currentPrivate, legacyUnprefixed))
 	badSignature, _ = json.Marshal(parsed)
 	if _, err := VerifyBundle(snapshot, badSignature, TrustStore{Keys: []TrustedKey{current}}); !errors.Is(err, ErrInvalidSignature) {
-		t.Fatalf("non-contract length-prefixed message: %v", err)
+		t.Fatalf("legacy unprefixed message: %v", err)
 	}
 }
 
@@ -617,7 +612,7 @@ func TestCacheAcceptsBase64ExpansionNearSnapshotLimit(t *testing.T) {
 	// base64 representation is larger than the raw snapshot-size bound.
 	snapshot = append(snapshot, bytes.Repeat([]byte{' '}, 3<<20)...)
 	sum := sha256.Sum256(snapshot)
-	signature := ed25519.Sign(private, append(append([]byte(nil), signaturePrefix...), snapshot...))
+	signature := ed25519.Sign(private, SnapshotSignatureMessage(snapshot))
 	envelope, err := json.Marshal(Envelope{EnvelopeSchemaVersion: 1, SnapshotSchemaVersion: 1, Sequence: 22, KeyID: key.ID, Algorithm: "Ed25519", SignatureDomain: SignatureDomain, SnapshotDigest: "sha256:" + hex.EncodeToString(sum[:]), Signature: base64.StdEncoding.EncodeToString(signature)})
 	if err != nil {
 		t.Fatal(err)

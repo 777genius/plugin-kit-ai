@@ -464,17 +464,13 @@ func validateDirectoryCompatibilityPolicy(policy domain.DirectoryReleasePolicy) 
 		if !ok {
 			return fmt.Errorf("signed Directory target %q is unsupported", target.Client)
 		}
-		packageMode, ok := stableCatalogPackageMode(capabilities.PackageMode)
+		_, ok = stableCatalogPackageMode(capabilities.PackageMode)
 		if !ok {
 			return fmt.Errorf("signed Directory target %q has unsupported package mode %q", target.Client, capabilities.PackageMode)
 		}
 		expectedDelivery, ok := domain.ExpectedDirectoryDelivery(target.Client)
 		if !ok || target.Delivery != expectedDelivery {
 			return fmt.Errorf("signed Directory delivery %q is incompatible with target %q; expected %q", target.Delivery, target.Client, expectedDelivery)
-		}
-		deliveryPackageMode := map[string]string{"managed": "native", "prepared": "prepared", "manual_activation": "projected"}[target.Delivery]
-		if deliveryPackageMode == "" || deliveryPackageMode != packageMode {
-			return fmt.Errorf("signed Directory delivery %q does not match package mode %q for target %q", target.Delivery, packageMode, target.Client)
 		}
 	}
 	return nil

@@ -119,11 +119,11 @@ type DirectoryTarget struct {
 // boundary, not the installer's internal PackageMode spelling.
 func ExpectedDirectoryDelivery(client ClientID) (string, bool) {
 	switch client {
-	case ClientCursor, ClientCopilot, ClientKiro:
+	case ClientCodex, ClientCursor, ClientCopilot, ClientKiro:
 		return "managed", true
 	case ClientVSCode:
 		return "prepared", true
-	case ClientCodex, ClientChatGPT:
+	case ClientChatGPT:
 		return "manual_activation", true
 	default:
 		return "", false

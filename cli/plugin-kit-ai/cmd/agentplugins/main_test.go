@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
 )
@@ -19,7 +20,7 @@ func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 	return nil, errors.New("publication unavailable")
 }
 
-func TestMainUsesProductionDirectoryTrustAndFailsClosedWithoutBootstrap(t *testing.T) {
+func TestMainUsesProductionDirectoryTrustAndReleaseBootstrap(t *testing.T) {
 	t.Setenv("AGENTPLUGINS_DIRECTORY_KEY_ID", "test-current")
 	t.Setenv("AGENTPLUGINS_DIRECTORY_PUBLIC_KEY", "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=")
 	client, err := newDirectoryClient(t.TempDir())
@@ -32,18 +33,25 @@ func TestMainUsesProductionDirectoryTrustAndFailsClosedWithoutBootstrap(t *testi
 	if encoded := base64.StdEncoding.EncodeToString(client.Trust.Keys[0].PublicKey); encoded != "HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI=" {
 		t.Fatalf("unexpected production Directory public key: %x", client.Trust.Keys[0].PublicKey)
 	}
-	if len(client.Embedded.Snapshot) != 0 || len(client.Embedded.Envelope) != 0 {
-		t.Fatal("a non-production bootstrap was embedded")
-	}
 	if !client.RequireEmbeddedBootstrap {
 		t.Fatal("production Directory client did not require a release-bound bootstrap")
 	}
-	if _, ready, err := directoryv1.DecodeReleaseBootstrap(generatedProductionDirectoryBootstrap, client.Trust); err != nil || ready {
-		t.Fatalf("empty generated production bootstrap readiness = %v, %v", ready, err)
+	embedded, ready, err := directoryv1.DecodeReleaseBootstrap(generatedProductionDirectoryBootstrap, client.Trust)
+	if err != nil || !ready {
+		t.Fatalf("generated production bootstrap readiness = %v, %v", ready, err)
+	}
+	bundle, err := embedded.Verify(client.Trust)
+	if err != nil || bundle.Snapshot.Sequence != 2 || bundle.Digest != "sha256:fe6422853423f447d797a54c5c2af0b0eda6f89c23815f8945f5b6f48d50a460" {
+		t.Fatalf("generated production bootstrap identity: sequence=%d digest=%q err=%v", bundle.Snapshot.Sequence, bundle.Digest, err)
 	}
 	client.HTTPClient.Transport = failingRoundTripper{}
-	if _, err := client.Load(context.Background(), 0); !errors.Is(err, directoryv1.ErrBootstrapNotReady) {
-		t.Fatalf("short-name Directory did not fail on empty release bootstrap: %v", err)
+	client.Now = func() time.Time { return time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC) }
+	fallback, err := client.Load(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("offline release bootstrap fallback: %v", err)
+	}
+	if fallback.Snapshot.Sequence != 2 || fallback.Digest != bundle.Digest {
+		t.Fatalf("offline release bootstrap identity: sequence=%d digest=%q", fallback.Snapshot.Sequence, fallback.Digest)
 	}
 }
 

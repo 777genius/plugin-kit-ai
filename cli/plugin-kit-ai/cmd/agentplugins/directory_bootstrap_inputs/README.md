@@ -2,14 +2,16 @@
 
 Stable release validation requires three exact files in this directory:
 
-- `snapshot.json`: the byte-exact signed schema-1 snapshot;
-- `envelope.json`: its detached Ed25519 envelope;
-- `trusted-keys.json`: the reviewed schema-1 trust document containing the
-  production key compiled into `agentplugins`.
+- `snapshot.json`: signed Directory sequence 2 from publication run
+  `32596313615`, digest
+  `sha256:fe6422853423f447d797a54c5c2af0b0eda6f89c23815f8945f5b6f48d50a460`;
+- `envelope.json`: its byte-exact detached Ed25519 envelope from immutable
+  sequence tag commit `8b6bf802419d7566a6313be748e9d8a4dd23bb26`;
+- `trusted-keys.json`: the reviewed schema-1 trust document from exact source
+  commit `20f8f0b85a38e7291d6e9c133c548a5316e314c8`.
 
-They are deliberately absent until a real production publication exists. Do
-not synthesize an initial sequence. From `cli/plugin-kit-ai`, generate the Go
-bootstrap only from publication-ledger artifacts:
+Do not edit or reserialize these files. From `cli/plugin-kit-ai`, reproduce the
+compiled Go bootstrap only from these publication-ledger artifacts:
 
 ```sh
 go run ./cmd/agentplugins/bootstrapgen \
