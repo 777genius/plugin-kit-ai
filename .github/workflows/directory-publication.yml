@@ -51,6 +51,7 @@ jobs:
       ledger_seed_commit: ${{ steps.ledger.outputs.seed_commit }}
       ledger_sequence_floor: ${{ steps.ledger.outputs.sequence_floor }}
       ledger_head: ${{ steps.ledger.outputs.ledger_head }}
+      launch_approved: ${{ steps.launch.outputs.approved }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,6 +139,17 @@ jobs:
             echo "sequence_floor=${sequence_floor}" >> "$GITHUB_OUTPUT"
           fi
           echo "ledger_head=$(git -C _publication-ledger rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Observe immutable launch approval marker
+        id: launch
+        run: |
+          marker_ref="$(python3 -c 'import json; print(json.load(open("registry/publication/launch-approved-marker.json"))["marker_ref"])')"
+          observed="$(git ls-remote --refs origin "${marker_ref}" | awk '{ print $1 }')"
+          if test -z "${observed}"; then
+            echo "approved=false" >> "$GITHUB_OUTPUT"
+          else
+            [[ "${observed}" =~ ^[0-9a-f]{40}$ ]]
+            echo "approved=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Prepare and bind exact post-merge source
         id: candidate
         env:
@@ -715,8 +727,8 @@ jobs:
 
   required_stable_launch_evidence:
     name: Require stable launch evidence before initial production promotion
-    needs: [sign, materialize_site, gate_exact_staged_publication]
-    if: ${{ needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.sign.outputs.sequence == '1' }}
+    needs: [prepare, sign, materialize_site, gate_exact_staged_publication]
+    if: ${{ needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' }}
     uses: ./.github/workflows/live-e2e.yml
     with:
       consent: true
@@ -733,8 +745,8 @@ jobs:
 
   record_launch_approval:
     name: Record immutable protected launch approval
-    needs: [sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence]
-    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.sign.outputs.sequence == '1' && needs.required_stable_launch_evidence.result == 'success' }}
+    needs: [prepare, sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence]
+    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: directory-publication
@@ -805,8 +817,8 @@ jobs:
 
   gate_launch_approval:
     name: Require protected launch approval for this ledger lineage
-    needs: [sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence, record_launch_approval]
-    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && ((needs.sign.outputs.sequence == '1' && needs.required_stable_launch_evidence.result == 'success' && needs.record_launch_approval.result == 'success') || (needs.sign.outputs.sequence > 1 && needs.required_stable_launch_evidence.result == 'skipped' && needs.record_launch_approval.result == 'skipped')) }}
+    needs: [prepare, sign, materialize_site, gate_exact_staged_publication, required_stable_launch_evidence, record_launch_approval]
+    if: ${{ always() && needs.sign.result == 'success' && needs.materialize_site.result == 'success' && needs.gate_exact_staged_publication.result == 'success' && ((needs.prepare.outputs.launch_approved == 'false' && needs.required_stable_launch_evidence.result == 'success' && needs.record_launch_approval.result == 'success') || (needs.prepare.outputs.launch_approved == 'true' && needs.required_stable_launch_evidence.result == 'skipped' && needs.record_launch_approval.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

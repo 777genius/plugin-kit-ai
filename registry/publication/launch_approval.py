@@ -15,7 +15,7 @@ GIT = "/usr/bin/git"
 EXPECTED_CONTRACT_KEYS = {
     "approval_environment",
     "contract_version",
-    "launch_sequence",
+    "launch_sequence_floor",
     "launch_signing_key_id",
     "ledger_branch",
     "marker_ref",
@@ -63,8 +63,8 @@ def load_contract(path: Path) -> dict:
     value = json.loads(path.read_bytes())
     require(isinstance(value, dict), "launch marker contract must be an object")
     require(set(value) == EXPECTED_CONTRACT_KEYS, "launch marker contract fields differ")
-    require(value["contract_version"] == 1, "unsupported launch marker contract")
-    require(value["launch_sequence"] == 1, "launch marker must bind sequence 1")
+    require(value["contract_version"] == 2, "unsupported launch marker contract")
+    require(value["launch_sequence_floor"] == 1, "launch sequence floor must be 1")
     require(value["schema_version"] == 1, "launch marker must bind schema 1")
     require(
         value["marker_ref"] == "refs/tags/directory-publication-schema-1-launch-approved",
@@ -100,13 +100,19 @@ def validate(
     require(git(repo, "rev-parse", f"{marker_commit}^{{commit}}") == marker_commit,
             "launch marker does not target an exact commit")
 
+    latest = load_json_at(repo, marker_commit, "registry/schemas/1/latest.json")
+    launch_sequence = latest.get("sequence")
+    require(isinstance(launch_sequence, int) and not isinstance(launch_sequence, bool),
+            "launch marker sequence is invalid")
+    require(launch_sequence >= contract["launch_sequence_floor"],
+            "launch marker sequence is below the contract floor")
     sequence_tag = (
         "refs/tags/" + contract["sequence_tag_prefix"]
-        + f"{contract['launch_sequence']:020d}"
+        + f"{launch_sequence:020d}"
     )
     signed_commit = git(repo, "rev-parse", f"{sequence_tag}^{{commit}}")
     parents = git(repo, "show", "-s", "--format=%P", marker_commit).split()
-    require(parents == [signed_commit], "launch marker target is not the sequence-1 materialization child")
+    require(parents == [signed_commit], "launch marker target is not the approved-sequence materialization child")
     git(repo, "merge-base", "--is-ancestor", marker_commit, current_commit)
     require(
         git(repo, "diff", "--name-only", signed_commit, marker_commit, "--", "registry") == "",
@@ -120,7 +126,7 @@ def validate(
             "current ledger has a different bootstrap contract")
     require(launch_ledger_contract.get("schema_version") == contract["schema_version"],
             "ledger schema differs from launch contract")
-    require(launch_ledger_contract.get("initial_sequence") == contract["launch_sequence"],
+    require(launch_ledger_contract.get("initial_sequence") == contract["launch_sequence_floor"],
             "ledger initial sequence differs from launch contract")
     require(launch_ledger_contract.get("sequence_tag_prefix") == contract["sequence_tag_prefix"],
             "ledger sequence tag prefix differs from launch contract")
@@ -128,18 +134,15 @@ def validate(
             "ledger bootstrap seed is invalid")
     git(repo, "merge-base", "--is-ancestor", launch_ledger_contract["seed_commit"], signed_commit)
 
-    sequence_name = f"{contract['launch_sequence']:020d}"
-    latest = load_json_at(repo, marker_commit, "registry/schemas/1/latest.json")
-    require(latest.get("sequence") == contract["launch_sequence"],
-            "launch marker target is not materialized sequence 1")
+    sequence_name = f"{launch_sequence:020d}"
     require(latest.get("snapshot_path") == f"snapshots/{sequence_name}.json",
             "launch snapshot path differs")
     require(latest.get("envelope_path") == f"snapshots/{sequence_name}.envelope.json",
             "launch envelope path differs")
     snapshot = load_json_at(repo, marker_commit, f"registry/schemas/1/{latest['snapshot_path']}")
     envelope = load_json_at(repo, marker_commit, f"registry/schemas/1/{latest['envelope_path']}")
-    require(snapshot.get("sequence") == contract["launch_sequence"], "launch snapshot sequence differs")
-    require(envelope.get("sequence") == contract["launch_sequence"], "launch envelope sequence differs")
+    require(snapshot.get("sequence") == launch_sequence, "launch snapshot sequence differs")
+    require(envelope.get("sequence") == launch_sequence, "launch envelope sequence differs")
     require(envelope.get("key_id") == contract["launch_signing_key_id"],
             "launch signing key differs from approved lineage")
     if expected_publication_id is not None:

@@ -108,6 +108,9 @@ class LaunchApprovalTransitionTests(unittest.TestCase):
         with self.assertRaises(launch_approval.InvalidLaunchApproval):
             self._validate(self.m2)
 
+    def test_later_sequence_can_become_the_first_approved_launch(self) -> None:
+        self.assertEqual(self._validate(self.m2, self.m2), self.m2)
+
     def test_success_marker_allows_later_refresh_and_exact_rerun(self) -> None:
         git(self.repo, "tag", MARKER_REF.removeprefix("refs/tags/"), self.m1)
         self.assertEqual(self._validate(self.m2), self.m1)
@@ -136,8 +139,10 @@ class LaunchApprovalTransitionTests(unittest.TestCase):
         )
         jobs = workflow["jobs"]
         self.assertEqual(jobs["record_launch_approval"]["environment"], "directory-publication")
-        self.assertIn("needs.sign.outputs.sequence == '1'", jobs["record_launch_approval"]["if"])
-        self.assertIn("needs.sign.outputs.sequence > 1", jobs["gate_launch_approval"]["if"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", jobs["record_launch_approval"]["if"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'true'", jobs["gate_launch_approval"]["if"])
+        self.assertNotIn("needs.sign.outputs.sequence", jobs["record_launch_approval"]["if"])
+        self.assertNotIn("needs.sign.outputs.sequence", jobs["gate_launch_approval"]["if"])
         marker_jobs = yaml.safe_dump({
             "record": jobs["record_launch_approval"],
             "gate": jobs["gate_launch_approval"],

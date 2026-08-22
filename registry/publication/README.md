@@ -184,27 +184,30 @@ moved tag, or different rebuilt tree is terminal.
 Pushing `M` is staging, not production promotion. The gate reads `latest.json`
 and both versioned artifacts from the immutable raw-commit origin for `M` and
 requires the exact run publication ID, sequence, snapshot digest, `Q` tag, and
-ledger identity. Sequence 1 additionally requires the complete stable-launch
-runtime, OAuth, and external-PR ceremony before Pages may promote `M`. Only
-after that ceremony succeeds, a job in the protected `directory-publication`
-environment creates the absent, immutable
+ledger identity. While no immutable launch marker exists, the current exact
+publication additionally requires the complete stable-launch runtime, OAuth,
+and external-PR ceremony before Pages may promote `M`. This remains true when
+an earlier prelaunch sequence was signed but could not be promoted.
+
+Only after that ceremony succeeds, a job in the protected
+`directory-publication` environment creates the absent, immutable
 `directory-publication-schema-1-launch-approved` tag at that exact `M`. It
 first reacquires protected `main` and the ledger branch, requires both exact
 ceremony heads, and validates the state contract in
 `launch-approved-marker.json`. An exact rerun accepts only the existing tag at
 the same commit.
 
-Every deployment, including sequence 1, separately reacquires and validates
-that protected marker. Its target must be the single-parent materialization
-child of the immutable sequence-1 tag, must leave signed `registry/` bytes
-unchanged, and must be an ancestor of the current materialized ledger head. The
-repository identity, schema, bootstrap seed contract, sequence-tag namespace,
-launch signing key, snapshot paths, and initial sequence must match the
-code-owned marker contract. Thus a failed sequence-1 ceremony followed by any
-number of newly allocated sequences remains blocked: a higher sequence may
-skip the launch-only runtime, but it cannot skip the marker gate. Replayed,
-moved, rollback, cross-repository, unrelated-lineage, and stale-head markers
-fail closed, and pull-request artifacts are not consumed by either marker job.
+Every deployment separately reacquires and validates that protected marker.
+Its target must be the single-parent materialization child of its matching
+immutable sequence tag, must leave signed `registry/` bytes unchanged, and must
+be an ancestor of the current materialized ledger head. The repository
+identity, schema, bootstrap seed contract, sequence-tag namespace, launch
+signing key, snapshot paths, and initial sequence floor must match the
+code-owned marker contract. A failed prelaunch sequence stays blocked until a
+later exact sequence completes the same full ceremony; a higher sequence alone
+cannot skip it. Replayed, moved, rollback, cross-repository, unrelated-lineage,
+and stale-head markers fail closed, and pull-request artifacts are not consumed
+by either marker job.
 
 After approval, weekly expiry refreshes, evidence-only snapshots, suspensions,
 and emergency revocations remain independent of the launch-only runtime. They

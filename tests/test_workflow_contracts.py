@@ -229,7 +229,7 @@ class WorkflowContractTests(unittest.TestCase):
     def test_directory_release_stages_exact_identity_before_reusable_gate_and_promotion(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
         required = workflow["jobs"]["required_stable_launch_evidence"]
-        self.assertEqual(set(required["needs"]), {"sign", "materialize_site", "gate_exact_staged_publication"})
+        self.assertEqual(set(required["needs"]), {"prepare", "sign", "materialize_site", "gate_exact_staged_publication"})
         self.assertEqual(required["uses"], "./.github/workflows/live-e2e.yml")
         self.assertEqual(required["with"]["consent"], "true")
         self.assertEqual(required["permissions"], {
@@ -258,26 +258,31 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("observe_production_latest.py", commands(production))
         self.assertEqual(production["permissions"], {"contents": "read"})
 
-    def test_sequence_one_cannot_promote_without_launch_ceremony(self) -> None:
+    def test_first_unapproved_publication_cannot_promote_without_launch_ceremony(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
+        prepare = workflow["jobs"]["prepare"]
         launch_if = workflow["jobs"]["required_stable_launch_evidence"]["if"]
         record_if = workflow["jobs"]["record_launch_approval"]["if"]
         marker_if = workflow["jobs"]["gate_launch_approval"]["if"]
         deploy_if = workflow["jobs"]["deploy"]["if"]
-        self.assertIn("needs.sign.outputs.sequence == '1'", launch_if)
-        self.assertIn("needs.sign.outputs.sequence == '1'", record_if)
+        self.assertEqual(prepare["outputs"]["launch_approved"], "${{ steps.launch.outputs.approved }}")
+        launch_step = next(step for step in prepare["steps"] if step.get("id") == "launch")
+        self.assertIn("git ls-remote --refs origin", launch_step["run"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", launch_if)
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", record_if)
         self.assertIn("needs.required_stable_launch_evidence.result == 'success'", record_if)
-        self.assertIn("needs.sign.outputs.sequence == '1'", marker_if)
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", marker_if)
         self.assertIn("needs.record_launch_approval.result == 'success'", marker_if)
+        self.assertNotIn("needs.sign.outputs.sequence == '1'", launch_if + record_if + marker_if)
         self.assertIn("needs.gate_launch_approval.result == 'success'", deploy_if)
 
-    def test_normal_refresh_skips_launch_but_keeps_exact_publication_gates(self) -> None:
+    def test_approved_refresh_skips_launch_but_keeps_exact_publication_gates(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
         launch_if = workflow["jobs"]["required_stable_launch_evidence"]["if"]
         marker_if = workflow["jobs"]["gate_launch_approval"]["if"]
         deploy_if = workflow["jobs"]["deploy"]["if"]
-        self.assertNotIn("needs.sign.outputs.sequence > 1", launch_if)
-        self.assertIn("needs.sign.outputs.sequence > 1", marker_if)
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", launch_if)
+        self.assertIn("needs.prepare.outputs.launch_approved == 'true'", marker_if)
         self.assertIn("needs.required_stable_launch_evidence.result == 'skipped'", marker_if)
         self.assertIn("needs.record_launch_approval.result == 'skipped'", marker_if)
         self.assertIn("always()", deploy_if)

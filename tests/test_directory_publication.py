@@ -1289,12 +1289,14 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertIn("sign", workflow["jobs"]["deploy"]["needs"])
         self.assertEqual(
             set(workflow["jobs"]["required_stable_launch_evidence"]["needs"]),
-            {"sign", "materialize_site", "gate_exact_staged_publication"},
+            {"prepare", "sign", "materialize_site", "gate_exact_staged_publication"},
         )
         launch_gate = workflow["jobs"]["required_stable_launch_evidence"]
-        self.assertIn("needs.sign.outputs.sequence == '1'", launch_gate["if"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", launch_gate["if"])
         marker_gate = workflow["jobs"]["gate_launch_approval"]
-        self.assertIn("needs.sign.outputs.sequence > 1", marker_gate["if"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'false'", marker_gate["if"])
+        self.assertIn("needs.prepare.outputs.launch_approved == 'true'", marker_gate["if"])
+        self.assertNotIn("needs.sign.outputs.sequence", launch_gate["if"] + marker_gate["if"])
         self.assertIn("needs.required_stable_launch_evidence.result == 'success'", marker_gate["if"])
         self.assertIn("needs.required_stable_launch_evidence.result == 'skipped'", marker_gate["if"])
         deploy_if = workflow["jobs"]["deploy"]["if"]
