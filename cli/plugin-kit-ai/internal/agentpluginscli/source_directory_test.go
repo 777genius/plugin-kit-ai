@@ -80,7 +80,7 @@ func TestDirectoryCompatibilityPreservesEvidenceAndExactApplicability(t *testing
 		wantApplicable int
 	}{
 		{name: "Notion schema-only with authentication required", authentication: domain.AuthenticationRequirementRequired, record: schema, wantVerify: "schema_only", wantLevel: "schema", wantOutcome: "passed", wantApplicable: 1},
-		{name: "OAuth exact target pass", authentication: domain.AuthenticationRequirementRequired, record: exact, wantVerify: "tested", wantLevel: "oauth", wantOutcome: "passed", wantApplicable: 1},
+		{name: "OAuth exact target pass does not imply runtime", authentication: domain.AuthenticationRequirementRequired, record: exact, wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "passed", wantApplicable: 1},
 		{name: "stale digest", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.PackageTreeDigest = "sha256:" + strings.Repeat("d", 64) }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong client", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.Client = domain.ClientCodex }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
 		{name: "wrong OS", authentication: domain.AuthenticationRequirementRequired, record: withDirectoryEvidence(exact, func(e *domain.DirectoryEvidence) { e.OS = "darwin" }), wantVerify: "not_tested", wantLevel: "oauth", wantOutcome: "not_tested"},
@@ -166,8 +166,8 @@ func TestUntrustedCurrentEvidenceCannotCreateTestedCompatibility(t *testing.T) {
 	if compatibility.Verification != "not_tested" || len(compatibility.Evidence) != 0 || compatibility.EvidenceOutcomes["runtime"] != "not_tested" {
 		t.Fatalf("untrusted evidence created compatibility claim: %+v", compatibility)
 	}
-	if len(loaded.envelope.CatalogEvidence.CurrentEvidence) != 2 {
-		t.Fatalf("signed informational evidence was not retained with provenance: %+v", loaded.envelope.CatalogEvidence.CurrentEvidence)
+	if len(loaded.envelope.CatalogEvidence.CurrentEvidence) != 0 {
+		t.Fatalf("untrusted evidence was retained as signed current evidence: %+v", loaded.envelope.CatalogEvidence.CurrentEvidence)
 	}
 }
 

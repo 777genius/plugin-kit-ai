@@ -108,6 +108,26 @@ func TestPublicDirectoryEvidenceDistinguishesMissingTrust(t *testing.T) {
 	}
 }
 
+func TestHumanDirectoryEvidenceLabelsTrustedAndInformationalProvenance(t *testing.T) {
+	trusted := publicEvidence{ID: "trusted-runtime", Level: "runtime", Outcome: "passed",
+		Artifact: domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("e", 40), Path: "trusted.json", Digest: "sha256:" + strings.Repeat("f", 64)},
+		Trust:    &domain.DirectoryEvidenceTrust{Kind: "reviewed_external"}}
+	informational := trusted
+	informational.ID, informational.Artifact.Path, informational.Trust = "self-reported-runtime", "self-reported.json", nil
+	var output bytes.Buffer
+	if err := renderProductInspection(&output, publicProductInspection{ImmutableEvidence: []publicEvidence{trusted, informational}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Evidence: trusted-runtime runtime=passed trust=trusted ",
+		"Evidence: self-reported-runtime runtime=passed trust=self-reported/informational ",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("human evidence omitted %q:\n%s", want, output.String())
+		}
+	}
+}
+
 func TestInstalledInfoAndDoctorExposeRevisionConvergenceSurfacesAndRevocation(t *testing.T) {
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
 	plugin := writeCLIPlugin(t)

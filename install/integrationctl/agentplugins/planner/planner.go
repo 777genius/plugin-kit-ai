@@ -220,10 +220,20 @@ func applyCatalogCompatibility(plan *domain.DeliveryPlan, evidence *domain.Catal
 	}
 	if compatibility.Verification == "schema_only" || compatibility.Verification == "not_tested" {
 		plan.Warnings = appendUnique(plan.Warnings, "catalog_"+compatibility.Verification)
-		if plan.Status != domain.PlanUnsupported {
-			plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+	}
+	if !hasTrustedRuntimePass(compatibility, plan.ClientID) && plan.Status != domain.PlanUnsupported {
+		plan.Warnings = appendUnique(plan.Warnings, "catalog_runtime_not_tested")
+		plan.UserActions = append(plan.UserActions, "verify the plugin in the selected client before relying on it")
+	}
+}
+
+func hasTrustedRuntimePass(compatibility domain.CatalogCompatibility, client domain.ClientID) bool {
+	for _, evidence := range compatibility.Evidence {
+		if evidence.Level == "runtime" && evidence.Outcome == "passed" && evidence.Client == client && evidence.HasTrustedEligibilityProvenance() {
+			return true
 		}
 	}
+	return false
 }
 
 func catalogPackageMatches(value string, mode domain.PackageMode) bool {

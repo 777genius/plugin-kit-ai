@@ -464,8 +464,16 @@ func renderProductInspection(writer io.Writer, product publicProductInspection) 
 		_, _ = fmt.Fprintf(writer, "  Alternative: %s kind=%s status=%s release=%d\n", alternative.ID, alternative.Kind, alternative.Status, alternative.ReleaseSequence)
 	}
 	for _, evidence := range product.ImmutableEvidence {
-		_, _ = fmt.Fprintf(writer, "  Evidence: %s %s=%s %s@%s//%s digest=%s\n", evidence.ID, evidence.Level, evidence.Outcome,
+		_, _ = fmt.Fprintf(writer, "  Evidence: %s %s=%s trust=%s %s@%s//%s digest=%s\n", evidence.ID, evidence.Level, evidence.Outcome, evidenceTrustLabel(evidence),
 			evidence.Artifact.Repository, evidence.Artifact.Revision, evidence.Artifact.Path, evidence.Artifact.Digest)
 	}
 	return nil
+}
+
+func evidenceTrustLabel(evidence publicEvidence) string {
+	record := domain.DirectoryEvidence{Artifact: evidence.Artifact, Trust: evidence.Trust}
+	if record.HasTrustedProvenance() {
+		return "trusted"
+	}
+	return "self-reported/informational"
 }

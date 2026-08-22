@@ -187,14 +187,14 @@ func retainedDirectoryInstallation(state domain.StateFileV2, selector, productID
 }
 
 func installationMatchesSelector(installation domain.Installation, selector string) bool {
-	if installation.InstallationID == selector || installation.DeclaredName == selector {
+	if installation.InstallationID == selector || installation.DeclaredName == selector ||
+		strings.TrimSpace(installation.Source.RequestedSource) == selector {
 		return true
 	}
 	if installation.Directory == nil {
 		return false
 	}
-	return installation.Directory.ProductID == selector || installation.Directory.DistributionID == selector ||
-		strings.TrimSpace(installation.Source.RequestedSource) == selector
+	return installation.Directory.ProductID == selector || installation.Directory.DistributionID == selector
 }
 
 func (app App) loadPackage(ctx context.Context, raw string) (loadedPackage, error) {
@@ -523,7 +523,7 @@ func currentDirectoryEvidence(history []domain.DirectoryEvidence, ids []string) 
 	}
 	current := make([]domain.DirectoryEvidence, 0, len(ids))
 	for _, id := range ids {
-		if evidence, ok := byID[id]; ok {
+		if evidence, ok := byID[id]; ok && evidence.HasTrustedProvenance() {
 			current = append(current, evidence)
 		}
 	}
@@ -564,7 +564,9 @@ func directoryVerification(evidence []domain.DirectoryEvidence) string {
 			schemaPassed = true
 			continue
 		}
-		return "tested"
+		if record.Level == "runtime" {
+			return "tested"
+		}
 	}
 	if schemaPassed {
 		return "schema_only"

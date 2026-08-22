@@ -98,6 +98,33 @@ func TestPlannerKeepsManualVerificationGuidanceForUntrustedEvidence(t *testing.T
 	}
 }
 
+func TestPlannerSuppressesManualVerificationOnlyForTrustedRuntimePass(t *testing.T) {
+	t.Parallel()
+	client := detectedClient(domain.ClientCursor, filepath.Join(t.TempDir(), ".cursor"))
+	trusted := func(level string) domain.DirectoryEvidence {
+		artifact := domain.DirectoryEvidenceArtifact{Repository: "owner/evidence", Revision: strings.Repeat("a", 40)}
+		evidence := domain.DirectoryEvidence{Level: level, Outcome: "passed", Client: domain.ClientCursor, Artifact: artifact}
+		evidence.Trust = &domain.DirectoryEvidenceTrust{Kind: "reviewed_external"}
+		return evidence
+	}
+	for _, level := range []string{"materialization", "discovery", "oauth", "runtime"} {
+		t.Run(level, func(t *testing.T) {
+			envelope := testEnvelope()
+			envelope.CatalogEvidence = &domain.CatalogEvidence{Compatibility: map[string]domain.CatalogCompatibility{
+				"cursor": {Package: "native", Verification: "tested", Authentication: domain.AuthenticationRequirementNotRequired, Evidence: []domain.DirectoryEvidence{trusted(level)}},
+			}}
+			plan, err := (Planner{ManagedRoot: t.TempDir()}).Plan(context.Background(), envelope, client, domain.ScopeUser, "demo-0123456789ab")
+			if err != nil {
+				t.Fatal(err)
+			}
+			hasAction := contains(plan.UserActions, "verify the plugin in the selected client before relying on it")
+			if hasAction != (level != "runtime") {
+				t.Fatalf("level %s manual runtime verification action = %t, actions=%v", level, hasAction, plan.UserActions)
+			}
+		})
+	}
+}
+
 func TestPlannerCarriesNonFatalLoaderDiagnosticsToPlan(t *testing.T) {
 	t.Parallel()
 	envelope := testEnvelope()

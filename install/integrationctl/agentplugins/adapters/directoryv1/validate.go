@@ -282,6 +282,9 @@ func validateSnapshot(v domain.DirectorySnapshot) error {
 				return strictError("%s invalid trust", where)
 			}
 		}
+		if !e.HasTrustedProvenance() {
+			return strictError("%s lacks recognized trusted provenance", where)
+		}
 		evidence[e.ID] = e
 	}
 	selected := map[string]bool{}

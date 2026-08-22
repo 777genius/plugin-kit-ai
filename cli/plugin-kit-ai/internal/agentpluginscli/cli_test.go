@@ -581,6 +581,44 @@ func TestSwitchUsesTheCompleteInstallationEngineBoundaryWithoutHiddenConfirmatio
 	}
 }
 
+func TestSwitchByInstalledAliasNormalizesRetainedInstallationIdentity(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	installed := writeCLIPlugin(t)
+	destination := writeCLIPlugin(t)
+	if _, _, err := fixture.execute(false, "add", installed, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := fixture.execute(false, "remove", "demo", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 || !state.Installations[0].DataRetained || len(state.Installations[0].Clients) != 0 {
+		t.Fatalf("expected retained installation without bindings: %+v", state)
+	}
+	installationID := state.Installations[0].InstallationID
+	state.Installations[0].Source.RequestedSource = "installed-alias"
+	if err := fixture.store.Save(state); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := fixture.execute(true, "switch", "installed-alias", "--to", destination, "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertVersionedJSON(t, stdout, "switch")
+	updated, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.Installations) != 1 || updated.Installations[0].InstallationID != installationID ||
+		updated.Installations[0].Source.RequestedSource != destination || !updated.Installations[0].DataRetained {
+		t.Fatalf("alias switch did not preserve installation identity and retained data: %+v", updated)
+	}
+}
+
 func TestPurgeDataUsesOwnershipCheckedEngineBoundaryWithoutHiddenConfirmation(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})

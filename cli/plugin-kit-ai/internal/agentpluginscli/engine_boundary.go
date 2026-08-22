@@ -67,6 +67,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	if err != nil {
 		return err
 	}
+	installationID := installation.InstallationID
 	targetIDs := installationTargets(installation, string(domain.ScopeUser))
 	var detected map[domain.ClientID]domain.DetectedClient
 	if len(targetIDs) > 0 {
@@ -91,7 +92,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 	service := app.Lifecycle
 	service.StateStore = app.StateStore
 	if installation.DataRetained && len(installation.Clients) == 0 {
-		planned, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope}, loaded.origin, loaded.directory)
+		planned, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: installationID, Envelope: loaded.envelope}, loaded.origin, loaded.directory)
 		output.Retained = &planned
 		output.PluginData = planned.PluginData
 		if err != nil {
@@ -109,7 +110,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 				return err
 			}
 		}
-		applied, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: selector, Envelope: loaded.envelope, Confirmed: true}, loaded.origin, loaded.directory)
+		applied, err := service.SwitchRetained(ctx, usecase.BindingChangeInput{Selector: installationID, Envelope: loaded.envelope, Confirmed: true}, loaded.origin, loaded.directory)
 		output.DryRun, output.Retained = false, &applied
 		output.PluginData = applied.PluginData
 		if err != nil {
@@ -130,7 +131,7 @@ func runSwitch(ctx context.Context, cmd *cobra.Command, app App, opts *options, 
 		if err := prepareLoadedPackageForClient(&clientPackage, targetID); err != nil {
 			return err
 		}
-		inputs = append(inputs, usecase.AddInput{Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser, Hints: clientPackage.hints,
+		inputs = append(inputs, usecase.AddInput{Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser, Hints: clientPackage.hints, InstallationID: installationID,
 			BackendExecutable: backendExecutable(client, detected), OriginMode: loaded.origin, DirectoryResolution: cloneDirectoryOrigin(loaded.directory),
 			DistributionSuspended: loaded.distributionSuspended, ReleaseRevoked: loaded.releaseRevoked})
 	}

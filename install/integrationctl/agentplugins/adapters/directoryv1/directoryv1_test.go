@@ -277,7 +277,7 @@ func TestEvidenceEligibilityTrustContract(t *testing.T) {
 	}{
 		{name: "trusted pass"},
 		{name: "trusted fail", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed" }},
-		{name: "missing trust remains informational", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust = nil }},
+		{name: "missing trust cannot be current", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust = nil }, wantErr: true},
 		{name: "unknown trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Trust.Kind = "contributor_asserted" }, wantErr: true},
 		{name: "forged workflow repository", mutate: func(v *domain.DirectorySnapshot) {
 			v.Evidence[0].Trust.Workflow = "contributor/evidence/.github/workflows/directory.yml"
@@ -312,8 +312,8 @@ func TestEvidenceEligibilityTrustContract(t *testing.T) {
 			v.Evidence[0].Trust = reviewed
 		}},
 		{name: "non-current evidence", mutate: func(v *domain.DirectorySnapshot) { v.Distributions[0].ReleasePolicies[0].CurrentEvidence = []string{} }, wantErr: true},
-		{name: "informational without trust", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "inconclusive"; v.Evidence[0].Trust = nil }},
-		{name: "failure without trust remains informational", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed"; v.Evidence[0].Trust = nil }},
+		{name: "informational without trust cannot be current", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "inconclusive"; v.Evidence[0].Trust = nil }, wantErr: true},
+		{name: "failure without trust cannot be current", mutate: func(v *domain.DirectorySnapshot) { v.Evidence[0].Outcome = "failed"; v.Evidence[0].Trust = nil }, wantErr: true},
 		{name: "reviewed informational accepted", mutate: func(v *domain.DirectorySnapshot) {
 			v.Evidence[0].Outcome = "inconclusive"
 			v.Evidence[0].Trust = reviewed
