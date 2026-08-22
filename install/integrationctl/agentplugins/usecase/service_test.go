@@ -1283,6 +1283,7 @@ func TestDirectorySuspensionAndRevocationOperationBoundaries(t *testing.T) {
 	}
 	installedInput := addInput(t, cursor, "publisher/demo")
 	installedInput.OriginMode, installedInput.DirectoryResolution = domain.OriginModeDirectory, directory
+	installedInput.Envelope.Source.ResolvedRevision = strings.Repeat("d", 40)
 	installedInput.Confirmed = true
 	installedInput.OperationID = "directory-initial"
 	installed, err := service.Add(context.Background(), installedInput)
@@ -1301,6 +1302,7 @@ func TestDirectorySuspensionAndRevocationOperationBoundaries(t *testing.T) {
 	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
 	suspendedExposure := addInput(t, kiro, "publisher/demo")
 	suspendedExposure.OriginMode, suspendedExposure.DirectoryResolution = domain.OriginModeDirectory, directory
+	suspendedExposure.Envelope.Source.ResolvedRevision = strings.Repeat("d", 40)
 	suspendedExposure.DistributionSuspended = true
 	suspendedExposure.Confirmed = true
 	if _, err := service.Add(context.Background(), suspendedExposure); err == nil || !strings.Contains(err.Error(), "suspended") {
@@ -1319,6 +1321,7 @@ func TestDirectorySuspensionAndRevocationOperationBoundaries(t *testing.T) {
 	}
 	revokedNew := addInput(t, kiro, "publisher/demo")
 	revokedNew.OriginMode, revokedNew.DirectoryResolution, revokedNew.ReleaseRevoked = domain.OriginModeDirectory, directory, true
+	revokedNew.Envelope.Source.ResolvedRevision = strings.Repeat("d", 40)
 	if _, err := service.Add(context.Background(), revokedNew); err == nil || !strings.Contains(err.Error(), "revoked") {
 		t.Fatalf("revoked new exposure = %v", err)
 	}

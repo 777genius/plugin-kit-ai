@@ -76,6 +76,9 @@ func TestMigrateCopiesLegacyStateAndPreservesLegacyLoaderBinding(t *testing.T) {
 	if installation.Package.LoaderKind != domain.LoaderKindLegacy || installation.Package.FormatID != domain.FormatIDLegacyV1 {
 		t.Fatalf("legacy binding changed: %+v", installation.Package)
 	}
+	if installation.OriginMode != domain.OriginModeDirect || installation.Directory != nil || installation.Source.ResolvedRevision != "https://example.com/catalog@abc" {
+		t.Fatalf("short legacy source manufactured Directory provenance: %+v", installation)
+	}
 	if installation.NeedsRebind || len(installation.Clients) != 1 {
 		t.Fatalf("installation = %+v", installation)
 	}
@@ -86,6 +89,75 @@ func TestMigrateCopiesLegacyStateAndPreservesLegacyLoaderBinding(t *testing.T) {
 		if client.Materialization != domain.MaterializationMaterialized || client.Activation != domain.ActivationManual || client.Verification != domain.VerificationNotRun {
 			t.Fatalf("client states = %+v", client)
 		}
+		if client.PackageRevision != nil {
+			t.Fatalf("direct legacy binding gained a Directory revision: %+v", client.PackageRevision)
+		}
+	}
+}
+
+func TestMigratePinnedLegacySourcePreservesExactDirectoryRevision(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	legacyPath := filepath.Join(root, "state.json")
+	revision := strings.Repeat("a", 40)
+	body := fmt.Sprintf(`{"schema_version":1,"installations":[{
+"integration_id":"context7",
+"requested_source_ref":{"kind":"github_repo_path","value":"context7"},
+"resolved_source_ref":{"kind":"git_commit","value":"https://example.com/catalog@%s//plugins/context7"},
+"resolved_version":"1.0.0","source_digest":"sha256:tree","manifest_digest":"sha256:manifest",
+"policy":{"scope":"user"},"targets":{"codex":{"target_id":"codex","state":"active"}}
+}]}`, revision)
+	if err := os.WriteFile(legacyPath, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrator := Migrator{
+		LegacyPath: legacyPath,
+		V2Store:    statev2.Store{Path: filepath.Join(root, "state-v2.json")},
+		NewID:      func() (string, error) { return "00000000-0000-4000-8000-000000000001", nil },
+	}
+	report, err := migrator.Migrate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.NeedsRebind != 0 || !report.LegacyStateUntouched {
+		t.Fatalf("report = %+v", report)
+	}
+	state, err := migrator.V2Store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := state.Installations[0]
+	if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil || installation.Source.ResolvedRevision != revision {
+		t.Fatalf("pinned legacy Directory provenance = %+v", installation)
+	}
+	for _, client := range installation.Clients {
+		if client.PackageRevision == nil || client.PackageRevision.ResolvedRevision != revision {
+			t.Fatalf("pinned client revision = %+v", client.PackageRevision)
+		}
+	}
+}
+
+func TestExactLegacyGitRevisionAcceptsOnlySupportedImmutableForms(t *testing.T) {
+	t.Parallel()
+	revision := strings.Repeat("a", 40)
+	for _, test := range []struct {
+		name   string
+		source string
+		wantOK bool
+	}{
+		{name: "raw SHA", source: revision, wantOK: true},
+		{name: "last at suffix", source: "ssh://git@example.com/catalog@" + revision, wantOK: true},
+		{name: "suffix before subpath", source: "https://example.com/catalog@" + revision + "//plugins/demo", wantOK: true},
+		{name: "short SHA", source: "https://example.com/catalog@abc", wantOK: false},
+		{name: "uppercase SHA", source: strings.Repeat("A", 40), wantOK: false},
+		{name: "raw SHA with subpath", source: revision + "//plugins/demo", wantOK: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := exactLegacyGitRevision(test.source)
+			if ok != test.wantOK || (ok && got != revision) {
+				t.Fatalf("exactLegacyGitRevision(%q) = %q, %v", test.source, got, ok)
+			}
+		})
 	}
 }
 
@@ -131,6 +203,39 @@ func TestMigrateCurrentV2IsDigestCheckedBackedUpAndFixedForward(t *testing.T) {
 	}
 	if _, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest); err == nil {
 		t.Fatal("current schema was rewritten instead of fixed-forward refusal")
+	}
+}
+
+func TestMigrateCurrentV2DirectoryShapedSourceWithoutExactRevisionNeedsRebind(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "state-v2.json")
+	original := `{"schema_version":2,"installations":[{"installation_id":"00000000-0000-4000-8000-000000000001","declared_name":"demo","source":{"source_binding_id":"src_demo","requested_source":"demo","canonical_source":"https://github.com/777genius/universal-agent-plugins@abc//demo","repository":"777genius/universal-agent-plugins","package_subpath":"demo","resolved_revision":"abc","tree_digest":"sha256:tree"},"package":{"loader_kind":"agent_plugins","format_id":"agent-plugins/1.0.0","schema_uri":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","declared_name":"demo","manifest_digest":"sha256:manifest","inventory":{}},"clients":{},"created_at":"2026-08-01T00:00:00Z","updated_at":"2026-08-01T00:00:00Z"}]}`
+	if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	migrator := Migrator{V2Store: statev2.Store{Path: path}, Lock: &migrationTestLock{},
+		RecoverJournal: func(context.Context) error { return nil }}
+	plan, err := migrator.PlanCurrentV2()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.NeedsRebind != 1 {
+		t.Fatalf("plan = %+v", plan)
+	}
+	report, err := migrator.MigrateCurrentV2(context.Background(), plan.LegacyDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := migrator.V2Store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installation := state.Installations[0]
+	if !installation.NeedsRebind || installation.OriginMode != domain.OriginModeDirect || installation.Directory != nil || installation.Source.ResolvedRevision != "abc" {
+		t.Fatalf("unproven Directory source was promoted: %+v", installation)
+	}
+	if report.NeedsRebind != 1 {
+		t.Fatalf("report = %+v", report)
 	}
 }
 

@@ -133,6 +133,7 @@ func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRo
 	stateful := func(source string, directory *domain.DirectoryOrigin, version, tree, manifest string) AddInput {
 		input := addInput(t, cursor, source)
 		input.OriginMode, input.DirectoryResolution = domain.OriginModeDirectory, directory
+		input.Envelope.Source.ResolvedRevision = strings.Repeat("d", 40)
 		setEnvelopeVersion(t, &input.Envelope, version, tree, manifest)
 		input.Envelope.MCP = domain.MCPComponent{Present: true, Enabled: true, Servers: map[string]domain.MCPServer{
 			"local": {Name: "local", Type: "stdio", Decoded: map[string]any{"type": "stdio", "command": "sh", "args": []any{"-c", "echo ${PLUGIN_DATA}"}}},
@@ -158,6 +159,7 @@ func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRo
 
 	toBridge := addInput(t, cursor, "community/demo-bridge")
 	toBridge.OriginMode, toBridge.DirectoryResolution = domain.OriginModeDirectory, bridge
+	toBridge.Envelope.Source.ResolvedRevision = strings.Repeat("d", 40)
 	setEnvelopeVersion(t, &toBridge.Envelope, "2.0.0", "sha256:bridge-tree", "sha256:bridge-manifest")
 	preview, err := service.SwitchGroup(context.Background(), GroupInput{Targets: []AddInput{toBridge}, OperationGroupID: "bridge-preview", DryRun: true, Switch: true})
 	if err != nil {

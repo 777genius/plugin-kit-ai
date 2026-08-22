@@ -67,7 +67,9 @@ func (migrator Migrator) PlanCurrentV2() (Plan, error) {
 		return Plan{}, err
 	}
 	plan := Plan{LegacyDigest: digest(body), SourceSchema: header.SchemaVersion, Installations: len(state.Installations)}
-	for _, installation := range state.Installations {
+	for index := range state.Installations {
+		installation := &state.Installations[index]
+		migrateV2Origin(installation)
 		if installation.NeedsRebind {
 			plan.NeedsRebind++
 		}
@@ -167,17 +169,27 @@ func migrateV2Origin(installation *domain.Installation) {
 	if evidence == nil && !directoryShaped {
 		return
 	}
+	revision, ok := exactLegacyGitRevision(installation.Source.ResolvedRevision)
+	if !ok {
+		// Old catalog evidence and short-name sources identify a likely Directory
+		// record, but not an immutable Directory release. Keep its direct source
+		// provenance and require an explicit rebind instead of inventing one.
+		installation.NeedsRebind = true
+		return
+	}
 	// The frozen catalog had one community distribution per manifest name.
 	// Preserve that source; never map it to a newly preferred upstream source.
 	distributionID := "777genius/" + installation.DeclaredName
+	installation.Source.ResolvedRevision = revision
 	installation.OriginMode = domain.OriginModeDirectory
 	installation.Directory = &domain.DirectoryOrigin{ProductID: installation.DeclaredName, DistributionID: distributionID,
 		DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
 	for key, client := range installation.Clients {
 		if client.PackageRevision == nil {
-			client.PackageRevision = &domain.ClientPackageRevision{Version: installation.Package.Version, ResolvedRevision: installation.Source.ResolvedRevision,
+			client.PackageRevision = &domain.ClientPackageRevision{Version: installation.Package.Version,
 				TreeDigest: installation.Source.TreeDigest, ManifestDigest: installation.Package.ManifestDigest}
 		}
+		client.PackageRevision.ResolvedRevision = revision
 		client.PackageRevision.DistributionID = distributionID
 		client.PackageRevision.ReleaseSequence = 1
 		installation.Clients[key] = client
@@ -386,6 +398,11 @@ func migrateInstallation(record legacyInstallation, now time.Time, newID func() 
 	}
 	sourceBindingID := legacySourceBindingID(record)
 	requiresRebind := needsRebind(record)
+	directory := legacyDirectoryOrigin(record)
+	resolvedRevision := record.ResolvedSourceRef.Value
+	if directory != nil {
+		resolvedRevision, _ = exactLegacyGitRevision(record.ResolvedSourceRef.Value)
+	}
 	clients := map[string]domain.ClientBinding{}
 	targetNames := make([]string, 0, len(record.Targets))
 	for targetName := range record.Targets {
@@ -417,8 +434,8 @@ func migrateInstallation(record legacyInstallation, now time.Time, newID func() 
 			Verification:     domain.VerificationNotRun,
 			UpdatedAt:        firstNonEmpty(record.LastUpdatedAt, now.Format(time.RFC3339)),
 		}
-		if directory := legacyDirectoryOrigin(record); directory != nil {
-			client.PackageRevision = &domain.ClientPackageRevision{Version: record.ResolvedVersion, ResolvedRevision: record.ResolvedSourceRef.Value,
+		if directory != nil {
+			client.PackageRevision = &domain.ClientPackageRevision{Version: record.ResolvedVersion, ResolvedRevision: resolvedRevision,
 				TreeDigest: record.SourceDigest, ManifestDigest: record.ManifestDigest, DistributionID: directory.DistributionID, ReleaseSequence: directory.DesiredReleaseSequence}
 		}
 		for _, object := range target.OwnedNativeObjects {
@@ -437,13 +454,13 @@ func migrateInstallation(record legacyInstallation, now time.Time, newID func() 
 	return domain.Installation{
 		InstallationID: installationID,
 		DeclaredName:   record.IntegrationID,
-		OriginMode:     legacyOriginMode(record),
-		Directory:      legacyDirectoryOrigin(record),
+		OriginMode:     legacyOriginMode(directory),
+		Directory:      directory,
 		Source: domain.SourceBinding{
 			SourceBindingID:  sourceBindingID,
 			RequestedSource:  requested,
 			CanonicalSource:  canonical,
-			ResolvedRevision: record.ResolvedSourceRef.Value,
+			ResolvedRevision: resolvedRevision,
 			TreeDigest:       record.SourceDigest,
 		},
 		Package: domain.PackageBinding{
@@ -461,8 +478,8 @@ func migrateInstallation(record legacyInstallation, now time.Time, newID func() 
 	}, nil
 }
 
-func legacyOriginMode(record legacyInstallation) domain.OriginMode {
-	if legacyDirectoryOrigin(record) != nil {
+func legacyOriginMode(directory *domain.DirectoryOrigin) domain.OriginMode {
+	if directory != nil {
 		return domain.OriginModeDirectory
 	}
 	return domain.OriginModeDirect
@@ -475,8 +492,33 @@ func legacyDirectoryOrigin(record legacyInstallation) *domain.DirectoryOrigin {
 		strings.Contains(value, "/") || strings.HasPrefix(value, ".") || filepath.IsAbs(value) {
 		return nil
 	}
+	if _, ok := exactLegacyGitRevision(record.ResolvedSourceRef.Value); !ok {
+		return nil
+	}
 	return &domain.DirectoryOrigin{ProductID: record.IntegrationID, DistributionID: "777genius/" + record.IntegrationID,
 		DistributionKind: domain.DistributionCommunity, DesiredReleaseSequence: 1}
+}
+
+// exactLegacyGitRevision accepts only immutable legacy source forms whose Git
+// object identity is explicit: a raw SHA, or the suffix after the final '@'
+// and before an optional package subpath.
+func exactLegacyGitRevision(source string) (string, bool) {
+	value := strings.TrimSpace(source)
+	if at := strings.LastIndex(value, "@"); at >= 0 {
+		value = value[at+1:]
+		if subpath := strings.Index(value, "//"); subpath >= 0 {
+			value = value[:subpath]
+		}
+	}
+	if len(value) != 40 {
+		return "", false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return "", false
+		}
+	}
+	return value, true
 }
 
 func nativeObjectID(bindingID string, object legacyNativeObject) string {
