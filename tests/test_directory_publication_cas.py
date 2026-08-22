@@ -203,6 +203,33 @@ class BarePublicationCasTests(unittest.TestCase):
 
 
 class MarkerBindingContractTests(unittest.TestCase):
+    def test_materialization_archive_guard_is_valid_and_rejects_reserved_paths(self) -> None:
+        workflow = yaml.load(
+            (ROOT / ".github" / "workflows" / "directory-publication.yml").read_text(),
+            Loader=yaml.BaseLoader,
+        )
+        verify = next(
+            step for step in workflow["jobs"]["materialize_site"]["steps"]
+            if step.get("name") == "Reject unsafe archive entries and verify the artifact"
+        )
+        guard_line = next(
+            line.strip() for line in verify["run"].splitlines()
+            if "seen[path]++" in line
+        )
+        program = guard_line.split("awk '", 1)[1].split("' ", 1)[0]
+
+        safe = subprocess.run(
+            ["awk", program], input="index.html\nassets/app.css\n", text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        self.assertEqual(safe.returncode, 0, safe.stderr)
+        for unsafe in (".github/workflows/publish.yml\n", "assets/App.css\nassets/app.css\n"):
+            rejected = subprocess.run(
+                ["awk", program], input=unsafe, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+
+            self.assertNotEqual(rejected.returncode, 0)
     def test_candidate_release_site_and_materialization_bind_to_marker(self) -> None:
         workflow_path = ROOT / ".github" / "workflows" / "directory-publication.yml"
         workflow_text = workflow_path.read_text()

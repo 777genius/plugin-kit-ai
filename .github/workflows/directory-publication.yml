@@ -539,7 +539,7 @@ jobs:
             /(^|\/)-/ || /[^A-Za-z0-9._~@%+=:,\/-]/ { exit 1 }
           ' "${RUNNER_TEMP}/archive.paths"
           test "$(LC_ALL=C sort -u "${RUNNER_TEMP}/archive.paths" | wc -l)" -eq "$(wc -l < "${RUNNER_TEMP}/archive.paths")"
-          awk '{ path = tolower($0); if (path ~ /(^|\/)\.git[^\/]*($|\/)/ || path ~ /(^|\/)(\.github|hooks)($|\/) || seen[path]++) exit 1 }' "${RUNNER_TEMP}/archive.paths"
+          awk '{ path = tolower($0); if (path ~ /(^|\/)\.git[^\/]*($|\/)/ || path ~ /(^|\/)(\.github|hooks)($|\/)/ || seen[path]++) exit 1 }' "${RUNNER_TEMP}/archive.paths"
           awk 'NF != 2 || $1 !~ /^[0-9a-f]{64}$/ { exit 1 } { print $2 }' "${artifact}/site.files.sha256" > "${RUNNER_TEMP}/manifest.paths"
           test "$(wc -l < "${RUNNER_TEMP}/manifest.paths")" -eq "$(wc -l < "${RUNNER_TEMP}/archive.paths")"
           diff -u <(LC_ALL=C sort "${RUNNER_TEMP}/archive.paths") <(LC_ALL=C sort "${RUNNER_TEMP}/manifest.paths")
