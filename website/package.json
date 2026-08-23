@@ -9,9 +9,10 @@
   },
   "pnpm": {
     "overrides": {
-      "brace-expansion": "5.0.8",
+      "brace-expansion@>=4.0.0 <5.0.9": "5.0.9",
       "dompurify": "3.4.13",
       "lodash-es": "4.18.1",
+      "nanoid@>=3.0.0 <3.3.18": "3.3.18",
       "uuid": "14.0.1"
     }
   },
@@ -31,7 +32,7 @@
     "docs:check": "pnpm run docs:gen && pnpm run docs:check-locale && pnpm run docs:check-model && pnpm run docs:check-public-boundary && pnpm run docs:check-drift && vitepress build && node ./tools/postbuild.mjs && pnpm run docs:check-output"
   },
   "devDependencies": {
-    "mermaid": "11.16.0",
+    "mermaid": "11.17.0",
     "playwright": "1.62.0",
     "typedoc": "0.28.20",
     "typedoc-plugin-markdown": "4.12.0",
