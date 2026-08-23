@@ -2495,7 +2495,9 @@ type staticDetector struct {
 type observedProbingDetector struct {
 	readOnlyCalls int
 	probeCalls    int
+	targetedCalls int
 	clients       []domain.DetectedClient
+	targets       []domain.ClientID
 }
 
 func (detector *observedProbingDetector) Detect(context.Context) ([]domain.DetectedClient, error) {
@@ -2505,6 +2507,12 @@ func (detector *observedProbingDetector) Detect(context.Context) ([]domain.Detec
 
 func (detector *observedProbingDetector) DetectWithVersionProbe(context.Context) ([]domain.DetectedClient, error) {
 	detector.probeCalls++
+	return append([]domain.DetectedClient(nil), detector.clients...), nil
+}
+
+func (detector *observedProbingDetector) DetectTargetsWithVersionProbe(_ context.Context, targets []domain.ClientID) ([]domain.DetectedClient, error) {
+	detector.targetedCalls++
+	detector.targets = append([]domain.ClientID(nil), targets...)
 	return append([]domain.DetectedClient(nil), detector.clients...), nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/providers"
 )
 
@@ -15,11 +16,14 @@ func reconcileInstalledInfo(ctx context.Context, app App, installation domain.In
 	if err != nil {
 		return err
 	}
+	if len(targets) == 0 {
+		return nil
+	}
 	selected := make(map[domain.ClientID]bool, len(targets))
 	for _, target := range targets {
 		selected[target] = true
 	}
-	clients, err := detectClientsForLifecycleResolution(ctx, app.Detector, true)
+	clients, err := detectClientsForInfoReconciliation(ctx, app.Detector, targets)
 	if err != nil {
 		return err
 	}
@@ -28,19 +32,29 @@ func reconcileInstalledInfo(ctx context.Context, app App, installation domain.In
 		detected[client.ClientID] = client
 	}
 
-	bindings := make(map[string]domain.ClientBinding, len(installation.Clients))
-	for _, binding := range installation.Clients {
-		bindings[binding.ClientID] = binding
-	}
 	filtered := make([]publicClient, 0, len(public.Clients))
 	for _, view := range public.Clients {
 		clientID := domain.ClientID(view.ClientID)
-		if len(selected) > 0 && !selected[clientID] {
+		if !selected[clientID] {
 			continue
 		}
-		binding := bindings[view.ClientID]
-		client, detectedOK := detected[clientID]
-		result := reconcileClientIdentity(ctx, app, installation, binding, client, detectedOK)
+		binding, bindingOK := installation.Clients[view.BindingID]
+		bindingClient, detectedOK := detected[clientID]
+		observerClient := bindingClient
+		if clientID == domain.ClientVSCode {
+			copilot, copilotOK := detected[domain.ClientCopilot]
+			if !copilotOK || copilot.Status != domain.DetectionDetected || strings.TrimSpace(copilot.ExecutablePath) == "" {
+				detectedOK = false
+			} else {
+				observerClient.ConfigRoot = copilot.ConfigRoot
+				observerClient.ExecutablePath = copilot.ExecutablePath
+				observerClient.Version = copilot.Version
+			}
+		}
+		if !bindingOK || binding.ClientBindingID != view.BindingID || binding.ClientID != view.ClientID || binding.Scope != view.Scope {
+			detectedOK = false
+		}
+		result := reconcileClientIdentity(ctx, app, installation, binding, bindingClient, observerClient, detectedOK)
 		view.ReceiptReconciled = boolPointer(result.receiptReconciled)
 		view.NativeDiscoveryReconciled = boolPointer(result.nativeDiscoveryReconciled)
 		view.NativeIdentityState = result.state
@@ -48,7 +62,15 @@ func reconcileInstalledInfo(ctx context.Context, app App, installation domain.In
 		view.NativeDiscoveryEvidence = result.evidence
 		filtered = append(filtered, view)
 	}
-	sort.Slice(filtered, func(i, j int) bool { return filtered[i].ClientID < filtered[j].ClientID })
+	sort.Slice(filtered, func(i, j int) bool {
+		if filtered[i].ClientID != filtered[j].ClientID {
+			return filtered[i].ClientID < filtered[j].ClientID
+		}
+		if filtered[i].Scope != filtered[j].Scope {
+			return filtered[i].Scope < filtered[j].Scope
+		}
+		return filtered[i].BindingID < filtered[j].BindingID
+	})
 	public.Clients = filtered
 	return nil
 }
@@ -61,49 +83,63 @@ type clientIdentityReconciliation struct {
 	evidence                  *publicNativeDiscoveryEvidence
 }
 
-func reconcileClientIdentity(ctx context.Context, app App, installation domain.Installation, binding domain.ClientBinding, client domain.DetectedClient, detected bool) clientIdentityReconciliation {
+func detectClientsForInfoReconciliation(ctx context.Context, detector ports.ClientDetector, targets []domain.ClientID) ([]domain.DetectedClient, error) {
+	probeSet := make(map[domain.ClientID]struct{}, len(targets))
+	for _, target := range targets {
+		if target == domain.ClientVSCode {
+			target = domain.ClientCopilot
+		}
+		probeSet[target] = struct{}{}
+	}
+	probeTargets := make([]domain.ClientID, 0, len(probeSet))
+	for target := range probeSet {
+		probeTargets = append(probeTargets, target)
+	}
+	sort.Slice(probeTargets, func(i, j int) bool { return probeTargets[i] < probeTargets[j] })
+	if targeted, ok := detector.(ports.TargetedVersionProbingClientDetector); ok {
+		return targeted.DetectTargetsWithVersionProbe(ctx, probeTargets)
+	}
+	return detector.Detect(ctx)
+}
+
+func reconcileClientIdentity(ctx context.Context, app App, installation domain.Installation, binding domain.ClientBinding, bindingClient, observerClient domain.DetectedClient, detected bool) clientIdentityReconciliation {
 	result := clientIdentityReconciliation{state: domain.NativeIdentityIndeterminate}
 	if detected {
-		result.clientVersion = strings.TrimSpace(client.Version)
+		result.clientVersion = strings.TrimSpace(observerClient.Version)
 	}
-	if !detected || client.Status != domain.DetectionDetected || app.Lifecycle.Targets == nil || app.Lifecycle.NativeObserver == nil {
+	if !detected || bindingClient.Status != domain.DetectionDetected || app.Lifecycle.Targets == nil || app.Lifecycle.NativeObserver == nil {
 		return result
 	}
 	expectedArtifact := domain.ComputePhysicalArtifactID(installation.DeclaredName, installation.InstallationID)
 	if strings.TrimSpace(binding.PhysicalArtifact) != expectedArtifact {
 		return result
 	}
-	result.evidence = nativeCommandEvidence(client, installation.DeclaredName, expectedArtifact, result.clientVersion, false)
 	if !hasReconciledOwnershipReceipt(binding, expectedArtifact, installation.DeclaredName) {
 		return result
 	}
-	target, err := app.Lifecycle.Targets.ResolveTarget(ctx, client, domain.InstallScope(binding.Scope), expectedArtifact)
+	target, err := app.Lifecycle.Targets.ResolveTarget(ctx, bindingClient, domain.InstallScope(binding.Scope), expectedArtifact)
 	if err != nil || filepath.Clean(target.ActivePath) != filepath.Clean(binding.TargetLocator) {
 		return result
 	}
 	plan := domain.DeliveryPlan{
-		ClientID: client.ClientID, Scope: domain.InstallScope(binding.Scope), DeclaredName: installation.DeclaredName,
+		ClientID: bindingClient.ClientID, Scope: domain.InstallScope(binding.Scope), DeclaredName: installation.DeclaredName,
 		PhysicalArtifactID: expectedArtifact, TargetAnchor: target.TargetAnchor, TargetRoot: target.TargetRoot, ActivePath: target.ActivePath,
-		NativeRegistryRoot: client.ConfigRoot, NativeRegistryExecutable: client.ExecutablePath,
+		NativeRegistryRoot: observerClient.ConfigRoot, NativeRegistryExecutable: observerClient.ExecutablePath,
 	}
-	observation, observeErr := app.Lifecycle.NativeObserver.ObserveNativeIdentity(ctx, client, plan, &binding)
+	observation, observeErr := app.Lifecycle.NativeObserver.ObserveNativeIdentity(ctx, observerClient, plan, &binding)
 	result.receiptReconciled = observation.ReceiptReconciled
 	result.nativeDiscoveryReconciled = observation.NativeDiscoveryReconciled
-	if result.evidence != nil {
-		result.evidence.DiscoveryOperation.Discovered = result.nativeDiscoveryReconciled
+	if observation.NativeDiscoveryAttempted {
+		result.evidence = nativeCommandEvidence(observerClient, installation.DeclaredName, expectedArtifact, result.clientVersion, result.nativeDiscoveryReconciled)
+	}
+	if observation.State != "" {
+		result.state = observation.State
 	}
 	if observeErr != nil {
 		return result
 	}
-	result.state = observation.NativeDiscoveryState
-	if result.state == "" {
-		result.state = observation.State
-	}
-	if result.nativeDiscoveryReconciled {
-		result.state = domain.NativeIdentityIndeterminate
-		if result.receiptReconciled {
-			result.state = domain.NativeIdentityManaged
-		}
+	if result.state == domain.NativeIdentityManaged && !result.nativeDiscoveryReconciled && observation.NativeDiscoveryState != "" {
+		result.state = observation.NativeDiscoveryState
 	}
 	return result
 }
@@ -145,7 +181,8 @@ func hasReconciledOwnershipReceipt(binding domain.ClientBinding, physicalArtifac
 }
 
 func nativeCommandEvidence(client domain.DetectedClient, declaredName, physicalArtifact, version string, discovered bool) *publicNativeDiscoveryEvidence {
-	if client.ClientID != domain.ClientCopilot || strings.TrimSpace(client.ExecutablePath) == "" || strings.TrimSpace(physicalArtifact) == "" {
+	if (client.ClientID != domain.ClientCopilot && client.ClientID != domain.ClientVSCode) ||
+		strings.TrimSpace(client.ExecutablePath) == "" || strings.TrimSpace(physicalArtifact) == "" {
 		return nil
 	}
 	return &publicNativeDiscoveryEvidence{

@@ -18,6 +18,7 @@ import (
 )
 
 type publicClient struct {
+	BindingID                 string                         `json:"-"`
 	ClientID                  string                         `json:"client_id"`
 	Scope                     string                         `json:"scope"`
 	Materialization           domain.MaterializationState    `json:"materialization"`
@@ -151,8 +152,10 @@ func newInfoCommand(app App, opts *options) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("inspect signed Directory: %w", err)
 			}
-			if err := reconcileInstalledInfo(cmd.Context(), app, installation, opts.target, &public); err != nil {
-				return err
+			if strings.TrimSpace(opts.target) != "" {
+				if err := reconcileInstalledInfo(cmd.Context(), app, installation, opts.target, &public); err != nil {
+					return err
+				}
 			}
 			if opts.format == "json" {
 				return writeJSONOutput(cmd.OutOrStdout(), "info", public)
@@ -482,7 +485,8 @@ func publicInstallationView(installation domain.Installation, includeAbsent bool
 		affectedSurfaces := append([]string(nil), client.AffectedSurfaces...)
 		sort.Strings(affectedSurfaces)
 		value.Clients = append(value.Clients, publicClient{
-			ClientID: client.ClientID, Scope: client.Scope, Materialization: client.Materialization,
+			BindingID: client.ClientBindingID,
+			ClientID:  client.ClientID, Scope: client.Scope, Materialization: client.Materialization,
 			Activation: client.Activation, Authentication: client.Authentication,
 			Policy: client.Policy, Verification: client.Verification,
 			PackageRevision:  publicPackageRevision(client.PackageRevision),
@@ -577,6 +581,10 @@ func renderInstallation(writer io.Writer, installation publicInstallation) error
 	for _, client := range installation.Clients {
 		_, _ = fmt.Fprintf(writer, "  %s: materialization=%s activation=%s auth=%s verification=%s\n",
 			client.ClientID, client.Materialization, client.Activation, client.Authentication, client.Verification)
+		if client.ReceiptReconciled != nil && client.NativeDiscoveryReconciled != nil {
+			_, _ = fmt.Fprintf(writer, "    native_identity=%s receipt_reconciled=%t native_discovery_reconciled=%t client_version=%s\n",
+				client.NativeIdentityState, *client.ReceiptReconciled, *client.NativeDiscoveryReconciled, client.ClientVersion)
+		}
 	}
 	if installation.Directory != nil {
 		value := installation.Directory

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 )
 
 func TestInfoReconcilesExactCopilotIdentityWithoutMutationOrPathLeak(t *testing.T) {
@@ -98,8 +99,8 @@ func TestInfoReconcilesExactCopilotIdentityWithoutMutationOrPathLeak(t *testing.
 		strings.Join(evidence.VersionOperation.Argv, " ") != "copilot --version" || strings.Join(evidence.DiscoveryOperation.Argv, " ") != "copilot plugin list" {
 		t.Fatalf("native discovery evidence = %+v", evidence)
 	}
-	if detector.probeCalls != 1 || detector.readOnlyCalls != 0 {
-		t.Fatalf("detector calls = read-only:%d probe:%d", detector.readOnlyCalls, detector.probeCalls)
+	if detector.targetedCalls != 1 || detector.probeCalls != 0 || detector.readOnlyCalls != 0 || len(detector.targets) != 1 || detector.targets[0] != domain.ClientCopilot {
+		t.Fatalf("detector calls = read-only:%d probe:%d targeted:%d targets:%v", detector.readOnlyCalls, detector.probeCalls, detector.targetedCalls, detector.targets)
 	}
 }
 
@@ -110,8 +111,137 @@ func TestInfoInvalidOwnershipReceiptIsInconclusive(t *testing.T) {
 	}
 }
 
+func TestInfoReconcilesEachSameClientBindingByExactBindingIdentity(t *testing.T) {
+	installationID := "00000000-0000-4000-8000-000000000010"
+	physical := domain.ComputePhysicalArtifactID("demo", installationID)
+	userTarget := filepath.Join(t.TempDir(), "user", physical)
+	projectTarget := filepath.Join(t.TempDir(), "project", physical)
+	user := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeUser, userTarget, physical)
+	project := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeProject, projectTarget, physical)
+	project.Receipts = nil
+	installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{
+		user.ClientBindingID: user, project.ClientBindingID: project,
+	}}
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{{
+		ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, Version: "1.0.80", ExecutablePath: "/test/bin/copilot",
+	}}}
+	app := App{Detector: detector, Lifecycle: usecase.Service{
+		Targets:        scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: userTarget, domain.ScopeProject: projectTarget}},
+		NativeObserver: reconciledNativeObserver{},
+	}}
+	public := publicInstallationView(installation, true)
+	if err := reconcileInstalledInfo(context.Background(), app, installation, "copilot", &public); err != nil {
+		t.Fatal(err)
+	}
+	if len(public.Clients) != 2 {
+		t.Fatalf("clients = %+v", public.Clients)
+	}
+	byScope := make(map[string]publicClient, len(public.Clients))
+	for _, client := range public.Clients {
+		byScope[client.Scope] = client
+	}
+	if byScope[string(domain.ScopeUser)].ReceiptReconciled == nil || !*byScope[string(domain.ScopeUser)].ReceiptReconciled {
+		t.Fatalf("user binding was not reconciled: %+v", byScope[string(domain.ScopeUser)])
+	}
+	if byScope[string(domain.ScopeProject)].ReceiptReconciled == nil || *byScope[string(domain.ScopeProject)].ReceiptReconciled {
+		t.Fatalf("invalid project binding did not fail closed: %+v", byScope[string(domain.ScopeProject)])
+	}
+	if byScope[string(domain.ScopeProject)].NativeDiscoveryEvidence != nil {
+		t.Fatalf("invalid project binding exposed unvalidated evidence: %+v", byScope[string(domain.ScopeProject)].NativeDiscoveryEvidence)
+	}
+}
+
+func TestVSCodeInfoUsesCopilotAsAuthoritativeNativeBackend(t *testing.T) {
+	tests := []struct {
+		name        string
+		observation domain.NativeIdentityObservation
+		wantState   domain.NativeIdentityState
+		wantNative  bool
+	}{
+		{name: "exact", observation: domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryReconciled: true, NativeDiscoveryState: domain.NativeIdentityManaged, NativeDiscoveryAttempted: true}, wantState: domain.NativeIdentityManaged, wantNative: true},
+		{name: "absent", observation: domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryState: domain.NativeIdentityAbsent, NativeDiscoveryAttempted: true}, wantState: domain.NativeIdentityAbsent},
+		{name: "unknown", observation: domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate, NativeDiscoveryAttempted: true}, wantState: domain.NativeIdentityIndeterminate},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			installationID := "00000000-0000-4000-8000-000000000020"
+			physical := domain.ComputePhysicalArtifactID("demo", installationID)
+			target := filepath.Join(t.TempDir(), "vscode", physical)
+			binding := validReconciliationBinding(installationID, domain.ClientVSCode, domain.ScopeUser, target, physical)
+			installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+			detector := &observedProbingDetector{clients: []domain.DetectedClient{
+				{ClientID: domain.ClientVSCode, Status: domain.DetectionDetected, Version: "9.9.9", ExecutablePath: "/test/bin/code", ConfigRoot: "/test/config/code"},
+				{ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, Version: "1.0.80", ExecutablePath: "/test/bin/copilot", ConfigRoot: "/test/config/copilot"},
+			}}
+			observer := &capturingNativeObserver{observation: test.observation}
+			app := App{Detector: detector, Lifecycle: usecase.Service{
+				Targets: scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: target}}, NativeObserver: observer,
+			}}
+			public := publicInstallationView(installation, true)
+			if err := reconcileInstalledInfo(context.Background(), app, installation, "vscode", &public); err != nil {
+				t.Fatal(err)
+			}
+			if detector.targetedCalls != 1 || len(detector.targets) != 1 || detector.targets[0] != domain.ClientCopilot {
+				t.Fatalf("targeted probes = %v", detector.targets)
+			}
+			if len(observer.clients) != 1 || observer.clients[0].ClientID != domain.ClientVSCode || observer.clients[0].ExecutablePath != "/test/bin/copilot" || observer.clients[0].ConfigRoot != "/test/config/copilot" {
+				t.Fatalf("observer clients = %+v", observer.clients)
+			}
+			got := public.Clients[0]
+			if got.ClientVersion != "1.0.80" || got.NativeIdentityState != test.wantState || got.NativeDiscoveryReconciled == nil || *got.NativeDiscoveryReconciled != test.wantNative {
+				t.Fatalf("VS Code reconciliation = %+v", got)
+			}
+			if got.NativeDiscoveryEvidence == nil || got.NativeDiscoveryEvidence.DiscoveryOperation.Discovered != test.wantNative {
+				t.Fatalf("VS Code evidence = %+v", got.NativeDiscoveryEvidence)
+			}
+		})
+	}
+}
+
+func TestInfoWithoutTargetDoesNotDetectOrProbeClients(t *testing.T) {
+	detector := &observedProbingDetector{}
+	public := publicInstallation{}
+	if err := reconcileInstalledInfo(context.Background(), App{Detector: detector}, domain.Installation{}, "", &public); err != nil {
+		t.Fatal(err)
+	}
+	if detector.readOnlyCalls != 0 || detector.probeCalls != 0 || detector.targetedCalls != 0 {
+		t.Fatalf("unexpected detector calls: %+v", detector)
+	}
+}
+
+func validReconciliationBinding(installationID string, client domain.ClientID, scope domain.InstallScope, target, physical string) domain.ClientBinding {
+	bindingID := domain.ComputeClientBindingID(installationID, string(client), string(scope), target)
+	digest := "sha256:owned"
+	return domain.ClientBinding{
+		ClientBindingID: bindingID, ClientID: string(client), Scope: string(scope), TargetLocator: target, PhysicalArtifact: physical,
+		Materialization: domain.MaterializationMaterialized,
+		NativeObjects:   []domain.NativeObjectOwnership{{ObjectID: "package:" + string(client) + ":" + physical, Kind: "managed_package_directory", LogicalName: "demo", ManagedDigest: digest}},
+		Receipts:        []domain.MutationReceipt{{OperationID: "op-" + bindingID[:12], Sequence: 1, ClientBindingID: bindingID, AfterDigest: digest, Phase: "committed"}},
+	}
+}
+
+type scopeTargetResolver struct {
+	targets map[domain.InstallScope]string
+}
+
+func (resolver scopeTargetResolver) ResolveTarget(_ context.Context, client domain.DetectedClient, scope domain.InstallScope, _ string) (domain.DeliveryTarget, error) {
+	active := resolver.targets[scope]
+	return domain.DeliveryTarget{TargetAnchor: filepath.Dir(filepath.Dir(active)), TargetRoot: filepath.Dir(active), ActivePath: active}, nil
+}
+
+type capturingNativeObserver struct {
+	observation domain.NativeIdentityObservation
+	clients     []domain.DetectedClient
+}
+
+func (observer *capturingNativeObserver) ObserveNativeIdentity(_ context.Context, client domain.DetectedClient, _ domain.DeliveryPlan, _ *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	observer.clients = append(observer.clients, client)
+	return observer.observation, nil
+}
+
 type reconciledNativeObserver struct{}
 
 func (reconciledNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
-	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryReconciled: true, NativeDiscoveryState: domain.NativeIdentityManaged}, nil
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryReconciled: true,
+		NativeDiscoveryState: domain.NativeIdentityManaged, NativeDiscoveryAttempted: true}, nil
 }

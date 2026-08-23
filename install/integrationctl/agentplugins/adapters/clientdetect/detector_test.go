@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -262,6 +264,32 @@ func TestNormalizeVersionRejectsMalformedTrailingPunctuation(t *testing.T) {
 	}
 }
 
+func TestTargetedVersionProbeExecutesOnlySelectedClient(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	codePath := filepath.Join(home, "bin", "code")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath, "code": codePath})
+	var probed []string
+	detector.ProbeVersion = func(_ context.Context, executable string) (string, error) {
+		probed = append(probed, executable)
+		return "1.0.80.", nil
+	}
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(probed, []string{copilotPath}) {
+		t.Fatalf("probed executables = %#v", probed)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q", version)
+	}
+	if version := clientOf(clients, domain.ClientVSCode).Version; version != "" {
+		t.Fatalf("VS Code version was unexpectedly probed: %q", version)
+	}
+}
+
 func TestExplicitDetectorBoundsInjectedVersionProbe(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -308,12 +336,44 @@ func TestExecutableVersionProbeIsSanitizedAndIsolated(t *testing.T) {
 	}
 	for _, value := range observed.Env {
 		name, _, _ := strings.Cut(value, "=")
-		if !strings.EqualFold(name, "SYSTEMROOT") {
+		if !strings.EqualFold(name, "SYSTEMROOT") && !strings.EqualFold(name, "PATH") {
 			t.Fatalf("probe inherited unexpected environment value %q", value)
 		}
 	}
 	if observed.Stdin != "" {
 		t.Fatalf("probe stdin = %q, want EOF", observed.Stdin)
+	}
+}
+
+func TestExecutableVersionProbeSupportsEnvRuntimeShebangWithoutSecrets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("env shebang behavior is Unix-specific")
+	}
+	bin := t.TempDir()
+	node := filepath.Join(bin, "node")
+	copilot := filepath.Join(bin, "copilot")
+	nodeScript := `#!/bin/sh
+if [ -n "${HOME+x}" ] || [ -n "${GITHUB_TOKEN+x}" ] || [ -n "${AGENTPLUGINS_TEST_CREDENTIAL+x}" ]; then
+  exit 91
+fi
+printf 'GitHub Copilot CLI 1.0.80.\n'
+`
+	if err := os.WriteFile(node, []byte(nodeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(copilot, []byte("#!/usr/bin/env node\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("HOME", "/must-not-leak")
+	t.Setenv("GITHUB_TOKEN", "must-not-leak")
+	t.Setenv("AGENTPLUGINS_TEST_CREDENTIAL", "must-not-leak")
+	output, err := probeExecutableVersion(context.Background(), copilot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := normalizeVersion(output); version != "1.0.80" {
+		t.Fatalf("shebang Copilot version = %q from %q", version, output)
 	}
 }
 

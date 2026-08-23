@@ -66,6 +66,7 @@ type NativeIdentityObservation struct {
 	ReceiptReconciled         bool                `json:"receipt_reconciled,omitempty"`
 	NativeDiscoveryReconciled bool                `json:"native_discovery_reconciled,omitempty"`
 	NativeDiscoveryState      NativeIdentityState `json:"-"`
+	NativeDiscoveryAttempted  bool                `json:"-"`
 }
 
 const (
