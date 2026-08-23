@@ -354,6 +354,9 @@ func probeExecutableVersion(ctx context.Context, executable string) (string, err
 func normalizeVersion(value string) string {
 	for _, field := range strings.Fields(value) {
 		candidate := strings.Trim(field, "vV,;()[]{}")
+		if strings.HasSuffix(candidate, ".") {
+			candidate = strings.TrimSuffix(candidate, ".")
+		}
 		parts := strings.SplitN(strings.SplitN(candidate, "+", 2)[0], "-", 2)
 		core := strings.Split(parts[0], ".")
 		if len(core) < 2 {

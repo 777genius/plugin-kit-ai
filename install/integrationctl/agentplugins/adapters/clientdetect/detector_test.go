@@ -221,6 +221,47 @@ func TestExplicitDetectorProbeNormalizesClientVersionWithoutMakingDetectionFatal
 	}
 }
 
+func TestExplicitDetectorProbeNormalizesOfficialCopilotVersionOutput(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath})
+	detector.ProbeVersion = func(_ context.Context, executable string) (string, error) {
+		if executable != copilotPath {
+			t.Fatalf("version probe executable = %q", executable)
+		}
+		return "GitHub Copilot CLI 1.0.80.\nA newer version is available.", nil
+	}
+	clients, err := detector.DetectWithVersionProbe(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q, want 1.0.80", version)
+	}
+}
+
+func TestNormalizeVersionRejectsMalformedTrailingPunctuation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value string
+		want  string
+	}{
+		{value: "GitHub Copilot CLI 1.0.80.", want: "1.0.80"},
+		{value: "GitHub Copilot CLI v1.0.80.", want: "1.0.80"},
+		{value: "GitHub Copilot CLI 1.0.80.."},
+		{value: "GitHub Copilot CLI .1.0.80."},
+		{value: "GitHub Copilot CLI 1..80."},
+		{value: "GitHub Copilot CLI 1.0.x."},
+		{value: "GitHub Copilot CLI 1.0.80beta."},
+	}
+	for _, test := range tests {
+		if got := normalizeVersion(test.value); got != test.want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", test.value, got, test.want)
+		}
+	}
+}
+
 func TestExplicitDetectorBoundsInjectedVersionProbe(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
