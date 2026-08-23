@@ -2,10 +2,12 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -14,6 +16,16 @@ import (
 type identityRunner struct {
 	result   legacyports.CommandResult
 	commands [][]string
+}
+
+type blockingIdentityRunner struct {
+	returned chan struct{}
+}
+
+func (runner blockingIdentityRunner) Run(ctx context.Context, _ legacyports.Command) (legacyports.CommandResult, error) {
+	<-ctx.Done()
+	close(runner.returned)
+	return legacyports.CommandResult{}, ctx.Err()
 }
 
 func (runner *identityRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
@@ -104,6 +116,108 @@ func TestNativeIdentityCopilotAndVSCodeUseSharedAuthoritativeBackend(t *testing.
 		})
 	}
 }
+
+func TestCopilotRegistryFindingRequiresExactNativeIdentity(t *testing.T) {
+	marketplace := "agentplugins-demo-0123456789ab"
+	tests := []struct {
+		name string
+		body string
+		want registryFinding
+	}{
+		{name: "exact", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryExpected},
+		{name: "unrelated", body: "Installed plugins:\n  • other@" + marketplace + " (v1.0.0)\n", want: registryClear},
+		{name: "duplicate", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryIndeterminate},
+		{name: "absent_short", body: "No plugins installed.\n", want: registryIndeterminate},
+		{name: "absent_official_1_0_80", body: "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin.\n", want: registryClear},
+		{name: "absent_official_with_prefix", body: "\nNo plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin.\n", want: registryIndeterminate},
+		{name: "absent_official_with_suffix", body: "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin.\n\n", want: registryIndeterminate},
+		{name: "unknown", body: "Copilot plugins are unavailable right now\n", want: registryIndeterminate},
+		{name: "unknown_prefix", body: "experimental output\nInstalled plugins:\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryIndeterminate},
+		{name: "unknown_suffix", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\nupdate available\n", want: registryIndeterminate},
+		{name: "unknown_unindented_entry", body: "Installed plugins:\ndemo@" + marketplace + " (v1.0.0)\n", want: registryIndeterminate},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := copilotRegistryFinding([]byte(test.body), "demo", marketplace, true); got != test.want {
+				t.Fatalf("finding = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestNativeIdentityObservationExposesReceiptAndExactDiscovery(t *testing.T) {
+	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+	plan.NativeRegistryExecutable = "/test/bin/copilot"
+	if err := os.MkdirAll(plan.ActivePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeIdentityFile(t, filepath.Join(plan.ActivePath, "plugin.json"), `{"name":"demo"}`)
+	marketplace := managedMarketplaceName(plan.PhysicalArtifactID)
+	digest := "sha256:owned"
+	managed := &domain.ClientBinding{NativeObjects: []domain.NativeObjectOwnership{{Kind: "managed_package_directory", ManagedDigest: digest}}}
+	runner := &identityRunner{result: legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n")}}
+	observation, err := (NativeIdentityObserver{Runner: runner, Stager: acceptingPackageVerifier{}}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, managed)
+	if err != nil || observation.State != domain.NativeIdentityManaged || !observation.ReceiptReconciled || !observation.NativeDiscoveryReconciled || observation.NativeDiscoveryState != domain.NativeIdentityManaged {
+		t.Fatalf("observation = %+v, err = %v", observation, err)
+	}
+}
+
+func TestNativeIdentityBoundsHungAuthoritativeDiscovery(t *testing.T) {
+	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+	plan.NativeRegistryExecutable = "/test/bin/copilot"
+	returned := make(chan struct{})
+	observation, err := (NativeIdentityObserver{
+		Runner: blockingIdentityRunner{returned: returned}, DiscoveryTimeout: 10 * time.Millisecond,
+	}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline exceeded", err)
+	}
+	if observation.State != domain.NativeIdentityIndeterminate || observation.NativeDiscoveryState != domain.NativeIdentityIndeterminate ||
+		!observation.NativeDiscoveryAttempted || observation.NativeDiscoveryReconciled {
+		t.Fatalf("observation = %+v", observation)
+	}
+	select {
+	case <-returned:
+	default:
+		t.Fatal("hung discovery runner remained active after timeout")
+	}
+}
+
+func TestNativeIdentityPreservesNativeDiscoveryWhenPreparedRegistryBlocksOverallIdentity(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		manifest  string
+		wantState domain.NativeIdentityState
+		wantError bool
+	}{
+		{name: "collision", manifest: `{"name":"demo"}`, wantState: domain.NativeIdentityUnmanaged},
+		{name: "malformed", manifest: `{"name":`, wantState: domain.NativeIdentityIndeterminate, wantError: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+			plan.NativeRegistryExecutable = "/test/bin/copilot"
+			writeIdentityFile(t, filepath.Join(plan.TargetRoot, "foreign", "plugin.json"), test.manifest)
+			marketplace := managedMarketplaceName(plan.PhysicalArtifactID)
+			managed := &domain.ClientBinding{}
+			runner := &identityRunner{result: legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n")}}
+
+			observation, err := (NativeIdentityObserver{Runner: runner}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, managed)
+			if (err != nil) != test.wantError {
+				t.Fatalf("err = %v, want error %t", err, test.wantError)
+			}
+			if observation.State != test.wantState || !observation.NativeDiscoveryAttempted || !observation.NativeDiscoveryReconciled || observation.NativeDiscoveryState != domain.NativeIdentityManaged {
+				t.Fatalf("observation = %+v", observation)
+			}
+			if !reflect.DeepEqual(runner.commands, [][]string{{"/test/bin/copilot", "plugin", "list"}}) {
+				t.Fatalf("commands = %#v", runner.commands)
+			}
+		})
+	}
+}
+
+type acceptingPackageVerifier struct{}
+
+func (acceptingPackageVerifier) Verify(context.Context, string, string) error { return nil }
 
 func TestNativeIdentityManualRemoteAndUnknownSharedBackendsFailClosed(t *testing.T) {
 	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))

@@ -53,6 +53,12 @@ type VersionProbingClientDetector interface {
 	DetectWithVersionProbe(context.Context) ([]domain.DetectedClient, error)
 }
 
+// TargetedVersionProbingClientDetector observes versions only for explicitly
+// selected clients while retaining read-only surface detection for all clients.
+type TargetedVersionProbingClientDetector interface {
+	DetectTargetsWithVersionProbe(context.Context, []domain.ClientID) ([]domain.DetectedClient, error)
+}
+
 type DeliveryPlanner interface {
 	Plan(context.Context, domain.PackageEnvelope, domain.DetectedClient, domain.InstallScope, string) (domain.DeliveryPlan, error)
 }

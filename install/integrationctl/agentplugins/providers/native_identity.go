@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
@@ -24,10 +25,17 @@ type packageVerifier interface {
 // registry. A manager-owned path is not proof that the logical identity is
 // free: another prepared marketplace, local plugin, installed CLI entry, or
 // native config entry can already claim the same manifest identity.
+// Native registry discovery executes trusted, short-lived list commands. On
+// Unix, cancellation kills their live process group, but descendants surviving
+// a normal leader exit are not force-killed after Wait because the PGID can be
+// reused; stronger normal-exit containment is deferred to an OS-native slice.
 type NativeIdentityObserver struct {
-	Stager packageVerifier
-	Runner CommandRunner
+	Stager           packageVerifier
+	Runner           CommandRunner
+	DiscoveryTimeout time.Duration
 }
+
+const defaultNativeDiscoveryTimeout = 15 * time.Second
 
 type registryFinding uint8
 
@@ -47,49 +55,82 @@ func (observer NativeIdentityObserver) ObserveNativeIdentity(ctx context.Context
 		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, nil
 	}
 
-	prepared, err := inspectPreparedRegistry(plan, name, managed != nil)
-	if err != nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, err
+	prepared, preparedErr := inspectPreparedRegistry(plan, name, managed != nil)
+	if preparedErr != nil {
+		prepared = registryIndeterminate
 	}
-	native, err := observer.inspectNativeRegistry(ctx, client, plan, managed)
-	if err != nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, err
-	}
-	for _, finding := range []registryFinding{prepared, native} {
-		switch finding {
-		case registryCollision:
-			return domain.NativeIdentityObservation{State: domain.NativeIdentityUnmanaged}, nil
-		case registryIndeterminate:
-			return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, nil
-		case registryExpected:
-			if managed == nil {
-				return domain.NativeIdentityObservation{State: domain.NativeIdentityUnmanaged}, nil
-			}
+	nativeAttempted := observer.Runner != nil && strings.TrimSpace(plan.NativeRegistryExecutable) != "" &&
+		(client.ClientID == domain.ClientCodex || client.ClientID == domain.ClientCopilot || client.ClientID == domain.ClientVSCode)
+	nativeCtx := ctx
+	cancelNative := func() {}
+	if nativeAttempted {
+		timeout := observer.DiscoveryTimeout
+		if timeout <= 0 {
+			timeout = defaultNativeDiscoveryTimeout
 		}
+		nativeCtx, cancelNative = context.WithTimeout(ctx, timeout)
+	}
+	native, err := observer.inspectNativeRegistry(nativeCtx, client, plan, managed)
+	cancelNative()
+	if err != nil {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate,
+			NativeDiscoveryAttempted: nativeAttempted}, err
+	}
+	discoveryState := domain.NativeIdentityAbsent
+	discoveryReconciled := false
+	switch native {
+	case registryExpected:
+		discoveryState = domain.NativeIdentityManaged
+		discoveryReconciled = managed != nil
+	case registryCollision:
+		discoveryState = domain.NativeIdentityUnmanaged
+	case registryIndeterminate:
+		discoveryState = domain.NativeIdentityIndeterminate
+	}
+	observed := func(state domain.NativeIdentityState) domain.NativeIdentityObservation {
+		return domain.NativeIdentityObservation{State: state, NativeDiscoveryState: discoveryState,
+			NativeDiscoveryReconciled: discoveryReconciled, NativeDiscoveryAttempted: nativeAttempted}
+	}
+	if preparedErr != nil {
+		return observed(domain.NativeIdentityIndeterminate), preparedErr
+	}
+	if prepared == registryCollision || native == registryCollision {
+		return observed(domain.NativeIdentityUnmanaged), nil
+	}
+	if prepared == registryIndeterminate || native == registryIndeterminate {
+		return observed(domain.NativeIdentityIndeterminate), nil
+	}
+	if managed == nil && (prepared == registryExpected || native == registryExpected) {
+		return observed(domain.NativeIdentityUnmanaged), nil
 	}
 
 	_, statErr := os.Lstat(plan.ActivePath)
 	if os.IsNotExist(statErr) {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+		return observed(domain.NativeIdentityAbsent), nil
 	}
 	if statErr != nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, statErr
+		return observed(domain.NativeIdentityIndeterminate), statErr
 	}
 	if managed == nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityUnmanaged}, nil
+		return observed(domain.NativeIdentityUnmanaged), nil
 	}
 	expected := managedPackageDigest(*managed)
 	if expected == "" || observer.Stager == nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, nil
+		return observed(domain.NativeIdentityIndeterminate), nil
 	}
 	if err := observer.Stager.Verify(ctx, plan.ActivePath, expected); err != nil {
 		var verification *ports.VerificationError
 		if errors.As(err, &verification) && verification.Kind == ports.VerificationDigestMismatch {
-			return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, Digest: verification.ActualDigest}, nil
+			result := observed(domain.NativeIdentityIndeterminate)
+			result.Digest = verification.ActualDigest
+			return result, nil
 		}
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate}, err
+		return observed(domain.NativeIdentityIndeterminate), err
 	}
-	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, Digest: expected}, nil
+	result := observed(domain.NativeIdentityManaged)
+	result.Digest = expected
+	result.ReceiptReconciled = true
+	return result, nil
 }
 
 func (observer NativeIdentityObserver) inspectNativeRegistry(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) (registryFinding, error) {
@@ -143,6 +184,9 @@ func (observer NativeIdentityObserver) inspectCodexCLI(ctx context.Context, plan
 	}
 	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return registryIndeterminate, ctxErr
+		}
 		return registryIndeterminate, err
 	}
 	if result.ExitCode != 0 {
@@ -206,6 +250,9 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 	}
 	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list"}})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return registryIndeterminate, ctxErr
+		}
 		return registryIndeterminate, err
 	}
 	if result.ExitCode != 0 {
@@ -215,27 +262,37 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 }
 
 func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, owned bool) registryFinding {
+	normalized := strings.ReplaceAll(string(stdout), "\r\n", "\n")
+	document := strings.TrimSuffix(normalized, "\n")
+	if document == "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin." {
+		return registryClear
+	}
 	inInstalled := false
-	recognized := false
+	recognizedHeader := false
+	recognizedEmpty := false
+	recognizedEntry := false
 	finding := registryClear
 	seen := map[string]bool{}
-	for _, line := range strings.Split(strings.ReplaceAll(string(stdout), "\r\n", "\n"), "\n") {
+	for _, line := range strings.Split(document, "\n") {
 		if strings.TrimSpace(line) == "Installed plugins:" {
-			if inInstalled || recognized {
+			if inInstalled || recognizedHeader {
 				return registryIndeterminate
 			}
-			inInstalled, recognized = true, true
+			inInstalled, recognizedHeader = true, true
 			continue
 		}
 		if !inInstalled {
-			continue
+			return registryIndeterminate
 		}
 		if line != "" && line[0] != ' ' && line[0] != '\t' {
-			inInstalled = false
-			continue
+			return registryIndeterminate
 		}
 		match := copilotInstalledEntry.FindStringSubmatch(line)
 		if len(match) == 2 {
+			if recognizedEmpty {
+				return registryIndeterminate
+			}
+			recognizedEntry = true
 			identity := match[1]
 			if seen[identity] {
 				return registryIndeterminate
@@ -254,12 +311,13 @@ func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, own
 			continue
 		}
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || trimmed == "No plugins installed." || trimmed == "No plugins installed" {
+		if (trimmed == "No plugins installed." || trimmed == "No plugins installed") && !recognizedEntry && !recognizedEmpty {
+			recognizedEmpty = true
 			continue
 		}
 		return registryIndeterminate
 	}
-	if !recognized {
+	if !recognizedHeader || (!recognizedEntry && !recognizedEmpty) {
 		return registryIndeterminate
 	}
 	return finding

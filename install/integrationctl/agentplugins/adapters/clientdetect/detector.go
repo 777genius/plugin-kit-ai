@@ -18,16 +18,17 @@ import (
 )
 
 type Detector struct {
-	HomeDir               string
-	GOOS                  string
-	Environment           map[string]string
-	SystemApplicationsDir string
-	WindowsProgramFiles   []string
-	LinuxApplicationDirs  []string
-	LookPath              func(string) (string, error)
-	Lstat                 func(string) (fs.FileInfo, error)
-	ProbeVersion          func(context.Context, string) (string, error)
-	VersionTimeout        time.Duration
+	HomeDir                string
+	GOOS                   string
+	Environment            map[string]string
+	SystemApplicationsDir  string
+	WindowsProgramFiles    []string
+	LinuxApplicationDirs   []string
+	LookPath               func(string) (string, error)
+	Lstat                  func(string) (fs.FileInfo, error)
+	ProbeVersion           func(context.Context, string) (string, error)
+	VersionTimeout         time.Duration
+	TargetedVersionTimeout time.Duration
 }
 
 func NewOS(homeDir string) Detector {
@@ -51,27 +52,51 @@ func NewOS(homeDir string) Detector {
 			userApplications,
 			"/usr/local/share/applications", "/usr/share/applications",
 		),
-		LookPath:       exec.LookPath,
-		Lstat:          os.Lstat,
-		ProbeVersion:   probeExecutableVersion,
-		VersionTimeout: 2 * time.Second,
+		LookPath:               exec.LookPath,
+		Lstat:                  os.Lstat,
+		ProbeVersion:           probeExecutableVersion,
+		VersionTimeout:         2 * time.Second,
+		TargetedVersionTimeout: 10 * time.Second,
 	}
 }
 
 func (detector Detector) Detect(ctx context.Context) ([]domain.DetectedClient, error) {
-	return detector.detect(ctx, false)
+	return detector.detect(ctx, false, nil)
 }
 
 // DetectWithVersionProbe is reserved for explicit lifecycle resolution that
 // needs the installed client version to bind signed Directory evidence. Detect
 // itself is strictly observational and never executes a discovered binary.
 func (detector Detector) DetectWithVersionProbe(ctx context.Context) ([]domain.DetectedClient, error) {
-	return detector.detect(ctx, true)
+	return detector.detect(ctx, true, nil)
 }
 
-func (detector Detector) detect(ctx context.Context, probeVersion bool) ([]domain.DetectedClient, error) {
+func (detector Detector) DetectTargetsWithVersionProbe(ctx context.Context, targets []domain.ClientID) ([]domain.DetectedClient, error) {
+	selected := make(map[domain.ClientID]struct{}, len(targets))
+	for _, target := range targets {
+		selected[target] = struct{}{}
+	}
+	timeout := detector.TargetedVersionTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	detector.VersionTimeout = timeout
+	return detector.detect(ctx, true, selected)
+}
+
+func (detector Detector) detect(ctx context.Context, probeVersion bool, selected map[domain.ClientID]struct{}) ([]domain.DetectedClient, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	probe := func(clientID domain.ClientID) bool {
+		if !probeVersion {
+			return false
+		}
+		if selected == nil {
+			return true
+		}
+		_, ok := selected[clientID]
+		return ok
 	}
 	if strings.TrimSpace(detector.HomeDir) == "" {
 		return nil, fmt.Errorf("client detector home directory is required")
@@ -80,12 +105,12 @@ func (detector Detector) detect(ctx context.Context, probeVersion bool) ([]domai
 		return nil, fmt.Errorf("client detector probes are required")
 	}
 	clients := []domain.DetectedClient{
-		detector.detectCodex(ctx, probeVersion),
-		detector.detectChatGPT(ctx, probeVersion),
-		detector.detectCursor(ctx, probeVersion),
-		detector.detectCopilot(ctx, probeVersion),
-		detector.detectVSCode(ctx, probeVersion),
-		detector.detectKiro(ctx, probeVersion),
+		detector.detectCodex(ctx, probe(domain.ClientCodex)),
+		detector.detectChatGPT(ctx, probe(domain.ClientChatGPT)),
+		detector.detectCursor(ctx, probe(domain.ClientCursor)),
+		detector.detectCopilot(ctx, probe(domain.ClientCopilot)),
+		detector.detectVSCode(ctx, probe(domain.ClientVSCode)),
+		detector.detectKiro(ctx, probe(domain.ClientKiro)),
 	}
 	sort.Slice(clients, func(i, j int) bool { return clients[i].ClientID < clients[j].ClientID })
 	return clients, nil
@@ -342,6 +367,11 @@ func probeExecutableVersion(ctx context.Context, executable string) (string, err
 	command := exec.CommandContext(ctx, executable, "--version")
 	command.Dir = isolatedDir
 	command.Env = []string{}
+	if path := os.Getenv("PATH"); strings.TrimSpace(path) != "" {
+		// PATH is the sole inherited variable so /usr/bin/env shebangs can
+		// resolve their runtime without exposing HOME, tokens, or credentials.
+		command.Env = append(command.Env, "PATH="+path)
+	}
 	command.Stdin = strings.NewReader("")
 	command.Stdout, command.Stderr = output, output
 	command.WaitDelay = 100 * time.Millisecond
@@ -354,6 +384,9 @@ func probeExecutableVersion(ctx context.Context, executable string) (string, err
 func normalizeVersion(value string) string {
 	for _, field := range strings.Fields(value) {
 		candidate := strings.Trim(field, "vV,;()[]{}")
+		if strings.HasSuffix(candidate, ".") {
+			candidate = strings.TrimSuffix(candidate, ".")
+		}
 		parts := strings.SplitN(strings.SplitN(candidate, "+", 2)[0], "-", 2)
 		core := strings.Split(parts[0], ".")
 		if len(core) < 2 {

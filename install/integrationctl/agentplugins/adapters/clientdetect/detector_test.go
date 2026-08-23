@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -221,6 +223,120 @@ func TestExplicitDetectorProbeNormalizesClientVersionWithoutMakingDetectionFatal
 	}
 }
 
+func TestExplicitDetectorProbeNormalizesOfficialCopilotVersionOutput(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath})
+	detector.ProbeVersion = func(_ context.Context, executable string) (string, error) {
+		if executable != copilotPath {
+			t.Fatalf("version probe executable = %q", executable)
+		}
+		return "GitHub Copilot CLI 1.0.80.\nA newer version is available.", nil
+	}
+	clients, err := detector.DetectWithVersionProbe(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q, want 1.0.80", version)
+	}
+}
+
+func TestNormalizeVersionRejectsMalformedTrailingPunctuation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value string
+		want  string
+	}{
+		{value: "GitHub Copilot CLI 1.0.80.", want: "1.0.80"},
+		{value: "GitHub Copilot CLI v1.0.80.", want: "1.0.80"},
+		{value: "GitHub Copilot CLI 1.0.80.."},
+		{value: "GitHub Copilot CLI .1.0.80."},
+		{value: "GitHub Copilot CLI 1..80."},
+		{value: "GitHub Copilot CLI 1.0.x."},
+		{value: "GitHub Copilot CLI 1.0.80beta."},
+	}
+	for _, test := range tests {
+		if got := normalizeVersion(test.value); got != test.want {
+			t.Errorf("normalizeVersion(%q) = %q, want %q", test.value, got, test.want)
+		}
+	}
+}
+
+func TestTargetedVersionProbeExecutesOnlySelectedClient(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	codePath := filepath.Join(home, "bin", "code")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath, "code": codePath})
+	var probed []string
+	detector.ProbeVersion = func(_ context.Context, executable string) (string, error) {
+		probed = append(probed, executable)
+		return "1.0.80.", nil
+	}
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(probed, []string{copilotPath}) {
+		t.Fatalf("probed executables = %#v", probed)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q", version)
+	}
+	if version := clientOf(clients, domain.ClientVSCode).Version; version != "" {
+		t.Fatalf("VS Code version was unexpectedly probed: %q", version)
+	}
+}
+
+func TestTargetedVersionProbeAllowsSlowAuthoritativeClientWithinExplicitBound(t *testing.T) {
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath})
+	detector.VersionTimeout = 2 * time.Second
+	detector.TargetedVersionTimeout = 3 * time.Second
+	detector.ProbeVersion = func(ctx context.Context, executable string) (string, error) {
+		if executable != copilotPath {
+			t.Fatalf("version probe executable = %q", executable)
+		}
+		select {
+		case <-time.After(2100 * time.Millisecond):
+			return "GitHub Copilot CLI 1.0.80.", nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q, want 1.0.80", version)
+	}
+}
+
+func TestTargetedVersionProbeStillBoundsAuthoritativeClientTimeout(t *testing.T) {
+	home := t.TempDir()
+	detector := testDetector(home, map[string]string{"copilot": filepath.Join(home, "bin", "copilot")})
+	detector.TargetedVersionTimeout = 10 * time.Millisecond
+	detector.ProbeVersion = func(ctx context.Context, _ string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	started := time.Now()
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded targeted version probe took %s", elapsed)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "" {
+		t.Fatalf("timed-out Copilot version = %q, want empty", version)
+	}
+}
+
 func TestExplicitDetectorBoundsInjectedVersionProbe(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
@@ -267,12 +383,44 @@ func TestExecutableVersionProbeIsSanitizedAndIsolated(t *testing.T) {
 	}
 	for _, value := range observed.Env {
 		name, _, _ := strings.Cut(value, "=")
-		if !strings.EqualFold(name, "SYSTEMROOT") {
+		if !strings.EqualFold(name, "SYSTEMROOT") && !strings.EqualFold(name, "PATH") {
 			t.Fatalf("probe inherited unexpected environment value %q", value)
 		}
 	}
 	if observed.Stdin != "" {
 		t.Fatalf("probe stdin = %q, want EOF", observed.Stdin)
+	}
+}
+
+func TestExecutableVersionProbeSupportsEnvRuntimeShebangWithoutSecrets(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("env shebang behavior is Unix-specific")
+	}
+	bin := t.TempDir()
+	node := filepath.Join(bin, "node")
+	copilot := filepath.Join(bin, "copilot")
+	nodeScript := `#!/bin/sh
+if [ -n "${HOME+x}" ] || [ -n "${GITHUB_TOKEN+x}" ] || [ -n "${AGENTPLUGINS_TEST_CREDENTIAL+x}" ]; then
+  exit 91
+fi
+printf 'GitHub Copilot CLI 1.0.80.\n'
+`
+	if err := os.WriteFile(node, []byte(nodeScript), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(copilot, []byte("#!/usr/bin/env node\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("HOME", "/must-not-leak")
+	t.Setenv("GITHUB_TOKEN", "must-not-leak")
+	t.Setenv("AGENTPLUGINS_TEST_CREDENTIAL", "must-not-leak")
+	output, err := probeExecutableVersion(context.Background(), copilot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := normalizeVersion(output); version != "1.0.80" {
+		t.Fatalf("shebang Copilot version = %q from %q", version, output)
 	}
 }
 

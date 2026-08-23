@@ -61,8 +61,12 @@ type PluginDataDecision struct {
 }
 
 type NativeIdentityObservation struct {
-	State  NativeIdentityState `json:"state"`
-	Digest string              `json:"digest,omitempty"`
+	State                     NativeIdentityState `json:"state"`
+	Digest                    string              `json:"digest,omitempty"`
+	ReceiptReconciled         bool                `json:"receipt_reconciled,omitempty"`
+	NativeDiscoveryReconciled bool                `json:"native_discovery_reconciled,omitempty"`
+	NativeDiscoveryState      NativeIdentityState `json:"-"`
+	NativeDiscoveryAttempted  bool                `json:"-"`
 }
 
 const (
