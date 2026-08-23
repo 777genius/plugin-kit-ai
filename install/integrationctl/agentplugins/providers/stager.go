@@ -186,6 +186,11 @@ func (stager Stager) stage(
 			}
 		}
 	}
+	if plan.ClientID == domain.ClientKiro {
+		if err := projectKiroMCP(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
 		if err := projectCopilotMarketplace(stagingPath, envelope, plan); err != nil {
 			return domain.StagedDelivery{}, err
@@ -468,6 +473,28 @@ func projectOpenAIMCP(root string, envelope domain.PackageEnvelope, serverNames 
 	return writeJSON(filepath.Join(root, ".mcp.json"), map[string]any{"mcpServers": servers})
 }
 
+func projectKiroMCP(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, dataPath string) error {
+	serverNames := supportedMCPNames(plan)
+	if len(serverNames) == 0 {
+		return nil
+	}
+	servers := make(map[string]map[string]any, len(serverNames))
+	for _, name := range serverNames {
+		server := envelope.MCP.Servers[name]
+		config := cloneObject(server.Decoded)
+		if server.Type == "stdio" {
+			if err := applyStdioDataContract(config, plan.ActivePath, dataPath); err != nil {
+				return fmt.Errorf("project Kiro stdio MCP server %s: %w", name, err)
+			}
+		}
+		servers[name] = config
+	}
+	return writeJSON(filepath.Join(root, "mcp.json"), map[string]any{
+		"$schema":    domain.MCPSchemaV1,
+		"mcpServers": servers,
+	})
+}
+
 func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints, dataPath string) error {
 	manifest, err := projectedOpenAIManifest(envelope)
 	if err != nil {
@@ -606,6 +633,13 @@ func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) 
 			args[index] = expand(args[index])
 		}
 	}
+	if command, ok := config["command"].(string); ok && strings.HasPrefix(command, "./") {
+		command = filepath.Clean(filepath.Join(pluginRoot, filepath.FromSlash(strings.TrimPrefix(command, "./"))))
+		if !pathContainedBy(pluginRoot, command) {
+			return fmt.Errorf("stdio command escapes PLUGIN_ROOT")
+		}
+		config["command"] = command
+	}
 	if cwd, ok := config["cwd"].(string); ok && cwd != "" {
 		cwd = expand(cwd)
 		if !filepath.IsAbs(cwd) {
@@ -616,6 +650,8 @@ func applyStdioDataContract(config map[string]any, pluginRoot, dataPath string) 
 			return fmt.Errorf("stdio cwd escapes PLUGIN_ROOT and PLUGIN_DATA")
 		}
 		config["cwd"] = cwd
+	} else {
+		config["cwd"] = pluginRoot
 	}
 	return nil
 }
