@@ -105,6 +105,50 @@ func TestNativeIdentityCopilotAndVSCodeUseSharedAuthoritativeBackend(t *testing.
 	}
 }
 
+func TestCopilotRegistryFindingRequiresExactNativeIdentity(t *testing.T) {
+	marketplace := "agentplugins-demo-0123456789ab"
+	tests := []struct {
+		name string
+		body string
+		want registryFinding
+	}{
+		{name: "exact", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryExpected},
+		{name: "unrelated", body: "Installed plugins:\n  • other@" + marketplace + " (v1.0.0)\n", want: registryClear},
+		{name: "duplicate", body: "Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n  • demo@" + marketplace + " (v1.0.0)\n", want: registryIndeterminate},
+		{name: "absent_short", body: "No plugins installed.\n", want: registryClear},
+		{name: "absent_official_1_0_80", body: "No plugins installed.\n\nUse 'copilot plugin install <source>' to install a plugin.\n", want: registryClear},
+		{name: "unknown", body: "Copilot plugins are unavailable right now\n", want: registryIndeterminate},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := copilotRegistryFinding([]byte(test.body), "demo", marketplace, true); got != test.want {
+				t.Fatalf("finding = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestNativeIdentityObservationExposesReceiptAndExactDiscovery(t *testing.T) {
+	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+	plan.NativeRegistryExecutable = "/test/bin/copilot"
+	if err := os.MkdirAll(plan.ActivePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	writeIdentityFile(t, filepath.Join(plan.ActivePath, "plugin.json"), `{"name":"demo"}`)
+	marketplace := managedMarketplaceName(plan.PhysicalArtifactID)
+	digest := "sha256:owned"
+	managed := &domain.ClientBinding{NativeObjects: []domain.NativeObjectOwnership{{Kind: "managed_package_directory", ManagedDigest: digest}}}
+	runner := &identityRunner{result: legacyports.CommandResult{Stdout: []byte("Installed plugins:\n  • demo@" + marketplace + " (v1.0.0)\n")}}
+	observation, err := (NativeIdentityObserver{Runner: runner, Stager: acceptingPackageVerifier{}}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, managed)
+	if err != nil || observation.State != domain.NativeIdentityManaged || !observation.ReceiptReconciled || !observation.NativeDiscoveryReconciled || observation.NativeDiscoveryState != domain.NativeIdentityManaged {
+		t.Fatalf("observation = %+v, err = %v", observation, err)
+	}
+}
+
+type acceptingPackageVerifier struct{}
+
+func (acceptingPackageVerifier) Verify(context.Context, string, string) error { return nil }
+
 func TestNativeIdentityManualRemoteAndUnknownSharedBackendsFailClosed(t *testing.T) {
 	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
 	for _, test := range []struct {

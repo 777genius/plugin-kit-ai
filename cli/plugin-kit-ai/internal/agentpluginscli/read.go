@@ -18,15 +18,37 @@ import (
 )
 
 type publicClient struct {
-	ClientID         string                      `json:"client_id"`
-	Scope            string                      `json:"scope"`
-	Materialization  domain.MaterializationState `json:"materialization"`
-	Activation       domain.ActivationState      `json:"activation"`
-	Authentication   domain.AuthenticationState  `json:"authentication"`
-	Policy           domain.PolicyState          `json:"policy"`
-	Verification     domain.VerificationState    `json:"verification"`
-	PackageRevision  *publicClientRevision       `json:"package_revision,omitempty"`
-	AffectedSurfaces []string                    `json:"affected_surfaces,omitempty"`
+	ClientID                  string                         `json:"client_id"`
+	Scope                     string                         `json:"scope"`
+	Materialization           domain.MaterializationState    `json:"materialization"`
+	Activation                domain.ActivationState         `json:"activation"`
+	Authentication            domain.AuthenticationState     `json:"authentication"`
+	Policy                    domain.PolicyState             `json:"policy"`
+	Verification              domain.VerificationState       `json:"verification"`
+	PackageRevision           *publicClientRevision          `json:"package_revision,omitempty"`
+	AffectedSurfaces          []string                       `json:"affected_surfaces,omitempty"`
+	ReceiptReconciled         *bool                          `json:"receipt_reconciled,omitempty"`
+	NativeDiscoveryReconciled *bool                          `json:"native_discovery_reconciled,omitempty"`
+	NativeIdentityState       domain.NativeIdentityState     `json:"native_identity_state,omitempty"`
+	ClientVersion             string                         `json:"client_version,omitempty"`
+	NativeDiscoveryEvidence   *publicNativeDiscoveryEvidence `json:"native_discovery_evidence,omitempty"`
+}
+
+type publicNativeDiscoveryEvidence struct {
+	Basis              string                   `json:"basis"`
+	VersionOperation   publicVersionOperation   `json:"version_operation"`
+	DiscoveryOperation publicDiscoveryOperation `json:"discovery_operation"`
+}
+
+type publicVersionOperation struct {
+	Argv                  []string `json:"argv"`
+	ObservedClientVersion string   `json:"observed_client_version,omitempty"`
+}
+
+type publicDiscoveryOperation struct {
+	Argv       []string `json:"argv"`
+	Discovered bool     `json:"discovered"`
+	ProductID  string   `json:"product_id"`
 }
 
 type publicClientRevision struct {
@@ -128,6 +150,9 @@ func newInfoCommand(app App, opts *options) *cobra.Command {
 			public, err := inspectInstalledProduct(cmd.Context(), app, state, installation)
 			if err != nil {
 				return fmt.Errorf("inspect signed Directory: %w", err)
+			}
+			if err := reconcileInstalledInfo(cmd.Context(), app, installation, opts.target, &public); err != nil {
+				return err
 			}
 			if opts.format == "json" {
 				return writeJSONOutput(cmd.OutOrStdout(), "info", public)

@@ -15,6 +15,12 @@ func managedMarketplaceName(physicalArtifactID string) string {
 	return "agentplugins-" + hex.EncodeToString(sum[:6])
 }
 
+// ManagedMarketplaceName returns the deterministic native marketplace identity
+// used by client adapters and read-only reconciliation output.
+func ManagedMarketplaceName(physicalArtifactID string) string {
+	return managedMarketplaceName(physicalArtifactID)
+}
+
 func projectCopilotMarketplace(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan) error {
 	version := strings.TrimSpace(envelope.Manifest.Version)
 	if version == "" {

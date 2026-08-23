@@ -11,6 +11,10 @@ Changes after `v1.2.4` land here.
 - The `agentplugins` lifecycle commands now accept ordered, comma-separated
   targets such as `--target codex,cursor`, with versioned batch JSON output and
   explicit partial-failure reporting that preserves successful client changes.
+- `agentplugins info <name> --target copilot --format json` now reports
+  receipt reconciliation, exact native discovery, the observed client version,
+  and path-free command evidence without changing its additive schema-version 1
+  envelope or mutating installation state.
 
 ### Fixed
 
