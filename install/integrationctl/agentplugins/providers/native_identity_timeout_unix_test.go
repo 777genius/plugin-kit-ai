@@ -5,8 +5,10 @@ package providers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,7 +23,7 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	root := t.TempDir()
 	pidPath := filepath.Join(root, "child.pid")
 	executable := filepath.Join(root, "copilot")
-	script := "#!/bin/sh\nprintf '%s' \"$$\" > \"$AGENTPLUGINS_TEST_PID\"\nexec sleep 60\n"
+	script := "#!/bin/sh\nsleep 60 &\nprintf '%s %s' \"$$\" \"$!\" > \"$AGENTPLUGINS_TEST_PID\"\nwait\n"
 	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -38,14 +40,43 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("read child pid: %v", readErr)
 	}
-	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(body)))
-	if parseErr != nil {
-		t.Fatalf("parse child pid: %v", parseErr)
+	pidFields := strings.Fields(string(body))
+	if len(pidFields) != 2 {
+		t.Fatalf("process tree pids = %q", body)
 	}
-	if signalErr := syscall.Kill(pid, 0); signalErr == nil {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatal("authoritative discovery child remained alive after timeout")
-	} else if !errors.Is(signalErr, syscall.ESRCH) {
-		t.Fatalf("inspect child process: %v", signalErr)
+	for _, field := range pidFields {
+		pid, parseErr := strconv.Atoi(field)
+		if parseErr != nil {
+			t.Fatalf("parse process tree pid %q: %v", field, parseErr)
+		}
+		if err := waitProcessGone(pid, 2*time.Second); err != nil {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
+			t.Fatal(err)
+		}
+	}
+}
+
+func waitProcessGone(pid int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		err := syscall.Kill(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
+		if runtime.GOOS == "linux" {
+			if stat, readErr := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat")); readErr == nil {
+				fields := strings.Fields(string(stat))
+				if len(fields) > 2 && fields[2] == "Z" {
+					return nil
+				}
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("inspect process %d: %w", pid, err)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("authoritative discovery process %d remained alive after timeout", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
