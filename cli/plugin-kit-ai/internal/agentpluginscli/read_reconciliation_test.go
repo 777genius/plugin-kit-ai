@@ -209,6 +209,37 @@ func TestInfoWithoutTargetDoesNotDetectOrProbeClients(t *testing.T) {
 	}
 }
 
+func TestInfoFailsClosedBeforeNativeDiscoveryWithoutAuthoritativeClientVersion(t *testing.T) {
+	installationID := "00000000-0000-4000-8000-000000000030"
+	physical := domain.ComputePhysicalArtifactID("demo", installationID)
+	target := filepath.Join(t.TempDir(), "copilot", physical)
+	binding := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeUser, target, physical)
+	installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{{
+		ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, ExecutablePath: "/test/bin/copilot",
+	}}}
+	observer := &capturingNativeObserver{observation: domain.NativeIdentityObservation{
+		State: domain.NativeIdentityManaged, ReceiptReconciled: true, NativeDiscoveryReconciled: true,
+		NativeDiscoveryState: domain.NativeIdentityManaged, NativeDiscoveryAttempted: true,
+	}}
+	app := App{Detector: detector, Lifecycle: usecase.Service{
+		Targets: scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: target}}, NativeObserver: observer,
+	}}
+	public := publicInstallationView(installation, true)
+	if err := reconcileInstalledInfo(context.Background(), app, installation, "copilot", &public); err != nil {
+		t.Fatal(err)
+	}
+	got := public.Clients[0]
+	if got.ClientVersion != "" || got.NativeIdentityState != domain.NativeIdentityIndeterminate ||
+		got.ReceiptReconciled == nil || *got.ReceiptReconciled || got.NativeDiscoveryReconciled == nil || *got.NativeDiscoveryReconciled ||
+		got.NativeDiscoveryEvidence != nil {
+		t.Fatalf("missing-version reconciliation did not fail closed: %+v", got)
+	}
+	if len(observer.clients) != 0 {
+		t.Fatalf("native discovery ran without authoritative version: %+v", observer.clients)
+	}
+}
+
 func validReconciliationBinding(installationID string, client domain.ClientID, scope domain.InstallScope, target, physical string) domain.ClientBinding {
 	bindingID := domain.ComputeClientBindingID(installationID, string(client), string(scope), target)
 	digest := "sha256:owned"

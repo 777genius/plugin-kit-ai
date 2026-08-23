@@ -110,6 +110,9 @@ func reconcileClientIdentity(ctx context.Context, app App, installation domain.I
 	if !detected || bindingClient.Status != domain.DetectionDetected || app.Lifecycle.Targets == nil || app.Lifecycle.NativeObserver == nil {
 		return result
 	}
+	if strings.TrimSpace(observerClient.Version) == "" {
+		return result
+	}
 	expectedArtifact := domain.ComputePhysicalArtifactID(installation.DeclaredName, installation.InstallationID)
 	if strings.TrimSpace(binding.PhysicalArtifact) != expectedArtifact {
 		return result

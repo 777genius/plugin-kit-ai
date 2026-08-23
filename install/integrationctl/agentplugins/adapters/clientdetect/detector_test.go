@@ -290,6 +290,53 @@ func TestTargetedVersionProbeExecutesOnlySelectedClient(t *testing.T) {
 	}
 }
 
+func TestTargetedVersionProbeAllowsSlowAuthoritativeClientWithinExplicitBound(t *testing.T) {
+	home := t.TempDir()
+	copilotPath := filepath.Join(home, "bin", "copilot")
+	detector := testDetector(home, map[string]string{"copilot": copilotPath})
+	detector.VersionTimeout = 2 * time.Second
+	detector.TargetedVersionTimeout = 3 * time.Second
+	detector.ProbeVersion = func(ctx context.Context, executable string) (string, error) {
+		if executable != copilotPath {
+			t.Fatalf("version probe executable = %q", executable)
+		}
+		select {
+		case <-time.After(2100 * time.Millisecond):
+			return "GitHub Copilot CLI 1.0.80.", nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "1.0.80" {
+		t.Fatalf("Copilot version = %q, want 1.0.80", version)
+	}
+}
+
+func TestTargetedVersionProbeStillBoundsAuthoritativeClientTimeout(t *testing.T) {
+	home := t.TempDir()
+	detector := testDetector(home, map[string]string{"copilot": filepath.Join(home, "bin", "copilot")})
+	detector.TargetedVersionTimeout = 10 * time.Millisecond
+	detector.ProbeVersion = func(ctx context.Context, _ string) (string, error) {
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	started := time.Now()
+	clients, err := detector.DetectTargetsWithVersionProbe(context.Background(), []domain.ClientID{domain.ClientCopilot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded targeted version probe took %s", elapsed)
+	}
+	if version := clientOf(clients, domain.ClientCopilot).Version; version != "" {
+		t.Fatalf("timed-out Copilot version = %q, want empty", version)
+	}
+}
+
 func TestExplicitDetectorBoundsInjectedVersionProbe(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()

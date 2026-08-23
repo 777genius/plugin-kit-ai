@@ -18,16 +18,17 @@ import (
 )
 
 type Detector struct {
-	HomeDir               string
-	GOOS                  string
-	Environment           map[string]string
-	SystemApplicationsDir string
-	WindowsProgramFiles   []string
-	LinuxApplicationDirs  []string
-	LookPath              func(string) (string, error)
-	Lstat                 func(string) (fs.FileInfo, error)
-	ProbeVersion          func(context.Context, string) (string, error)
-	VersionTimeout        time.Duration
+	HomeDir                string
+	GOOS                   string
+	Environment            map[string]string
+	SystemApplicationsDir  string
+	WindowsProgramFiles    []string
+	LinuxApplicationDirs   []string
+	LookPath               func(string) (string, error)
+	Lstat                  func(string) (fs.FileInfo, error)
+	ProbeVersion           func(context.Context, string) (string, error)
+	VersionTimeout         time.Duration
+	TargetedVersionTimeout time.Duration
 }
 
 func NewOS(homeDir string) Detector {
@@ -51,10 +52,11 @@ func NewOS(homeDir string) Detector {
 			userApplications,
 			"/usr/local/share/applications", "/usr/share/applications",
 		),
-		LookPath:       exec.LookPath,
-		Lstat:          os.Lstat,
-		ProbeVersion:   probeExecutableVersion,
-		VersionTimeout: 2 * time.Second,
+		LookPath:               exec.LookPath,
+		Lstat:                  os.Lstat,
+		ProbeVersion:           probeExecutableVersion,
+		VersionTimeout:         2 * time.Second,
+		TargetedVersionTimeout: 10 * time.Second,
 	}
 }
 
@@ -74,6 +76,11 @@ func (detector Detector) DetectTargetsWithVersionProbe(ctx context.Context, targ
 	for _, target := range targets {
 		selected[target] = struct{}{}
 	}
+	timeout := detector.TargetedVersionTimeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	detector.VersionTimeout = timeout
 	return detector.detect(ctx, true, selected)
 }
 
