@@ -191,6 +191,11 @@ func (stager Stager) stage(
 			return domain.StagedDelivery{}, err
 		}
 	}
+	if plan.ClientID == domain.ClientCursor {
+		if err := projectCursor(stagingPath, envelope, plan, pluginDataPath); err != nil {
+			return domain.StagedDelivery{}, err
+		}
+	}
 	if plan.ClientID == domain.ClientCopilot || plan.ClientID == domain.ClientVSCode {
 		if err := projectCopilotMarketplace(stagingPath, envelope, plan); err != nil {
 			return domain.StagedDelivery{}, err
@@ -493,6 +498,67 @@ func projectKiroMCP(root string, envelope domain.PackageEnvelope, plan domain.De
 		"$schema":    domain.MCPSchemaV1,
 		"mcpServers": servers,
 	})
+}
+
+func projectCursor(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, dataPath string) error {
+	manifest := map[string]any{"name": envelope.Manifest.Name}
+	copyString := func(key, value string) {
+		if strings.TrimSpace(value) != "" {
+			manifest[key] = value
+		}
+	}
+	copyString("version", envelope.Manifest.Version)
+	copyString("description", envelope.Manifest.Description)
+	copyString("homepage", envelope.Manifest.Homepage)
+	copyString("repository", envelope.Manifest.Repository)
+	copyString("license", envelope.Manifest.License)
+	if envelope.Manifest.Author != nil && strings.TrimSpace(envelope.Manifest.Author.Name) != "" {
+		author := map[string]string{"name": envelope.Manifest.Author.Name}
+		if strings.TrimSpace(envelope.Manifest.Author.Email) != "" {
+			author["email"] = envelope.Manifest.Author.Email
+		}
+		manifest["author"] = author
+	}
+	if len(envelope.Manifest.Keywords) > 0 {
+		manifest["keywords"] = envelope.Manifest.Keywords
+	}
+	if hasSupported(plan, domain.ComponentSkill) {
+		manifest["skills"] = "./skills/"
+	}
+	serverNames := supportedMCPNames(plan)
+	if len(serverNames) > 0 {
+		manifest["mcpServers"] = "./mcp.json"
+	}
+	if err := writeJSON(filepath.Join(root, ".cursor-plugin", "plugin.json"), manifest); err != nil {
+		return fmt.Errorf("write Cursor plugin manifest: %w", err)
+	}
+	return projectCursorMCP(root, envelope, serverNames, plan.ActivePath, dataPath)
+}
+
+func projectCursorMCP(root string, envelope domain.PackageEnvelope, serverNames []string, pluginRoot, dataPath string) error {
+	if len(serverNames) == 0 {
+		return nil
+	}
+	servers := make(map[string]map[string]any, len(serverNames))
+	for _, name := range serverNames {
+		server := envelope.MCP.Servers[name]
+		config := cloneObject(server.Decoded)
+		switch server.Type {
+		case "stdio":
+			delete(config, "type")
+			if err := applyStdioDataContract(config, pluginRoot, dataPath); err != nil {
+				return fmt.Errorf("project Cursor stdio MCP server %s: %w", name, err)
+			}
+		case "streamable-http":
+			config["type"] = "http"
+		case "sse":
+			config["type"] = "sse"
+		default:
+			continue
+		}
+		servers[name] = config
+	}
+	return writeJSON(filepath.Join(root, "mcp.json"), map[string]any{"mcpServers": servers})
 }
 
 func projectChatGPT(root string, envelope domain.PackageEnvelope, plan domain.DeliveryPlan, hints domain.CompatibilityHints, dataPath string) error {

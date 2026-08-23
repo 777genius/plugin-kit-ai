@@ -487,7 +487,7 @@ func codexPluginStatus(body []byte, name, marketplace string) codexStatus {
 	required := []string{"pluginId", "name", "marketplaceName", "installed", "enabled"}
 	for _, value := range entries {
 		entry, ok := value.(map[string]any)
-		if !ok || len(entry) != len(required) {
+		if !ok {
 			return codexStatusUnknown
 		}
 		for _, field := range required {
