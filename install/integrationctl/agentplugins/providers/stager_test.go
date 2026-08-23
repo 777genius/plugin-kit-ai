@@ -95,6 +95,49 @@ func TestStagerProjectsExactOwnedPluginDataContract(t *testing.T) {
 	}
 }
 
+func TestStagerProjectsKiroStdioRuntimeContractBeforeNativeImport(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	server := domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{
+		"type": "stdio", "command": "node",
+		"args": []any{"${PLUGIN_ROOT}/runtime/launcher.mjs", "${PLUGIN_DATA}/cache"},
+		"env":  map[string]any{"CACHE": "${PLUGIN_DATA}/cache"},
+	}}
+	envelope.MCP.Servers = map[string]domain.MCPServer{"local": server}
+	plan := stagingPlan(t, domain.ClientKiro, domain.PackageNative)
+	plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportNative}}
+	ownedData := filepath.Join(t.TempDir(), "owned-plugin-data")
+	delivery, err := (Stager{}).StageWithPluginData(context.Background(), envelope, plan, "operation-kiro-data", domain.CompatibilityHints{}, ownedData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := readObject(t, filepath.Join(delivery.StagingPath, "mcp.json"))
+	projected := document["mcpServers"].(map[string]any)["local"].(map[string]any)
+	args := projected["args"].([]any)
+	env := projected["env"].(map[string]any)
+	if args[0] != filepath.Join(plan.ActivePath, "runtime", "launcher.mjs") || args[1] != filepath.Join(ownedData, "cache") {
+		t.Fatalf("Kiro args = %+v", args)
+	}
+	if env["PLUGIN_ROOT"] != plan.ActivePath || env["PLUGIN_DATA"] != ownedData || env["CACHE"] != filepath.Join(ownedData, "cache") {
+		t.Fatalf("Kiro env = %+v", env)
+	}
+	if projected["cwd"] != plan.ActivePath {
+		t.Fatalf("Kiro cwd = %v, want %v", projected["cwd"], plan.ActivePath)
+	}
+}
+
+func TestStagerResolvesBundledStdioCommandForNativeProjection(t *testing.T) {
+	t.Parallel()
+	config := map[string]any{"command": "./bin/server"}
+	pluginRoot, dataPath := filepath.Join(t.TempDir(), "plugin"), filepath.Join(t.TempDir(), "data")
+	if err := applyStdioDataContract(config, pluginRoot, dataPath); err != nil {
+		t.Fatal(err)
+	}
+	if config["command"] != filepath.Join(pluginRoot, "bin", "server") || config["cwd"] != pluginRoot {
+		t.Fatalf("projected stdio config = %+v", config)
+	}
+}
+
 func TestStagerBuildsChatGPTAppProjectionWithBundledMCPParity(t *testing.T) {
 	t.Parallel()
 	envelope := stagingEnvelope(t)
