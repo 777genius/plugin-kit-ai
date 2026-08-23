@@ -132,14 +132,14 @@ func reconcileClientIdentity(ctx context.Context, app App, installation domain.I
 	observation, observeErr := app.Lifecycle.NativeObserver.ObserveNativeIdentity(ctx, observerClient, plan, &binding)
 	result.receiptReconciled = observation.ReceiptReconciled
 	result.nativeDiscoveryReconciled = observation.NativeDiscoveryReconciled
-	if observation.NativeDiscoveryAttempted {
-		result.evidence = nativeCommandEvidence(observerClient, installation.DeclaredName, expectedArtifact, result.clientVersion, result.nativeDiscoveryReconciled)
-	}
 	if observation.State != "" {
 		result.state = observation.State
 	}
 	if observeErr != nil {
 		return result
+	}
+	if observation.NativeDiscoveryAttempted {
+		result.evidence = nativeCommandEvidence(observerClient, installation.DeclaredName, expectedArtifact, result.clientVersion, result.nativeDiscoveryReconciled)
 	}
 	if result.state == domain.NativeIdentityManaged && !result.nativeDiscoveryReconciled && observation.NativeDiscoveryState != "" {
 		result.state = observation.NativeDiscoveryState

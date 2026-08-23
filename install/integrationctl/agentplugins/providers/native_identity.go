@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
@@ -25,9 +26,12 @@ type packageVerifier interface {
 // free: another prepared marketplace, local plugin, installed CLI entry, or
 // native config entry can already claim the same manifest identity.
 type NativeIdentityObserver struct {
-	Stager packageVerifier
-	Runner CommandRunner
+	Stager           packageVerifier
+	Runner           CommandRunner
+	DiscoveryTimeout time.Duration
 }
+
+const defaultNativeDiscoveryTimeout = 15 * time.Second
 
 type registryFinding uint8
 
@@ -53,7 +57,17 @@ func (observer NativeIdentityObserver) ObserveNativeIdentity(ctx context.Context
 	}
 	nativeAttempted := observer.Runner != nil && strings.TrimSpace(plan.NativeRegistryExecutable) != "" &&
 		(client.ClientID == domain.ClientCodex || client.ClientID == domain.ClientCopilot || client.ClientID == domain.ClientVSCode)
-	native, err := observer.inspectNativeRegistry(ctx, client, plan, managed)
+	nativeCtx := ctx
+	cancelNative := func() {}
+	if nativeAttempted {
+		timeout := observer.DiscoveryTimeout
+		if timeout <= 0 {
+			timeout = defaultNativeDiscoveryTimeout
+		}
+		nativeCtx, cancelNative = context.WithTimeout(ctx, timeout)
+	}
+	native, err := observer.inspectNativeRegistry(nativeCtx, client, plan, managed)
+	cancelNative()
 	if err != nil {
 		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate,
 			NativeDiscoveryAttempted: nativeAttempted}, err
@@ -166,6 +180,9 @@ func (observer NativeIdentityObserver) inspectCodexCLI(ctx context.Context, plan
 	}
 	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return registryIndeterminate, ctxErr
+		}
 		return registryIndeterminate, err
 	}
 	if result.ExitCode != 0 {
@@ -229,6 +246,9 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 	}
 	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list"}})
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return registryIndeterminate, ctxErr
+		}
 		return registryIndeterminate, err
 	}
 	if result.ExitCode != 0 {

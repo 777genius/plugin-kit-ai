@@ -2,10 +2,12 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
@@ -14,6 +16,16 @@ import (
 type identityRunner struct {
 	result   legacyports.CommandResult
 	commands [][]string
+}
+
+type blockingIdentityRunner struct {
+	returned chan struct{}
+}
+
+func (runner blockingIdentityRunner) Run(ctx context.Context, _ legacyports.Command) (legacyports.CommandResult, error) {
+	<-ctx.Done()
+	close(runner.returned)
+	return legacyports.CommandResult{}, ctx.Err()
 }
 
 func (runner *identityRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
@@ -147,6 +159,27 @@ func TestNativeIdentityObservationExposesReceiptAndExactDiscovery(t *testing.T) 
 	observation, err := (NativeIdentityObserver{Runner: runner, Stager: acceptingPackageVerifier{}}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, managed)
 	if err != nil || observation.State != domain.NativeIdentityManaged || !observation.ReceiptReconciled || !observation.NativeDiscoveryReconciled || observation.NativeDiscoveryState != domain.NativeIdentityManaged {
 		t.Fatalf("observation = %+v, err = %v", observation, err)
+	}
+}
+
+func TestNativeIdentityBoundsHungAuthoritativeDiscovery(t *testing.T) {
+	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))
+	plan.NativeRegistryExecutable = "/test/bin/copilot"
+	returned := make(chan struct{})
+	observation, err := (NativeIdentityObserver{
+		Runner: blockingIdentityRunner{returned: returned}, DiscoveryTimeout: 10 * time.Millisecond,
+	}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want deadline exceeded", err)
+	}
+	if observation.State != domain.NativeIdentityIndeterminate || observation.NativeDiscoveryState != domain.NativeIdentityIndeterminate ||
+		!observation.NativeDiscoveryAttempted || observation.NativeDiscoveryReconciled {
+		t.Fatalf("observation = %+v", observation)
+	}
+	select {
+	case <-returned:
+	default:
+		t.Fatal("hung discovery runner remained active after timeout")
 	}
 }
 

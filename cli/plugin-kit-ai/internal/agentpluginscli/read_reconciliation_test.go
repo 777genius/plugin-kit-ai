@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -240,6 +241,35 @@ func TestInfoFailsClosedBeforeNativeDiscoveryWithoutAuthoritativeClientVersion(t
 	}
 }
 
+func TestInfoOmitsNativeEvidenceWhenDiscoveryTimesOut(t *testing.T) {
+	installationID := "00000000-0000-4000-8000-000000000040"
+	physical := domain.ComputePhysicalArtifactID("demo", installationID)
+	target := filepath.Join(t.TempDir(), "copilot", physical)
+	binding := validReconciliationBinding(installationID, domain.ClientCopilot, domain.ScopeUser, target, physical)
+	installation := domain.Installation{InstallationID: installationID, DeclaredName: "demo", Clients: map[string]domain.ClientBinding{binding.ClientBindingID: binding}}
+	detector := &observedProbingDetector{clients: []domain.DetectedClient{{
+		ClientID: domain.ClientCopilot, Status: domain.DetectionDetected, Version: "1.0.80", ExecutablePath: "/test/bin/copilot",
+	}}}
+	observer := &capturingNativeObserver{
+		observation: domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate, NativeDiscoveryAttempted: true},
+		err:         context.DeadlineExceeded,
+	}
+	app := App{Detector: detector, Lifecycle: usecase.Service{
+		Targets: scopeTargetResolver{targets: map[domain.InstallScope]string{domain.ScopeUser: target}}, NativeObserver: observer,
+	}}
+	public := publicInstallationView(installation, true)
+	if err := reconcileInstalledInfo(context.Background(), app, installation, "copilot", &public); err != nil {
+		t.Fatal(err)
+	}
+	got := public.Clients[0]
+	if got.NativeIdentityState != domain.NativeIdentityIndeterminate || got.NativeDiscoveryEvidence != nil {
+		t.Fatalf("timed-out reconciliation exposed false evidence: %+v", got)
+	}
+	if !errors.Is(observer.err, context.DeadlineExceeded) {
+		t.Fatalf("observer err = %v", observer.err)
+	}
+}
+
 func validReconciliationBinding(installationID string, client domain.ClientID, scope domain.InstallScope, target, physical string) domain.ClientBinding {
 	bindingID := domain.ComputeClientBindingID(installationID, string(client), string(scope), target)
 	digest := "sha256:owned"
@@ -263,11 +293,12 @@ func (resolver scopeTargetResolver) ResolveTarget(_ context.Context, client doma
 type capturingNativeObserver struct {
 	observation domain.NativeIdentityObservation
 	clients     []domain.DetectedClient
+	err         error
 }
 
 func (observer *capturingNativeObserver) ObserveNativeIdentity(_ context.Context, client domain.DetectedClient, _ domain.DeliveryPlan, _ *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	observer.clients = append(observer.clients, client)
-	return observer.observation, nil
+	return observer.observation, observer.err
 }
 
 type reconciledNativeObserver struct{}

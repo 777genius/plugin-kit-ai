@@ -20,6 +20,9 @@ func (OS) Run(ctx context.Context, cmd ports.Command) (ports.CommandResult, erro
 	if err == nil {
 		return ports.CommandResult{ExitCode: 0, Stdout: stdout}, nil
 	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ports.CommandResult{}, ctxErr
+	}
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		return ports.CommandResult{
 			ExitCode: exitErr.ExitCode(),
