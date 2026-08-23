@@ -25,6 +25,10 @@ type packageVerifier interface {
 // registry. A manager-owned path is not proof that the logical identity is
 // free: another prepared marketplace, local plugin, installed CLI entry, or
 // native config entry can already claim the same manifest identity.
+// Native registry discovery executes trusted, short-lived list commands. On
+// Unix, cancellation kills their live process group, but descendants surviving
+// a normal leader exit are not force-killed after Wait because the PGID can be
+// reused; stronger normal-exit containment is deferred to an OS-native slice.
 type NativeIdentityObserver struct {
 	Stager           packageVerifier
 	Runner           CommandRunner

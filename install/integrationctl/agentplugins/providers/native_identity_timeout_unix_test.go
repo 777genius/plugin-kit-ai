@@ -56,7 +56,7 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	}
 }
 
-func TestNativeIdentityNormalExitReapsBackgroundDiscoveryGrandchild(t *testing.T) {
+func TestNativeIdentityNormalExitDoesNotKillByReapedLeaderPGID(t *testing.T) {
 	root := t.TempDir()
 	pidPath := filepath.Join(root, "grandchild.pid")
 	executable := filepath.Join(root, "copilot")
@@ -85,9 +85,11 @@ func TestNativeIdentityNormalExitReapsBackgroundDiscoveryGrandchild(t *testing.T
 	if parseErr != nil {
 		t.Fatalf("parse grandchild pid: %v", parseErr)
 	}
-	if err := waitProcessGone(pid, 2*time.Second); err != nil {
-		_ = syscall.Kill(pid, syscall.SIGKILL)
-		t.Fatal(err)
+	if signalErr := syscall.Kill(pid, 0); signalErr != nil {
+		t.Fatalf("normal-exit descendant was unexpectedly killed: %v", signalErr)
+	}
+	if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil && !errors.Is(killErr, syscall.ESRCH) {
+		t.Fatalf("clean up normal-exit descendant: %v", killErr)
 	}
 }
 
