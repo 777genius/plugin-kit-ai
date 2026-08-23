@@ -580,6 +580,9 @@ func lifecycleAction(result usecase.AddResult, includePrivate bool) string {
 	}
 	if result.Activation.Authentication == domain.AuthenticationNotChecked {
 		if action != "" {
+			if strings.Contains(strings.ToLower(action), "verify this plugin's authentication requirements") {
+				return action
+			}
 			return action + "; verify this plugin's authentication requirements before using it"
 		}
 		return "verify this plugin's authentication requirements before using it"

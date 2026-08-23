@@ -151,6 +151,20 @@ func TestLifecycleOutputKeepsPrivatePathsOutOfPublicJSON(t *testing.T) {
 	}
 }
 
+func TestLifecycleOutputDoesNotDuplicateAuthenticationGuidance(t *testing.T) {
+	t.Parallel()
+	action := "verify this plugin's authentication requirements before using it"
+	result := usecase.AddResult{
+		Plan: domain.DeliveryPlan{UserActions: []string{action}},
+		Activation: domain.ActivationOutcome{
+			Authentication: domain.AuthenticationNotChecked,
+		},
+	}
+	if got := nextLifecycleAction(result); got != action {
+		t.Fatalf("next action = %q, want %q", got, action)
+	}
+}
+
 func TestAutomatedAddRequiresExplicitTargetButNotYes(t *testing.T) {
 	t.Parallel()
 	fixture := newCLIFixture(t, []domain.DetectedClient{

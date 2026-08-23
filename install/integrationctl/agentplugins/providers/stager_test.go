@@ -126,6 +126,45 @@ func TestStagerProjectsKiroStdioRuntimeContractBeforeNativeImport(t *testing.T) 
 	}
 }
 
+func TestStagerProjectsCursorNativeManifestAndRuntimeContract(t *testing.T) {
+	t.Parallel()
+	envelope := stagingEnvelope(t)
+	envelope.Manifest.Author = &domain.Author{Name: "Demo Author", Email: "demo@example.com", URL: "https://example.com/author"}
+	server := domain.MCPServer{Name: "local", Type: "stdio", Decoded: map[string]any{
+		"type": "stdio", "command": "node",
+		"args": []any{"${PLUGIN_ROOT}/runtime/launcher.mjs", "${PLUGIN_DATA}/cache"},
+	}}
+	envelope.MCP.Servers = map[string]domain.MCPServer{"local": server}
+	plan := stagingPlan(t, domain.ClientCursor, domain.PackageNative)
+	plan.Components = []domain.ComponentDecision{
+		{Kind: domain.ComponentSkill, Name: "good", Support: domain.SupportNative},
+		{Kind: domain.ComponentMCPServer, Name: "local", Support: domain.SupportNative},
+	}
+	ownedData := filepath.Join(t.TempDir(), "owned-plugin-data")
+	delivery, err := (Stager{}).StageWithPluginData(context.Background(), envelope, plan, "operation-cursor-data", domain.CompatibilityHints{}, ownedData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := readObject(t, filepath.Join(delivery.StagingPath, ".cursor-plugin", "plugin.json"))
+	if manifest["name"] != "demo" || manifest["mcpServers"] != "./mcp.json" || manifest["skills"] != "./skills/" {
+		t.Fatalf("Cursor manifest = %+v", manifest)
+	}
+	author := manifest["author"].(map[string]any)
+	if author["name"] != "Demo Author" || author["email"] != "demo@example.com" || author["url"] != nil {
+		t.Fatalf("Cursor author = %+v", author)
+	}
+	document := readObject(t, filepath.Join(delivery.StagingPath, "mcp.json"))
+	projected := document["mcpServers"].(map[string]any)["local"].(map[string]any)
+	args := projected["args"].([]any)
+	env := projected["env"].(map[string]any)
+	if projected["type"] != nil || args[0] != filepath.Join(plan.ActivePath, "runtime", "launcher.mjs") || args[1] != filepath.Join(ownedData, "cache") {
+		t.Fatalf("Cursor MCP = %+v", projected)
+	}
+	if env["PLUGIN_ROOT"] != plan.ActivePath || env["PLUGIN_DATA"] != ownedData || projected["cwd"] != plan.ActivePath {
+		t.Fatalf("Cursor runtime contract = %+v", projected)
+	}
+}
+
 func TestStagerResolvesBundledStdioCommandForNativeProjection(t *testing.T) {
 	t.Parallel()
 	config := map[string]any{"command": "./bin/server"}
@@ -228,6 +267,10 @@ func TestStagerKeepsNativePackageAndSanitizesFailureBoundaries(t *testing.T) {
 	servers := mcp["mcpServers"].(map[string]any)
 	if len(servers) != 1 || servers["notion"] == nil {
 		t.Fatalf("sanitized servers = %+v", servers)
+	}
+	cursorManifest := readObject(t, filepath.Join(delivery.StagingPath, ".cursor-plugin", "plugin.json"))
+	if cursorManifest["name"] != "demo" || cursorManifest["mcpServers"] != "./mcp.json" || cursorManifest["skills"] != "./skills/" {
+		t.Fatalf("Cursor compatibility manifest = %+v", cursorManifest)
 	}
 }
 

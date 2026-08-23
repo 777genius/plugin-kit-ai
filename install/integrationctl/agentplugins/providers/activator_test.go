@@ -166,7 +166,7 @@ func TestCodexVerificationRequiresExactEnabledManagedEntry(t *testing.T) {
 		"wrong enabled type":      {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":1}]}`, codexStatusUnknown},
 		"missing plugin id":       {`{"installed":[{"name":"demo","marketplaceName":"managed","installed":true,"enabled":true}]}`, codexStatusUnknown},
 		"missing enabled":         {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true}]}`, codexStatusUnknown},
-		"unknown entry field":     {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":true,"status":"active"}]}`, codexStatusUnknown},
+		"additive entry fields":   {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":true,"source":{"source":"local"},"installPolicy":"AVAILABLE"}]}`, codexStatusInstalled},
 		"enabled case variant":    {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"Enabled":true}]}`, codexStatusUnknown},
 		"duplicate enabled":       {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"enabled":true,"enabled":false}]}`, codexStatusUnknown},
 		"duplicate installed":     {`{"installed":[{"pluginId":"demo@managed","name":"demo","marketplaceName":"managed","installed":true,"installed":false,"enabled":true}]}`, codexStatusUnknown},
