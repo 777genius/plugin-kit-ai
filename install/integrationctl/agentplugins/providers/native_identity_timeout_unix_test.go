@@ -56,6 +56,41 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	}
 }
 
+func TestNativeIdentityNormalExitReapsBackgroundDiscoveryGrandchild(t *testing.T) {
+	root := t.TempDir()
+	pidPath := filepath.Join(root, "grandchild.pid")
+	executable := filepath.Join(root, "copilot")
+	script := "#!/bin/sh\nsleep 60 &\nprintf '%s' \"$!\" > \"$AGENTPLUGINS_TEST_PID\"\nexit 0\n"
+	if err := os.WriteFile(executable, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AGENTPLUGINS_TEST_PID", pidPath)
+	plan := identityPlan(filepath.Join(root, "prepared"))
+	plan.NativeRegistryExecutable = executable
+	started := time.Now()
+	observation, err := (NativeIdentityObserver{
+		Runner: processadapter.OS{}, DiscoveryTimeout: 5 * time.Second,
+	}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, nil)
+	if err == nil || observation.State != domain.NativeIdentityIndeterminate {
+		t.Fatalf("observation = %+v, err = %v", observation, err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("normal-exit background cleanup took %s", elapsed)
+	}
+	body, readErr := os.ReadFile(pidPath)
+	if readErr != nil {
+		t.Fatalf("read grandchild pid: %v", readErr)
+	}
+	pid, parseErr := strconv.Atoi(strings.TrimSpace(string(body)))
+	if parseErr != nil {
+		t.Fatalf("parse grandchild pid: %v", parseErr)
+	}
+	if err := waitProcessGone(pid, 2*time.Second); err != nil {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		t.Fatal(err)
+	}
+}
+
 func waitProcessGone(pid int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {

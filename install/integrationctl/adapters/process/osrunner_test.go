@@ -28,3 +28,25 @@ func TestOSRunnerPreservesCommandOutputAndExitCode(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 }
+
+func TestOSRunnerBoundsStderrWhileRetainingDiagnosticEdges(t *testing.T) {
+	if os.Getenv("AGENTPLUGINS_PROCESS_STDERR_HELPER") == "1" {
+		fmt.Fprint(os.Stderr, "diagnostic-start:")
+		fmt.Fprint(os.Stderr, strings.Repeat("x", 256*1024))
+		fmt.Fprint(os.Stderr, ":diagnostic-end")
+		os.Exit(9)
+	}
+	environment := append([]string(nil), os.Environ()...)
+	environment = append(environment, "AGENTPLUGINS_PROCESS_STDERR_HELPER=1")
+	result, err := (OS{}).Run(context.Background(), ports.Command{
+		Argv: []string{os.Args[0], "-test.run=TestOSRunnerBoundsStderrWhileRetainingDiagnosticEdges"}, Env: environment,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	diagnostic := string(result.Stderr)
+	if result.ExitCode != 9 || len(result.Stderr) > 34*1024 || !strings.Contains(diagnostic, "diagnostic-start:") ||
+		!strings.Contains(diagnostic, ":diagnostic-end") || !strings.Contains(diagnostic, "stderr bytes omitted") {
+		t.Fatalf("bounded stderr result: exit=%d bytes=%d diagnostic=%q", result.ExitCode, len(result.Stderr), diagnostic)
+	}
+}
