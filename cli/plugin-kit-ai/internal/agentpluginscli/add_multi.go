@@ -2,6 +2,10 @@ package agentpluginscli
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -18,20 +22,41 @@ type addTargetResult struct {
 }
 
 type addMultiResult struct {
-	OperationID    string                  `json:"operation_id,omitempty"`
-	Batch          bool                    `json:"batch"`
-	Status         string                  `json:"status"`
-	Succeeded      int                     `json:"succeeded"`
-	Failed         int                     `json:"failed"`
-	Plugin         string                  `json:"plugin"`
-	Version        string                  `json:"version,omitempty"`
-	Source         string                  `json:"source"`
-	Revision       string                  `json:"revision,omitempty"`
-	TreeDigest     string                  `json:"tree_digest,omitempty"`
-	ManifestDigest string                  `json:"manifest_digest,omitempty"`
-	Directory      *domain.DirectoryOrigin `json:"directory,omitempty"`
-	DryRun         bool                    `json:"dry_run"`
-	Targets        []addTargetResult       `json:"targets"`
+	OperationID    string                    `json:"operation_id,omitempty"`
+	Batch          bool                      `json:"batch"`
+	Status         string                    `json:"status"`
+	Succeeded      int                       `json:"succeeded"`
+	Failed         int                       `json:"failed"`
+	Plugin         string                    `json:"plugin"`
+	Version        string                    `json:"version,omitempty"`
+	Source         string                    `json:"source"`
+	Revision       string                    `json:"revision,omitempty"`
+	TreeDigest     string                    `json:"tree_digest,omitempty"`
+	ManifestDigest string                    `json:"manifest_digest,omitempty"`
+	Directory      *domain.DirectoryOrigin   `json:"directory,omitempty"`
+	DryRun         bool                      `json:"dry_run"`
+	Targets        []addTargetResult         `json:"targets"`
+	Acquisition    *addAcquisitionProof      `json:"acquisition,omitempty"`
+	TargetOutcomes map[string]addTargetProof `json:"target_outcomes,omitempty"`
+}
+
+type addAcquisitionProof struct {
+	AcquisitionID    string `json:"acquisition_id"`
+	AcquisitionCount int    `json:"acquisition_count"`
+	TreeDigest       string `json:"tree_digest"`
+	ManifestDigest   string `json:"manifest_digest"`
+	ClosureDigest    string `json:"closure_digest"`
+	SourceKind       string `json:"source_kind"`
+	Fetched          bool   `json:"fetched"`
+	Validated        bool   `json:"validated"`
+}
+
+type addTargetProof struct {
+	Outcome        string `json:"outcome"`
+	AcquisitionID  string `json:"acquisition_id"`
+	TreeDigest     string `json:"tree_digest"`
+	ManifestDigest string `json:"manifest_digest"`
+	ClosureDigest  string `json:"closure_digest"`
 }
 
 // runAddMany is deliberately not implemented as repeated CLI invocations. It
@@ -110,6 +135,7 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		output := newAddResultData(inputs[index].Envelope, result, true)
 		output.OperationID = operationID
 		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: groupTargetStatus(result), Output: output, NextAction: nextLifecycleAction(result)})
+		combined.setTargetProof(selected[index].ClientID, "not_run")
 	}
 	combined.Succeeded = len(planned.Targets)
 	if err != nil {
@@ -120,6 +146,17 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 	if opts.dryRun {
 		return renderAddMultiResult(cmd, opts, combined, loaded.envelope)
 	}
+	if len(targets) > 1 {
+		proof, proofErr := newAddAcquisitionProof(loaded)
+		if proofErr != nil {
+			return proofErr
+		}
+		combined.Acquisition = &proof
+		combined.TargetOutcomes = make(map[string]addTargetProof, len(selected))
+		for _, client := range selected {
+			combined.setTargetProof(client.ClientID, "not_run")
+		}
+	}
 	writeProgress(app, opts.format, "Applying the completely preflighted multi-target plan...")
 	groupInput.DryRun, groupInput.Confirmed = false, true
 	applied, err := service.AddGroup(ctx, groupInput)
@@ -128,6 +165,7 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		output := newAddResultData(inputs[index].Envelope, result, false)
 		output.OperationID = operationID
 		combined.Targets = append(combined.Targets, addTargetResult{Target: string(selected[index].ClientID), Status: groupTargetStatus(result), Output: output, NextAction: nextLifecycleAction(result)})
+		combined.setTargetProof(selected[index].ClientID, addTargetProofOutcome(result))
 		if result.GroupPhase == usecase.GroupTargetExternalCompleted {
 			combined.Succeeded++
 		}
@@ -148,6 +186,94 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		return resumeInteractiveLifecycle(ctx, cmd, service, input, inputs[0].Envelope, applied.Targets[0])
 	}
 	return nil
+}
+
+func newAddAcquisitionProof(loaded loadedPackage) (addAcquisitionProof, error) {
+	var value [16]byte
+	if _, err := rand.Read(value[:]); err != nil {
+		return addAcquisitionProof{}, fmt.Errorf("create acquisition ID: %w", err)
+	}
+	sourceKind := acquisitionSourceKind(loaded)
+	return addAcquisitionProof{
+		AcquisitionID:    "acq-" + hex.EncodeToString(value[:]),
+		AcquisitionCount: 1,
+		TreeDigest:       loaded.envelope.TreeDigest,
+		ManifestDigest:   loaded.envelope.ManifestDigest,
+		ClosureDigest:    groupedAcquisitionClosureDigest(sourceKind, loaded.envelope.Source, loaded.envelope.TreeDigest, loaded.envelope.ManifestDigest),
+		SourceKind:       sourceKind,
+		Fetched:          loaded.envelope.Source.Repository != "",
+		Validated:        true,
+	}, nil
+}
+
+func acquisitionSourceKind(loaded loadedPackage) string {
+	if loaded.origin == domain.OriginModeDirectory {
+		return "directory"
+	}
+	if loaded.envelope.Source.Repository != "" {
+		return "github"
+	}
+	return "local"
+}
+
+// groupedAcquisitionClosureDigest is the domain-separated SHA-256 of a
+// length-prefixed tuple:
+//
+//	source kind, repository, package subpath, resolved revision,
+//	validated tree digest, validated manifest digest
+//
+// The agentplugins/grouped-acquisition-closure/v1 domain makes this a distinct
+// identity from a package tree digest. Requested and canonical source strings
+// are deliberately excluded because they may contain local, host-specific
+// paths. For local acquisitions, source kind plus the two validated package
+// identities form the closure; immutable remote acquisitions additionally bind
+// repository, subpath, and revision.
+func groupedAcquisitionClosureDigest(sourceKind string, source domain.SourceIdentity, treeDigest, manifestDigest string) string {
+	hash := sha256.New()
+	fields := []string{
+		"agentplugins/grouped-acquisition-closure/v1",
+		sourceKind,
+		strings.TrimSpace(source.Repository),
+		strings.TrimSpace(source.PackageSubpath),
+		strings.TrimSpace(source.ResolvedRevision),
+		strings.TrimSpace(treeDigest),
+		strings.TrimSpace(manifestDigest),
+	}
+	var size [8]byte
+	for _, field := range fields {
+		binary.BigEndian.PutUint64(size[:], uint64(len(field)))
+		_, _ = hash.Write(size[:])
+		_, _ = hash.Write([]byte(field))
+	}
+	return "sha256:" + hex.EncodeToString(hash.Sum(nil))
+}
+
+func (result *addMultiResult) setTargetProof(target domain.ClientID, outcome string) {
+	if result.Acquisition == nil || result.TargetOutcomes == nil {
+		return
+	}
+	proof := result.Acquisition
+	result.TargetOutcomes[string(target)] = addTargetProof{
+		Outcome: outcome, AcquisitionID: proof.AcquisitionID,
+		TreeDigest: proof.TreeDigest, ManifestDigest: proof.ManifestDigest, ClosureDigest: proof.ClosureDigest,
+	}
+}
+
+func addTargetProofOutcome(result usecase.AddResult) string {
+	switch result.GroupPhase {
+	case usecase.GroupTargetExternalCompleted:
+		return "passed"
+	case usecase.GroupTargetExternalFailed:
+		return "failed"
+	case usecase.GroupTargetManagedRolledBack:
+		return "rolled_back"
+	case usecase.GroupTargetManagedUnknown:
+		return "unknown"
+	case usecase.GroupTargetExternalPartial:
+		return "partial"
+	default:
+		return "not_completed"
+	}
 }
 
 func groupFailureStatus(phase usecase.GroupPhase) string {
