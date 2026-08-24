@@ -51,6 +51,20 @@ reapplies or reactivates the recorded revision; it does not update or change
 source. `switch` moves the complete installation to a qualified Directory
 distribution or exact source, so it uses `--to` instead of `--target`.
 
+A successful non-dry-run, multi-target `add --format json` includes one
+`data.acquisition` proof and a `data.target_outcomes` object keyed by every
+requested target. The acquisition count is exactly one and every passed target
+binds the same acquisition ID, validated tree digest, manifest digest, and
+closure digest. `fetched` is true only for a remote GitHub or Directory source;
+`source_kind` distinguishes `github`, `directory`, and `local` acquisitions.
+The closure digest is SHA-256 over the length-prefixed tuple of source kind,
+repository, package subpath, resolved revision, tree digest, and manifest
+digest, prefixed by the domain `agentplugins/grouped-acquisition-closure/v1`.
+The domain is itself the first length-prefixed field. The digest excludes
+requested and canonical source strings so local paths and
+host-specific data never enter the public proof. Dry runs omit this completed
+proof, and failed or partial group outcomes never label every target `passed`.
+
 Short names resolve through the signed
 [Universal Agent Plugins Directory](https://github.com/777genius/universal-agent-plugins).
 The CLI shows the selected immutable release, publisher, source, and verification

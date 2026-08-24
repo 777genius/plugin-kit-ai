@@ -307,23 +307,41 @@ func TestCodexCursorKiroUseOneAcquisitionAndGroupedCommit(t *testing.T) {
 	fixture := newCLIFixture(t, []domain.DetectedClient{
 		fixtureClient(t, domain.ClientKiro), fixtureClient(t, domain.ClientCursor), fixtureClient(t, domain.ClientCodex),
 	})
-	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
-	fixture.app.SourceAcquirer = counter
 	plugin := writeCLIPlugin(t)
-	stdout, _, err := fixture.execute(false, "add", plugin, "--target", "kiro,codex,cursor", "--format", "json")
+	revision := strings.Repeat("a", 40)
+	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+	fixture.app.SourceAcquirer = acquirer
+	stdout, _, err := fixture.execute(false, "add", "owner/repo@"+revision+"//plugins/demo", "--target", "kiro,codex,cursor", "--format", "json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var output struct {
 		Data struct {
-			Targets []addTargetResult `json:"targets"`
+			OperationID    string                    `json:"operation_id"`
+			Acquisition    addAcquisitionProof       `json:"acquisition"`
+			TargetOutcomes map[string]addTargetProof `json:"target_outcomes"`
+			Targets        []addTargetResult         `json:"targets"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
 		t.Fatal(err)
 	}
-	if counter.calls != 1 || len(output.Data.Targets) != 3 || output.Data.Targets[0].Target != "codex" || output.Data.Targets[1].Target != "cursor" || output.Data.Targets[2].Target != "kiro" {
-		t.Fatalf("three-target combined plan = %+v; source resolutions = %d", output.Data.Targets, counter.calls)
+	if acquirer.directGitCalls != 1 || len(output.Data.Targets) != 3 || output.Data.Targets[0].Target != "codex" || output.Data.Targets[1].Target != "cursor" || output.Data.Targets[2].Target != "kiro" {
+		t.Fatalf("three-target combined plan = %+v; source resolutions = %d", output.Data.Targets, acquirer.directGitCalls)
+	}
+	proof := output.Data.Acquisition
+	if proof.AcquisitionID == "" || proof.AcquisitionCount != 1 || !proof.Fetched || !proof.Validated || proof.SourceKind != "github" {
+		t.Fatalf("group acquisition proof = %+v", proof)
+	}
+	installationID := output.Data.Targets[0].Output.Result.InstallationID
+	if proof.AcquisitionID == output.Data.OperationID || proof.AcquisitionID == installationID || len(output.Data.TargetOutcomes) != 3 {
+		t.Fatalf("acquisition identity or target cardinality = acquisition:%q operation:%q installation:%q targets:%+v", proof.AcquisitionID, output.Data.OperationID, installationID, output.Data.TargetOutcomes)
+	}
+	for _, target := range []string{"codex", "cursor", "kiro"} {
+		binding, ok := output.Data.TargetOutcomes[target]
+		if !ok || binding.Outcome != "passed" || binding.AcquisitionID != proof.AcquisitionID || binding.TreeDigest != proof.TreeDigest || binding.ManifestDigest != proof.ManifestDigest || binding.ClosureDigest != proof.ClosureDigest {
+			t.Fatalf("target %s acquisition binding = %+v", target, binding)
+		}
 	}
 	state, err := fixture.store.Load()
 	if err != nil {
@@ -337,6 +355,192 @@ func TestCodexCursorKiroUseOneAcquisitionAndGroupedCommit(t *testing.T) {
 		if len(binding.Receipts) != 1 || binding.Receipts[0].OperationGroupID != groupID {
 			t.Fatalf("three-target grouped receipt = %+v", binding)
 		}
+	}
+}
+
+func TestGroupedAcquisitionClosureDigestGoldenVectorAndFieldBindings(t *testing.T) {
+	t.Parallel()
+	source := domain.SourceIdentity{Repository: "owner/repo", PackageSubpath: "plugins/demo", ResolvedRevision: strings.Repeat("b", 40)}
+	treeDigest := "sha256:" + strings.Repeat("1", 64)
+	manifestDigest := "sha256:" + strings.Repeat("2", 64)
+	const expected = "sha256:7cb4354b53d4154f6c93c2c2963bdc38aab5b3d998893493914d24dd4ac899f4"
+	baseline := groupedAcquisitionClosureDigest("github", source, treeDigest, manifestDigest)
+	if baseline != expected {
+		t.Fatalf("closure digest golden vector = %q, want %q", baseline, expected)
+	}
+
+	mutations := []struct {
+		name           string
+		sourceKind     string
+		source         domain.SourceIdentity
+		treeDigest     string
+		manifestDigest string
+	}{
+		{name: "source kind", sourceKind: "directory", source: source, treeDigest: treeDigest, manifestDigest: manifestDigest},
+		{name: "repository", sourceKind: "github", source: domain.SourceIdentity{Repository: "owner/other", PackageSubpath: source.PackageSubpath, ResolvedRevision: source.ResolvedRevision}, treeDigest: treeDigest, manifestDigest: manifestDigest},
+		{name: "package subpath", sourceKind: "github", source: domain.SourceIdentity{Repository: source.Repository, PackageSubpath: "plugins/other", ResolvedRevision: source.ResolvedRevision}, treeDigest: treeDigest, manifestDigest: manifestDigest},
+		{name: "resolved revision", sourceKind: "github", source: domain.SourceIdentity{Repository: source.Repository, PackageSubpath: source.PackageSubpath, ResolvedRevision: strings.Repeat("c", 40)}, treeDigest: treeDigest, manifestDigest: manifestDigest},
+		{name: "tree digest", sourceKind: "github", source: source, treeDigest: "sha256:" + strings.Repeat("3", 64), manifestDigest: manifestDigest},
+		{name: "manifest digest", sourceKind: "github", source: source, treeDigest: treeDigest, manifestDigest: "sha256:" + strings.Repeat("4", 64)},
+	}
+	for _, mutation := range mutations {
+		mutation := mutation
+		t.Run(mutation.name, func(t *testing.T) {
+			t.Parallel()
+			got := groupedAcquisitionClosureDigest(mutation.sourceKind, mutation.source, mutation.treeDigest, mutation.manifestDigest)
+			if got == baseline {
+				t.Fatalf("mutation did not change closure digest %q", got)
+			}
+		})
+	}
+}
+
+func TestGroupedAcquisitionClosureDigestSeparatesFramingBoundaries(t *testing.T) {
+	t.Parallel()
+	treeDigest := "sha256:" + strings.Repeat("1", 64)
+	manifestDigest := "sha256:" + strings.Repeat("2", 64)
+	left := groupedAcquisitionClosureDigest("github", domain.SourceIdentity{Repository: "ab", PackageSubpath: "c"}, treeDigest, manifestDigest)
+	right := groupedAcquisitionClosureDigest("github", domain.SourceIdentity{Repository: "a", PackageSubpath: "bc"}, treeDigest, manifestDigest)
+	if left == right {
+		t.Fatalf("length-prefix framing collision: (ab, c) and (a, bc) both produced %q", left)
+	}
+}
+
+func TestGroupedLocalAddProofIsIndependentOfActualSourcePath(t *testing.T) {
+	t.Parallel()
+	type result struct {
+		stdout string
+		proof  *addAcquisitionProof
+	}
+	pluginPaths := []string{writeCLIPlugin(t), writeCLIPlugin(t)}
+	if pluginPaths[0] == pluginPaths[1] {
+		t.Fatalf("local fixtures unexpectedly shared path %q", pluginPaths[0])
+	}
+	results := make([]result, 0, len(pluginPaths))
+	for _, pluginPath := range pluginPaths {
+		fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor)})
+		stdout, _, err := fixture.execute(false, "add", pluginPath, "--target", "codex,cursor", "--format", "json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var output struct {
+			Data addMultiResult `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatal(err)
+		}
+		if output.Data.Acquisition == nil || output.Data.Acquisition.Fetched || output.Data.Acquisition.SourceKind != "local" || !output.Data.Acquisition.Validated {
+			t.Fatalf("local acquisition proof for %q = %+v", pluginPath, output.Data.Acquisition)
+		}
+		results = append(results, result{stdout: stdout, proof: output.Data.Acquisition})
+	}
+	if results[0].proof.ClosureDigest != results[1].proof.ClosureDigest {
+		t.Fatalf("identical local contents at different paths produced closures %q and %q", results[0].proof.ClosureDigest, results[1].proof.ClosureDigest)
+	}
+	for index, result := range results {
+		for _, pluginPath := range pluginPaths {
+			if strings.Contains(result.stdout, pluginPath) {
+				t.Fatalf("JSON result %d leaked actual plugin source path %q: %s", index, pluginPath, result.stdout)
+			}
+		}
+	}
+}
+
+func TestGroupedDirectoryAcquisitionProofBindsSourceIdentity(t *testing.T) {
+	t.Parallel()
+	source := domain.SourceIdentity{Repository: "owner/directory", PackageSubpath: "plugins/demo", ResolvedRevision: strings.Repeat("d", 40)}
+	loaded := loadedPackage{
+		origin: domain.OriginModeDirectory,
+		envelope: domain.PackageEnvelope{
+			Source: source, TreeDigest: "sha256:" + strings.Repeat("5", 64), ManifestDigest: "sha256:" + strings.Repeat("6", 64),
+		},
+	}
+	proof, err := newAddAcquisitionProof(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proof.SourceKind != "directory" || !proof.Fetched || !proof.Validated {
+		t.Fatalf("Directory acquisition proof = %+v", proof)
+	}
+	const want = "sha256:99db46552e756e40dae4128875f94b5adcd9103bb368bccc3994b2c97db05206"
+	if proof.ClosureDigest != want {
+		t.Fatalf("Directory closure = %q, want %q", proof.ClosureDigest, want)
+	}
+	mutated := source
+	mutated.Repository = "owner/other-directory"
+	if proof.ClosureDigest == groupedAcquisitionClosureDigest("directory", mutated, loaded.envelope.TreeDigest, loaded.envelope.ManifestDigest) {
+		t.Fatalf("Directory closure did not bind source identity: %q", proof.ClosureDigest)
+	}
+}
+
+func TestAddTargetProofOutcomeMappings(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		phase usecase.GroupTargetPhase
+		want  string
+	}{
+		{name: "rollback", phase: usecase.GroupTargetManagedRolledBack, want: "rolled_back"},
+		{name: "unknown", phase: usecase.GroupTargetManagedUnknown, want: "unknown"},
+		{name: "partial", phase: usecase.GroupTargetExternalPartial, want: "partial"},
+		{name: "failed", phase: usecase.GroupTargetExternalFailed, want: "failed"},
+		{name: "passed", phase: usecase.GroupTargetExternalCompleted, want: "passed"},
+		{name: "default not completed", phase: usecase.GroupTargetPhase("unrecognized"), want: "not_completed"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := addTargetProofOutcome(usecase.AddResult{GroupPhase: test.phase}); got != test.want {
+				t.Fatalf("addTargetProofOutcome(%q) = %q, want %q", test.phase, got, test.want)
+			}
+		})
+	}
+}
+
+func TestGroupedDryRunOmitsCompletedAcquisitionProof(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor)})
+	stdout, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "codex,cursor", "--dry-run", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output struct {
+		Data addMultiResult `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatal(err)
+	}
+	if output.Data.Acquisition != nil || output.Data.TargetOutcomes != nil || strings.Contains(stdout, `"acquisition_count"`) {
+		t.Fatalf("dry-run exposed completed acquisition proof: %s", stdout)
+	}
+}
+
+func TestGroupedPartialFailureDoesNotMarkEveryTargetPassed(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCodex), fixtureClient(t, domain.ClientCursor), fixtureClient(t, domain.ClientKiro)})
+	fixture.app.Lifecycle.Activator = &failSecondCLIGroupActivator{}
+	stdout, _, err := fixture.execute(false, "add", writeCLIPlugin(t), "--target", "codex,cursor,kiro", "--format", "json")
+	if err == nil || !strings.Contains(err.Error(), "injected grouped activation failure") {
+		t.Fatalf("grouped partial failure = %v", err)
+	}
+	var output struct {
+		Data addMultiResult `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatal(err)
+	}
+	passed := 0
+	for target, targetProof := range output.Data.TargetOutcomes {
+		if targetProof.Outcome == "passed" {
+			passed++
+		}
+		if targetProof.AcquisitionID != output.Data.Acquisition.AcquisitionID {
+			t.Fatalf("failed target %s lost acquisition binding: %+v", target, targetProof)
+		}
+	}
+	if len(output.Data.TargetOutcomes) != 3 || passed != 1 || output.Data.TargetOutcomes["cursor"].Outcome != "failed" || output.Data.TargetOutcomes["kiro"].Outcome == "passed" {
+		t.Fatalf("partial failure target outcomes = %+v", output.Data.TargetOutcomes)
 	}
 }
 
@@ -2540,6 +2744,28 @@ type cliObservedActivator struct {
 	outcome domain.ActivationOutcome
 	err     error
 	calls   int
+}
+
+type failSecondCLIGroupActivator struct {
+	calls int
+}
+
+func (activator *failSecondCLIGroupActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
+	activator.calls++
+	outcome := domain.ActivationOutcome{
+		Activation: domain.ActivationActive, Authentication: domain.AuthenticationNotRequired,
+		Policy: domain.PolicyAllowed, Verification: domain.VerificationInstalled,
+	}
+	if activator.calls == 2 {
+		outcome.Activation = domain.ActivationFailed
+		outcome.Verification = domain.VerificationFailed
+		return outcome, errors.New("injected grouped activation failure")
+	}
+	return outcome, nil
+}
+
+func (*failSecondCLIGroupActivator) Deactivate(context.Context, domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
+	return domain.DeactivationOutcome{}, errors.New("unexpected deactivation")
 }
 
 func (activator *cliObservedActivator) Activate(context.Context, domain.ActivationRequest) (domain.ActivationOutcome, error) {
