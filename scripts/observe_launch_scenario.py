@@ -4309,7 +4309,14 @@ class _Statx(ctypes.Structure):
     ]
 
 
-_LIBC = ctypes.CDLL(None, use_errno=True)
+def _load_linux_libc() -> ctypes.CDLL | None:
+    """Load libc only for the Linux runtime observer that uses it."""
+    if platform.system() != "Linux":
+        return None
+    return ctypes.CDLL(None, use_errno=True)
+
+
+_LIBC = _load_linux_libc()
 _STATX_MNT_ID = 0x1000
 _AT_EMPTY_PATH = 0x1000
 _AT_SYMLINK_NOFOLLOW = 0x100

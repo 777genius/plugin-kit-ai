@@ -51,6 +51,29 @@ PUBLICATION = ROOT / "tests/fixtures/directory-publication"
 
 
 class LaunchEvidenceE2ETests(unittest.TestCase):
+    def test_windows_release_preparation_import_does_not_load_linux_libc(self) -> None:
+        program = r"""
+import ctypes
+import platform
+import sys
+
+def reject_cdll(*_args, **_kwargs):
+    raise AssertionError("Windows preparation attempted to load Linux libc")
+
+ctypes.CDLL = reject_cdll
+platform.system = lambda: "Windows"
+sys.path.insert(0, sys.argv[1])
+import run_launch_evidence_e2e
+"""
+        completed = subprocess.run(
+            [sys.executable, "-c", program, str(ROOT / "scripts")],
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+
     def agentplugins_0_1_14_add_fixture(self) -> tuple[bytes, dict]:
         raw = AGENTPLUGINS_0_1_14_ADD.read_bytes()
         value = json.loads(raw)
