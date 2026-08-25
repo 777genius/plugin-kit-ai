@@ -1,0 +1,12 @@
+[Unit]
+Description=UAP reviewed stable-launch runner socket
+
+[Socket]
+ListenStream=/run/uap-observer-runner.sock
+SocketUser=root
+SocketGroup=uap-observer-runner-ipc
+SocketMode=0660
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

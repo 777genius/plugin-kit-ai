@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from build_openai_compat import referenced_mcp_resources
 from openai_app_bindings import APP_BINDINGS, app_document, load_app_bindings
 
 
@@ -39,7 +40,6 @@ EXPECTED_CAPABILITIES = {
     "sentry": ["Interactive", "Write"],
 }
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
-
 
 class ValidationError(Exception):
     pass
@@ -83,6 +83,24 @@ def validate_mcp(plugin_root: Path, plugin_name: str) -> None:
         require(transport in {"stdio", "http", "sse"}, f"{path}: invalid transport for {server_name}")
         if transport == "stdio":
             require(isinstance(server.get("command"), str) and server["command"], f"{path}: command required")
+            command = str(server["command"])
+            args = server.get("args", [])
+            environment = server.get("env", {})
+            cwd = server.get("cwd")
+            require(
+                isinstance(args, list) and all(isinstance(argument, str) for argument in args),
+                f"{path}: {server_name}.args must be an array of strings",
+            )
+            require(
+                isinstance(environment, dict)
+                and all(
+                    isinstance(key, str) and ENV_NAME.fullmatch(key)
+                    and isinstance(value, str)
+                    for key, value in environment.items()
+                ),
+                f"{path}: {server_name}.env must contain environment strings",
+            )
+            require(cwd is None or isinstance(cwd, str), f"{path}: {server_name}.cwd must be a string")
         else:
             require_https(server.get("url"), f"{path}: {server_name}.url")
         bearer = server.get("bearer_token_env_var")
@@ -94,6 +112,10 @@ def validate_mcp(plugin_root: Path, plugin_name: str) -> None:
         expected = EXPECTED_AUTH.get(plugin_name, {})
         actual = {key: server[key] for key in ("bearer_token_env_var", "oauth_resource") if key in server}
         require(actual == expected, f"{path}: auth metadata drift for {plugin_name}: {actual!r}")
+    try:
+        referenced_mcp_resources(plugin_root, doc)
+    except ValueError as exc:
+        raise ValidationError(f"{path}: {exc}") from exc
 
 
 def validate_app(

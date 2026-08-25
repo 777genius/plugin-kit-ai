@@ -4,8 +4,8 @@
   "expected_counts": {
     "directory_products": 26,
     "directory_lifecycle_rows": 78,
-    "hero_lifecycle_rows": 12,
-    "hero_runtime_rows": 12,
+    "hero_lifecycle_rows": 15,
+    "hero_runtime_rows": 15,
     "context7_grouped_rows": 4,
     "chatgpt_rows": 1,
     "shared_backend_rows": 1,
@@ -15,10 +15,11 @@
     "journey_rows": 3
   },
   "directory_contract": "signed-snapshot-v1",
-  "all_package_client": "cursor",
+  "all_package_client": "copilot",
   "all_package_operations": ["add", "info", "remove"],
   "heroes": [
     "agent-code-navigator",
+    "chrome-devtools",
     "context7",
     "cloudflare-docs",
     "notion"
@@ -31,7 +32,7 @@
     "notion/codex/oauth",
     "notion/cursor/oauth",
     "notion/kiro/oauth",
-    "cloudflare-docs/chatgpt/oauth_runtime"
+    "cloudflare-docs/chatgpt/registered_binding_ui_public_mcp_runtime"
   ],
   "fault_scenarios": [
     "state_schema_2_migration",

@@ -12,9 +12,9 @@
       "type": "object",
       "required": ["runtime-attestations.json", "notion-oauth-attestations.json", "chatgpt-cloudflare-attestation.json", "consent.json"],
       "properties": {
-        "runtime-attestations.json": {"$ref": "runtime-attestations.schema.json"},
-        "notion-oauth-attestations.json": {"$ref": "runtime-attestations.schema.json"},
-        "chatgpt-cloudflare-attestation.json": {"$ref": "runtime-attestations.schema.json"},
+        "runtime-attestations.json": {"$ref": "hero-runtime-attestations.schema.json"},
+        "notion-oauth-attestations.json": {"$ref": "notion-runtime-attestations.schema.json"},
+        "chatgpt-cloudflare-attestation.json": {"$ref": "chatgpt-runtime-attestation.schema.json"},
         "consent.json": {"$ref": "consent.schema.json"}
       },
       "additionalProperties": false

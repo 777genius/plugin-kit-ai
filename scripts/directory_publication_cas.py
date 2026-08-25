@@ -202,7 +202,7 @@ def atomic_transition(
         return _git(repo, list(arguments), check=False).returncode == 0
 
     arguments = [
-        "push", "--atomic",
+        "-c", "core.hooksPath=/dev/null", "push", "--atomic",
         f"--force-with-lease={main_ref}:{source}",
         f"--force-with-lease={ledger_ref}:{ledger_old}",
         f"--force-with-lease={sequence_tag}:",
@@ -251,7 +251,8 @@ def materialize_transition(
         return read_ref_state(repo, remote, "refs/heads/__unused-main", ledger_ref, "refs/tags/__unused-tag").ledger
 
     arguments = [
-        "push", f"--force-with-lease={ledger_ref}:{ledger_old}", remote,
+        "-c", "core.hooksPath=/dev/null", "push",
+        f"--force-with-lease={ledger_ref}:{ledger_old}", remote,
         f"{ledger_new}:{ledger_ref}",
     ]
     for _attempt in range(attempts):
@@ -268,6 +269,65 @@ def materialize_transition(
         if observed != ledger_old:
             raise CasError(f"materialization ledger conflict after push: observed {observed}")
     raise CasError("materialization push failed with exact pre-state still present")
+
+
+def evidence_transition(
+    repo: Path, remote: str, *, main_old: str, main_new: str,
+    ledger_old: str, ledger_new: str, approval_tag: str, attempts: int = 3,
+    push_runner: Callable[[Sequence[str]], bool] | None = None,
+) -> str:
+    """Atomically append evidence, select it on main, and approve the gated ledger.
+
+    The approval tag deliberately targets ``ledger_old``: that is the exact
+    staged publication whose protected live gate produced the evidence. The
+    permanent evidence commit is its child and cannot approve itself.
+    """
+    for value, label in (
+        (main_old, "old main"), (main_new, "new main"),
+        (ledger_old, "old ledger"), (ledger_new, "new ledger"),
+    ):
+        _require_sha(value, label)
+    if approval_tag != "refs/tags/directory-publication-schema-1-launch-approved":
+        raise CasError("launch approval tag is outside the fixed namespace")
+    if not 1 <= attempts <= 3:
+        raise CasError("attempt count must be between one and three")
+    main_ref = "refs/heads/main"
+    ledger_ref = "refs/heads/directory-publication-ledger"
+    before = RefState(main_old, ledger_old, None)
+    committed = RefState(main_new, ledger_new, ledger_old)
+    arguments = [
+        "-c", "core.hooksPath=/dev/null", "push", "--atomic",
+        f"--force-with-lease={main_ref}:{main_old}",
+        f"--force-with-lease={ledger_ref}:{ledger_old}",
+        f"--force-with-lease={approval_tag}:",
+        remote,
+        f"{main_new}:{main_ref}", f"{ledger_new}:{ledger_ref}",
+        f"{ledger_old}:{approval_tag}",
+    ]
+    for _attempt in range(attempts):
+        try:
+            state = read_ref_state(repo, remote, main_ref, ledger_ref, approval_tag)
+        except subprocess.CalledProcessError:
+            continue
+        if state == committed:
+            return "committed"
+        if state != before:
+            raise CasError(f"evidence publication ref conflict: observed {state}")
+        if push_runner is not None:
+            push_runner(arguments)
+        else:
+            _git(repo, arguments, check=False)
+        # The transport response is never authoritative. Resolve success,
+        # conflict, or safe retry from one exact three-ref readback.
+        try:
+            state = read_ref_state(repo, remote, main_ref, ledger_ref, approval_tag)
+        except subprocess.CalledProcessError:
+            continue
+        if state == committed:
+            return "published"
+        if state != before:
+            raise CasError(f"evidence publication ref conflict after push: observed {state}")
+    raise CasError("evidence publication push failed with exact pre-state still present")
 
 
 def main() -> int:
@@ -292,6 +352,17 @@ def main() -> int:
     materialize_parser.add_argument("--remote", default="origin")
     materialize_parser.add_argument("--ledger-old", required=True)
     materialize_parser.add_argument("--ledger-new", required=True)
+    evidence_parser = subparsers.add_parser("evidence-publish")
+    evidence_parser.add_argument("--repo", type=Path, default=Path.cwd())
+    evidence_parser.add_argument("--remote", default="origin")
+    evidence_parser.add_argument("--main-old", required=True)
+    evidence_parser.add_argument("--main-new", required=True)
+    evidence_parser.add_argument("--ledger-old", required=True)
+    evidence_parser.add_argument("--ledger-new", required=True)
+    evidence_parser.add_argument(
+        "--approval-tag",
+        default="refs/tags/directory-publication-schema-1-launch-approved",
+    )
     verify_materialized_parser = subparsers.add_parser("materialize-verify")
     verify_materialized_parser.add_argument("--repo", type=Path, default=Path.cwd())
     verify_materialized_parser.add_argument("--signed", required=True)
@@ -313,6 +384,12 @@ def main() -> int:
             result = materialize_transition(
                 args.repo, args.remote, ledger_old=args.ledger_old,
                 ledger_new=args.ledger_new,
+            )
+        elif args.command == "evidence-publish":
+            result = evidence_transition(
+                args.repo, args.remote, main_old=args.main_old, main_new=args.main_new,
+                ledger_old=args.ledger_old, ledger_new=args.ledger_new,
+                approval_tag=args.approval_tag,
             )
         else:
             validate_materialized_descendant(args.repo, args.materialized, args.signed)

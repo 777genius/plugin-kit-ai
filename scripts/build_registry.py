@@ -8,6 +8,7 @@ GitHub archive, bounds and validates it, and never invokes package content.
 from __future__ import annotations
 
 import argparse
+import base64
 import gzip
 import hashlib
 import itertools
@@ -76,6 +77,32 @@ KIND_PRIORITY = {"upstream": 0, "community_bridge": 1, "community": 2}
 DIRECTORY_TREE_DIGEST_ALGORITHM = "agentplugins-tree-sha256-v1"
 DIRECTORY_TREE_DIGEST_DOMAIN = b"agentplugins.package-tree\x00sha256\x00v1"
 DIRECTORY_MINIMUM_INSTALLER_VERSION = "0.1.8"
+LOCKED_NPM_RUNTIME_PATH = "io.github.777genius.agentplugins/runtime"
+LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION = "0.1.13"
+LOCKED_NPM_LAUNCHER_ARGUMENT = "${PLUGIN_ROOT}/" + LOCKED_NPM_RUNTIME_PATH + "/launcher.mjs"
+LOCKED_NPM_LAUNCHER_DIGEST = "sha256:043042ce8ec048010a2077c0d241ee43022d5c187bec062040ea186073ae0d2a"
+LOCKED_NPM_IGNORED_INSTALL_SCRIPT_ALLOWLIST = {
+    ("@hubspot/cli", "8.14.0-beta.0"): frozenset({
+        (
+            "node_modules/esbuild", "0.25.12",
+            "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==",
+        ),
+    }),
+    ("firebase-tools", "15.28.1"): frozenset({
+        (
+            "node_modules/protobufjs", "7.6.5",
+            "sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==",
+        ),
+    }),
+}
+LOCKED_NPM_OPTIONAL_INSTALL_SCRIPT_ALLOWLIST = {
+    ("@hubspot/cli", "8.14.0-beta.0"): frozenset({
+        (
+            "node_modules/fsevents", "2.3.3",
+            "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+        ),
+    }),
+}
 
 
 class RegistryError(Exception):
@@ -851,6 +878,8 @@ def policy_eligibility_broadened(
     old_policy: dict[str, object] | None,
 ) -> bool:
     """Whether mutable release policy exposes the same bytes more broadly."""
+    if distribution["status"] != "active" or policy["status"] != "active":
+        return False
     if old_distribution is None or old_policy is None:
         return True
     if distribution["kind"] != old_distribution["kind"] or distribution["packager"] != old_distribution["packager"]:
@@ -859,8 +888,6 @@ def policy_eligibility_broadened(
         return True
     if old_policy["status"] != "active" and policy["status"] == "active":
         return True
-    if distribution["status"] != "active" or policy["status"] != "active":
-        return False
     target_keys = {
         (target["client"], scope)
         for target in policy["targets"] for scope in target["scopes"]
@@ -985,10 +1012,14 @@ def validate_changed_local_releases(
             continue
         label = f"{identity[0]}@{identity[1]}"
         revision = package_source["revision"]
+        policy = _policy_for(distribution, identity[1])
+        require_closed_runtime = policy["status"] != "revoked"
         if revision is None:
             validate_release_package(
                 repository_root / package_source["path"], release,
                 label=label, allow_unresolved_revision=True,
+                require_closed_runtime=require_closed_runtime,
+                runtime_policy=policy if require_closed_runtime else None,
             )
         else:
             temporary = None
@@ -999,6 +1030,8 @@ def validate_changed_local_releases(
                 validate_release_package(
                     Path(temporary.name) / "checkout" / package_source["path"],
                     release, label=label,
+                    require_closed_runtime=require_closed_runtime,
+                    runtime_policy=policy if require_closed_runtime else None,
                 )
             except RegistryError:
                 raise
@@ -1036,18 +1069,24 @@ def validate_changed_external_releases(
     )
     for identity in changed:
         release = current[identity]
+        distribution = next(item for item in source["distributions"] if item["id"] == identity[0])
         package_source = release["package_source"]
         label = f"{identity[0]}@{identity[1]}"
         source_repository = validate_repository(package_source["repository"])
         revision = package_source["revision"]
         require(isinstance(revision, str) and SHA_RE.fullmatch(revision) is not None, f"{label}: external source revision must be a full lowercase commit SHA")
         package_path = validate_registry_path(package_source["path"])
+        policy = _policy_for(distribution, identity[1])
         temporary = None
         try:
             temporary = acquirer(source_repository, revision, package_path, overrides.get(source_repository))
             package_root = Path(temporary.name) / "checkout" / package_path
             require(package_root.is_dir(), f"{label}: reacquired package path is unavailable")
-            validate_release_package(package_root, release, label=label)
+            validate_release_package(
+                package_root, release, label=label,
+                require_closed_runtime=policy["status"] != "revoked",
+                runtime_policy=policy if policy["status"] != "revoked" else None,
+            )
         except RegistryError:
             raise
         except Exception as error:
@@ -1096,9 +1135,159 @@ def _package_uses_unclosed_live_npx(package_root: Path) -> bool:
     )
 
 
+def validate_locked_npm_runtime(package_root: Path) -> None:
+    """Validate the repository-owned, integrity-locked npm bootstrap contract."""
+    runtime_root = package_root / LOCKED_NPM_RUNTIME_PATH
+    mcp_path = package_root / "mcp.json"
+    if not runtime_root.exists():
+        return
+    require(runtime_root.is_dir() and not runtime_root.is_symlink(), f"{runtime_root}: runtime extension must be a directory")
+    require(mcp_path.is_file(), f"{runtime_root}: locked npm runtime requires mcp.json")
+    mcp = read_object(mcp_path)
+    servers = mcp.get("mcpServers")
+    require(isinstance(servers, dict), f"{mcp_path}: mcpServers must be an object")
+    users = [
+        name for name, server in servers.items()
+        if isinstance(server, dict)
+        and server.get("command") == "node"
+        and isinstance(server.get("args"), list)
+        and server["args"]
+        and server["args"][0] == LOCKED_NPM_LAUNCHER_ARGUMENT
+        and all(isinstance(argument, str) for argument in server["args"])
+    ]
+    require(len(users) == 1, f"{runtime_root}: exactly one MCP server must use the locked npm launcher")
+
+    launcher = runtime_root / "launcher.mjs"
+    package_path = runtime_root / "package.json"
+    lock_path = runtime_root / "package-lock.json"
+    config_path = runtime_root / "runtime.json"
+    require(
+        all(path.is_file() and not path.is_symlink() for path in (launcher, package_path, lock_path, config_path)),
+        f"{runtime_root}: launcher, package.json, package-lock.json, and runtime.json are required",
+    )
+    require(digest_bytes(launcher.read_bytes()) == LOCKED_NPM_LAUNCHER_DIGEST, f"{launcher}: launcher is not the reviewed implementation")
+    package = read_object(package_path)
+    config = read_object(config_path)
+    lock_body = lock_path.read_bytes()
+    lock = read_object(lock_path)
+    require(
+        set(package) == {"name", "version", "private", "dependencies"}
+        and package.get("private") is True
+        and isinstance(package.get("dependencies"), dict)
+        and len(package["dependencies"]) == 1,
+        f"{package_path}: runtime package must contain one exact production dependency and no scripts",
+    )
+    dependency, version = next(iter(package["dependencies"].items()))
+    require(
+        isinstance(dependency, str) and isinstance(version, str)
+        and version and not any(token in version for token in ("*", "^", "~", ">", "<", "||", " ")),
+        f"{package_path}: runtime dependency must use one exact npm version",
+    )
+    require(
+        set(config) == {"schema_version", "package", "version", "entrypoint", "package_lock_sha256", "omit_optional"}
+        and config.get("schema_version") == 1
+        and config.get("package") == dependency
+        and config.get("version") == version
+        and isinstance(config.get("omit_optional"), bool)
+        and config.get("package_lock_sha256") == digest_bytes(lock_body),
+        f"{config_path}: runtime identity does not match package.json and package-lock.json",
+    )
+    entrypoint = config.get("entrypoint")
+    dependency_root = f"node_modules/{dependency}/"
+    require(
+        isinstance(entrypoint, str) and entrypoint.startswith(dependency_root)
+        and "\\" not in entrypoint and ".." not in PurePosixPath(entrypoint).parts,
+        f"{config_path}: entrypoint must remain inside the locked root dependency",
+    )
+    packages = lock.get("packages")
+    require(
+        lock.get("lockfileVersion") == 3 and lock.get("requires") is True
+        and isinstance(packages, dict) and isinstance(packages.get(""), dict),
+        f"{lock_path}: npm lockfile v3 with a root package is required",
+    )
+    require(packages[""].get("dependencies") == {dependency: version}, f"{lock_path}: root dependency identity mismatch")
+    root_dependency = packages.get(f"node_modules/{dependency}")
+    require(isinstance(root_dependency, dict) and root_dependency.get("version") == version, f"{lock_path}: locked root package version mismatch")
+    ignored_install_scripts: set[tuple[str, str, str]] = set()
+    optional_install_scripts: set[tuple[str, str, str]] = set()
+    for relative, entry in packages.items():
+        if relative == "":
+            continue
+        require(
+            isinstance(relative, str) and relative.startswith("node_modules/")
+            and isinstance(entry, dict) and entry.get("link") is not True
+            and isinstance(entry.get("version"), str),
+            f"{lock_path}: invalid installed package entry {relative!r}",
+        )
+        require(
+            "hasInstallScript" not in entry or isinstance(entry["hasInstallScript"], bool),
+            f"{lock_path}: {relative} has invalid install-script metadata",
+        )
+        require(
+            "optional" not in entry or isinstance(entry["optional"], bool),
+            f"{lock_path}: {relative} has invalid optional-package metadata",
+        )
+        resolved = entry.get("resolved")
+        integrity = entry.get("integrity")
+        parsed = urlsplit(resolved) if isinstance(resolved, str) else None
+        require(
+            parsed is not None and parsed.scheme == "https" and parsed.hostname == "registry.npmjs.org"
+            and parsed.username is None and parsed.password is None and not parsed.fragment,
+            f"{lock_path}: {relative} is not pinned to the npm registry",
+        )
+        require(isinstance(integrity, str) and integrity.startswith("sha512-"), f"{lock_path}: {relative} lacks SHA-512 integrity")
+        try:
+            decoded = base64.b64decode(integrity.removeprefix("sha512-"), validate=True)
+        except (ValueError, TypeError) as error:
+            raise RegistryError(f"{lock_path}: {relative} has invalid SHA-512 integrity") from error
+        require(len(decoded) == 64, f"{lock_path}: {relative} has invalid SHA-512 integrity length")
+        if entry.get("hasInstallScript") is True:
+            script = (relative, entry["version"], integrity)
+            if entry.get("optional") is True:
+                if not config["omit_optional"]:
+                    optional_install_scripts.add(script)
+            else:
+                ignored_install_scripts.add(script)
+
+    allowed_install_scripts = LOCKED_NPM_IGNORED_INSTALL_SCRIPT_ALLOWLIST.get(
+        (dependency, version), frozenset(),
+    )
+    require(
+        ignored_install_scripts == allowed_install_scripts,
+        f"{lock_path}: ignored install scripts differ from the exact reviewed allowlist: "
+        f"{sorted(ignored_install_scripts)!r}",
+    )
+    allowed_optional_install_scripts = LOCKED_NPM_OPTIONAL_INSTALL_SCRIPT_ALLOWLIST.get(
+        (dependency, version), frozenset(),
+    )
+    require(
+        optional_install_scripts == allowed_optional_install_scripts,
+        f"{lock_path}: optional install scripts differ from the exact reviewed allowlist: "
+        f"{sorted(optional_install_scripts)!r}",
+    )
+
+
+def validate_locked_npm_runtime_policy(
+    package_root: Path, policy: dict[str, object], *, label: str,
+) -> None:
+    """Require the installer version that understands the reviewed runtime."""
+    runtime_root = package_root / LOCKED_NPM_RUNTIME_PATH
+    validate_locked_npm_runtime(package_root)
+    if not runtime_root.exists():
+        return
+    minimum = tuple(int(part) for part in str(policy["minimum_installer_version"]).split("."))
+    compatible = tuple(int(part) for part in LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION.split("."))
+    require(
+        minimum >= compatible,
+        f"{label}: locked npm runtime requires minimum installer version "
+        f"{LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION} or newer",
+    )
+
+
 def validate_release_package(
     package_root: Path, release: dict[str, object], *, label: str | None = None,
     allow_unresolved_revision: bool = False, require_closed_runtime: bool = True,
+    runtime_policy: dict[str, object] | None = None,
 ) -> None:
     """Validate the complete immutable package boundary used for eligibility.
 
@@ -1150,6 +1339,10 @@ def validate_release_package(
             f"{identity}: reacquired {field} differs from submitted metadata: {actual!r} != {submitted!r}",
         )
     if require_closed_runtime:
+        if runtime_policy is None:
+            validate_locked_npm_runtime(package_root)
+        else:
+            validate_locked_npm_runtime_policy(package_root, runtime_policy, label=identity)
         require(
             not _package_uses_unclosed_live_npx(package_root),
             f"{identity}: package uses live npx without a recognized content-addressed runtime closure contract",
@@ -1179,6 +1372,10 @@ def validate_active_local_runtime_closures(
                 continue
             package_root = repository_root / package_source["path"]
             require(package_root.is_dir(), f"{distribution['id']}@{release['sequence']}: package path is missing")
+            validate_locked_npm_runtime_policy(
+                package_root, policy,
+                label=f"{distribution['id']}@{release['sequence']}",
+            )
             require(
                 not _package_uses_unclosed_live_npx(package_root),
                 f"{distribution['id']}@{release['sequence']}: active in-repository release uses live npx "
@@ -1308,6 +1505,11 @@ def _positive_materialization_clients(
         if observation.get("distribution_id") == distribution["id"]
         and observation.get("release_sequence") == release["sequence"]
         and observation.get("package_tree_digest") == release["tree_digest"]
+        and observation.get("manifest_digest") == release["manifest_digest"]
+        and observation.get("source_repository") == release["package_source"]["repository"]
+        and observation.get("source_revision") == release["package_source"]["revision"]
+        and observation.get("source_path") == release["package_source"]["path"]
+        and observation.get("installer_version") == policy["minimum_installer_version"]
         and observation.get("level") == "materialization"
         and observation.get("outcome") == "passed"
     }
@@ -1385,7 +1587,14 @@ def validate_directory(
                     and observation["source_path"] == evidence_source["path"],
                     f"{evidence_id}: evidence identity does not match release",
                 )
-                evidence_tuple = tuple(observation.get(field) for field in ("level", "client", "dependency_identity", "client_version", "installer_version", "os", "architecture"))
+                require(
+                    observation.get("client") is None or observation.get("client") in target_ids,
+                    f"{evidence_id}: evidence client is not a reviewed release target",
+                )
+                evidence_tuple = tuple(observation.get(field) for field in (
+                    "level", "client", "dependency_identity", "client_version",
+                    "installer_version", "adapter_version", "os", "architecture",
+                ))
                 require(evidence_tuple not in current_tuples, f"{distribution['id']}@{sequence}: multiple current evidence pointers for one applicability tuple")
                 current_tuples.add(evidence_tuple)
             package_source = release["package_source"]
@@ -1417,6 +1626,7 @@ def validate_directory(
                         package_root, release,
                         label=f"{distribution['id']}@{sequence}",
                         allow_unresolved_revision=True,
+                        runtime_policy=policy,
                     )
                 else:
                     fields = package_fields(package_root, [])

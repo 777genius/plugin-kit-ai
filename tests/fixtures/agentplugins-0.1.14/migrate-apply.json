@@ -1,0 +1,1 @@
+{"schema_version":1,"command":"migrate-state","result":"success","data":{"dry_run":false,"source_schema":2,"installations":1,"needs_rebind":0,"migrated":1,"backup_created":true}}

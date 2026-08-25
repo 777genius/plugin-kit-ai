@@ -346,15 +346,29 @@ class LedgerFailureTests(unittest.TestCase):
 class WorkflowHardeningTests(unittest.TestCase):
     def test_reordered_workflow_rechecks_protected_main_before_candidate_sign_and_push(self) -> None:
         workflow = yaml.load((ROOT / ".github" / "workflows" / "directory-publication.yml").read_text(), Loader=yaml.BaseLoader)
-        prepare_steps = workflow["jobs"]["prepare"]["steps"]
-        prepare_guard = next(step["run"] for step in prepare_steps if step.get("name") == "Require event source to remain protected main")
+        authentication = workflow["jobs"]["authenticate-completed-state"]
+        source_guard = next(
+            step["run"] for step in authentication["steps"]
+            if step.get("name") == "Require event source or authenticate exact completed state"
+        )
+        prepare = workflow["jobs"]["prepare"]
+        self.assertEqual(prepare["needs"], "authenticate-completed-state")
+        self.assertEqual(
+            prepare["outputs"]["completed"],
+            "${{ needs.authenticate-completed-state.outputs.completed }}",
+        )
         freshness = next(step for step in workflow["jobs"]["sign"]["steps"] if step.get("id") == "freshness")
         signer = next(step["run"] for step in workflow["jobs"]["sign"]["steps"] if step.get("id") == "signed")
         publisher = next(step["run"] for step in workflow["jobs"]["sign"]["steps"] if step.get("id") == "commit")
-        for commands in (prepare_guard, freshness["run"], publisher):
+        for commands in (source_guard, freshness["run"], publisher):
             self.assertIn("refs/heads/main:refs/remotes/origin/main", commands)
             self.assertIn("rev-parse refs/remotes/origin/main", commands)
-        self.assertLess(prepare_guard.index("git fetch"), prepare_guard.index("rev-parse"))
+        self.assertLess(source_guard.index("git fetch"), source_guard.index("rev-parse"))
+        self.assertIn('observed_main}" = "${EVENT_SOURCE_COMMIT}', source_guard)
+        self.assertIn('observed_main}" = "${expected_marker}', source_guard)
+        self.assertIn("materialize_launch_evidence.py verify-completed", source_guard)
+        self.assertIn('--main-parent "$expected_marker"', source_guard)
+        self.assertIn('--source-digest "$GITHUB_SHA"', source_guard)
         self.assertNotIn("DIRECTORY_ED25519_PRIVATE_KEY", freshness.get("env", {}))
         self.assertNotIn("fetch", signer)
         self.assertNotIn("refs/remotes/origin", signer)

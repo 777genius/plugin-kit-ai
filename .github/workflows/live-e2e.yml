@@ -21,6 +21,28 @@ on:
       publication_ledger_commit:
         required: true
         type: string
+      caller_event_name:
+        required: true
+        type: string
+      caller_ref:
+        required: true
+        type: string
+      caller_workflow_ref:
+        required: true
+        type: string
+    outputs:
+      evidence_artifact_name:
+        description: Exact stable-launch Actions transport artifact
+        value: ${{ jobs.required-live-e2e.outputs.evidence_artifact_name }}
+      launch_evidence_digest:
+        description: SHA-256 of canonical launch-evidence.json
+        value: ${{ jobs.required-live-e2e.outputs.launch_evidence_digest }}
+      workflow_source_digest:
+        description: Exact protected launch workflow source commit
+        value: ${{ jobs.required-live-e2e.outputs.workflow_source_digest }}
+      evidence_run_attempt:
+        description: Exact attempt that produced the immutable evidence artifact
+        value: ${{ jobs.required-live-e2e.outputs.evidence_run_attempt }}
   workflow_dispatch:
     inputs:
       consent:
@@ -59,7 +81,7 @@ concurrency:
 
 jobs:
   required-stable-launch-evidence:
-    if: github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'
+    if: inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
     uses: ./.github/workflows/launch-evidence-e2e.yml
     with:
       consent: ${{ inputs.consent }}
@@ -68,9 +90,12 @@ jobs:
       publication_snapshot_digest: ${{ inputs.publication_snapshot_digest }}
       publication_source_commit: ${{ inputs.publication_source_commit }}
       publication_ledger_commit: ${{ inputs.publication_ledger_commit }}
+      caller_event_name: ${{ inputs.caller_event_name }}
+      caller_ref: ${{ inputs.caller_ref }}
+      caller_workflow_ref: ${{ inputs.caller_workflow_ref }}
     permissions:
       actions: read
-      attestations: read
+      attestations: write
       contents: read
       id-token: write
 
@@ -100,6 +125,30 @@ jobs:
           retention-days: 30
           overwrite: false
 
+  required-live-e2e:
+    name: Require complete live E2E results
+    if: always() && inputs.consent && inputs.publication_id != '' && inputs.publication_sequence > 0 && inputs.publication_snapshot_digest != '' && inputs.publication_source_commit != '' && inputs.publication_ledger_commit != '' && (inputs.caller_event_name == 'push' || inputs.caller_event_name == 'schedule' || inputs.caller_event_name == 'workflow_dispatch') && inputs.caller_ref == 'refs/heads/main' && inputs.caller_workflow_ref == format('{0}/.github/workflows/directory-publication.yml@refs/heads/main', github.repository)
+    needs:
+      - required-stable-launch-evidence
+      - public-read-flows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      evidence_artifact_name: ${{ needs.required-stable-launch-evidence.outputs.evidence_artifact_name }}
+      launch_evidence_digest: ${{ needs.required-stable-launch-evidence.outputs.launch_evidence_digest }}
+      workflow_source_digest: ${{ needs.required-stable-launch-evidence.outputs.workflow_source_digest }}
+      evidence_run_attempt: ${{ needs.required-stable-launch-evidence.outputs.evidence_run_attempt }}
+    steps:
+      - name: Reject skipped or failed nested evidence
+        env:
+          STABLE_E2E_RESULT: ${{ needs.required-stable-launch-evidence.result }}
+          PUBLIC_READ_RESULT: ${{ needs.public-read-flows.result }}
+        run: |
+          test "$STABLE_E2E_RESULT" = success
+          test "$PUBLIC_READ_RESULT" = success
+
   scheduled-fixture-contract:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-24.04
@@ -109,6 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -120,7 +170,7 @@ jobs:
             --consent tests/e2e/fixtures/fixture-only-consent.json \
             --run-root "$run_root" \
             --output "$run_root/evidence/launch-evidence.json"
-          python -m unittest tests.test_run_launch_evidence_e2e tests.test_workflow_contracts
+          python -m unittest tests.test_run_launch_evidence_e2e tests.test_materialize_launch_evidence tests.test_workflow_contracts
 
   scheduled-production-directory-observation:
     if: github.event_name == 'schedule'

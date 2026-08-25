@@ -1,0 +1,8 @@
+{
+  "name": "agentplugins-runtime-firebase",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "firebase-tools": "15.28.1"
+  }
+}

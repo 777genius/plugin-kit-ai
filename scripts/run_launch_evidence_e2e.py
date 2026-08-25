@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -44,8 +45,21 @@ from directory_publication import (  # noqa: E402
     validate_snapshot_semantics,
     verify_envelope,
 )
-from launch_observer_signatures import verify_observer_bundle  # noqa: E402
+from launch_observer_signatures import (  # noqa: E402
+    sanitize_evidence,
+    validate_evidence_redaction,
+    verify_observer_bundle,
+)
 from build_registry import RegistryError, directory_tree_digest, resolve_directory  # noqa: E402
+from observe_launch_scenario import (  # noqa: E402
+    _managed_native_product_id,
+    _stable_tree_snapshot,
+    grouped_acquisition_closure_digest,
+    installation_receipts,
+    selected_manager_installation,
+    strict_json_loads,
+    validate_cli_envelope,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,17 +67,188 @@ SCENARIOS = ROOT / "tests" / "e2e" / "launch-scenarios.json"
 EXTERNAL_PACKAGE = ROOT / "tests" / "e2e" / "fixtures" / "external-package"
 FORK_PACKAGE = ROOT / "tests" / "fixtures" / "plugins" / "fixture-bridge"
 STATE_FIXTURE = ROOT / "tests" / "e2e" / "fixtures" / "state-schema-2.json"
+CAPTURE_PROVENANCE = ROOT / "tests" / "fixtures" / "agentplugins-0.1.14" / "provenance.json"
 RECOVERY_FIXTURE = ROOT / "tests" / "e2e" / "fixtures" / "recovery-cases.json"
 SCENARIO_OBSERVER = ROOT / "scripts" / "observe_launch_scenario.py"
 PRODUCTION_CONFIG = ROOT / "tests" / "e2e" / "production-launch.json"
+STABLE_LAUNCH_VERSION_FILE = ROOT / "tests" / "e2e" / "stable-launch-version.txt"
 PRODUCTION_DIRECTORY_TRUST = ROOT / "registry" / "publication" / "trusted-keys.json"
 RELEASE_MANIFEST_NAME = "release-manifest.json"
 RELEASE_CHECKSUMS_NAME = "checksums.txt"
 RELEASE_MANIFEST_SCHEMA = ROOT / "schemas" / "e2e" / "release-manifest.schema.json"
 TRUSTED_CATALOG_REPOSITORY = "777genius/universal-agent-plugins"
+TRUSTED_CATALOG_REPOSITORY_OWNER = "777genius"
+TRUSTED_CATALOG_REPOSITORY_ID = "1326737541"
+TRUSTED_CATALOG_REPOSITORY_OWNER_ID = "13103045"
+TRUSTED_OBSERVER_REF = "refs/heads/main"
+TRUSTED_OBSERVER_ENVIRONMENT = "stable-launch-e2e"
+TRUSTED_OBSERVER_SUBJECT = f"repo:{TRUSTED_CATALOG_REPOSITORY}:environment:{TRUSTED_OBSERVER_ENVIRONMENT}"
+TRUSTED_OBSERVER_WORKFLOW_REF = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/directory-publication.yml@{TRUSTED_OBSERVER_REF}"
+TRUSTED_OBSERVER_JOB_WORKFLOW_REF = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/launch-evidence-e2e.yml@{TRUSTED_OBSERVER_REF}"
 TRUSTED_CLI_RELEASE_REPOSITORY = "777genius/plugin-kit-ai"
-TRUSTED_CLI_RELEASE_TAG = "agentplugins-v0.1.8"
+TRUSTED_CLI_RELEASE_TAG = "agentplugins-v" + STABLE_LAUNCH_VERSION_FILE.read_text(encoding="utf-8").strip()
 TRUSTED_CLI_RELEASE_WORKFLOW = "777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml"
+TRUSTED_CLI_RELEASE_COMMIT = "caffa9ac2a962462a05d5342250f4810ddce0856"
+TRUSTED_SANITIZED_CAPTURE_MANIFEST = "sha256:1e7e5ca4d72be2e188bbfa002cf19975b4e1b100913a329bbaf963b5633abb85"
+
+
+def validate_capture_provenance(path: Path = CAPTURE_PROVENANCE) -> dict[str, Any]:
+    """Verify retained capture bytes and reject path/secret-bearing provenance."""
+    value = strict_json_loads(path.read_bytes())
+    if set(value) != {"schema_version", "release", "sanitization_rules", "captures"} or value["schema_version"] != 1:
+        raise ValueError("invalid capture provenance envelope")
+    release = value["release"]
+    if not (
+        set(release) == {
+            "repository", "tag", "tag_commit", "asset", "version_stdout", "binary_sha256",
+            "binary_digest_status", "capture_evidence_level", "release_binary_authenticated",
+            "release_provenance_linkage",
+        }
+        and
+        release.get("repository") == "777genius/plugin-kit-ai"
+        and release.get("tag") == "agentplugins-v0.1.14"
+        and re.fullmatch(r"[0-9a-f]{40}", str(release.get("tag_commit", "")))
+        and release.get("asset") == "agentplugins_0.1.14_linux_amd64"
+        and release.get("version_stdout") == "agentplugins 0.1.14"
+        and release.get("binary_sha256") is None
+        and release.get("binary_digest_status") == "not_retained_in_capture"
+        and release.get("capture_evidence_level") == "sanitized_manifest_only_no_raw_or_binary_linkage"
+        and release.get("release_binary_authenticated") is False
+        and release.get("release_provenance_linkage") == "unlinked_sanitized_fixture_provenance"
+    ):
+        raise ValueError("invalid capture release identity")
+    if not isinstance(value["sanitization_rules"], list) or len(value["sanitization_rules"]) < 5:
+        raise ValueError("incomplete capture sanitization rules")
+    roots = {"tests/e2e/fixtures": ROOT / "tests/e2e/fixtures"}
+    default_root = path.parent
+    seen: set[tuple[str, str]] = set()
+    for capture in value["captures"]:
+        if not isinstance(capture, dict) or not {
+            "fixture", "argv", "sanitized_sha256",
+        } <= set(capture) <= {
+            "fixture", "fixture_root", "argv", "sanitized_sha256",
+            "stderr_fixture", "stderr_sha256",
+        }:
+            raise ValueError("invalid sanitized capture manifest record")
+        fixture_root = capture.get("fixture_root", ".")
+        root = default_root if fixture_root == "." else roots.get(fixture_root)
+        fixture = capture.get("fixture")
+        if root is None or not isinstance(fixture, str) or Path(fixture).name != fixture:
+            raise ValueError("non-canonical capture fixture locator")
+        key = (fixture_root, fixture)
+        if key in seen or not isinstance(capture.get("argv"), list) or not capture["argv"]:
+            raise ValueError("duplicate or unbound capture provenance")
+        seen.add(key)
+        try:
+            body = (root / fixture).read_bytes()
+        except OSError as error:
+            raise ValueError("capture fixture is missing") from error
+        if capture.get("sanitized_sha256") != "sha256:" + hashlib.sha256(body).hexdigest():
+            raise ValueError("capture fixture digest mismatch")
+        stderr_fixture = capture.get("stderr_fixture")
+        if stderr_fixture is not None:
+            if Path(stderr_fixture).name != stderr_fixture:
+                raise ValueError("non-canonical stderr fixture locator")
+            try:
+                stderr_body = (root / stderr_fixture).read_bytes()
+            except OSError as error:
+                raise ValueError("stderr capture fixture is missing") from error
+            if capture.get("stderr_sha256") != "sha256:" + hashlib.sha256(stderr_body).hexdigest():
+                raise ValueError("stderr capture digest mismatch")
+    serialized = json.dumps(value, sort_keys=True)
+    if re.search(r"/(?:home|tmp|srv|root)/", serialized, re.IGNORECASE):
+        raise ValueError("capture provenance contains a host path")
+    authenticated_manifest = {
+        "release": release,
+        "sanitization_rules": value["sanitization_rules"],
+        "captures": [
+            {
+                key: capture[key]
+                for key in ("fixture", "fixture_root", "argv", "sanitized_sha256", "stderr_fixture", "stderr_sha256")
+                if key in capture
+            }
+            for capture in value["captures"]
+        ],
+    }
+    if "sha256:" + hashlib.sha256(canonical_json(authenticated_manifest)).hexdigest() != TRUSTED_SANITIZED_CAPTURE_MANIFEST:
+        raise ValueError("sanitized capture manifest differs from the trusted repository root")
+    return value
+
+
+def validate_capture_release_binding(
+    *, release_manifest: dict[str, Any], release_identity: dict[str, Any],
+    release_manifest_digest: str, release_checksums_digest: str,
+    asset_name: str, asset_digest: str, asset_attestation: dict[str, Any],
+    provenance_path: Path = CAPTURE_PROVENANCE,
+) -> dict[str, Any]:
+    """Validate fixture truth and independently authenticate the enforced binary.
+
+    The immutable fixtures have no retained raw transcript or binary linkage.
+    Successful release verification says only that the binary selected for the
+    enforced run is the independently authenticated immutable release asset.
+    """
+    provenance = validate_capture_provenance(provenance_path)
+    captured = provenance["release"]
+    declared = next(
+        (item for item in release_manifest.get("assets", {}).values() if item.get("file") == asset_name),
+        None,
+    )
+    if not (
+        set(release_identity) == {"repository", "tag", "tag_commit", "release_id", "immutable"}
+        and release_identity == {
+            "repository": TRUSTED_CLI_RELEASE_REPOSITORY, "tag": TRUSTED_CLI_RELEASE_TAG,
+            "tag_commit": TRUSTED_CLI_RELEASE_COMMIT, "release_id": release_identity.get("release_id"),
+            "immutable": True,
+        }
+        and type(release_identity.get("release_id")) is int and release_identity["release_id"] > 0
+        and release_manifest.get("tag") == TRUSTED_CLI_RELEASE_TAG
+        and release_manifest.get("commit") == TRUSTED_CLI_RELEASE_COMMIT
+        and release_manifest.get("version") == captured["version_stdout"].removeprefix("agentplugins ")
+        and isinstance(declared, dict) and declared.get("file") == asset_name
+        and isinstance(declared.get("sha256"), str)
+        and asset_digest == "sha256:" + declared["sha256"] and DIGEST.fullmatch(asset_digest)
+        and DIGEST.fullmatch(release_manifest_digest) and DIGEST.fullmatch(release_checksums_digest)
+        and strict_asset_attestation_matches(
+            asset_attestation, repository=TRUSTED_CLI_RELEASE_REPOSITORY,
+            workflow=TRUSTED_CLI_RELEASE_WORKFLOW, tag=TRUSTED_CLI_RELEASE_TAG,
+            commit=TRUSTED_CLI_RELEASE_COMMIT, asset_name=asset_name, asset_digest=asset_digest,
+        )
+    ):
+        raise ValueError("enforced binary is not bound to the authenticated immutable release")
+    validate_release_manifest(
+        release_manifest, repository=TRUSTED_CLI_RELEASE_REPOSITORY,
+        tag=TRUSTED_CLI_RELEASE_TAG, tag_commit=TRUSTED_CLI_RELEASE_COMMIT,
+    )
+    return {
+        "fixture_release_binary_authenticated": False,
+        "fixture_release_provenance_linkage": "unlinked",
+        "enforced_binary_authenticated": True,
+        "capture_evidence_level": captured["capture_evidence_level"],
+        "binary_digest": asset_digest,
+        "fixture_recorded_tag_commit": captured["tag_commit"],
+        "enforced_release_tag_commit": TRUSTED_CLI_RELEASE_COMMIT,
+        "release_manifest_digest": release_manifest_digest,
+        "release_checksums_digest": release_checksums_digest,
+        "attestation": copy.deepcopy(asset_attestation),
+    }
+
+
+def strict_asset_attestation_matches(
+    value: Any, *, repository: str, workflow: str, tag: str, commit: str,
+    asset_name: str, asset_digest: str,
+) -> bool:
+    """Bind strict SLSA subject identity to the authenticated legacy asset fields."""
+    return value == {
+        "repository": repository, "workflow": workflow, "tag": tag, "tag_commit": commit,
+        "issuer": "https://token.actions.githubusercontent.com",
+        "source_ref": f"refs/tags/{tag}", "source_digest": commit,
+        "predicate_type": "https://slsa.dev/provenance/v1",
+        "subject_name": asset_name, "subject_digest": asset_digest,
+        "runner_environment": "github-hosted",
+        "asset_name": asset_name, "asset_digest": asset_digest, "verified": True,
+    }
+
+
 DIRECTORY_INPUT_ENVIRONMENT_KEYS = frozenset({
     "AGENTPLUGINS_DIRECTORY_ORIGIN",
     "AGENTPLUGINS_DIRECTORY_SNAPSHOT",
@@ -99,7 +284,7 @@ GITHUB_REPOSITORY = re.compile(
 )
 GITHUB_SOURCE_PATH = re.compile(r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$")
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
-MINIMUM_STABLE_VERSION = (0, 1, 8)
+MINIMUM_STABLE_VERSION = (0, 1, 14)
 IDENTITY_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 CONTRIBUTOR_PATH = re.compile(
     r"^(?:plugins/[a-z0-9]+(?:-[a-z0-9]+)*/[^/].*|"
@@ -114,6 +299,54 @@ CLIENT_ROOTS = {
     "vscode": ".config/Code/User",
 }
 SECRET_NAME = re.compile(r"(?i)(token|secret|password|cookie|authorization|oauth[_-]?code)")
+
+
+def complete_acquisition_proof(
+    value: Any, targets: tuple[str, ...], *, tree_digest: str, manifest_digest: str,
+    source_repository: str, source_revision: str, source_path: str, source_kind: str = "github",
+) -> dict[str, Any] | None:
+    """Validate the complete grouped acquisition at the evidence boundary."""
+    if not isinstance(value, dict) or set(value) != {
+        "acquisition_id", "acquisition_count", "tree_digest", "manifest_digest",
+        "closure_digest", "source_kind", "fetched", "validated", "source_repository",
+        "source_revision", "source_path", "targets", "target_outcomes",
+    }:
+        return None
+    acquisition_id = value.get("acquisition_id")
+    if not (
+        isinstance(acquisition_id, str) and acquisition_id.strip()
+        and type(value.get("acquisition_count")) is int and value["acquisition_count"] == 1
+        and value.get("tree_digest") == tree_digest and DIGEST.fullmatch(tree_digest)
+        and value.get("manifest_digest") == manifest_digest and DIGEST.fullmatch(manifest_digest)
+        and isinstance(value.get("closure_digest"), str) and DIGEST.fullmatch(value["closure_digest"])
+        and value.get("source_kind") == source_kind and source_kind in {"github", "local", "directory"}
+        and value.get("source_repository") == source_repository and GITHUB_REPOSITORY.fullmatch(source_repository)
+        and value.get("source_revision") == source_revision and FULL_SHA.fullmatch(source_revision)
+        and value.get("source_path") == source_path and GITHUB_SOURCE_PATH.fullmatch(source_path)
+        and value.get("fetched") is (source_kind != "local") and value.get("validated") is True
+        and len(targets) == len(set(targets))
+    ):
+        return None
+    outcomes = value.get("target_outcomes")
+    target_bindings = value.get("targets")
+    if (
+        not isinstance(outcomes, dict) or set(outcomes) != set(targets)
+        or not isinstance(target_bindings, list) or len(target_bindings) != len(targets)
+        or [item.get("target") if isinstance(item, dict) else None for item in target_bindings] != list(targets)
+    ):
+        return None
+    binding = {
+        "outcome": "passed", "acquisition_id": acquisition_id,
+        "tree_digest": tree_digest, "manifest_digest": manifest_digest,
+        "closure_digest": value["closure_digest"],
+    }
+    if any(outcome != binding for outcome in outcomes.values()):
+        return None
+    if value["closure_digest"] != grouped_acquisition_closure_digest(
+        source_kind, source_repository, source_path, source_revision, tree_digest, manifest_digest,
+    ):
+        return None
+    return copy.deepcopy(value)
 
 
 def parse_canonical_github_source(value: Any) -> dict[str, str] | None:
@@ -147,25 +380,78 @@ def parse_canonical_github_source(value: Any) -> dict[str, str] | None:
 
 def authoritative_native_client_evidence(
     evidence: Any, *, client_version: Any, product_id: str | None = None,
+    client: str | None = None,
 ) -> bool:
-    """Validate protected evidence from real client version/discovery commands."""
+    """Validate signed protected evidence from real native client commands."""
     if not isinstance(evidence, dict) or evidence.get("basis") != "protected_external_observer":
+        return False
+    if evidence.get("observer") != "native-client-command-v1":
         return False
     version = evidence.get("version_operation")
     discovery = evidence.get("discovery_operation")
+    expected_client = client or evidence.get("client")
     return bool(
-        isinstance(client_version, str) and client_version
+        expected_client in {"copilot", "vscode"}
+        and evidence.get("client") == expected_client
+        and isinstance(client_version, str) and client_version
         and isinstance(version, dict)
-        and version.get("operation") in {"version", "list"}
-        and isinstance(version.get("argv"), list) and version["argv"]
+        and version.get("operation") == "version"
+        and version.get("argv") == ["copilot", "--version"]
         and version.get("observed_client_version") == client_version
         and isinstance(discovery, dict)
-        and discovery.get("operation") in {"discovery", "list"}
-        and isinstance(discovery.get("argv"), list) and discovery["argv"]
+        and discovery.get("operation") == "list"
+        and discovery.get("argv") == ["copilot", "plugin", "list"]
         and discovery.get("discovered") is True
         and (product_id is None or discovery.get("product_id") == product_id)
     )
 
+
+def authoritative_public_mcp_evidence(evidence: Any) -> bool:
+    """Validate the distinct tokenless public-MCP proof used by ChatGPT."""
+    if not isinstance(evidence, dict) or set(evidence) != {
+        "basis", "observer", "endpoint", "protocol_version", "initialize", "list", "read",
+    }:
+        return False
+    initialize, listed, read = evidence.get("initialize"), evidence.get("list"), evidence.get("read")
+    return bool(
+        evidence.get("basis") == "protected_external_observer"
+        and evidence.get("observer") == "public-mcp-command-v1"
+        and evidence.get("endpoint") == "https://docs.mcp.cloudflare.com/mcp"
+        and evidence.get("protocol_version") == "2025-06-18"
+        and initialize == {"method": "initialize", "passed": True}
+        and listed == {"method": "tools/list", "required_name": "search_cloudflare_documentation", "passed": True}
+        and isinstance(read, dict) and set(read) == {"method", "name", "read_only", "marker_digest", "passed"}
+        and read.get("method") == "tools/call" and read.get("name") == "search_cloudflare_documentation"
+        and read.get("read_only") is True and read.get("passed") is True
+        and DIGEST.fullmatch(str(read.get("marker_digest", ""))) is not None
+    )
+
+
+def authoritative_repository_copilot_evidence(
+    evidence: Any, *, client_version: Any, product_id: str, physical_artifact_id: str,
+    expected_version: str,
+) -> bool:
+    """Validate native Copilot commands executed directly by Agent Plugins."""
+    if (
+        not isinstance(evidence, dict)
+        or set(evidence) != {"basis", "version_operation", "discovery_operation"}
+        or evidence.get("basis") != "native_client_command"
+    ):
+        return False
+    version = evidence.get("version_operation")
+    discovery = evidence.get("discovery_operation")
+    return bool(
+        client_version == expected_version
+        and isinstance(version, dict)
+        and set(version) == {"argv", "observed_client_version"}
+        and version.get("argv") == ["copilot", "--version"]
+        and version.get("observed_client_version") == expected_version
+        and isinstance(discovery, dict)
+        and set(discovery) == {"argv", "discovered", "product_id"}
+        and discovery.get("argv") == ["copilot", "plugin", "list"]
+        and discovery.get("discovered") is True
+        and discovery.get("product_id") == _managed_native_product_id(product_id, physical_artifact_id)
+    )
 
 def read_production_config() -> dict[str, Any]:
     value = json.loads(PRODUCTION_CONFIG.read_text())
@@ -174,13 +460,50 @@ def read_production_config() -> dict[str, Any]:
         or value.get("catalog_repository") != TRUSTED_CATALOG_REPOSITORY
         or value.get("cli_release_repository") != TRUSTED_CLI_RELEASE_REPOSITORY
         or value.get("cli_release_tag") != TRUSTED_CLI_RELEASE_TAG
+        or value.get("cli_release_commit") != TRUSTED_CLI_RELEASE_COMMIT
         or value.get("cli_release_workflow") != TRUSTED_CLI_RELEASE_WORKFLOW
+        or value.get("copilot_cli_package") != "@github/copilot"
+        or value.get("copilot_cli_version") != "1.0.80"
+        or value.get("copilot_cli_integrity") != "sha512-6tf93ZF56KOiTTAjK/UhLZkl1W543IzaTQly288kockJZFswpRTnQEI00Yvacpb39DTvTYu3/ha9SeKpo/pgZQ=="
+        or value.get("copilot_node_major") != 22
     ):
         raise ValueError("checked-in production repository configuration is invalid")
     origin = urlsplit(str(value.get("production_origin", "")))
     if origin.scheme != "https" or not origin.hostname or origin.query or origin.fragment or origin.username or origin.password:
         raise ValueError("checked-in production Directory origin is invalid")
     return value
+
+def valid_copilot_installation(
+    executable: Path | None, metadata_path: Path | None, metadata: Any,
+    run_root: Path | None, config: dict[str, Any],
+) -> bool:
+    expected = {
+        "schema_version": 1,
+        "package": config["copilot_cli_package"],
+        "version": config["copilot_cli_version"],
+        "integrity": config["copilot_cli_integrity"],
+        "node_major": config["copilot_node_major"],
+        "signature_audit": True,
+        "version_argv": ["copilot", "--version"],
+        "observed_version": config["copilot_cli_version"],
+    }
+    return bool(
+        executable
+        and metadata_path
+        and run_root
+        and executable.is_file()
+        and os.access(executable, os.X_OK)
+        and metadata_path.is_file()
+        and executable.is_relative_to(run_root)
+        and metadata_path.is_relative_to(run_root)
+        and executable.resolve().is_relative_to(run_root)
+        and metadata_path.resolve().is_relative_to(run_root)
+        and isinstance(metadata, dict)
+        and set(metadata) == {*expected, "executable_digest", "version_stdout_digest"}
+        and all(metadata.get(key) == value for key, value in expected.items())
+        and metadata.get("executable_digest") == sha256_file(executable)
+        and DIGEST.fullmatch(str(metadata.get("version_stdout_digest", "")))
+    )
 
 
 def bounded_https_get(url: str, *, maximum: int, accept: str = "application/octet-stream", token: str | None = None) -> bytes:
@@ -347,14 +670,20 @@ def verify_github_asset_attestation(
     asset: Path, repository: str, workflow: str, tag: str, tag_commit: str, digest: str,
 ) -> dict[str, Any]:
     """Cryptographically verify one GitHub artifact attestation with fixed identities."""
-    if repository != TRUSTED_CLI_RELEASE_REPOSITORY or workflow != TRUSTED_CLI_RELEASE_WORKFLOW:
+    if (
+        repository != TRUSTED_CLI_RELEASE_REPOSITORY
+        or workflow != TRUSTED_CLI_RELEASE_WORKFLOW
+        or tag != TRUSTED_CLI_RELEASE_TAG
+        or tag_commit != TRUSTED_CLI_RELEASE_COMMIT
+    ):
         raise ValueError("artifact attestation repository/workflow is not the trusted release identity")
     if not FULL_SHA.fullmatch(tag_commit) or not DIGEST.fullmatch(digest):
         raise ValueError("artifact attestation commit or digest is invalid")
     command = [
         "gh", "attestation", "verify", str(asset), "--repo", repository,
         "--signer-workflow", workflow, "--source-ref", f"refs/tags/{tag}",
-        "--source-digest", tag_commit, "--format", "json",
+        "--source-digest", tag_commit, "--predicate-type", "https://slsa.dev/provenance/v1",
+        "--deny-self-hosted-runners", "--format", "json",
     ]
     try:
         completed = subprocess.run(command, text=True, capture_output=True, timeout=120, check=False)
@@ -363,8 +692,8 @@ def verify_github_asset_attestation(
     if completed.returncode:
         raise ValueError("GitHub artifact attestation is missing, invalid, or has the wrong release identity")
     try:
-        records = json.loads(completed.stdout)
-    except json.JSONDecodeError as error:
+        records = strict_json_loads(completed.stdout)
+    except (json.JSONDecodeError, ValueError) as error:
         raise ValueError("GitHub artifact attestation verifier returned invalid JSON") from error
     if not isinstance(records, list) or not records:
         raise ValueError("GitHub artifact attestation verifier returned no verified statement")
@@ -373,13 +702,20 @@ def verify_github_asset_attestation(
     for record in records:
         statement = record.get("verificationResult", {}).get("statement", {}) if isinstance(record, dict) else {}
         subjects = statement.get("subject", []) if isinstance(statement, dict) else []
-        if any(subject.get("name") == asset.name and subject.get("digest", {}).get("sha256") == expected_sha for subject in subjects if isinstance(subject, dict)):
+        if (
+            statement.get("predicateType") == "https://slsa.dev/provenance/v1"
+            and any(subject.get("name") == asset.name and subject.get("digest", {}).get("sha256") == expected_sha for subject in subjects if isinstance(subject, dict))
+        ):
             matching.append(record)
     if not matching:
         raise ValueError("GitHub artifact attestation subject name/digest does not match the native asset")
     return {
         "repository": repository, "workflow": workflow, "tag": tag,
-        "tag_commit": tag_commit, "asset_name": asset.name, "asset_digest": digest,
+        "tag_commit": tag_commit, "issuer": "https://token.actions.githubusercontent.com",
+        "source_ref": f"refs/tags/{tag}", "source_digest": tag_commit,
+        "predicate_type": "https://slsa.dev/provenance/v1", "subject_name": asset.name,
+        "subject_digest": digest, "runner_environment": "github-hosted",
+        "asset_name": asset.name, "asset_digest": digest,
         "verified": True,
     }
 
@@ -444,6 +780,29 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def fresh_observation_interval(started_value: Any, observed_value: Any, *, now: datetime | None = None) -> bool:
+    """Apply the same hard freshness window to current- and earlier-attempt evidence."""
+    try:
+        started = datetime.fromisoformat(str(started_value).replace("Z", "+00:00"))
+        observed = datetime.fromisoformat(str(observed_value).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    current = now or datetime.now(timezone.utc)
+    return bool(
+        started.tzinfo is not None and observed.tzinfo is not None
+        and started <= observed <= current + timedelta(minutes=2)
+        and current - observed <= MAX_ATTESTATION_AGE
+    )
+
+
+def current_or_earlier_attempt(observed_attempt: Any, current_attempt: Any) -> bool:
+    return bool(
+        str(observed_attempt).isascii() and str(observed_attempt).isdigit()
+        and str(current_attempt).isascii() and str(current_attempt).isdigit()
+        and 1 <= int(str(observed_attempt)) <= int(str(current_attempt))
+    )
+
+
 def sha256_file(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -473,16 +832,17 @@ def package_digest(path: Path) -> str:
 def materialization_digest(path: Path) -> str:
     """Digest arbitrary observer state; this is not a package identity."""
     framed = bytearray(b"uap-fixture-materialization-v1\0")
-    if not path.exists():
+    snapshot, bodies = _stable_tree_snapshot(path)
+    if not snapshot:
         framed.extend(b"absent")
         return "sha256:" + hashlib.sha256(framed).hexdigest()
-    for item in sorted(path.rglob("*")):
-        if item.is_symlink():
+    for name, item in sorted(snapshot.items()):
+        if name == ".":
             continue
-        relative = item.relative_to(path).as_posix().encode()
-        kind = b"directory" if item.is_dir() else b"file"
-        mode = b"100755" if item.is_file() and item.stat().st_mode & 0o111 else b"100644"
-        body = item.read_bytes() if item.is_file() else b""
+        relative = name.encode()
+        kind = item["kind"].encode()
+        mode = b"100755" if item["kind"] == "file" and item["mode"] & 0o111 else b"100644"
+        body = bodies.get(name, b"")
         for field in (relative, kind, mode, body):
             framed.extend(len(field).to_bytes(8, "big") + field)
     return "sha256:" + hashlib.sha256(framed).hexdigest()
@@ -491,34 +851,19 @@ def materialization_digest(path: Path) -> str:
 def observed_state_identity(environment: dict[str, str], product_id: str, clients: tuple[str, ...]) -> dict[str, Any]:
     manager = Path(environment["AGENTPLUGINS_HOME"])
     home = Path(environment["HOME"])
-    installation: dict[str, Any] | None = None
-    for path in sorted(manager.rglob("*.json")) if manager.exists() else ():
-        try:
-            value = json.loads(path.read_text())
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
-        candidates = value.get("installations", []) if isinstance(value, dict) else []
-        for candidate in candidates if isinstance(candidates, list) else ():
-            if isinstance(candidate, dict) and product_id in {candidate.get("declared_name"), find_value(candidate, {"product_id"})}:
-                installation = candidate
-                break
-        if installation is not None:
-            break
+    installation = selected_manager_installation(manager, product_id)
     roots = {client: home / CLIENT_ROOTS[client] for client in clients}
     native_digests = {client: materialization_digest(path) for client, path in roots.items()}
     # Materialized files are not proof that a client discovered a plugin, and
     # their digest is not a client version. Runtime claims come only from the
     # protected external observer contract validated by _load_attestations.
-    committed = 0
-    if installation:
-        stack = [installation]
-        while stack:
-            item = stack.pop()
-            if isinstance(item, dict):
-                committed += int(item.get("phase") == "committed")
-                stack.extend(item.values())
-            elif isinstance(item, list):
-                stack.extend(item)
+    receipts = installation_receipts(manager, product_id) if installation else None
+    committed = len(receipts or [])
+    physical_ids = {
+        binding.get("physical_artifact_id")
+        for binding in installation.get("clients", {}).values()
+        if isinstance(binding, dict) and isinstance(binding.get("physical_artifact_id"), str)
+    } if installation else set()
     return {
         "product_id": find_value(installation, {"product_id"}) if installation else None,
         "tree_digest": find_value(installation, {"tree_digest"}) if installation else None,
@@ -527,6 +872,7 @@ def observed_state_identity(environment: dict[str, str], product_id: str, client
         "distribution_kind": find_value(installation, {"distribution_kind"}) if installation else None,
         "release_sequence": find_value(installation, {"desired_release_sequence"}) if installation else None,
         "package_version": find_value(installation.get("package", {}), {"version"}) if installation else None,
+        "physical_artifact_id": next(iter(physical_ids)) if len(physical_ids) == 1 else None,
         "snapshot_sequence": find_value(installation, {"snapshot_sequence"}) if installation else None,
         "snapshot_digest": find_value(installation, {"snapshot_digest"}) if installation else None,
         "client_version": None,
@@ -543,7 +889,7 @@ def parse_stable_version(value: str) -> tuple[int, int, int]:
         raise ValueError("Agent Plugins version must be an exact semantic version")
     parsed = tuple(int(match.group(index)) for index in (1, 2, 3))
     if parsed < MINIMUM_STABLE_VERSION:
-        raise ValueError("stable launch requires agentplugins 0.1.8 or newer")
+        raise ValueError("stable launch requires agentplugins 0.1.14 or newer")
     return parsed
 
 
@@ -759,40 +1105,62 @@ def collect_digests(value: Any) -> set[str]:
     return found
 
 
-def make_challenge(github_sha: str, run_id: str, run_attempt: str, release_digest: str, directory_digest: str, run_root: Path) -> dict[str, str]:
+def logical_root_id(github_sha: str, run_id: str, run_attempt: str) -> str:
+    framed = "\0".join((github_sha, run_id, run_attempt)).encode("ascii")
+    return hashlib.sha256(b"UAP-STABLE-LAUNCH-LOGICAL-ROOT-V1\0" + framed).hexdigest()
+
+
+def exported_root_id(challenge: dict[str, str] | None) -> str:
+    """Return the portable public identifier, never a temporary-path hash."""
+    return challenge["root_id"][:16] if challenge else "0" * 16
+
+
+def make_challenge(
+    github_sha: str, run_id: str, run_attempt: str,
+    caller_event_name: str, caller_ref: str, caller_workflow_ref: str,
+    release_digest: str, directory_digest: str, scenario_contract_digest: str,
+    run_root: Path,
+) -> dict[str, str]:
     if not FULL_SHA.fullmatch(github_sha) or not run_id.isdigit() or not run_attempt.isdigit():
         raise ValueError("enforced evidence requires exact GitHub SHA/run identity")
-    if not DIGEST.fullmatch(release_digest) or not DIGEST.fullmatch(directory_digest):
+    if not all(DIGEST.fullmatch(item) for item in (release_digest, directory_digest, scenario_contract_digest)):
         raise ValueError("challenge inputs require release and Directory digests")
+    expected_workflow_ref = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/directory-publication.yml@refs/heads/main"
+    if caller_event_name not in {"push", "schedule", "workflow_dispatch"} or caller_ref != "refs/heads/main" or caller_workflow_ref != expected_workflow_ref:
+        raise ValueError("enforced evidence requires an approved protected Directory publication caller")
     nonce = secrets.token_hex(32)
-    root_id = hashlib.sha256(str(run_root.resolve()).encode()).hexdigest()
+    # This identity crosses isolated GitHub jobs. The concrete temporary path
+    # is independently safety-checked by each consumer and is not portable.
+    root_id = logical_root_id(github_sha, run_id, run_attempt)
     framed = json.dumps({
         "github_sha": github_sha, "run_id": run_id, "run_attempt": run_attempt,
         "release_manifest_digest": release_digest, "directory_digest": directory_digest,
+        "scenario_contract_digest": scenario_contract_digest,
         "root_id": root_id, "nonce": nonce,
     }, sort_keys=True, separators=(",", ":")).encode()
     return {
         "value": hashlib.sha256(CHALLENGE_DOMAIN + framed).hexdigest(),
         "nonce": nonce, "github_sha": github_sha, "run_id": run_id,
         "run_attempt": run_attempt, "release_manifest_digest": release_digest,
-        "directory_digest": directory_digest, "root_id": root_id,
+        "directory_digest": directory_digest, "scenario_contract_digest": scenario_contract_digest, "root_id": root_id,
     }
 
 
 def challenge_context_valid(value: Any) -> bool:
-    if not isinstance(value, dict) or set(value) != {"value", "nonce", "github_sha", "run_id", "run_attempt", "release_manifest_digest", "directory_digest", "root_id"}:
+    if not isinstance(value, dict) or set(value) != {"value", "nonce", "github_sha", "run_id", "run_attempt", "release_manifest_digest", "directory_digest", "scenario_contract_digest", "root_id"}:
         return False
     if not all(isinstance(value.get(field), str) for field in value):
         return False
     if not FULL_SHA.fullmatch(value["github_sha"]) or not value["run_id"].isdigit() or not value["run_attempt"].isdigit():
         return False
-    if not DIGEST.fullmatch(value["release_manifest_digest"]) or not DIGEST.fullmatch(value["directory_digest"]):
+    if not all(DIGEST.fullmatch(value[field]) for field in ("release_manifest_digest", "directory_digest", "scenario_contract_digest")):
         return False
     if not re.fullmatch(r"[a-f0-9]{64}", value["nonce"]) or not re.fullmatch(r"[a-f0-9]{64}", value["root_id"]):
         return False
     framed = json.dumps({
         "github_sha": value["github_sha"], "run_id": value["run_id"], "run_attempt": value["run_attempt"],
         "release_manifest_digest": value["release_manifest_digest"], "directory_digest": value["directory_digest"],
+        "scenario_contract_digest": value["scenario_contract_digest"],
         "root_id": value["root_id"], "nonce": value["nonce"],
     }, sort_keys=True, separators=(",", ":")).encode()
     return value["value"] == hashlib.sha256(CHALLENGE_DOMAIN + framed).hexdigest()
@@ -925,9 +1293,15 @@ class LaunchHarness:
         github_sha: str | None = None,
         github_run_id: str | None = None,
         github_run_attempt: str | None = None,
+        producer_run_attempt: str | None = None,
+        caller_event_name: str | None = None,
+        caller_ref: str | None = None,
+        caller_workflow_ref: str | None = None,
         challenge: dict[str, str] | None = None,
         native_observations: Path | None = None,
         observer_bundle_digest: str | None = None,
+        copilot_executable: Path | None = None,
+        copilot_metadata: Path | None = None,
     ) -> None:
         self.config = json.loads(SCENARIOS.read_text())
         if mode not in {"enforced", "fixture-only"}:
@@ -944,8 +1318,15 @@ class LaunchHarness:
         self.github_sha = github_sha
         self.github_run_id = github_run_id
         self.github_run_attempt = github_run_attempt
+        self.producer_run_attempt = producer_run_attempt or github_run_attempt
+        self.caller_event_name = caller_event_name
+        self.caller_ref = caller_ref
+        self.caller_workflow_ref = caller_workflow_ref
         self.native_observations = native_observations
         self.observer_bundle_digest = observer_bundle_digest
+        self.copilot_executable = Path(os.path.abspath(copilot_executable)) if copilot_executable else None
+        self.copilot_metadata_path = Path(os.path.abspath(copilot_metadata)) if copilot_metadata else None
+        self.copilot_metadata = json.loads(self.copilot_metadata_path.read_text()) if self.copilot_metadata_path else {}
         self.directory_environment: dict[str, str] = {}
         self.snapshot: dict[str, Any] = {}
         self.snapshot_digest: str | None = None
@@ -967,23 +1348,37 @@ class LaunchHarness:
         if mode == "enforced" and self.challenge is None and self.run_root and self.release_manifest_digest and self.snapshot_digest:
             self.challenge = make_challenge(
                 str(github_sha), str(github_run_id), str(github_run_attempt),
-                self.release_manifest_digest, self.snapshot_digest, self.run_root,
+                "push", "refs/heads/main",
+                f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/directory-publication.yml@refs/heads/main",
+                self.release_manifest_digest, self.snapshot_digest, sha256_file(SCENARIOS), self.run_root,
             )
         self.consent, self.consent_digest = self._load_consent(consent)
         self.external_pr_evidence: dict[str, Any] | None = None
         self.attestations = self._load_attestations(attestations, allow_external_pr=True)
+        expected_runtime = {
+            (plugin, client, "runtime")
+            for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools")
+            for client in ("codex", "cursor", "kiro")
+        }
+        if self.mode == "enforced" and set(self.attestations) != expected_runtime:
+            raise ValueError("primary runtime artifact must contain the exact 12 non-Notion pairs")
         notion_records = self._load_attestations(notion_oauth)
-        if any(key[0] != "notion" for key in notion_records):
-            raise ValueError("Notion OAuth artifact may contain only Notion attestations")
+        expected_notion = {("notion", client, "runtime") for client in ("codex", "cursor", "kiro")}
+        if any(key[0] == "notion" for key in self.attestations):
+            raise ValueError("primary runtime artifact must not contain Notion records")
+        if notion_records and set(notion_records) != expected_notion:
+            raise ValueError("Notion artifact must contain exactly codex, cursor, and kiro runtime records")
+        if any(record.get("outcome") != "passed" for record in notion_records.values()):
+            raise ValueError("all Notion runtime records must be passed")
         chatgpt_records = self._load_attestations(chatgpt_attestation)
-        if any(key != ("cloudflare-docs", "chatgpt", "oauth") for key in chatgpt_records):
+        if any(key != ("cloudflare-docs", "chatgpt", "runtime") for key in chatgpt_records):
             raise ValueError("ChatGPT artifact is scoped only to Cloudflare Docs registered binding")
         for records in (notion_records, chatgpt_records):
             overlap = set(self.attestations).intersection(records)
             if overlap:
                 raise ValueError(f"duplicate attestation tuple across artifacts: {sorted(overlap)}")
             self.attestations.update(records)
-        self.notion_oauth_supplied = bool(notion_records)
+        self.notion_oauth_supplied = set(notion_records) == expected_notion
         self.chatgpt_attestation_supplied = bool(chatgpt_records)
         self._preflight()
 
@@ -1010,12 +1405,16 @@ class LaunchHarness:
             and value.get("scenario_contract_digest") == sha256_file(SCENARIOS)
         )
         proof = value.get("no_real_project_proof")
-        proof_valid = isinstance(proof, dict) and proof == {
+        base_proof = {
             "real_project_accessed": False,
             "absolute_paths_exported": False,
             "credential_material_exported": False,
             "auth_copied": False,
         }
+        proof_valid = isinstance(proof, dict) and proof == (
+            {**base_proof, "enforcement": "systemd-positive-mount-allowlist-v1"}
+            if self.mode == "enforced" else base_proof
+        )
         if self.mode == "enforced":
             bound = self.challenge is None or (
                 value.get("mode") == "enforced"
@@ -1044,7 +1443,9 @@ class LaunchHarness:
     def _preflight(self) -> None:
         if self.run_root is not None:
             if self.run_root.exists():
-                expected_root_id = hashlib.sha256(str(self.run_root.resolve()).encode()).hexdigest()
+                expected_root_id = logical_root_id(
+                    self.github_sha or "", str(self.github_run_id), str(self.github_run_attempt),
+                )
                 prepared = self.mode == "enforced" and self.challenge and self.challenge.get("root_id") == expected_root_id
                 if not prepared or (self.run_root / "runs").exists() or (self.run_root / "evidence").exists():
                     raise ValueError("disposable run root must not already exist unless it is the authenticated prepared root")
@@ -1064,6 +1465,7 @@ class LaunchHarness:
             if not self.native_observations or not self.native_observations.is_dir(): missing.append("native macOS/Linux/Windows and Node 22 observations")
             if not self.attestations: missing.append("runtime/OAuth attestations")
             if not self.observer_bundle_digest: missing.append("signed observer bundle digest")
+            if not self.copilot_executable or not self.copilot_metadata: missing.append("exact GitHub Copilot CLI executable and npm metadata")
             if not self.notion_oauth_supplied: missing.append("separate Notion OAuth artifact")
             if not self.chatgpt_attestation_supplied: missing.append("separate ChatGPT Cloudflare artifact")
             if not self.consent_digest: missing.append("consent artifact")
@@ -1081,6 +1483,11 @@ class LaunchHarness:
                 raise ValueError("binary checksum does not match exact executable")
         if self.mode == "enforced":
             config = read_production_config()
+            if not valid_copilot_installation(
+                self.copilot_executable, self.copilot_metadata_path,
+                self.copilot_metadata, self.run_root, config,
+            ):
+                raise ValueError("GitHub Copilot CLI metadata, integrity, executable, or version proof is invalid")
             validate_release_manifest(
                 self.release_manifest, repository=config["cli_release_repository"], tag=str(self.release_tag),
                 tag_commit=str(self.release_manifest.get("commit", "")),
@@ -1139,12 +1546,14 @@ class LaunchHarness:
         synthetic_version = str(tuple_value.get("client_version") or "").startswith(
             ("native-state-v1@", "native-observation-v1@")
         )
-        fixture_basis = isinstance(details, dict) and details.get("evidence_basis") == "fixture_materialization"
-        if synthetic_version or fixture_basis:
+        basis = details.get("evidence_basis") if isinstance(details, dict) else None
+        repository_basis = basis == "repository_owned_disposable_observer"
+        untrusted_fixture_basis = basis == "fixture_materialization"
+        if synthetic_version or untrusted_fixture_basis or repository_basis:
             tuple_value = {**tuple_value, "client_version": None}
-            if outcome == "passed" and level != "harness":
-                outcome = "inconclusive"
-                reason = "fixture/materialization evidence cannot establish native discovery or a real client version"
+        if outcome == "passed" and level in {"discovery", "runtime", "oauth"} and (synthetic_version or untrusted_fixture_basis or repository_basis):
+            outcome = "inconclusive"
+            reason = "repository/materialization evidence cannot establish native discovery, runtime, or a real client version"
         row = {
             "id": hashlib.sha256(identity.encode()).hexdigest()[:24],
             "scenario": scenario, "plugin": plugin, "client": client,
@@ -1172,6 +1581,8 @@ class LaunchHarness:
         for record in records:
             self._reject_mutable_refs(record)
             key = (record["plugin"], record["client"], record["level"])
+            if record["level"] not in {"runtime", "oauth"}:
+                raise ValueError(f"external observer artifact contains unsupported level: {key}")
             if key in result:
                 raise ValueError(f"duplicate attestation tuple: {key}")
             if record.get("outcome") not in OUTCOMES:
@@ -1191,6 +1602,25 @@ class LaunchHarness:
                 or record.get("scenario_id") != expected_scenario
             ):
                 raise ValueError(f"attestation is not challenge/run/scenario-bound: {key}")
+            if hasattr(self, "release_manifest_digest"):
+                expected_bindings = {
+                    "release_manifest_digest": self.release_manifest_digest,
+                    "release_checksums_digest": self.release_checksums_digest,
+                    "directory_digest": self.snapshot_digest,
+                    "scenario_contract_digest": sha256_file(SCENARIOS),
+                }
+            else:
+                # Minimal in-memory verifier instances used by cross-consumer
+                # contract tests still bind every value carried by the shared
+                # challenge; normal LaunchHarness construction always takes
+                # the stricter branch above, including checksums identity.
+                expected_bindings = {
+                    "release_manifest_digest": self.challenge.get("release_manifest_digest"),
+                    "directory_digest": self.challenge.get("directory_digest"),
+                    "scenario_contract_digest": self.challenge.get("scenario_contract_digest"),
+                }
+            if any(record.get(field) != expected for field, expected in expected_bindings.items()):
+                raise ValueError(f"attestation is not release/Directory/scenario-bound: {key}")
             if record.get("consent_artifact_digest") != self.consent_digest or any(record.get(field) != self.consent.get(field) for field in privacy_fields):
                 raise ValueError(f"attestation privacy fields differ from signed consent: {key}")
             if record.get("identity_id") != record.get("pseudonymous_identity_id"):
@@ -1223,13 +1653,21 @@ class LaunchHarness:
                 github = record.get("github_attestation")
                 github_valid = bool(
                     isinstance(github, dict)
-                    and github.get("repository") == read_production_config()["catalog_repository"]
+                    and github.get("subject") == TRUSTED_OBSERVER_SUBJECT
+                    and github.get("repository") == TRUSTED_CATALOG_REPOSITORY
+                    and github.get("repository_owner") == TRUSTED_CATALOG_REPOSITORY_OWNER
+                    and str(github.get("repository_id")) == TRUSTED_CATALOG_REPOSITORY_ID
+                    and str(github.get("repository_owner_id")) == TRUSTED_CATALOG_REPOSITORY_OWNER_ID
+                    and github.get("ref") == TRUSTED_OBSERVER_REF
+                    and github.get("environment") == TRUSTED_OBSERVER_ENVIRONMENT
+                    and github.get("workflow_ref") == TRUSTED_OBSERVER_WORKFLOW_REF
+                    and github.get("job_workflow_ref") == TRUSTED_OBSERVER_JOB_WORKFLOW_REF
                     and github.get("sha") == self.github_sha
                     and str(github.get("run_id")) == str(self.github_run_id)
                     and str(github.get("run_attempt")) == str(self.github_run_attempt)
                     and github.get("challenge") == self.challenge["value"]
                     and github.get("workflow") == "launch-evidence-e2e.yml"
-                    and github.get("job") == "enforced-stable-gate"
+                    and github.get("job") == "protected-observer-inputs"
                 )
                 if not github_valid:
                     raise ValueError(f"passed external observation is not GitHub-attested for this run: {key}")
@@ -1266,12 +1704,16 @@ class LaunchHarness:
                     raise ValueError(f"runtime pass lacks the supplied consent artifact: {key}")
                 if record.get("runtime_invocation") is not True or record.get("discovery_verified") is not True:
                     raise ValueError(f"runtime pass lacks invocation/discovery proof: {key}")
-                native_evidence = record.get("native_discovery_evidence")
-                if not authoritative_native_client_evidence(
-                    native_evidence, client_version=tuple_value.get("client_version"),
-                    product_id=record["plugin"],
-                ):
-                    raise ValueError(f"runtime pass lacks authoritative exact-version client discovery evidence: {key}")
+                if record["client"] == "chatgpt":
+                    if "native_discovery_evidence" in record or not authoritative_public_mcp_evidence(record.get("public_mcp_evidence")):
+                        raise ValueError(f"ChatGPT runtime pass lacks authoritative public MCP evidence: {key}")
+                else:
+                    native_evidence = record.get("native_discovery_evidence")
+                    if not authoritative_native_client_evidence(
+                        native_evidence, client_version=tuple_value.get("client_version"),
+                        product_id=record["plugin"], client=record["client"],
+                    ):
+                        raise ValueError(f"runtime pass lacks authoritative exact-version client discovery evidence: {key}")
                 for observation_name in ("manager_observation", "native_observation"):
                     observation = record.get(observation_name)
                     if not isinstance(observation, dict) or not all(isinstance(observation.get(field), str) and observation[field] for field in ("observer", "before_digest", "after_digest", "observed_at")):
@@ -1301,7 +1743,11 @@ class LaunchHarness:
             for key, child in value.items():
                 if key in {"revision", "source_revision", "commit_sha"} and child is not None and (not isinstance(child, str) or not FULL_SHA.fullmatch(child)):
                     raise ValueError("evidence contains a mutable or invalid source revision")
-                if key == "ref":
+                if key == "ref" and not (
+                    value.get("subject") == TRUSTED_OBSERVER_SUBJECT
+                    and value.get("repository") == TRUSTED_CATALOG_REPOSITORY
+                    and child == TRUSTED_OBSERVER_REF
+                ):
                     raise ValueError("evidence must not contain mutable refs")
                 LaunchHarness._reject_mutable_refs(child)
         elif isinstance(value, list):
@@ -1312,6 +1758,10 @@ class LaunchHarness:
         if not self.cli_available:
             return "inconclusive", None, "fixture-only non-runtime mode: Agent Plugins CLI binary was not supplied"
         env = isolated_environment(sandbox, clients, self.directory_environment)
+        if "copilot" in clients:
+            if not self.copilot_executable:
+                return "failed", None, "exact protected GitHub Copilot CLI executable was not supplied"
+            env["PATH"] = str(self.copilot_executable.parent) + os.pathsep + env.get("PATH", "")
         product_id = argv[1] if len(argv) > 1 else "unknown"
         before_state = observed_state_identity(env, product_id, clients)
         started_at = utc_now()
@@ -1322,9 +1772,15 @@ class LaunchHarness:
         if completed.returncode:
             return "failed", None, f"CLI returned exit status {completed.returncode}"
         try:
-            value = json.loads(completed.stdout)
-        except json.JSONDecodeError:
+            value = strict_json_loads(completed.stdout)
+        except (json.JSONDecodeError, ValueError):
             return "failed", None, "CLI did not return structured JSON"
+        if not validate_cli_envelope(value, argv[0]):
+            return "failed", None, "CLI returned a malformed command envelope"
+        if argv[0] in {"add", "update", "repair", "remove"}:
+            observed_targets = [item.get("target") for item in value["data"]["targets"]]
+            if observed_targets != list(clients):
+                return "failed", None, "CLI target coverage did not exactly match the selected targets"
         self._assert_result_paths(value, sandbox)
         after_state = observed_state_identity(env, product_id, clients)
         value["_observed_state"] = after_state
@@ -1339,14 +1795,18 @@ class LaunchHarness:
             "native_before_digests": before_state["native_digests"],
             "native_after_digests": after_state["native_digests"],
         }
-        if value.get("schema_version") != 1 or value.get("command") != argv[0]:
+        if type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != argv[0]:
             return "failed", value, "CLI returned an invalid command envelope"
-        result = value.get("data", {}).get("result", {})
-        if argv[0] in {"add", "repair", "remove"} and result.get("mutated") is not True:
+        data = value.get("data", {})
+        target_results = [item["output"]["result"] for item in data.get("targets", [])]
+        mutated = None if not target_results else all(result.get("mutated") is True for result in target_results)
+        if argv[0] == "update" and target_results:
+            mutated = any(result.get("mutated") is True for result in target_results)
+        if argv[0] in {"add", "repair", "remove"} and mutated is not True:
             return "failed", value, "CLI did not report a committed mutation"
-        if argv[0] == "update" and not isinstance(result.get("mutated"), bool):
+        if argv[0] == "update" and (not isinstance(mutated, bool) or any(result.get("no_change") is not (not result["mutated"]) for result in target_results)):
             return "failed", value, "CLI did not report whether update mutated state"
-        if argv[0] == "update" and result.get("mutated") is False and (
+        if argv[0] == "update" and mutated is False and (
             before_state["manager_digest"] != after_state["manager_digest"]
             or before_state["native_digests"] != after_state["native_digests"]
         ):
@@ -1405,8 +1865,8 @@ class LaunchHarness:
             "--challenge-context", str(challenge_path),
         ], cwd=sandbox / "workspace", env=env, text=True, capture_output=True, timeout=240, check=False)
         try:
-            value = json.loads(completed.stdout)
-        except json.JSONDecodeError:
+            value = strict_json_loads(completed.stdout)
+        except (json.JSONDecodeError, ValueError):
             return "failed", None, "repository-owned observer did not return JSON"
         outcome = value.get("outcome")
         if outcome not in OUTCOMES:
@@ -1583,15 +2043,24 @@ class LaunchHarness:
         return observed == expected
 
     @staticmethod
-    def info_reconciled(value: dict[str, Any] | None) -> bool:
+    def info_reconciled(value: dict[str, Any] | None, client: str | None = None) -> bool:
         native_evidence = find_value(value, {"native_discovery_evidence"}) if value else None
         client_version = find_value(value, {"client_version"}) if value else None
         return bool(
             value
             and find_value(value, {"receipt_reconciled"}) is True
             and find_value(value, {"native_discovery_reconciled"}) is True
-            and authoritative_native_client_evidence(native_evidence, client_version=client_version)
+            and authoritative_native_client_evidence(native_evidence, client_version=client_version, client=client)
         )
+
+    def all_package_client(self, plugin: str) -> tuple[str, dict[str, Any]]:
+        client = self.config["all_package_client"]
+        if client != "copilot":
+            raise ValueError("all-package launch proof must use GitHub Copilot CLI")
+        try:
+            return client, self.directory_release(plugin, [client])
+        except ValueError as error:
+            raise ValueError(f"signed Directory release does not support Copilot lifecycle for {plugin}") from error
 
     def all_package_matrix(self) -> None:
         names = [item["id"] for item in self.snapshot.get("products", [])]
@@ -1599,17 +2068,7 @@ class LaunchHarness:
             raise RuntimeError(f"signed launch Directory must contain 26 unique products, found {len(set(names))}")
         for plugin in names:
             sandbox = self.fresh_sandbox("package-" + plugin)
-            release = None
-            client = None
-            for candidate in (self.config["all_package_client"], "codex", "kiro"):
-                try:
-                    release = self.directory_release(plugin, [candidate])
-                    client = candidate
-                    break
-                except ValueError:
-                    continue
-            if release is None or client is None:
-                raise ValueError(f"signed Directory release has no isolated launch-gate client for {plugin}")
+            client, release = self.all_package_client(plugin)
             resolved_digest: str | None = None
             for operation in self.config["all_package_operations"]:
                 outcome, value, reason = self.command([operation, plugin, "--target", client, "--format", "json"], sandbox, (client,))
@@ -1623,12 +2082,44 @@ class LaunchHarness:
                     outcome, reason = "inconclusive", "CLI output did not expose the immutable package digest"
                 if outcome == "passed" and not self.command_matches_release(plugin, [client], value):
                     outcome, reason = "failed", "CLI result identity does not match the signed Directory release"
+                tuple_value = self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}")
+                details = {
+                    "evidence_basis": "repository_owned_disposable_observer",
+                    "runtime_proof": False, "native_discovery_proof": False,
+                    "operation": operation, **release,
+                    "receipt_reconciliation_required": operation == "info",
+                    "command_trace": value.get("_launch_command_trace") if value else None,
+                }
                 if outcome == "passed" and operation == "info":
-                    if not self.info_reconciled(value):
-                        outcome, reason = "inconclusive", "fixture info proved no authoritative native client discovery/version operation"
+                    config = read_production_config()
+                    client_version = find_value(value, {"client_version"}) if value else None
+                    native_evidence = find_value(value, {"native_discovery_evidence"}) if value else None
+                    if (
+                        find_value(value, {"receipt_reconciled"}) is not True
+                        or find_value(value, {"native_discovery_reconciled"}) is not True
+                        or find_value(value, {"native_identity_state"}) != "managed"
+                        or not authoritative_repository_copilot_evidence(
+                            native_evidence, client_version=client_version, product_id=plugin,
+                            physical_artifact_id=str(value.get("_observed_state", {}).get("physical_artifact_id") or ""),
+                            expected_version=config["copilot_cli_version"],
+                        )
+                    ):
+                        outcome, reason = "failed", "Agent Plugins info omitted exact receipt and native Copilot discovery/version reconciliation"
+                    else:
+                        dependency = f"{config['copilot_cli_package']}@{config['copilot_cli_version']}#{config['copilot_cli_integrity']}"
+                        tuple_value = self.evidence_tuple(plugin, [client], client_version=client_version, dependency=dependency)
+                        details = {
+                            "evidence_basis": "native_client_command", "runtime_proof": False,
+                            "native_discovery_proof": True, "native_discovery_evidence": native_evidence,
+                            "physical_artifact_id": value.get("_observed_state", {}).get("physical_artifact_id"),
+                            "native_identity_state": "managed",
+                            "copilot_package": self.copilot_metadata, "operation": operation,
+                            "resolution": release, "command_trace": value.get("_launch_command_trace"),
+                        }
+                        reason = "repository-owned Agent Plugins process reconciled exact native Copilot discovery"
                 if outcome == "passed" and resolved_digest != release["tree_digest"]:
                     outcome, reason = "failed", "CLI package digest does not match the signed Directory release"
-                self.add(f"all_26_{operation}", plugin, client, "discovery" if operation == "info" else "materialization", outcome, reason or "unknown result", tuple_value=self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"evidence_basis": "fixture_materialization", "runtime_proof": False, "operation": operation, **release, "receipt_reconciliation_required": operation == "info", "command_trace": value.get("_launch_command_trace") if value else None})
+                self.add(f"all_26_{operation}", plugin, client, "discovery" if operation == "info" else "materialization", outcome, reason or "unknown result", tuple_value=tuple_value, details=details)
 
     def context7_multi_target(self) -> None:
         targets = tuple(self.config["context7_targets"])
@@ -1639,6 +2130,13 @@ class LaunchHarness:
         expected_commands = [[operation, "context7", "--target", target_arg, "--format", "json"] for operation in self.config["context7_lifecycle"]]
         valid = bool(value) and value.get("commands") == expected_commands
         valid = valid and value.get("acquisition_digests") == [expected_digest]
+        acquisition = complete_acquisition_proof(
+            value.get("acquisition") if value else None, targets,
+            tree_digest=expected_digest, manifest_digest=release["manifest_digest"],
+            source_repository=release["source_repository"], source_revision=release["source_revision"],
+            source_path=release["source_path"], source_kind="directory",
+        )
+        valid = valid and acquisition is not None
         valid = valid and set(value.get("target_outcomes", {})) == set(targets)
         valid = valid and all(value["target_outcomes"][target] == "passed" for target in targets)
         valid = valid and self.tuple_matches_release("context7", targets, value.get("tuple") if value else None)
@@ -1652,23 +2150,33 @@ class LaunchHarness:
             self.add(
                 f"context7_three_target_{operation}", "context7", target_arg, "materialization", outcome, reason,
                 tuple_value=value.get("tuple") if value else self.evidence_tuple("context7", targets, client_version=None, dependency="single-acquisition"),
-                details={"evidence_basis": "fixture_materialization", "runtime_proof": False, "operation": operation, "target_argument": target_arg, "single_process_invocation": True, "reported_target_count": len(value.get("target_outcomes", {})) if value else 0, "command_traces": value.get("command_traces", []) if value else [], "operation_observations": value.get("operation_observations", []) if value else [], "resolution": release},
+                details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "operation": operation, "target_argument": target_arg, "single_process_invocation": True, "reported_target_count": len(value.get("target_outcomes", {})) if value else 0, "acquisition": acquisition, "command_traces": value.get("command_traces", []) if value else [], "operation_observations": value.get("operation_observations", []) if value else [], "resolution": release},
             )
 
     @staticmethod
     def runtime_attestation_details(record: dict[str, Any]) -> dict[str, Any]:
         fields = (
+            "challenge", "started_at", "observed_at", "consent_artifact_digest",
             "consent_attested", "isolated_identity", "identity_id", "client_id",
-            "application_id", "endpoint", "command_traces", "manager_observation",
+            "application_id", "endpoint", "command_traces", "github_attestation",
+            "runtime_invocation", "discovery_verified", "manager_observation",
             "native_observation", "receipt_reconciled", "native_discovery_reconciled",
             "projection_receipt_digest", "native_app_digest", "native_mcp_digest",
-            "registered_app_binding", "ui_activation", "read_only",
-            "scenario_id", "run_id", "run_attempt", "pseudonymous_identity_id",
+            "oauth_artifact_approved", "registered_app_binding", "ui_activation",
+            "read_only", "scenario_id", "run_id", "run_attempt", "pseudonymous_identity_id",
             "pseudonymous_workspace_id", "dedicated_identity", "disposable_project_status",
             "operation_mode", "auth_origin", "cleanup_outcome", "no_real_project_proof",
             "native_discovery_evidence",
+            "public_mcp_evidence", "release_manifest_digest", "release_checksums_digest",
+            "directory_digest", "scenario_contract_digest",
         )
-        return {field: record[field] for field in fields if field in record}
+        return {
+            **{field: record[field] for field in fields if field in record},
+            "evidence_basis": "protected_external_observer",
+            "runtime_proof": record.get("level") in {"runtime", "oauth"},
+            "native_discovery_proof": record.get("client") != "chatgpt",
+            **({"public_mcp_proof": True} if record.get("client") == "chatgpt" else {}),
+        }
 
     def hero_runtime_matrix(self) -> None:
         for plugin in self.config["heroes"]:
@@ -1683,13 +2191,13 @@ class LaunchHarness:
                     reason = "runtime client/isolated identity attestation was not supplied" if plugin == "notion" else "client runtime attestation was not supplied"
                     self.add("hero_5x3_runtime", plugin, client, "runtime", "failed", reason, tuple_value=self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"resolution": release})
         chatgpt_release = self.directory_release("cloudflare-docs", ["chatgpt"])
-        chatgpt = self.attestations.get(("cloudflare-docs", "chatgpt", "oauth"))
+        chatgpt = self.attestations.get(("cloudflare-docs", "chatgpt", "runtime"))
         if chatgpt:
             details = self.runtime_attestation_details(chatgpt)
             details["resolution"] = chatgpt_release
-            self.add("chatgpt_registered_binding", "cloudflare-docs", "chatgpt", "oauth", chatgpt["outcome"], chatgpt.get("reason", "explicit OAuth/runtime attestation"), tuple_value=chatgpt.get("tuple"), details=details)
+            self.add("chatgpt_registered_binding", "cloudflare-docs", "chatgpt", "runtime", chatgpt["outcome"], chatgpt.get("reason", "explicit registered-binding/UI/public-MCP runtime attestation"), tuple_value=chatgpt.get("tuple"), details=details)
         else:
-            self.add("chatgpt_registered_binding", "cloudflare-docs", "chatgpt", "oauth", "failed", "registered app binding and human UI consent attestation were not supplied", tuple_value=self.evidence_tuple("cloudflare-docs", ["chatgpt"], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"resolution": chatgpt_release})
+            self.add("chatgpt_registered_binding", "cloudflare-docs", "chatgpt", "runtime", "failed", "registered app binding, human UI, and public MCP runtime attestation were not supplied", tuple_value=self.evidence_tuple("cloudflare-docs", ["chatgpt"], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"resolution": chatgpt_release})
 
     def hero_lifecycle_matrix(self) -> None:
         for plugin in self.config["heroes"]:
@@ -1697,15 +2205,15 @@ class LaunchHarness:
                 release = self.directory_release(plugin, [client])
                 expected_digest = release["tree_digest"]
                 outcome, value, reason = self.driven_scenario(f"hero_lifecycle_{plugin}_{client}")
-                required_operations = {"add", "update", "remove", "discovery"}
+                required_operations = {"add", "update", "info", "remove"}
                 operation_outcomes = value.get("operation_outcomes", {}) if value else {}
                 tuple_value = value.get("tuple") if value else None
                 valid = set(operation_outcomes) == required_operations and all(result == "passed" for result in operation_outcomes.values())
                 valid = valid and tuple_value is not None and tuple_value.get("tree_digest") == expected_digest
                 valid = valid and self.tuple_matches_release(plugin, [client], tuple_value)
                 if outcome == "passed" and not valid:
-                    outcome, reason = "failed", "hero driver omitted exact add/update/remove/discovery proof"
-                self.add("hero_5x3_lifecycle", plugin, client, "discovery", outcome, reason, tuple_value=tuple_value or self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"evidence_basis": "fixture_materialization", "runtime_proof": False, "operations": sorted(required_operations), "operation_outcomes": operation_outcomes, "command_traces": value.get("command_traces", []) if value else [], "resolution": release})
+                    outcome, reason = "failed", "hero driver omitted exact disposable add/update/info/remove lifecycle proof"
+                self.add("hero_5x3_lifecycle", plugin, client, "materialization", outcome, reason, tuple_value=tuple_value or self.evidence_tuple(plugin, [client], client_version=None, dependency=f"signed-directory@{self.snapshot_digest}"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "operations": sorted(required_operations), "operation_outcomes": operation_outcomes, "command_traces": value.get("command_traces", []) if value else [], "resolution": release})
 
     def shared_backend(self) -> None:
         targets = tuple(self.config["shared_backend_targets"])
@@ -1716,7 +2224,7 @@ class LaunchHarness:
         valid = valid and self.tuple_matches_release("context7", targets, value.get("tuple") if value else None)
         if outcome == "passed" and not valid:
             outcome, reason = "failed", "shared-backend driver did not prove one add/remove mutation affecting both surfaces"
-        self.add("shared_copilot_vscode_backend", "context7", "copilot,vscode", "materialization", outcome, reason, tuple_value=value.get("tuple") if value else self.evidence_tuple("context7", targets, client_version=None, dependency="copilot-shared-backend"), details={"expected_physical_mutations_per_operation": 1, "operations": ["add", "remove"], "command_traces": value.get("command_traces", []) if value else [], "operation_observations": value.get("operation_observations", []) if value else [], "resolution": release})
+        self.add("shared_copilot_vscode_backend", "context7", "copilot,vscode", "materialization", outcome, reason, tuple_value=value.get("tuple") if value else self.evidence_tuple("context7", targets, client_version=None, dependency="copilot-shared-backend"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "expected_physical_mutations_per_operation": 1, "operations": ["add", "remove"], "command_traces": value.get("command_traces", []) if value else [], "operation_observations": value.get("operation_observations", []) if value else [], "resolution": release})
 
     def fault_matrix(self) -> None:
         for scenario in (*self.config["fault_scenarios"], *self.config["adapter_repair_faults"], *self.config["advanced_scenarios"]):
@@ -1745,9 +2253,7 @@ class LaunchHarness:
             if tuple_value is None:
                 observed_client_version = find_value(value, {"client_version"}) if value else None
                 tuple_value = None if source_selection else self.evidence_tuple(product, [client], client_version=observed_client_version if isinstance(observed_client_version, str) else None, dependency="repository-owned-fault-observer")
-            details = {"fixture_contract_present": scenario in self.config["fault_scenarios"], "repository_observer_required": True, "proof": value.get("proof", {}) if value else {}, "command_traces": value.get("command_traces", []) if value else [], "validator_artifact": value.get("validator_artifact") if value else None, "source_identity": value.get("source_identity") if value else None, "resolution": release}
-            if source_selection:
-                details.update({"evidence_basis": "fixture_materialization", "runtime_proof": False})
+            details = {"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "fixture_contract_present": scenario in self.config["fault_scenarios"], "repository_observer_required": True, "proof": value.get("proof", {}) if value else {}, "command_traces": value.get("command_traces", []) if value else [], "validator_artifact": value.get("validator_artifact") if value else None, "source_identity": value.get("source_identity") if value else None, "resolution": release}
             self.add(scenario, product, client, "materialization", outcome, reason, tuple_value=tuple_value, details=details)
 
     def acceptance_postconditions(self) -> None:
@@ -1775,7 +2281,7 @@ class LaunchHarness:
             self.add(
                 scenario, "context7", "cursor", "materialization", outcome, reason,
                 tuple_value=self.evidence_tuple("context7", ["cursor"], client_version=find_value(value, {"client_version"}) if value else None, dependency="repository-owned-observer"),
-                details={"expected_postcondition_id": scenario, "command_traces": value.get("command_traces", []) if value else [], "manager_and_native_before_after": observations_present, "resolution": self.directory_release("context7", ["cursor"])},
+                details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "expected_postcondition_id": scenario, "command_traces": value.get("command_traces", []) if value else [], "manager_and_native_before_after": observations_present, "resolution": self.directory_release("context7", ["cursor"])},
             )
 
     def native_platform_matrix(self) -> None:
@@ -1802,11 +2308,6 @@ class LaunchHarness:
             value = records[(kind, os_name, architecture)]
             challenge_context = value.get("challenge_context")
             trace = value.get("command_trace", {})
-            try:
-                started = datetime.fromisoformat(str(value.get("started_at", "")).replace("Z", "+00:00"))
-                observed = datetime.fromisoformat(str(value.get("observed_at", "")).replace("Z", "+00:00"))
-            except ValueError:
-                started = observed = datetime.min.replace(tzinfo=timezone.utc)
             declared = next((item for item in self.release_manifest.get("assets", {}).values() if item.get("file") == value.get("asset_name")), None) if kind == "binary" else None
             npm_package = value.get("npm_package", {}) if kind == "npm" else {}
             expected_npm_tarball = f"https://registry.npmjs.org/universal-agent-plugins/-/universal-agent-plugins-{self.expected_version}.tgz"
@@ -1833,14 +2334,11 @@ class LaunchHarness:
             )
             attested_asset = value.get("github_asset_attestation", {})
             release_identity_valid = value.get("github_release_identity") == self.release_identity
-            attestation_valid = (
-                attested_asset.get("verified") is True
-                and attested_asset.get("repository") == TRUSTED_CLI_RELEASE_REPOSITORY
-                and attested_asset.get("workflow") == TRUSTED_CLI_RELEASE_WORKFLOW
-                and attested_asset.get("tag") == self.release_tag
-                and attested_asset.get("tag_commit") == self.release_manifest.get("commit")
-                and attested_asset.get("asset_name") == value.get("asset_name")
-                and attested_asset.get("asset_digest") == value.get("asset_digest")
+            attestation_valid = strict_asset_attestation_matches(
+                attested_asset, repository=TRUSTED_CLI_RELEASE_REPOSITORY,
+                workflow=TRUSTED_CLI_RELEASE_WORKFLOW, tag=self.release_tag,
+                commit=self.release_manifest.get("commit"), asset_name=value.get("asset_name"),
+                asset_digest=value.get("asset_digest"),
             )
             valid = (
                 value.get("catalog_repository") == read_production_config()["catalog_repository"]
@@ -1856,14 +2354,19 @@ class LaunchHarness:
                 and challenge_context_valid(challenge_context)
                 and challenge_context.get("github_sha") == self.github_sha
                 and str(challenge_context.get("run_id")) == str(self.github_run_id)
-                and str(challenge_context.get("run_attempt")) == str(self.github_run_attempt)
+                and str(challenge_context.get("run_attempt", "")).isdigit()
+                and str(self.github_run_attempt or "").isdigit()
+                and 1 <= int(challenge_context["run_attempt"]) <= int(self.github_run_attempt)
+                and challenge_context.get("root_id") == logical_root_id(
+                    str(self.github_sha), str(self.github_run_id), str(challenge_context["run_attempt"]),
+                )
                 and challenge_context.get("release_manifest_digest") == self.release_manifest_digest
                 and challenge_context.get("directory_digest") == self.snapshot_digest
+                and challenge_context.get("scenario_contract_digest") == sha256_file(SCENARIOS)
                 and value.get("challenge") == challenge_context.get("value")
                 and trace.get("challenge") == value.get("challenge") and trace.get("exit_code") == 0
                 and trace.get("argv") == ["agentplugins", "version"]
-                and started <= observed <= datetime.now(timezone.utc) + timedelta(minutes=2)
-                and datetime.now(timezone.utc) - observed <= MAX_ATTESTATION_AGE
+                and fresh_observation_interval(value.get("started_at"), value.get("observed_at"))
                 and distribution_valid
                 and attestation_valid
                 and release_identity_valid
@@ -1871,7 +2374,7 @@ class LaunchHarness:
             self.add(
                 f"native_{kind}_{os_name}_{architecture}", None, f"{os_name}/{architecture}", "harness",
                 "passed" if valid else "failed", "manifest-bound native execution observed" if valid else "native execution observation is incomplete or bound to another manifest",
-                details={"kind": kind, "os": os_name, "architecture": architecture, "release_manifest_digest": value.get("release_manifest_digest"), "release_checksums_digest": value.get("release_checksums_digest"), "asset_name": value.get("asset_name"), "asset_digest": value.get("asset_digest"), "github_asset_attestation": attested_asset, "challenge": value.get("challenge"), "command_trace": trace, "started_at": value.get("started_at"), "observed_at": value.get("observed_at")},
+                details={"kind": kind, "os": os_name, "architecture": architecture, "release_manifest_digest": value.get("release_manifest_digest"), "release_checksums_digest": value.get("release_checksums_digest"), "asset_name": value.get("asset_name"), "asset_digest": value.get("asset_digest"), "github_asset_attestation": attested_asset, "challenge": value.get("challenge"), "producer_run_attempt": str(challenge_context.get("run_attempt")) if isinstance(challenge_context, dict) else None, "command_trace": trace, "started_at": value.get("started_at"), "observed_at": value.get("observed_at")},
             )
 
     @staticmethod
@@ -1917,42 +2420,51 @@ class LaunchHarness:
         sandbox = self.fresh_sandbox("direct-external")
         disposable_package = sandbox / "workspace" / "external-package"
         shutil.copytree(EXTERNAL_PACKAGE, disposable_package)
-        add_outcome, add_value, add_reason = self.command(["add", "./external-package", "--target", "cursor", "--format", "json"], sandbox, ("cursor",))
+        local_targets = ("codex", "cursor", "kiro")
+        target_argument = ",".join(local_targets)
+        add_outcome, add_value, add_reason = self.command(["add", "./external-package", "--target", target_argument, "--format", "json"], sandbox, local_targets)
         observed_digest = find_value(add_value, {"package_digest", "tree_digest"}) if add_value else None
         add_identity_valid = observed_digest == digest
         if add_outcome == "passed" and not add_identity_valid:
             add_outcome, add_reason = "failed", "direct-source result omitted or disagreed with the canonical package digest"
 
         info_outcome, info_value, info_reason = "inconclusive", None, "add did not commit; info was not run"
+        update_outcome, update_value, update_reason = "inconclusive", None, "add did not commit; grouped no-change update was not run"
         remove_outcome, remove_value, remove_reason = "inconclusive", None, "add did not commit; remove was not run"
         if add_value is not None and find_value(add_value, {"mutated"}) is True:
-            info_outcome, info_value, info_reason = self.command(["info", "e2e-external-package", "--target", "cursor", "--format", "json"], sandbox, ("cursor",))
-            if info_outcome == "passed" and not self.info_reconciled(info_value):
-                if find_value(info_value, {"receipt_reconciled"}) is True:
-                    info_outcome, info_reason = "inconclusive", "fixture receipt reconciled; native discovery/version requires protected external observation"
-                else:
-                    info_outcome, info_reason = "failed", "direct-source info omitted owned-receipt reconciliation"
+            info_outcome, info_value, info_reason = self.command(["info", "e2e-external-package", "--target", target_argument, "--format", "json"], sandbox, local_targets)
+            if info_outcome == "passed" and find_value(info_value, {"receipt_reconciled"}) is not True:
+                info_outcome, info_reason = "failed", "direct-source info omitted owned-receipt reconciliation"
+            update_outcome, update_value, update_reason = self.command(["update", "e2e-external-package", "--target", target_argument, "--format", "json"], sandbox, local_targets)
+            if update_outcome == "passed" and not all(
+                item["output"]["result"].get("mutated") is False
+                and item["output"]["result"].get("no_change") is True
+                and item["output"]["result"].get("group_phase") == "external_completed"
+                for item in update_value["data"]["targets"]
+            ):
+                update_outcome, update_reason = "failed", "local grouped update was not an exact successful no-change result"
             # Cleanup is mandatory after a committed add, including when identity or info validation fails.
-            remove_outcome, remove_value, remove_reason = self.command(["remove", "e2e-external-package", "--target", "cursor", "--format", "json"], sandbox, ("cursor",))
+            remove_outcome, remove_value, remove_reason = self.command(["remove", "e2e-external-package", "--target", target_argument, "--format", "json"], sandbox, local_targets)
 
         operations = {
             "add": {"outcome": add_outcome, "reason": add_reason},
             "info": {"outcome": info_outcome, "reason": info_reason},
+            "update": {"outcome": update_outcome, "reason": update_reason},
             "remove": {"outcome": remove_outcome, "reason": remove_reason},
         }
         traces = [
             value["_launch_command_trace"]
-            for value in (add_value, info_value, remove_value)
+            for value in (add_value, info_value, update_value, remove_value)
             if isinstance(value, dict) and isinstance(value.get("_launch_command_trace"), dict)
         ]
-        lifecycle_outcomes = (add_outcome, info_outcome, remove_outcome)
-        if lifecycle_outcomes == ("passed", "passed", "passed"):
-            outcome, reason = "passed", "direct-source add, info reconciliation, and remove completed"
+        lifecycle_outcomes = (add_outcome, info_outcome, update_outcome, remove_outcome)
+        if lifecycle_outcomes == ("passed", "passed", "passed", "passed"):
+            outcome, reason = "passed", "local grouped add, info, no-change update, and remove completed"
         else:
             outcome = "failed" if "failed" in lifecycle_outcomes else "inconclusive"
             reason = next((str(item["reason"]) for item in operations.values() if item["outcome"] != "passed"), "direct-source lifecycle did not complete")
-        client_version = find_value(info_value, {"client_version"}) if self.info_reconciled(info_value) else None
-        self.add("direct_external_package", "e2e-external-package", "cursor", "materialization", outcome, reason, tuple_value=self.tuple(product_id="e2e-external-package", digest=digest, manifest_digest=sha256_file(EXTERNAL_PACKAGE / "plugin.json"), distribution_id="direct/e2e-external-package", distribution_kind="direct", release_sequence=1, package_version="1.0.0", client_version=client_version if isinstance(client_version, str) else None, dependency="direct-local-source"), details={"evidence_basis": "fixture_materialization", "runtime_proof": False, "tree_digest_algorithm": "agentplugins-tree-sha256-v1", "directory_submission_used": False, "source_locator": "fixture://external-package", "operations": operations, "command_traces": traces})
+        client_version = None
+        self.add("direct_external_package", "e2e-external-package", "cursor", "materialization", outcome, reason, tuple_value=self.tuple(product_id="e2e-external-package", digest=digest, manifest_digest=sha256_file(EXTERNAL_PACKAGE / "plugin.json"), distribution_id="direct/e2e-external-package", distribution_kind="direct", release_sequence=1, package_version="1.0.0", client_version=client_version if isinstance(client_version, str) else None, dependency="direct-local-source"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "tree_digest_algorithm": "agentplugins-tree-sha256-v1", "directory_submission_used": False, "source_locator": "fixture://external-package", "operations": operations, "command_traces": traces})
         fork_outcome, fork_value, fork_reason = self.driven_scenario("fork_submission")
         if fork_outcome == "passed" and not (
             fork_value
@@ -1967,7 +2479,7 @@ class LaunchHarness:
         fork_client_version = find_value(fork_value, {"client_version"}) if fork_value else None
         fork_artifact = fork_value.get("validator_artifact", {}) if fork_value else {}
         fork_package = fork_artifact.get("package", {})
-        self.add("fork_submission", "fixture-bridge", None, "schema", fork_outcome, fork_reason, tuple_value=self.tuple(product_id="fixture-bridge", digest=fork_package.get("tree_digest") or package_digest(FORK_PACKAGE), manifest_digest=fork_package.get("manifest_digest") or sha256_file(FORK_PACKAGE / "plugin.json"), distribution_id="contributor/fixture-bridge", distribution_kind="community_bridge", release_sequence=1, package_version=fork_package.get("package_version") or "1.2.3", client_version=fork_client_version if isinstance(fork_client_version, str) else None, dependency="disposable-fork-validation"), details={"publication_or_pr_created": False, "publication_required": False, "supplemental_contract_evidence": True, "satisfies_first_stable_external_pr_gate": False, "validator_artifact": fork_artifact, "command_traces": fork_value.get("command_traces", []) if fork_value else []})
+        self.add("fork_submission", "fixture-bridge", None, "schema", fork_outcome, fork_reason, tuple_value=self.tuple(product_id="fixture-bridge", digest=fork_package.get("tree_digest") or package_digest(FORK_PACKAGE), manifest_digest=fork_package.get("manifest_digest") or sha256_file(FORK_PACKAGE / "plugin.json"), distribution_id="contributor/fixture-bridge", distribution_kind="community_bridge", release_sequence=1, package_version=fork_package.get("package_version") or "1.2.3", client_version=fork_client_version if isinstance(fork_client_version, str) else None, dependency="disposable-fork-validation"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "publication_or_pr_created": False, "publication_required": False, "supplemental_contract_evidence": True, "satisfies_first_stable_external_pr_gate": False, "validator_artifact": fork_artifact, "command_traces": fork_value.get("command_traces", []) if fork_value else []})
         rejected_outcome, rejected_value, rejected_reason = self.driven_scenario("fork_submission_rejected")
         if rejected_outcome == "passed" and not (
             rejected_value
@@ -1978,7 +2490,7 @@ class LaunchHarness:
         ):
             rejected_outcome, rejected_reason = "failed", "rejected fork driver omitted rejection and zero-side-effect proof"
         rejected_client_version = find_value(rejected_value, {"client_version"}) if rejected_value else None
-        self.add("fork_submission_rejected", "fixture-bridge", None, "schema", rejected_outcome, rejected_reason, tuple_value=self.tuple(product_id="fixture-bridge", digest=package_digest(FORK_PACKAGE), manifest_digest=sha256_file(FORK_PACKAGE / "plugin.json"), distribution_id="contributor/fixture-bridge", distribution_kind="community_bridge", release_sequence=1, package_version="1.2.3", client_version=rejected_client_version if isinstance(rejected_client_version, str) else None, dependency="disposable-fork-validation"), details={"publication_or_pr_created": False, "publication_required": False, "expected_rejection": True, "validator_artifact": rejected_value.get("validator_artifact") if rejected_value else None, "command_traces": rejected_value.get("command_traces", []) if rejected_value else []})
+        self.add("fork_submission_rejected", "fixture-bridge", None, "schema", rejected_outcome, rejected_reason, tuple_value=self.tuple(product_id="fixture-bridge", digest=package_digest(FORK_PACKAGE), manifest_digest=sha256_file(FORK_PACKAGE / "plugin.json"), distribution_id="contributor/fixture-bridge", distribution_kind="community_bridge", release_sequence=1, package_version="1.2.3", client_version=rejected_client_version if isinstance(rejected_client_version, str) else None, dependency="disposable-fork-validation"), details={"evidence_basis": "repository_owned_disposable_observer", "runtime_proof": False, "native_discovery_proof": False, "publication_or_pr_created": False, "publication_required": False, "expected_rejection": True, "validator_artifact": rejected_value.get("validator_artifact") if rejected_value else None, "command_traces": rejected_value.get("command_traces", []) if rejected_value else []})
 
     def external_pr_gate(self) -> None:
         config = read_production_config()
@@ -2028,7 +2540,7 @@ class LaunchHarness:
         required_ids = self.config["fault_scenarios"] + self.config["adapter_repair_faults"] + self.config["advanced_scenarios"] + self.config["acceptance_postconditions"] + self.config["journeys"] + ["shared_copilot_vscode_backend"]
         return {
             "schema_version": 3,
-            "run": {"id": hashlib.sha256(run_seed.encode()).hexdigest()[:16], "mode": self.mode, "runtime_claims": self.mode == "enforced", "observed_at": self.observed_at, "platform": self.os_name, "architecture": self.architecture, "disposable": True, "root_id": hashlib.sha256(str(self.run_root).encode()).hexdigest()[:16] if self.run_root else None, "github_sha": self.github_sha, "github_run_id": self.github_run_id, "github_run_attempt": self.github_run_attempt, "challenge": self.challenge.get("value") if self.challenge else None, "observer_bundle_digest": self.observer_bundle_digest, "cli": {"available": self.cli_available, "version": self.cli_version or self.expected_version, "binary_digest": self.binary_digest}},
+            "run": {"id": hashlib.sha256(run_seed.encode()).hexdigest()[:16], "mode": self.mode, "runtime_claims": self.mode == "enforced", "observed_at": self.observed_at, "platform": self.os_name, "architecture": self.architecture, "disposable": True, "root_id": exported_root_id(self.challenge), "github_sha": self.github_sha, "github_run_id": self.github_run_id, "github_run_attempt": self.github_run_attempt, "caller_event_name": self.caller_event_name, "caller_ref": self.caller_ref, "caller_workflow_ref": self.caller_workflow_ref, "challenge": self.challenge.get("value") if self.challenge else None, "observer_bundle_digest": self.observer_bundle_digest, "cli": {"available": self.cli_available, "version": self.cli_version or self.expected_version, "binary_digest": self.binary_digest}},
             "release": {"repository": read_production_config()["cli_release_repository"] if self.mode == "enforced" else None, "tag": self.release_tag, "tag_commit": self.release_manifest.get("commit"), "release_id": self.release_identity.get("release_id"), "immutable": self.release_identity.get("immutable") if self.mode == "enforced" else None, "manifest_digest": self.release_manifest_digest, "checksums_digest": self.release_checksums_digest},
             "directory": {"origin": self.directory_environment.get("AGENTPLUGINS_DIRECTORY_ORIGIN"), "snapshot_digest": self.snapshot_digest, "sequence": self.snapshot.get("sequence"), "trust_root_digest": sha256_file(PRODUCTION_DIRECTORY_TRUST) if self.mode == "enforced" else None},
             "scenario_contract": {"id": self.config["contract_id"], "digest": sha256_file(SCENARIOS), "expected_ids": list(EXPECTED_ACCEPTANCE_SCENARIOS), "required_singleton_ids": required_ids, "expected_counts": EXPECTED_COUNTS},
@@ -2054,6 +2566,7 @@ class LaunchHarness:
 
 def assert_redacted(value: dict[str, Any]) -> None:
     """Refuse evidence containing obvious credentials or absolute home paths."""
+    validate_evidence_redaction(value, context="evidence export")
     LaunchHarness._reject_mutable_refs(value)
     for row in value.get("matrix", []):
         if row.get("outcome") != "passed" or row.get("level") == "harness":
@@ -2061,16 +2574,50 @@ def assert_redacted(value: dict[str, Any]) -> None:
         tuple_value = row.get("tuple", {})
         details = row.get("details", {})
         client_version = str(tuple_value.get("client_version") or "")
-        if details.get("evidence_basis") == "fixture_materialization" or client_version.startswith(("native-state-v1@", "native-observation-v1@")):
-            raise ValueError(f"fixture/materialization evidence cannot be promoted: {row.get('id')}")
-        if row.get("level") in {"discovery", "runtime", "oauth"}:
+        native_level = row.get("level") in {"discovery", "runtime", "oauth"}
+        if client_version.startswith(("native-state-v1@", "native-observation-v1@")):
+            raise ValueError(f"synthetic client version cannot be promoted: {row.get('id')}")
+        if native_level:
             native_evidence = details.get("native_discovery_evidence")
-            if not authoritative_native_client_evidence(
-                native_evidence, client_version=tuple_value.get("client_version"),
-                product_id=row.get("plugin"),
-            ):
-                raise ValueError(f"passed native/runtime evidence lacks authoritative client operations: {row.get('id')}")
-        required = ("product_id", "tree_digest", "manifest_digest", "distribution_id", "distribution_kind", "release_sequence", "package_version", "source_repository", "source_revision", "source_path", "snapshot_sequence", "snapshot_digest", "binary_digest", "installer_version", "adapter_version", "client_version", "os", "architecture", "observed_at")
+            if row.get("level") == "discovery":
+                production = read_production_config()
+                expected_package = {
+                    "schema_version": 1, "package": production["copilot_cli_package"],
+                    "version": production["copilot_cli_version"], "integrity": production["copilot_cli_integrity"],
+                    "node_major": production["copilot_node_major"], "signature_audit": True,
+                    "version_argv": ["copilot", "--version"], "observed_version": production["copilot_cli_version"],
+                }
+                package = details.get("copilot_package")
+                expected_dependency = (
+                    f"{production['copilot_cli_package']}@{production['copilot_cli_version']}"
+                    f"#{production['copilot_cli_integrity']}"
+                )
+                if (
+                    row.get("scenario") != "all_26_info" or row.get("client") != "copilot"
+                    or details.get("evidence_basis") != "native_client_command"
+                    or details.get("native_identity_state") != "managed"
+                    or not isinstance(package, dict)
+                    or set(package) != {*expected_package, "executable_digest", "version_stdout_digest"}
+                    or any(package.get(key) != expected for key, expected in expected_package.items())
+                    or not DIGEST.fullmatch(str(package.get("executable_digest", "")))
+                    or not DIGEST.fullmatch(str(package.get("version_stdout_digest", "")))
+                    or tuple_value.get("dependency_identity") != expected_dependency
+                    or not authoritative_repository_copilot_evidence(
+                        native_evidence, client_version=tuple_value.get("client_version"),
+                        product_id=str(row.get("plugin")), physical_artifact_id=str(details.get("physical_artifact_id") or ""),
+                        expected_version=production["copilot_cli_version"],
+                    )
+                ):
+                    raise ValueError(f"passed discovery evidence lacks exact repository-owned Copilot operations: {row.get('id')}")
+            elif details.get("evidence_basis") != "protected_external_observer" or not authoritative_native_client_evidence(
+                    native_evidence, client_version=tuple_value.get("client_version"),
+                    product_id=row.get("plugin"), client=row.get("client")):
+                raise ValueError(f"passed runtime evidence lacks authoritative external client operations: {row.get('id')}")
+            required = ("product_id", "tree_digest", "manifest_digest", "distribution_id", "distribution_kind", "release_sequence", "package_version", "source_repository", "source_revision", "source_path", "snapshot_sequence", "snapshot_digest", "binary_digest", "installer_version", "adapter_version", "client_version", "os", "architecture", "observed_at")
+        else:
+            if details.get("evidence_basis") != "repository_owned_disposable_observer" or details.get("runtime_proof") is not False or details.get("native_discovery_proof") is not False or tuple_value.get("client_version") is not None:
+                raise ValueError(f"repository-owned proof crossed into native/runtime semantics: {row.get('id')}")
+            required = ("product_id", "tree_digest", "manifest_digest", "distribution_id", "distribution_kind", "release_sequence", "package_version", "snapshot_sequence", "snapshot_digest", "binary_digest", "installer_version", "adapter_version", "os", "architecture", "observed_at")
         if any(not tuple_value.get(field) for field in required):
             raise ValueError(f"passed evidence has an incomplete applicability tuple: {row.get('id')}")
         for field in ("tree_digest", "manifest_digest", "snapshot_digest", "binary_digest"):
@@ -2163,6 +2710,8 @@ def main() -> int:
     parser.add_argument("--prepared-context", type=Path, help="workflow-prepared official release/Directory/challenge context")
     parser.add_argument("--asset-name", help="manifest-listed native binary asset for this runner")
     parser.add_argument("--native-observations", type=Path, help="directory containing six native and one Node 22 observations")
+    parser.add_argument("--copilot-executable", type=Path, help="exact local GitHub Copilot CLI executable")
+    parser.add_argument("--copilot-metadata", type=Path, help="validated npm signature/version/integrity metadata")
     parser.add_argument("--run-root", type=Path, required=True, help="nonexistent path reserved for this disposable run")
     parser.add_argument("--consent", type=Path, required=True, help="explicit stable-launch E2E consent artifact")
     parser.add_argument("--output", type=Path, required=True)
@@ -2175,9 +2724,10 @@ def main() -> int:
     release_tag = None
     challenge = None
     github: dict[str, str] = {}
+    prepared: dict[str, Any] = {}
     if args.mode == "enforced":
-        if not args.prepared_context or not args.asset_name or not args.observer_bundle:
-            raise ValueError("enforced mode requires prepared official context and manifest asset name")
+        if not all((args.prepared_context, args.asset_name, args.observer_bundle)):
+            raise ValueError("enforced mode requires prepared official context, asset, and observer")
         if any(value is not None for value in (args.binary, args.binary_digest, args.expected_version, args.directory_origin, args.directory_snapshot, args.directory_envelope, args.directory_trust)):
             raise ValueError("enforced mode forbids caller-paired binary/version/digest/Directory/driver inputs")
         prepared = json.loads(args.prepared_context.read_text())
@@ -2196,8 +2746,13 @@ def main() -> int:
         release_tag = prepared["cli_release_tag"]
         github = prepared["github"]
         challenge = prepared["challenge"]
-        if challenge.get("release_manifest_digest") != release_manifest_digest or challenge.get("directory_digest") != prepared["directory"]["digest"]:
+        if challenge.get("release_manifest_digest") != release_manifest_digest or challenge.get("directory_digest") != prepared["directory"]["digest"] or challenge.get("scenario_contract_digest") != sha256_file(SCENARIOS):
             raise ValueError("prepared challenge is not bound to release and Directory digests")
+        if any(github.get(field) != expected for field, expected in (
+            ("caller_ref", "refs/heads/main"),
+            ("caller_workflow_ref", f"{TRUSTED_CATALOG_REPOSITORY}/.github/workflows/directory-publication.yml@refs/heads/main"),
+        )) or github.get("caller_event_name") not in {"push", "schedule", "workflow_dispatch"}:
+            raise ValueError("prepared challenge is not bound to the protected caller identity")
         observer_public_key = os.environ.get("OBSERVER_ED25519_PUBLIC_KEY", "")
         observer_key_id = os.environ.get("OBSERVER_KEY_ID", "")
         if not observer_public_key or not observer_key_id:
@@ -2224,6 +2779,20 @@ def main() -> int:
         if sha256_file(prepared_root / "release" / RELEASE_CHECKSUMS_NAME) != release_checksums_digest:
             raise ValueError("fresh GitHub checksums differ from the prepared immutable release")
         declared = next(item for item in release_manifest["assets"].values() if item["file"] == args.asset_name)
+        prepared_asset_digest = prepared.get("authenticated_asset", {}).get("digest")
+        prepared_attestation = prepared.get("github_asset_attestation")
+        fresh_attestation = json.loads(
+            (prepared_root / "release" / f"{args.asset_name}.attestation.json").read_text()
+        )
+        if prepared_attestation != fresh_attestation or prepared_asset_digest != "sha256:" + declared["sha256"]:
+            raise ValueError("fresh GitHub asset authentication differs from prepared context")
+        validate_capture_release_binding(
+            release_manifest=release_manifest, release_identity=release_identity,
+            release_manifest_digest=release_manifest_digest,
+            release_checksums_digest=release_checksums_digest,
+            asset_name=args.asset_name, asset_digest=prepared_asset_digest,
+            asset_attestation=prepared_attestation,
+        )
         args.binary = binary_path
         args.binary_digest = "sha256:" + declared["sha256"]
         args.expected_version = release_manifest["version"]
@@ -2238,7 +2807,7 @@ def main() -> int:
         args.directory_trust = PRODUCTION_DIRECTORY_TRUST
         if sha256_file(args.directory_snapshot) != directory["digest"]:
             raise ValueError("prepared staged Directory snapshot digest changed")
-    evidence = LaunchHarness(
+    evidence = sanitize_evidence(LaunchHarness(
         args.binary, args.attestations, mode=args.mode,
         binary_digest=args.binary_digest, expected_version=args.expected_version,
         directory_origin=args.directory_origin, directory_snapshot=args.directory_snapshot,
@@ -2249,9 +2818,13 @@ def main() -> int:
         release_checksums_digest=release_checksums_digest,
         release_tag=release_tag, github_sha=github.get("sha"), github_run_id=github.get("run_id"),
         github_run_attempt=github.get("run_attempt"), challenge=challenge,
+        producer_run_attempt=prepared.get("producer_run_attempt"),
+        caller_event_name=github.get("caller_event_name"), caller_ref=github.get("caller_ref"),
+        caller_workflow_ref=github.get("caller_workflow_ref"),
         native_observations=args.native_observations,
         observer_bundle_digest=observer_bundle_digest,
-    ).export()
+        copilot_executable=args.copilot_executable, copilot_metadata=args.copilot_metadata,
+    ).export())
     assert_redacted(evidence)
     if args.run_root and args.output.resolve() != (args.run_root.resolve() / "evidence" / args.output.name):
         raise ValueError("output must be inside the disposable evidence root")

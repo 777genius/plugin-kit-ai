@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "hubspot-developer",
-  "version": "0.1.0",
-  "description": "Local HubSpot Developer MCP integration for project scaffolding, CMS, builds, logs, and app workflows via the HubSpot CLI.",
+  "version": "0.2.0",
+  "description": "Preview HubSpot Developer MCP integration pinned to prerelease @hubspot/cli@8.14.0-beta.0 until HubSpot publishes 8.14.0 stable.",
   "author": {
     "name": "777genius",
     "url": "https://github.com/777genius"

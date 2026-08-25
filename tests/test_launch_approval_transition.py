@@ -152,9 +152,11 @@ class LaunchApprovalTransitionTests(unittest.TestCase):
             for name in ("record_launch_approval", "gate_launch_approval")
             for step in jobs[name]["steps"]
         )
-        self.assertNotIn("actions/download-artifact", marker_jobs)
+        self.assertIn("actions/download-artifact", marker_jobs)
         self.assertNotIn("pull_request", marker_jobs)
-        self.assertIn("--force-with-lease=\"${marker_ref}:\"", marker_commands)
+        self.assertIn("directory_publication_cas.py evidence-publish", marker_commands)
+        self.assertIn('--approval-tag "${marker_ref}"', marker_commands)
+        self.assertIn('--ledger-old "${EXPECTED_LEDGER_COMMIT}"', marker_commands)
         self.assertEqual(
             set(jobs["deploy"]["needs"]),
             {"sign", "materialize_site", "gate_exact_staged_publication", "gate_launch_approval"},

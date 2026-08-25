@@ -7,7 +7,7 @@
     "schema_version": {"const": 3},
     "run": {
       "type": "object",
-      "required": ["id", "mode", "runtime_claims", "observed_at", "platform", "architecture", "disposable", "root_id", "github_sha", "github_run_id", "github_run_attempt", "challenge", "observer_bundle_digest", "cli"],
+      "required": ["id", "mode", "runtime_claims", "observed_at", "platform", "architecture", "disposable", "root_id", "github_sha", "github_run_id", "github_run_attempt", "caller_event_name", "caller_ref", "caller_workflow_ref", "challenge", "observer_bundle_digest", "cli"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-f0-9]{16}$"},
         "mode": {"enum": ["enforced", "fixture-only"]},
@@ -20,6 +20,9 @@
         "github_sha": {"type": ["string", "null"], "pattern": "^[a-f0-9]{40}$"},
         "github_run_id": {"type": ["string", "null"], "pattern": "^[0-9]+$"},
         "github_run_attempt": {"type": ["string", "null"], "pattern": "^[0-9]+$"},
+        "caller_event_name": {"type": ["string", "null"], "enum": ["push", "schedule", "workflow_dispatch", null]},
+        "caller_ref": {"type": ["string", "null"], "pattern": "^refs/heads/[A-Za-z0-9._/-]+$"},
+        "caller_workflow_ref": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/directory-publication\\.yml@refs/heads/main$"},
         "challenge": {"type": ["string", "null"], "pattern": "^[a-f0-9]{64}$"},
         "observer_bundle_digest": {"type": ["string", "null"], "pattern": "^sha256:[a-f0-9]{64}$"},
         "cli": {
@@ -34,7 +37,7 @@
         }
       },
       "allOf": [
-        {"if": {"properties": {"mode": {"const": "enforced"}}}, "then": {"properties": {"runtime_claims": {"const": true}, "github_sha": {"type": "string"}, "github_run_id": {"type": "string"}, "github_run_attempt": {"type": "string"}, "challenge": {"type": "string"}, "observer_bundle_digest": {"type": "string"}, "cli": {"properties": {"available": {"const": true}, "version": {"type": "string", "pattern": "^(?:0\\.1\\.(?:[89]|[1-9][0-9]+)|0\\.(?:[2-9]|[1-9][0-9]+)\\.[0-9]+|[1-9][0-9]*\\.[0-9]+\\.[0-9]+)$"}, "binary_digest": {"type": "string"}}}}}},
+        {"if": {"properties": {"mode": {"const": "enforced"}}}, "then": {"properties": {"runtime_claims": {"const": true}, "github_sha": {"type": "string"}, "github_run_id": {"type": "string"}, "github_run_attempt": {"type": "string"}, "caller_event_name": {"type": "string"}, "caller_ref": {"const": "refs/heads/main"}, "caller_workflow_ref": {"type": "string"}, "challenge": {"type": "string"}, "observer_bundle_digest": {"type": "string"}, "cli": {"properties": {"available": {"const": true}, "version": {"type": "string", "pattern": "^(?:0\\.1\\.(?:[89]|[1-9][0-9]+)|0\\.(?:[2-9]|[1-9][0-9]+)\\.[0-9]+|[1-9][0-9]*\\.[0-9]+\\.[0-9]+)$"}, "binary_digest": {"type": "string"}}}}}},
         {"if": {"properties": {"mode": {"const": "fixture-only"}}}, "then": {"properties": {"runtime_claims": {"const": false}}}}
       ],
       "additionalProperties": false
@@ -97,8 +100,16 @@
         },
         "allOf": [
           {
-            "if": {"properties": {"outcome": {"const": "passed"}, "level": {"not": {"const": "harness"}}}, "required": ["outcome", "level"]},
-            "then": {"properties": {"tuple": {"$ref": "#/$defs/completeTuple"}}}
+            "if": {"properties": {"outcome": {"const": "passed"}, "level": {"const": "discovery"}}, "required": ["outcome", "level"]},
+            "then": {"properties": {"tuple": {"$ref": "#/$defs/completeTuple"}, "details": {"required": ["evidence_basis", "runtime_proof", "native_discovery_proof", "native_discovery_evidence", "native_identity_state", "copilot_package"], "properties": {"evidence_basis": {"const": "native_client_command"}, "runtime_proof": {"const": false}, "native_discovery_proof": {"const": true}, "native_identity_state": {"const": "managed"}}}}}
+          },
+          {
+            "if": {"properties": {"outcome": {"const": "passed"}, "level": {"enum": ["runtime", "oauth"]}}, "required": ["outcome", "level"]},
+            "then": {"properties": {"tuple": {"$ref": "#/$defs/completeTuple"}, "details": {"required": ["evidence_basis", "native_discovery_proof"], "properties": {"evidence_basis": {"const": "protected_external_observer"}, "native_discovery_proof": {"const": true}}}}}
+          },
+          {
+            "if": {"properties": {"outcome": {"const": "passed"}, "level": {"enum": ["schema", "materialization"]}}, "required": ["outcome", "level"]},
+            "then": {"properties": {"tuple": {"$ref": "#/$defs/repositoryProofTuple"}, "details": {"required": ["evidence_basis", "runtime_proof", "native_discovery_proof"], "properties": {"evidence_basis": {"const": "repository_owned_disposable_observer"}, "runtime_proof": {"const": false}, "native_discovery_proof": {"const": false}}}}}
           }
         ],
         "additionalProperties": false
@@ -165,6 +176,20 @@
         "observed_at": {"type": "string", "format": "date-time"}
       },
       "additionalProperties": false
+    },
+    "repositoryProofTuple": {
+      "allOf": [
+        {"$ref": "#/$defs/tuple"},
+        {"properties": {
+          "product_id": {"type": "string"}, "tree_digest": {"type": "string"}, "manifest_digest": {"type": "string"},
+          "distribution_id": {"type": "string"}, "distribution_kind": {"type": "string"},
+          "release_sequence": {"type": "integer"}, "package_version": {"type": "string"},
+          "snapshot_sequence": {"type": "integer"}, "snapshot_digest": {"type": "string"},
+          "binary_digest": {"type": "string"}, "dependency_identity": {"type": "string", "minLength": 1},
+          "installer_version": {"type": "string", "minLength": 1}, "adapter_version": {"type": "string", "minLength": 1},
+          "client_version": {"const": null}
+        }}
+      ]
     },
     "completeTuple": {
       "allOf": [

@@ -136,6 +136,7 @@ def main() -> int:
         "release_manifest_digest": context["release_manifest_digest"],
         "release_checksums_digest": context["release_checksums_digest"],
         "directory_digest": context["directory"]["digest"],
+        "scenario_contract_digest": context["scenario_contract_digest"],
         "github": context["github"], "challenge": context["challenge"],
     }, sort_keys=True, separators=(",", ":")).encode()
     value = request_observer_bundle(args.endpoint, request_body, oidc)

@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ PUBLICATION_INPUTS = {
     "publication_source_commit": "string",
     "publication_ledger_commit": "string",
 }
+CALLER_INPUTS = {"caller_event_name", "caller_ref", "caller_workflow_ref"}
 
 
 def load(path: Path):
@@ -29,6 +31,49 @@ def commands(job):
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_stable_launch_versions_equal_trusted_contract(self) -> None:
+        version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
+        self.assertEqual(version, "0.1.14")
+        tag = f"agentplugins-v{version}"
+        asset_prefix = f"agentplugins_{version}_"
+        production = json.loads((ROOT / "tests/e2e/production-launch.json").read_text())
+        schema = json.loads((ROOT / "tests/e2e/schemas/native-release-observation.schema.json").read_text())
+        adapter_schema = json.loads((ROOT / "deploy/uap-observer-adapter-config.schema.json").read_text())
+        observer = json.loads((ROOT / "deploy/uap-observer.json").read_text())
+        workflow = load(LAUNCH)
+        assets = {slot["asset"] for slot in workflow["jobs"]["native-release"]["strategy"]["matrix"]["include"]}
+        npm = schema["properties"]["npm_package"]["properties"]
+        self.assertEqual(workflow["env"]["AGENTPLUGINS_VERSION"], version)
+        self.assertEqual(production["cli_release_tag"], tag)
+        self.assertEqual(observer["cli_release_tag"], tag)
+        self.assertEqual(adapter_schema["properties"]["request_policy"]["properties"]["cli_release_tag"]["const"], tag)
+        # Bind the version and both independently authenticated public release
+        # assets in one regression contract.  Updating only the version cannot
+        # leave a stale observer trust pin behind.
+        request_policy = adapter_schema["properties"]["request_policy"]["properties"]
+        self.assertEqual((version, request_policy["release_manifest_digest"]["const"], request_policy["release_checksums_digest"]["const"]), (
+            "0.1.14",
+            "sha256:21b72bb9fc82df2b45ce2e83ea79eeb5b8436cfd9b09f8ccfcbb25c8d0fda8f9",
+            "sha256:bd9f8de83b9b04589d2b29ce36ae079bf5f67b10b8f44c5ab811fc5d6706ff6b",
+        ))
+        self.assertEqual(schema["properties"]["cli_release_tag"]["const"], tag)
+        self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["tag"]["const"], tag)
+        self.assertEqual(schema["properties"]["github_asset_attestation"]["properties"]["tag"]["const"], tag)
+        self.assertTrue(assets)
+        self.assertTrue(all(asset.startswith(asset_prefix) for asset in assets))
+        self.assertEqual(npm["version"]["const"], version)
+        self.assertEqual(npm["tarball"]["const"], f"https://registry.npmjs.org/universal-agent-plugins/-/universal-agent-plugins-{version}.tgz")
+        self.assertEqual(npm["provenance_url"]["const"], f"https://registry.npmjs.org/-/npm/v1/attestations/universal-agent-plugins@{version}")
+        self.assertEqual(npm["native_asset_name"]["const"], f"{asset_prefix}linux_amd64")
+        stable_files = (
+            LAUNCH, ROOT / "scripts/run_launch_evidence_e2e.py", ROOT / "tests/e2e/production-launch.json",
+            ROOT / "tests/e2e/schemas/native-release-observation.schema.json", ROOT / "deploy/uap-observer.json",
+            ROOT / "deploy/uap-observer-adapter-config.schema.json", ROOT / "observer/config.py",
+        )
+        for path in stable_files:
+            with self.subTest(path=path.name):
+                self.assertNotRegex(path.read_text(), r"(?:agentplugins[-_v@]|universal-agent-plugins[-@])0\.1\.(?:12|13)")
+
     def test_directory_publication_prepare_installs_bridge_runtime_dependencies(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
         prepare_commands = commands(workflow["jobs"]["prepare"])
@@ -49,6 +94,33 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(job["permissions"], {"contents": "read"})
         self.assertLessEqual(int(job["timeout-minutes"]), 10)
 
+    def test_launch_evidence_jobs_fetch_parent_for_patch_binding(self) -> None:
+        launch = load(LAUNCH)
+        live = load(LIVE)
+        jobs = (
+            (launch["jobs"]["fixture-only-non-runtime"], "fixture-only-non-runtime"),
+            (launch["jobs"]["enforced-stable-gate"], "enforced-stable-gate"),
+            (live["jobs"]["scheduled-fixture-contract"], "scheduled-fixture-contract"),
+        )
+        for job, name in jobs:
+            with self.subTest(job=name):
+                checkout = next(
+                    step for step in job["steps"]
+                    if step.get("uses", "").startswith("actions/checkout")
+                )
+                self.assertEqual(checkout["with"]["fetch-depth"], "2")
+
+    def test_enforced_jobs_are_not_disabled_by_impossible_capture_lineage(self) -> None:
+        workflow = load(LAUNCH)
+        self.assertNotIn("CAPTURE_TRUST_READY", workflow["env"])
+        self.assertNotIn("capture-trust-unavailable", workflow["jobs"])
+        for name in (
+            "native-release", "node22-npm-facade", "aggregate-one-release",
+            "protected-observer-inputs", "enforced-stable-gate", "attest-stable-evidence",
+        ):
+            self.assertNotIn("CAPTURE_TRUST", workflow["jobs"][name]["if"])
+        self.assertNotIn("capture-transcript", commands(workflow["jobs"]["enforced-stable-gate"]))
+
     def test_live_gate_resolves_official_release_and_native_matrix(self) -> None:
         workflow = load(LAUNCH)
         native = workflow["jobs"]["native-release"]
@@ -58,7 +130,7 @@ class WorkflowContractTests(unittest.TestCase):
         inputs = workflow["on"]["workflow_dispatch"]["inputs"]
         self.assertEqual(inputs["consent"]["required"], "true")
         self.assertNotIn("release_tag", inputs)
-        self.assertEqual(set(workflow["on"]["workflow_call"]["inputs"]), {"consent", *PUBLICATION_INPUTS})
+        self.assertEqual(set(workflow["on"]["workflow_call"]["inputs"]), {"consent", *PUBLICATION_INPUTS, *CALLER_INPUTS})
         self.assertTrue(all(workflow["on"]["workflow_call"]["inputs"][name]["required"] == "true" for name in PUBLICATION_INPUTS))
         self.assertIn("workflow_call", workflow["on"])
         slots = native["strategy"]["matrix"]["include"]
@@ -67,30 +139,51 @@ class WorkflowContractTests(unittest.TestCase):
             ("linux", "amd64"), ("windows", "amd64"), ("windows", "arm64"),
         })
         self.assertEqual({slot["asset"] for slot in slots}, {
-            "agentplugins_0.1.8_darwin_arm64", "agentplugins_0.1.8_darwin_amd64",
-            "agentplugins_0.1.8_linux_arm64", "agentplugins_0.1.8_linux_amd64",
-            "agentplugins_0.1.8_windows_amd64.exe", "agentplugins_0.1.8_windows_arm64.exe",
+            "agentplugins_0.1.14_darwin_arm64", "agentplugins_0.1.14_darwin_amd64",
+            "agentplugins_0.1.14_linux_arm64", "agentplugins_0.1.14_linux_amd64",
+            "agentplugins_0.1.14_windows_amd64.exe", "agentplugins_0.1.14_windows_arm64.exe",
         })
+        aggregate_commands = commands(aggregate)
+        self.assertIn("['subject_name'] == x['asset_name']", aggregate_commands)
+        self.assertIn("['subject_digest'] == x['asset_digest']", aggregate_commands)
+        self.assertIn("set(x) == expected_attestation_keys", aggregate_commands)
         self.assertIn("prepare_launch_evidence.py", commands(native))
         self.assertIn("node-version: '22'", yaml.safe_dump(npm))
         self.assertIn("npm install --global", commands(npm))
         self.assertIn("npm audit signatures", commands(npm))
         self.assertIn("--npm-facade", commands(npm))
-        self.assertIn("universal-agent-plugins-0.1.8.tgz", commands(npm))
-        self.assertIn("--asset-name agentplugins_0.1.8_linux_amd64", commands(npm))
+        self.assertIn("universal-agent-plugins-0.1.14.tgz", commands(npm))
+        self.assertIn("--asset-name agentplugins_0.1.14_linux_amd64", commands(npm))
         self.assertNotIn("universal-agent-plugins.tgz", commands(npm))
         self.assertNotRegex(commands(npm), r"github\.com/.*\.tgz")
         self.assertIn("inputs.consent", aggregate["if"])
         self.assertIn("release_manifest_digest", commands(aggregate))
-        self.assertEqual(set(enforced["needs"]), {"native-release", "node22-npm-facade", "aggregate-one-release"})
-        self.assertEqual(enforced["environment"], "stable-launch-e2e")
+        self.assertEqual(set(enforced["needs"]), {"native-release", "node22-npm-facade", "aggregate-one-release", "protected-observer-inputs"})
+        observer = workflow["jobs"]["protected-observer-inputs"]
+        self.assertEqual(observer["environment"], "stable-launch-e2e")
+        self.assertNotIn("environment", enforced)
         self.assertIn("--prepared-context", commands(enforced))
         self.assertIn("--native-observations", commands(enforced))
-        self.assertIn("request_launch_runtime_observations.py", commands(enforced))
+        self.assertIn("request_observer_bundle", commands(observer))
+        self.assertIn('"scenario_contract_digest": scenario_digest', commands(observer))
+        self.assertIn('"run_attempt": os.environ["GITHUB_RUN_ATTEMPT"]', commands(observer))
+        self.assertIn('context["producer_run_attempt"] = producer_attempt', commands(observer))
+        self.assertIn("enforce_freshness=True", commands(observer))
+        self.assertNotIn("id-token", enforced["permissions"])
         self.assertIn("--observer-bundle", commands(enforced))
-        self.assertIn("observer-bundle.schema.json", commands(enforced))
+        self.assertIn("observer-bundle.schema.json", commands(observer))
         self.assertIn("STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY", yaml.safe_dump(enforced))
         self.assertIn("STABLE_LAUNCH_OBSERVER_KEY_ID", yaml.safe_dump(enforced))
+        self.assertIn("node-version: '22'", yaml.safe_dump(enforced))
+        self.assertIn("npm install --ignore-scripts=false --save-exact @github/copilot@1.0.80", commands(enforced))
+        self.assertIn("npm audit signatures", commands(enforced))
+        self.assertIn('"package": "@github/copilot"', commands(enforced))
+        self.assertIn('"version": "1.0.80"', commands(enforced))
+        self.assertIn("sha512-6tf93ZF56KOiTTAjK/UhLZkl1W543IzaTQly288kockJZFswpRTnQEI00Yvacpb39DTvTYu3/ha9SeKpo/pgZQ==", commands(enforced))
+        self.assertIn('["copilot", "--version"]', commands(enforced))
+        self.assertIn("--copilot-executable", commands(enforced))
+        self.assertIn("--copilot-metadata", commands(enforced))
+        self.assertNotIn("npm install --global @github/copilot", commands(enforced))
         body = LAUNCH.read_text()
         for forbidden in ("binary_url", "binary_sha256", "directory_bundle_url", "directory_bundle_sha256", "live_inputs_url", "scenario-driver"):
             self.assertNotIn(forbidden, body)
@@ -98,12 +191,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--release-tag", body)
         production = (ROOT / "tests/e2e/production-launch.json").read_text()
         self.assertIn('"cli_release_repository": "777genius/plugin-kit-ai"', production)
-        self.assertIn('"cli_release_tag": "agentplugins-v0.1.8"', production)
+        self.assertIn('"cli_release_tag": "agentplugins-v0.1.14"', production)
+        self.assertIn('"cli_release_commit": "caffa9ac2a962462a05d5342250f4810ddce0856"', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
         self.assertIn("token=None", prepare)
         self.assertNotIn("fetch_production_directory", prepare)
         self.assertIn("fetch_staged_directory", prepare)
+        self.assertNotIn('config["cli_release_id"]', prepare)
+        self.assertEqual(LAUNCH.read_text().count("python scripts/prepare_launch_evidence.py --asset-name"), 2)
         self.assertIn("--publication-ledger-commit", commands(native))
 
     def test_false_consent_skips_every_live_and_aggregate_job(self) -> None:
@@ -124,7 +220,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("SHA256SUMS", text)
                 self.assertIn("overwrite: false", text)
                 if path == LAUNCH:
-                    self.assertIn("agentplugins_0.1.8_linux_amd64", text)
+                    self.assertIn("agentplugins_0.1.14_linux_amd64", text)
                 self.assertNotIn("AGENTPLUGINS_VERSION: \"0.1.6\"", text)
 
     def test_live_workflow_is_read_only_and_does_not_publish(self) -> None:
@@ -141,7 +237,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("release_tag", required.get("with", {}))
         self.assertEqual(required["permissions"], {
             "actions": "read",
-            "attestations": "read",
+            "attestations": "write",
             "contents": "read",
             "id-token": "write",
         })
@@ -152,7 +248,7 @@ class WorkflowContractTests(unittest.TestCase):
         launch = load(LAUNCH)
         expected = {
             "actions": "read",
-            "attestations": "read",
+            "attestations": "write",
             "contents": "read",
             "id-token": "write",
         }
@@ -174,10 +270,10 @@ class WorkflowContractTests(unittest.TestCase):
     def test_scheduled_live_workflow_never_calls_staged_publication_gate(self) -> None:
         workflow = load(LIVE)
         required = workflow["jobs"]["required-stable-launch-evidence"]
-        self.assertEqual(
-            required["if"],
-            "github.event_name == 'workflow_call' || github.event_name == 'workflow_dispatch'",
-        )
+        self.assertIn("inputs.consent", required["if"])
+        self.assertIn("inputs.publication_sequence > 0", required["if"])
+        self.assertIn("inputs.caller_ref == 'refs/heads/main'", required["if"])
+        self.assertIn("directory-publication.yml@refs/heads/main", required["if"])
         scheduled = {
             name: job
             for name, job in workflow["jobs"].items()
@@ -200,6 +296,54 @@ class WorkflowContractTests(unittest.TestCase):
             public_reads["if"], "github.event_name == 'schedule' || inputs.consent"
         )
 
+    def test_reusable_protected_jobs_gate_on_caller_inputs_not_event_name(self) -> None:
+        launch = load(LAUNCH)
+        protected_jobs = {
+            "native-release", "node22-npm-facade", "aggregate-one-release",
+            "protected-observer-inputs", "enforced-stable-gate", "attest-stable-evidence",
+        }
+        for name in protected_jobs:
+            condition = launch["jobs"][name]["if"]
+            with self.subTest(job=name):
+                self.assertIn("inputs.consent", condition)
+                self.assertIn("inputs.publication_sequence > 0", condition)
+                self.assertIn("inputs.caller_ref == 'refs/heads/main'", condition)
+                self.assertIn("directory-publication.yml@refs/heads/main", condition)
+                self.assertNotIn("github.event_name", condition)
+
+    def test_observer_attestation_claims_the_oidc_job(self) -> None:
+        schema = json.loads((ROOT / "tests/e2e/schemas/runtime-attestations.schema.json").read_text())
+        claimed_job = schema["properties"]["attestations"]["items"]["properties"]["github_attestation"]["properties"]["job"]["const"]
+        self.assertEqual(claimed_job, "protected-observer-inputs")
+        attestations = schema["properties"]["attestations"]
+        self.assertEqual(attestations["maxItems"], 12)
+        self.assertEqual({item["maxItems"] for item in attestations["oneOf"]}, {1, 3, 12})
+        required = set(attestations["items"]["required"])
+        self.assertTrue({"release_manifest_digest", "release_checksums_digest", "directory_digest", "scenario_contract_digest"} <= required)
+        self.assertIn('github.get("job") == "protected-observer-inputs"', (ROOT / "scripts/run_launch_evidence_e2e.py").read_text())
+
+    def test_live_terminal_gate_rejects_skipped_or_failed_nested_evidence(self) -> None:
+        workflow = load(LIVE)
+        gate = workflow["jobs"]["required-live-e2e"]
+        self.assertIn("always() && inputs.consent", gate["if"])
+        self.assertIn("inputs.caller_ref == 'refs/heads/main'", gate["if"])
+        self.assertIn("directory-publication.yml@refs/heads/main", gate["if"])
+        self.assertEqual(
+            set(gate["needs"]),
+            {"required-stable-launch-evidence", "public-read-flows"},
+        )
+        step = gate["steps"][0]
+        self.assertEqual(
+            step["env"],
+            {
+                "STABLE_E2E_RESULT": "${{ needs.required-stable-launch-evidence.result }}",
+                "PUBLIC_READ_RESULT": "${{ needs.public-read-flows.result }}",
+            },
+        )
+        body = commands(gate)
+        self.assertIn('test "$STABLE_E2E_RESULT" = success', body)
+        self.assertIn('test "$PUBLIC_READ_RESULT" = success', body)
+
     def test_publication_identity_contract_matches_across_both_reusable_edges(self) -> None:
         launch = load(LAUNCH)
         live = load(LIVE)
@@ -208,7 +352,7 @@ class WorkflowContractTests(unittest.TestCase):
         live_inputs = live["on"]["workflow_call"]["inputs"]
         live_call = live["jobs"]["required-stable-launch-evidence"]["with"]
         publication_call = publication["jobs"]["required_stable_launch_evidence"]["with"]
-        expected = {"consent", *PUBLICATION_INPUTS}
+        expected = {"consent", *PUBLICATION_INPUTS, *CALLER_INPUTS}
         self.assertEqual(set(launch_inputs), expected)
         self.assertEqual(set(live_inputs), expected)
         self.assertEqual(set(live_call), expected)
@@ -220,6 +364,10 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertEqual(launch_inputs[name]["type"], expected_type)
                 self.assertEqual(live_inputs[name]["type"], expected_type)
                 self.assertEqual(live_call[name], "${{ inputs." + name + " }}")
+        for name in CALLER_INPUTS:
+            self.assertEqual(launch_inputs[name]["required"], "true")
+            self.assertEqual(live_inputs[name]["required"], "true")
+            self.assertEqual(live_call[name], "${{ inputs." + name + " }}")
         self.assertEqual(publication_call["publication_id"], "${{ needs.sign.outputs.publication_id }}")
         self.assertEqual(publication_call["publication_sequence"], "${{ fromJSON(needs.sign.outputs.sequence) }}")
         self.assertEqual(publication_call["publication_snapshot_digest"], "${{ needs.sign.outputs.snapshot_digest }}")
@@ -234,7 +382,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(required["with"]["consent"], "true")
         self.assertEqual(required["permissions"], {
             "actions": "read",
-            "attestations": "read",
+            "attestations": "write",
             "contents": "read",
             "id-token": "write",
         })
@@ -276,6 +424,83 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("needs.sign.outputs.sequence == '1'", launch_if + record_if + marker_if)
         self.assertIn("needs.gate_launch_approval.result == 'success'", deploy_if)
 
+    def test_launch_evidence_is_attested_then_persisted_by_exact_two_ref_cas(self) -> None:
+        launch = load(LAUNCH)
+        live = load(LIVE)
+        publication = load(DIRECTORY_PUBLICATION)
+        enforced = launch["jobs"]["enforced-stable-gate"]
+        observer = launch["jobs"]["protected-observer-inputs"]
+        attester = launch["jobs"]["attest-stable-evidence"]
+        self.assertNotIn("environment", enforced)
+        self.assertNotIn("attestations", enforced["permissions"])
+        self.assertNotIn("id-token", enforced["permissions"])
+        self.assertEqual(observer["permissions"]["id-token"], "write")
+        self.assertNotIn("attestations", observer["permissions"])
+        observer_downloads = [
+            step["with"].get("name", "") for step in observer["steps"]
+            if "download-artifact" in step.get("uses", "")
+        ]
+        self.assertTrue(any(name.startswith("prepared-launch-context-") for name in observer_downloads))
+        self.assertFalse(any(name.startswith("prepared-producer-inputs-") for name in observer_downloads))
+        self.assertEqual(attester["permissions"]["attestations"], "write")
+        self.assertEqual(attester["permissions"]["id-token"], "write")
+        self.assertEqual(attester["environment"], "stable-launch-e2e")
+        self.assertNotIn("OBSERVER_ENDPOINT", yaml.safe_dump(attester))
+        self.assertIn("OBSERVER_ED25519_PUBLIC_KEY", yaml.safe_dump(attester))
+        self.assertIn("materialize_launch_evidence.py prepare-bundle", commands(enforced))
+        attestation = next(
+            step for step in attester["steps"]
+            if step.get("name") == "Attest the canonical bundle identity only"
+        )
+        self.assertEqual(attestation["with"]["subject-path"], "evidence/bundle-identity.json")
+        self.assertIn("materialize_launch_evidence.py verify-bundle", commands(attester))
+        self.assertIn("--verify-observer", commands(attester))
+        self.assertIn("--observer-public-key", commands(attester))
+        self.assertEqual(
+            attester["outputs"]["evidence_run_attempt"],
+            "${{ needs.enforced-stable-gate.outputs.evidence_run_attempt }}",
+        )
+        self.assertNotIn("github.run_attempt", attester["outputs"]["evidence_run_attempt"])
+        attester_body = commands(attester)
+        self.assertIn(
+            '--expected-run-attempt "${{ needs.enforced-stable-gate.outputs.evidence_run_attempt }}"',
+            attester_body,
+        )
+        enforced_body = yaml.safe_dump(launch["jobs"]["enforced-stable-gate"])
+        self.assertIn('native-*-${{ github.run_id }}-*', enforced_body)
+        self.assertIn("needs.node22-npm-facade.outputs.evidence_run_attempt", enforced_body)
+        self.assertIn("needs.protected-observer-inputs.outputs.evidence_run_attempt", enforced_body)
+        self.assertIn('run_attempt=${EVIDENCE_RUN_ATTEMPT}', enforced_body)
+        aggregate_body = yaml.safe_dump(launch["jobs"]["aggregate-one-release"])
+        self.assertIn('native-*-${{ github.run_id }}-*', aggregate_body)
+        self.assertNotIn('test "$NATIVE_ATTEMPT" = "$NODE_ATTEMPT"', aggregate_body)
+        self.assertEqual(
+            attestation["uses"],
+            "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
+        )
+        self.assertEqual(
+            set(launch["on"]["workflow_call"]["outputs"]),
+            {"evidence_artifact_name", "launch_evidence_digest", "workflow_source_digest", "evidence_run_attempt"},
+        )
+        self.assertEqual(
+            set(live["on"]["workflow_call"]["outputs"]),
+            {"evidence_artifact_name", "launch_evidence_digest", "workflow_source_digest", "evidence_run_attempt"},
+        )
+        persist = publication["jobs"]["record_launch_approval"]
+        body = commands(persist)
+        self.assertIn("jsonschema==4.26.0", body)
+        self.assertNotIn("jsonschema==4.25.1", str(publication))
+        self.assertIn("materialize_launch_evidence.py verify-bundle", body)
+        self.assertIn("--verify-attestation", body)
+        self.assertIn('--expected-run-attempt "${EXPECTED_EVIDENCE_RUN_ATTEMPT}"', body)
+        self.assertIn("materialize_launch_evidence.py commit", body)
+        self.assertIn("directory_publication_cas.py evidence-publish", body)
+        self.assertNotIn("ls-remote", body)
+        self.assertIn("validate_directory", (ROOT / "scripts/materialize_launch_evidence.py").read_text())
+        self.assertIn('--main-old "${EXPECTED_SOURCE_COMMIT}"', body)
+        self.assertIn('--ledger-old "${EXPECTED_LEDGER_COMMIT}"', body)
+        self.assertIn('--approval-tag "${marker_ref}"', body)
+
     def test_approved_refresh_skips_launch_but_keeps_exact_publication_gates(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)
         launch_if = workflow["jobs"]["required_stable_launch_evidence"]["if"]
@@ -293,6 +518,21 @@ class WorkflowContractTests(unittest.TestCase):
             "needs.gate_exact_staged_publication.result == 'success'",
         ):
             self.assertIn(required_result, deploy_if)
+
+    def test_whole_run_retry_uses_exact_completed_state_noop(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        prepare = workflow["jobs"]["prepare"]
+        replay = workflow["jobs"]["authenticate-completed-state"]
+        self.assertEqual(prepare["outputs"]["completed"], "${{ needs.authenticate-completed-state.outputs.completed }}")
+        self.assertEqual(prepare["permissions"], {"contents": "read"})
+        self.assertEqual(replay["permissions"], {"attestations": "read", "contents": "read"})
+        state = next(step for step in replay["steps"] if step.get("id") == "state")
+        self.assertIn("materialize_launch_evidence.py verify-completed", state["run"])
+        self.assertIn("needs.prepare.outputs.completed != 'true'", workflow["jobs"]["sign"]["if"])
+        self.assertEqual(
+            workflow["jobs"]["completed_rerun"]["if"],
+            "needs.prepare.outputs.completed == 'true'",
+        )
 
     def test_emergency_revocation_uses_the_same_higher_sequence_promotion_contract(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)

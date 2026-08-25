@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 import unittest
 from pathlib import Path
@@ -18,6 +19,9 @@ INSTALL_DOCUMENTS = (
     ROOT / "docs" / "QUICKSTART.md",
     ROOT / "docs" / "HERO_PLUGINS.md",
 )
+RUNTIME_CONFIGS = tuple(sorted(
+    ROOT.glob("plugins/*/io.github.777genius.agentplugins/runtime/runtime.json")
+))
 MODULE_PATH = ROOT / "scripts" / "build_registry.py"
 SPEC = importlib.util.spec_from_file_location("build_registry_for_docs", MODULE_PATH)
 assert SPEC and SPEC.loader
@@ -108,6 +112,27 @@ class PublicDocumentationIdentityTests(unittest.TestCase):
                 resolved_target,
                 f"{path}: {product} has no eligible install candidate for any client",
             )
+
+    def test_public_dependency_pins_match_shipped_runtime_configs(self) -> None:
+        compatibility = (ROOT / "docs" / "COMPATIBILITY.md").read_text()
+        verification = (ROOT / "docs" / "VERIFICATION.md").read_text()
+        self.assertTrue(RUNTIME_CONFIGS, "locked npm runtime configs must exist")
+
+        for config_path in RUNTIME_CONFIGS:
+            config = json.loads(config_path.read_text())
+            package = config["package"]
+            version = config["version"]
+            with self.subTest(config=config_path.relative_to(ROOT)):
+                self.assertIn(
+                    f"| `{package}` | `{version}`",
+                    compatibility,
+                    "compatibility pin must match the shipped runtime",
+                )
+                self.assertIn(
+                    f"`{package}@{version}`",
+                    verification,
+                    "verification pin must match the shipped runtime",
+                )
 
     def test_readme_preserves_public_cli_and_source_contracts(self) -> None:
         readme = (ROOT / "README.md").read_text()

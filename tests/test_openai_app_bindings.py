@@ -610,7 +610,120 @@ class OpenAIAppBindingTests(unittest.TestCase):
 
         self.assertEqual(generated, expected)
         self.assertEqual(listed, expected)
-        self.assertTrue({"chrome-devtools", "context7", "firebase", "hubspot-developer"}.isdisjoint(expected))
+        self.assertTrue({"chrome-devtools", "context7", "firebase", "hubspot-developer"}.issubset(expected))
+
+    def test_referenced_runtime_closures_are_complete_in_generated_packages(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugins = root / "plugins"
+            builder.build(plugins, root / "marketplace.json")
+            for name in ("chrome-devtools", "context7", "hubspot-developer"):
+                with self.subTest(plugin=name):
+                    runtime = (
+                        plugins / name / "io.github.777genius.agentplugins" / "runtime"
+                    )
+                    self.assertEqual(
+                        {path.name for path in runtime.iterdir() if path.is_file()},
+                        {"launcher.mjs", "package.json", "package-lock.json", "runtime.json"},
+                    )
+                    self.assertEqual(
+                        builder.tree_files(runtime),
+                        builder.tree_files(
+                            ROOT / "plugins" / name
+                            / "io.github.777genius.agentplugins" / "runtime"
+                        ),
+                    )
+
+    def test_generated_plugin_rejects_missing_plugin_root_resource(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugins = root / "plugins"
+            builder.build(plugins, root / "marketplace.json")
+            plugin = plugins / "chrome-devtools"
+            (
+                plugin / "io.github.777genius.agentplugins" / "runtime" / "launcher.mjs"
+            ).unlink()
+
+            with self.assertRaisesRegex(ValidationError, "missing plugin resource"):
+                validate_plugin(plugin, {})
+
+    def test_resource_projection_supports_inline_and_direct_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            output = root / "output"
+            (source / "bin").mkdir(parents=True)
+            (source / "bin" / "server").write_text("server")
+            (source / "bin" / "helper").write_text("runtime closure")
+            (source / "config.json").write_text("{}")
+            (source / "first.txt").write_text("first")
+            (source / "second.txt").write_text("second")
+            mcp = {"mcpServers": {"demo": {
+                "type": "stdio",
+                "command": "./bin/server",
+                "args": ["--config=${PLUGIN_ROOT}/config.json"],
+                "env": {
+                    "PAIR": "${PLUGIN_ROOT}/first.txt:${PLUGIN_ROOT}/second.txt",
+                },
+            }}}
+
+            builder.copy_mcp_resources(source, output, mcp)
+
+            self.assertEqual(
+                builder.tree_files(output),
+                {
+                    "bin/helper": b"runtime closure",
+                    "bin/server": b"server",
+                    "config.json": b"{}",
+                    "first.txt": b"first",
+                    "second.txt": b"second",
+                },
+            )
+
+    def test_resource_projection_rejects_unsafe_or_ambiguous_references(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            source.mkdir()
+            (source / "config").write_text("short")
+            (source / "config,prod").write_text("long")
+            (source / "assets").mkdir()
+            (source / "assets" / "icon.png").write_bytes(b"portable")
+            outside = root / "outside"
+            outside.write_text("outside")
+            (source / "link").symlink_to(outside)
+            cases = {
+                "traversal": "${PLUGIN_ROOT}/../outside",
+                "absolute": "${PLUGIN_ROOT}//etc/passwd",
+                "cross root": "${PLUGIN_ROOT}/${PLUGIN_DATA}/state",
+                "symlink": "${PLUGIN_ROOT}/link",
+                "ambiguous": "${PLUGIN_ROOT}/config,prod",
+                "host collision": "${PLUGIN_ROOT}/assets/icon.png",
+                "missing": "${PLUGIN_ROOT}/missing.json",
+            }
+            for name, argument in cases.items():
+                mcp = {"mcpServers": {"demo": {
+                    "type": "stdio", "command": "demo", "args": [argument],
+                }}}
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    builder.copy_mcp_resources(source, root / "output", mcp)
+
+    def test_validator_checks_every_inline_plugin_root_occurrence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            plugins = root / "plugins"
+            builder.build(plugins, root / "marketplace.json")
+            plugin = plugins / "chrome-devtools"
+            mcp_path = plugin / ".mcp.json"
+            mcp = json.loads(mcp_path.read_text())
+            server = mcp["mcpServers"]["chrome-devtools"]
+            server["args"].append(
+                "--pair=${PLUGIN_ROOT}/README.md:${PLUGIN_ROOT}/missing.json"
+            )
+            mcp_path.write_text(json.dumps(mcp))
+
+            with self.assertRaisesRegex(ValidationError, "missing plugin resource"):
+                validate_plugin(plugin, {})
 
     @staticmethod
     def resolves(source: dict[str, object], product: str, target: str) -> bool:
@@ -658,20 +771,48 @@ class OpenAIAppBindingTests(unittest.TestCase):
         ]
         evidence_id = "atlassian/atlassian/materialization-codex"
         policy["current_evidence"] = [evidence_id]
-        source["evidence"].append({
+        evidence = {
+            "schema_version": 1,
             "id": evidence_id,
+            "product_id": product["id"],
             "distribution_id": upstream["id"],
             "release_sequence": release["sequence"],
             "package_tree_digest": release["tree_digest"],
+            "manifest_digest": release["manifest_digest"],
+            "source_repository": local["releases"][0]["package_source"]["repository"],
+            "source_revision": local["releases"][0]["package_source"]["revision"],
+            "source_path": local["releases"][0]["package_source"]["path"],
             "level": "materialization",
             "outcome": "passed",
             "client": "codex",
-        })
+            "client_version": "1.0.0",
+            "installer_version": policy["minimum_installer_version"],
+            "os": "linux",
+            "architecture": "amd64",
+            "observed_at": "2026-08-24T00:00:00Z",
+            "artifact": {
+                "repository": "atlassian/evidence",
+                "revision": "b" * 40,
+                "path": "evidence/materialization-codex.json",
+                "digest": "sha256:" + "c" * 64,
+            },
+        }
+        source["evidence"].append(evidence)
         product["distributions"].append(upstream["id"])
         product["distributions"].sort()
         source["distributions"].append(upstream)
         source["distributions"].sort(key=lambda item: item["id"])
 
+        with self.assertRaisesRegex(
+            registry.RegistryError,
+            rf"^{upstream['id']}: release {release['sequence']} lacks current positive "
+            r"package compatibility evidence \(passed materialization\) for codex$",
+        ):
+            registry.resolve_directory(source, upstream["id"], ["codex"])
+
+        evidence["source_repository"] = release["package_source"]["repository"]
+        evidence["source_revision"] = release["package_source"]["revision"]
+        evidence["source_path"] = release["package_source"]["path"]
         selection = registry.resolve_directory(source, "atlassian", ["codex"])
         self.assertEqual(selection["distribution_id"], upstream["id"])
         self.assertNotIn("atlassian", self.generated_names(source))

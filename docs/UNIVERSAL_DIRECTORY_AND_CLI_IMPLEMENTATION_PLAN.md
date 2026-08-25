@@ -1047,6 +1047,28 @@ assumes unsupported placeholder behavior.
 - keep resolved `cwd` within its declared root;
 - mark this contract `not_applicable` for packages without stdio MCP servers.
 
+### 12.8 Integrity-locked npm runtime closure
+
+An npm-backed stdio package may carry a reviewed launcher, `package.json`, npm
+v3 lockfile, and small runtime metadata inside its standard package tree. This
+is a package implementation detail, not another manifest format or registry.
+
+- `plugin.json` and `mcp.json` remain the only portable package entry points;
+- the lockfile must contain one exact root dependency and exact HTTPS npm
+  registry URLs with SHA-512 integrity for the complete transitive closure;
+- the Directory validator pins the reviewed launcher digest and rejects package
+  scripts, ranges, missing integrity, non-registry URLs, or entrypoints outside
+  the root dependency;
+- first launch runs `npm ci --ignore-scripts --omit=dev` into `PLUGIN_DATA`,
+  verifies the reviewed lock/config digests, and publishes the completed runtime
+  atomically under a digest-specific directory;
+- later launches reuse that immutable materialization, while update creates a
+  new digest-specific runtime and normal removal preserves it with
+  `PLUGIN_DATA`;
+- a failed, concurrent, or interrupted bootstrap never becomes the active
+  runtime. Package installation itself remains honest about this first-launch
+  network requirement.
+
 ## 13. State evolution
 
 State schema 2 already owns source/package bindings, per-client applied package

@@ -48,6 +48,7 @@ from directory_publication_cas import CasError, validate_marker
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_SCHEMA = ROOT / "schemas" / "directory-source.schema.json"
 EVIDENCE_ARTIFACT_SCHEMA = ROOT / "schemas" / "directory-evidence-artifact.schema.json"
+LAUNCH_EVIDENCE_SCHEMA = ROOT / "tests" / "e2e" / "schemas" / "launch-evidence.schema.json"
 CONFIG_FIELDS = {"schema_version", "repository", "snapshot_lifetime_days"}
 OPTIONAL_CONFIG_FIELDS = {"trusted_evidence_workflows", "trusted_external_evidence"}
 TRUSTED_WORKFLOW_FIELDS = {
@@ -80,7 +81,7 @@ def load_config(path: Path) -> dict[str, Any]:
         require(
             isinstance(item["workflow"], str) and "/.github/workflows/" in item["workflow"]
             and isinstance(item["protected_source_ref"], str) and item["protected_source_ref"].startswith("refs/heads/")
-            and item["source_digest_policy"] == "artifact_revision"
+            and item["source_digest_policy"] in {"artifact_revision", "protected_workflow_source"}
             and type(item["allow_self_hosted_runners"]) is bool,
             f"{path}: invalid trusted evidence workflow policy",
         )
@@ -291,6 +292,8 @@ def acquire_evidence_bytes(
 
 def verify_evidence_trust(
     pointer: dict[str, Any], config: dict[str, Any], temporary_root: Path, body: bytes,
+    manifest_body: bytes | None = None, launch_body: bytes | None = None,
+    observer_body: bytes | None = None, index_body: bytes | None = None,
 ) -> None:
     artifact = pointer["artifact"]
     trust = pointer["trust"]
@@ -305,13 +308,93 @@ def verify_evidence_trust(
     require(policy is not None, f"{pointer['id']}: evidence workflow has no reviewed trust policy")
     require(workflow.startswith(artifact["repository"] + "/.github/workflows/"), f"{pointer['id']}: workflow and artifact repositories differ")
     require(trust["source_ref"] == policy["protected_source_ref"], f"{pointer['id']}: evidence source ref is not trusted")
-    require(
-        policy["source_digest_policy"] == "artifact_revision" and trust["source_digest"] == artifact["revision"],
-        f"{pointer['id']}: evidence source digest does not match the exact artifact revision",
-    )
+    manifest_artifact = trust.get("bundle_manifest")
+    launch_artifact = trust.get("launch_artifact")
+    observer_artifact = trust.get("observer_artifact")
+    evidence_index = trust.get("evidence_index")
+    if policy["source_digest_policy"] == "artifact_revision":
+        require(
+            trust["source_digest"] == artifact["revision"]
+            and all(item is None for item in (manifest_artifact, launch_artifact, observer_artifact, evidence_index)),
+            f"{pointer['id']}: evidence source digest does not match the exact artifact revision",
+        )
+        verified_body = body
+    else:
+        require(
+            all(isinstance(item, dict) for item in (manifest_artifact, launch_artifact, observer_artifact, evidence_index))
+            and all(item is not None for item in (manifest_body, launch_body, observer_body, index_body)),
+            f"{pointer['id']}: protected workflow evidence lacks its complete canonical bundle chain",
+        )
+        assert isinstance(manifest_artifact, dict) and isinstance(launch_artifact, dict)
+        assert isinstance(observer_artifact, dict) and isinstance(evidence_index, dict)
+        assert manifest_body is not None and launch_body is not None and observer_body is not None and index_body is not None
+        chain = (artifact, manifest_artifact, launch_artifact, observer_artifact, evidence_index)
+        require(
+            len({item["repository"] for item in chain}) == 1
+            and len({item["revision"] for item in chain}) == 1,
+            f"{pointer['id']}: evidence chain crosses repository revisions",
+        )
+        for label, artifact_identity, acquired_body in (
+            ("bundle manifest", manifest_artifact, manifest_body),
+            ("launch artifact", launch_artifact, launch_body),
+            ("observer artifact", observer_artifact, observer_body),
+            ("evidence index", evidence_index, index_body),
+        ):
+            require(
+                "sha256:" + hashlib.sha256(acquired_body).hexdigest() == artifact_identity["digest"],
+                f"{pointer['id']}: {label} digest mismatch",
+            )
+        manifest = parse_json_bytes(manifest_body, f"bundle manifest for {pointer['id']}", max_bytes=MAX_EVIDENCE_BYTES)
+        index = parse_json_bytes(index_body, f"evidence index for {pointer['id']}", max_bytes=MAX_EVIDENCE_BYTES)
+        require(isinstance(manifest, dict) and canonical_json(manifest) == manifest_body, f"{pointer['id']}: bundle manifest is not canonical JSON")
+        require(isinstance(index, dict) and canonical_json(index) == index_body, f"{pointer['id']}: evidence index is not canonical JSON")
+        manifest_path = Path(manifest_artifact["path"])
+        require(manifest_path.name == "bundle-identity.json", f"{pointer['id']}: attested artifact is not the canonical bundle identity")
+        root = manifest_path.parent.as_posix()
+        require(
+            launch_artifact["path"] == f"{root}/launch-evidence.json"
+            and observer_artifact["path"] == f"{root}/signed-observer-bundle.json"
+            and evidence_index["path"] == f"{root}/directory-evidence/index.json"
+            and len(index.get("records", [])) == 16
+            and index.get("repository") == artifact["repository"]
+            and index.get("workflow") == workflow
+            and index.get("source_ref") == trust["source_ref"]
+            and index.get("source_digest") == trust["source_digest"],
+            f"{pointer['id']}: evidence index identity mismatch",
+        )
+        with tempfile.TemporaryDirectory(prefix="uap-rederive-", dir=temporary_root) as bundle_directory:
+            bundle_path = Path(bundle_directory)
+            (bundle_path / "launch-evidence.json").write_bytes(launch_body)
+            (bundle_path / "signed-observer-bundle.json").write_bytes(observer_body)
+            from materialize_launch_evidence import build_bundle
+            derived_digest, derived = build_bundle(
+                bundle_path, repository=index["repository"], workflow=index["workflow"],
+                source_ref=index["source_ref"], source_digest=index["source_digest"],
+                expected_run_id=index["workflow_run_id"],
+                expected_run_attempt=index["workflow_run_attempt"],
+                expected_caller_event_name=index["caller_event_name"],
+                expected_caller_ref=index["caller_ref"],
+                expected_caller_workflow_ref=index["caller_workflow_ref"],
+                expected_publication_id=index["publication_id"],
+                expected_sequence=index["publication_sequence"],
+                expected_snapshot_digest=index["publication_snapshot_digest"],
+                expected_source_commit=index["publication_source_commit"],
+            )
+        require(derived_digest == index["launch_evidence_digest"], f"{pointer['id']}: re-derived launch digest mismatch")
+        require(derived["bundle-identity.json"] == manifest_body, f"{pointer['id']}: bundle manifest was not deterministically derived")
+        require(derived["directory-evidence/index.json"] == index_body, f"{pointer['id']}: evidence index was not deterministically derived")
+        record = next((item for item in index.get("records", []) if item.get("id") == pointer["id"]), None)
+        require(
+            isinstance(record, dict)
+            and artifact["path"] == f"{root}/{record.get('path', '')}"
+            and artifact["digest"] == record.get("digest")
+            and derived.get(record.get("path", "")) == body,
+            f"{pointer['id']}: evidence leaf is not bound by the attested launch index",
+        )
+        verified_body = manifest_body
     require(Path(GH).is_file(), f"reviewed evidence verifier is missing: {GH}")
-    acquired = temporary_root / "verified-evidence.json"
-    acquired.write_bytes(body)
+    acquired = temporary_root / "verified-evidence-bundle-identity.json"
+    acquired.write_bytes(verified_body)
     command = [
         GH, "attestation", "verify", str(acquired), "--repo", artifact["repository"],
         "--signer-workflow", workflow, "--source-ref", trust["source_ref"],
@@ -333,6 +416,7 @@ def verified_evidence(
     require("trust" in pointer, f"{pointer['id']}: evidence has no trusted workflow or external-attestation path")
     artifact = pointer["artifact"]
     temporary, body = acquire_evidence_bytes(artifact, overrides.get(artifact["repository"]))
+    chained: list[tempfile.TemporaryDirectory[str]] = []
     try:
         require("sha256:" + hashlib.sha256(body).hexdigest() == artifact["digest"], f"{pointer['id']}: evidence artifact digest mismatch")
         # Parse the verified bytes directly; never derive signed fields from the
@@ -341,9 +425,37 @@ def verified_evidence(
         require(isinstance(payload, dict), f"{pointer['id']}: evidence artifact must be an object")
         validate_with_schema(payload, EVIDENCE_ARTIFACT_SCHEMA)
         require(payload["id"] == pointer["id"], f"{pointer['id']}: evidence artifact identity mismatch")
-        verify_evidence_trust(pointer, config, Path(temporary.name), body)
+        manifest_body = None
+        launch_body = None
+        observer_body = None
+        index_body = None
+        trust = pointer["trust"]
+        if trust["kind"] == "github_actions" and "bundle_manifest" in trust:
+            for name, destination in (
+                ("bundle_manifest", "manifest"), ("launch_artifact", "launch"),
+                ("observer_artifact", "observer"), ("evidence_index", "index"),
+            ):
+                chained_temporary, chained_body = acquire_evidence_bytes(
+                    trust[name], overrides.get(trust[name]["repository"]),
+                )
+                chained.append(chained_temporary)
+                require(
+                    "sha256:" + hashlib.sha256(chained_body).hexdigest() == trust[name]["digest"],
+                    f"{pointer['id']}: {destination} artifact digest mismatch",
+                )
+                if destination == "manifest": manifest_body = chained_body
+                elif destination == "launch": launch_body = chained_body
+                elif destination == "observer": observer_body = chained_body
+                else: index_body = chained_body
+        verify_evidence_trust(
+            pointer, config, Path(temporary.name), body,
+            manifest_body=manifest_body, launch_body=launch_body,
+            observer_body=observer_body, index_body=index_body,
+        )
         return {**copy.deepcopy(payload), "artifact": copy.deepcopy(artifact)}
     finally:
+        for chained_temporary in chained:
+            chained_temporary.cleanup()
         temporary.cleanup()
 
 
@@ -494,11 +606,18 @@ def validate_reproduced_bridges(
                     reproduce.add(distribution["product_id"])
                 elif not eligible:
                     if old_release is None:
-                        require(
-                            sequence == current_release["sequence"],
-                            f"{distribution['id']}@{sequence}: inactive historical bridge has no reproducible recipe",
+                        retired_historical = (
+                            policy["status"] == "revoked"
+                            and isinstance(release["package_source"]["revision"], str)
+                            and SHA_RE.fullmatch(release["package_source"]["revision"]) is not None
+                            and release.get("published_at") is None
                         )
-                        reproduce.add(distribution["product_id"])
+                        if not retired_historical:
+                            require(
+                                sequence == current_release["sequence"],
+                                f"{distribution['id']}@{sequence}: inactive historical bridge has no reproducible recipe",
+                            )
+                            reproduce.add(distribution["product_id"])
                     else:
                         require(
                             old_release == release,
@@ -682,19 +801,43 @@ def build_candidate(
                         finally:
                             temporary.cleanup()
                 elif in_repository:
-                    require(
-                        reviewed_revision is None and reviewed_published_at is None,
-                        f"{label}: new in-repository release must have an unresolved revision and no published_at",
+                    retired_historical = (
+                        policy["status"] == "revoked"
+                        and isinstance(reviewed_revision, str)
+                        and SHA_RE.fullmatch(reviewed_revision) is not None
+                        and reviewed_published_at is None
                     )
-                    release["published_at"] = None
-                    # Review source cannot author this binding.  Only an unresolved
-                    # revision is bound after the checked-out merge tree passes the
-                    # reviewed digest checks below.
-                    verify_package(
-                        repository_root / package_source["path"], release, label,
-                        require_closed_runtime=require_closed_runtime,
-                    )
-                    package_source["revision"] = source_commit
+                    if retired_historical:
+                        # A never-published release may retain reviewed historical
+                        # bytes after the live package path advances. This exception
+                        # is terminally revoked; eligible releases still bind only
+                        # to the checked-out post-merge tree below.
+                        temporary = acquire_external(
+                            package_source["repository"], reviewed_revision,
+                            package_source["path"], repository_root,
+                        )
+                        try:
+                            verify_package(
+                                Path(temporary.name) / "checkout" / package_source["path"],
+                                release, label, require_closed_runtime=False,
+                            )
+                        finally:
+                            temporary.cleanup()
+                        release["published_at"] = None
+                    else:
+                        require(
+                            reviewed_revision is None and reviewed_published_at is None,
+                            f"{label}: new in-repository release must have an unresolved revision and no published_at",
+                        )
+                        release["published_at"] = None
+                        # Review source cannot author an eligible binding. Only an
+                        # unresolved revision is bound after the checked-out merge
+                        # tree passes the reviewed digest checks below.
+                        verify_package(
+                            repository_root / package_source["path"], release, label,
+                            require_closed_runtime=require_closed_runtime,
+                        )
+                        package_source["revision"] = source_commit
                 else:
                     require(
                         isinstance(reviewed_revision, str) and SHA_RE.fullmatch(reviewed_revision) is not None and reviewed_published_at is None,
@@ -716,7 +859,11 @@ def build_candidate(
     validate_signing_boundary_packages(
         candidate_source, previous, repository_root, config["repository"], overrides,
     )
-    evidence = selected_evidence(candidate_source, set(distributions_by_id), config, overrides)
+    evidence_overrides = dict(overrides)
+    evidence_overrides.setdefault(config["repository"], repository_root)
+    evidence = selected_evidence(
+        candidate_source, set(distributions_by_id), config, evidence_overrides,
+    )
     validate_upstream_default_evidence(products, output_distributions, evidence)
     revocations = [
         {"distribution_id": distribution["id"], "release_sequence": policy["release_sequence"]}

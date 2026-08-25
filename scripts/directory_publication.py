@@ -416,7 +416,7 @@ def _validate_product(value: Any, label: str) -> None:
 
 def _validate_evidence(value: Any, label: str) -> None:
     required = {"schema_version", "id", "product_id", "distribution_id", "release_sequence", "package_tree_digest", "manifest_digest", "source_repository", "source_revision", "source_path", "level", "outcome", "artifact"}
-    optional = {"client", "client_version", "installer_version", "os", "architecture", "dependency_identity", "observed_at"}
+    optional = {"client", "client_version", "installer_version", "adapter_version", "os", "architecture", "dependency_identity", "observed_at"}
     evidence = _object(value, required, optional, label)
     require_integer_const(evidence["schema_version"], 1, f"{label}.schema_version is invalid")
     _string(evidence["id"], EVIDENCE_ID_RE, f"{label}.id")
@@ -444,7 +444,7 @@ def _validate_evidence(value: Any, label: str) -> None:
         require("client" not in evidence, f"{label}.client is forbidden for schema evidence")
     else:
         require({"client", "client_version", "installer_version", "os", "architecture", "observed_at"}.issubset(evidence), f"{label} client fields are missing")
-    for field in ("client_version", "installer_version", "os", "architecture", "dependency_identity"):
+    for field in ("client_version", "installer_version", "adapter_version", "os", "architecture", "dependency_identity"):
         if field in evidence:
             _string(evidence[field], None, f"{label}.{field}", minimum=1)
     if "observed_at" in evidence:
@@ -591,7 +591,7 @@ def validate_snapshot_semantics(
             and evidence["source_path"] == source["path"],
             f"{evidence_id}: evidence source identity does not match release",
         )
-        applicability = tuple(evidence.get(field) for field in ("level", "client", "client_version", "installer_version", "dependency_identity", "os", "architecture"))
+        applicability = tuple(evidence.get(field) for field in ("level", "client", "client_version", "installer_version", "adapter_version", "dependency_identity", "os", "architecture"))
         seen_applicability = applicability_by_release.setdefault(identity, set())
         require(applicability not in seen_applicability, f"{identity}: multiple current evidence records for one applicability tuple")
         seen_applicability.add(applicability)

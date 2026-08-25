@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "release": {
+    "repository": "777genius/plugin-kit-ai",
+    "tag": "agentplugins-v0.1.14",
+    "tag_commit": "cd766a39f79938b10c212dbe73e52ecf6731937a",
+    "asset": "agentplugins_0.1.14_linux_amd64",
+    "version_stdout": "agentplugins 0.1.14",
+    "binary_sha256": null,
+    "binary_digest_status": "not_retained_in_capture",
+    "capture_evidence_level": "sanitized_manifest_only_no_raw_or_binary_linkage",
+    "release_binary_authenticated": false,
+    "release_provenance_linkage": "unlinked_sanitized_fixture_provenance"
+  },
+  "sanitization_rules": [
+    "replace disposable absolute roots with /fixture roots without changing path relationships",
+    "replace generated operation, installation, binding, receipt, and physical artifact identifiers consistently",
+    "replace capture timestamps consistently while preserving ordering",
+    "do not alter command, result, status, enum, boolean, target, source, revision, tree digest, manifest digest, or closure digest semantics",
+    "do not retain host paths, environment values, credentials, tokens, or secrets"
+  ],
+  "captures": [
+    {"fixture":"direct-update-failure.json","argv":["update","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:58dd141ad82c1d6e54e1f56b9e3df2e5357bed49d1f539fa5b7a635dbaf8216a","stderr_fixture":"direct-update-failure.stderr.txt","stderr_sha256":"sha256:4428f91f37167e2976f3ae4c13215f1b2fa1476a1c14ca21048e556087ee3e08"},
+    {"fixture":"add.json","argv":["add","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:254943f7c2b3463b6900a16ebc4849dd77cc91e3c42dbe449b616e9d012581de"},
+    {"fixture":"info.json","argv":["info","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:ff08007b2d62bca850f5b04ccebef1ad511170788ab9110d5a15ce1808c27270"},
+    {"fixture":"repair.json","argv":["repair","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:1c350981218e7ee27a5d2ac98c993a9c46031138fda1dc8eaa0fc370bdfb8c84"},
+    {"fixture":"remove.json","argv":["remove","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:3fa4fa68a304890ae4fd80e85a182a511ade6f26be9d641f5d5868eb7b1cc3d3"},
+    {"fixture":"local-add.json","argv":["add","./context7-source/plugins/agent-plugins/context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:991ea3d9375e43f44746c8467a8ae68f640a1e8c5a2c7d6e11e945865fd375c4"},
+    {"fixture":"local-update.json","argv":["update","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:2f122f5475540b188b1c82dc33a2ebdc20b097b4f1193646f61a57fcc6c6894f"},
+    {"fixture":"migrate-dry-run.json","argv":["migrate-state","--dry-run","--format","json"],"sanitized_sha256":"sha256:b2e180d0d9bba00fddaec427d679d010c899efc7f43855432f7a129ee7f111fe"},
+    {"fixture":"migrate-apply.json","argv":["migrate-state","--format","json"],"sanitized_sha256":"sha256:59c84f95d6d2d29988ae0561892dfc26b1810d40f2c0ff2723cfb17f7d8efbc4"},
+    {"fixture":"state-v2.json","argv":["add","context7","--target","codex,cursor,kiro","--format","json"],"sanitized_sha256":"sha256:136c54e481bafd2d52f56e8b466215e74aa72d1ab18c54355492d6a4cc495771"},
+    {"fixture":"state-schema-2.json","fixture_root":"tests/e2e/fixtures","argv":["migrate-state","--dry-run","--format","json"],"sanitized_sha256":"sha256:d16442065f4f710590285f70d68254548721da2e562ee709931414dbd933d10c"}
+  ]
+}

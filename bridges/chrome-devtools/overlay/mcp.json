@@ -3,8 +3,11 @@
   "mcpServers": {
     "chrome-devtools": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@1.7.0"]
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs",
+        "--no-usage-statistics"
+      ]
     }
   }
 }

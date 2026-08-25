@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "$ref": "runtime-attestations.schema.json"
+    },
+    {
+      "required": ["external_pr_evidence"],
+      "properties": {
+        "attestations": {
+          "minItems": 12,
+          "maxItems": 12,
+          "items": {
+            "properties": {
+              "plugin": {
+                "enum": [
+                  "agent-code-navigator",
+                  "context7",
+                  "cloudflare-docs",
+                  "chrome-devtools"
+                ]
+              },
+              "client": {
+                "enum": [
+                  "codex",
+                  "cursor",
+                  "kiro"
+                ]
+              },
+              "level": {
+                "const": "runtime"
+              },
+              "scenario_id": {
+                "const": "hero_5x3_runtime"
+              }
+            },
+            "required": [
+              "plugin",
+              "client",
+              "level",
+              "scenario_id"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "agent-code-navigator"
+                  },
+                  "client": {
+                    "const": "codex"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "agent-code-navigator"
+                  },
+                  "client": {
+                    "const": "cursor"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "agent-code-navigator"
+                  },
+                  "client": {
+                    "const": "kiro"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "context7"
+                  },
+                  "client": {
+                    "const": "codex"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "context7"
+                  },
+                  "client": {
+                    "const": "cursor"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "context7"
+                  },
+                  "client": {
+                    "const": "kiro"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "cloudflare-docs"
+                  },
+                  "client": {
+                    "const": "codex"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "cloudflare-docs"
+                  },
+                  "client": {
+                    "const": "cursor"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "cloudflare-docs"
+                  },
+                  "client": {
+                    "const": "kiro"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "chrome-devtools"
+                  },
+                  "client": {
+                    "const": "codex"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "chrome-devtools"
+                  },
+                  "client": {
+                    "const": "cursor"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "plugin": {
+                    "const": "chrome-devtools"
+                  },
+                  "client": {
+                    "const": "kiro"
+                  }
+                },
+                "required": [
+                  "plugin",
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

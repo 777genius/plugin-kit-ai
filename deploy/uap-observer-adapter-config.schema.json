@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "request_policy", "git", "clients", "matrix", "consent_record", "chatgpt", "workspace_root", "external_pr_evidence"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "request_policy": {
+      "type": "object",
+      "required": ["catalog_repository", "cli_release_repository", "cli_release_tag", "release_manifest_digest", "release_checksums_digest", "directory_digest", "scenario_contract_digest"],
+      "properties": {
+        "catalog_repository": {"const": "777genius/universal-agent-plugins"},
+        "cli_release_repository": {"const": "777genius/plugin-kit-ai"},
+        "cli_release_tag": {"const": "agentplugins-v0.1.14"},
+        "release_manifest_digest": {"const": "sha256:21b72bb9fc82df2b45ce2e83ea79eeb5b8436cfd9b09f8ccfcbb25c8d0fda8f9"},
+        "release_checksums_digest": {"const": "sha256:bd9f8de83b9b04589d2b29ce36ae079bf5f67b10b8f44c5ab811fc5d6706ff6b"},
+        "directory_digest": {"$ref": "#/$defs/digest"},
+        "scenario_contract_digest": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "workspace_root": {"const": "/var/lib/uap-observer/workspaces"},
+    "git": {"type":"object","required":["binary","sha256"],"properties":{"binary":{"const":"/opt/uap-observer-inputs/bin/git"},"sha256":{"$ref":"#/$defs/digest"}},"additionalProperties":false},
+    "external_pr_evidence": {"type":"object","required":["path","sha256"],"properties":{"path":{"const":"/opt/uap-observer-inputs/external-pr-evidence.json"},"sha256":{"$ref":"#/$defs/digest"}},"additionalProperties":false},
+    "clients": {
+      "type": "object",
+      "required": ["codex", "cursor", "kiro"],
+      "properties": {
+        "codex": {"$ref": "#/$defs/client"},
+        "cursor": {"$ref": "#/$defs/client"},
+        "kiro": {"$ref": "#/$defs/client"}
+      },
+      "additionalProperties": false
+    },
+    "matrix": {"type": "array", "minItems": 15, "maxItems": 15, "items": {"$ref": "#/$defs/matrix"}},
+    "consent_record": {
+      "type": "object",
+      "required": ["directory"],
+      "properties": {"directory": {"const": "/var/lib/uap-observer-consent/pending"}},
+      "additionalProperties": false
+    },
+    "chatgpt": {
+      "type": "object",
+      "required": ["app_binding_path", "app_binding_sha256", "app_id", "mcp_endpoint", "human_attestation_directory", "tuple", "client_version", "projection_receipt_path", "projection_receipt_sha256"],
+      "properties": {
+        "app_binding_path": {"const": "/opt/uap-observer-inputs/chatgpt/app-binding.json"},
+        "app_binding_sha256": {"$ref": "#/$defs/digest"},
+        "app_id": {"type": "string", "pattern": "^plugin_asdk_app_[a-f0-9]{32}$"},
+        "mcp_endpoint": {"const": "https://docs.mcp.cloudflare.com/mcp"},
+        "human_attestation_directory": {"const": "/var/lib/uap-observer-human/pending"},
+        "tuple": {"type": "object"}, "client_version": {"type": "string", "minLength": 1},
+        "projection_receipt_path": {"const": "/opt/uap-observer-inputs/chatgpt/projection-receipt.json"},
+        "projection_receipt_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "file": {
+      "type": "object", "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string", "pattern": "^/"}, "sha256": {"$ref": "#/$defs/digest"}},
+      "additionalProperties": false
+    },
+    "binary": {
+      "type": "object", "required": ["binary", "sha256"],
+      "properties": {"binary": {"type": "string", "pattern": "^/"}, "sha256": {"$ref": "#/$defs/digest"}},
+      "additionalProperties": false
+    },
+    "client": {
+      "type": "object", "required": ["binary", "sha256", "profile", "client_id"],
+      "properties": {
+        "binary": {"enum": ["/opt/uap-observer-inputs/bin/codex", "/opt/uap-observer-inputs/bin/cursor", "/opt/uap-observer-inputs/bin/kiro"]}, "sha256": {"$ref": "#/$defs/digest"},
+        "profile": {"type": "string", "pattern": "^/var/lib/uap-observer/profiles/"},
+        "client_id": {"enum": ["codex", "cursor", "kiro"]}
+      },
+      "allOf": [
+        {"if": {"properties": {"client_id": {"const": "codex"}}}, "then": {"properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/codex"}, "profile": {"const": "/var/lib/uap-observer/profiles/codex"}}}},
+        {"if": {"properties": {"client_id": {"const": "cursor"}}}, "then": {"properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/cursor"}, "profile": {"const": "/var/lib/uap-observer/profiles/cursor"}}}},
+        {"if": {"properties": {"client_id": {"const": "kiro"}}}, "then": {"properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/kiro"}, "profile": {"const": "/var/lib/uap-observer/profiles/kiro"}}}}
+      ],
+      "additionalProperties": false
+    },
+    "matrix": {
+      "type": "object", "required": ["plugin", "client", "tuple", "application_id", "endpoint"],
+      "properties": {
+        "plugin": {"enum": ["agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"]},
+        "client": {"enum": ["codex", "cursor", "kiro"]}, "tuple": {"type": "object"},
+        "application_id": {"type": "string", "minLength": 1}, "endpoint": {"type": "string", "pattern": "^https://"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

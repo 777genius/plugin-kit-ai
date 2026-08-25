@@ -3,11 +3,10 @@
   "mcpServers": {
     "context7": {
       "type": "stdio",
+      "command": "node",
       "args": [
-        "-y",
-        "@upstash/context7-mcp@4.0.0"
-      ],
-      "command": "npx"
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs"
+      ]
     }
   }
 }

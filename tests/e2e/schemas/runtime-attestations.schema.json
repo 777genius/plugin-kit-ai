@@ -8,9 +8,16 @@
     "external_pr_evidence": {"$ref": "external-pr-evidence.schema.json"},
     "attestations": {
       "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "oneOf": [
+        {"minItems": 1, "maxItems": 1},
+        {"minItems": 3, "maxItems": 3},
+        {"minItems": 12, "maxItems": 12}
+      ],
       "items": {
         "type": "object",
-        "required": ["plugin", "client", "level", "outcome", "reason", "tuple", "challenge", "run_id", "run_attempt", "scenario_id", "identity_id", "consent_artifact_digest", "pseudonymous_identity_id", "pseudonymous_workspace_id", "dedicated_identity", "disposable_project_status", "operation_mode", "auth_origin", "cleanup_outcome", "no_real_project_proof"],
+        "required": ["plugin", "client", "level", "outcome", "reason", "tuple", "challenge", "run_id", "run_attempt", "scenario_id", "identity_id", "consent_artifact_digest", "pseudonymous_identity_id", "pseudonymous_workspace_id", "dedicated_identity", "disposable_project_status", "operation_mode", "auth_origin", "cleanup_outcome", "no_real_project_proof", "release_manifest_digest", "release_checksums_digest", "directory_digest", "scenario_contract_digest"],
         "properties": {
           "plugin": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
           "client": {"enum": ["codex", "cursor", "kiro", "chatgpt"]},
@@ -21,6 +28,10 @@
           "isolated_identity": {"type": "boolean"},
           "identity_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$"},
           "consent_artifact_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "release_manifest_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "release_checksums_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "directory_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+          "scenario_contract_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
           "runtime_invocation": {"type": "boolean"},
           "discovery_verified": {"type": "boolean"},
           "oauth_artifact_approved": {"type": "boolean"},
@@ -38,7 +49,7 @@
           "operation_mode": {"enum": ["read-only", "synthetic"]},
           "auth_origin": {"enum": ["fresh-dedicated-identity", "none"]},
           "cleanup_outcome": {"const": "cleaned"},
-          "no_real_project_proof": {"$ref": "consent.schema.json#/properties/no_real_project_proof"},
+          "no_real_project_proof": {"allOf": [{"$ref": "consent.schema.json#/properties/no_real_project_proof"}, {"required": ["enforcement"]}]},
           "started_at": {"type": "string", "format": "date-time"},
           "observed_at": {"type": "string", "format": "date-time"},
           "client_id": {"type": "string", "minLength": 1},
@@ -52,7 +63,30 @@
           "projection_receipt_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
           "native_app_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
           "native_mcp_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
-          "github_attestation": {"type": "object", "required": ["repository", "sha", "run_id", "run_attempt", "workflow", "job", "challenge"], "properties": {"repository": {"type": "string"}, "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"}, "run_id": {"type": ["string", "integer"]}, "run_attempt": {"type": ["string", "integer"]}, "workflow": {"const": "launch-evidence-e2e.yml"}, "job": {"const": "enforced-stable-gate"}, "challenge": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, "additionalProperties": false},
+          "native_discovery_evidence": {"$ref": "#/$defs/nativeDiscoveryEvidence"},
+          "public_mcp_evidence": {"$ref": "#/$defs/publicMcpDiscoveryEvidence"},
+          "github_attestation": {
+            "type": "object",
+            "required": ["subject", "repository", "repository_owner", "repository_id", "repository_owner_id", "ref", "environment", "workflow_ref", "job_workflow_ref", "sha", "run_id", "run_attempt", "workflow", "job", "challenge"],
+            "properties": {
+              "subject": {"const": "repo:777genius/universal-agent-plugins:environment:stable-launch-e2e"},
+              "repository": {"const": "777genius/universal-agent-plugins"},
+              "repository_owner": {"const": "777genius"},
+              "repository_id": {"const": "1326737541"},
+              "repository_owner_id": {"const": "13103045"},
+              "ref": {"const": "refs/heads/main"},
+              "environment": {"const": "stable-launch-e2e"},
+              "workflow_ref": {"const": "777genius/universal-agent-plugins/.github/workflows/directory-publication.yml@refs/heads/main"},
+              "job_workflow_ref": {"const": "777genius/universal-agent-plugins/.github/workflows/launch-evidence-e2e.yml@refs/heads/main"},
+              "sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+              "run_id": {"type": ["string", "integer"]},
+              "run_attempt": {"type": ["string", "integer"]},
+              "workflow": {"const": "launch-evidence-e2e.yml"},
+              "job": {"const": "protected-observer-inputs"},
+              "challenge": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+            },
+            "additionalProperties": false
+          },
           "tuple": {"$ref": "launch-evidence.schema.json#/$defs/tuple"}
         },
         "allOf": [
@@ -62,11 +96,15 @@
           },
           {
             "if": {"properties": {"outcome": {"const": "passed"}, "plugin": {"const": "notion"}}, "required": ["outcome", "plugin"]},
-            "then": {"required": ["consent_attested", "isolated_identity", "projection_receipt_digest", "native_app_digest", "native_mcp_digest"], "properties": {"consent_attested": {"const": true}, "isolated_identity": {"const": true}}}
+            "then": {"required": ["consent_attested", "isolated_identity", "oauth_artifact_approved", "projection_receipt_digest", "native_app_digest", "native_mcp_digest"], "properties": {"consent_attested": {"const": true}, "isolated_identity": {"const": true}, "oauth_artifact_approved": {"const": true}}}
           },
           {
             "if": {"properties": {"outcome": {"const": "passed"}, "client": {"const": "chatgpt"}}, "required": ["outcome", "client"]},
-            "then": {"required": ["consent_attested", "isolated_identity"], "properties": {"consent_attested": {"const": true}, "isolated_identity": {"const": true}}}
+            "then": {"required": ["consent_attested", "isolated_identity", "public_mcp_evidence"], "properties": {"consent_attested": {"const": true}, "isolated_identity": {"const": true}}}
+          },
+          {
+            "if": {"properties": {"outcome": {"const": "passed"}, "client": {"enum": ["codex", "cursor", "kiro"]}}, "required": ["outcome", "client"]},
+            "then": {"required": ["native_discovery_evidence"]}
           }
         ],
         "additionalProperties": false
@@ -74,6 +112,50 @@
     }
   },
   "$defs": {
+    "nativeDiscoveryEvidence": {
+      "type": "object",
+      "required": ["basis", "observer", "client", "version_operation", "discovery_operation", "invocation_operation"],
+      "properties": {
+        "basis": {"const": "protected_external_observer"},
+        "observer": {"const": "native-client-command-v1"},
+        "client": {"enum": ["codex", "cursor", "kiro"]},
+        "version_operation": {
+          "type": "object",
+          "required": ["operation", "argv", "observed_client_version"],
+          "properties": {"operation": {"const": "version"}, "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "observed_client_version": {"type": "string", "minLength": 1}},
+          "additionalProperties": false
+        },
+        "discovery_operation": {
+          "type": "object",
+          "required": ["operation", "argv", "discovered", "product_id"],
+          "properties": {"operation": {"enum": ["discovery", "list"]}, "argv": {"type": "array", "minItems": 1, "items": {"type": "string"}}, "discovered": {"const": true}, "product_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"}},
+          "additionalProperties": false
+        },
+        "invocation_operation": {
+          "type": "object",
+          "required": ["operation", "tool", "product_id", "marker_digest", "succeeded"],
+          "properties": {
+            "operation": {"const": "tool_call"}, "tool": {"type": "string", "minLength": 1},
+            "product_id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+            "marker_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "succeeded": {"const": true}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "publicMcpDiscoveryEvidence": {
+      "type": "object",
+      "required": ["basis", "observer", "endpoint", "protocol_version", "initialize", "list", "read"],
+      "properties": {
+        "basis": {"const": "protected_external_observer"}, "observer": {"const": "public-mcp-command-v1"},
+        "endpoint": {"const": "https://docs.mcp.cloudflare.com/mcp"}, "protocol_version": {"const": "2025-06-18"},
+        "initialize": {"type": "object", "required": ["method", "passed"], "properties": {"method": {"const": "initialize"}, "passed": {"const": true}}, "additionalProperties": false},
+        "list": {"type": "object", "required": ["method", "required_name", "passed"], "properties": {"method": {"const": "tools/list"}, "required_name": {"const": "search_cloudflare_documentation"}, "passed": {"const": true}}, "additionalProperties": false},
+        "read": {"type": "object", "required": ["method", "name", "read_only", "marker_digest", "passed"], "properties": {"method": {"const": "tools/call"}, "name": {"const": "search_cloudflare_documentation"}, "read_only": {"const": true}, "marker_digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "passed": {"const": true}}, "additionalProperties": false}
+      },
+      "additionalProperties": false
+    },
     "stateObservation": {
       "type": "object",
       "required": ["observer", "before_digest", "after_digest", "observed_at"],

@@ -1,0 +1,34 @@
+{
+  "bind_host": "127.0.0.1",
+  "bind_port": 8765,
+  "state_root": "/var/lib/uap-observer/state",
+  "jwks_url": "https://token.actions.githubusercontent.com/.well-known/jwks",
+  "github_api_url": "https://api.github.com",
+  "audience": "stable-launch-observer",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "key_id": "uap-stable-launch-2026-08",
+  "public_key_base64": "REPLACE_WITH_32_BYTE_ED25519_PUBLIC_KEY_BASE64",
+  "cli_release_repository": "777genius/plugin-kit-ai",
+  "cli_release_tag": "agentplugins-v0.1.14",
+  "signer_socket": "/run/uap-observer-signer/sign.sock",
+  "runner_socket": "/run/uap-observer-runner.sock",
+  "runner_source_path": "/opt/uap-observer-current/libexec/uap-observer-runner",
+  "runner_source_digest": "sha256:84047e65bd98291eec5cb18777e51d209e5b1767808ab42529a4af7bed8754bb",
+  "runner_user": "root",
+  "runner_timeout_seconds": 840,
+  "policies": [
+    {
+      "repository": "777genius/universal-agent-plugins",
+      "repository_id": "1326737541",
+      "repository_owner_id": "13103045",
+      "ref": "refs/heads/main",
+      "ref_type": "branch",
+      "environment": "stable-launch-e2e",
+      "workflow_ref": "777genius/universal-agent-plugins/.github/workflows/directory-publication.yml@refs/heads/main",
+      "job_workflow_ref": "777genius/universal-agent-plugins/.github/workflows/launch-evidence-e2e.yml@refs/heads/main",
+      "workflow": "Signed Directory publication",
+      "event_names": ["push", "workflow_dispatch"],
+      "job_name_suffix": "protected-observer-inputs"
+    }
+  ]
+}

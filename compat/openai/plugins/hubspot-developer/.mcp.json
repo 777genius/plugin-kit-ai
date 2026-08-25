@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "hubspot-developer": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs",
+        "mcp",
+        "start",
+        "--disable-usage-tracking",
+        "--ai-agent",
+        "agentplugins"
+      ],
+      "env": {
+        "HUBSPOT_CLI_VERSION": "8.14.0-beta.0"
+      }
+    }
+  }
+}

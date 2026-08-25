@@ -1,15 +1,13 @@
-# Three optional plugins to try first
+# Five launch plugins
 
-These examples avoid account credentials. Choose one: they are independent
-alternatives, not sequential steps. The CLI detects Codex, Cursor,
-GitHub Copilot/VS Code, and Kiro; if several are installed, choose one when
-prompted.
+Choose one: these are independent examples, not sequential steps. The first
+four need no account credentials. The CLI detects Codex, Cursor, GitHub
+Copilot/VS Code, and Kiro; if several are installed, choose one when prompted.
 
-Agent Code Navigator is skills-only. Cloudflare Docs uses a public remote MCP
-server and also has a registered ChatGPT development binding. Docker Hub uses a
-digest-pinned container and needs Docker. Context7 and Chrome DevTools stay out
-of this starter list until their current distributions satisfy the Directory's
-runtime-closure and materialization gates.
+Agent Code Navigator is skills-only. Context7 and Chrome DevTools use reviewed,
+integrity-locked npm runtime closures. Cloudflare Docs uses a public remote MCP
+server and also has a registered ChatGPT development binding. Notion requires
+client-managed OAuth.
 
 The registered Cloudflare Docs personal app passed Plugins UI discovery,
 manual activation, and read-only runtime. The repository package separately
@@ -33,7 +31,24 @@ Map this sandbox repository's architecture and explain which search tool you use
 Expected: the agent loads the routing and architecture-map skills without
 starting an MCP server or modifying the repository.
 
-## 2. Cloudflare Docs
+## 2. Context7
+
+Install:
+
+```bash
+npx universal-agent-plugins add context7
+```
+
+Try:
+
+```text
+Use Context7 to find the current React documentation for useEffect cleanup.
+```
+
+Expected: the agent resolves the React library and queries its current
+documentation without an account.
+
+## 3. Cloudflare Docs
 
 Install:
 
@@ -49,22 +64,39 @@ Use Cloudflare Docs to explain the current difference between Workers bindings a
 
 Expected: the public Streamable HTTP MCP server answers without an account.
 
-## 3. Docker Hub
+## 4. Chrome DevTools
 
 Install:
 
 ```bash
-npx universal-agent-plugins add docker-hub
+npx universal-agent-plugins add chrome-devtools
 ```
 
 Try:
 
 ```text
-Use Docker Hub to find the current official nginx image tags and summarize the available variants.
+Use Chrome DevTools to open a blank page and list the available browser pages.
 ```
 
-Expected: the digest-pinned Docker Hub MCP container reads public image data.
-Docker must already be installed and running.
+Expected: the agent starts the reviewed Chrome DevTools runtime and controls an
+isolated browser session. A compatible local browser must be installed.
+
+## 5. Notion
+
+Install:
+
+```bash
+npx universal-agent-plugins add notion
+```
+
+Try:
+
+```text
+Connect Notion, then search only for the synthetic test page I name.
+```
+
+Expected: the client asks for OAuth consent before a read-only query. Use a
+dedicated test workspace for repeatable verification.
 
 ## OAuth follow-up
 

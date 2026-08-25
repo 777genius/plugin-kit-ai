@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "package": "chrome-devtools-mcp",
+  "version": "1.7.0",
+  "entrypoint": "node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js",
+  "package_lock_sha256": "sha256:f148a9792a9d481ce31aac92c8789beddca87946e7c9a4b0cc4191e45c7f0d9f",
+  "omit_optional": false
+}

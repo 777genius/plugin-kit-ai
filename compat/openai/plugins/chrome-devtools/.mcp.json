@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs",
+        "--no-usage-statistics"
+      ]
+    }
+  }
+}

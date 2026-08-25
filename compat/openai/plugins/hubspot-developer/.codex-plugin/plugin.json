@@ -1,0 +1,42 @@
+{
+  "name": "hubspot-developer",
+  "version": "0.2.0",
+  "description": "Preview HubSpot Developer MCP integration pinned to prerelease @hubspot/cli@8.14.0-beta.0 until HubSpot publishes 8.14.0 stable.",
+  "author": {
+    "name": "777genius",
+    "url": "https://github.com/777genius"
+  },
+  "homepage": "https://developers.hubspot.com/mcp",
+  "repository": "https://github.com/777genius/universal-agent-plugins",
+  "license": "Apache-2.0",
+  "keywords": [
+    "agent-plugins",
+    "ai-agents",
+    "cms",
+    "developer-tools",
+    "hubspot",
+    "mcp",
+    "plugins"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "HubSpot Developer",
+    "shortDescription": "HubSpot developer tools",
+    "longDescription": "Preview HubSpot Developer MCP integration pinned to prerelease @hubspot/cli@8.14.0-beta.0 until HubSpot publishes 8.14.0 stable.",
+    "developerName": "777genius",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://developers.hubspot.com/mcp",
+    "defaultPrompt": [
+      "Use HubSpot Developer for this task."
+    ],
+    "brandColor": "#111827",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": []
+  }
+}

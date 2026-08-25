@@ -8,6 +8,7 @@ import filecmp
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -29,6 +30,16 @@ MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
 BRAND_ASSETS = ROOT / "assets"
 LOCAL_REPOSITORY = "777genius/universal-agent-plugins"
 OPENAI_PACKAGE_TARGET = "codex"
+PLUGIN_ROOT = "${PLUGIN_ROOT}"
+RESOURCE_BOUNDARIES = frozenset(" \t\r\n:;,|\"'`()[]{}")
+DIRECT_RESOURCE = re.compile(r"(?:^|(?<=[=:\s;,|]))\./")
+HOST_OWNED_PATHS = {
+    PurePosixPath(".codex-plugin/plugin.json"),
+    PurePosixPath(".mcp.json"),
+    PurePosixPath(".app.json"),
+    PurePosixPath("assets/icon.png"),
+    PurePosixPath("assets/logo.png"),
+}
 
 CATEGORIES = {
     "atlassian": "Productivity",
@@ -196,6 +207,147 @@ def openai_mcp(portable: dict[str, object], plugin_name: str) -> dict[str, objec
         config.update(OPENAI_MCP_AUTH.get(plugin_name, {}))
         result[name] = config
     return {"mcpServers": result}
+
+
+def _resource_values(mcp: dict[str, object]) -> list[tuple[str, str]]:
+    """Return every stdio string where a package resource may be referenced."""
+    values: list[tuple[str, str]] = []
+    servers = mcp.get("mcpServers")
+    if not isinstance(servers, dict):
+        return values
+    for server_name, raw in servers.items():
+        if not isinstance(raw, dict) or raw.get("type") not in {None, "stdio"}:
+            continue
+        command = raw.get("command")
+        if isinstance(command, str):
+            values.append((f"{server_name}.command", command))
+        args = raw.get("args", [])
+        if isinstance(args, list):
+            values.extend(
+                (f"{server_name}.args[{index}]", value)
+                for index, value in enumerate(args)
+                if isinstance(value, str)
+            )
+        cwd = raw.get("cwd")
+        if isinstance(cwd, str):
+            values.append((f"{server_name}.cwd", cwd))
+        environment = raw.get("env", {})
+        if isinstance(environment, dict):
+            values.extend(
+                (f"{server_name}.env.{key}", value)
+                for key, value in environment.items()
+                if isinstance(key, str) and isinstance(value, str)
+            )
+    return values
+
+
+def _contained_resource_candidates(
+    plugin_root: Path,
+    value: str,
+    path_start: int,
+    field: str,
+) -> list[PurePosixPath]:
+    """Resolve one inline root occurrence without guessing its path boundary."""
+    suffix = value[path_start:]
+    if not suffix.startswith("/"):
+        return []
+    if suffix.startswith("//") or "\\" in suffix:
+        raise ValueError(f"{field}: unsafe absolute or backslash resource path")
+    if re.search(r"(?:^|/)\.\.(?:/|$|[ \t\r\n:;,|])", suffix):
+        raise ValueError(f"{field}: resource path traversal is forbidden")
+
+    root = plugin_root.resolve()
+    matches: list[PurePosixPath] = []
+    for end in range(2, len(suffix) + 1):
+        trailing = suffix[end:]
+        if trailing and trailing[0] not in RESOURCE_BOUNDARIES:
+            continue
+        raw = suffix[1:end]
+        if not raw or "${" in raw:
+            continue
+        relative = PurePosixPath(raw)
+        if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+            continue
+        candidate = plugin_root.joinpath(*relative.parts)
+        try:
+            resolved = candidate.resolve(strict=True)
+        except (FileNotFoundError, OSError):
+            continue
+        if resolved != root and root not in resolved.parents:
+            raise ValueError(f"{field}: resource escapes the plugin root")
+        current = plugin_root
+        for part in relative.parts:
+            current /= part
+            if current.is_symlink():
+                raise ValueError(f"{field}: symlink resources are forbidden")
+        if candidate.is_file() or candidate.is_dir():
+            matches.append(relative)
+
+    unique = sorted(set(matches), key=lambda path: path.as_posix())
+    if not unique:
+        rendered = suffix[1:] or "."
+        raise ValueError(f"{field}: missing plugin resource {rendered}")
+    if len(unique) != 1:
+        rendered = ", ".join(path.as_posix() for path in unique)
+        raise ValueError(f"{field}: ambiguous plugin resource path ({rendered})")
+    return unique
+
+
+def referenced_mcp_resources(
+    plugin_root: Path,
+    mcp: dict[str, object],
+) -> set[PurePosixPath]:
+    """Return all safely contained package resources referenced by stdio MCP."""
+    resources: set[PurePosixPath] = set()
+    for field, value in _resource_values(mcp):
+        offset = 0
+        while True:
+            occurrence = value.find(PLUGIN_ROOT, offset)
+            if occurrence < 0:
+                break
+            resources.update(
+                _contained_resource_candidates(
+                    plugin_root, value, occurrence + len(PLUGIN_ROOT), field,
+                )
+            )
+            offset = occurrence + len(PLUGIN_ROOT)
+        for occurrence in DIRECT_RESOURCE.finditer(value):
+            resources.update(
+                _contained_resource_candidates(
+                    plugin_root, value, occurrence.end() - 1, field,
+                )
+            )
+    collisions = sorted(resources & HOST_OWNED_PATHS, key=lambda path: path.as_posix())
+    if collisions:
+        rendered = ", ".join(path.as_posix() for path in collisions)
+        raise ValueError(
+            f"portable MCP resources collide with host-owned paths: {rendered}"
+        )
+    return resources
+
+
+def copy_mcp_resources(
+    plugin_root: Path,
+    output: Path,
+    mcp: dict[str, object],
+) -> None:
+    """Copy each dynamically referenced top-level resource closure."""
+    resources = referenced_mcp_resources(plugin_root, mcp)
+    roots = sorted({path.parts[0] for path in resources})
+    for name in roots:
+        source = plugin_root / name
+        candidates = [source]
+        if source.is_dir():
+            candidates.extend(source.rglob("*"))
+        for candidate in candidates:
+            if candidate.is_symlink():
+                raise ValueError(f"{source}: symlink resources are forbidden")
+        target = output / name
+        if source.is_dir():
+            shutil.copytree(source, target, dirs_exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
 
 
 def selected_release(
@@ -424,8 +576,10 @@ def build(output_root: Path, marketplace_path: Path) -> None:
             if has_skills:
                 shutil.copytree(
                     portable_root / "skills", output / "skills",
-                    dirs_exist_ok=True, symlinks=True,
+                    dirs_exist_ok=True,
                 )
+            if portable_mcp is not None:
+                copy_mcp_resources(portable_root, output, portable_mcp)
             assets = output / "assets"
             assets.mkdir(parents=True, exist_ok=True)
             shutil.copy2(BRAND_ASSETS / "icon.png", assets / "icon.png")

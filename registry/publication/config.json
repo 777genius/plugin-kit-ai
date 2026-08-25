@@ -1,5 +1,33 @@
 {
   "repository": "777genius/universal-agent-plugins",
   "schema_version": 1,
-  "snapshot_lifetime_days": 30
+  "snapshot_lifetime_days": 30,
+  "trusted_external_evidence": [
+    {
+      "repository": "777genius/universal-agent-plugins",
+      "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+      "path": "registry/evidence/context7-upstream/cli-0.1.13/codex.json",
+      "digest": "sha256:22b92ff81d91b86be72f15ec055797c56645b3163c7f8b88cda28d89b65c7d20"
+    },
+    {
+      "repository": "777genius/universal-agent-plugins",
+      "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+      "path": "registry/evidence/context7-upstream/cli-0.1.13/cursor.json",
+      "digest": "sha256:a72fcd22e9dd00737699ddfb61967b054f8e99116f9c5eef40a7e30a2da0f91a"
+    },
+    {
+      "repository": "777genius/universal-agent-plugins",
+      "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+      "path": "registry/evidence/context7-upstream/cli-0.1.13/kiro.json",
+      "digest": "sha256:980a6b184fa1e70e409529b29d323f68dd6e296d703fcca45888c49c7bbe08f6"
+    }
+  ],
+  "trusted_evidence_workflows": [
+    {
+      "allow_self_hosted_runners": false,
+      "protected_source_ref": "refs/heads/main",
+      "source_digest_policy": "protected_workflow_source",
+      "workflow": "777genius/universal-agent-plugins/.github/workflows/launch-evidence-e2e.yml"
+    }
+  ]
 }

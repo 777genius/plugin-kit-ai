@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "chrome-devtools",
-  "version": "1.7.0",
+  "version": "1.7.0-uap.1",
   "description": "Community package for Chrome DevTools MCP. Inspect pages, automate flows, analyze performance, and debug browser state.",
   "author": {"name": "777genius", "url": "https://github.com/777genius"},
   "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp",

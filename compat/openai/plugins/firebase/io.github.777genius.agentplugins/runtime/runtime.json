@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "package": "firebase-tools",
+  "version": "15.28.1",
+  "entrypoint": "node_modules/firebase-tools/lib/bin/firebase.js",
+  "package_lock_sha256": "sha256:c8b1feed6566ffd76f54ebf873a7b1f23232f0b6bb8a2b75baef7f7163c9774a",
+  "omit_optional": true
+}

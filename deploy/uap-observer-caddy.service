@@ -1,0 +1,25 @@
+[Unit]
+Description=UAP observer TLS proxy (Caddy 2.11.4)
+After=network-online.target uap-observer.service
+Requires=uap-observer.service
+
+[Service]
+Type=notify
+ExecStartPre=/usr/bin/test -f /opt/uap-observer-current/.complete
+User=caddy
+Group=caddy
+ExecStart=/opt/uap-observer-current/bin/caddy run --environ --config /opt/uap-observer-current/etc/Caddyfile --adapter caddyfile
+ExecReload=/opt/uap-observer-current/bin/caddy reload --config /opt/uap-observer-current/etc/Caddyfile --adapter caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/caddy /var/log/caddy
+ReadOnlyPaths=/opt/uap-observer-current
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,7 @@ import directory_publication_cas as cas
 
 GIT = "/usr/bin/git"
 TAG_ONE = "refs/tags/directory-publication-schema-1-sequence-00000000000000000001"
+APPROVAL_TAG = "refs/tags/directory-publication-schema-1-launch-approved"
 
 
 def git(repo: Path, *args: str, check: bool = True) -> str:
@@ -119,12 +120,15 @@ class BarePublicationCasTests(unittest.TestCase):
 
     def test_response_loss_exact_readback_and_rerun(self) -> None:
         marker, ledger = self.objects()
+        pushes = []
 
         def lose_response(arguments):
+            pushes.append(arguments)
             git(self.publisher, *arguments)
             return False
 
         self.assertEqual(self.publish(marker, ledger, push_runner=lose_response), "published")
+        self.assertEqual(pushes[0][:3], ["-c", "core.hooksPath=/dev/null", "push"])
         self.assertEqual(self.publish(marker, ledger), "committed")
         self.assertEqual(self.state(), cas.RefState(marker, ledger, ledger))
 
@@ -200,6 +204,77 @@ class BarePublicationCasTests(unittest.TestCase):
         self.assertEqual(cas.materialize_transition(
             self.publisher, "origin", ledger_old=ledger, ledger_new=materialized,
         ), "committed")
+
+    def test_evidence_transition_atomically_moves_two_refs_and_tags_gated_ledger(self) -> None:
+        main_new = self.commit_object(self.source, "mechanical evidence pointers")
+        ledger_new = self.commit_object(self.source, "permanent evidence")
+        result = cas.evidence_transition(
+            self.publisher, "origin", main_old=self.source, main_new=main_new,
+            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+        )
+        self.assertEqual(result, "published")
+        self.assertEqual(
+            cas.read_ref_state(
+                self.publisher, "origin", "refs/heads/main",
+                "refs/heads/directory-publication-ledger", APPROVAL_TAG,
+            ),
+            cas.RefState(main_new, ledger_new, self.source),
+        )
+
+    def test_evidence_transition_resolves_lost_response_by_exact_three_ref_readback(self) -> None:
+        main_new = self.commit_object(self.source, "mechanical evidence pointers")
+        ledger_new = self.commit_object(self.source, "permanent evidence")
+        pushes = []
+
+        def lose_response(arguments):
+            pushes.append(arguments)
+            git(self.publisher, *arguments)
+            return False
+
+        self.assertEqual(cas.evidence_transition(
+            self.publisher, "origin", main_old=self.source, main_new=main_new,
+            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            push_runner=lose_response,
+        ), "published")
+        self.assertEqual(len(pushes), 1)
+        self.assertEqual(pushes[0][:3], ["-c", "core.hooksPath=/dev/null", "push"])
+        self.assertEqual(cas.evidence_transition(
+            self.publisher, "origin", main_old=self.source, main_new=main_new,
+            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+        ), "committed")
+
+    def test_evidence_transition_conflict_never_partially_moves_other_refs(self) -> None:
+        main_new = self.commit_object(self.source, "mechanical evidence pointers")
+        ledger_new = self.commit_object(self.source, "permanent evidence")
+        competing = self.commit_object(self.source, "competing main")
+        git(self.publisher, "push", "-q", "origin", f"{competing}:refs/heads/main")
+        before = cas.read_ref_state(
+            self.publisher, "origin", "refs/heads/main",
+            "refs/heads/directory-publication-ledger", APPROVAL_TAG,
+        )
+        with self.assertRaisesRegex(cas.CasError, "conflict"):
+            cas.evidence_transition(
+                self.publisher, "origin", main_old=self.source, main_new=main_new,
+                ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+            )
+        after = cas.read_ref_state(
+            self.publisher, "origin", "refs/heads/main",
+            "refs/heads/directory-publication-ledger", APPROVAL_TAG,
+        )
+        self.assertEqual(after, before)
+
+    def test_privileged_transition_never_executes_workspace_pre_push_hook(self) -> None:
+        sentinel = Path(self.temporary.name) / "hook-executed"
+        hook = self.publisher / ".git" / "hooks" / "pre-push"
+        hook.write_text(f"#!/bin/sh\ntouch '{sentinel}'\nexit 1\n")
+        hook.chmod(0o755)
+        main_new = self.commit_object(self.source, "mechanical evidence pointers")
+        ledger_new = self.commit_object(self.source, "permanent evidence")
+        self.assertEqual(cas.evidence_transition(
+            self.publisher, "origin", main_old=self.source, main_new=main_new,
+            ledger_old=self.source, ledger_new=ledger_new, approval_tag=APPROVAL_TAG,
+        ), "published")
+        self.assertFalse(sentinel.exists())
 
 
 class MarkerBindingContractTests(unittest.TestCase):

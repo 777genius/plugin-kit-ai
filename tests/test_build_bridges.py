@@ -284,7 +284,10 @@ class RealBridgeCohortTests(unittest.TestCase):
                 self.assertTrue(recipe["upstream"]["license"]["attribution_paths"])
                 self.assertTrue(recipe["upstream"]["provenance"]["paths"])
                 output = ROOT / "plugins" / bridge_id
-                self.assertEqual(sorted(path.name for path in output.iterdir()), ["NOTICE", "README.md", "mcp.json", "plugin.json"])
+                expected_files = ["NOTICE", "README.md", "mcp.json", "plugin.json"]
+                if bridge_id == "chrome-devtools":
+                    expected_files.append("io.github.777genius.agentplugins")
+                self.assertEqual(sorted(path.name for path in output.iterdir()), sorted(expected_files))
                 manifest = json.loads((output / "plugin.json").read_text())
                 self.assertTrue(manifest["description"].startswith("Community package for "))
 
@@ -292,16 +295,23 @@ class RealBridgeCohortTests(unittest.TestCase):
         chrome = json.loads((ROOT / "plugins/chrome-devtools/mcp.json").read_text())["mcpServers"]["chrome-devtools"]
         cloudflare = json.loads((ROOT / "plugins/cloudflare-docs/mcp.json").read_text())["mcpServers"]["cloudflare-docs"]
         github = json.loads((ROOT / "plugins/github/mcp.json").read_text())["mcpServers"]["github"]
-        self.assertEqual(chrome["args"], ["-y", "chrome-devtools-mcp@1.7.0"])
+        self.assertEqual(chrome["command"], "node")
+        self.assertEqual(chrome["args"], [
+            "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs",
+            "--no-usage-statistics",
+        ])
+        runtime = json.loads((ROOT / "plugins/chrome-devtools/io.github.777genius.agentplugins/runtime/runtime.json").read_text())
+        self.assertEqual((runtime["package"], runtime["version"]), ("chrome-devtools-mcp", "1.7.0"))
         directory = json.loads((ROOT / "registry/directory.json").read_text())
         chrome = {
             item["id"]: item for item in directory["distributions"]
             if item["id"] in {"777genius/chrome-devtools", "777genius/chrome-devtools-bridge"}
         }
         self.assertEqual(set(chrome), {"777genius/chrome-devtools", "777genius/chrome-devtools-bridge"})
-        for distribution in chrome.values():
-            self.assertEqual(distribution["status"], "suspended")
-            self.assertEqual({policy["status"] for policy in distribution["release_policies"]}, {"revoked"})
+        self.assertEqual(chrome["777genius/chrome-devtools"]["status"], "suspended")
+        bridge = chrome["777genius/chrome-devtools-bridge"]
+        self.assertEqual(bridge["status"], "active")
+        self.assertEqual([(policy["release_sequence"], policy["status"]) for policy in bridge["release_policies"]], [(1, "revoked"), (2, "active")])
         self.assertEqual(cloudflare["url"], "https://docs.mcp.cloudflare.com/mcp")
         self.assertEqual(github["url"], "https://api.githubcopilot.com/mcp/")
 
@@ -318,7 +328,7 @@ class RealBridgeCohortTests(unittest.TestCase):
             for distribution_id in bridge_ids:
                 distribution = distributions[distribution_id]
                 product_id = distribution["product_id"]
-                targets = distribution["release_policies"][0]["targets"]
+                targets = next(policy["targets"] for policy in reversed(distribution["release_policies"]) if policy["status"] == "active")
                 for target in targets:
                     with self.subTest(distribution=distribution_id, target=target["client"]):
                         materialized = sandbox / target["client"] / product_id

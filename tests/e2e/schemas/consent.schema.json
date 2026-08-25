@@ -33,7 +33,8 @@
         "real_project_accessed": {"const": false},
         "absolute_paths_exported": {"const": false},
         "credential_material_exported": {"const": false},
-        "auth_copied": {"const": false}
+        "auth_copied": {"const": false},
+        "enforcement": {"const": "systemd-positive-mount-allowlist-v1"}
       },
       "additionalProperties": false
     }
@@ -41,7 +42,7 @@
   "allOf": [
     {
       "if": {"properties": {"mode": {"const": "enforced"}}, "required": ["mode"]},
-      "then": {"properties": {"challenge": {"type": "string"}, "run_id": {"pattern": "^[0-9]+$"}, "run_attempt": {"pattern": "^[0-9]+$"}, "catalog_sha": {"type": "string"}, "disposable_project_status": {"const": "disposed"}, "cleanup_outcome": {"const": "cleaned"}}}
+      "then": {"properties": {"challenge": {"type": "string"}, "run_id": {"pattern": "^[0-9]+$"}, "run_attempt": {"pattern": "^[0-9]+$"}, "catalog_sha": {"type": "string"}, "disposable_project_status": {"const": "disposed"}, "cleanup_outcome": {"const": "cleaned"}, "no_real_project_proof": {"required": ["enforcement"]}}}
     },
     {
       "if": {"properties": {"mode": {"const": "fixture-only"}}, "required": ["mode"]},

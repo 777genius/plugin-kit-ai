@@ -1,13 +1,13 @@
 # Verification record
 
-Updated: 2026-08-10.
+Updated: 2026-08-22.
 
 Every committed evidence link below resolves through the exact commit that
 contains the cited bytes and is accompanied by their SHA-256. These are
 historical observations, not claims about current rolling clients or package
 trees. Current stable-launch runtime/OAuth evidence is unavailable until the
 protected launch workflow succeeds against one exact signed production
-publication and the attested `agentplugins-v0.1.8` release.
+publication and the attested `agentplugins-v0.1.14` release.
 
 Current distribution, release sequence, tree digest, and manifest digest are
 generated from [`registry/directory.json`](../registry/directory.json) and are
@@ -36,12 +36,13 @@ checked there rather than duplicated in this historical record.
 
 ## Dependency verification
 
-The npm registry stable tags were checked before pinning:
+The npm registry releases were checked on 2026-08-25 before pinning. HubSpot is
+the explicit preview exception and is not represented as stable:
 
 - `chrome-devtools-mcp@1.7.0`
-- `@upstash/context7-mcp@4.0.0`
-- `firebase-tools@15.26.0`
-- `@hubspot/cli@8.12.0`
+- `@upstash/context7-mcp@4.0.3`
+- `firebase-tools@15.28.1`
+- `@hubspot/cli@8.14.0-beta.0` (preview prerelease; not a stable-upstream dependency claim)
 
 The Docker Hub package is pinned to the multi-architecture OCI digest recorded
 in `plugins/docker-hub/mcp.json`.

@@ -1,0 +1,8 @@
+{
+  "name": "agentplugins-runtime-hubspot-developer",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@hubspot/cli": "8.14.0-beta.0"
+  }
+}

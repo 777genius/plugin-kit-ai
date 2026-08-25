@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "node",
+      "args": [
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs"
+      ]
+    }
+  }
+}

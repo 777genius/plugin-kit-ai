@@ -2,18 +2,47 @@
   "schema_version": 2,
   "installations": [
     {
-      "id": "fixture-context7",
-      "declared_name": "context7",
-      "source": {"kind": "local", "locator": "fixture://packages/context7"},
+      "installation_id": "00000000-0000-4000-8000-000000000001",
+      "declared_name": "demo",
+      "source": {
+        "source_binding_id": "src_demo",
+        "requested_source": "demo",
+        "canonical_source": "https://github.com/777genius/universal-agent-plugins",
+        "repository": "777genius/universal-agent-plugins",
+        "package_subpath": "plugins/demo",
+        "resolved_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tree_digest": "sha256:b0966244f78bea92535570799dea551e5bdd9e67f8bf0fc2839e9ea22f01cdf9"
+      },
+      "package": {
+        "loader_kind": "agent_plugins",
+        "format_id": "agent-plugins/1.0.0",
+        "schema_uri": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+        "declared_name": "demo",
+        "manifest_digest": "sha256:ad8a3deb08fbd7f40af63430e7fc2f0cf2b31834dab9373c4cb298e4ab2434e4",
+        "inventory": {}
+      },
       "clients": {
-        "cursor:user": {
-          "client": "cursor",
+        "client_a": {
+          "client_binding_id": "client_a",
+          "client_id": "codex",
           "scope": "user",
+          "target_locator": "/fixture/home/.codex/plugins/demo",
+          "physical_artifact_id": "physical_a",
           "materialization": "materialized",
-          "target_locator": "fixture://cursor/context7",
-          "receipts": []
+          "activation": "active",
+          "authentication": "not_required",
+          "policy": "allowed",
+          "verification": "installation_verified",
+          "package_revision": {
+            "resolved_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tree_digest": "sha256:b0966244f78bea92535570799dea551e5bdd9e67f8bf0fc2839e9ea22f01cdf9",
+            "manifest_digest": "sha256:ad8a3deb08fbd7f40af63430e7fc2f0cf2b31834dab9373c4cb298e4ab2434e4"
+          },
+          "updated_at": "2026-08-01T00:00:00Z"
         }
-      }
+      },
+      "created_at": "2026-08-01T00:00:00Z",
+      "updated_at": "2026-08-01T00:00:00Z"
     }
   ]
 }

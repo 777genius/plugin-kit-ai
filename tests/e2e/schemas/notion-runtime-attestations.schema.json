@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "allOf": [
+    {
+      "$ref": "runtime-attestations.schema.json"
+    },
+    {
+      "properties": {
+        "attestations": {
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "properties": {
+              "plugin": {
+                "const": "notion"
+              },
+              "client": {
+                "enum": [
+                  "codex",
+                  "cursor",
+                  "kiro"
+                ]
+              },
+              "level": {
+                "const": "runtime"
+              },
+              "scenario_id": {
+                "const": "hero_5x3_runtime"
+              },
+              "oauth_artifact_approved": {
+                "const": true
+              }
+            },
+            "required": [
+              "plugin",
+              "client",
+              "level",
+              "scenario_id",
+              "oauth_artifact_approved"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "client": {
+                    "const": "codex"
+                  }
+                },
+                "required": [
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "client": {
+                    "const": "cursor"
+                  }
+                },
+                "required": [
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "client": {
+                    "const": "kiro"
+                  }
+                },
+                "required": [
+                  "client"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

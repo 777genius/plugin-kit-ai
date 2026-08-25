@@ -210,10 +210,13 @@ class PublicationLifecycleTests(unittest.TestCase):
 
     def test_publication_rebinds_bridge_recipe_before_accepting_prebuilt_bytes(self) -> None:
         source = json.loads((ROOT / "registry" / "directory.json").read_bytes())
-        bridge = next(item for item in source["distributions"] if item["kind"] == "community_bridge")
+        bridge = next(
+            item for item in source["distributions"]
+            if item["kind"] == "community_bridge" and item["status"] == "active"
+        )
         # The package and recipe remain fixed; only the contributor-authored
         # provenance claim is changed.
-        bridge["releases"][0]["build_provenance"]["upstream_revision"] = "0" * 40
+        bridge["releases"][-1]["build_provenance"]["upstream_revision"] = "0" * 40
         config = prepare.load_config(ROOT / "registry" / "publication" / "config.json")
         with self.assertRaisesRegex(publication.PublicationError, "build provenance.*canonical recipe upstream"):
             prepare.build_candidate(source, config, "a" * 40, "bridge-provenance", None)
@@ -221,18 +224,16 @@ class PublicationLifecycleTests(unittest.TestCase):
         import build_bridges
 
         source = json.loads((ROOT / "registry" / "directory.json").read_bytes())
-        previous = copy.deepcopy(source)
-        previous["distributions"] = [
-            distribution for distribution in previous["distributions"]
-            if distribution["status"] != "active"
-        ]
-        inactive = next(
+        active = next(
             distribution for distribution in source["distributions"]
-            if distribution["kind"] == "community_bridge" and distribution["status"] != "active"
+            if distribution["kind"] == "community_bridge" and distribution["status"] == "active"
         )
-        inactive["releases"][-1]["package_source"]["revision"] = "a" * 40
-        previous_inactive = next(item for item in previous["distributions"] if item["id"] == inactive["id"])
-        previous_inactive["releases"][-1]["package_source"]["revision"] = "a" * 40
+        for release in active["releases"]:
+            release["package_source"]["revision"] = release["package_source"]["revision"] or "a" * 40
+            release.setdefault("published_at", "2026-08-20T00:00:00Z")
+        previous = copy.deepcopy(source)
+        previous_active = next(item for item in previous["distributions"] if item["id"] == active["id"])
+        previous_active["status"] = "suspended"
         with mock.patch.object(build_bridges, "assemble", side_effect=build_bridges.BridgeError("upstream unavailable")) as reproduce, self.assertRaisesRegex(
             publication.PublicationError, "bridge reproduction failed: upstream unavailable",
         ):
@@ -314,15 +315,21 @@ class PublicationLifecycleTests(unittest.TestCase):
             item for item in source["distributions"]
             if item["kind"] == "community_bridge" and item["status"] == "active"
         )
-        release_one = bridge["releases"][0]
+        latest_release = copy.deepcopy(bridge["releases"][-1])
+        latest_policy = copy.deepcopy(bridge["release_policies"][-1])
+        release_one = copy.deepcopy(latest_release)
+        release_one["sequence"] = 1
         release_one["package_source"]["revision"] = "a" * 40
         release_one["published_at"] = "2026-08-20T00:00:00Z"
         release_two = copy.deepcopy(release_one)
         release_two["sequence"] = 2
-        bridge["releases"].append(release_two)
-        policy_two = copy.deepcopy(bridge["release_policies"][0])
+        policy_one = copy.deepcopy(latest_policy)
+        policy_one["release_sequence"] = 1
+        policy_one["status"] = "active"
+        policy_two = copy.deepcopy(policy_one)
         policy_two["release_sequence"] = 2
-        bridge["release_policies"].append(policy_two)
+        bridge["releases"] = [release_one, release_two]
+        bridge["release_policies"] = [policy_one, policy_two]
         previous = copy.deepcopy(source)
 
         bridge["release_policies"][1]["status"] = "revoked"
@@ -637,6 +644,29 @@ class PublicationLifecycleTests(unittest.TestCase):
             self.assertEqual(bound_old["published_at"], "2025-01-02T03:04:05Z")
             self.assertEqual(bound_new["package_source"]["revision"], current_revision)
             self.assertIsNone(bound_new["published_at"])
+
+            retired = copy.deepcopy(source)
+            retired_old = retired["distributions"][0]["releases"][0]
+            retired_old.pop("published_at")
+            retired["distributions"][0]["release_policies"][0]["status"] = "revoked"
+            retired_candidate = prepare.build_candidate(
+                retired, config, current_revision, "retired-historical", None,
+                repository_root=repository,
+            )
+            retained = retired_candidate["distributions"][0]["releases"][0]
+            self.assertEqual(retained["package_source"]["revision"], old_revision)
+            self.assertIsNone(retained["published_at"])
+
+            unsafe_active = copy.deepcopy(retired)
+            unsafe_active["distributions"][0]["release_policies"][0]["status"] = "active"
+            with self.assertRaisesRegex(
+                publication.PublicationError,
+                "new in-repository release must have an unresolved revision",
+            ):
+                prepare.build_candidate(
+                    unsafe_active, config, current_revision, "unsafe-active", None,
+                    repository_root=repository,
+                )
 
     def test_external_acquisition_is_sparse_and_refuses_lfs_and_submodules(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1213,7 +1243,10 @@ class PublicationWorkflowTests(unittest.TestCase):
         self.assertEqual(prepare_job["permissions"], {"contents": "read"})
         self.assertNotIn("secrets.", json.dumps(prepare_job))
         self.assertEqual(signer["environment"], "directory-publication")
-        self.assertEqual(signer["if"], "github.ref == 'refs/heads/main'")
+        self.assertEqual(
+            signer["if"],
+            "github.ref == 'refs/heads/main' && needs.prepare.outputs.completed != 'true'",
+        )
         signer_commands = "\n".join(step.get("run", "") for step in signer["steps"] if isinstance(step, dict))
         self.assertNotIn("build_registry.py", signer_commands)
         self.assertNotIn("plugins/", signer_commands)

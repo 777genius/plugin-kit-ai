@@ -3,12 +3,11 @@
   "mcpServers": {
     "firebase": {
       "type": "stdio",
+      "command": "node",
       "args": [
-        "-y",
-        "firebase-tools@15.26.0",
+        "${PLUGIN_ROOT}/io.github.777genius.agentplugins/runtime/launcher.mjs",
         "mcp"
-      ],
-      "command": "npx"
+      ]
     }
   }
 }

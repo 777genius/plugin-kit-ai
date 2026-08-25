@@ -20,6 +20,7 @@
     "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]},
     "client_version": {"type": "string", "minLength": 1},
     "installer_version": {"type": "string", "minLength": 1},
+    "adapter_version": {"type": "string", "minLength": 1},
     "os": {"type": "string", "minLength": 1},
     "architecture": {"type": "string", "minLength": 1},
     "dependency_identity": {"type": "string", "minLength": 1},

@@ -1,0 +1,27 @@
+{
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 20s
+			idle 30s
+		}
+	}
+}
+
+observer.example.invalid {
+	handle /v1/stable-launch/observe {
+		request_body {
+			max_size 128KB
+		}
+		reverse_proxy 127.0.0.1:8765 {
+			transport http {
+				write_timeout 20s
+				response_header_timeout 900s
+			}
+		}
+	}
+
+	handle {
+		respond 404
+	}
+}
