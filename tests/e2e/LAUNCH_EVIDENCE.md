@@ -24,7 +24,8 @@ fixed release-workflow artifact attestation for every native asset. The
 trusted signer workflow is exactly
 `777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml`; similarly
 named or legacy workflow paths are rejected. The
-attestation verifier pins repository, workflow, tag ref, tag commit, subject
+attestation verifier pins repository, workflow, the `main` source ref, the exact
+tag commit, subject
 name, and SHA-256 in addition to verifying repository, tag, version, size, and
 SHA-256 against both authenticated release metadata files. There are no production URL/checksum/version
 inputs. The manifest must contain macOS arm64/amd64, Linux arm64/amd64, and

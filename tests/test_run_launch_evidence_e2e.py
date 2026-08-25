@@ -1165,6 +1165,9 @@ with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(verified["subject_name"], asset.name)
             self.assertEqual(verified["subject_digest"], digest)
             self.assertEqual(verified["runner_environment"], "github-hosted")
+            self.assertEqual(
+                argv[argv.index("--source-ref") + 1], e2e.TRUSTED_CLI_RELEASE_SOURCE_REF,
+            )
             wrong_predicate = json.loads(json.dumps(statement))
             wrong_predicate[0]["verificationResult"]["statement"]["predicateType"] = "https://example.invalid/claim"
             with mock.patch.object(e2e.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(wrong_predicate), "")):
@@ -1203,7 +1206,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 "workflow": e2e.TRUSTED_CLI_RELEASE_WORKFLOW,
                 "tag": e2e.TRUSTED_CLI_RELEASE_TAG, "tag_commit": e2e.TRUSTED_CLI_RELEASE_COMMIT,
                 "issuer": "https://token.actions.githubusercontent.com",
-                "source_ref": f"refs/tags/{e2e.TRUSTED_CLI_RELEASE_TAG}",
+                "source_ref": e2e.TRUSTED_CLI_RELEASE_SOURCE_REF,
                 "source_digest": e2e.TRUSTED_CLI_RELEASE_COMMIT,
                 "predicate_type": "https://slsa.dev/provenance/v1",
                 "subject_name": asset, "subject_digest": digest,
@@ -2295,7 +2298,7 @@ print((fixtures / name).read_text(), end="")
             "repository": e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "workflow": e2e.TRUSTED_CLI_RELEASE_WORKFLOW,
             "tag": e2e.TRUSTED_CLI_RELEASE_TAG, "tag_commit": e2e.TRUSTED_CLI_RELEASE_COMMIT,
             "issuer": "https://token.actions.githubusercontent.com",
-            "source_ref": f"refs/tags/{e2e.TRUSTED_CLI_RELEASE_TAG}",
+            "source_ref": e2e.TRUSTED_CLI_RELEASE_SOURCE_REF,
             "source_digest": e2e.TRUSTED_CLI_RELEASE_COMMIT,
             "predicate_type": "https://slsa.dev/provenance/v1",
             "subject_name": asset["file"], "subject_digest": digest,

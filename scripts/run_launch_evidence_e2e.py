@@ -89,6 +89,7 @@ TRUSTED_CLI_RELEASE_REPOSITORY = "777genius/plugin-kit-ai"
 TRUSTED_CLI_RELEASE_TAG = "agentplugins-v" + STABLE_LAUNCH_VERSION_FILE.read_text(encoding="utf-8").strip()
 TRUSTED_CLI_RELEASE_WORKFLOW = "777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml"
 TRUSTED_CLI_RELEASE_COMMIT = "caffa9ac2a962462a05d5342250f4810ddce0856"
+TRUSTED_CLI_RELEASE_SOURCE_REF = "refs/heads/main"
 TRUSTED_SANITIZED_CAPTURE_MANIFEST = "sha256:1e7e5ca4d72be2e188bbfa002cf19975b4e1b100913a329bbaf963b5633abb85"
 
 
@@ -241,7 +242,7 @@ def strict_asset_attestation_matches(
     return value == {
         "repository": repository, "workflow": workflow, "tag": tag, "tag_commit": commit,
         "issuer": "https://token.actions.githubusercontent.com",
-        "source_ref": f"refs/tags/{tag}", "source_digest": commit,
+        "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF, "source_digest": commit,
         "predicate_type": "https://slsa.dev/provenance/v1",
         "subject_name": asset_name, "subject_digest": asset_digest,
         "runner_environment": "github-hosted",
@@ -681,7 +682,7 @@ def verify_github_asset_attestation(
         raise ValueError("artifact attestation commit or digest is invalid")
     command = [
         "gh", "attestation", "verify", str(asset), "--repo", repository,
-        "--signer-workflow", workflow, "--source-ref", f"refs/tags/{tag}",
+        "--signer-workflow", workflow, "--source-ref", TRUSTED_CLI_RELEASE_SOURCE_REF,
         "--source-digest", tag_commit, "--predicate-type", "https://slsa.dev/provenance/v1",
         "--deny-self-hosted-runners", "--format", "json",
     ]
@@ -712,7 +713,7 @@ def verify_github_asset_attestation(
     return {
         "repository": repository, "workflow": workflow, "tag": tag,
         "tag_commit": tag_commit, "issuer": "https://token.actions.githubusercontent.com",
-        "source_ref": f"refs/tags/{tag}", "source_digest": tag_commit,
+        "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF, "source_digest": tag_commit,
         "predicate_type": "https://slsa.dev/provenance/v1", "subject_name": asset.name,
         "subject_digest": digest, "runner_environment": "github-hosted",
         "asset_name": asset.name, "asset_digest": digest,

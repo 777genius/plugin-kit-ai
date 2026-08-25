@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "run_mcp_e2e.py"
@@ -13,6 +16,39 @@ SPEC.loader.exec_module(e2e)
 
 
 class InspectorOutputTests(unittest.TestCase):
+    def test_materializes_client_paths_inside_a_disposable_sandbox(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp)
+            with mock.patch.dict(
+                e2e.os.environ,
+                {
+                    "GH_TOKEN": "secret",
+                    "GITHUB_TOKEN": "secret",
+                    "NPM_TOKEN": "secret",
+                    "HOME": "/host-home",
+                },
+                clear=False,
+            ):
+                config, environment = e2e.materialize_inspector_config("context7", sandbox)
+            value = json.loads(config.read_text())
+            server = value["mcpServers"]["context7"]
+            launcher = server["args"][0]
+            self.assertEqual(
+                launcher,
+                str((e2e.ROOT / "plugins/context7/io.github.777genius.agentplugins/runtime/launcher.mjs").resolve()),
+            )
+            plugin_data = str((sandbox / "plugin-data").resolve())
+            self.assertTrue(Path(plugin_data).is_dir())
+            self.assertEqual(environment["PLUGIN_DATA"], plugin_data)
+            self.assertEqual(server["env"]["PLUGIN_DATA"], plugin_data)
+            self.assertEqual(server["env"]["PLUGIN_ROOT"], str((e2e.ROOT / "plugins/context7").resolve()))
+            self.assertEqual(environment["HOME"], str(sandbox / "home"))
+            self.assertEqual(environment["npm_config_cache"], str(sandbox / "npm-cache"))
+            self.assertNotIn("GH_TOKEN", environment)
+            self.assertNotIn("GITHUB_TOKEN", environment)
+            self.assertNotIn("NPM_TOKEN", environment)
+            self.assertIn("${PLUGIN_ROOT}", (e2e.ROOT / "plugins/context7/mcp.json").read_text())
+
     def test_ignores_server_logs(self) -> None:
         payload = e2e.parse_inspector_json(
             'server started\n{"result":{"tools":[{"name":"z"},{"name":"a"}]}}\n'
