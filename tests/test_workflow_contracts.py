@@ -170,6 +170,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--native-observations", commands(enforced))
         self.assertIn("request_observer_bundle", commands(observer))
         self.assertIn('"scenario_contract_digest": scenario_digest', commands(observer))
+        observer_commands = " ".join(commands(observer).split())
+        self.assertIn(
+            'context["release_manifest_digest"], context["directory"]["digest"], '
+            'scenario_digest, Path("prepared-context")',
+            observer_commands,
+        )
+        self.assertNotIn(
+            'context["release_manifest_digest"], context["directory"]["digest"], '
+            'Path("prepared-context"), scenario_digest',
+            observer_commands,
+        )
         self.assertIn('"run_attempt": os.environ["GITHUB_RUN_ATTEMPT"]', commands(observer))
         self.assertIn('context["producer_run_attempt"] = producer_attempt', commands(observer))
         self.assertIn("enforce_freshness=True", commands(observer))

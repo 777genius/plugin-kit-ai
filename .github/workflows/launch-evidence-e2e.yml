@@ -403,8 +403,8 @@ jobs:
           context["challenge"] = make_challenge(
               github["sha"], github["run_id"], github["run_attempt"],
               github["caller_event_name"], github["caller_ref"], github["caller_workflow_ref"],
-              context["release_manifest_digest"], context["directory"]["digest"], Path("prepared-context"),
-              scenario_digest,
+              context["release_manifest_digest"], context["directory"]["digest"], scenario_digest,
+              Path("prepared-context"),
           )
           request = {
               "schema_version": 1, "purpose": "stable-launch-e2e",
