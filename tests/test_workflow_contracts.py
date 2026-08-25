@@ -201,6 +201,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn('config["cli_release_id"]', prepare)
         self.assertEqual(LAUNCH.read_text().count("python scripts/prepare_launch_evidence.py --asset-name"), 2)
         self.assertIn("--publication-ledger-commit", commands(native))
+        for job, next_command in (
+            (native, "python scripts/observe_release_facade.py"),
+            (npm, 'mkdir "$run_root/npm-audit"'),
+        ):
+            resolve = next(step for step in job["steps"] if "prepare_launch_evidence.py" in step.get("run", ""))
+            self.assertEqual(resolve["env"]["GH_TOKEN"], "${{ github.token }}")
+            body = resolve["run"]
+            self.assertLess(body.index("prepare_launch_evidence.py"), body.index("unset GH_TOKEN GITHUB_TOKEN"))
+            self.assertLess(body.index("unset GH_TOKEN GITHUB_TOKEN"), body.index(next_command))
 
     def test_false_consent_skips_every_live_and_aggregate_job(self) -> None:
         workflow = load(LAUNCH)
