@@ -3349,7 +3349,7 @@
       "observed_at": "2026-08-24T07:34:18Z",
       "artifact": {
         "repository": "777genius/universal-agent-plugins",
-        "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+        "revision": "358ba031677f0969a2a3fc844686813dadae065b",
         "path": "registry/evidence/context7-upstream/cli-0.1.13/codex.json",
         "digest": "sha256:22b92ff81d91b86be72f15ec055797c56645b3163c7f8b88cda28d89b65c7d20"
       },
@@ -3380,7 +3380,7 @@
       "observed_at": "2026-08-24T07:34:18Z",
       "artifact": {
         "repository": "777genius/universal-agent-plugins",
-        "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+        "revision": "358ba031677f0969a2a3fc844686813dadae065b",
         "path": "registry/evidence/context7-upstream/cli-0.1.13/cursor.json",
         "digest": "sha256:a72fcd22e9dd00737699ddfb61967b054f8e99116f9c5eef40a7e30a2da0f91a"
       },
@@ -3411,7 +3411,7 @@
       "observed_at": "2026-08-24T07:34:18Z",
       "artifact": {
         "repository": "777genius/universal-agent-plugins",
-        "revision": "eae64f4961c9179749bf37c119c75f6367cb771f",
+        "revision": "358ba031677f0969a2a3fc844686813dadae065b",
         "path": "registry/evidence/context7-upstream/cli-0.1.13/kiro.json",
         "digest": "sha256:980a6b184fa1e70e409529b29d323f68dd6e296d703fcca45888c49c7bbe08f6"
       },

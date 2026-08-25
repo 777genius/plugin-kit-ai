@@ -111,6 +111,16 @@ class CanonicalAndSignatureTests(unittest.TestCase):
         with self.assertRaises(publication.PublicationError):
             publication.validate_with_schema(signed_with_null_time, publication.SNAPSHOT_SCHEMA)
 
+    def test_publication_evidence_schema_preserves_every_reviewed_field(self) -> None:
+        source = json.loads((ROOT / "schemas" / "directory-evidence.schema.json").read_bytes())
+        candidate = json.loads(
+            (ROOT / "schemas" / "directory-publication-candidate.schema.json").read_bytes()
+        )["$defs"]["evidence"]
+        self.assertEqual(
+            set(source["properties"]) - {"trust"},
+            set(candidate["properties"]),
+        )
+
     def test_signature_domain_digest_and_two_key_overlap(self) -> None:
         snapshot = fixture("snapshot.json")
         keys = publication.load_public_keys(FIXTURES / "trusted-keys.json")
@@ -186,6 +196,75 @@ class ClientContractTests(unittest.TestCase):
 
 
 class PublicationLifecycleTests(unittest.TestCase):
+    def test_catalog_local_reviewed_evidence_is_durable_and_byte_exact(self) -> None:
+        config = prepare.load_config(ROOT / "registry" / "publication" / "config.json")
+        directory = json.loads((ROOT / "registry" / "directory.json").read_bytes())
+        artifacts = [
+            artifact for artifact in config["trusted_external_evidence"]
+            if artifact["repository"] == config["repository"]
+        ]
+        self.assertTrue(artifacts)
+        reviewed_directory_artifacts = {
+            json.dumps(item["artifact"], sort_keys=True)
+            for item in directory["evidence"]
+            if item["trust"]["kind"] == "reviewed_external"
+            and item["artifact"]["repository"] == config["repository"]
+        }
+        self.assertEqual(
+            reviewed_directory_artifacts, {json.dumps(item, sort_keys=True) for item in artifacts},
+        )
+        prepare.validate_local_evidence_anchor(config, ROOT, directory["evidence"])
+        if os.environ.get("GITHUB_BASE_REF"):
+            self.assertEqual(os.environ["GITHUB_BASE_REF"], "main")
+            protected_main = "refs/remotes/origin/main"
+            resolved = subprocess.run(
+                ["/usr/bin/git", "rev-parse", "--verify", protected_main],
+                cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            self.assertEqual(resolved.returncode, 0, f"missing protected ref {protected_main}")
+            durable = subprocess.run(
+                [
+                    "/usr/bin/git", "merge-base", "--is-ancestor",
+                    config["local_evidence_main_anchor"], protected_main,
+                ],
+                cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            self.assertEqual(durable.returncode, 0, "local evidence anchor is not on protected main")
+        without_anchor = copy.deepcopy(config)
+        without_anchor.pop("local_evidence_main_anchor")
+        with self.assertRaisesRegex(publication.PublicationError, "requires a durable main anchor"):
+            prepare.validate_local_evidence_anchor(without_anchor, ROOT, directory["evidence"])
+        mixed_case = copy.deepcopy(directory["evidence"])
+        for item in mixed_case:
+            if item.get("trust", {}).get("kind") == "reviewed_external":
+                item["artifact"]["repository"] = config["repository"].upper()
+        with self.assertRaisesRegex(publication.PublicationError, "requires a durable main anchor"):
+            prepare.validate_local_evidence_anchor(without_anchor, ROOT, mixed_case)
+        prepare.validate_local_evidence_anchor(
+            without_anchor,
+            ROOT,
+            [{"id": "unused", "artifact": {"repository": config["repository"]}}],
+        )
+        self.assertEqual(
+            prepare.repository_override({config["repository"].upper(): ROOT}, config["repository"]),
+            ROOT,
+        )
+        with self.assertRaisesRegex(publication.PublicationError, "duplicate external repository override"):
+            prepare.parse_overrides([f"{config['repository']}={ROOT}", f"{config['repository'].upper()}={ROOT}"])
+        missing_anchor = copy.deepcopy(config)
+        missing_anchor["local_evidence_main_anchor"] = "0" * 40
+        with self.assertRaisesRegex(
+            publication.PublicationError, "is unavailable from source HEAD",
+        ):
+            prepare.validate_local_evidence_anchor(missing_anchor, ROOT, directory["evidence"])
+        for artifact in artifacts:
+            with self.subTest(path=artifact["path"]):
+                committed = subprocess.check_output(
+                    ["/usr/bin/git", "show", f"{artifact['revision']}:{artifact['path']}"], cwd=ROOT,
+                )
+                self.assertEqual(committed, (ROOT / artifact["path"]).read_bytes())
+                self.assertEqual(publication.sha256_digest(committed), artifact["digest"])
+
     def test_initial_inactive_bridge_is_reproduced_before_its_first_signed_binding(self) -> None:
         import build_bridges
 
@@ -788,6 +867,17 @@ class PublicationLifecycleTests(unittest.TestCase):
                 evidenced["distributions"][0]["releases"][0]["package_source"]["revision"],
                 evidenced["evidence"][0]["source_revision"],
             )
+
+            unused = copy.deepcopy(source["evidence"][0])
+            unused["id"] = "unused-local-evidence"
+            unused.pop("trust")
+            source["evidence"].append(unused)
+            with mock.patch.object(prepare, "verified_evidence", return_value=evidence):
+                unaffected = prepare.build_candidate(
+                    source, config, source_commit, "prepare-unused-evidence", None,
+                    repository_root=Path(tmp),
+                )
+            self.assertEqual(unaffected["evidence"], [evidence])
 
             source["evidence"] = []
             source["distributions"][0]["release_policies"][0]["current_evidence"] = []
