@@ -232,7 +232,7 @@ def artifacts(challenge: str = "a" * 64) -> dict[str, Any]:
         "catalog_repository": "777genius/universal-agent-plugins",
         "fork_owner": "fixture-owner", "fork_repository": "fixture-owner/universal-agent-plugins",
         "pr_number": 123, "pr_url": "https://github.com/777genius/universal-agent-plugins/pull/123",
-        "head_sha": "2" * 40, "base_sha": "3" * 40, "merge_commit_sha": None,
+        "head_sha": "2" * 40, "base_sha": "a" * 40, "merge_commit_sha": None,
         "changed_paths": ["plugins/context7/plugin.json"],
         "check_runs": [{"name": "validate", "conclusion": "success", "head_sha": "2" * 40}],
         "final_review": {"state": "closed", "decision": "validated", "reviewer_count": 1, "closed_at": observed, "merged_at": None},
@@ -3084,6 +3084,38 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
 
 
 class FixedAdapterContractTests(unittest.TestCase):
+    def test_historical_external_pr_capture_is_reusable_for_same_bound_state(self) -> None:
+        request = Fixture(Path(tempfile.mkdtemp())).request()
+        evidence = artifacts(request["challenge"]["value"])["runtime-attestations.json"]["external_pr_evidence"]
+        self.assertTrue(fixed_adapters.historical_external_pr_evidence_matches_request(evidence, request))
+        rerun = json.loads(json.dumps(request))
+        rerun["challenge"]["value"] = "f" * 64
+        self.assertTrue(fixed_adapters.historical_external_pr_evidence_matches_request(evidence, rerun))
+        fresh_challenge = "f" * 64
+        fresh_artifacts = artifacts(fresh_challenge)
+        fresh_artifacts["runtime-attestations.json"]["external_pr_evidence"] = evidence
+        expected = Fixture(Path(tempfile.mkdtemp())).request()
+        expected["challenge"]["value"] = fresh_challenge
+        validate_artifact_schemas(
+            fresh_artifacts, challenge=fresh_challenge,
+            scenario_contract_digest=expected["scenario_contract_digest"],
+            expected_bindings=expected,
+        )
+        for field, value in (
+            ("cli_release_tag", "agentplugins-v0.1.13"),
+            ("release_manifest_digest", "sha256:" + "0" * 64),
+            ("directory_digest", "sha256:" + "0" * 64),
+        ):
+            rejected = json.loads(json.dumps(request))
+            rejected[field] = value
+            self.assertFalse(fixed_adapters.historical_external_pr_evidence_matches_request(evidence, rejected))
+        rebound = json.loads(json.dumps(evidence))
+        rebound["binding"]["catalog_sha"] = "0" * 40
+        self.assertFalse(fixed_adapters.historical_external_pr_evidence_matches_request(rebound, request))
+        foreign_head = json.loads(json.dumps(request))
+        foreign_head["github"]["sha"] = "0" * 40
+        self.assertFalse(fixed_adapters.historical_external_pr_evidence_matches_request(evidence, foreign_head))
+
     def test_per_client_binary_mapping_cannot_be_swapped_by_configuration(self) -> None:
         clients = {
             client: {

@@ -292,6 +292,18 @@ CONTRIBUTOR_PATH = re.compile(
     r"bridges/[a-z0-9]+(?:-[a-z0-9]+)*/[^/].*|"
     r"registry/(?:directory|review-preview|review-search)\.json)$"
 )
+PROTECTED_RUNTIME_DISCOVERY_ARGV = {
+    "codex": ["codex", "mcp", "list", "--json"],
+    "cursor": ["cursor", "agent", "mcp", "list", "--json"],
+    "kiro": ["kiro", "mcp", "list", "--json"],
+}
+PROTECTED_RUNTIME_TOOLS = {
+    "agent-code-navigator": "search_code",
+    "context7": "resolve-library-id",
+    "cloudflare-docs": "search_cloudflare_documentation",
+    "chrome-devtools": "list_pages",
+    "notion": "search",
+}
 CLIENT_ROOTS = {
     "codex": ".codex",
     "cursor": ".cursor",
@@ -404,6 +416,49 @@ def authoritative_native_client_evidence(
         and discovery.get("argv") == ["copilot", "plugin", "list"]
         and discovery.get("discovered") is True
         and (product_id is None or discovery.get("product_id") == product_id)
+    )
+
+
+def authoritative_protected_runtime_evidence(
+    evidence: Any, *, client_version: Any, product_id: str, client: str,
+    challenge: str,
+) -> bool:
+    """Validate the exact Codex/Cursor/Kiro operations emitted by the observer."""
+    if not isinstance(evidence, dict) or set(evidence) != {
+        "basis", "observer", "client", "version_operation",
+        "discovery_operation", "invocation_operation",
+    }:
+        return False
+    version = evidence.get("version_operation")
+    discovery = evidence.get("discovery_operation")
+    invocation = evidence.get("invocation_operation")
+    tool = PROTECTED_RUNTIME_TOOLS.get(product_id)
+    return bool(
+        client in PROTECTED_RUNTIME_DISCOVERY_ARGV
+        and evidence.get("basis") == "protected_external_observer"
+        and evidence.get("observer") == "native-client-command-v1"
+        and evidence.get("client") == client
+        and isinstance(client_version, str) and client_version
+        and isinstance(version, dict)
+        and set(version) == {"operation", "argv", "observed_client_version"}
+        and version.get("operation") == "version"
+        and version.get("argv") == [client, "--version"]
+        and version.get("observed_client_version") == client_version
+        and isinstance(discovery, dict)
+        and set(discovery) == {"operation", "argv", "discovered", "product_id"}
+        and discovery.get("operation") == "discovery"
+        and discovery.get("argv") == PROTECTED_RUNTIME_DISCOVERY_ARGV[client]
+        and discovery.get("discovered") is True
+        and discovery.get("product_id") == product_id
+        and isinstance(invocation, dict)
+        and set(invocation) == {"operation", "tool", "product_id", "marker_digest", "succeeded"}
+        and invocation.get("operation") == "tool_call"
+        and invocation.get("tool") == tool
+        and invocation.get("product_id") == product_id
+        and invocation.get("marker_digest") == "sha256:" + hashlib.sha256(
+            f"UAP_OBSERVER_OK {client} {product_id} {challenge}".encode()
+        ).hexdigest()
+        and invocation.get("succeeded") is True
     )
 
 
@@ -1184,12 +1239,12 @@ def challenge_context_valid(value: Any) -> bool:
 
 
 def external_pr_evidence_valid(
-    record: Any, *, challenge: dict[str, str] | None, catalog_repository: str,
+    record: Any, *, catalog_repository: str,
     catalog_sha: str | None, snapshot: dict[str, Any], snapshot_digest: str | None,
     release_repository: str, release_tag: str | None, release_commit: str | None,
     release_manifest_digest: str | None, now: datetime | None = None,
 ) -> tuple[bool, str]:
-    """Fail-closed verification for the first stable external-fork PR gate."""
+    """Verify a reusable PR capture for this exact catalog and Directory state."""
     if not isinstance(record, dict):
         return False, "immutable external-fork PR evidence was not supplied"
     required_fields = {
@@ -1204,23 +1259,32 @@ def external_pr_evidence_valid(
         observed = datetime.fromisoformat(str(record["observed_at"]).replace("Z", "+00:00"))
     except (KeyError, TypeError, ValueError):
         return False, "external-fork PR observation timestamp is invalid"
-    if observed.tzinfo is None or observed > current + timedelta(minutes=2) or current - observed > MAX_ATTESTATION_AGE:
-        return False, "external-fork PR evidence is stale or from the future"
-    if not challenge or record.get("challenge") != challenge.get("value"):
-        return False, "external-fork PR evidence is not challenge-bound"
+    if observed.tzinfo is None or observed > current + timedelta(minutes=2):
+        return False, "external-fork PR evidence is from the future"
+    if not isinstance(record.get("challenge"), str) or not re.fullmatch(r"[a-f0-9]{64}", record["challenge"]):
+        return False, "external-fork PR capture challenge is invalid"
     binding = record.get("binding")
+    binding_fields = {
+        "catalog_repository", "catalog_sha", "directory_snapshot_digest",
+        "directory_sequence", "directory_publication_id", "directory_source_commit",
+        "release_repository", "release_tag", "release_commit", "release_manifest_digest",
+    }
+    if not isinstance(binding, dict) or set(binding) != binding_fields:
+        return False, "external-fork PR capture binding is non-canonical"
     expected_binding = {
-        "catalog_repository": catalog_repository, "catalog_sha": catalog_sha,
+        "catalog_repository": catalog_repository,
+        "catalog_sha": catalog_sha,
         "directory_snapshot_digest": snapshot_digest,
         "directory_sequence": snapshot.get("sequence"),
         "directory_publication_id": snapshot.get("publication_id"),
         "directory_source_commit": snapshot.get("source_commit"),
-        "release_repository": release_repository, "release_tag": release_tag,
+        "release_repository": release_repository,
+        "release_tag": release_tag,
         "release_commit": release_commit,
         "release_manifest_digest": release_manifest_digest,
     }
-    if not isinstance(binding, dict) or binding != expected_binding:
-        return False, "external-fork PR evidence is bound to another catalog, Directory, or release"
+    if binding != expected_binding:
+        return False, "external-fork PR capture is bound to another catalog, Directory, or stable release"
     repository = record.get("catalog_repository")
     fork_owner = record.get("fork_owner")
     fork_repository = record.get("fork_repository")
@@ -1282,7 +1346,7 @@ def external_pr_evidence_valid(
         return False, "external-fork PR immutable artifact digest/reference is invalid"
     if artifact.get("reference") != "urn:" + artifact["digest"]:
         return False, "external-fork PR immutable artifact reference does not match its digest"
-    return True, "signed immutable external-fork PR evidence verified"
+    return True, "signed immutable historical external-fork PR evidence verified"
 
 
 class LaunchHarness:
@@ -1726,9 +1790,10 @@ class LaunchHarness:
                         raise ValueError(f"ChatGPT runtime pass lacks authoritative public MCP evidence: {key}")
                 else:
                     native_evidence = record.get("native_discovery_evidence")
-                    if not authoritative_native_client_evidence(
+                    if not authoritative_protected_runtime_evidence(
                         native_evidence, client_version=tuple_value.get("client_version"),
                         product_id=record["plugin"], client=record["client"],
+                        challenge=self.challenge["value"],
                     ):
                         raise ValueError(f"runtime pass lacks authoritative exact-version client discovery evidence: {key}")
                 for observation_name in ("manager_observation", "native_observation"):
@@ -1836,7 +1901,6 @@ class LaunchHarness:
         if not self.cli_available or not self.challenge:
             return "inconclusive", None, "fixture-only non-runtime mode: CLI/challenge was not supplied"
         sandbox = self.fresh_sandbox("driver-" + scenario)
-        env = isolated_environment(sandbox, ("codex", "cursor", "kiro", "copilot", "vscode"), self.directory_environment)
         challenge_path = sandbox / "config" / "challenge.json"
         product_id = "context7"
         source_selection = self.config.get("source_identity_scenarios", {}).get(scenario)
@@ -1855,6 +1919,11 @@ class LaunchHarness:
             targets = (scenario.removeprefix("repair_"),)
         else:
             targets = ("cursor",)
+        env = isolated_environment(sandbox, targets, self.directory_environment)
+        if "copilot" in targets:
+            if not self.copilot_executable:
+                return "failed", None, "exact protected GitHub Copilot CLI executable was not supplied"
+            env["PATH"] = str(self.copilot_executable.parent) + os.pathsep + env.get("PATH", "")
         release = self.configured_source_release(scenario, targets) if source_selection else self.directory_release(product_id, targets)
         source_identity = {
             "product_id": release["product_id"],
@@ -2513,7 +2582,6 @@ class LaunchHarness:
         config = read_production_config()
         valid, reason = external_pr_evidence_valid(
             self.external_pr_evidence,
-            challenge=self.challenge,
             catalog_repository=config["catalog_repository"],
             catalog_sha=self.github_sha,
             snapshot=self.snapshot,
@@ -2626,9 +2694,26 @@ def assert_redacted(value: dict[str, Any]) -> None:
                     )
                 ):
                     raise ValueError(f"passed discovery evidence lacks exact repository-owned Copilot operations: {row.get('id')}")
-            elif details.get("evidence_basis") != "protected_external_observer" or not authoritative_native_client_evidence(
+            elif row.get("client") == "chatgpt":
+                if (
+                    row.get("scenario") != "chatgpt_registered_binding"
+                    or row.get("plugin") != "cloudflare-docs"
+                    or details.get("evidence_basis") != "protected_external_observer"
+                    or details.get("native_discovery_proof") is not False
+                    or details.get("public_mcp_proof") is not True
+                    or "native_discovery_evidence" in details
+                    or not authoritative_public_mcp_evidence(details.get("public_mcp_evidence"))
+                ):
+                    raise ValueError(f"passed ChatGPT runtime lacks authoritative public MCP operations: {row.get('id')}")
+            elif (
+                details.get("evidence_basis") != "protected_external_observer"
+                or details.get("native_discovery_proof") is not True
+                or not authoritative_protected_runtime_evidence(
                     native_evidence, client_version=tuple_value.get("client_version"),
-                    product_id=row.get("plugin"), client=row.get("client")):
+                    product_id=str(row.get("plugin")), client=str(row.get("client")),
+                    challenge=str(details.get("challenge", "")),
+                )
+            ):
                 raise ValueError(f"passed runtime evidence lacks authoritative external client operations: {row.get('id')}")
             required = ("product_id", "tree_digest", "manifest_digest", "distribution_id", "distribution_kind", "release_sequence", "package_version", "source_repository", "source_revision", "source_path", "snapshot_sequence", "snapshot_digest", "binary_digest", "installer_version", "adapter_version", "client_version", "os", "architecture", "observed_at")
         else:

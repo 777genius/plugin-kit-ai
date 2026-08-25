@@ -276,6 +276,26 @@ class LaunchEvidenceBundleTests(unittest.TestCase):
             with self.assertRaisesRegex(evidence.EvidenceError, "paths differ"):
                 evidence.verify_exact_bundle(root, files)
 
+    def test_attestation_verification_uses_the_exact_offline_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _, files = self.build(root)
+            evidence.write_bundle(root, files)
+            attestation = root / "provenance.jsonl"
+            attestation.write_text('{"bundle":true}\n')
+            verifier = ROOT / "scripts" / "materialize_launch_evidence.py"
+            with mock.patch.object(evidence, "GH", str(verifier)), mock.patch.object(
+                evidence.subprocess, "run", return_value=subprocess.CompletedProcess([], 0),
+            ) as run:
+                evidence.verify_attestation(
+                    root, bundle_path=attestation, repository="owner/repository",
+                    workflow="owner/repository/.github/workflows/launch-evidence-e2e.yml",
+                    source_ref="refs/heads/main", source_digest="a" * 40,
+                )
+            command = run.call_args.args[0]
+            self.assertEqual(command[command.index("--bundle") + 1], str(attestation))
+            self.assertNotIn("GH_TOKEN", run.call_args.kwargs.get("env", {}))
+
     def test_every_bundle_layer_is_rederived_even_after_local_checksum_rewrite(self) -> None:
         for target in (
             "launch-evidence.json", "signed-observer-bundle.json",
@@ -371,6 +391,7 @@ class PermanentCommitTests(unittest.TestCase):
             "directory_evidence_index_digest": evidence.sha256(files["directory-evidence/index.json"]),
             "records": index["records"],
         })
+        files[evidence.ATTESTATION_BUNDLE_NAME] = b'{"bundle":true}\n'
         files["SHA256SUMS"] = evidence.checksum_bytes(files)
         return digest, files
 
@@ -421,7 +442,11 @@ class PermanentCommitTests(unittest.TestCase):
         )
         git(self.repo, "tag", "directory-publication-schema-1-launch-approved", self.parent)
         git(self.repo, "checkout", "-q", "--detach", result["ledger_commit"])
-        with mock.patch.object(evidence, "build_bundle", return_value=(digest, files)) as build_bundle, mock.patch.object(
+        base_files = dict(files)
+        base_files.pop(evidence.ATTESTATION_BUNDLE_NAME)
+        base_files.pop("SHA256SUMS")
+        base_files["SHA256SUMS"] = evidence.checksum_bytes(base_files)
+        with mock.patch.object(evidence, "build_bundle", return_value=(digest, base_files)) as build_bundle, mock.patch.object(
             evidence, "verify_attestation",
         ) as verify_attestation:
             evidence.verify_completed_state(
@@ -444,6 +469,10 @@ class PermanentCommitTests(unittest.TestCase):
                     observer_public_key="trusted-key", observer_key_id="observer-v1",
                 )
             verify_attestation.assert_called_once()
+            self.assertEqual(
+                verify_attestation.call_args.kwargs["bundle_path"].name,
+                evidence.ATTESTATION_BUNDLE_NAME,
+            )
             self.assertFalse(build_bundle.call_args.kwargs["enforce_observer_freshness"])
 
     def test_existing_immutable_digest_root_is_rejected(self) -> None:

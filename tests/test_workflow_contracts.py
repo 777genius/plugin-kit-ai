@@ -171,24 +171,49 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("request_observer_bundle", commands(observer))
         self.assertIn('"scenario_contract_digest": scenario_digest', commands(observer))
         observer_commands = " ".join(commands(observer).split())
-        self.assertIn(
-            'context["release_manifest_digest"], context["directory"]["digest"], '
-            'scenario_digest, Path("prepared-context")',
-            observer_commands,
-        )
-        self.assertNotIn(
-            'context["release_manifest_digest"], context["directory"]["digest"], '
-            'Path("prepared-context"), scenario_digest',
-            observer_commands,
-        )
+        self.assertIn('"release_manifest_digest": context.get("release_manifest_digest")', observer_commands)
+        self.assertIn('"directory_digest": context.get("directory", {}).get("digest")', observer_commands)
+        self.assertNotIn("make_challenge", observer_commands)
         self.assertIn('"run_attempt": os.environ["GITHUB_RUN_ATTEMPT"]', commands(observer))
         self.assertIn('context["producer_run_attempt"] = producer_attempt', commands(observer))
         self.assertIn("enforce_freshness=True", commands(observer))
         self.assertNotIn("id-token", enforced["permissions"])
         self.assertIn("--observer-bundle", commands(enforced))
         self.assertIn("observer-bundle.schema.json", commands(observer))
-        self.assertIn("STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY", yaml.safe_dump(enforced))
-        self.assertIn("STABLE_LAUNCH_OBSERVER_KEY_ID", yaml.safe_dump(enforced))
+        observer_request = next(step for step in observer["steps"] if step.get("id") == "observer")
+        challenge_guard = next(
+            step for step in observer["steps"]
+            if step.get("name") == "Require the exact prepared challenge for this workflow attempt"
+        )
+        oidc_step_index = next(
+            index for index, step in enumerate(observer["steps"])
+            if step.get("name") == "Obtain short-lived GitHub OIDC identity"
+        )
+        self.assertLess(observer["steps"].index(challenge_guard), oidc_step_index)
+        self.assertIn("challenge_context_valid", challenge_guard["run"])
+        self.assertIn("rerun all jobs", challenge_guard["run"])
+        self.assertNotIn("make_challenge", observer_request["run"])
+        self.assertEqual(
+            observer["outputs"]["observer_public_key"],
+            "${{ steps.observer.outputs.public_key }}",
+        )
+        self.assertEqual(
+            observer["outputs"]["observer_key_id"],
+            "${{ steps.observer.outputs.key_id }}",
+        )
+        self.assertIn("printf 'public_key=%s\\n'", observer_request["run"])
+        self.assertIn("printf 'key_id=%s\\n'", observer_request["run"])
+        enforced_bundle = next(step for step in enforced["steps"] if step.get("id") == "bundle")
+        self.assertEqual(
+            enforced_bundle["env"]["OBSERVER_ED25519_PUBLIC_KEY"],
+            "${{ needs.protected-observer-inputs.outputs.observer_public_key }}",
+        )
+        self.assertEqual(
+            enforced_bundle["env"]["OBSERVER_KEY_ID"],
+            "${{ needs.protected-observer-inputs.outputs.observer_key_id }}",
+        )
+        self.assertNotIn("STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY", yaml.safe_dump(enforced))
+        self.assertNotIn("STABLE_LAUNCH_OBSERVER_KEY_ID", yaml.safe_dump(enforced))
         self.assertIn("node-version: '22'", yaml.safe_dump(enforced))
         self.assertIn("npm install --ignore-scripts=false --save-exact @github/copilot@1.0.80", commands(enforced))
         self.assertIn("npm audit signatures", commands(enforced))
@@ -491,24 +516,42 @@ class WorkflowContractTests(unittest.TestCase):
             attester_body,
         )
         enforced_body = yaml.safe_dump(launch["jobs"]["enforced-stable-gate"])
-        self.assertIn('native-*-${{ github.run_id }}-*', enforced_body)
+        exact_native_pattern = 'native-*-${{ github.run_id }}-${{ needs.native-release.outputs.evidence_run_attempt }}'
+        self.assertTrue(any(
+            step.get("with", {}).get("pattern") == exact_native_pattern
+            for step in launch["jobs"]["enforced-stable-gate"]["steps"]
+        ))
         self.assertIn("needs.node22-npm-facade.outputs.evidence_run_attempt", enforced_body)
         self.assertIn("needs.protected-observer-inputs.outputs.evidence_run_attempt", enforced_body)
         self.assertIn('run_attempt=${EVIDENCE_RUN_ATTEMPT}', enforced_body)
         aggregate_body = yaml.safe_dump(launch["jobs"]["aggregate-one-release"])
-        self.assertIn('native-*-${{ github.run_id }}-*', aggregate_body)
+        self.assertTrue(any(
+            step.get("with", {}).get("pattern") == exact_native_pattern
+            for step in launch["jobs"]["aggregate-one-release"]["steps"]
+        ))
         self.assertNotIn('test "$NATIVE_ATTEMPT" = "$NODE_ATTEMPT"', aggregate_body)
         self.assertEqual(
             attestation["uses"],
             "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
         )
-        self.assertEqual(
-            set(launch["on"]["workflow_call"]["outputs"]),
-            {"evidence_artifact_name", "launch_evidence_digest", "workflow_source_digest", "evidence_run_attempt"},
+        expected_outputs = {
+            "evidence_artifact_name", "launch_evidence_digest", "workflow_source_digest",
+            "evidence_run_attempt", "attestation_artifact_name",
+        }
+        self.assertEqual(set(launch["on"]["workflow_call"]["outputs"]), expected_outputs)
+        self.assertEqual(set(live["on"]["workflow_call"]["outputs"]), expected_outputs)
+        self.assertEqual(attestation["id"], "attestation")
+        attestation_upload = next(
+            step for step in attester["steps"]
+            if "upload-artifact" in step.get("uses", "")
         )
         self.assertEqual(
-            set(live["on"]["workflow_call"]["outputs"]),
-            {"evidence_artifact_name", "launch_evidence_digest", "workflow_source_digest", "evidence_run_attempt"},
+            attestation_upload["with"]["name"],
+            "${{ steps.attestation-identity.outputs.artifact_name }}",
+        )
+        self.assertEqual(
+            attestation_upload["with"]["path"],
+            "attestation/github-attestation.jsonl",
         )
         persist = publication["jobs"]["record_launch_approval"]
         body = commands(persist)
@@ -516,6 +559,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("jsonschema==4.25.1", str(publication))
         self.assertIn("materialize_launch_evidence.py verify-bundle", body)
         self.assertIn("--verify-attestation", body)
+        self.assertEqual(body.count("--attestation-bundle launch-attestation/github-attestation.jsonl"), 2)
+        self.assertNotIn("GH_TOKEN", yaml.safe_dump(persist))
         self.assertIn('--expected-run-attempt "${EXPECTED_EVIDENCE_RUN_ATTEMPT}"', body)
         self.assertIn("materialize_launch_evidence.py commit", body)
         self.assertIn("directory_publication_cas.py evidence-publish", body)
@@ -549,9 +594,11 @@ class WorkflowContractTests(unittest.TestCase):
         replay = workflow["jobs"]["authenticate-completed-state"]
         self.assertEqual(prepare["outputs"]["completed"], "${{ needs.authenticate-completed-state.outputs.completed }}")
         self.assertEqual(prepare["permissions"], {"contents": "read"})
-        self.assertEqual(replay["permissions"], {"attestations": "read", "contents": "read"})
+        self.assertEqual(replay["permissions"], {"contents": "read"})
         state = next(step for step in replay["steps"] if step.get("id") == "state")
         self.assertIn("materialize_launch_evidence.py verify-completed", state["run"])
+        self.assertNotIn("GH_TOKEN", yaml.safe_dump(replay))
+        self.assertNotIn("github.token", yaml.safe_dump(workflow))
         self.assertIn("needs.prepare.outputs.completed != 'true'", workflow["jobs"]["sign"]["if"])
         self.assertEqual(
             workflow["jobs"]["completed_rerun"]["if"],

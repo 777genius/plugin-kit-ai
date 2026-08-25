@@ -76,10 +76,12 @@ with `--yes`, requires each parser to report an unknown option, and compares
 manager/native state before and after. Help text alone is not evidence.
 
 Runtime/OAuth passes arrive in one canonical, fresh, challenge-bound bundle
-signed with Ed25519. The protected environment fixes
+signed with Ed25519. The protected environment supplies only
+`STABLE_LAUNCH_OBSERVER_ENDPOINT`. The non-secret trust roots
 `STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY` and
-`STABLE_LAUNCH_OBSERVER_KEY_ID`; both the request client and final harness verify
-the signature over the complete artifact objects. HTTPS endpoint selection or a
+`STABLE_LAUNCH_OBSERVER_KEY_ID` are repository variables so completed-state
+replay can verify them outside that environment. Both the request client and
+final harness verify the signature over the complete artifact objects. HTTPS endpoint selection or a
 self-asserted GitHub object is therefore insufficient to create a pass.
 The individual artifacts must conform to
 `tests/e2e/schemas/runtime-attestations.schema.json`: current challenge,
@@ -120,11 +122,13 @@ The first stable launch additionally requires
 records the catalog and genuinely external fork identities, canonical PR
 number/URL, exact head/base SHAs, an explicit null merge SHA, contributor-flow
 paths, successful head-bound check runs, final validated closure without merge,
-fresh observation time, and an immutable digest/reference. Its binding repeats
-the current challenge, exact catalog base SHA, signed Directory publication
-identity, and exact CLI release identity. Missing, local-only, catalog-owner,
-stale, wrong-head, failed-check, unexpectedly merged, or mismatched evidence
-emits a failed required gate. The repository's local fork-clone
+capture time, and an immutable digest/reference. The challenge and timestamp are
+the historical capture context, while the base SHA, exact Directory identity,
+and stable CLI release must still match the current launch exactly. The outer
+observer bundle supplies the fresh current run/challenge binding. Missing,
+local-only, catalog-owner, wrong-head,
+failed-check, unexpectedly merged, or mismatched evidence emits a failed
+required gate. The repository's local fork-clone
 accepted/rejected journeys remain useful supplemental contract coverage and
 explicitly cannot satisfy this external PR gate.
 

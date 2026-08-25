@@ -105,7 +105,16 @@
           },
           {
             "if": {"properties": {"outcome": {"const": "passed"}, "level": {"enum": ["runtime", "oauth"]}}, "required": ["outcome", "level"]},
-            "then": {"properties": {"tuple": {"$ref": "#/$defs/completeTuple"}, "details": {"required": ["evidence_basis", "native_discovery_proof"], "properties": {"evidence_basis": {"const": "protected_external_observer"}, "native_discovery_proof": {"const": true}}}}}
+            "then": {
+              "properties": {"tuple": {"$ref": "#/$defs/completeTuple"}, "details": {"required": ["evidence_basis", "native_discovery_proof"], "properties": {"evidence_basis": {"const": "protected_external_observer"}}}},
+              "allOf": [
+                {
+                  "if": {"properties": {"client": {"const": "chatgpt"}}, "required": ["client"]},
+                  "then": {"properties": {"scenario": {"const": "chatgpt_registered_binding"}, "plugin": {"const": "cloudflare-docs"}, "details": {"required": ["public_mcp_proof", "public_mcp_evidence"], "properties": {"native_discovery_proof": {"const": false}, "public_mcp_proof": {"const": true}}, "not": {"required": ["native_discovery_evidence"]}}}},
+                  "else": {"properties": {"details": {"required": ["native_discovery_evidence"], "properties": {"native_discovery_proof": {"const": true}}}}}
+                }
+              ]
+            }
           },
           {
             "if": {"properties": {"outcome": {"const": "passed"}, "level": {"enum": ["schema", "materialization"]}}, "required": ["outcome", "level"]},

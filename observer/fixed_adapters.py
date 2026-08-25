@@ -619,6 +619,23 @@ def complete_tuple(item: dict[str, Any], marker: dict[str, Any], observed_at: st
     return value
 
 
+def historical_external_pr_evidence_matches_request(evidence: Any, request: dict[str, Any]) -> bool:
+    """Bind a historical PR capture to this exact catalog and Directory state."""
+    if not isinstance(evidence, dict):
+        return False
+    binding = evidence.get("binding")
+    return bool(
+        isinstance(binding, dict)
+        and evidence.get("catalog_repository") == request.get("catalog_repository")
+        and binding.get("catalog_repository") == request.get("catalog_repository")
+        and binding.get("catalog_sha") == evidence.get("base_sha") == request.get("github", {}).get("sha")
+        and binding.get("directory_snapshot_digest") == request.get("directory_digest")
+        and binding.get("release_repository") == request.get("cli_release_repository")
+        and binding.get("release_tag") == request.get("cli_release_tag")
+        and binding.get("release_manifest_digest") == request.get("release_manifest_digest")
+    )
+
+
 def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request: dict[str, Any], github: dict[str, Any], consent: dict[str, Any], workspace: Path, owner_uid: int, *, mount_config: dict[str, Any] | None = None) -> dict[str, Any]:
     plugin, client, challenge = item["plugin"], item["client"], request["challenge"]["value"]
     marker, argv, started, observed = invoke(
@@ -641,7 +658,7 @@ def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request:
         "receipt_reconciled": True, "native_discovery_reconciled": True,
         "native_discovery_evidence": {
             "basis": "protected_external_observer", "observer": "native-client-command-v1", "client": client,
-            "version_operation": {"operation": "version", "argv": [client, "version"], "observed_client_version": marker["client_version"]},
+            "version_operation": {"operation": "version", "argv": [client, "--version"], "observed_client_version": marker["client_version"]},
             "discovery_operation": {"operation": "discovery", "argv": marker["discovery_argv"], "discovered": True, "product_id": plugin},
             "invocation_operation": {
                 "operation": "tool_call", "tool": marker["tool"], "product_id": plugin,
@@ -725,19 +742,8 @@ def runtime_artifact(config: dict[str, Any], request: dict[str, Any], github: di
     if not notion_only:
         source = config["external_pr_evidence"]
         evidence = load_json(Path(source["path"]), source["sha256"], owner_uid=0, mode=0o640)
-        binding = evidence.get("binding") if isinstance(evidence, dict) else None
-        if (
-            evidence.get("challenge") != request["challenge"]["value"]
-            or evidence.get("catalog_repository") != request["catalog_repository"]
-            or not isinstance(binding, dict)
-            or binding.get("catalog_repository") != request["catalog_repository"]
-            or binding.get("catalog_sha") != request["github"]["sha"]
-            or binding.get("directory_snapshot_digest") != request["directory_digest"]
-            or binding.get("release_repository") != request["cli_release_repository"]
-            or binding.get("release_tag") != request["cli_release_tag"]
-            or binding.get("release_manifest_digest") != request["release_manifest_digest"]
-        ):
-            raise ValueError("immutable external PR evidence differs from the authorized request")
+        if not historical_external_pr_evidence_matches_request(evidence, request):
+            raise ValueError("immutable historical external PR evidence targets another catalog, Directory, or stable release")
         artifact["external_pr_evidence"] = evidence
     return artifact
 

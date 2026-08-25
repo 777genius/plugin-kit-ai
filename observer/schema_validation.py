@@ -97,21 +97,22 @@ def _validate_exact_phase_six_set(
     }
     consent = artifacts["consent.json"]
     external = artifacts["runtime-attestations.json"].get("external_pr_evidence")
-    if not isinstance(external, dict) or external.get("challenge") != challenge:
-        raise ValueError("primary runtime artifact lacks challenge-bound immutable external PR evidence")
+    if not isinstance(external, dict):
+        raise ValueError("primary runtime artifact lacks immutable historical external PR evidence")
     if expected_bindings is not None:
         external_binding = external.get("binding")
         if (
             external.get("catalog_repository") != expected_bindings.get("catalog_repository")
             or not isinstance(external_binding, dict)
             or external_binding.get("catalog_repository") != expected_bindings.get("catalog_repository")
+            or external_binding.get("catalog_sha") != external.get("base_sha")
             or external_binding.get("catalog_sha") != expected_bindings.get("github", {}).get("sha")
             or external_binding.get("directory_snapshot_digest") != expected_bindings.get("directory_digest")
             or external_binding.get("release_repository") != expected_bindings.get("cli_release_repository")
             or external_binding.get("release_tag") != expected_bindings.get("cli_release_tag")
             or external_binding.get("release_manifest_digest") != expected_bindings.get("release_manifest_digest")
         ):
-            raise ValueError("immutable external PR evidence differs from authorized release and Directory identity")
+            raise ValueError("immutable historical external PR evidence targets another catalog, Directory, or stable release")
     exported_consent = (json.dumps(consent, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
     consent_digest = "sha256:" + hashlib.sha256(exported_consent).hexdigest()
     binding_fields = (

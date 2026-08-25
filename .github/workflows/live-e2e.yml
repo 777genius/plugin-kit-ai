@@ -43,6 +43,9 @@ on:
       evidence_run_attempt:
         description: Exact attempt that produced the immutable evidence artifact
         value: ${{ jobs.required-live-e2e.outputs.evidence_run_attempt }}
+      attestation_artifact_name:
+        description: Exact offline GitHub provenance transport artifact
+        value: ${{ jobs.required-live-e2e.outputs.attestation_artifact_name }}
   workflow_dispatch:
     inputs:
       consent:
@@ -140,6 +143,7 @@ jobs:
       launch_evidence_digest: ${{ needs.required-stable-launch-evidence.outputs.launch_evidence_digest }}
       workflow_source_digest: ${{ needs.required-stable-launch-evidence.outputs.workflow_source_digest }}
       evidence_run_attempt: ${{ needs.required-stable-launch-evidence.outputs.evidence_run_attempt }}
+      attestation_artifact_name: ${{ needs.required-stable-launch-evidence.outputs.attestation_artifact_name }}
     steps:
       - name: Reject skipped or failed nested evidence
         env:

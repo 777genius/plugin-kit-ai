@@ -63,6 +63,9 @@ on:
       evidence_run_attempt:
         description: Exact attempt that produced the immutable evidence artifact
         value: ${{ jobs.attest-stable-evidence.outputs.evidence_run_attempt }}
+      attestation_artifact_name:
+        description: Exact offline GitHub provenance transport artifact
+        value: ${{ jobs.attest-stable-evidence.outputs.attestation_artifact_name }}
   workflow_dispatch:
     inputs:
       consent:
@@ -288,7 +291,7 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: "native-*-${{ github.run_id }}-*"
+          pattern: "native-*-${{ github.run_id }}-${{ needs.native-release.outputs.evidence_run_attempt }}"
           path: native
           merge-multiple: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -352,6 +355,8 @@ jobs:
       id-token: write
     outputs:
       evidence_run_attempt: ${{ steps.identity.outputs.run_attempt }}
+      observer_public_key: ${{ steps.observer.outputs.public_key }}
+      observer_key_id: ${{ steps.observer.outputs.key_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
@@ -362,6 +367,43 @@ jobs:
         with:
           name: prepared-launch-context-${{ github.run_id }}-${{ needs.node22-npm-facade.outputs.evidence_run_attempt }}
           path: prepared-context
+      - name: Require the exact prepared challenge for this workflow attempt
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path("scripts").resolve()))
+          from run_launch_evidence_e2e import SCENARIOS, challenge_context_valid, sha256_file
+
+          context = json.loads(Path("prepared-context/context.json").read_text())
+          github = context.get("github", {})
+          expected = {
+              "sha": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }
+          if any(str(github.get(key, "")) != value for key, value in expected.items()):
+              raise SystemExit("prepared challenge belongs to another workflow attempt; rerun all jobs")
+          challenge = context.get("challenge")
+          scenario_digest = sha256_file(SCENARIOS)
+          if not challenge_context_valid(challenge):
+              raise SystemExit("prepared challenge is invalid")
+          bindings = {
+              "github_sha": expected["sha"],
+              "run_id": expected["run_id"],
+              "run_attempt": expected["run_attempt"],
+              "release_manifest_digest": context.get("release_manifest_digest"),
+              "directory_digest": context.get("directory", {}).get("digest"),
+              "scenario_contract_digest": scenario_digest,
+          }
+          if any(challenge.get(key) != value for key, value in bindings.items()):
+              raise SystemExit("prepared challenge bindings do not match the protected request")
+          if context.get("scenario_contract_digest") != scenario_digest:
+              raise SystemExit("prepared scenario contract digest is stale")
+          PY
       - name: Obtain short-lived GitHub OIDC identity
         run: |
           response="$(curl --fail --silent --show-error --get \
@@ -372,12 +414,15 @@ jobs:
           echo "::add-mask::$ACTIONS_ID_TOKEN"
           echo "ACTIONS_ID_TOKEN=$ACTIONS_ID_TOKEN" >> "$GITHUB_ENV"
       - name: Request protected challenge-bound runtime and OAuth observations
+        id: observer
         env:
           OBSERVER_ENDPOINT: ${{ vars.STABLE_LAUNCH_OBSERVER_ENDPOINT }}
           OBSERVER_ED25519_PUBLIC_KEY: ${{ vars.STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY }}
           OBSERVER_KEY_ID: ${{ vars.STABLE_LAUNCH_OBSERVER_KEY_ID }}
         run: |
-          test -n "$OBSERVER_ENDPOINT" && test -n "$OBSERVER_ED25519_PUBLIC_KEY" && test -n "$OBSERVER_KEY_ID"
+          test -n "$OBSERVER_ENDPOINT"
+          test -n "$OBSERVER_ED25519_PUBLIC_KEY"
+          test -n "$OBSERVER_KEY_ID"
           python - <<'PY'
           import json
           import os
@@ -388,24 +433,22 @@ jobs:
           from launch_observer_signatures import verify_observer_bundle
           from materialize_launch_evidence import validate_observer_artifact_schemas
           from request_launch_runtime_observations import request_observer_bundle
-          from run_launch_evidence_e2e import SCENARIOS, make_challenge, sha256_file
+          from run_launch_evidence_e2e import SCENARIOS, challenge_context_valid, sha256_file
 
           context = json.loads(Path("prepared-context/context.json").read_text())
           producer_attempt = str(context["github"]["run_attempt"])
-          github = context["github"] = {
-              **context["github"], "sha": os.environ["GITHUB_SHA"],
+          github = context["github"]
+          scenario_digest = sha256_file(SCENARIOS)
+          expected_identity = {
+              "sha": os.environ["GITHUB_SHA"],
               "run_id": os.environ["GITHUB_RUN_ID"],
               "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
           }
-          scenario_digest = sha256_file(SCENARIOS)
+          if any(str(github.get(key, "")) != value for key, value in expected_identity.items()):
+              raise SystemExit("prepared challenge belongs to another workflow attempt; rerun all jobs")
+          if not challenge_context_valid(context.get("challenge")):
+              raise SystemExit("prepared challenge is invalid")
           context["producer_run_attempt"] = producer_attempt
-          context["scenario_contract_digest"] = scenario_digest
-          context["challenge"] = make_challenge(
-              github["sha"], github["run_id"], github["run_attempt"],
-              github["caller_event_name"], github["caller_ref"], github["caller_workflow_ref"],
-              context["release_manifest_digest"], context["directory"]["digest"], scenario_digest,
-              Path("prepared-context"),
-          )
           request = {
               "schema_version": 1, "purpose": "stable-launch-e2e",
               "catalog_repository": context["catalog_repository"],
@@ -434,6 +477,8 @@ jobs:
               (output / name).write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n")
           PY
           check-jsonschema --schemafile tests/e2e/schemas/observer-bundle.schema.json live-inputs/observer-bundle.json
+          printf 'public_key=%s\n' "$OBSERVER_ED25519_PUBLIC_KEY" >> "$GITHUB_OUTPUT"
+          printf 'key_id=%s\n' "$OBSERVER_KEY_ID" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: protected-observer-inputs-${{ github.run_id }}-${{ github.run_attempt }}
@@ -469,7 +514,7 @@ jobs:
       - run: python -m pip install cryptography==46.0.3 jsonschema==4.26.0 check-jsonschema==0.37.4
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: "native-*-${{ github.run_id }}-*"
+          pattern: "native-*-${{ github.run_id }}-${{ needs.native-release.outputs.evidence_run_attempt }}"
           path: native-observations
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -539,8 +584,8 @@ jobs:
       - name: Run repository-owned lifecycle and observer gate
         id: bundle
         env:
-          OBSERVER_ED25519_PUBLIC_KEY: ${{ vars.STABLE_LAUNCH_OBSERVER_ED25519_PUBLIC_KEY }}
-          OBSERVER_KEY_ID: ${{ vars.STABLE_LAUNCH_OBSERVER_KEY_ID }}
+          OBSERVER_ED25519_PUBLIC_KEY: ${{ needs.protected-observer-inputs.outputs.observer_public_key }}
+          OBSERVER_KEY_ID: ${{ needs.protected-observer-inputs.outputs.observer_key_id }}
           PUBLICATION_ID: ${{ inputs.publication_id }}
           PUBLICATION_SEQUENCE: ${{ inputs.publication_sequence }}
           PUBLICATION_SNAPSHOT_DIGEST: ${{ inputs.publication_snapshot_digest }}
@@ -602,6 +647,7 @@ jobs:
       launch_evidence_digest: ${{ needs.enforced-stable-gate.outputs.launch_evidence_digest }}
       workflow_source_digest: ${{ needs.enforced-stable-gate.outputs.workflow_source_digest }}
       evidence_run_attempt: ${{ needs.enforced-stable-gate.outputs.evidence_run_attempt }}
+      attestation_artifact_name: ${{ steps.attestation-identity.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: {persist-credentials: false}
@@ -632,6 +678,28 @@ jobs:
             --verify-observer --observer-public-key "$OBSERVER_ED25519_PUBLIC_KEY" \
             --observer-key-id "$OBSERVER_KEY_ID"
       - name: Attest the canonical bundle identity only
+        id: attestation
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: evidence/bundle-identity.json
+      - name: Prepare exact offline attestation transport
+        id: attestation-identity
+        env:
+          BUNDLE_PATH: ${{ steps.attestation.outputs.bundle-path }}
+          EVIDENCE_RUN_ATTEMPT: ${{ needs.enforced-stable-gate.outputs.evidence_run_attempt }}
+        run: |
+          test -n "$BUNDLE_PATH"
+          test -f "$BUNDLE_PATH"
+          test ! -L "$BUNDLE_PATH"
+          mkdir attestation
+          cp -- "$BUNDLE_PATH" attestation/github-attestation.jsonl
+          test -s attestation/github-attestation.jsonl
+          artifact_name="stable-launch-attestation-${GITHUB_SHA}-${GITHUB_RUN_ID}-${EVIDENCE_RUN_ATTEMPT}-${GITHUB_RUN_ATTEMPT}"
+          echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.attestation-identity.outputs.artifact_name }}
+          path: attestation/github-attestation.jsonl
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false

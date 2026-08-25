@@ -1450,6 +1450,107 @@ with tempfile.TemporaryDirectory() as temporary:
         wrong_client["native_discovery_evidence"]["client"] = "cursor"
         self.assertFalse(e2e.LaunchHarness.info_reconciled(wrong_client, "vscode"))
 
+    def test_protected_hero_runtime_evidence_requires_exact_native_operations(self) -> None:
+        challenge = "a" * 64
+        discovery = {
+            "codex": ["codex", "mcp", "list", "--json"],
+            "cursor": ["cursor", "agent", "mcp", "list", "--json"],
+            "kiro": ["kiro", "mcp", "list", "--json"],
+        }
+        for client, argv in discovery.items():
+            with self.subTest(client=client):
+                marker = "sha256:" + hashlib.sha256(
+                    f"UAP_OBSERVER_OK {client} context7 {challenge}".encode()
+                ).hexdigest()
+                value = {
+                    "basis": "protected_external_observer",
+                    "observer": "native-client-command-v1",
+                    "client": client,
+                    "version_operation": {
+                        "operation": "version", "argv": [client, "--version"],
+                        "observed_client_version": f"{client}-1",
+                    },
+                    "discovery_operation": {
+                        "operation": "discovery", "argv": argv,
+                        "discovered": True, "product_id": "context7",
+                    },
+                    "invocation_operation": {
+                        "operation": "tool_call", "tool": "resolve-library-id",
+                        "product_id": "context7", "marker_digest": marker, "succeeded": True,
+                    },
+                }
+
+                def valid(candidate):
+                    return e2e.authoritative_protected_runtime_evidence(
+                        candidate, client_version=f"{client}-1", product_id="context7",
+                        client=client, challenge=challenge,
+                    )
+
+                self.assertTrue(valid(value))
+                for mutation in (
+                    lambda item: item["version_operation"].update(argv=[client, "version"]),
+                    lambda item: item["discovery_operation"].update(argv=[client, "plugins"]),
+                    lambda item: item["discovery_operation"].update(product_id="notion"),
+                    lambda item: item["invocation_operation"].update(tool="wrong-tool"),
+                    lambda item: item["invocation_operation"].update(marker_digest="sha256:" + "0" * 64),
+                    lambda item: item["invocation_operation"].update(succeeded=False),
+                ):
+                    rejected = json.loads(json.dumps(value))
+                    mutation(rejected)
+                    self.assertFalse(valid(rejected))
+
+    def test_driven_copilot_scenario_uses_the_exact_supplied_cli_on_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "agentplugins"
+            binary.write_text("#!/bin/sh\nexit 0\n")
+            binary.chmod(0o700)
+            copilot = root / "exact-copilot" / "copilot"
+            copilot.parent.mkdir()
+            copilot.write_text("#!/bin/sh\nexit 0\n")
+            copilot.chmod(0o700)
+            harness = self.fixture_harness()
+            harness.binary = binary
+            harness.copilot_executable = copilot
+            harness.challenge = {"value": "a" * 64}
+            harness.run_root = root / "runs"
+            harness.run_root.mkdir()
+            release = {
+                "product_id": "context7", "distribution_id": "upstash/context7",
+                "distribution_kind": "upstream", "release_sequence": 1,
+                "source_revision": "b" * 40, "source_repository": "upstash/context7",
+                "source_path": "agent-plugin", "tree_digest": "sha256:" + "c" * 64,
+                "manifest_digest": "sha256:" + "d" * 64,
+            }
+            harness.snapshot = {
+                "sequence": 1,
+                "products": [{"id": "context7"}],
+                "distributions": [{"id": "upstash/context7"}],
+            }
+            now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+            payload = {
+                "outcome": "passed", "scenario_id": "shared_copilot_vscode_backend",
+                "challenge": harness.challenge["value"], "reason": "observed",
+                "command_traces": [{"challenge": harness.challenge["value"], "argv": ["info"], "started_at": now, "ended_at": now}],
+                "before": {}, "after": {}, "started_at": now, "observed_at": now,
+                "manager_observer": {}, "native_observer": {},
+            }
+            completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+            with mock.patch.object(harness, "directory_release", return_value=release), mock.patch.object(
+                e2e.subprocess, "run", return_value=completed,
+            ) as run:
+                outcome, _, _ = harness.driven_scenario("shared_copilot_vscode_backend")
+            self.assertEqual(outcome, "passed")
+            self.assertEqual(run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0], str(copilot.parent))
+
+            payload["scenario_id"] = "missing_runtime_zero_mutation"
+            completed = subprocess.CompletedProcess([], 0, json.dumps(payload), "")
+            with mock.patch.object(harness, "directory_release", return_value=release), mock.patch.object(
+                e2e.subprocess, "run", return_value=completed,
+            ) as run:
+                harness.driven_scenario("missing_runtime_zero_mutation")
+            self.assertNotEqual(run.call_args.kwargs["env"]["PATH"].split(os.pathsep)[0], str(copilot.parent))
+
     def test_repository_owned_proof_cannot_be_promoted_to_discovery(self) -> None:
         harness = self.fixture_harness()
         details = {
@@ -1686,6 +1787,60 @@ with tempfile.TemporaryDirectory() as temporary:
         evidence["matrix"].append({**evidence["matrix"][0], "id": "a" * 24, "scenario": "chatgpt", "plugin": "notion", "client": "chatgpt"})
         with self.assertRaisesRegex(ValueError, "ChatGPT"):
             e2e.assert_redacted(evidence)
+
+    def test_chatgpt_runtime_uses_public_mcp_proof_instead_of_native_discovery(self) -> None:
+        evidence = self.fixture_harness().export()
+        digest = "sha256:" + "a" * 64
+        public_mcp = {
+            "basis": "protected_external_observer",
+            "observer": "public-mcp-command-v1",
+            "endpoint": "https://docs.mcp.cloudflare.com/mcp",
+            "protocol_version": "2025-06-18",
+            "initialize": {"method": "initialize", "passed": True},
+            "list": {"method": "tools/list", "required_name": "search_cloudflare_documentation", "passed": True},
+            "read": {
+                "method": "tools/call", "name": "search_cloudflare_documentation",
+                "read_only": True, "marker_digest": digest, "passed": True,
+            },
+        }
+        row = {
+            "id": "f" * 24, "scenario": "chatgpt_registered_binding",
+            "plugin": "cloudflare-docs", "client": "chatgpt", "level": "runtime",
+            "outcome": "passed", "reason": "public MCP observed",
+            "tuple": {
+                "product_id": "cloudflare-docs", "tree_digest": digest,
+                "manifest_digest": digest, "distribution_id": "cloudflare/cloudflare-docs",
+                "distribution_kind": "upstream", "release_sequence": 1,
+                "package_version": "1.0.0", "source_repository": "cloudflare/cloudflare-docs",
+                "source_revision": "b" * 40, "source_path": "agent-plugin",
+                "snapshot_sequence": 1, "snapshot_digest": digest, "binary_digest": digest,
+                "dependency_identity": "registered-app", "installer_version": "0.1.14",
+                "adapter_version": "0.1.14", "client_version": "chatgpt-app-v1",
+                "os": "linux", "architecture": "amd64", "observed_at": "2026-08-23T00:00:00Z",
+            },
+            "details": {
+                "evidence_basis": "protected_external_observer", "runtime_proof": True,
+                "native_discovery_proof": False, "public_mcp_proof": True,
+                "public_mcp_evidence": public_mcp,
+            },
+        }
+        evidence["matrix"].append(row)
+        evidence["run"]["mode"] = "contract-test"
+        e2e.assert_redacted(evidence)
+        schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence.schema.json").read_text())
+        jsonschema.Draft202012Validator(schema).evolve(
+            schema=schema["properties"]["matrix"]["items"],
+        ).validate(row)
+        for mutation in (
+            lambda item: item["details"].update(public_mcp_proof=False),
+            lambda item: item["details"].update(native_discovery_evidence={}),
+            lambda item: item["details"]["public_mcp_evidence"].update(endpoint="https://example.test/mcp"),
+            lambda item: item["details"]["public_mcp_evidence"]["read"].update(name="wrong-tool"),
+        ):
+            rejected = json.loads(json.dumps(evidence))
+            mutation(rejected["matrix"][-1])
+            with self.assertRaisesRegex(ValueError, "ChatGPT runtime"):
+                e2e.assert_redacted(rejected)
 
     def test_launch_schema_rejects_unknown_outcome_and_mutable_ref(self) -> None:
         schema = json.loads((ROOT / "tests/e2e/schemas/launch-evidence.schema.json").read_text())
@@ -4443,21 +4598,36 @@ else: raise SystemExit(2)
 
         def verify(value):
             return e2e.external_pr_evidence_valid(
-                value, challenge=challenge, catalog_repository=e2e.TRUSTED_CATALOG_REPOSITORY,
-                catalog_sha="c" * 40, snapshot=snapshot, snapshot_digest="sha256:" + "d" * 64,
+                value, catalog_repository=e2e.TRUSTED_CATALOG_REPOSITORY,
+                catalog_sha="c" * 40, snapshot=snapshot,
+                snapshot_digest="sha256:" + "d" * 64,
                 release_repository=e2e.TRUSTED_CLI_RELEASE_REPOSITORY,
                 release_tag=e2e.TRUSTED_CLI_RELEASE_TAG, release_commit="e" * 40,
                 release_manifest_digest="sha256:" + "f" * 64, now=now,
             )
 
-        self.assertEqual(verify(record), (True, "signed immutable external-fork PR evidence verified"))
+        self.assertEqual(
+            verify(record),
+            (True, "signed immutable historical external-fork PR evidence verified"),
+        )
+        self.assertTrue(e2e.external_pr_evidence_valid(
+            record, catalog_repository=e2e.TRUSTED_CATALOG_REPOSITORY,
+            catalog_sha="c" * 40, snapshot=snapshot,
+            snapshot_digest="sha256:" + "d" * 64,
+            release_repository=e2e.TRUSTED_CLI_RELEASE_REPOSITORY,
+            release_tag=e2e.TRUSTED_CLI_RELEASE_TAG, release_commit="e" * 40,
+            release_manifest_digest="sha256:" + "f" * 64,
+            now=now + timedelta(days=365),
+        )[0])
         negatives = {
             "missing": None,
             "local": {**record, "fork_repository": "local"},
             "self_owned": {**record, "fork_owner": "777genius", "fork_repository": e2e.TRUSTED_CATALOG_REPOSITORY},
-            "stale": {**record, "observed_at": (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z")},
-            "wrong_challenge": {**record, "challenge": "9" * 64},
-            "wrong_binding": {**record, "binding": {**binding, "directory_sequence": 8}},
+            "future": {**record, "observed_at": (now + timedelta(hours=1)).isoformat().replace("+00:00", "Z")},
+            "invalid_capture_challenge": {**record, "challenge": "not-a-challenge"},
+            "wrong_release": {**record, "binding": {**binding, "release_tag": "v0.1.13"}},
+            "wrong_directory": {**record, "binding": {**binding, "directory_sequence": 8}},
+            "base_binding_mismatch": {**record, "binding": {**binding, "catalog_sha": "4" * 40}},
             "wrong_base": {**record, "base_sha": "4" * 40},
             "unexpected_merge": {**record, "merge_commit_sha": "4" * 40},
             "wrong_path": {**record, "changed_paths": ["site/index.html"]},

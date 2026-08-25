@@ -48,6 +48,7 @@ HERO_CLIENTS = {"codex", "cursor", "kiro"}
 MAX_FILES = 64
 MAX_FILE_BYTES = 4 << 20
 MAX_BUNDLE_BYTES = 16 << 20
+ATTESTATION_BUNDLE_NAME = "github-attestation.jsonl"
 LEDGER_ROOT = PurePosixPath("registry/evidence/sha256")
 BOT_NAME = "uap-directory-publisher[bot]"
 BOT_EMAIL = "uap-directory-publisher[bot]@users.noreply.github.com"
@@ -488,12 +489,32 @@ def verify_exact_bundle(directory: Path, expected: Mapping[str, bytes]) -> None:
             fail(f"evidence bundle file is not canonical or checksum-bound: {path}")
 
 
-def verify_attestation(directory: Path, *, repository: str, workflow: str,
+def read_attestation_bundle(path: Path) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        fail("GitHub attestation bundle must be a regular file")
+    body = read_bytes_bounded(path, MAX_FILE_BYTES)
+    if not body.strip():
+        fail("GitHub attestation bundle is empty")
+    return body
+
+
+def attach_attestation_bundle(files: Mapping[str, bytes], body: bytes) -> dict[str, bytes]:
+    result = dict(files)
+    result.pop("SHA256SUMS", None)
+    result[ATTESTATION_BUNDLE_NAME] = body
+    result["SHA256SUMS"] = checksum_bytes(result)
+    validate_bounded_files(result)
+    return result
+
+
+def verify_attestation(directory: Path, *, bundle_path: Path, repository: str, workflow: str,
                        source_ref: str, source_digest: str) -> None:
     if not Path(GH).is_file():
         fail(f"required attestation verifier is missing: {GH}")
+    read_attestation_bundle(bundle_path)
     command = [
         GH, "attestation", "verify", str(directory / "bundle-identity.json"),
+        "--bundle", str(bundle_path),
         "--repo", repository, "--signer-workflow", workflow,
         "--source-ref", source_ref, "--source-digest", source_digest,
         "--deny-self-hosted-runners",
@@ -773,12 +794,16 @@ def verify_completed_state(
         fail("completed evidence index is not bound to this exact workflow run")
     with tempfile.TemporaryDirectory(prefix="uap-completed-evidence-") as temporary:
         bundle = Path(temporary)
-        for name in ("launch-evidence.json", "signed-observer-bundle.json", "bundle-identity.json"):
+        for name in (
+            "launch-evidence.json", "signed-observer-bundle.json",
+            "bundle-identity.json", ATTESTATION_BUNDLE_NAME,
+        ):
             (bundle / name).write_bytes(files[name])
         # Authenticate the immutable permanent subject before allowing an old
         # observer timestamp to enter deterministic completed-state replay.
         verify_attestation(
-            bundle, repository=repository, workflow=index["workflow"],
+            bundle, bundle_path=bundle / ATTESTATION_BUNDLE_NAME,
+            repository=repository, workflow=index["workflow"],
             source_ref=index["source_ref"], source_digest=source_digest,
         )
         _, derived = build_bundle(
@@ -793,6 +818,7 @@ def verify_completed_state(
             verify_observer=True, observer_public_key=observer_public_key,
             observer_key_id=observer_key_id, enforce_observer_freshness=False,
         )
+        derived = attach_attestation_bundle(derived, files[ATTESTATION_BUNDLE_NAME])
         write_bundle(bundle, derived)
     if files != derived:
         fail("completed permanent evidence root is not the exact canonical bundle")
@@ -879,6 +905,7 @@ def main() -> int:
     verify = commands.add_parser("verify-bundle")
     common_arguments(verify)
     verify.add_argument("--verify-attestation", action="store_true")
+    verify.add_argument("--attestation-bundle", type=Path)
     verify.add_argument("--output", type=Path)
     commit = commands.add_parser("commit")
     common_arguments(commit)
@@ -886,6 +913,7 @@ def main() -> int:
     commit.add_argument("--ledger-repo", type=Path, required=True)
     commit.add_argument("--main-parent", required=True)
     commit.add_argument("--ledger-parent", required=True)
+    commit.add_argument("--attestation-bundle", type=Path, required=True)
     commit.add_argument("--output", type=Path, required=True)
     completed = commands.add_parser("verify-completed")
     completed.add_argument("--source-repo", type=Path, required=True)
@@ -937,12 +965,23 @@ def main() -> int:
         else:
             verify_exact_bundle(args.artifact_dir, files)
             if getattr(args, "verify_attestation", False):
+                if args.attestation_bundle is None:
+                    fail("--verify-attestation requires --attestation-bundle")
                 verify_attestation(
-                    args.artifact_dir, repository=args.repository, workflow=args.workflow,
+                    args.artifact_dir, bundle_path=args.attestation_bundle,
+                    repository=args.repository, workflow=args.workflow,
                     source_ref=args.source_ref, source_digest=args.source_digest,
                 )
             values = {"launch_evidence_digest": digest}
             if args.command == "commit":
+                verify_attestation(
+                    args.artifact_dir, bundle_path=args.attestation_bundle,
+                    repository=args.repository, workflow=args.workflow,
+                    source_ref=args.source_ref, source_digest=args.source_digest,
+                )
+                files = attach_attestation_bundle(
+                    files, read_attestation_bundle(args.attestation_bundle),
+                )
                 values = materialize_commits(
                     args.source_repo, args.ledger_repo, args.artifact_dir, files,
                     repository=args.repository, main_parent=args.main_parent,
