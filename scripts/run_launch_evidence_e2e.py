@@ -29,7 +29,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from directory_publication import (  # noqa: E402
@@ -312,6 +312,14 @@ CLIENT_ROOTS = {
     "vscode": ".config/Code/User",
 }
 SECRET_NAME = re.compile(r"(?i)(token|secret|password|cookie|authorization|oauth[_-]?code)")
+GITHUB_API_ORIGIN = "https://api.github.com"
+
+
+class RejectRedirects(HTTPRedirectHandler):
+    """Never forward a credential to a redirect target."""
+
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        return None
 
 
 def complete_acquisition_proof(
@@ -562,13 +570,11 @@ def valid_copilot_installation(
     )
 
 
-def bounded_https_get(url: str, *, maximum: int, accept: str = "application/octet-stream", token: str | None = None) -> bytes:
+def bounded_https_get(url: str, *, maximum: int, accept: str = "application/octet-stream") -> bytes:
     parsed = urlsplit(url)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.fragment:
         raise ValueError("launch evidence downloads require credential-free HTTPS URLs")
     headers = {"Accept": accept, "User-Agent": "uap-stable-launch-evidence/1"}
-    if token:
-        headers["Authorization"] = "Bearer " + token
     try:
         with urlopen(Request(url, headers=headers), timeout=60) as response:
             body = response.read(maximum + 1)
@@ -579,10 +585,50 @@ def bounded_https_get(url: str, *, maximum: int, accept: str = "application/octe
     return body
 
 
+def github_api_get(url: str, *, maximum: int, token: str | None = None) -> bytes:
+    """Fetch exact GitHub API JSON without allowing credentialed redirects."""
+    parsed = urlsplit(url)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "api.github.com"
+        or parsed.port is not None
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or not parsed.path.startswith("/repos/")
+    ):
+        raise ValueError("GitHub credentials are restricted to exact api.github.com repository JSON URLs")
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "uap-stable-launch-evidence/1",
+    }
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    try:
+        opener = build_opener(RejectRedirects())
+        with opener.open(Request(url, headers=headers), timeout=60) as response:
+            if response.geturl() != url:
+                raise ValueError("credentialed GitHub API requests must not redirect")
+            body = response.read(maximum + 1)
+    except (HTTPError, URLError, TimeoutError) as error:
+        raise ValueError("failed to fetch exact GitHub API JSON without redirecting credentials") from error
+    if len(body) > maximum:
+        raise ValueError("GitHub API response exceeds stable launch size bound")
+    return body
+
+
 def github_json(repository: str, path: str, *, token: str | None = None) -> dict[str, Any]:
-    body = bounded_https_get(
-        f"https://api.github.com/repos/{repository}/{path.lstrip('/')}", maximum=2 << 20,
-        accept="application/vnd.github+json", token=token,
+    if repository != TRUSTED_CLI_RELEASE_REPOSITORY or not GITHUB_REPOSITORY.fullmatch(repository):
+        raise ValueError("GitHub API release resolution is restricted to the trusted CLI repository")
+    normalized_path = path.lstrip("/")
+    if not re.fullmatch(
+        r"(?:releases/tags/agentplugins-v[0-9]+\.[0-9]+\.[0-9]+|git/ref/tags/agentplugins-v[0-9]+\.[0-9]+\.[0-9]+|git/tags/[a-f0-9]{40})",
+        normalized_path,
+    ):
+        raise ValueError("GitHub API release resolution requires an exact release or tag JSON path")
+    body = github_api_get(
+        f"{GITHUB_API_ORIGIN}/repos/{repository}/{normalized_path}", maximum=2 << 20, token=token,
     )
     value = json.loads(body)
     if not isinstance(value, dict):
@@ -665,7 +711,7 @@ def resolve_github_release(
         "agentplugins_" + tag.removeprefix("agentplugins-v") + "_windows_amd64.exe",
         "agentplugins_" + tag.removeprefix("agentplugins-v") + "_windows_arm64.exe",
     }
-    if set(api_assets) != expected_release_assets:
+    if len(release.get("assets", [])) != len(expected_release_assets) or set(api_assets) != expected_release_assets:
         raise ValueError("GitHub release does not contain the exact stable native asset set")
     manifest_api = api_assets.get(RELEASE_MANIFEST_NAME)
     checksums_api = api_assets.get(RELEASE_CHECKSUMS_NAME)
@@ -674,10 +720,21 @@ def resolve_github_release(
         raise ValueError("GitHub release is missing manifest/checksums or selected asset")
 
     def fetch(asset: dict[str, Any], limit: int) -> bytes:
-        url = str(asset.get("url", ""))
+        name = str(asset.get("name", ""))
+        url = str(asset.get("browser_download_url", ""))
+        expected_url = f"https://github.com/{repository}/releases/download/{tag}/{name}"
+        if url != expected_url:
+            raise ValueError("GitHub release asset has an untrusted browser_download_url")
+        expected_size = asset.get("size")
+        if not isinstance(expected_size, int) or expected_size < 0 or expected_size > limit:
+            raise ValueError("GitHub release asset has an invalid or excessive API size")
         if fixture_fetch:
-            return fixture_fetch(url, limit, "application/octet-stream")
-        return bounded_https_get(url, maximum=limit, accept="application/octet-stream", token=token)
+            body = fixture_fetch(url, limit, "application/octet-stream")
+        else:
+            body = bounded_https_get(url, maximum=limit, accept="application/octet-stream")
+        if len(body) != expected_size:
+            raise ValueError("GitHub release asset bytes disagree with the API size")
+        return body
 
     manifest_body = fetch(manifest_api, 1 << 20)
     manifest = json.loads(manifest_body)
@@ -720,6 +777,106 @@ def resolve_github_release(
     attestation = verifier(destination, repository, TRUSTED_CLI_RELEASE_WORKFLOW, tag, tag_commit, "sha256:" + declared["sha256"])
     (destination.parent / f"{asset_name}.attestation.json").write_text(json.dumps(attestation, sort_keys=True) + "\n")
     return destination, manifest, manifest_digest
+
+
+def validate_prepared_github_release(
+    prepared_root: Path, prepared: dict[str, Any], asset_name: str,
+) -> tuple[Path, dict[str, Any], dict[str, Any], str, str]:
+    """Validate immutable, previously authenticated release inputs without networking."""
+    config = read_production_config()
+    release_dir = prepared_root / "release"
+    paths = {
+        "binary": release_dir / asset_name,
+        "manifest": release_dir / RELEASE_MANIFEST_NAME,
+        "checksums": release_dir / RELEASE_CHECKSUMS_NAME,
+        "identity": release_dir / "github-release-identity.json",
+        "attestation": release_dir / f"{asset_name}.attestation.json",
+    }
+    resolved_release_dir = release_dir.resolve()
+    if (
+        release_dir.is_symlink()
+        or resolved_release_dir.parent != prepared_root.resolve()
+        or any(
+            path.is_symlink() or not path.is_file() or path.resolve().parent != resolved_release_dir
+            for path in paths.values()
+        )
+    ):
+        raise ValueError("prepared release inputs must be regular files in the authenticated release directory")
+    if any(
+        paths[name].stat().st_size > (1 << 20)
+        for name in ("manifest", "checksums", "identity", "attestation")
+    ):
+        raise ValueError("prepared release metadata exceeds stable launch size bounds")
+
+    manifest_body = paths["manifest"].read_bytes()
+    checksums_body = paths["checksums"].read_bytes()
+    manifest = json.loads(manifest_body)
+    identity = json.loads(paths["identity"].read_text())
+    attestation = json.loads(paths["attestation"].read_text())
+    manifest_digest = "sha256:" + hashlib.sha256(manifest_body).hexdigest()
+    checksums_digest = "sha256:" + hashlib.sha256(checksums_body).hexdigest()
+    tag = prepared.get("cli_release_tag")
+    validate_release_manifest(
+        manifest,
+        repository=config["cli_release_repository"],
+        tag=str(tag),
+        tag_commit=str(identity.get("tag_commit", "")),
+    )
+    if (
+        manifest != prepared.get("release_manifest")
+        or manifest_digest != prepared.get("release_manifest_digest")
+        or checksums_digest != prepared.get("release_checksums_digest")
+        or identity != prepared.get("github_release_identity")
+        or set(identity) != {"repository", "tag", "tag_commit", "release_id", "immutable"}
+        or identity.get("repository") != config["cli_release_repository"]
+        or identity.get("tag") != config["cli_release_tag"]
+        or identity.get("tag_commit") != config["cli_release_commit"]
+        or not isinstance(identity.get("release_id"), int)
+        or isinstance(identity.get("release_id"), bool)
+        or identity["release_id"] <= 0
+        or identity.get("immutable") is not True
+    ):
+        raise ValueError("prepared release metadata differs from the immutable reviewed identity")
+
+    checksum_entries: dict[str, str] = {}
+    for line in checksums_body.decode("ascii").splitlines():
+        match = re.fullmatch(r"([a-f0-9]{64})  ([A-Za-z0-9_.-]+)", line)
+        if not match or match.group(2) in checksum_entries:
+            raise ValueError("prepared checksums.txt is non-canonical")
+        checksum_entries[match.group(2)] = match.group(1)
+    checksum_names = {item["file"] for item in manifest["assets"].values()} | {RELEASE_MANIFEST_NAME}
+    if (
+        set(checksum_entries) != checksum_names
+        or checksum_entries[RELEASE_MANIFEST_NAME] != manifest_digest.removeprefix("sha256:")
+    ):
+        raise ValueError("prepared checksums do not authenticate the exact release manifest asset set")
+
+    declared = next((item for item in manifest["assets"].values() if item["file"] == asset_name), None)
+    if declared is None or paths["binary"].stat().st_size != declared["size"] or declared["size"] > (1 << 28):
+        raise ValueError("prepared native asset has an invalid or excessive size")
+    binary_body = paths["binary"].read_bytes()
+    binary_digest = "sha256:" + hashlib.sha256(binary_body).hexdigest()
+    authenticated_asset = prepared.get("authenticated_asset")
+    if (
+        len(binary_body) != declared["size"]
+        or binary_digest != "sha256:" + declared["sha256"]
+        or checksum_entries.get(asset_name) != declared["sha256"]
+        or authenticated_asset != {"name": asset_name, "digest": binary_digest}
+    ):
+        raise ValueError("prepared native asset bytes differ from the authenticated manifest/checksum identity")
+
+    expected_attestation = {
+        "repository": config["cli_release_repository"],
+        "workflow": config["cli_release_workflow"],
+        "tag": config["cli_release_tag"],
+        "tag_commit": config["cli_release_commit"],
+        "asset_name": asset_name,
+        "asset_digest": binary_digest,
+        "verified": True,
+    }
+    if attestation != expected_attestation or attestation != prepared.get("github_asset_attestation"):
+        raise ValueError("prepared native asset attestation differs from the trusted release identity")
+    return paths["binary"], manifest, identity, manifest_digest, checksums_digest
 
 
 def verify_github_asset_attestation(
@@ -2870,16 +3027,16 @@ def main() -> int:
             },
         )
         observer_bundle_digest = sha256_file(args.observer_bundle)
-        binary_path, resolved_manifest, resolved_digest = resolve_github_release(
-            config["cli_release_repository"], release_tag, prepared_root / "release" / args.asset_name,
-            asset_name=args.asset_name, token=None,
+        binary_path, resolved_manifest, resolved_identity, resolved_digest, resolved_checksums_digest = (
+            validate_prepared_github_release(prepared_root, prepared, args.asset_name)
         )
-        if resolved_manifest != release_manifest or resolved_digest != release_manifest_digest:
-            raise ValueError("fresh GitHub resolution differs from the prepared immutable release")
-        if json.loads((prepared_root / "release" / "github-release-identity.json").read_text()) != release_identity:
-            raise ValueError("fresh GitHub release identity differs from the prepared immutable release")
-        if sha256_file(prepared_root / "release" / RELEASE_CHECKSUMS_NAME) != release_checksums_digest:
-            raise ValueError("fresh GitHub checksums differ from the prepared immutable release")
+        if (
+            resolved_manifest != release_manifest
+            or resolved_identity != release_identity
+            or resolved_digest != release_manifest_digest
+            or resolved_checksums_digest != release_checksums_digest
+        ):
+            raise ValueError("validated prepared release differs from the authenticated context")
         declared = next(item for item in release_manifest["assets"].values() if item["file"] == args.asset_name)
         prepared_asset_digest = prepared.get("authenticated_asset", {}).get("digest")
         prepared_attestation = prepared.get("github_asset_attestation")

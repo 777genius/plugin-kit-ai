@@ -45,7 +45,7 @@ def main() -> int:
     release_tag = config["cli_release_tag"]
     asset, manifest, release_digest = resolve_github_release(
         cli_repository, release_tag, args.run_root / "release" / args.asset_name,
-        asset_name=args.asset_name, token=None,
+        asset_name=args.asset_name, token=os.environ.get("GH_TOKEN"),
     )
     release_identity = json.loads((args.run_root / "release" / "github-release-identity.json").read_text())
     if (

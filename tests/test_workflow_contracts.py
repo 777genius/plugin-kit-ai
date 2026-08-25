@@ -235,7 +235,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('"cli_release_commit": "caffa9ac2a962462a05d5342250f4810ddce0856"', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
-        self.assertIn("token=None", prepare)
+        self.assertIn('token=os.environ.get("GH_TOKEN")', prepare)
         self.assertNotIn("fetch_production_directory", prepare)
         self.assertIn("fetch_staged_directory", prepare)
         self.assertNotIn('config["cli_release_id"]', prepare)

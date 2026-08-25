@@ -1105,14 +1105,15 @@ with tempfile.TemporaryDirectory() as temporary:
         checksums_body = "".join(
             f"{e2e.hashlib.sha256(body).hexdigest()}  {name}\n" for name, body in checksum_bodies
         ).encode()
-        api_assets = [{"name": e2e.RELEASE_MANIFEST_NAME, "url": "https://api.github.test/manifest", "size": len(manifest_body)}]
-        api_assets.append({"name": e2e.RELEASE_CHECKSUMS_NAME, "url": "https://api.github.test/checksums", "size": len(checksums_body)})
-        api_assets += [{"name": name, "url": f"https://api.github.test/{name}", "size": len(body)} for _, name, body in slots]
+        download = f"https://github.com/{e2e.TRUSTED_CLI_RELEASE_REPOSITORY}/releases/download/agentplugins-v1.2.3"
+        api_assets = [{"name": e2e.RELEASE_MANIFEST_NAME, "browser_download_url": f"{download}/{e2e.RELEASE_MANIFEST_NAME}", "size": len(manifest_body)}]
+        api_assets.append({"name": e2e.RELEASE_CHECKSUMS_NAME, "browser_download_url": f"{download}/{e2e.RELEASE_CHECKSUMS_NAME}", "size": len(checksums_body)})
+        api_assets += [{"name": name, "browser_download_url": f"{download}/{name}", "size": len(body)} for _, name, body in slots]
         release = {"id": 123, "draft": False, "prerelease": False, "immutable": True, "tag_name": "agentplugins-v1.2.3", "assets": api_assets}
         bodies = {
-            "https://api.github.test/manifest": manifest_body,
-            "https://api.github.test/checksums": checksums_body,
-            **{f"https://api.github.test/{name}": body for _, name, body in slots},
+            f"{download}/{e2e.RELEASE_MANIFEST_NAME}": manifest_body,
+            f"{download}/{e2e.RELEASE_CHECKSUMS_NAME}": checksums_body,
+            **{f"{download}/{name}": body for _, name, body in slots},
         }
 
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(e2e, "github_json", return_value=release), mock.patch.object(e2e, "resolve_tag_commit", return_value="a" * 40):
@@ -1127,7 +1128,7 @@ with tempfile.TemporaryDirectory() as temporary:
             self.assertEqual(digest, "sha256:" + e2e.hashlib.sha256(manifest_body).hexdigest())
             self.assertEqual((destination.parent / e2e.RELEASE_CHECKSUMS_NAME).read_bytes(), checksums_body)
 
-            tampered = {**bodies, "https://api.github.test/agentplugins_1.2.3_linux_amd64": b"tampered-bytes"}
+            tampered = {**bodies, f"{download}/agentplugins_1.2.3_linux_amd64": b"x" * len(selected)}
             with self.assertRaisesRegex(ValueError, "digest disagrees"):
                 e2e.resolve_github_release(
                     e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "agentplugins-v1.2.3", Path(tmp) / "tampered",
@@ -1136,7 +1137,7 @@ with tempfile.TemporaryDirectory() as temporary:
                     attestation_verifier=lambda *_args: {},
                 )
 
-            tampered_checksums = {**bodies, "https://api.github.test/checksums": checksums_body.replace(b"  release-manifest.json", b"  renamed-manifest.json")}
+            tampered_checksums = {**bodies, f"{download}/{e2e.RELEASE_CHECKSUMS_NAME}": checksums_body.replace(b"  release-manifest.json", b"  renamed-manifest.json")}
             with self.assertRaisesRegex(ValueError, "exact manifest asset set"):
                 e2e.resolve_github_release(
                     e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "agentplugins-v1.2.3", Path(tmp) / "bad-checksums",
@@ -1151,6 +1152,138 @@ with tempfile.TemporaryDirectory() as temporary:
                     asset_name="agentplugins_1.2.3_linux_amd64", fixture_fetch=lambda url, _limit, _accept: bodies[url],
                     attestation_verifier=lambda *_args: {},
                 )
+
+            untrusted_assets = [dict(item) for item in api_assets]
+            untrusted_assets[0]["browser_download_url"] = "https://objects.example.test/release-manifest.json"
+            with (
+                mock.patch.object(e2e, "github_json", return_value={**release, "assets": untrusted_assets}),
+                self.assertRaisesRegex(ValueError, "untrusted browser_download_url"),
+            ):
+                e2e.resolve_github_release(
+                    e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "agentplugins-v1.2.3", Path(tmp) / "untrusted-url",
+                    asset_name="agentplugins_1.2.3_linux_amd64",
+                    fixture_fetch=lambda url, _limit, _accept: bodies[url],
+                    attestation_verifier=lambda *_args: {},
+                )
+
+    def test_github_token_is_scoped_to_exact_api_json_and_redirects_are_rejected(self) -> None:
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"id": 1}'
+        url = f"https://api.github.com/repos/{e2e.TRUSTED_CLI_RELEASE_REPOSITORY}/releases/tags/agentplugins-v1.2.3"
+        response.geturl.return_value = url
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch.object(e2e, "build_opener", return_value=opener):
+            self.assertEqual(e2e.github_api_get(url, maximum=1024, token="secret"), b'{"id": 1}')
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.get_header("Authorization"), "Bearer secret")
+        with self.assertRaisesRegex(ValueError, "restricted to exact api.github.com"):
+            e2e.github_api_get("https://github.com/release", maximum=1024, token="secret")
+        response.geturl.return_value = "https://attacker.example/redirect"
+        with (
+            mock.patch.object(e2e, "build_opener", return_value=opener),
+            self.assertRaisesRegex(ValueError, "must not redirect"),
+        ):
+            e2e.github_api_get(url, maximum=1024, token="secret")
+        with mock.patch.object(e2e, "github_api_get", return_value=b'{"id": 1}') as api_get:
+            self.assertEqual(
+                e2e.github_json(
+                    e2e.TRUSTED_CLI_RELEASE_REPOSITORY,
+                    "releases/tags/agentplugins-v1.2.3",
+                    token="secret",
+                ),
+                {"id": 1},
+            )
+        self.assertEqual(api_get.call_args.kwargs["token"], "secret")
+        with self.assertRaisesRegex(ValueError, "trusted CLI repository"):
+            e2e.github_json("attacker/example", "releases/tags/agentplugins-v1.2.3", token="secret")
+        with self.assertRaisesRegex(ValueError, "exact release or tag JSON path"):
+            e2e.github_json(e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "issues", token="secret")
+
+    def test_prepared_release_validation_is_offline_and_rejects_changed_bytes(self) -> None:
+        config = e2e.read_production_config()
+        version = config["cli_release_tag"].removeprefix("agentplugins-v")
+        selected_name = f"agentplugins_{version}_linux_amd64"
+        selected_body = b"authenticated native binary"
+        asset_names = {
+            "darwin-amd64": f"agentplugins_{version}_darwin_amd64",
+            "darwin-arm64": f"agentplugins_{version}_darwin_arm64",
+            "linux-amd64": selected_name,
+            "linux-arm64": f"agentplugins_{version}_linux_arm64",
+            "windows-amd64": f"agentplugins_{version}_windows_amd64.exe",
+            "windows-arm64": f"agentplugins_{version}_windows_arm64.exe",
+        }
+        bodies = {
+            name: selected_body if name == selected_name else key.encode()
+            for key, name in asset_names.items()
+        }
+        manifest = {
+            "schema_version": 2,
+            "tag": config["cli_release_tag"],
+            "commit": config["cli_release_commit"],
+            "version": version,
+            "assets": {
+                key: {
+                    "file": name,
+                    "sha256": e2e.hashlib.sha256(bodies[name]).hexdigest(),
+                    "size": len(bodies[name]),
+                }
+                for key, name in asset_names.items()
+            },
+        }
+        manifest_body = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+        checksums_body = "".join(
+            f"{e2e.hashlib.sha256(body).hexdigest()}  {name}\n"
+            for name, body in [*bodies.items(), (e2e.RELEASE_MANIFEST_NAME, manifest_body)]
+        ).encode()
+        binary_digest = "sha256:" + e2e.hashlib.sha256(selected_body).hexdigest()
+        identity = {
+            "repository": config["cli_release_repository"],
+            "tag": config["cli_release_tag"],
+            "tag_commit": config["cli_release_commit"],
+            "release_id": 123,
+            "immutable": True,
+        }
+        attestation = {
+            "repository": config["cli_release_repository"],
+            "workflow": config["cli_release_workflow"],
+            "tag": config["cli_release_tag"],
+            "tag_commit": config["cli_release_commit"],
+            "asset_name": selected_name,
+            "asset_digest": binary_digest,
+            "verified": True,
+        }
+        prepared = {
+            "cli_release_tag": config["cli_release_tag"],
+            "release_manifest": manifest,
+            "release_manifest_digest": "sha256:" + e2e.hashlib.sha256(manifest_body).hexdigest(),
+            "release_checksums_digest": "sha256:" + e2e.hashlib.sha256(checksums_body).hexdigest(),
+            "github_release_identity": identity,
+            "authenticated_asset": {"name": selected_name, "digest": binary_digest},
+            "github_asset_attestation": attestation,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            release_dir = root / "release"
+            release_dir.mkdir()
+            (release_dir / selected_name).write_bytes(selected_body)
+            (release_dir / e2e.RELEASE_MANIFEST_NAME).write_bytes(manifest_body)
+            (release_dir / e2e.RELEASE_CHECKSUMS_NAME).write_bytes(checksums_body)
+            (release_dir / "github-release-identity.json").write_text(json.dumps(identity))
+            (release_dir / f"{selected_name}.attestation.json").write_text(json.dumps(attestation))
+            with mock.patch.object(
+                e2e, "resolve_github_release", side_effect=AssertionError("network re-resolution is forbidden")
+            ):
+                path, resolved, resolved_identity, _, _ = e2e.validate_prepared_github_release(
+                    root, prepared, selected_name
+                )
+            self.assertEqual(path.read_bytes(), selected_body)
+            self.assertEqual(resolved, manifest)
+            self.assertEqual(resolved_identity, identity)
+            path.write_bytes(b"x" * len(selected_body))
+            with self.assertRaisesRegex(ValueError, "prepared native asset bytes differ"):
+                e2e.validate_prepared_github_release(root, prepared, selected_name)
 
     def test_github_attestation_rejects_missing_or_wrong_subject(self) -> None:
         verified = mock.Mock(returncode=0, stdout="[]", stderr="")
@@ -1411,7 +1544,10 @@ with tempfile.TemporaryDirectory() as temporary:
                 self.fixture_harness(Path(tmp))
 
     def test_isolated_environment_has_separate_roots_and_drops_auth(self) -> None:
-        inherited = {"PATH": "/bin", "HOME": "/real/home", "GITHUB_TOKEN": "secret", "AWS_SECRET_ACCESS_KEY": "secret"}
+        inherited = {
+            "PATH": "/bin", "HOME": "/real/home", "GH_TOKEN": "secret",
+            "GITHUB_TOKEN": "secret", "AWS_SECRET_ACCESS_KEY": "secret",
+        }
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, inherited, clear=True):
             sandbox = Path(tmp) / "scenario"
             sandbox.mkdir()
@@ -1419,6 +1555,7 @@ with tempfile.TemporaryDirectory() as temporary:
             roots = {env[name] for name in ("HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AGENTPLUGINS_HOME", "AGENTPLUGINS_EVIDENCE_ROOT")}
             self.assertEqual(len(roots), 5)
             self.assertNotIn("GITHUB_TOKEN", env)
+            self.assertNotIn("GH_TOKEN", env)
             self.assertNotIn("AWS_SECRET_ACCESS_KEY", env)
             self.assertTrue(all(Path(path).is_relative_to(sandbox) for path in roots))
 
