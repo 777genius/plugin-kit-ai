@@ -153,7 +153,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install verification dependencies
-        run: python -m pip install cryptography==46.0.3 jsonschema==4.26.0
+        run: python -m pip install cryptography==46.0.3 jsonschema==4.26.0 tzdata==2026.3
       - name: Resolve the fixed upstream CLI release and staged Directory
         shell: bash
         env:
@@ -208,7 +208,7 @@ jobs:
         with: {python-version: "3.13"}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: {node-version: "22"}
-      - run: python -m pip install cryptography==46.0.3 jsonschema==4.26.0
+      - run: python -m pip install cryptography==46.0.3 jsonschema==4.26.0 tzdata==2026.3
       - name: Resolve and install the exact registry-authenticated npm facade
         env:
           GH_TOKEN: ${{ github.token }}
@@ -227,6 +227,7 @@ jobs:
             --caller-workflow-ref "${{ inputs.caller_workflow_ref }}" \
             --run-root "$run_root" --output "$run_root/context.json"
           unset GH_TOKEN GITHUB_TOKEN
+          export AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"
           mkdir "$run_root/npm-audit"
           cd "$run_root/npm-audit"
           npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.14
@@ -237,9 +238,9 @@ jobs:
           test -d "$npm_package_root"
           test "$(node --version | cut -d. -f1)" = v22
           python scripts/observe_release_facade.py --context "$run_root/context.json" \
-            --executable agentplugins --asset-name agentplugins_0.1.14_linux_amd64 \
+            --executable "$npm_package_root/bin/agentplugins.js" --asset-name agentplugins_0.1.14_linux_amd64 \
             --kind npm --os any --architecture any --node-major 22 --npm-project "$run_root/npm-audit" \
-            --npm-package-root "$npm_package_root" \
+            --npm-package-root "$npm_package_root" --npm-binary-cache "$AGENTPLUGINS_CACHE_DIR" \
             --output npm-observation.json
           sha256sum npm-observation.json > npm-observation.SHA256SUMS
           mkdir prepared-observer-context prepared-producer-inputs

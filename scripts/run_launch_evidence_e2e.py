@@ -894,6 +894,17 @@ def parse_stable_version(value: str) -> tuple[int, int, int]:
     return parsed
 
 
+def portable_ed25519_verify(public_key: bytes, message: bytes, signature: bytes) -> None:
+    """Verify Directory signatures with the pinned cross-platform dependency."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    try:
+        Ed25519PublicKey.from_public_bytes(public_key).verify(signature, message)
+    except (InvalidSignature, ValueError) as error:
+        raise PublicationError("Ed25519 signature verification failed") from error
+
+
 def validated_directory_environment(
     origin: str, snapshot_path: Path, envelope_path: Path, trust_path: Path
 ) -> tuple[dict[str, str], dict[str, Any], str]:
@@ -907,7 +918,12 @@ def validated_directory_environment(
         envelope = parse_json_bytes(envelope_bytes, "Directory envelope", max_bytes=MAX_ENVELOPE_BYTES)
         if canonical_json(snapshot) != snapshot_bytes or canonical_json(envelope) != envelope_bytes:
             raise PublicationError("Directory snapshot and envelope must be canonical JSON")
-        verify_envelope(snapshot_bytes, envelope, load_public_keys(trust_path))
+        verify_envelope(
+            snapshot_bytes,
+            envelope,
+            load_public_keys(trust_path),
+            signature_verifier=portable_ed25519_verify,
+        )
         validate_snapshot_semantics(snapshot)
         if envelope["sequence"] != snapshot["sequence"] or envelope["snapshot_schema_version"] != snapshot["snapshot_schema_version"]:
             raise PublicationError("Directory envelope identity does not match snapshot")

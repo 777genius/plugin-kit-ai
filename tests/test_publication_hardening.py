@@ -426,8 +426,10 @@ class WorkflowHardeningTests(unittest.TestCase):
         self.assertIn("dpkg --verify", commands)
         self.assertNotIn("jsonschema", commands)
         signer_source = (SCRIPTS / "sign_directory_publication.py").read_text()
+        publication_source = (SCRIPTS / "directory_publication.py").read_text()
         self.assertNotIn("validate_with_schema", signer_source)
         self.assertNotIn("jsonschema", signer_source)
+        self.assertNotIn("cryptography", publication_source)
 
     def test_evidence_attestation_uses_verified_system_tools_without_signing_seed(self) -> None:
         workflow = yaml.load((ROOT / ".github" / "workflows" / "directory-publication.yml").read_text(), Loader=yaml.BaseLoader)

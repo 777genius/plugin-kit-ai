@@ -1229,12 +1229,19 @@ with tempfile.TemporaryDirectory() as temporary:
 
     def test_npm_installed_executable_must_equal_authenticated_native_asset(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            executable = Path(tmp) / "agentplugins"
+            executable = Path(tmp) / "0.1.14" / "linux-amd64" / "agentplugins"
+            executable.parent.mkdir(parents=True)
             executable.write_bytes(b"prints-correct-version-but-is-not-release-binary")
             executable.chmod(0o700)
             native = {"sha256": e2e.hashlib.sha256(b"real-release-binary").hexdigest(), "size": len(b"real-release-binary")}
             with self.assertRaisesRegex(RuntimeError, "does not match"):
                 facade.verify_installed_npm_payload(Path(tmp), native)
+
+            body = b"real-release-binary"
+            executable.write_bytes(body)
+            resolved, digest = facade.verify_installed_npm_payload(Path(tmp), native)
+            self.assertEqual(resolved, executable.resolve())
+            self.assertEqual(digest, "sha256:" + native["sha256"])
 
     def test_npm_resolution_binds_exact_registry_integrity_and_tarball(self) -> None:
         body = b"exact npm tarball"
@@ -1335,6 +1342,19 @@ with tempfile.TemporaryDirectory() as temporary:
         self.assertNotIn("CATALOG", " ".join(env))
         self.assertIn("AGENTPLUGINS_DIRECTORY_ORIGIN", env)
         self.assertEqual(set(env), e2e.DIRECTORY_INPUT_ENVIRONMENT_KEYS)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            invalid_envelope = json.loads((PUBLICATION / "envelope-current.json").read_text())
+            invalid_envelope["signature"] = "A" * 86 + "=="
+            invalid_path = Path(tmp) / "envelope.json"
+            invalid_path.write_bytes(e2e.canonical_json(invalid_envelope))
+            with self.assertRaisesRegex(ValueError, "invalid Ed25519"):
+                e2e.validated_directory_environment(
+                    "https://directory.example.test/registry/",
+                    PUBLICATION / "snapshot.json",
+                    invalid_path,
+                    PUBLICATION / "trusted-keys.json",
+                )
 
     def test_real_binary_directory_environment_has_exact_conformance_tuple(self) -> None:
         directory_environment = {

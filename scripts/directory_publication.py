@@ -18,7 +18,7 @@ import tempfile
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -478,6 +478,7 @@ def validate_directory_records(value: dict[str, Any], *, snapshot: bool) -> None
 def verify_envelope(
     snapshot: bytes, envelope: dict[str, Any], trusted_keys: dict[str, bytes], *,
     validate_schema: bool = True,
+    signature_verifier: Callable[[bytes, bytes, bytes], None] | None = None,
 ) -> None:
     if validate_schema:
         validate_with_schema(envelope, ENVELOPE_SCHEMA)
@@ -489,7 +490,9 @@ def verify_envelope(
     require(key_id in trusted_keys, f"unknown signing key ID {key_id}")
     signature = b64decode_exact(envelope["signature"], 64, "signature")
     try:
-        ed25519_verify(trusted_keys[key_id], signature_message(snapshot), signature)
+        (signature_verifier or ed25519_verify)(
+            trusted_keys[key_id], signature_message(snapshot), signature,
+        )
     except PublicationError as error:
         raise PublicationError("invalid Ed25519 snapshot signature") from error
 
