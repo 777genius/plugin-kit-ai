@@ -25,14 +25,19 @@ type packageVerifier interface {
 // registry. A manager-owned path is not proof that the logical identity is
 // free: another prepared marketplace, local plugin, installed CLI entry, or
 // native config entry can already claim the same manifest identity.
-// Native registry discovery executes trusted, short-lived list commands. On
-// Unix, cancellation kills their live process group, but descendants surviving
-// a normal leader exit are not force-killed after Wait because the PGID can be
-// reused; stronger normal-exit containment is deferred to an OS-native slice.
+// Native registry discovery executes trusted, short-lived list commands. A
+// tree-aware runner is used when available so Linux requires atomic cgroup
+// containment and Windows uses a Job Object. Plain runners remain supported as
+// injected test/provider implementations, but OS execution never claims cleanup
+// based on descendant sampling.
 type NativeIdentityObserver struct {
 	Stager           packageVerifier
 	Runner           CommandRunner
 	DiscoveryTimeout time.Duration
+}
+
+type treeCommandRunner interface {
+	RunWithTreeExitGrace(context.Context, legacyports.Command, time.Duration) (legacyports.CommandResult, error)
 }
 
 const defaultNativeDiscoveryTimeout = 15 * time.Second
@@ -182,7 +187,7 @@ func (observer NativeIdentityObserver) inspectCodexCLI(ctx context.Context, plan
 	if observer.Runner == nil {
 		return registryIndeterminate, nil
 	}
-	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
+	result, err := observer.runNativeRegistry(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list", "--json"}})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return registryIndeterminate, ctxErr
@@ -248,7 +253,7 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 	if observer.Runner == nil {
 		return registryIndeterminate, nil
 	}
-	result, err := observer.Runner.Run(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list"}})
+	result, err := observer.runNativeRegistry(ctx, legacyports.Command{Argv: []string{plan.NativeRegistryExecutable, "plugin", "list"}})
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return registryIndeterminate, ctxErr
@@ -259,6 +264,13 @@ func (observer NativeIdentityObserver) inspectCopilotCLI(ctx context.Context, pl
 		return registryIndeterminate, fmt.Errorf("Copilot plugin registry command failed with exit code %d", result.ExitCode)
 	}
 	return copilotRegistryFinding(result.Stdout, plan.DeclaredName, managedMarketplaceName(plan.PhysicalArtifactID), managed != nil), nil
+}
+
+func (observer NativeIdentityObserver) runNativeRegistry(ctx context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
+	if runner, ok := observer.Runner.(treeCommandRunner); ok {
+		return runner.RunWithTreeExitGrace(ctx, command, time.Second)
+	}
+	return observer.Runner.Run(ctx, command)
 }
 
 func copilotRegistryFinding(stdout []byte, name, expectedMarketplace string, owned bool) registryFinding {

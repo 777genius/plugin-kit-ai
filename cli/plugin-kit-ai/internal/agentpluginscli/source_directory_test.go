@@ -870,6 +870,7 @@ func TestProductionGitHubAcquirerOutputResolvesAsDirectExactSource(t *testing.T)
 	fixture := newCLIFixture(t, nil)
 	fixture.app.SourceAcquirer = sourceacquisition.Acquirer{
 		TempRoot: fixture.root,
+		Runner:   directGitTestRunner{},
 		URLForRepo: func(repository string) string {
 			if repository != "owner/repo" {
 				t.Fatalf("unexpected repository %q", repository)
@@ -887,6 +888,14 @@ func TestProductionGitHubAcquirerOutputResolvesAsDirectExactSource(t *testing.T)
 	if loaded.envelope.Source.CanonicalSource != wantCanonical || loaded.envelope.Source.RequestedSource != requested {
 		t.Fatalf("production acquisition identity = %+v", loaded.envelope.Source)
 	}
+}
+
+type directGitTestRunner struct{}
+
+func (directGitTestRunner) Run(ctx context.Context, command sourceacquisition.Command) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", command.Args...)
+	cmd.Dir = command.Dir
+	return cmd.CombinedOutput()
 }
 
 func TestExistingRelativeDirectoryDoesNotOverrideShortNameForAddOrSwitch(t *testing.T) {

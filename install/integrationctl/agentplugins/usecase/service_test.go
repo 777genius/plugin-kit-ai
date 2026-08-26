@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -776,6 +777,35 @@ func TestRepairAbortsWhenNativeObjectChangesBetweenPreflightAndCommit(t *testing
 	}
 	if len(onlyBinding(after.Installations[0]).Receipts) != len(onlyBinding(before.Installations[0]).Receipts) {
 		t.Fatalf("repair race committed a receipt: %+v", onlyBinding(after.Installations[0]).Receipts)
+	}
+}
+
+func TestKiroCapabilityPreflightFailureChangesNoStateOrNativeConfiguration(t *testing.T) {
+	service, store, _ := serviceFixture(t)
+	activator := &observedActivator{preflightErr: errors.New("manual_activation_required: delegated cgroup unavailable")}
+	service.Activator = activator
+	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
+	input := addInput(t, kiro, "./kiro-capability-preflight")
+	input.BackendExecutable = "/test/bin/kiro-cli"
+	input.Confirmed = true
+	result, err := service.Add(context.Background(), input)
+	if err == nil || !strings.Contains(err.Error(), "manual_activation_required") {
+		t.Fatalf("capability preflight error = %v", err)
+	}
+	if activator.calls != 0 {
+		t.Fatalf("activation ran %d time(s) after failed capability preflight", activator.calls)
+	}
+	state, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("failed capability preflight changed state: %+v", state.Installations)
+	}
+	if result.Plan.ActivePath != "" {
+		if _, statErr := os.Lstat(result.Plan.ActivePath); !os.IsNotExist(statErr) {
+			t.Fatalf("failed capability preflight materialized native path: %v", statErr)
+		}
 	}
 }
 
@@ -1815,9 +1845,14 @@ func (stager *changingRepairStager) Verify(ctx context.Context, root, expected s
 }
 
 type observedActivator struct {
-	outcome domain.ActivationOutcome
-	err     error
-	calls   int
+	outcome      domain.ActivationOutcome
+	err          error
+	preflightErr error
+	calls        int
+}
+
+func (activator *observedActivator) PreflightActivation(domain.ActivationRequest) error {
+	return activator.preflightErr
 }
 
 type fixedUsecaseRunner struct {

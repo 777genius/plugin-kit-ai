@@ -3,27 +3,49 @@
 package process
 
 import (
-	"os"
+	"context"
+	"fmt"
 	"os/exec"
+	"runtime"
+	"time"
 )
 
-type commandTree struct {
+type commandContainment struct {
 	cmd *exec.Cmd
 }
 
-func newCommandTree(cmd *exec.Cmd) (*commandTree, error) {
-	tree := &commandTree{cmd: cmd}
-	cmd.Cancel = tree.terminate
-	return tree, nil
+func explicitContainmentSupervision() bool { return true }
+
+func duplexContainmentPreflight() error {
+	return fmt.Errorf("safe duplex process containment unavailable on this platform; manual activation required")
 }
 
-func (*commandTree) attach(*exec.Cmd) error { return nil }
+func naturalExitNeedsContainmentCleanup() bool { return false }
 
-func (tree *commandTree) terminate() error {
-	if tree.cmd.Process == nil {
-		return os.ErrProcessDone
-	}
-	return tree.cmd.Process.Kill()
+func plannedTerminationExitExpected(error) bool { return false }
+
+func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
+	return nil, fmt.Errorf("process execution is unsupported on %s", runtime.GOOS)
 }
 
-func (*commandTree) close() {}
+func newOrdinaryCommandContainment(cmd *exec.Cmd, _ time.Duration) (*commandContainment, error) {
+	return newCommandContainment(cmd)
+}
+
+func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
+	return nil, duplexContainmentPreflight()
+}
+
+func (*commandContainment) attach(*exec.Cmd) error { return nil }
+
+func (*commandContainment) limitToProcessGroup() {}
+
+func (*commandContainment) terminate() terminationResult { return terminationResult{} }
+
+func (*commandContainment) exited() (bool, error) { return false, nil }
+
+func (*commandContainment) settleNaturalExit(context.Context, time.Duration) (bool, error) {
+	return false, nil
+}
+
+func (*commandContainment) close() error { return nil }
