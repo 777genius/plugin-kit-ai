@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -15,8 +14,10 @@ import (
 	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
+	processadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/packagedigest"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
+	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
 
 var (
@@ -37,13 +38,19 @@ type Runner interface {
 type OSRunner struct{}
 
 func (OSRunner) Run(ctx context.Context, command Command) ([]byte, error) {
-	process := exec.CommandContext(ctx, "git", command.Args...)
-	process.Dir = command.Dir
-	process.Stdin = bytes.NewReader(command.Stdin)
-	process.Env = isolatedGitEnvironment(os.Environ(), command.Dir)
-	output, err := process.CombinedOutput()
+	if len(command.Stdin) != 0 {
+		return nil, fmt.Errorf("git stdin is unsupported by the contained runner")
+	}
+	result, err := (processadapter.OS{}).RunWithTreeExitGrace(ctx, legacyports.Command{
+		Argv: append([]string{"git"}, command.Args...), Dir: command.Dir,
+		Env: isolatedGitEnvironment(os.Environ(), command.Dir),
+	}, 5*time.Second)
+	output := append(append([]byte(nil), result.Stdout...), result.Stderr...)
 	if err != nil {
 		return nil, fmt.Errorf("git %s failed: %w: %s", strings.Join(command.Args, " "), err, strings.TrimSpace(string(output)))
+	}
+	if result.ExitCode != 0 {
+		return nil, fmt.Errorf("git %s failed with exit code %d: %s", strings.Join(command.Args, " "), result.ExitCode, strings.TrimSpace(string(output)))
 	}
 	return output, nil
 }

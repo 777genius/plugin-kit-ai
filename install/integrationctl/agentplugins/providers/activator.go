@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/pathpolicy"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
@@ -28,7 +29,26 @@ type Activator struct {
 // CLI for this exact request. Runtime preflight consumes this same predicate so
 // it cannot drift from the provider's activation paths.
 func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
-	return activationObservable(request, activator.Runner != nil)
+	if request.Client.ClientID == domain.ClientKiro {
+		return strings.TrimSpace(request.BackendExecutable) != "" && mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+	}
+	return activationObservable(request, activator.Runner)
+}
+
+// PreflightActivation rejects lifecycle configurations that would otherwise
+// discover a missing required capability only after native client mutation.
+func (activator Activator) PreflightActivation(request domain.ActivationRequest) error {
+	if !activator.AutomaticallyActivates(request) || request.Client.ClientID != domain.ClientKiro {
+		return nil
+	}
+	runner, ok := activator.Runner.(duplexCapabilityRunner)
+	if !ok {
+		return fmt.Errorf("manual_activation_required: automatic native Kiro MCP lifecycle requires an ACP duplex process runner with capability preflight")
+	}
+	if err := runner.DuplexCapability(); err != nil {
+		return fmt.Errorf("manual_activation_required: automatic native Kiro MCP lifecycle containment preflight failed: %w", err)
+	}
+	return nil
 }
 
 func (activator Activator) Deactivate(ctx context.Context, request domain.DeactivationRequest) (domain.DeactivationOutcome, error) {
@@ -98,6 +118,9 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 	}
 	if strings.TrimSpace(request.DeclaredName) == "" {
 		return domain.ActivationOutcome{}, fmt.Errorf("activation plugin name is required")
+	}
+	if err := activator.PreflightActivation(request); err != nil {
+		return domain.ActivationOutcome{}, err
 	}
 	if err := pathpolicy.RequireContainedChild(request.Delivery.OwnedBase, request.Delivery.ActivePath); err != nil {
 		return domain.ActivationOutcome{}, fmt.Errorf("unsafe activation artifact: %w", err)
@@ -178,26 +201,26 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		if request.VerifyOnly {
 			if err := activator.verifyKiroMCP(ctx, request); err != nil {
-				if errors.Is(err, errKiroStatusContractUnknown) {
+				if errors.Is(err, errKiroACPContractUnknown) {
 					return manualKiroVerification(outcome, request), nil
 				}
-				return failedActivation(outcome, fmt.Sprintf("verify each server with `%s mcp status --name <server>`", request.BackendExecutable), err)
+				return failedActivation(outcome, fmt.Sprintf("rerun structured Kiro ACP verification with `%s acp --agent-engine v3 --auth-method cli`", request.BackendExecutable), err)
 			}
 			outcome.Activation = domain.ActivationActive
 			outcome.Verification = domain.VerificationInstalled
 			return outcome, nil
 		}
-		if !isKiroCLI(request.BackendExecutable) || activator.Runner == nil {
+		if !activator.AutomaticallyActivates(request) {
 			outcome.Activation = domain.ActivationManual
 			outcome.UserActions = append(outcome.UserActions, "install kiro-cli and rerun add to import and verify the prepared MCP configuration")
-			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("install kiro-cli, rerun add for %s, then verify each MCP server with `kiro-cli mcp status --name <server>`", request.Delivery.ActivePath))
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("install a complete Kiro CLI distribution (including kiro-cli-chat), then rerun add for %s to import and verify the native MCP configuration", request.Delivery.ActivePath))
 			return outcome, nil
 		}
 		if err := activator.activateKiroMCP(ctx, request); err != nil {
-			if errors.Is(err, errKiroStatusContractUnknown) {
+			if errors.Is(err, errKiroACPContractUnknown) {
 				return manualKiroVerification(outcome, request), nil
 			}
-			return failedActivation(outcome, fmt.Sprintf("rerun the MCP import from %s, then verify each server with `%s mcp status --name <server>`", filepath.Join(request.Delivery.ActivePath, "mcp.json"), request.BackendExecutable), err)
+			return failedActivation(outcome, fmt.Sprintf("rerun the MCP import from %s, then retry structured verification with `%s acp --agent-engine v3 --auth-method cli`", filepath.Join(request.Delivery.ActivePath, "mcp.json"), request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -333,43 +356,17 @@ func (activator Activator) activateKiroMCP(ctx context.Context, request domain.A
 }
 
 func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
-	var firstCommandErr error
-	var firstUnknown string
-	var firstUnhealthy string
+	runner, ok := activator.Runner.(duplexCommandRunner)
+	if !ok {
+		return fmt.Errorf("%w: the process runner does not support an ACP duplex exchange", errKiroACPContractUnknown)
+	}
+	var servers []string
 	for _, component := range request.Plan.Components {
-		if component.Kind != domain.ComponentMCPServer {
-			continue
-		}
-		status, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "status", "--name", component.Name)
-		if err != nil {
-			if firstCommandErr == nil {
-				firstCommandErr = fmt.Errorf("verify Kiro MCP server %s: %w", component.Name, err)
-			}
-			continue
-		}
-		switch kiroMCPStatus(status.Stdout, component.Name) {
-		case kiroStatusHealthy:
-			continue
-		case kiroStatusUnhealthy:
-			if firstUnhealthy == "" {
-				firstUnhealthy = component.Name
-			}
-		default:
-			if firstUnknown == "" {
-				firstUnknown = component.Name
-			}
+		if component.Kind == domain.ComponentMCPServer && component.Support != domain.SupportUnsupported {
+			servers = append(servers, component.Name)
 		}
 	}
-	if firstUnhealthy != "" {
-		return fmt.Errorf("%w: verify Kiro MCP server %s: server is not connected", errRecognizedNegativeEvidence, firstUnhealthy)
-	}
-	if firstCommandErr != nil {
-		return firstCommandErr
-	}
-	if firstUnknown != "" {
-		return fmt.Errorf("%w for server %s", errKiroStatusContractUnknown, firstUnknown)
-	}
-	return nil
+	return verifyKiroACP(ctx, runner, request.BackendExecutable, request.Delivery.ActivePath, servers)
 }
 
 func (activator Activator) deactivateCopilot(ctx context.Context, request domain.DeactivationRequest) error {
@@ -527,12 +524,17 @@ func decodeUniqueJSONValue(decoder *json.Decoder) (any, error) {
 	}
 	delimiter, isDelimiter := token.(json.Delim)
 	if !isDelimiter {
+		if number, ok := token.(json.Number); ok {
+			if err := validateACPNumber(number); err != nil {
+				return nil, err
+			}
+		}
 		return token, nil
 	}
 	switch delimiter {
 	case '{':
 		object := make(map[string]any)
-		var keys []string
+		foldedKeys := make(map[string]struct{})
 		for decoder.More() {
 			keyToken, keyErr := decoder.Token()
 			if keyErr != nil {
@@ -542,12 +544,11 @@ func decodeUniqueJSONValue(decoder *json.Decoder) (any, error) {
 			if !ok {
 				return nil, fmt.Errorf("JSON object key is not a string")
 			}
-			for _, prior := range keys {
-				if strings.EqualFold(prior, key) {
-					return nil, fmt.Errorf("duplicate or case-ambiguous JSON object key %q", key)
-				}
+			folded := foldJSONKey(key)
+			if _, duplicate := foldedKeys[folded]; duplicate {
+				return nil, fmt.Errorf("duplicate or case-ambiguous JSON object key %q", key)
 			}
-			keys = append(keys, key)
+			foldedKeys[folded] = struct{}{}
 			value, valueErr := decodeUniqueJSONValue(decoder)
 			if valueErr != nil {
 				return nil, valueErr
@@ -576,6 +577,23 @@ func decodeUniqueJSONValue(decoder *json.Decoder) (any, error) {
 	default:
 		return nil, fmt.Errorf("unexpected JSON delimiter %q", delimiter)
 	}
+}
+
+// foldJSONKey produces a stable representative for each unicode.SimpleFold
+// equivalence class, matching strings.EqualFold without pairwise comparisons.
+func foldJSONKey(key string) string {
+	var folded strings.Builder
+	folded.Grow(len(key))
+	for _, current := range key {
+		representative := current
+		for next := unicode.SimpleFold(current); next != current; next = unicode.SimpleFold(next) {
+			if next < representative {
+				representative = next
+			}
+		}
+		folded.WriteRune(representative)
+	}
+	return folded.String()
 }
 
 var copilotInstalledEntry = regexp.MustCompile(`^[ \t]+•[ \t]+([A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*)[ \t]+\(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\)[ \t]*$`)
@@ -650,52 +668,19 @@ func copilotPluginStatus(stdout []byte, expected string) copilotStatus {
 	return copilotStatusUnknown
 }
 
-func activationObservable(request domain.ActivationRequest, runnerAvailable bool) bool {
-	if !runnerAvailable || strings.TrimSpace(request.BackendExecutable) == "" {
+func activationObservable(request domain.ActivationRequest, runner CommandRunner) bool {
+	if runner == nil || strings.TrimSpace(request.BackendExecutable) == "" {
 		return false
 	}
 	switch request.Client.ClientID {
 	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
 		return true
 	case domain.ClientKiro:
-		return mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+		_, duplexAvailable := runner.(duplexCommandRunner)
+		return duplexAvailable && mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
 	default:
 		return false
 	}
-}
-
-type kiroStatus int
-
-const (
-	kiroStatusUnknown kiroStatus = iota
-	kiroStatusHealthy
-	kiroStatusUnhealthy
-)
-
-var errKiroStatusContractUnknown = errors.New("Kiro MCP status output is not recognized")
-
-func kiroMCPStatus(stdout []byte, expected string) kiroStatus {
-	contract := strings.ReplaceAll(string(stdout), "\r\n", "\n")
-	contract = strings.TrimSuffix(contract, "\n")
-	status := ""
-	if prefix := expected + ": "; strings.HasPrefix(contract, prefix) && !strings.Contains(contract, "\n") {
-		status = strings.TrimPrefix(contract, prefix)
-	} else {
-		lines := strings.Split(contract, "\n")
-		if len(lines) != 2 || lines[0] != "Name: "+expected || !strings.HasPrefix(lines[1], "Status: ") {
-			return kiroStatusUnknown
-		}
-		status = strings.TrimPrefix(lines[1], "Status: ")
-	}
-	if status == "connected" {
-		return kiroStatusHealthy
-	}
-	for _, negative := range []string{"pending", "disconnected", "disabled", "auth-required", "auth required", "authentication required", "error", "failed", "failure"} {
-		if status == negative {
-			return kiroStatusUnhealthy
-		}
-	}
-	return kiroStatusUnknown
 }
 
 func attestedUnknownVerification(outcome domain.ActivationOutcome, request domain.ActivationRequest) (domain.ActivationOutcome, bool) {
@@ -724,7 +709,7 @@ func manualKiroVerification(outcome domain.ActivationOutcome, request domain.Act
 	}
 	outcome.Activation = domain.ActivationManual
 	outcome.UserActions = []string{"confirm each imported MCP server is connected in Kiro"}
-	outcome.LocalActions = []string{fmt.Sprintf("Kiro's documented `%s mcp status --name <server>` output contract was not recognized; inspect each server manually", request.BackendExecutable)}
+	outcome.LocalActions = []string{fmt.Sprintf("Kiro structured ACP verification via `%s acp --agent-engine v3 --auth-method cli` was unavailable or unrecognized; ensure the companion kiro-cli-chat is installed, then inspect each imported server manually", request.BackendExecutable)}
 	return outcome
 }
 

@@ -20,6 +20,7 @@ import (
 )
 
 func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
+	requireNativeIdentityTreeCapability(t)
 	root := t.TempDir()
 	pidPath := filepath.Join(root, "child.pid")
 	executable := filepath.Join(root, "copilot")
@@ -42,12 +43,12 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	}
 	pidFields := strings.Fields(string(body))
 	if len(pidFields) != 2 {
-		t.Fatalf("process tree pids = %q", body)
+		t.Fatalf("process-group pids = %q", body)
 	}
 	for _, field := range pidFields {
 		pid, parseErr := strconv.Atoi(field)
 		if parseErr != nil {
-			t.Fatalf("parse process tree pid %q: %v", field, parseErr)
+			t.Fatalf("parse process-group pid %q: %v", field, parseErr)
 		}
 		if err := waitProcessGone(pid, 2*time.Second); err != nil {
 			_ = syscall.Kill(pid, syscall.SIGKILL)
@@ -56,7 +57,8 @@ func TestNativeIdentityTimeoutReapsAuthoritativeDiscoveryChild(t *testing.T) {
 	}
 }
 
-func TestNativeIdentityNormalExitDoesNotKillByReapedLeaderPGID(t *testing.T) {
+func TestNativeIdentityNormalExitCleansSameGroupMemberBeforeReapingLeader(t *testing.T) {
+	requireNativeIdentityTreeCapability(t)
 	root := t.TempDir()
 	pidPath := filepath.Join(root, "grandchild.pid")
 	executable := filepath.Join(root, "copilot")
@@ -71,8 +73,8 @@ func TestNativeIdentityNormalExitDoesNotKillByReapedLeaderPGID(t *testing.T) {
 	observation, err := (NativeIdentityObserver{
 		Runner: processadapter.OS{}, DiscoveryTimeout: 5 * time.Second,
 	}).ObserveNativeIdentity(context.Background(), domain.DetectedClient{ClientID: domain.ClientCopilot}, plan, nil)
-	if err == nil || observation.State != domain.NativeIdentityIndeterminate {
-		t.Fatalf("observation = %+v, err = %v", observation, err)
+	if err == nil || !strings.Contains(err.Error(), "live descendants that required forced cleanup") || observation.State != domain.NativeIdentityIndeterminate {
+		t.Fatalf("observation = %+v, err = %v, want forced-descendant uncertainty", observation, err)
 	}
 	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("normal-exit background cleanup took %s", elapsed)
@@ -85,11 +87,19 @@ func TestNativeIdentityNormalExitDoesNotKillByReapedLeaderPGID(t *testing.T) {
 	if parseErr != nil {
 		t.Fatalf("parse grandchild pid: %v", parseErr)
 	}
-	if signalErr := syscall.Kill(pid, 0); signalErr != nil {
-		t.Fatalf("normal-exit descendant was unexpectedly killed: %v", signalErr)
+	if err := waitProcessGone(pid, 2*time.Second); err != nil {
+		_ = syscall.Kill(pid, syscall.SIGKILL)
+		t.Fatalf("normal-exit process-group member was not cleaned before leader reap: %v", err)
 	}
-	if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil && !errors.Is(killErr, syscall.ESRCH) {
-		t.Fatalf("clean up normal-exit descendant: %v", killErr)
+}
+
+func requireNativeIdentityTreeCapability(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		return
+	}
+	if err := (processadapter.OS{}).DuplexCapability(); err != nil {
+		t.Skipf("atomic Linux process-tree containment unavailable: %v", err)
 	}
 }
 

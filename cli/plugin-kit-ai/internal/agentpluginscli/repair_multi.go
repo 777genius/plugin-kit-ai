@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	"github.com/spf13/cobra"
 )
+
+const repairSourceResolutionTimeout = 2 * time.Minute
 
 type repairTargetResult struct {
 	Target     string           `json:"target"`
@@ -99,11 +102,12 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	for _, key := range keys {
 		request := requests[key]
 		var loaded loadedPackage
-		if installation.OriginMode == domain.OriginModeDirectory {
-			loaded, err = app.loadInstalledPackage(ctx, installation, request.targets, domain.DirectoryRepair, request.sequence, request.revision, detected)
-		} else {
-			loaded, err = app.loadPackageFor(ctx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair, Clients: detected})
-		}
+		loaded, err = resolveRepairSource(ctx, repairSourceResolutionTimeout, func(resolutionCtx context.Context) (loadedPackage, error) {
+			if installation.OriginMode == domain.OriginModeDirectory {
+				return app.loadInstalledPackage(resolutionCtx, installation, request.targets, domain.DirectoryRepair, request.sequence, request.revision, detected)
+			}
+			return app.loadPackageFor(resolutionCtx, request.source, packageResolutionRequest{Targets: request.targets, Operation: domain.DirectoryRepair, Clients: detected})
+		})
 		if err != nil {
 			return err
 		}
@@ -177,6 +181,12 @@ func runRepairMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	result.Status = string(appliedGroup.Phase)
 	return renderRepairMultiResult(cmd, opts, result)
+}
+
+func resolveRepairSource(ctx context.Context, timeout time.Duration, resolve func(context.Context) (loadedPackage, error)) (loadedPackage, error) {
+	bounded, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return resolve(bounded)
 }
 
 func renderRepairMultiResult(cmd *cobra.Command, opts *options, result repairMultiResult) error {

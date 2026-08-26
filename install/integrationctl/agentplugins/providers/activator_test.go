@@ -3,7 +3,9 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,9 +17,64 @@ import (
 )
 
 type recordingRunner struct {
-	commands []legacyports.Command
-	run      func(legacyports.Command) legacyports.CommandResult
+	commands      []legacyports.Command
+	run           func(legacyports.Command) legacyports.CommandResult
+	duplexOutput  string
+	duplexErr     error
+	duplexPostErr error
+	duplexLive    bool
+	capabilityErr error
 }
+
+type runOnlyRecordingRunner struct {
+	commands []legacyports.Command
+}
+
+func (runner *runOnlyRecordingRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
+	runner.commands = append(runner.commands, command)
+	return legacyports.CommandResult{}, nil
+}
+
+func (runner *recordingRunner) RunDuplexWithPlannedShutdown(_ context.Context, command legacyports.Command, exchange func(io.Writer, io.Reader) error) error {
+	runner.commands = append(runner.commands, command)
+	if runner.duplexErr != nil {
+		return runner.duplexErr
+	}
+	output := io.Reader(strings.NewReader(runner.duplexOutput))
+	var liveWriter *os.File
+	var outputWritten chan struct{}
+	if runner.duplexLive {
+		liveReader, writer, err := os.Pipe()
+		if err != nil {
+			return err
+		}
+		defer liveReader.Close()
+		liveWriter = writer
+		output = liveReader
+		outputWritten = make(chan struct{})
+		go func() {
+			_, _ = io.WriteString(writer, runner.duplexOutput)
+			close(outputWritten)
+		}()
+	}
+	stdin := &fixtureACPStdin{close: func() error {
+		if liveWriter != nil {
+			<-outputWritten
+		}
+		return nil
+	}}
+	exchangeErr := exchange(stdin, output)
+	_ = stdin.Close()
+	if liveWriter != nil {
+		_ = liveWriter.Close()
+	}
+	if runner.duplexPostErr != nil {
+		return errors.Join(exchangeErr, runner.duplexPostErr)
+	}
+	return exchangeErr
+}
+
+func (runner *recordingRunner) DuplexCapability() error { return runner.capabilityErr }
 
 func (runner *recordingRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
 	runner.commands = append(runner.commands, command)
@@ -197,13 +254,7 @@ func TestKiroVerificationScansUnknownBeforeRecognizedNegative(t *testing.T) {
 				{Kind: domain.ComponentMCPServer, Name: "unknown-first", Support: domain.SupportNative},
 				{Kind: domain.ComponentMCPServer, Name: "negative-later", Support: domain.SupportNative},
 			}
-			runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
-				name := command.Argv[len(command.Argv)-1]
-				if name == "negative-later" {
-					return legacyports.CommandResult{Stdout: []byte(name + ": disconnected")}
-				}
-				return legacyports.CommandResult{Stdout: []byte(name + ": enabled")}
-			}}
+			runner := &recordingRunner{duplexOutput: acpResponse(0, `{"protocolVersion":1}`) + acpResponse(1, `{"sessionId":"s"}`) + acpStatus("s", "negative-later", "disconnected", "")}
 			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err == nil || outcome.Activation != domain.ActivationFailed || !outcome.AuthoritativeObservation {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
@@ -211,14 +262,14 @@ func TestKiroVerificationScansUnknownBeforeRecognizedNegative(t *testing.T) {
 			if outcome.ActivationAttested {
 				t.Fatalf("recognized negative evidence was bypassed by attestation: %+v", outcome)
 			}
-			if len(runner.commands) != 2 {
-				t.Fatalf("verifier calls = %d, want every MCP server", len(runner.commands))
+			if len(runner.commands) != 1 {
+				t.Fatalf("verifier calls = %d, want one ACP session", len(runner.commands))
 			}
 		})
 	}
 }
 
-func TestKiroVerificationReturnsUnknownOnlyAfterScanningEveryServer(t *testing.T) {
+func TestKiroVerificationFailsWhenAnyPlannedServerIsMissing(t *testing.T) {
 	t.Parallel()
 	request := activationRequest(t, domain.ClientKiro)
 	request.BackendExecutable = "/test/bin/kiro-cli"
@@ -227,19 +278,68 @@ func TestKiroVerificationReturnsUnknownOnlyAfterScanningEveryServer(t *testing.T
 		{Kind: domain.ComponentMCPServer, Name: "unknown-first", Support: domain.SupportNative},
 		{Kind: domain.ComponentMCPServer, Name: "healthy-later", Support: domain.SupportNative},
 	}
-	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
-		name := command.Argv[len(command.Argv)-1]
-		if name == "healthy-later" {
-			return legacyports.CommandResult{Stdout: []byte(name + ": connected")}
-		}
-		return legacyports.CommandResult{Stdout: []byte(name + ": enabled")}
-	}}
+	runner := &recordingRunner{duplexOutput: acpResponse(0, `{"protocolVersion":1}`) + acpResponse(1, `{"sessionId":"s"}`) + acpStatus("s", "healthy-later", "connected", `[{"name":"search","disabled":false}]`)}
 	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
-	if err != nil || outcome.Activation != domain.ActivationManual || outcome.AuthoritativeObservation {
+	if err == nil || outcome.Activation != domain.ActivationFailed || !outcome.AuthoritativeObservation {
 		t.Fatalf("outcome=%+v err=%v", outcome, err)
 	}
-	if len(runner.commands) != 2 {
-		t.Fatalf("verifier calls = %d, want every MCP server", len(runner.commands))
+	if len(runner.commands) != 1 {
+		t.Fatalf("verifier calls = %d, want one ACP session", len(runner.commands))
+	}
+}
+
+func TestKiroMultiServerTimeoutCannotFallBackToActivationAttestation(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.VerifyOnly = true
+	request.ActivationComplete = true
+	request.Plan.Components = []domain.ComponentDecision{
+		{Kind: domain.ComponentMCPServer, Name: "alpha", Support: domain.SupportNative},
+		{Kind: domain.ComponentMCPServer, Name: "beta", Support: domain.SupportNative},
+	}
+	runner := &recordingRunner{
+		duplexOutput: acpResponse(0, `{"protocolVersion":1}`) + acpResponse(1, `{"sessionId":"s"}`) +
+			acpStatus("s", "alpha", "connected", `[{"name":"search","disabled":false}]`),
+		duplexPostErr: context.DeadlineExceeded,
+	}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || outcome.Activation != domain.ActivationFailed || !outcome.AuthoritativeObservation {
+		t.Fatalf("outcome=%+v err=%v, want authoritative incomplete verification failure", outcome, err)
+	}
+	if outcome.ActivationAttested || errors.Is(err, errKiroACPContractUnknown) {
+		t.Fatalf("timeout downgraded negative evidence to attestation/manual fallback: outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestKiroEOFDuringSettlementFailsClosed(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.VerifyOnly = true
+	request.ActivationComplete = true
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "alpha", Support: domain.SupportNative}}
+	runner := &recordingRunner{duplexOutput: connectedACP("alpha")}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || outcome.Activation != domain.ActivationFailed {
+		t.Fatalf("outcome=%+v err=%v, want settlement EOF failure", outcome, err)
+	}
+	if outcome.ActivationAttested {
+		t.Fatalf("settlement EOF was converted to attested active: %+v", outcome)
+	}
+}
+
+func TestKiroPartialRecordAfterCompletionCannotBeAttestedActive(t *testing.T) {
+	t.Parallel()
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.VerifyOnly = true
+	request.ActivationComplete = true
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "alpha", Support: domain.SupportNative}}
+	runner := &recordingRunner{duplexOutput: connectedACP("alpha") + `{"jsonrpc":"2.0"`}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || !errors.Is(err, errKiroACPPartialExit) || !errors.Is(err, errRecognizedNegativeEvidence) || outcome.ActivationAttested {
+		t.Fatalf("partial EOF outcome=%+v err=%v, want non-attestable negative evidence", outcome, err)
 	}
 }
 
@@ -361,6 +461,7 @@ func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
 			if client == domain.ClientKiro {
 				request.BackendExecutable = "/test/bin/kiro-cli"
 				request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo", Support: domain.SupportNative}}
+				runner.duplexOutput = acpResponse(0, `{"protocolVersion":1}`) + acpResponse(1, `{"sessionId":"s"}`) + acpStatus("s", "demo", "disconnected", "")
 			}
 			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err == nil || outcome.Activation != domain.ActivationFailed || outcome.Verification != domain.VerificationFailed || !outcome.AuthoritativeObservation {
@@ -376,25 +477,21 @@ func TestActivationAttestationCannotBypassObservableVerifier(t *testing.T) {
 	}
 }
 
-func TestKiroVerificationUsesExactHealthyStdoutIdentity(t *testing.T) {
+func TestKiroHumanStatusOutputNeverProvesActivation(t *testing.T) {
 	t.Parallel()
 	request := activationRequest(t, domain.ClientKiro)
 	request.BackendExecutable = "/test/bin/kiro-cli"
 	request.VerifyOnly = true
 	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
 	for name, listed := range map[string]legacyports.CommandResult{
-		"pending":       {Stdout: []byte("demo-server: pending")},
-		"disconnected":  {Stdout: []byte("demo-server: disconnected")},
-		"disabled":      {Stdout: []byte("demo-server: disabled")},
-		"auth required": {Stdout: []byte("demo-server: auth-required")},
-		"error":         {Stdout: []byte("demo-server: error")},
-		"failed":        {Stdout: []byte("demo-server: failed")},
+		"legacy connected": {Stdout: []byte("demo-server: connected")},
+		"current table":    {Stdout: []byte("Name         Scope  Agent  Command  Timeout  Disabled  Env Vars\ndemo-server global -      http     60       false     -")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }, duplexErr: errors.New("ACP unsupported")}
 			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
-			if err == nil || outcome.Activation != domain.ActivationFailed {
-				t.Fatalf("untrusted Kiro status was accepted: outcome=%+v err=%v", outcome, err)
+			if err != nil || outcome.Activation != domain.ActivationManual || len(runner.commands) != 1 || runner.commands[0].Argv[1] != "acp" {
+				t.Fatalf("human Kiro status influenced activation: outcome=%+v err=%v commands=%v", outcome, err, runner.commands)
 			}
 		})
 	}
@@ -415,35 +512,13 @@ func TestKiroUnknownStatusContractRemainsManual(t *testing.T) {
 		"unknown":                  {Stdout: []byte("demo-server: enabled")},
 	} {
 		t.Run(name, func(t *testing.T) {
-			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }}
+			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return listed }, duplexErr: errors.New("ACP output contract unknown")}
 			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err != nil || outcome.Activation != domain.ActivationManual || outcome.Verification != domain.VerificationPackageValid {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
 			}
 			if outcome.ActivationAttested || len(runner.commands) != 1 || len(outcome.LocalActions) == 0 {
 				t.Fatalf("unknown output path is not actionable: outcome=%+v commands=%+v", outcome, runner.commands)
-			}
-		})
-	}
-}
-
-func TestKiroStatusParserAcceptsOnlyExactRequestedIdentityShapes(t *testing.T) {
-	t.Parallel()
-	for name, test := range map[string]struct {
-		body string
-		want kiroStatus
-	}{
-		"one line healthy":  {"demo: connected\n", kiroStatusHealthy},
-		"two line healthy":  {"Name: demo\nStatus: connected\n", kiroStatusHealthy},
-		"one line negative": {"demo: disabled\n", kiroStatusUnhealthy},
-		"two line negative": {"Name: demo\nStatus: auth required\n", kiroStatusUnhealthy},
-		"other negative":    {"other: disconnected\n", kiroStatusUnknown},
-		"extra warning":     {"warning\ndemo: disconnected\n", kiroStatusUnknown},
-		"extra suffix":      {"demo: disconnected now\n", kiroStatusUnknown},
-	} {
-		t.Run(name, func(t *testing.T) {
-			if got := kiroMCPStatus([]byte(test.body), "demo"); got != test.want {
-				t.Fatalf("status = %v, want %v", got, test.want)
 			}
 		})
 	}
@@ -465,6 +540,9 @@ func TestUnknownObservableVerificationRequiresAndRecordsExplicitAttestation(t *t
 				request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo", Support: domain.SupportNative}}
 			}
 			runner := &recordingRunner{run: func(legacyports.Command) legacyports.CommandResult { return legacyports.CommandResult{} }}
+			if client == domain.ClientKiro {
+				runner.duplexErr = errors.New("ACP unsupported")
+			}
 			outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
 			if err != nil || outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || !outcome.ActivationAttested {
 				t.Fatalf("outcome=%+v err=%v", outcome, err)
@@ -506,13 +584,11 @@ func TestVerifyOnlyRunsOnlyReadOnlyClientCommands(t *testing.T) {
 					{Kind: domain.ComponentMCPServer, Name: "alpha", Support: domain.SupportNative},
 					{Kind: domain.ComponentMCPServer, Name: "beta", Support: domain.SupportNative},
 				}
-				runner.run = func(command legacyports.Command) legacyports.CommandResult {
-					name := command.Argv[len(command.Argv)-1]
-					return legacyports.CommandResult{Stdout: []byte(name + ": connected")}
-				}
+				runner.duplexOutput = acpResponse(0, `{"protocolVersion":1}`) + acpResponse(1, `{"sessionId":"s"}`) +
+					acpStatus("s", "alpha", "connected", `[{"name":"a","disabled":false}]`) + acpStatus("s", "beta", "connected", `[{"name":"b","disabled":false}]`)
+				runner.duplexLive = true
 				want = [][]string{
-					{"/test/bin/kiro-cli", "mcp", "status", "--name", "alpha"},
-					{"/test/bin/kiro-cli", "mcp", "status", "--name", "beta"},
+					{"/test/bin/kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"},
 				}
 			}
 
@@ -540,14 +616,9 @@ func TestClientListingDoesNotConvertUnknownAuthentication(t *testing.T) {
 	}
 }
 
-func TestActivatorImportsMCPOnlyPackageThroughKiroCLIAndVerifiesEachStatus(t *testing.T) {
+func TestActivatorPinsDetectedKiroExecutableForImportAndACPVerification(t *testing.T) {
 	t.Parallel()
-	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
-		if strings.Contains(strings.Join(command.Argv, " "), "mcp status --name demo-server") {
-			return legacyports.CommandResult{Stdout: []byte("Name: demo-server\nStatus: connected")}
-		}
-		return legacyports.CommandResult{}
-	}}
+	runner := &recordingRunner{duplexOutput: connectedACP("demo-server"), duplexLive: true}
 	request := activationRequest(t, domain.ClientKiro)
 	request.BackendExecutable = "/test/bin/kiro-cli"
 	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
@@ -560,10 +631,43 @@ func TestActivatorImportsMCPOnlyPackageThroughKiroCLIAndVerifiesEachStatus(t *te
 	}
 	want := [][]string{
 		{"/test/bin/kiro-cli", "mcp", "import", "--file", filepath.Join(request.Delivery.ActivePath, "mcp.json"), "global", "--force"},
-		{"/test/bin/kiro-cli", "mcp", "status", "--name", "demo-server"},
+		{"/test/bin/kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"},
 	}
 	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+	request.VerifyOnly = true
+	retry, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err != nil || retry.Activation != domain.ActivationActive || retry.Verification != domain.VerificationInstalled {
+		t.Fatalf("verify-only retry = %+v, %v", retry, err)
+	}
+	want = append(want, []string{"/test/bin/kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"})
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("idempotent commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestActivatorRunOnlyRunnerCannotMutateKiro(t *testing.T) {
+	t.Parallel()
+	runner := &runOnlyRecordingRunner{}
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "requires an ACP duplex process runner") || len(runner.commands) != 0 {
+		t.Fatalf("run-only Kiro activation mutated before duplex preflight: outcome=%+v commands=%+v", outcome, runner.commands)
+	}
+}
+
+func TestActivatorContainmentPreflightFailureCannotMutateKiro(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{capabilityErr: errors.New("delegated cgroup unavailable")}
+	request := activationRequest(t, domain.ClientKiro)
+	request.BackendExecutable = "/test/bin/kiro-cli"
+	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentMCPServer, Name: "demo-server", Support: domain.SupportNative}}
+	outcome, err := (Activator{Runner: runner}).Activate(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "manual_activation_required") || len(runner.commands) != 0 {
+		t.Fatalf("failed containment preflight mutated Kiro: outcome=%+v error=%v commands=%+v", outcome, err, runner.commands)
 	}
 }
 

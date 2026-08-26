@@ -25,6 +25,7 @@ func TestAcquireGitHubExactSHASparselySnapshotsOnlyPluginRoot(t *testing.T) {
 	tempRoot := t.TempDir()
 	acquirer := Acquirer{
 		TempRoot:   tempRoot,
+		Runner:     localGitTestRunner{},
 		Digester:   packagedigest.Builder{TempRoot: tempRoot, Limits: domain.PackageLimits{MaxTreeBytes: 1024}},
 		URLForRepo: func(string) string { return repository },
 	}
@@ -51,7 +52,7 @@ func TestAcquireGitHubRepositoryRootExcludesGitMetadata(t *testing.T) {
 	repository := newRepository(t)
 	writeRepo(t, repository, "plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"root"}`, 0o644)
 	revision := commit(t, repository)
-	acquirer := Acquirer{TempRoot: t.TempDir(), URLForRepo: func(string) string { return repository }}
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
 	snapshot, err := acquirer.AcquireGitHub(context.Background(), "example/root-plugin", revision, "")
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +86,7 @@ func TestAcquireGitHubRejectsSubmoduleInsidePluginRoot(t *testing.T) {
 	writeRepo(t, repository, "plugin/plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"submodule"}`, 0o644)
 	runGit(t, "-c", "protocol.file.allow=always", "-C", repository, "submodule", "add", "--quiet", submodule, "plugin/vendor")
 	revision := commit(t, repository)
-	acquirer := Acquirer{TempRoot: t.TempDir(), URLForRepo: func(string) string { return repository }}
+	acquirer := Acquirer{TempRoot: t.TempDir(), Runner: localGitTestRunner{}, URLForRepo: func(string) string { return repository }}
 	if _, err := acquirer.AcquireGitHub(context.Background(), "example/plugin", revision, "plugin"); err == nil || !strings.Contains(err.Error(), "submodule") {
 		t.Fatalf("submodule error = %v", err)
 	}
@@ -183,6 +184,18 @@ type panicRunner struct{}
 
 func (panicRunner) Run(context.Context, Command) ([]byte, error) {
 	panic("git must not run for invalid source")
+}
+
+// localGitTestRunner keeps repository-fixture tests independent of host kernel
+// cgroup delegation. Production's default OSRunner remains fail-closed and is
+// covered by the process containment regressions.
+type localGitTestRunner struct{}
+
+func (localGitTestRunner) Run(ctx context.Context, command Command) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", command.Args...)
+	cmd.Dir = command.Dir
+	cmd.Env = isolatedGitEnvironment(os.Environ(), command.Dir)
+	return cmd.CombinedOutput()
 }
 
 func newRepository(t *testing.T) string {

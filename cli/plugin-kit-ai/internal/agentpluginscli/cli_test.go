@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/dirswap"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/locks"
@@ -29,6 +30,37 @@ import (
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/usecase"
 	legacyports "github.com/777genius/plugin-kit-ai/install/integrationctl/ports"
 )
+
+func TestRepairSourceResolutionIsDeadlineAndCancellationResponsive(t *testing.T) {
+	for name, contextFor := range map[string]func() (context.Context, context.CancelFunc){
+		"phase deadline": func() (context.Context, context.CancelFunc) {
+			return context.Background(), func() {}
+		},
+		"caller cancellation": func() (context.Context, context.CancelFunc) {
+			return context.WithCancel(context.Background())
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := contextFor()
+			if name == "caller cancellation" {
+				cancel()
+			} else {
+				defer cancel()
+			}
+			started := time.Now()
+			_, err := resolveRepairSource(ctx, 20*time.Millisecond, func(inner context.Context) (loadedPackage, error) {
+				<-inner.Done()
+				return loadedPackage{}, inner.Err()
+			})
+			if err == nil || (!errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled)) {
+				t.Fatalf("repair resolution error = %v", err)
+			}
+			if elapsed := time.Since(started); elapsed > 250*time.Millisecond {
+				t.Fatalf("repair resolution cancellation took %s", elapsed)
+			}
+		})
+	}
+}
 
 func TestHelpKeepsAutomationConfirmationFlagOutOfUserFlow(t *testing.T) {
 	t.Parallel()
@@ -640,7 +672,8 @@ func TestMissingManagedStdioRuntimeFailsAutomaticActivationPreflightWithoutMutat
 			client := fixtureClient(t, test.client)
 			client.ExecutablePath = test.executable
 			fixture := newCLIFixture(t, []domain.DetectedClient{client})
-			fixture.app.Lifecycle.Activator = providers.Activator{Runner: &cliCommandRunner{}}
+			runner := &cliCommandRunner{}
+			fixture.app.Lifecycle.Activator = providers.Activator{Runner: runner}
 			plugin := writeCLIPlugin(t)
 			mcp := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"demo":{"type":"stdio","command":"uap-runtime-that-does-not-exist"}}}`
 			if err := os.WriteFile(filepath.Join(plugin, "mcp.json"), []byte(mcp), 0o644); err != nil {
@@ -657,7 +690,47 @@ func TestMissingManagedStdioRuntimeFailsAutomaticActivationPreflightWithoutMutat
 			if len(state.Installations) != 0 {
 				t.Fatalf("missing runtime mutated state: %+v", state)
 			}
+			if runner.calls != 0 {
+				t.Fatalf("missing runtime reached automatic activation runner %d times", runner.calls)
+			}
 		})
+	}
+}
+
+func TestKiroMissingDuplexFailsLifecyclePreflightWithoutMutation(t *testing.T) {
+	t.Parallel()
+	client := fixtureClient(t, domain.ClientKiro)
+	client.ExecutablePath = "/test/bin/kiro-cli"
+	fixture := newCLIFixture(t, []domain.DetectedClient{client})
+	runner := &cliRunOnlyRunner{}
+	fixture.app.Lifecycle.Activator = providers.Activator{Runner: runner}
+	plugin := writeCLIPlugin(t)
+	writeCLIMCP(t, plugin)
+
+	_, _, err := fixture.execute(false, "add", plugin, "--target", string(domain.ClientKiro))
+	if err == nil || !strings.Contains(err.Error(), "requires an ACP duplex process runner") {
+		t.Fatalf("duplex preflight error = %v", err)
+	}
+	state, loadErr := fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 0 || runner.calls != 0 {
+		t.Fatalf("duplex preflight mutated state or invoked Kiro: state=%+v calls=%d", state, runner.calls)
+	}
+	_, _, retryErr := fixture.execute(false, "add", plugin, "--target", string(domain.ClientKiro))
+	if retryErr == nil || !strings.Contains(retryErr.Error(), "requires an ACP duplex process runner") {
+		t.Fatalf("duplex preflight retry = %v", retryErr)
+	}
+	state, loadErr = fixture.store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(state.Installations) != 0 || runner.calls != 0 {
+		t.Fatalf("duplex retry entered verify-only or mutated: state=%+v calls=%d", state, runner.calls)
+	}
+	if _, statErr := os.Stat(client.ConfigRoot); !os.IsNotExist(statErr) {
+		t.Fatalf("duplex preflight created Kiro package/config root %q: %v", client.ConfigRoot, statErr)
 	}
 }
 
@@ -2782,12 +2855,40 @@ type cliCommandRunner struct {
 	run   func(int, legacyports.Command) legacyports.CommandResult
 }
 
+type cliRunOnlyRunner struct {
+	calls int
+}
+
+type cliDiscardWriteCloser struct{ io.Writer }
+
+func (cliDiscardWriteCloser) Close() error { return nil }
+
+func (*cliCommandRunner) DuplexCapability() error { return nil }
+
+func (runner *cliRunOnlyRunner) Run(context.Context, legacyports.Command) (legacyports.CommandResult, error) {
+	runner.calls++
+	return legacyports.CommandResult{}, nil
+}
+
 func (runner *cliCommandRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
 	runner.calls++
 	if runner.run != nil {
 		return runner.run(runner.calls, command), nil
 	}
 	return legacyports.CommandResult{}, nil
+}
+
+func (runner *cliCommandRunner) RunDuplexWithPlannedShutdown(_ context.Context, command legacyports.Command, exchange func(io.Writer, io.Reader) error) error {
+	runner.calls++
+	output := "{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":1}}\n" +
+		"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"sessionId\":\"s\"}}\n" +
+		"{\"jsonrpc\":\"2.0\",\"method\":\"_kiro/mcp/status\",\"params\":{\"sessionId\":\"s\",\"serverName\":\"demo\",\"status\":\"connected\",\"tools\":[{\"name\":\"tool\",\"disabled\":false}]}}\n"
+	reader, writer := io.Pipe()
+	go func() { _, _ = io.WriteString(writer, output) }()
+	err := exchange(cliDiscardWriteCloser{Writer: io.Discard}, reader)
+	_ = writer.Close()
+	_ = reader.Close()
+	return err
 }
 
 func (stub *cliLegacyLifecycleStub) Exists(context.Context, string) (bool, error) {

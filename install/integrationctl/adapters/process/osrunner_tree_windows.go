@@ -3,26 +3,48 @@
 package process
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
 
-type commandTree struct {
+type commandContainment struct {
 	cmd      *exec.Cmd
 	job      windows.Handle
+	process  windows.Handle
 	mu       sync.Mutex
 	attached bool
 	once     sync.Once
+	kill     func() error
+	confirm  func(time.Duration) (bool, error)
 }
 
-func newCommandTree(cmd *exec.Cmd) (*commandTree, error) {
+var terminateWindowsJob = windows.TerminateJobObject
+var closeWindowsHandle = windows.CloseHandle
+
+func explicitContainmentSupervision() bool { return true }
+
+func duplexContainmentPreflight() error {
+	// A Job can only be proven usable after a real child has been created,
+	// assigned, resumed, and terminated. Automatic Kiro activation also needs a
+	// race-free real-pipe settlement primitive, which is not implemented on
+	// Windows. Reject the automatic path before any package/native mutation.
+	return fmt.Errorf("safe duplex ACP containment and pipe settlement are unavailable on Windows; manual activation required")
+}
+
+func naturalExitNeedsContainmentCleanup() bool { return true }
+
+const cleanupExitCode uint32 = 0xc0de0001
+
+func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create process job: %w", err)
@@ -31,37 +53,43 @@ func newCommandTree(cmd *exec.Cmd) (*commandTree, error) {
 	limits.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
 	if _, err := windows.SetInformationJobObject(job, windows.JobObjectExtendedLimitInformation,
 		uintptr(unsafe.Pointer(&limits)), uint32(unsafe.Sizeof(limits))); err != nil {
-		windows.CloseHandle(job)
-		return nil, fmt.Errorf("configure process job: %w", err)
+		closeErr := closeWindowsHandle(job)
+		return nil, errors.Join(fmt.Errorf("configure process job: %w", err), closeErr)
 	}
-	tree := &commandTree{cmd: cmd, job: job}
+	containment := &commandContainment{cmd: cmd, job: job}
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED}
-	cmd.Cancel = tree.terminate
-	return tree, nil
+	return containment, nil
 }
 
-func (tree *commandTree) attach(cmd *exec.Cmd) error {
-	process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
+func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
+	return newCommandContainment(cmd)
+}
+
+func (containment *commandContainment) attach(cmd *exec.Cmd) (resultErr error) {
+	process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE|windows.SYNCHRONIZE, false, uint32(cmd.Process.Pid))
 	if err != nil {
 		return fmt.Errorf("open suspended process: %w", err)
 	}
-	defer windows.CloseHandle(process)
-	if err := windows.AssignProcessToJobObject(tree.job, process); err != nil {
-		return fmt.Errorf("assign process job: %w", err)
+	if err := windows.AssignProcessToJobObject(containment.job, process); err != nil {
+		closeErr := closeWindowsHandle(process)
+		return errors.Join(fmt.Errorf("assign process job: %w", err), closeErr)
 	}
-	tree.mu.Lock()
-	tree.attached = true
-	tree.mu.Unlock()
+	containment.mu.Lock()
+	containment.attached = true
+	containment.process = process
+	containment.mu.Unlock()
 	thread, err := suspendedProcessThread(uint32(cmd.Process.Pid))
 	if err != nil {
 		return err
 	}
-	defer windows.CloseHandle(thread)
+	defer func() { resultErr = errors.Join(resultErr, closeWindowsHandle(thread)) }()
 	if _, err := windows.ResumeThread(thread); err != nil {
 		return fmt.Errorf("resume process thread: %w", err)
 	}
 	return nil
 }
+
+func (*commandContainment) limitToProcessGroup() {}
 
 func suspendedProcessThread(pid uint32) (windows.Handle, error) {
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPTHREAD, 0)
@@ -86,24 +114,134 @@ func suspendedProcessThread(pid uint32) (windows.Handle, error) {
 	return 0, fmt.Errorf("enumerate suspended process threads: %w", err)
 }
 
-func (tree *commandTree) terminate() error {
-	tree.mu.Lock()
-	attached := tree.attached
-	tree.mu.Unlock()
+func (containment *commandContainment) terminate() terminationResult {
+	containment.mu.Lock()
+	attached := containment.attached
+	containment.mu.Unlock()
 	if attached {
-		if err := windows.TerminateJobObject(tree.job, 1); err == nil {
-			return nil
+		forcedMembers := containment.activeProcesses() > 0
+		if err := terminateWindowsJob(containment.job, cleanupExitCode); err == nil {
+			stopped, confirmErr := containment.confirmTermination(time.Second)
+			if !stopped && confirmErr == nil {
+				confirmErr = fmt.Errorf("process job remained active after cleanup deadline")
+			}
+			return terminationResult{leaderStopped: stopped, forcedMembers: forcedMembers, err: confirmErr}
+		} else {
+			killErr := containment.killLeader()
+			if errors.Is(killErr, os.ErrProcessDone) {
+				killErr = nil
+			}
+			stopped, confirmErr := containment.confirmTermination(time.Second)
+			if !stopped && confirmErr == nil {
+				confirmErr = fmt.Errorf("leader fallback kill was requested but job shutdown was not observed")
+			}
+			return terminationResult{leaderStopped: stopped, err: errors.Join(fmt.Errorf("terminate process job: %w", err), killErr, confirmErr)}
 		}
 	}
-	if tree.cmd.Process == nil {
+	killErr := containment.killLeader()
+	if errors.Is(killErr, os.ErrProcessDone) {
+		killErr = nil
+	}
+	return terminationResult{err: errors.Join(killErr, fmt.Errorf("unattached process shutdown could not be observed"))}
+}
+
+func (containment *commandContainment) activeProcesses() uint32 {
+	var accounting jobAccounting
+	if err := windows.QueryInformationJobObject(containment.job, windows.JobObjectBasicAccountingInformation,
+		uintptr(unsafe.Pointer(&accounting)), uint32(unsafe.Sizeof(accounting)), nil); err != nil {
+		return 1 // fail closed: containment could not prove the job was empty
+	}
+	return accounting.ActiveProcesses
+}
+
+type jobAccounting struct {
+	TotalUserTime             int64
+	TotalKernelTime           int64
+	ThisPeriodTotalUserTime   int64
+	ThisPeriodTotalKernelTime int64
+	TotalPageFaultCount       uint32
+	TotalProcesses            uint32
+	ActiveProcesses           uint32
+	TotalTerminatedProcesses  uint32
+}
+
+func (containment *commandContainment) confirmTermination(timeout time.Duration) (bool, error) {
+	if containment.confirm != nil {
+		return containment.confirm(timeout)
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		var accounting jobAccounting
+		if err := windows.QueryInformationJobObject(containment.job, windows.JobObjectBasicAccountingInformation,
+			uintptr(unsafe.Pointer(&accounting)), uint32(unsafe.Sizeof(accounting)), nil); err != nil {
+			return false, fmt.Errorf("confirm process job termination: %w", err)
+		}
+		leaderStopped, err := containment.exited()
+		if err != nil {
+			return false, fmt.Errorf("confirm process leader termination: %w", err)
+		}
+		if leaderStopped && accounting.ActiveProcesses == 0 {
+			return true, nil
+		}
+		if time.Now().After(deadline) {
+			return false, nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func (containment *commandContainment) killLeader() error {
+	if containment.kill != nil {
+		return containment.kill()
+	}
+	if containment.cmd.Process == nil {
 		return os.ErrProcessDone
 	}
-	if err := tree.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+	if err := containment.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return err
 	}
 	return nil
 }
 
-func (tree *commandTree) close() {
-	tree.once.Do(func() { _ = windows.CloseHandle(tree.job) })
+func (containment *commandContainment) exited() (bool, error) {
+	containment.mu.Lock()
+	process := containment.process
+	containment.mu.Unlock()
+	if process == 0 {
+		return false, nil
+	}
+	event, err := windows.WaitForSingleObject(process, 0)
+	if err != nil {
+		return false, err
+	}
+	return event == windows.WAIT_OBJECT_0, nil
+}
+
+func (containment *commandContainment) settleNaturalExit(ctx context.Context, timeout time.Duration) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	for containment.activeProcesses() > 0 {
+		if time.Now().After(deadline) {
+			return false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	return true, nil
+}
+
+func (containment *commandContainment) close() (resultErr error) {
+	containment.once.Do(func() {
+		containment.mu.Lock()
+		process := containment.process
+		containment.process = 0
+		containment.mu.Unlock()
+		if process != 0 {
+			resultErr = errors.Join(resultErr, closeWindowsHandle(process))
+		}
+		resultErr = errors.Join(resultErr, closeWindowsHandle(containment.job))
+	})
+	return resultErr
 }

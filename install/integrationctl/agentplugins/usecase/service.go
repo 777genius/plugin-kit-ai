@@ -213,6 +213,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		}
 		return result, fmt.Errorf("delivery plan for %s is unsupported", plan.ClientID)
 	}
+	if err := service.preflightActivation(input, plan); err != nil {
+		return result, err
+	}
 	if err := preflightRuntime(input.Envelope, plan, service.automaticallyActivates(input, plan)); err != nil {
 		return result, err
 	}
@@ -1117,6 +1120,21 @@ func packageNeedsPluginData(envelope domain.PackageEnvelope) bool {
 
 type automaticActivationClassifier interface {
 	AutomaticallyActivates(domain.ActivationRequest) bool
+}
+
+type activationPreflighter interface {
+	PreflightActivation(domain.ActivationRequest) error
+}
+
+func (service Service) preflightActivation(input AddInput, plan domain.DeliveryPlan) error {
+	preflighter, ok := service.Activator.(activationPreflighter)
+	if !ok {
+		return nil
+	}
+	return preflighter.PreflightActivation(domain.ActivationRequest{
+		Client: input.Client, Plan: plan, BackendExecutable: input.BackendExecutable,
+		VerifyOnly: input.DryRun,
+	})
 }
 
 func (service Service) automaticallyActivates(input AddInput, plan domain.DeliveryPlan) bool {
