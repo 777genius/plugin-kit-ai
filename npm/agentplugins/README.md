@@ -109,12 +109,15 @@ the installed native configuration and report each planned server connected
 with enabled tools. The verifier keeps ACP stdin open while it drains a bounded
 quiet settlement window, and rejects EOF, partial, contradictory, or malformed
 protocol evidence before supervised containment stops and reaps the long-lived
-child. Automatic Kiro ACP verification is Linux-only and requires delegated
-cgroup v2 creation, atomic CLONE_INTO_CGROUP placement, and cgroup.kill to be
-proved before native mutation. Windows, macOS, and other unsupported hosts give
-explicit manual activation guidance. This proves session loading, not runtime
-tool end-to-end behavior. Failure to start the ACP executable itself leaves
-activation manual with recovery guidance. Once ACP starts, companion-launch
+child. Automatic Kiro ACP verification is available only on Linux after
+capability preflight proves delegated cgroup v2 creation, atomic
+CLONE_INTO_CGROUP placement, and cgroup.kill. macOS, Windows, and Linux hosts
+without every required proof fail preflight before any native mutation. On
+those hosts, install or import the package manually in Kiro, activate it in
+Kiro's UI, and verify its servers there; that workflow is outside this
+automatic CLI path. Failure to start ACP after a supported preflight may still
+leave a manual verification action. This proves session loading, not runtime
+tool end-to-end behavior. Once ACP starts, companion-launch
 failure (including a missing `kiro-cli-chat`), EOF, timeout, authentication
 failure, malformed or partial output, contradiction, and non-clean exit are
 authoritative activation failures; managed state stays committed for explicit
