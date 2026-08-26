@@ -298,7 +298,7 @@ def validate_request(value: Any, config: Config) -> dict[str, Any]:
         "cli_release_tag", "release_manifest_digest", "release_checksums_digest",
         "directory_digest", "scenario_contract_digest", "github", "challenge",
     }
-    if not isinstance(value, dict) or set(value) != fields or value.get("schema_version") != 1 or value.get("purpose") != "stable-launch-e2e":
+    if not isinstance(value, dict) or set(value) != fields or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("purpose") != "stable-launch-e2e":
         raise ValueError("observer request is not canonical")
     if value.get("cli_release_repository") != config.cli_release_repository or value.get("cli_release_tag") != config.cli_release_tag:
         raise ValueError("observer request release identity is not allowed")

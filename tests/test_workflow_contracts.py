@@ -1,5 +1,8 @@
 import json
+import hashlib
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,6 +15,7 @@ LIVE = ROOT / ".github/workflows/live-e2e.yml"
 PAGES = ROOT / ".github/workflows/pages.yml"
 VALIDATE = ROOT / ".github/workflows/validate.yml"
 DIRECTORY_PUBLICATION = ROOT / ".github/workflows/directory-publication.yml"
+OBSERVER_RUNBOOK = ROOT / "docs/OBSERVER_OPERATIONS.md"
 PUBLICATION_INPUTS = {
     "publication_id": "string",
     "publication_sequence": "number",
@@ -31,6 +35,277 @@ def commands(job):
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_adapter_egress_and_native_projection_are_canonical_generic_contracts(self) -> None:
+        schema = json.loads((ROOT / "deploy/uap-observer-adapter-config.schema.json").read_text())
+        self.assertIn("egress_hosts", schema["required"])
+        egress = schema["properties"]["egress_hosts"]
+        self.assertTrue(egress["uniqueItems"])
+        pattern = re.compile(egress["items"]["pattern"])
+        self.assertIsNotNone(pattern.fullmatch("api.github.com"))
+        for rejected in ("API.GITHUB.COM", "127.0.0.1", "*.github.com", "github.com.", "localhost"):
+            self.assertIsNone(pattern.fullmatch(rejected))
+        client = schema["$defs"]["client"]
+        self.assertIn("native_projection", client["required"])
+        self.assertEqual(set(client["properties"]["native_projection"]["required"]), {"path", "sha256"})
+        kiro_rule = client["allOf"][2]["then"]
+        self.assertEqual(kiro_rule["required"], ["companion_binary", "companion_sha256"])
+        self.assertEqual(kiro_rule["properties"]["sha256"]["const"], "sha256:adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336")
+        self.assertEqual(kiro_rule["properties"]["companion_sha256"]["const"], "sha256:c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4")
+        installer = (ROOT / "deploy/uap-observer-install.sh").read_text()
+        self.assertIn('required_hosts={urlsplit(url).hostname for url in urls} | {"github.com"}', installer)
+        self.assertIn("required_hosts <= set(egress_hosts)", installer)
+        self.assertIn('allowlist.get("hosts") != egress_hosts', installer)
+        self.assertIn('type(allowlist.get("schema_version")) is not int', installer)
+        runner = (ROOT / "observer/fixed_runner.py").read_text()
+        self.assertIn('Path(config["clients"]["kiro"]["companion_binary"])', runner)
+        runner_unit = (ROOT / "deploy/uap-observer-runner.service").read_text()
+        self.assertIn("BindReadOnlyPaths=/opt/uap-observer-current /var/lib/uap-observer/proofs /var/lib/uap-observer/profiles", runner_unit)
+        writable = next(line for line in runner_unit.splitlines() if line.startswith("BindPaths=-/var/lib/uap-observer/profiles/"))
+        self.assertEqual(writable.split("=")[1].split(), [
+            f"-/var/lib/uap-observer/profiles/{client}/{leaf}"
+            for client in ("codex", "cursor", "kiro") for leaf in (".auth", ".state")
+        ])
+        for forbidden in ("/.config", "/.cache", "/.codex", "/.cursor", "/.kiro", "/.local"):
+            self.assertNotIn(forbidden, writable)
+
+    def test_installed_state_projection_validator_is_strict_and_nonempty(self) -> None:
+        library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
+        start = library.index("def native_projection(encoded,suffix,profile,proof):")
+        end = library.index('\ndirectory("/var/empty"', start)
+        namespace = {}
+        exec("import json,math,re\nfrom pathlib import Path\n" + library[start:end], namespace)
+        validate = namespace["native_projection"]
+        digest = "sha256:" + "a" * 64
+        def release_tuple(plugin: str) -> dict:
+            return {
+                "product_id": plugin, "tree_digest": digest, "manifest_digest": digest,
+                "distribution_id": f"owner/{plugin}", "distribution_kind": "upstream",
+                "release_sequence": 1, "package_version": "1.0.0",
+                "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
+                "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
+                "snapshot_digest": digest, "binary_digest": digest,
+                "dependency_identity": "locked", "installer_version": "0.1.14",
+                "adapter_version": "r14d", "client_version": None,
+                "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
+            }
+        entry = {
+            "plugin": "context7", "tuple": release_tuple("context7"),
+            "native_config": {"path": "/proof/codex/native/context7.json", "sha256": digest},
+            "client_config": {"path": "/profile/codex/context7.json", "sha256": digest},
+            "manager_add_sha256": digest, "manager_info_sha256": digest,
+            "post_add_doctor_sha256": digest,
+        }
+        heroes = ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")
+        entries = [
+            {
+                **entry, "plugin": plugin, "tuple": release_tuple(plugin),
+                "native_config": {"path": f"/proof/codex/native/{plugin}.json", "sha256": digest},
+                "client_config": {"path": f"/profile/codex/{plugin}.json", "sha256": digest},
+            }
+            for plugin in heroes
+        ]
+        valid = {"schema_version": 1, "client_id": "codex", "entries": entries}
+        self.assertEqual(
+            validate(json.dumps(valid).encode(), "codex", Path("/profile/codex"), Path("/proof/codex")),
+            valid,
+        )
+        kiro_entries = [{
+            **item,
+            "native_config": {
+                "path": f'/proof/kiro/native/{item["plugin"]}.json', "sha256": digest,
+            },
+            "client_config": {
+                "path": "/profile/kiro/.kiro/settings/mcp.json", "sha256": digest,
+            },
+        } for item in entries]
+        valid_kiro = {"schema_version": 1, "client_id": "kiro", "entries": kiro_entries}
+        self.assertEqual(
+            validate(json.dumps(valid_kiro).encode(), "kiro", Path("/profile/kiro"), Path("/proof/kiro")),
+            valid_kiro,
+        )
+        for conflicting in (
+            {**valid_kiro, "entries": [
+                {**kiro_entries[0], "client_config": {"path": "/profile/kiro/other/mcp.json", "sha256": digest}},
+                *kiro_entries[1:],
+            ]},
+            {**valid_kiro, "entries": [
+                {**kiro_entries[0],
+                 "native_config": {**kiro_entries[0]["native_config"], "sha256": "sha256:" + "c" * 64},
+                 "client_config": {**kiro_entries[0]["client_config"], "sha256": "sha256:" + "c" * 64}},
+                *kiro_entries[1:],
+            ]},
+            {**valid_kiro, "client_id": "codex", "entries": [{
+                **item,
+                "native_config": {"path": f'/proof/codex/native/{item["plugin"]}.json', "sha256": digest},
+                "client_config": {"path": "/profile/codex/.kiro/settings/mcp.json", "sha256": digest},
+            } for item in entries]},
+        ):
+            with self.subTest(conflicting_shared_path=conflicting), self.assertRaises(SystemExit):
+                validate(
+                    json.dumps(conflicting).encode(), conflicting["client_id"],
+                    Path(f'/profile/{conflicting["client_id"]}'), Path(f'/proof/{conflicting["client_id"]}'),
+                )
+        malformed = (
+            {**valid, "schema_version": True},
+            {**valid, "client_id": "cursor"},
+            {**valid, "entries": []},
+            {**valid, "extra": 1},
+            {**valid, "entries": [{key: value for key, value in entry.items() if key != "client_config"}]},
+            {**valid, "entries": [{**entry, "client_config": {"path": entry["client_config"]["path"]}}]},
+            {**valid, "entries": [{**entries[0], "tuple": {"product_id": entries[0]["plugin"]}}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "unexpected": 1}}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "release_sequence": True}}, *entries[1:]]},
+        )
+        for value in malformed:
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                validate(json.dumps(value).encode(), "codex", Path("/profile/codex"), Path("/proof/codex"))
+        for encoded in (
+            b'{"schema_version":1,"schema_version":1,"client_id":"codex","entries":[]}',
+            b'{"schema_version":1,"Schema_Version":1,"client_id":"codex","entries":[]}',
+            b'{"schema_version":1,"client_id":"codex","entries":[],"value":NaN}',
+            b'{"schema_version":1,"client_id":"codex","entries":[],"value":1e400}',
+        ):
+            with self.subTest(encoded=encoded), self.assertRaises(SystemExit):
+                validate(encoded, "codex", Path("/profile/codex"), Path("/proof/codex"))
+        self.assertIn('set(receipts)!={"schema_version","receipts"}', library)
+        self.assertIn('type(receipts.get("schema_version")) is not int', library)
+        self.assertIn('record["tuple"]!=entry["tuple"]', library)
+        self.assertIn('record.get(field)!=entry.get(field)', library)
+
+    def test_runbook_strictly_decodes_and_validates_before_canonicalization(self) -> None:
+        runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()
+        self.assertNotIn('json.loads(source.read_text(encoding="utf-8"))', runbook)
+        self.assertEqual(runbook.count("object_pairs_hook=pairs"), 3)
+        self.assertEqual(runbook.count("parse_constant=constant, parse_float=finite"), 3)
+        self.assertEqual(runbook.count("jsonschema.validate("), 2)
+        for phrase, count in (
+            ("duplicate or case-confusable JSON member", 3),
+            ('type(value.get("schema_version")) is not int', 3),
+            ('"native_projection" in record', 2),
+        ):
+            self.assertEqual(runbook.count(phrase), count)
+
+    def test_observer_readme_installer_example_has_all_ten_arguments(self) -> None:
+        readme = (ROOT / "observer/README.md").read_text()
+        invocation = re.search(r"`deploy/uap-observer-install\.sh ([^`]+)`", readme)
+        self.assertIsNotNone(invocation)
+        self.assertEqual(invocation.group(1).split(), [
+            "SOURCE_ROOT", "ADAPTER_CONFIG", "sha256:ADAPTER_DIGEST",
+            "OBSERVER_CONFIG", "sha256:OBSERVER_DIGEST",
+            "CADDY_2.11.4_LINUX_AMD64_ARCHIVE", "CADDY_CONFIG",
+            "sha256:CADDY_CONFIG_DIGEST", "EGRESS_ALLOWLIST",
+            "sha256:EGRESS_ALLOWLIST_DIGEST",
+        ])
+
+    def test_documented_pre_add_doctor_gate_executes_strictly(self) -> None:
+        runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()
+        marker = 'python3 - "$client" "$evidence/doctor/detection.json" <<\'PY\'\n'
+        start = runbook.index(marker) + len(marker)
+        snippet = runbook[start:runbook.index("\nPY", start)]
+        valid = {
+            "schema_version": 1, "command": "doctor", "result": "success",
+            "data": {"clients": [{"client_id": "codex", "detected": True}]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            evidence = Path(temporary) / "doctor.json"
+            evidence.write_text(json.dumps(valid))
+            accepted = subprocess.run(
+                ["/usr/bin/python3", "-c", snippet, "codex", str(evidence)],
+                text=True, capture_output=True,
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            adversarial = (
+                b'{"schema_version":true,"command":"doctor","result":"success","data":{}}',
+                b'{"schema_version":1,"Schema_Version":1,"command":"doctor","result":"success","data":{}}',
+                b'{"schema_version":1,"command":"doctor","result":"success","data":{},"value":NaN}',
+                b'{"schema_version":1,"command":"doctor","result":"success","data":{},"value":1e400}',
+            )
+            for body in adversarial:
+                evidence.write_bytes(body)
+                rejected = subprocess.run(
+                    ["/usr/bin/python3", "-c", snippet, "codex", str(evidence)],
+                    text=True, capture_output=True,
+                )
+                with self.subTest(body=body):
+                    self.assertNotEqual(rejected.returncode, 0)
+
+    def test_kiro_acp_2191_grammar_is_distinguished_from_pending_live_matrix(self) -> None:
+        adapter = (ROOT / "observer/fixed_adapters.py").read_text()
+        plan = (ROOT / "docs/UNIVERSAL_DIRECTORY_AND_CLI_IMPLEMENTATION_PLAN.md").read_text()
+        runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()
+        for text in (adapter, plan, runbook):
+            self.assertIn("2.19.1", text)
+        self.assertIn('("acp", "--agent-engine", "v3", "--auth-method", "cli")', adapter)
+        self.assertIn("one observed hero", plan)
+        self.assertIn("Do not claim 15/15/PASS", runbook)
+        self.assertNotIn("KIRO_STRUCTURED_CAPTURE_GATE", adapter)
+        fixture = json.loads((ROOT / "observer/tests/fixtures/kiro-acp-2.19.1-sanitized.json").read_text())
+        summary = fixture["observed_shape_summary"]
+        self.assertEqual(summary["final_native_5x3_matrix"], "pending_external")
+        self.assertEqual(summary["evidence_kind"], "sanitized_observed_shape_summary_not_raw_ordered_acp_frames")
+        self.assertEqual(summary["ordering_claim"], "none")
+        self.assertNotIn("ordered structured successful tool-call", (ROOT / "observer/README.md").read_text())
+        self.assertNotIn("post-boundary unrelated", (ROOT / "observer/README.md").read_text())
+        self.assertNotIn("pending-to-completed", (ROOT / "observer/README.md").read_text())
+        self.assertIn("Their sequence is not asserted", plan)
+        self.assertEqual(fixture["public_contract"]["session_new_mcp_servers"], [])
+        self.assertIn("multi-tool catalog", runbook)
+        self.assertIn("unrelated `kiro_power` failure shapes", (ROOT / "observer/README.md").read_text())
+
+    def test_installer_runtime_pins_equal_current_manifest_and_files(self) -> None:
+        installer = (ROOT / "deploy/uap-observer-install.sh").read_text()
+        manifest_path = ROOT / "deploy/uap-observer-runtime.sha256"
+        manifest = dict(
+            reversed(line.split(maxsplit=1))
+            for line in manifest_path.read_text().splitlines() if line.strip()
+        )
+        def file_digest(relative: str) -> str:
+            return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        self.assertEqual(manifest["observer/fixed_runner.py"], file_digest("observer/fixed_runner.py"))
+        self.assertEqual(manifest["observer/fixed_adapters.py"], file_digest("observer/fixed_adapters.py"))
+        assignments = dict(re.findall(
+            r"^(runner_digest|adapter_digest)=([a-f0-9]{64})$", installer, re.MULTILINE,
+        ))
+        self.assertEqual(assignments, {
+            "runner_digest": manifest["observer/fixed_runner.py"],
+            "adapter_digest": manifest["observer/fixed_adapters.py"],
+        })
+        idempotent = re.search(
+            r"observer_validate_installed_closure_sources .*?\\\n"
+            r"(?:.*?\\\n){1,3}\s+([a-f0-9]{64}) \\\n\s+([a-f0-9]{64}) \\\n",
+            installer,
+        )
+        self.assertIsNotNone(idempotent)
+        self.assertEqual(idempotent.groups(), (
+            manifest["observer/fixed_runner.py"], manifest["observer/fixed_adapters.py"],
+        ))
+        library_pin = re.search(r'sha256sum "\$install_lib".*?= ([a-f0-9]{64})$', installer, re.MULTILINE)
+        self.assertIsNotNone(library_pin)
+        self.assertEqual(library_pin.group(1), file_digest("deploy/uap-observer-install-lib.sh"))
+        closure_pin = re.search(r"^runtime_manifest_digest=([a-f0-9]{64})$", installer, re.MULTILINE)
+        self.assertIsNotNone(closure_pin)
+        self.assertEqual(closure_pin.group(1), hashlib.sha256(manifest_path.read_bytes()).hexdigest())
+
+    def test_installed_adapter_manifest_uses_runtime_strict_json_and_version_rules(self) -> None:
+        library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()
+        start = library.index("def strict_adapter_manifest(encoded,expected):")
+        end = library.index("\nconfig_digest=", start)
+        namespace = {}
+        exec("import json,math\n" + library[start:end], namespace)
+        validate = namespace["strict_adapter_manifest"]
+        expected = {"schema_version": 1, "config": {}, "artifacts": {}}
+        valid = b'{"schema_version":1,"config":{},"artifacts":{}}'
+        self.assertEqual(validate(valid, expected), expected)
+        rejected = (
+            b'{"schema_version":1,"schema_version":1,"config":{},"artifacts":{}}',
+            b'{"schema_version":true,"config":{},"artifacts":{}}',
+            b'{"schema_version":1.0,"config":{},"artifacts":{}}',
+            b'{"schema_version":NaN,"config":{},"artifacts":{}}',
+        )
+        for encoded in rejected:
+            with self.subTest(encoded=encoded), self.assertRaises((SystemExit, ValueError)):
+                validate(encoded, expected)
+
     def test_stable_launch_versions_equal_trusted_contract(self) -> None:
         version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
         self.assertEqual(version, "0.1.14")
@@ -93,6 +368,93 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("secrets.", body)
         self.assertEqual(job["permissions"], {"contents": "read"})
         self.assertLessEqual(int(job["timeout-minutes"]), 10)
+
+    def test_observer_policy_accepts_exactly_the_protected_workflow_events(self) -> None:
+        workflow = load(LAUNCH)
+        protected_if = workflow["jobs"]["protected-observer-inputs"]["if"]
+        workflow_events = set(re.findall(
+            r"inputs\.caller_event_name\s*==\s*'([^']+)'", protected_if,
+        ))
+        observer = json.loads((ROOT / "deploy/uap-observer.json").read_text())
+        policy_events = set(observer["policies"][0]["event_names"])
+        self.assertEqual(workflow_events, {"push", "schedule", "workflow_dispatch"})
+        self.assertEqual(policy_events, workflow_events)
+
+    def test_observer_runbook_binds_fail_closed_loopback_proxy_operations(self) -> None:
+        runbook = OBSERVER_RUNBOOK.read_text()
+        required = (
+            "EGRESS_ALLOWLIST=/root/uap-observer-egress-allowlist.json",
+            "EGRESS_SHA256=sha256:<64-lowercase-hex>",
+            "EGRESS_ALLOWLIST_MODE=0:0:644:1",
+            '"$EGRESS_ALLOWLIST" "$EGRESS_SHA256"',
+            "--config \"$EGRESS_ALLOWLIST\" --validate-config",
+            "The proxy executable and units are repository source/runtime-closure files",
+            "`schema_version` set to `1` and a non-empty `hosts` array",
+            "bytewise-sorted,\nunique, exact lowercase ASCII FQDNs",
+            "Its `hosts` array must equal adapter `egress_hosts` byte for\nbyte",
+            "Do not stage\nor copy units into `/etc/systemd/system` manually",
+            "NO_OPEN_BROWSER=1 login",
+            "systemctl enable --now uap-observer-egress-proxy.socket",
+            "systemctl is-active uap-observer-egress-proxy.service",
+            "systemctl stop uap-observer-egress-proxy.socket",
+            "127.0.0.1:8765",
+            "127.0.0.2:8766",
+            "no transparent or direct-fallback mode",
+            "HTTP_PROXY=http://127.0.0.2:8766",
+            "HTTPS_PROXY=http://127.0.0.2:8766",
+            "ALL_PROXY=http://127.0.0.2:8766",
+            "explicitly empty `NO_PROXY`",
+            "current\nprovider-owned host list for Codex, Cursor, Kiro, GitHub",
+            "current installer supports a fresh host only",
+            "repository does not install UID-, cgroup-, or service-identity firewall rules",
+            "`IPAddressDeny=any`",
+            "resolve_github_release",
+            '"agentplugins-v0.1.14"',
+            'asset_name="agentplugins_0.1.14_linux_amd64"',
+            '"$AGENTPLUGINS" add "$source" --target "$client" --format json',
+            '"$AGENTPLUGINS" info "$plugin" --target "$client" --format json',
+            "manual_activation_required",
+            "source_repository@source_revision//source_path",
+            'PATH="$client_path"',
+            '"$AGENTPLUGINS" doctor --format json',
+            '"$client_path/kiro-cli"',
+            "An unauthenticated Kiro probe mutated its seed and then\nfailed four MCP activations",
+            "package_revision` has exactly `version`,\n`resolved_revision`, `tree_digest`, and `manifest_digest",
+            "uap-observer-seal-profile.py",
+            "external live matrix supplies all 15 required results",
+        )
+        for phrase in required:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, runbook)
+        self.assertIn("Do not bypass OIDC", runbook)
+        self.assertIn("five minutes before", runbook)
+        self.assertIn("genuinely\nexternal unmerged PR", runbook)
+        self.assertNotIn("uap-observer-egress-fqdns.txt", runbook)
+        self.assertNotIn("NO_OPEN_BROWSER=1 agent login", runbook)
+        self.assertNotIn("/root/uap-observer-egress-proxy.socket", runbook)
+        self.assertNotIn("/root/uap-observer-egress-proxy.service", runbook)
+        self.assertNotIn("/usr/local/libexec/", runbook)
+        self.assertIn("/opt/uap-observer-current/libexec/uap-observer-provision-profile", runbook)
+        self.assertIn("--matrix-file /root/uap-observer-matrix.json", runbook)
+        self.assertIn("--post-doctor-directory", runbook)
+        digest_phase = runbook.index("--digest-only")
+        config_phase = runbook.index("uap-observer-adapter-config.template.json", digest_phase)
+        validate_phase = runbook.index("python3 -m jsonschema", config_phase)
+        seal_phase = runbook.index('sealed_digest="$(python3', validate_phase)
+        self.assertLess(digest_phase, config_phase)
+        self.assertLess(config_phase, validate_phase)
+        self.assertLess(validate_phase, seal_phase)
+        final_config = "/root/uap-observer-adapter-config.json"
+        first_final_use = runbook.index(final_config)
+        self.assertGreater(first_final_use, digest_phase)
+        bootstrap_prefix = runbook[:digest_phase]
+        self.assertNotIn(final_config, bootstrap_prefix)
+        self.assertIn('/root/uap-observer-matrix.json <<\'PY\'', bootstrap_prefix)
+        self.assertNotIn("Do not reject a successful add merely", runbook)
+        proxy_probe = runbook.split(
+            '"https://<reviewed-allowlisted-health-fqdn>/"', 1,
+        )[0].rsplit("curl ", 1)[-1]
+        self.assertNotIn("--fail", proxy_probe)
 
     def test_launch_evidence_jobs_fetch_parent_for_patch_binding(self) -> None:
         launch = load(LAUNCH)

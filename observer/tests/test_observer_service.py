@@ -7,6 +7,7 @@ import http.client
 import importlib.util
 import json
 import os
+import pwd
 import re
 import select
 import signal
@@ -15,6 +16,7 @@ import socket
 import stat
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -43,10 +45,26 @@ from observer.secure_files import read_owned_regular
 from observer.service import CHALLENGE_DOMAIN, ObserverService, WorkBusyError
 from observer.signer import SocketSigner
 from observer.signer import CacheExpiredError
+from observer.tests.classification import requires_disposable_observer_host
 
 
 def b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def sealed_tuple(product: str) -> dict[str, Any]:
+    digest = "sha256:" + "a" * 64
+    return {
+        "product_id": product, "tree_digest": digest, "manifest_digest": digest,
+        "distribution_id": f"owner/{product}", "distribution_kind": "upstream",
+        "release_sequence": 1, "package_version": "1.0.0",
+        "source_repository": f"owner/{product}", "source_revision": "b" * 40,
+        "source_path": f"plugins/{product}", "snapshot_sequence": 1,
+        "snapshot_digest": digest, "binary_digest": digest,
+        "dependency_identity": "locked", "installer_version": "0.1.14",
+        "adapter_version": "r14d", "client_version": None,
+        "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
+    }
 
 
 class Fixture:
@@ -737,6 +755,32 @@ class HttpBoundaryTests(unittest.TestCase):
 
 
 class ExternalSignerTests(unittest.TestCase):
+    def test_signer_strictly_rejects_non_rfc_and_case_confusable_evidence(self) -> None:
+        helper_path = Path(__file__).parents[2] / "deploy" / "uap-observer-signer.py"
+        spec = importlib.util.spec_from_file_location("uap_observer_signer_strict", helper_path)
+        self.assertIsNotNone(spec and spec.loader)
+        helper = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+        spec.loader.exec_module(helper)  # type: ignore[union-attr]
+        unsigned = {
+            "schema_version": 1, "challenge": "a" * 64,
+            "signed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "key_id": "fixture-ed25519", "artifacts": artifacts(),
+        }
+        valid = signed_payload(unsigned)
+        helper.validate_payload(valid, key_id="fixture-ed25519")
+        encoded = valid[len(helper.SIGNATURE_DOMAIN):]
+        adversarial = (
+            encoded[:-1] + b',"Extension":{},"extension":{}}',
+            encoded[:-1] + b',"value":NaN}',
+            encoded[:-1] + b',"value":Infinity}',
+            encoded[:-1] + b',"value":1e400}',
+            encoded[:-1] + b',"schema_version":1}',
+        )
+        for body in adversarial:
+            with self.subTest(body=body[-80:]), self.assertRaises(ValueError):
+                helper.validate_payload(helper.SIGNATURE_DOMAIN + body, key_id="fixture-ed25519")
+
+    @requires_disposable_observer_host
     def test_socket_helper_signs_only_canonical_bundle(self) -> None:
         helper_path = Path(__file__).parents[2] / "deploy" / "uap-observer-signer.py"
         spec = importlib.util.spec_from_file_location("uap_observer_signer", helper_path)
@@ -870,7 +914,99 @@ def _capture_error(call, failures: list[Exception]) -> None:  # type: ignore[no-
         failures.append(error)
 
 
+@requires_disposable_observer_host
 class FixedRunnerFixtureTests(unittest.TestCase):
+    def test_final_revalidation_fails_closed_and_preserves_every_primary_failure(self) -> None:
+        for label, primary in (
+            ("success", None),
+            ("nonzero", ValueError("reviewed adapter failed")),
+            ("timeout", TimeoutError("reviewed adapter exceeded deadline")),
+            ("spawn", OSError("spawn failed")),
+            ("cancellation", KeyboardInterrupt("cancelled")),
+        ):
+            calls = []
+            def mutated() -> None:
+                calls.append("revalidated")
+                raise ValueError("protected proof changed")
+            with self.subTest(path=label), self.assertRaises(ValueError) as caught:
+                fixed_runner.finalize_client_job(None, mutated, primary)
+            self.assertEqual(calls, ["revalidated"])
+            if primary is None:
+                self.assertIn("protected proof changed", str(caught.exception))
+            else:
+                self.assertIs(caught.exception.__cause__, primary)
+
+    def test_post_cgroup_revalidation_binds_root_proofs_and_native_bytes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile = root / "profile"
+            proof = root / "proofs" / "codex"
+            profile.mkdir(mode=0o700)
+            proof.mkdir(parents=True, mode=0o700)
+            native = profile / "native.json"
+            native.write_bytes(b"native-v1")
+            native.chmod(0o440)
+            native_digest = "sha256:" + hashlib.sha256(native.read_bytes()).hexdigest()
+            proof_native = proof / "native.json"
+            proof_native.write_bytes(native.read_bytes())
+            proof_native.chmod(0o440)
+            projection = proof / "native-projection.json"
+            projection.write_bytes(canonical_json({
+                "schema_version": 1, "client_id": "codex", "entries": [{
+                    "plugin": "context7", "tuple": {"product_id": "context7"},
+                    "native_config": {"path": str(proof_native), "sha256": native_digest},
+                    "client_config": {"path": str(native), "sha256": native_digest},
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                }],
+            }))
+            projection.chmod(0o440)
+            receipts = proof / "receipts.json"
+            receipts.write_bytes(canonical_json({"schema_version": 1, "receipts": [{
+                "name": "context7", "tuple": {"product_id": "context7"},
+                "manager_add_sha256": "sha256:" + "9" * 64,
+                "manager_info_sha256": "sha256:" + "a" * 64,
+                "post_add_doctor_sha256": "sha256:" + "b" * 64,
+            }]}))
+            receipts.chmod(0o440)
+            config = root / "adapter.json"
+            config.write_bytes(canonical_json({"clients": {"codex": {
+                "profile": str(profile), "native_projection": {
+                    "path": str(projection),
+                    "sha256": "sha256:" + hashlib.sha256(projection.read_bytes()).hexdigest(),
+                },
+            }}}))
+            config.chmod(0o640)
+            config_digest = "sha256:" + hashlib.sha256(config.read_bytes()).hexdigest()
+            fixed_runner.revalidate_client_proofs(
+                config, config_digest, "codex", os.geteuid(), os.getegid(),
+            )
+            original_projection = projection.read_bytes()
+            for malformed in (
+                {**json.loads(original_projection), "schema_version": True},
+                {**json.loads(original_projection), "unexpected": 1},
+            ):
+                projection.write_bytes(canonical_json(malformed))
+                config_value = json.loads(config.read_bytes())
+                config_value["clients"]["codex"]["native_projection"]["sha256"] = "sha256:" + hashlib.sha256(projection.read_bytes()).hexdigest()
+                config.write_bytes(canonical_json(config_value))
+                with self.subTest(projection_boundary=tuple(malformed)), self.assertRaisesRegex(ValueError, "projection schema"):
+                    fixed_runner.revalidate_client_proofs(
+                        config, "sha256:" + hashlib.sha256(config.read_bytes()).hexdigest(),
+                        "codex", os.geteuid(), os.getegid(),
+                    )
+            projection.write_bytes(original_projection)
+            config_value = json.loads(config.read_bytes())
+            config_value["clients"]["codex"]["native_projection"]["sha256"] = "sha256:" + hashlib.sha256(original_projection).hexdigest()
+            config.write_bytes(canonical_json(config_value))
+            config_digest = "sha256:" + hashlib.sha256(config.read_bytes()).hexdigest()
+            native.write_bytes(b"native-v2")
+            with self.assertRaisesRegex(ValueError, "native config changed"):
+                fixed_runner.revalidate_client_proofs(
+                    config, config_digest, "codex", os.geteuid(), os.getegid(),
+                )
+
     @staticmethod
     def _reap_process(process: subprocess.Popen[str]) -> None:
         if process.poll() is None:
@@ -886,10 +1022,42 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         for name in (
             "uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service",
             "uap-observer-runner.socket", "uap-observer-caddy.service",
+            "uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket",
         ):
             (systemd / name).write_text("installed\n")
         for name in ("uap-observer.service.d", "uap-observer-runner.service.d"):
             (systemd / name).mkdir()
+
+    def test_installer_recovery_journal_identity_is_strict_json_and_exact_schema(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
+        invalid_bodies = (
+            b'{"version":1,"version":1,"present":[],"records":[]}',
+            b'{"version":1,"Version":1,"present":[],"records":[]}',
+            b'{"version":true,"present":[],"records":[]}',
+            b'{"version":1,"present":[]}',
+            b'{"version":1,"present":{},"records":[]}',
+            b'{"version":1,"present":[],"records":{},"unexpected":0}',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            systemd = root / "systemd"
+            self._populate_complete_observer_inventory(systemd)
+            for index, body in enumerate(invalid_bodies):
+                backup = root / f"journal-{index}"
+                subprocess.run(
+                    ["/bin/sh", "-c", '. "$1"; journal_observer_systemd "$2" "$3"',
+                     "sh", str(helper), str(backup), str(systemd)], check=True,
+                )
+                identity = backup / "identity.json"
+                identity.write_bytes(body)
+                identity.chmod(0o600)
+                result = subprocess.run(
+                    ["/bin/sh", "-c", '. "$1"; validate_observer_systemd_journal "$2"',
+                     "sh", str(helper), str(backup)], text=True, capture_output=True,
+                )
+                with self.subTest(identity_body=body):
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn("installer recovery journal is invalid", result.stderr)
 
     @staticmethod
     def _copy_observer_inventory(reviewed: Path, systemd: Path) -> None:
@@ -954,17 +1122,22 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         etc.mkdir()
         (etc / "uap-observer-adapter-config.json").write_text("{}\n")
         (etc / "Caddyfile").write_text("{}\n")
+        (etc / "uap-observer-egress-allowlist.json").write_text("{}\n")
         libexec = staged / "libexec"
         libexec.mkdir()
         fixed_adapter = libexec / "uap-observer-fixed-adapter"
         fixed_adapter.write_text("#!/bin/sh\nexit 1\n")
         fixed_adapter.chmod(0o755)
+        egress_proxy = libexec / "uap-observer-egress-proxy"
+        egress_proxy.write_text("#!/bin/sh\nexit 1\n")
+        egress_proxy.chmod(0o755)
         for name in ("runtime", "notion", "chatgpt", "consent"):
             os.link(fixed_adapter, libexec / f"uap-observer-adapter-{name}")
         reviewed_systemd = staged / "systemd"
         reviewed_systemd.mkdir()
         for unit in ("uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service",
-                     "uap-observer-runner.socket", "uap-observer-caddy.service"):
+                     "uap-observer-runner.socket", "uap-observer-caddy.service",
+                     "uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket"):
             (reviewed_systemd / unit).write_text(f"reviewed {unit}\n")
         for service in ("uap-observer", "uap-observer-runner"):
             dropin = reviewed_systemd / f"{service}.service.d"
@@ -974,6 +1147,7 @@ class FixedRunnerFixtureTests(unittest.TestCase):
             path.chmod(0o644)
         for path in (etc / "uap-observer-adapter-config.json", etc / "Caddyfile"):
             path.chmod(0o640)
+        (etc / "uap-observer-egress-allowlist.json").chmod(0o644)
         identity = subprocess.check_output(
             ["/bin/sh", "-c", '. "$1"; observer_closure_identity "$2"', "sh", str(helper), str(staged)],
             text=True,
@@ -1187,6 +1361,32 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         self.assertIn('observer_validate_installed_accounts_and_state', installer[:staging])
         self.assertIn('observer_validate_protected_inputs', installer[:staging])
 
+    def test_proxy_runtime_sources_are_closed_and_installed_at_service_paths(self) -> None:
+        repository = Path(__file__).parents[2]
+        manifest_paths = {
+            line.split("  ", 1)[1]
+            for line in (repository / "deploy/uap-observer-runtime.sha256").read_text().splitlines()
+        }
+        proxy_sources = {
+            "deploy/uap-observer-egress-proxy.py",
+            "deploy/uap-observer-egress-proxy.service",
+            "deploy/uap-observer-egress-proxy.socket",
+        }
+        self.assertLessEqual(proxy_sources, manifest_paths)
+        installer = (repository / "deploy/uap-observer-install.sh").read_text()
+        self.assertIn(
+            'mv /usr/local/libexec/uap-observer-egress-proxy.new "$closure_stage/libexec/uap-observer-egress-proxy"',
+            installer,
+        )
+        service = (repository / "deploy/uap-observer-egress-proxy.service").read_text()
+        self.assertIn(
+            "ExecStart=/usr/bin/python3 -B /opt/uap-observer-current/libexec/uap-observer-egress-proxy "
+            "--config /opt/uap-observer-current/etc/uap-observer-egress-allowlist.json --socket-fd 3",
+            service,
+        )
+        socket = (repository / "deploy/uap-observer-egress-proxy.socket").read_text()
+        self.assertIn("ListenStream=127.0.0.2:8766", socket)
+
     def test_production_pins_match_exact_bytes_and_fixture_reaches_beyond_both_checks(self) -> None:
         repository = Path(__file__).parents[2]
         manifest = repository / "deploy/uap-observer-runtime.sha256"
@@ -1227,13 +1427,14 @@ class FixedRunnerFixtureTests(unittest.TestCase):
             fixture_installer = fixture_installer.replace(needle, needle + f"printf reached > '{marker}'\nexit 93\n", 1)
             installer = root / "uap-observer-install.sh"; installer.write_text(fixture_installer); installer.chmod(0o755)
             inputs = []
-            for name in ("adapter.json", "observer.json", "Caddyfile"):
+            for name in ("adapter.json", "observer.json", "Caddyfile", "egress-allowlist.json"):
                 path = root / name; path.write_text("{}\n"); inputs.append(path)
             digests = [hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs]
             (root / "opt").mkdir(); (root / "etc/systemd/system").mkdir(parents=True)
             result = subprocess.run(
                 [str(installer), str(repository), str(inputs[0]), f"sha256:{digests[0]}",
-                 str(inputs[1]), f"sha256:{digests[1]}", str(archive), str(inputs[2]), f"sha256:{digests[2]}"],
+                 str(inputs[1]), f"sha256:{digests[1]}", str(archive), str(inputs[2]), f"sha256:{digests[2]}",
+                 str(inputs[3]), f"sha256:{digests[3]}"],
                 env={**os.environ, "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"},
                 text=True, capture_output=True,
             )
@@ -1468,7 +1669,7 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             manifest = source / "deploy/uap-observer-runtime.sha256"
             manifest.write_text(f"{runtime_digest}  runtime.txt\n")
             inputs = []
-            for name in ("adapter.json", "observer.json", "caddy.tar.gz", "Caddyfile"):
+            for name in ("adapter.json", "observer.json", "caddy.tar.gz", "Caddyfile", "egress-allowlist.json"):
                 path = root / name
                 path.write_text(name + "\n")
                 inputs.append(path)
@@ -1476,7 +1677,7 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             digests = [hashlib.sha256(path.read_bytes()).hexdigest() for path in inputs]
             args = [str(source), manifest_digest, str(inputs[0]), f"sha256:{digests[0]}",
                     str(inputs[1]), f"sha256:{digests[1]}", str(inputs[2]), digests[2],
-                    str(inputs[3]), f"sha256:{digests[3]}"]
+                    str(inputs[3]), f"sha256:{digests[3]}", str(inputs[4]), f"sha256:{digests[4]}"]
             def run_identity() -> subprocess.CompletedProcess[str]:
                 command = ["/bin/sh", "-c", 'set -eu; . "$1"; shift; observer_install_input_identity "$@"',
                            "sh", str(helper), *args]
@@ -1489,12 +1690,14 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             for name, mutate in (
                 ("runtime content", lambda: runtime.write_text("drift\n")),
                 ("adapter content", lambda: inputs[0].write_text("drift\n")),
+                ("egress content", lambda: inputs[4].write_text("drift\n")),
                 ("checksum argument", lambda: args.__setitem__(3, "sha256:" + "0" * 64)),
                 ("symlink input", lambda: (inputs[3].unlink(), inputs[3].symlink_to(inputs[1]))),
             ):
                 with self.subTest(name=name):
                     runtime.write_text("runtime\n")
                     inputs[0].write_text("adapter.json\n")
+                    inputs[4].write_text("egress-allowlist.json\n")
                     if inputs[3].is_symlink():
                         inputs[3].unlink()
                         inputs[3].write_text("Caddyfile\n")
@@ -1516,7 +1719,9 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             fixed.chmod(0o700)
             for name in ("runtime", "notion", "chatgpt", "consent"):
                 os.link(fixed, closure / f"libexec/uap-observer-adapter-{name}")
-            for name in ("uap-observer.json", "uap-observer-adapter-config.json", "uap-observer-adapters.json", "Caddyfile"):
+            proxy = closure / "libexec/uap-observer-egress-proxy"
+            proxy.write_text("#!/bin/sh\nexit 1\n")
+            for name in ("uap-observer.json", "uap-observer-adapter-config.json", "uap-observer-adapters.json", "Caddyfile", "uap-observer-egress-allowlist.json"):
                 (closure / "etc" / name).write_text("{}")
             helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
             subprocess.run(["/bin/sh", "-c", '. "$1"; apply_observer_closure_modes "$2" "$3" "$3"', "sh", str(helper), str(closure), str(os.getgid())], check=True)
@@ -1546,7 +1751,7 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             if capability.returncode != 0 and "mount" in capability.stderr.lower():
                 self.skipTest("private read-only no-atime bind remount is denied by the provider sandbox")
             self.assertEqual(capability.returncode, 0, capability.stderr)
-        units = ("uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service", "uap-observer-runner.socket", "uap-observer-caddy.service")
+        units = ("uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service", "uap-observer-runner.socket", "uap-observer-caddy.service", "uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket")
         def xattrs(path: Path) -> tuple[tuple[bytes, bytes], ...]:
             names = os.listxattr(path, follow_symlinks=False)
             return tuple(sorted(
@@ -1771,6 +1976,7 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
             units = (
                 "uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service",
                 "uap-observer-runner.socket", "uap-observer-caddy.service",
+                "uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket",
             )
             for unit in units:
                 (staged / unit).write_text(f"reviewed {unit}\n")
@@ -1790,11 +1996,42 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
                     {"egress.conf"},
                 )
 
+    def test_systemd_activation_checkpoint_is_derived_from_all_nine_entries(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
+        script = r'''
+. "$1"
+observer_replace_systemd_entries() { return 0; }
+observer_compare_systemd_journal() { return 0; }
+validate_observer_systemd_journal() { return 0; }
+validate_observer_systemd_inventory() { printf '%s\n' "$observer_install_step"; }
+activate_observer_systemd /reviewed /systemd /journal
+'''
+        completed = subprocess.run(
+            ["/bin/sh", "-c", script, "sh", str(helper)],
+            text=True, capture_output=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(completed.stdout.strip(), "9")
+
+        reload_script = r'''
+. "$1"
+observer_install_step=9
+manager() { test "$1" = daemon-reload; }
+UAP_OBSERVER_INSTALL_FAIL_AT=10
+reload_observer_systemd manager
+'''
+        failed = subprocess.run(
+            ["/bin/sh", "-c", reload_script, "sh", str(helper)],
+            text=True, capture_output=True,
+        )
+        self.assertNotEqual(failed.returncode, 0, "post-topology reload boundary was not addressable")
+
     def test_systemd_activation_rejects_atime_only_drift_after_journaling(self) -> None:
         helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
         units = (
             "uap-observer.service", "uap-observer-signer.service", "uap-observer-runner.service",
             "uap-observer-runner.socket", "uap-observer-caddy.service",
+            "uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket",
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); systemd = root / "systemd"; staged = root / "staged"; backup = root / "backup"
@@ -1933,6 +2170,42 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
                 self.assertEqual(snapshot(backup), before)
                 subprocess.run(["/bin/sh", "-c", '. "$1"; restore_observer_systemd "$2" "$3"', "sh", str(helper), str(backup), str(systemd)], check=True)
                 self.assertEqual(snapshot(backup), before)
+
+    def test_egress_service_and_socket_symlinks_are_journaled_and_rollback_recoverable(self) -> None:
+        self._require_private_noatime_view()
+        helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
+        units = ("uap-observer-egress-proxy.service", "uap-observer-egress-proxy.socket")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            systemd, staged, backup = root / "systemd", root / "staged", root / "backup"
+            systemd.mkdir(); staged.mkdir()
+            targets = {}
+            for unit in units:
+                target = root / f"legacy-{unit}"
+                target.write_text(f"legacy {unit}\n")
+                (systemd / unit).symlink_to(target.name)
+                targets[unit] = target.name
+                (staged / unit).write_text(f"reviewed {unit}\n")
+            subprocess.run([
+                "/bin/sh", "-c", '. "$1"; journal_observer_systemd "$2" "$3"',
+                "sh", str(helper), str(backup), str(systemd),
+            ], check=True)
+            replaced = subprocess.run([
+                "/bin/sh", "-c",
+                '. "$1"; UAP_OBSERVER_COMPARE_BACKUP=$2 observer_replace_systemd_entries "$3" "$4" "$5" "$6" "$7"',
+                "sh", str(helper), str(backup), str(systemd),
+                str(staged / units[0]), units[0], str(staged / units[1]), units[1],
+            ], text=True, capture_output=True)
+            self.assertEqual(replaced.returncode, 0, replaced.stderr)
+            self.assertTrue(all((systemd / unit).is_file() and not (systemd / unit).is_symlink() for unit in units))
+            restored = subprocess.run([
+                "/bin/sh", "-c", '. "$1"; restore_observer_systemd "$2" "$3" "$4"',
+                "sh", str(helper), str(backup), str(systemd), str(staged),
+            ], text=True, capture_output=True)
+            self.assertEqual(restored.returncode, 0, restored.stderr)
+            for unit in units:
+                self.assertTrue((systemd / unit).is_symlink())
+                self.assertEqual(os.readlink(systemd / unit), targets[unit])
 
     def test_systemd_replace_rejects_raced_hardlink_content_and_metadata(self) -> None:
         helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
@@ -2413,21 +2686,23 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
                 root = Path(temporary); reviewed = root / "reviewed"; live = root / "live"
                 self._populate_complete_observer_inventory(reviewed)
                 self._copy_observer_inventory(reviewed, live)
-                readfd, writefd = os.pipe()
+                ready_read, ready_write = os.pipe(); resume_read, resume_write = os.pipe()
                 process = None
                 try:
                     process = subprocess.Popen(
                         ["/bin/sh", "-c", '. "$1"; observer_compare_systemd_trees "$2" "$3"',
                          "sh", str(helper), str(reviewed), str(live)],
-                        env={**os.environ, "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_READY_FD": str(writefd),
+                        env={**os.environ, "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_READY_FD": str(ready_write),
+                             "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_RESUME_FD": str(resume_read),
                              "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_NAME": "uap-observer.service"},
-                        pass_fds=(writefd,), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        pass_fds=(ready_write, resume_read), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         start_new_session=True,
                     )
-                    os.close(writefd); writefd = -1
-                    ready, _, _ = select.select([readfd], [], [], 10)
+                    os.close(ready_write); ready_write = -1
+                    os.close(resume_read); resume_read = -1
+                    ready, _, _ = select.select([ready_read], [], [], 10)
                     self.assertTrue(ready, "systemd comparison did not reach coordinated boundary")
-                    self.assertEqual(os.read(readfd, 1), b"1")
+                    self.assertEqual(os.read(ready_read, 1), b"1")
                     target = live / "uap-observer.service"
                     if race == "content":
                         target.write_text("raced content\n")
@@ -2435,15 +2710,39 @@ recover_observer_install "$2" "$3" "$4" "$5" "$6" cleanup_fixture
                         try: os.setxattr(target, "user.uap_observer_race", b"raced", follow_symlinks=False)
                         except OSError as error:
                             self.skipTest(f"fixture filesystem does not support user xattrs: {error}")
-                    os.killpg(process.pid, signal.SIGCONT)
+                    os.write(resume_write, b"1")
+                    os.close(resume_write); resume_write = -1
                     stdout, stderr = process.communicate(timeout=15)
                     self.assertNotEqual(process.returncode, 0, stdout + stderr)
                 finally:
-                    if writefd >= 0: os.close(writefd)
-                    os.close(readfd)
+                    for descriptor in (ready_read, ready_write, resume_read, resume_write):
+                        if descriptor >= 0:
+                            os.close(descriptor)
                     if process is not None and process.poll() is None:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.communicate()
+
+    def test_systemd_regular_comparison_rejects_incomplete_race_synchronization(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy/uap-observer-install-lib.sh"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); reviewed = root / "reviewed"; live = root / "live"
+            self._populate_complete_observer_inventory(reviewed)
+            self._copy_observer_inventory(reviewed, live)
+            ready_read, ready_write = os.pipe()
+            try:
+                completed = subprocess.run(
+                    ["/bin/sh", "-c", '. "$1"; observer_compare_systemd_trees "$2" "$3"',
+                     "sh", str(helper), str(reviewed), str(live)],
+                    env={**os.environ, "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_READY_FD": str(ready_write),
+                         "UAP_OBSERVER_TEST_SYSTEMD_COMPARE_NAME": "uap-observer.service"},
+                    pass_fds=(ready_write,), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    timeout=15,
+                )
+                self.assertNotEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                self.assertIn("incomplete systemd comparison test synchronization", completed.stderr)
+            finally:
+                os.close(ready_read)
+                os.close(ready_write)
 
     def test_systemd_closure_live_comparison_allows_only_volatile_atime_drift(self) -> None:
         self._require_private_noatime_view()
@@ -2877,6 +3176,7 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 protected / "bin/codex": b"codex",
                 protected / "bin/cursor": b"cursor",
                 protected / "bin/kiro": b"kiro",
+                protected / "bin/kiro-cli-chat": b"kiro-chat",
                 protected / "chatgpt/app-binding.json": b"app",
                 protected / "chatgpt/projection-receipt.json": b"receipt",
                 protected / "external-pr-evidence.json": b"evidence",
@@ -2907,6 +3207,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                     "sha256": digest(protected / "external-pr-evidence.json"),
                 },
             }))
+            value = json.loads(config.read_text())
+            value["clients"]["kiro"].update({
+                "companion_binary": str(protected / "bin/kiro-cli-chat"),
+                "companion_sha256": digest(protected / "bin/kiro-cli-chat"),
+            })
+            config.write_text(json.dumps(value))
             identities = {
                 name: (3000 + index, 4000 + index, frozenset({0, 4000 + index}))
                 for index, name in enumerate(("codex", "cursor", "kiro", "control"))
@@ -2917,12 +3223,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 self.assertEqual(len(fixed_runner.validate_adapter_input_access(
                     config, protected_root=protected, identities=identities,
                     access_probe=lambda uid, gid, gids, paths: probes.append((uid, gid, gids, paths)),
-                )), 7)
+                )), 8)
                 self.assertEqual(
                     [(uid, gid, gids) for uid, gid, gids, _ in probes],
                     list(identities.values()),
                 )
-                self.assertTrue(all(len(paths) == 7 for _, _, _, paths in probes))
+                self.assertTrue(all(len(paths) == 8 for _, _, _, paths in probes))
                 for excluded, (denied_uid, _, _) in identities.items():
                     with self.subTest(excluded=excluded):
                         def deny(uid: int, _gid: int, _gids: frozenset[int], _paths: tuple[tuple[Path, bool], ...]) -> None:
@@ -3084,6 +3390,86 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
 
 
 class FixedAdapterContractTests(unittest.TestCase):
+    @staticmethod
+    def install_projection(profile: Path, client: str, approved: dict[str, Any]) -> dict[str, str]:
+        proof = profile.parent / "proofs" / client
+        proof.mkdir(parents=True, mode=0o700, exist_ok=True)
+        projection = proof / "native-projection.json"
+        native_proof = proof / "native"
+        native_proof.mkdir(mode=0o700)
+        entries = []
+        for plugin in sorted(fixed_adapters.HEROES):
+            native = profile / f"{plugin}.native.json"
+            native.write_text(json.dumps({"plugin": plugin}))
+            native.chmod(0o440)
+            protected_native = native_proof / f"{plugin}.json"
+            protected_native.write_bytes(native.read_bytes())
+            protected_native.chmod(0o440)
+            entries.append({
+                "plugin": plugin,
+                "tuple": approved if plugin == "context7" else {**approved, "product_id": plugin},
+                "native_config": {"path": str(protected_native), "sha256": fixed_adapters.sha256(native.read_bytes())},
+                "client_config": {"path": str(native), "sha256": fixed_adapters.sha256(native.read_bytes())},
+                "manager_add_sha256": "sha256:" + "9" * 64,
+                "manager_info_sha256": "sha256:" + "a" * 64,
+                "post_add_doctor_sha256": "sha256:" + "b" * 64,
+            })
+        projection.write_bytes(fixed_adapters.canonical_json({
+            "schema_version": 1, "client_id": client,
+            "entries": entries,
+        }))
+        projection.chmod(0o440)
+        receipts = proof / "receipts.json"
+        receipts.write_text(json.dumps({"schema_version": 1, "receipts": [{
+            "name": entry["plugin"], "tuple": entry["tuple"],
+            "manager_add_sha256": entry["manager_add_sha256"],
+            "manager_info_sha256": entry["manager_info_sha256"],
+            "post_add_doctor_sha256": entry["post_add_doctor_sha256"],
+        } for entry in entries]}))
+        receipts.chmod(0o440)
+        native_proof.chmod(0o510)
+        proof.chmod(0o510)
+        profile.chmod(0o510)
+        return {"path": str(projection), "sha256": fixed_adapters.sha256(projection.read_bytes())}
+
+    def test_full_sealed_tuple_constructs_runtime_tuple_and_partial_extra_bool_fail(self) -> None:
+        approved = sealed_tuple("context7")
+        fixed_adapters.validate_release_tuple(approved, "context7")
+        completed = fixed_adapters.complete_tuple(
+            {"plugin": "context7", "tuple": approved},
+            {"client_version": "fixture-client-1"}, "2026-08-26T01:02:03Z",
+        )
+        self.assertEqual(completed["client_version"], "fixture-client-1")
+        fixed_adapters.validate_release_tuple(completed, "context7", sealed=False)
+        malformed = (
+            {key: value for key, value in approved.items() if key != "binary_digest"},
+            {**approved, "unexpected": 1},
+            {**approved, "release_sequence": True},
+            {**approved, "snapshot_sequence": False},
+            {**approved, "client_version": "fabricated"},
+        )
+        for value in malformed:
+            with self.subTest(tuple=value), self.assertRaises(ValueError):
+                fixed_adapters.validate_release_tuple(value, "context7")
+
+    def test_verified_git_requires_exact_immutable_schema_path(self) -> None:
+        digest = "sha256:" + "a" * 64
+        item = {"binary": "/opt/uap-observer-inputs/bin/git", "sha256": digest}
+        with mock.patch.object(fixed_adapters, "verify_executable_file") as verify:
+            self.assertEqual(
+                fixed_adapters.verified_git(item, owner_uid=1234),
+                Path("/opt/uap-observer-inputs/bin/git"),
+            )
+            verify.assert_called_once_with(
+                Path("/opt/uap-observer-inputs/bin/git"), digest, owner_uid=1234,
+            )
+
+        item["binary"] = "/usr/bin/git"
+        with mock.patch.object(fixed_adapters, "verify_executable_file") as verify:
+            with self.assertRaisesRegex(ValueError, "fixed Git executable differs"):
+                fixed_adapters.verified_git(item, owner_uid=1234)
+            verify.assert_not_called()
+
     def test_historical_external_pr_capture_is_reusable_for_same_bound_state(self) -> None:
         request = Fixture(Path(tempfile.mkdtemp())).request()
         evidence = artifacts(request["challenge"]["value"])["runtime-attestations.json"]["external_pr_evidence"]
@@ -3123,6 +3509,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "sha256": "sha256:" + "a" * 64,
                 "profile": f"/var/lib/uap-observer/profiles/{client}",
                 "client_id": client,
+                "native_projection": {"path": f"/var/lib/uap-observer/proofs/{client}/native-projection.json", "sha256": "sha256:" + "b" * 64},
             }
             for client in ("codex", "cursor", "kiro")
         }
@@ -3131,6 +3518,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             "schema_version": 1, "request_policy": {}, "git": {}, "clients": clients,
             "matrix": [], "consent_record": {}, "chatgpt": {},
             "workspace_root": "/var/lib/uap-observer/workspaces", "external_pr_evidence": {},
+            "egress_hosts": ["api.github.com"],
         }
         with self.assertRaisesRegex(ValueError, "literal dedicated path"):
             fixed_adapters.validate_config(config)
@@ -3150,6 +3538,42 @@ class FixedAdapterContractTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(ValueError, "synthetic"):
             fixed_adapters.verify_positive_mount_namespace("10 1 8:1 / / ro - ext4 /dev/root ro\n")
+
+    @requires_disposable_observer_host
+    def test_systemd_mount_namespace_keeps_only_auth_and_state_writable(self) -> None:
+        systemd_run = shutil.which("systemd-run")
+        if os.geteuid() != 0 or systemd_run is None or not Path("/run/systemd/system").is_dir():
+            self.skipTest("systemd privileged mount namespace is unavailable")
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "profile"
+            for client in ("codex", "cursor", "kiro"):
+                for leaf in (".auth", ".state", ".config"):
+                    (profile / client / leaf).mkdir(parents=True, exist_ok=True)
+            probe = (
+                "import errno,pathlib,sys\n"
+                "root=pathlib.Path(sys.argv[1])\n"
+                "for client in ('codex','cursor','kiro'):\n"
+                " for leaf in ('.auth','.state'):\n"
+                "  (root/client/leaf/'write-probe').write_text('ok')\n"
+                " try: (root/client/'.config'/'forbidden').write_text('bad')\n"
+                " except OSError as error:\n"
+                "  assert error.errno in (errno.EROFS,errno.EACCES,errno.EPERM),error\n"
+                " else: raise SystemExit('read-only profile path was writable')\n"
+            )
+            command = [
+                systemd_run, "--quiet", "--wait", "--pipe", "--collect",
+                "--property=Type=exec", "--property=PrivateMounts=yes",
+                f"--property=BindReadOnlyPaths={profile}",
+            ]
+            command.extend(
+                f"--property=BindPaths=-{profile / client / leaf}"
+                for client in ("codex", "cursor", "kiro") for leaf in (".auth", ".state")
+            )
+            command.extend(["/usr/bin/python3", "-B", "-c", probe, str(profile)])
+            completed = subprocess.run(command, text=True, capture_output=True, timeout=30)
+            if completed.returncode != 0 and any(marker in (completed.stdout + completed.stderr).lower() for marker in ("failed to connect", "operation not permitted", "not supported", "access denied")):
+                self.skipTest("systemd cannot create the required mount namespace on this host")
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
 
     def test_nonempty_runtime_notion_chatgpt_and_consent_validate_and_sign(self) -> None:
         observed = "2026-08-23T12:00:00Z"
@@ -3176,6 +3600,8 @@ class FixedAdapterContractTests(unittest.TestCase):
         original_mcp_call = fixed_adapters.mcp_call
         original_initialized = fixed_adapters.mcp_initialized
         original_wait = fixed_adapters.wait_human
+        original_snapshot = fixed_adapters.regular_snapshot
+        original_revalidate = fixed_adapters.revalidate_snapshot
         try:
             fixed_adapters.isolation_proof = lambda *_args: dict(fixed_adapters.PRIVACY_RESULT)
             fixed_adapters.invoke = lambda *args, **kwargs: ({
@@ -3193,7 +3619,10 @@ class FixedAdapterContractTests(unittest.TestCase):
             chat_tuple = release_tuple("cloudflare-docs")
             binding = {"apps": {"cloudflare-docs": {"id": "plugin_asdk_app_" + "c" * 32}}}
             receipt = {"product_id": "cloudflare-docs", "application_id": "plugin_asdk_app_" + "c" * 32, "tuple": chat_tuple}
-            fixed_adapters.load_json = lambda path, *args, **kwargs: binding if path.name == "app-binding.json" else receipt
+            fixed_adapters.regular_snapshot = lambda path, *args, **kwargs: {
+                "body": fixed_adapters.canonical_json(binding if path.name == "app-binding.json" else receipt),
+            }
+            fixed_adapters.revalidate_snapshot = lambda *args, **kwargs: None
             responses = iter((
                 ({"protocolVersion": "2025-06-18"}, "session"),
                 ({"tools": [{"name": fixed_adapters.MCP_READ_TOOL}]}, "session"),
@@ -3217,6 +3646,8 @@ class FixedAdapterContractTests(unittest.TestCase):
             fixed_adapters.mcp_call = original_mcp_call
             fixed_adapters.mcp_initialized = original_initialized
             fixed_adapters.wait_human = original_wait
+            fixed_adapters.regular_snapshot = original_snapshot
+            fixed_adapters.revalidate_snapshot = original_revalidate
         self.assertEqual((runtime["plugin"], notion["plugin"], chat["attestations"][0]["client"]), ("context7", "notion", "chatgpt"))
         produced = artifacts(challenge)
         validate_artifact_schemas(
@@ -3235,6 +3666,143 @@ class FixedAdapterContractTests(unittest.TestCase):
         self.assertFalse(fixed_adapters.substantive_mcp_content({"type": "resource_link"}))
         self.assertTrue(fixed_adapters.substantive_mcp_content({"type": "text", "text": "marker"}))
 
+    def test_human_attestation_requires_exact_types_and_unambiguous_members(self) -> None:
+        request = Fixture(Path(tempfile.mkdtemp())).request()
+        app_id = "plugin_asdk_app_" + "c" * 32
+        config = {"chatgpt": {"human_attestation_directory": "/fixture", "app_id": app_id}}
+        now = time.time()
+        record = {
+            "schema_version": 1,
+            "challenge": request["challenge"]["value"],
+            "run_id": request["github"]["run_id"],
+            "run_attempt": request["github"]["run_attempt"],
+            "app_id": app_id,
+            "request_digest": fixed_adapters.sha256(fixed_adapters.canonical_json(request)),
+            "mcp_url": fixed_adapters.MCP_ENDPOINT,
+            "consent": True, "ui_activation": True, "runtime_observed": True,
+            "read_only": True, "no_secrets": True, "no_real_project": True,
+            "observed_at": datetime.fromtimestamp(now - 1, timezone.utc).isoformat(),
+            "expires_at": datetime.fromtimestamp(now + 300, timezone.utc).isoformat(),
+        }
+        with mock.patch.object(fixed_adapters, "read_regular", return_value=fixed_adapters.canonical_json(record)):
+            self.assertEqual(fixed_adapters.wait_human(config, request, os.geteuid()), record)
+        mutations = [("schema_version", True)] + [
+            (field, 1) for field in (
+                "consent", "ui_activation", "runtime_observed",
+                "read_only", "no_secrets", "no_real_project",
+            )
+        ]
+        for field, replacement in mutations:
+            malformed = {**record, field: replacement}
+            with self.subTest(field=field), mock.patch.object(fixed_adapters, "read_regular", return_value=fixed_adapters.canonical_json(malformed)), self.assertRaisesRegex(ValueError, "attestation is invalid"):
+                fixed_adapters.wait_human(config, request, os.geteuid())
+        canonical = fixed_adapters.canonical_json(record)
+        ambiguous = (
+            canonical[:-1] + b',"consent":true}',
+            canonical[:-1] + b',"Consent":true}',
+        )
+        for encoded in ambiguous:
+            with self.subTest(encoded=encoded[-32:]), mock.patch.object(fixed_adapters, "read_regular", return_value=encoded), self.assertRaisesRegex(ValueError, "duplicate or case-confusable"):
+                fixed_adapters.wait_human(config, request, os.geteuid())
+
+    def test_strict_structured_stream_decoders_reject_duplicates_case_aliases_and_nonfinite(self) -> None:
+        adversarial = (
+            b'{"type":"item.failed","type":"item.completed"}',
+            b'{"type":"item.completed","Type":"item.failed"}',
+            b'{"type":"item.completed","value":NaN}',
+            b'{"type":"item.completed","value":Infinity}',
+            b'{"type":"item.completed","value":-Infinity}',
+            b'{"type":"item.completed","value":1e400}',
+        )
+        for encoded in adversarial:
+            with self.subTest(encoded=encoded), self.assertRaises((ValueError, json.JSONDecodeError)):
+                fixed_adapters.parsed_json_stream(encoded)
+            with self.subTest(acp=encoded), self.assertRaises((ValueError, json.JSONDecodeError)):
+                fixed_adapters.strict_json_loads(encoded)
+            with self.subTest(runner=encoded), self.assertRaises((ValueError, json.JSONDecodeError)):
+                fixed_runner.strict_json_loads(encoded)
+
+    def test_public_mcp_decoder_rejects_ambiguous_nonfinite_and_bool_ids(self) -> None:
+        class Response:
+            status = 200
+            headers: dict[str, str] = {}
+            def __init__(self, body: bytes) -> None: self.body = body
+            def geturl(self) -> str: return fixed_adapters.MCP_ENDPOINT
+            def read(self, _limit: int) -> bytes: return self.body
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+
+        for body in (
+            b'{"jsonrpc":"2.0","id":1,"id":1,"result":{}}',
+            b'{"jsonrpc":"2.0","id":1,"result":{"value":NaN}}',
+            b'{"jsonrpc":"2.0","id":true,"result":{}}',
+        ):
+            opener = mock.Mock()
+            opener.open.return_value = Response(body)
+            with self.subTest(body=body), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener), self.assertRaises(ValueError):
+                fixed_adapters.mcp_call(fixed_adapters.MCP_ENDPOINT, 1, "tools/list", {})
+        with self.assertRaisesRegex(ValueError, "request id"):
+            fixed_adapters.mcp_call(fixed_adapters.MCP_ENDPOINT, True, "tools/list", {})
+
+    def test_public_mcp_sse_parses_every_record_and_never_masks_earlier_evidence(self) -> None:
+        class Response:
+            status = 200
+            headers: dict[str, str] = {}
+            def __init__(self, body: bytes) -> None: self.body = body
+            def geturl(self) -> str: return fixed_adapters.MCP_ENDPOINT
+            def read(self, _limit: int) -> bytes: return self.body
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+
+        success = b'{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}'
+        for first in (
+            b'{malformed',
+            b'{"jsonrpc":"2.0","id":1,"id":1,"result":{}}',
+            b'{"jsonrpc":"2.0","id":1,"result":{"value":NaN}}',
+            b'{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"bad"}}',
+            b'{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"conflict"}]}}',
+        ):
+            body = b"event: message\ndata: " + first + b"\n\nevent: message\ndata: " + success + b"\n\n"
+            opener = mock.Mock(); opener.open.return_value = Response(body)
+            with self.subTest(first=first), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener), self.assertRaises((ValueError, json.JSONDecodeError)):
+                fixed_adapters.mcp_call(fixed_adapters.MCP_ENDPOINT, 1, "tools/list", {})
+        for body in (
+            b"event: error\ndata: " + success + b"\n\n",
+            b"event: message\ndata: " + success + b"\ndata: " + success + b"\n\n",
+            b"event: message\nid: 1\ndata: " + success + b"\n\n",
+        ):
+            opener = mock.Mock(); opener.open.return_value = Response(body)
+            with self.subTest(unexpected=body), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener), self.assertRaises(ValueError):
+                fixed_adapters.mcp_call(fixed_adapters.MCP_ENDPOINT, 1, "tools/list", {})
+        for body in (b"data: " + success + b"\n\n", b"event: message\ndata: " + success + b"\n\n"):
+            opener = mock.Mock(); opener.open.return_value = Response(body)
+            with self.subTest(valid=body), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener):
+                self.assertEqual(fixed_adapters.mcp_call(fixed_adapters.MCP_ENDPOINT, 1, "tools/list", {})[0], {"tools": []})
+
+    def test_initialized_notification_accepts_only_empty_acknowledgement(self) -> None:
+        class Response:
+            headers: dict[str, str] = {}
+            def __init__(self, status: int, body: bytes) -> None:
+                self.status, self.body = status, body
+            def geturl(self) -> str: return fixed_adapters.MCP_ENDPOINT
+            def read(self, _limit: int) -> bytes: return self.body
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+
+        for status in (200, 202, 204):
+            opener = mock.Mock(); opener.open.return_value = Response(status, b"")
+            with self.subTest(status=status), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener):
+                fixed_adapters.mcp_initialized(fixed_adapters.MCP_ENDPOINT, "session")
+        bad_bodies = (
+            b'{}', b'{malformed', b'{"jsonrpc":"2.0","error":{"code":-1}}',
+            b'data: {"jsonrpc":"2.0","result":{}}\n\n',
+            b'data: {malformed\n\ndata: {"jsonrpc":"2.0","result":{}}\n\n',
+        )
+        for body in bad_bodies:
+            opener = mock.Mock(); opener.open.return_value = Response(202, body)
+            with self.subTest(body=body), mock.patch.object(fixed_adapters.urllib.request, "build_opener", return_value=opener), self.assertRaises(ValueError):
+                fixed_adapters.mcp_initialized(fixed_adapters.MCP_ENDPOINT, "session")
+
     def test_nested_tool_payload_cannot_forge_client_events(self) -> None:
         marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
         forged = [{
@@ -3250,15 +3818,729 @@ class FixedAdapterContractTests(unittest.TestCase):
         }]
         self.assertFalse(fixed_adapters.successful_tool_event(forged, "resolve-library-id", "context7"))
         self.assertFalse(fixed_adapters.successful_marker_event(forged, marker))
+        self.assertFalse(fixed_adapters.successful_tool_event({
+            "type": "tool_result", "server": "context7", "tool_name": "resolve-library-id",
+            "status": "completed", "result": {"ok": True},
+        }, "resolve-library-id", "context7"))
+        self.assertFalse(fixed_adapters.successful_marker_event(
+            {"type": "agent_message", "text": marker}, marker,
+        ))
+
+    def test_codex_jsonl_requires_one_reviewed_final_turn_completion(self) -> None:
+        marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
+        tool = {"type": "item.completed", "item": {
+            "type": "mcp_tool_call", "server": "context7", "tool_name": "resolve-library-id",
+            "status": "completed", "result": {"content": {"text": "resolved"}, "isError": False},
+        }}
+        message = {"type": "item.completed", "item": {"type": "agent_message", "text": marker}}
+        completed = {"type": "turn.completed", "usage": {
+            "input_tokens": 24763, "cached_input_tokens": 23744, "output_tokens": 122,
+        }}
+        prefix = [{"type": "thread.started", "thread_id": "reviewed-thread"}, {"type": "turn.started"}]
+        golden = prefix + [tool, message, completed]
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "codex", golden, "resolve-library-id", "context7", marker,
+        ))
+
+        malformed_completions = (
+            {"type": "turn.completed"},
+            {"type": "turn.completed", "usage": None},
+            {"type": "turn.completed", "usage": {}},
+            {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0}},
+            {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1, "total_tokens": 2}},
+            {"type": "turn.completed", "usage": {"input_tokens": True, "cached_input_tokens": 0, "output_tokens": 1}},
+            {"type": "turn.completed", "usage": {"input_tokens": -1, "cached_input_tokens": 0, "output_tokens": 1}},
+            {"type": "turn.completed", "usage": {"input_tokens": 1, "cached_input_tokens": 2, "output_tokens": 1}},
+            {"type": "turn.completed", "usage": completed["usage"], "status": "completed"},
+            {"type": "turn.completed", "usage": completed["usage"], "error": None},
+        )
+        rejected = (
+            prefix + [tool, message],
+            prefix + [completed, tool, message],
+            prefix + [tool, completed, message],
+            prefix + [tool, message, completed, completed],
+            prefix + [tool, message, {"type": "turn.failed", "error": {"message": "failed"}}],
+            prefix + [tool, message, {"type": "turn.cancelled"}],
+            prefix + [tool, message, {"type": "turn.canceled"}],
+            prefix + [tool, message, completed, {"type": "turn.failed", "error": {"message": "conflict"}}],
+            prefix + [tool, message, completed, {"type": "item.completed", "item": {"type": "agent_message", "text": "extra"}}],
+            prefix + [tool, message, {**completed, "type": "turn.failed"}],
+            *(prefix + [tool, message, terminal] for terminal in malformed_completions),
+        )
+        for stream in rejected:
+            with self.subTest(stream=stream):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", stream, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_cursor_jsonl_arrays_cannot_attest_through_production_parser(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        tool = {"type": "tool_call", "subtype": "completed", "tool_call": {"mcpToolCall": {
+            "args": {"serverName": "context7", "toolName": "resolve-library-id"},
+            "result": {"success": {"content": "resolved"}},
+        }}}
+        message = {"type": "assistant", "message": {
+            "role": "assistant", "content": [{"type": "text", "text": marker}],
+        }}
+
+        normal = b"\n".join(fixed_adapters.canonical_json(event) for event in (tool, message)) + b"\n"
+        parsed = fixed_adapters.parsed_json_stream(normal)
+        self.assertEqual(parsed, [tool, message])
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "cursor", parsed, "resolve-library-id", "context7", marker,
+        ))
+
+        array_line = fixed_adapters.canonical_json([tool, message]) + b"\n"
+        nested_array_line = fixed_adapters.canonical_json([[tool], [message]]) + b"\n"
+        nested_array_lines = (
+            fixed_adapters.canonical_json([tool]) + b"\n"
+            + fixed_adapters.canonical_json([message]) + b"\n"
+        )
+        for encoded in (array_line, nested_array_line, nested_array_lines):
+            with self.subTest(encoded=encoded):
+                parsed = fixed_adapters.parsed_json_stream(encoded)
+                self.assertTrue(any(isinstance(event, list) for event in parsed))
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "cursor", parsed, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_codex_jsonl_rejects_alias_conflicts_and_unreviewed_marker_fields(self) -> None:
+        marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
+        tool = {"type": "item.completed", "item": {
+            "type": "mcp_tool_call", "server": "context7", "tool_name": "resolve-library-id",
+            "status": "completed", "result": {"content": {"text": "resolved"}, "isError": False},
+        }}
+        message = {"type": "item.completed", "item": {"type": "agent_message", "text": marker}}
+        completed = {"type": "turn.completed", "usage": {
+            "input_tokens": 24763, "cached_input_tokens": 23744, "output_tokens": 122,
+        }}
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "codex", [tool, message, completed], "resolve-library-id", "context7", marker,
+        ))
+
+        tool_extras = (
+            {"name": "different"},
+            {"tool": "different"},
+            {"tool_name": "resolve-library-id", "name": "different"},
+            {"server_name": "different"},
+            {"mcp_server": "different"},
+            {"product_id": "different"},
+            {"server": "context7", "server_name": "different"},
+            {"error": None},
+            {"role": "assistant"},
+        )
+        for extra in tool_extras:
+            forged = json.loads(json.dumps(tool))
+            forged["item"].update(extra)
+            with self.subTest(tool_extra=extra):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", [forged, message, completed], "resolve-library-id", "context7", marker,
+                ))
+
+        marker_extras = (
+            {"role": "assistant"},
+            {"role": "user"},
+            {"server": "context7"},
+            {"server_name": "different"},
+            {"tool": "resolve-library-id"},
+            {"tool_name": "different"},
+            {"name": "different"},
+            {"status": "completed"},
+        )
+        for extra in marker_extras:
+            forged = json.loads(json.dumps(message))
+            forged["item"].update(extra)
+            with self.subTest(marker_extra=extra):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", [tool, forged, completed], "resolve-library-id", "context7", marker,
+                ))
+
+        unreviewed_streams = (
+            [tool, {**message, "role": "assistant"}, completed],
+            [{**tool, "server": "context7"}, message, completed],
+            [[tool], message, completed],
+            [tool, [message], completed],
+        )
+        for stream in unreviewed_streams:
+            with self.subTest(unreviewed_event_shape=stream):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", stream, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_cursor_stream_events_require_exact_assistant_marker_and_successful_mcp_call(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        tool_event = {
+            "type": "tool_call", "subtype": "completed", "call_id": "call-1",
+            "tool_call": {"mcpToolCall": {
+                "args": {"serverName": "context7", "toolName": "resolve-library-id", "arguments": {}},
+                "result": {"success": {"content": "resolved"}},
+            }},
+        }
+        marker_event = {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]},
+        }
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "cursor", [tool_event, marker_event], "resolve-library-id", "context7", marker,
+        ))
+        for forged in (
+            [marker_event],
+            [tool_event, {"type": "user", "message": marker_event["message"]}],
+            [tool_event, {**marker_event, "message": {
+                **marker_event["message"],
+                "content": marker_event["message"]["content"] + [{"type": "text", "text": "extra"}],
+            }}],
+            [{**tool_event, "subtype": "started"}, marker_event],
+            [{**tool_event, "tool_call": {"mcpToolCall": {
+                **tool_event["tool_call"]["mcpToolCall"], "result": {"error": "failed"},
+            }}}, marker_event],
+            [{**tool_event, "tool_call": {"mcpToolCall": {
+                **tool_event["tool_call"]["mcpToolCall"],
+                "args": {"serverName": "different", "toolName": "resolve-library-id"},
+            }}}, marker_event],
+        ):
+            with self.subTest(forged=forged):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "cursor", forged, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_tool_success_rejects_false_zero_empty_error_and_marker_after_failure(self) -> None:
+        codex_marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
+        cursor_marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        codex_text = {"type": "item.completed", "item": {"type": "agent_message", "text": codex_marker}}
+        cursor_text = {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": cursor_marker}]}}
+        for payload in (False, 0, "", [], {}, None, {"error": "failed"}, {"status": "failed", "content": "marker"}):
+            codex = {"type": "item.completed", "item": {
+                "type": "mcp_tool_call", "server": "context7", "tool_name": "resolve-library-id",
+                "status": "completed", "result": payload,
+            }}
+            cursor = {"type": "tool_call", "subtype": "completed", "tool_call": {"mcpToolCall": {
+                "args": {"serverName": "context7", "toolName": "resolve-library-id"},
+                "result": {"success": payload},
+            }}}
+            with self.subTest(payload=payload):
+                self.assertFalse(fixed_adapters.successful_client_evidence("codex", [codex, codex_text], "resolve-library-id", "context7", codex_marker))
+                self.assertFalse(fixed_adapters.successful_client_evidence("cursor", [cursor, cursor_text], "resolve-library-id", "context7", cursor_marker))
+        failed = {"type": "item.completed", "item": {
+            "type": "mcp_tool_call", "server": "context7", "tool_name": "resolve-library-id",
+            "status": "failed", "error": "provider failed", "result": {"content": "no"},
+        }}
+        good = {"type": "item.completed", "item": {
+            "type": "mcp_tool_call", "server": "context7", "tool_name": "resolve-library-id",
+            "status": "completed", "result": {"content": "resolved"},
+        }}
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "codex", [failed, good, codex_text], "resolve-library-id", "context7", codex_marker,
+        ))
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "codex", [codex_text, good], "resolve-library-id", "context7", codex_marker,
+        ))
+
+    def test_tool_success_rejects_nested_controls_failed_events_and_extra_terminal_calls(self) -> None:
+        marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
+        text = {"type": "item.completed", "item": {"type": "agent_message", "text": marker}}
+        turn = {"type": "turn.completed", "usage": {
+            "input_tokens": 24763, "cached_input_tokens": 23744, "output_tokens": 122,
+        }}
+        def event(result: object, *, event_type: str = "item.completed", server: str = "context7") -> dict[str, object]:
+            return {"type": event_type, "item": {
+                "type": "mcp_tool_call", "server": server, "tool_name": "resolve-library-id",
+                "status": "completed", "result": result,
+            }}
+        golden = event({"content": {"text": "resolved"}, "isError": False})
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "codex", [golden, text, turn], "resolve-library-id", "context7", marker,
+        ))
+        for payload in (
+            {"content": "resolved", "isError": True},
+            {"content": "resolved", "success": False},
+            {"content": "resolved", "ok": False},
+            {"content": {"status": "cancelled", "text": "resolved"}},
+            {"content": {"success": 0, "text": "resolved"}},
+        ):
+            with self.subTest(payload=payload):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", [event(payload), text, turn], "resolve-library-id", "context7", marker,
+                ))
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "codex", [event({"content": "failed"}, event_type="item.failed"), golden, text],
+            "resolve-library-id", "context7", marker,
+        ))
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "codex", [golden, event({"content": "other"}, server="other"), text],
+            "resolve-library-id", "context7", marker,
+        ))
+        for extra in (
+            {"type": "turn.failed", "error": {"message": "unrelated failure"}},
+            {"type": "item.completed", "item": {"type": "agent_message", "text": "extra terminal text"}},
+            {"type": "item.completed", "item": {"type": "mcp_tool_call", "server": "other", "tool_name": "other", "status": "completed", "result": {"content": "extra"}}},
+        ):
+            with self.subTest(extra_terminal=extra):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", [golden, text, extra], "resolve-library-id", "context7", marker,
+                ))
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "codex", [golden, {"type": "thread.started"}, text],
+            "resolve-library-id", "context7", marker,
+        ))
+
+    def test_cursor_whole_stream_rejects_extra_terminal_and_nested_failure_controls(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        tool = {"type": "tool_call", "subtype": "completed", "tool_call": {"mcpToolCall": {
+            "args": {"serverName": "context7", "toolName": "resolve-library-id"},
+            "result": {"success": {"content": "resolved"}},
+        }}}
+        text = {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]}}
+        for stream in (
+            [tool, text, {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "extra"}]}}],
+            [tool, {"type": "status", "payload": {"healthy": False}}, text],
+            [tool, {"type": "error", "message": "unrelated"}, text],
+            [tool, {"type": "tool_call", "subtype": "completed", "tool_call": {"mcpToolCall": {"args": {"serverName": "other", "toolName": "other"}, "result": {"success": {"content": "extra"}}}}}, text],
+            [tool, text, {"type": "result", "subtype": "success", "is_error": True, "result": "provider failed"}],
+            [tool, text, {"type": "result", "subtype": "success", "isError": False, "result": "extra terminal"}],
+            [tool, text, {"type": "result", "subtype": "failed", "is_error": False, "result": "failed"}],
+            [tool, text, {"type": "result", "subtype": "ambiguous", "result": "unknown"}],
+        ):
+            with self.subTest(stream=stream):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "cursor", stream, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_cursor_pinned_grammar_rejects_every_unreviewed_field_and_ambiguity_hint(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        tool = {"type": "tool_call", "subtype": "completed", "call_id": "call-1", "tool_call": {"mcpToolCall": {
+            "args": {"serverName": "context7", "toolName": "resolve-library-id", "arguments": {}},
+            "result": {"success": {"content": "resolved"}},
+        }}}
+        assistant = {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]}}
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "cursor", [tool, assistant], "resolve-library-id", "context7", marker,
+        ))
+        mutations = (
+            lambda value: value[0].update(extra=True),
+            lambda value: value[0].update(terminal_count=2),
+            lambda value: value[0].update(subtype="ambiguous"),
+            lambda value: value[0]["tool_call"].update(extra=True),
+            lambda value: value[0]["tool_call"]["mcpToolCall"].update(extra=True),
+            lambda value: value[0]["tool_call"]["mcpToolCall"]["args"].update(server="context7"),
+            lambda value: value[0]["tool_call"]["mcpToolCall"]["args"].update(terminalCount=2),
+            lambda value: value[0]["tool_call"]["mcpToolCall"]["result"].update(isError=False),
+            lambda value: value[0]["tool_call"]["mcpToolCall"]["result"]["success"].update(extra=True),
+            lambda value: value[1].update(extra=True),
+            lambda value: value[1]["message"].update(extra=True),
+            lambda value: value[1]["message"]["content"][0].update(extra=True),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps([tool, assistant]))
+            mutation(forged)
+            with self.subTest(forged=forged):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "cursor", forged, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_cursor_stream_rejects_array_events_without_recursive_collapsing(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
+        tool = {"type": "tool_call", "subtype": "completed", "call_id": "call-1", "tool_call": {"mcpToolCall": {
+            "args": {"serverName": "context7", "toolName": "resolve-library-id", "arguments": {}},
+            "result": {"success": {"content": "resolved"}},
+        }}}
+        assistant = {"type": "assistant", "message": {
+            "role": "assistant", "content": [{"type": "text", "text": marker}],
+        }}
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "cursor", [tool, assistant], "resolve-library-id", "context7", marker,
+        ))
+        malformed_streams = (
+            [[tool, tool], [assistant, assistant]],
+            [[tool], assistant],
+            [tool, [assistant]],
+            [[[tool]], [[assistant]]],
+            [[tool, assistant]],
+            [{"type": "wrapper", "events": [tool, tool]}, assistant],
+            [tool, {"type": "wrapper", "events": [assistant, assistant]}],
+        )
+        for stream in malformed_streams:
+            with self.subTest(stream=stream):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "cursor", stream, "resolve-library-id", "context7", marker,
+                ))
+
+    @requires_disposable_observer_host
+    def test_native_projection_requires_exact_tuple_contained_native_file_and_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "profile"
+            profile.mkdir(mode=0o700)
+            (profile / ".agentplugins").mkdir(mode=0o700)
+            approved = sealed_tuple("context7")
+            native_projection = self.install_projection(profile, "cursor", approved)
+            item = {"profile": str(profile), "client_id": "cursor", "native_projection": native_projection}
+            self.assertEqual(
+                fixed_adapters.verified_native_projection(item, "context7", approved, owner_uid=os.geteuid())["client_id"],
+                "cursor",
+            )
+            with self.assertRaisesRegex(ValueError, "approved tuple"):
+                fixed_adapters.verified_native_projection(item, "context7", {**approved, "package_version": "9.9.9"}, owner_uid=os.geteuid())
+            native = profile / "context7.native.json"
+            native.chmod(0o644)
+            with self.assertRaisesRegex(ValueError, "mode"):
+                fixed_adapters.verified_native_projection(item, "context7", approved, owner_uid=os.geteuid())
+
+    def test_kiro_marker_text_never_establishes_tool_evidence(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro context7 " + "a" * 64
+        self.assertFalse(fixed_adapters.successful_client_evidence(
+            "kiro", [marker, {"type": "assistant", "message": marker}],
+            "resolve-library-id", "context7", marker,
+        ))
+
+    @staticmethod
+    def kiro_acp_records(marker: str) -> list[dict[str, Any]]:
+        session, call = "opaque-session", "opaque-call"
+        update = lambda body: {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": session, "update": body}}
+        title = "@cloudflare-docs/search_cloudflare_documentation"
+        meta = {"kiro": {"serverName": "cloudflare-docs"}}
+        tools = [
+            {"name": "kiro_power", "enabled": True},
+            {"name": "search_cloudflare_documentation"},
+            {"name": "read_file", "enabled": True},
+        ]
+        return [
+            {"jsonrpc": "2.0", "id": 0, "result": {"protocolVersion": 1, "agentCapabilities": {"mcpCapabilities": {"http": True}}}},
+            {"jsonrpc": "2.0", "id": 1, "result": {"sessionId": session}},
+            update({"sessionUpdate": "_kiro/mcp/status", "status": "connecting", "serverName": "cloudflare-docs", "tools": json.loads(json.dumps(tools))}),
+            update({"sessionUpdate": "_kiro/mcp/status", "status": "connected", "serverName": "cloudflare-docs", "tools": json.loads(json.dumps(tools))}),
+            update({"sessionUpdate": "tool_call", "status": "pending", "title": title, "toolCallId": call, "_meta": meta}),
+            {"jsonrpc": "2.0", "id": "permission-opaque", "method": "session/request_permission", "params": {
+                "sessionId": session, "toolCall": {"toolCallId": call, "title": title, "status": "pending"},
+                "options": [
+                    {"optionId": "once", "name": "Allow once", "kind": "allow_once"},
+                    {"optionId": "always", "name": "Allow always", "kind": "allow_always"},
+                    {"optionId": "reject", "name": "Reject once", "kind": "reject_once"},
+                    {"optionId": "reject-always", "name": "Reject always", "kind": "reject_always"},
+                ],
+            }},
+            update({"sessionUpdate": "tool_call_update", "status": "in_progress", "toolCallId": call, "_meta": meta}),
+            update({"sessionUpdate": "tool_call_update", "status": "completed", "title": title, "toolCallId": call,
+                    "content": [{"type": "content", "content": {"type": "text", "text": "reviewed result"}}],
+                    "rawOutput": {"response": {"content": "reviewed result"}}, "_meta": meta}),
+            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": marker[:17]}}),
+            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": marker[17:]}}),
+            update({"sessionUpdate": "session_info_update", "status": "success", "_meta": {"kiro": {"kind": "turn_completion"}}}),
+            update({"sessionUpdate": "session_info_update", "stopReason": "end_turn", "_meta": {"kiro": {"kind": "turn_end"}}}),
+            {"jsonrpc": "2.0", "id": 2, "result": {"stopReason": "end_turn"}},
+        ]
+
+    def test_kiro_acp_2191_exact_positive_contract_and_permission_answer(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "a" * 64
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        answer = None
+        for record in self.kiro_acp_records(marker):
+            candidate = contract.accept(record)
+            if candidate is not None:
+                answer = candidate
+        self.assertTrue(contract.complete())
+        self.assertEqual(answer, {"jsonrpc": "2.0", "id": "permission-opaque", "result": {"outcome": {"outcome": "selected", "optionId": "once"}}})
+
+    def test_kiro_acp_2191_adversarial_records_fail_closed(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "b" * 64
+        base = self.kiro_acp_records(marker)
+        mutations = [
+            lambda rows: rows[0].update(id=False),
+            lambda rows: rows[0]["result"].update(protocolVersion=True),
+            lambda rows: rows[1].update(id=True),
+            lambda rows: rows[5].update(id=False),
+            lambda rows: rows[0]["result"].update(protocolVersion=2),
+            lambda rows: rows[0]["result"]["agentCapabilities"]["mcpCapabilities"].update(http=False),
+            lambda rows: rows[2]["params"]["update"].update(serverName="foreign"),
+            lambda rows: rows.insert(4, json.loads(json.dumps(rows[3]))),
+            lambda rows: rows[3]["params"]["update"]["tools"].pop(1),
+            lambda rows: rows[3]["params"]["update"]["tools"].append({"name": "search_cloudflare_documentation"}),
+            lambda rows: rows[3]["params"]["update"]["tools"].append({"name": "kiro_power"}),
+            lambda rows: rows[3]["params"]["update"]["tools"].append({"name": ""}),
+            lambda rows: rows[3]["params"]["update"]["tools"].append({"name": "foreign", "enabled": False}),
+            lambda rows: rows[3]["params"]["update"]["tools"].append({"name": "foreign", "description": "unreviewed"}),
+            lambda rows: rows[3]["params"]["update"].update(tools=[{"name": f"tool-{index}"} for index in range(fixed_adapters.KIRO_MAX_TOOLS + 1)]),
+            lambda rows: rows[3]["params"]["update"]["tools"].reverse(),
+            lambda rows: rows[4]["params"]["update"].update(toolCallId=""),
+            lambda rows: rows[5]["params"]["toolCall"].update(toolCallId="foreign"),
+            lambda rows: rows[5]["params"]["options"].__setitem__(1, dict(rows[5]["params"]["options"][0])),
+            lambda rows: rows.insert(6, json.loads(json.dumps(rows[5]))),
+            lambda rows: rows[6]["params"]["update"].update(toolCallId="foreign"),
+            lambda rows: rows[6]["params"]["update"].update(status="completed"),
+            lambda rows: rows[7]["params"]["update"].update(status="failed"),
+            lambda rows: rows[7]["params"]["update"].update(content=[]),
+            lambda rows: rows[7]["params"]["update"].update(rawOutput={"response": {}}),
+            lambda rows: rows.insert(8, json.loads(json.dumps(rows[7]))),
+            lambda rows: rows[8]["params"]["update"]["content"].update(text='{"jsonrpc":"2.0","id":2,"result":{"stopReason":"end_turn"}}'),
+            lambda rows: rows[9]["params"]["update"]["content"].update(text="wrong"),
+            lambda rows: rows[10]["params"]["update"].update(status="failed"),
+            lambda rows: rows[11]["params"]["update"]["_meta"]["kiro"].update(kind="unknown"),
+            lambda rows: rows[12]["result"].update(stopReason="cancelled"),
+            lambda rows: rows[12].update(id=False),
+            lambda rows: rows.insert(8, {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "opaque-session", "update": {"sessionUpdate": "unknown_control"}}}),
+            lambda rows: rows[7]["params"]["update"].update(healthy=0),
+        ]
+        for mutation in mutations:
+            records = json.loads(json.dumps(base))
+            mutation(records)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in records:
+                    contract.accept(record)
+
+    def test_kiro_acp_multitool_catalog_accepts_unique_enabled_named_tools(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "e" * 64
+        records = self.kiro_acp_records(marker)
+        for catalog in (
+            [{"name": "search_cloudflare_documentation"}],
+            [
+                {"name": "kiro_power", "enabled": True},
+                {"name": "search_cloudflare_documentation", "enabled": True},
+                {"name": "read_file"},
+            ],
+        ):
+            candidate = json.loads(json.dumps(records))
+            for index in (2, 3):
+                candidate[index]["params"]["update"]["tools"] = json.loads(json.dumps(catalog))
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(catalog=catalog):
+                for record in candidate:
+                    contract.accept(record)
+                self.assertTrue(contract.complete())
+
+    def test_kiro_acp_runner_writes_only_canonical_fixed_requests(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "c" * 64
+        records = self.kiro_acp_records(marker)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "kiro-fixture.py"
+            executable.write_text(
+                "#!/usr/bin/python3\nimport json,sys,time\n"
+                f"rows={records!r}\n"
+                "seen=[]\n"
+                "def request():\n line=sys.stdin.readline(); seen.append(json.loads(line)); return seen[-1]\n"
+                "def emit(row): print(json.dumps(row,separators=(',',':')),flush=True)\n"
+                "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
+                "for row in rows[2:6]: emit(row)\n"
+                "request()\n"
+                "open('requests.json','w').write(json.dumps(seen,separators=(',',':')))\n"
+                "for row in rows[6:]: emit(row)\n"
+                "time.sleep(10)\n"
+            )
+            executable.chmod(0o755)
+            summary, _, _ = fixed_adapters.run_kiro_acp(
+                executable, workspace=root, environment={"PATH": str(root)},
+                plugin="cloudflare-docs", tool="search_cloudflare_documentation", marker=marker, timeout=3,
+            )
+            seen = json.loads((root / "requests.json").read_text())
+            self.assertEqual([(item.get("id"), item.get("method")) for item in seen[:3]], [(0, "initialize"), (1, "session/new"), (2, "session/prompt")])
+            self.assertEqual(seen[0]["params"]["protocolVersion"], 1)
+            self.assertEqual(seen[1]["params"], {"cwd": str(root), "mcpServers": []})
+            self.assertEqual(seen[2]["params"]["sessionId"], "opaque-session")
+            self.assertEqual(seen[3]["result"]["outcome"], {"outcome": "selected", "optionId": "once"})
+            self.assertEqual(summary["target_chain"], ["pending", "in_progress", "completed"])
+
+    def test_kiro_acp_successful_prompt_response_is_chunk_independent_boundary(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "d" * 64
+        rows = self.kiro_acp_records(marker)
+        session = "opaque-session"
+        unrelated_failure = {
+            "jsonrpc": "2.0", "method": "session/update", "params": {
+                "sessionId": session, "update": {
+                    "sessionUpdate": "tool_call_update", "status": "failed",
+                    "title": "kiro_power", "toolCallId": "unrelated-power-call",
+                    "_meta": {"kiro": {"serverName": "kiro_power"}},
+                },
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for mode in ("same_chunk", "next_chunk"):
+                workspace = root / mode
+                workspace.mkdir()
+                executable = workspace / "kiro-fixture.py"
+                executable.write_text(
+                    "#!/usr/bin/python3\nimport json,os,sys,time\n"
+                    f"rows={rows!r}\n"
+                    f"failure={unrelated_failure!r}\n"
+                    "def request(): return json.loads(sys.stdin.readline())\n"
+                    "def line(row): return json.dumps(row,separators=(',',':'))+'\\n'\n"
+                    "def emit(row): sys.stdout.write(line(row)); sys.stdout.flush()\n"
+                    "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
+                    "for row in rows[2:6]: emit(row)\n"
+                    "request()\n"
+                    "for row in rows[6:-1]: emit(row)\n"
+                    + (
+                        "os.write(sys.stdout.fileno(),(line(rows[-1])+line(failure)).encode())\n"
+                        if mode == "same_chunk" else
+                        "emit(rows[-1]); time.sleep(0.25); emit(failure)\n"
+                    )
+                    + "time.sleep(10)\n"
+                )
+                executable.chmod(0o755)
+                with self.subTest(mode=mode):
+                    summary, _, _ = fixed_adapters.run_kiro_acp(
+                        executable, workspace=workspace, environment={"PATH": str(workspace)},
+                        plugin="cloudflare-docs", tool="search_cloudflare_documentation",
+                        marker=marker, timeout=3,
+                    )
+                    self.assertEqual(summary["turn_end"], "end_turn")
+
+    def test_kiro_acp_runner_rejects_malformed_overflow_timeout_and_early_exit(self) -> None:
+        cases = {
+            "malformed": "print('{',flush=True)",
+            "duplicate_top_level": "print('{\"jsonrpc\":\"2.0\",\"id\":0,\"id\":0,\"result\":{}}',flush=True)",
+            "duplicate_nested": "print('{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":1,\"agentCapabilities\":{\"mcpCapabilities\":{\"http\":true,\"http\":true}}}}',flush=True)",
+            "nan": "print('{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":NaN}}',flush=True)",
+            "infinity": "print('{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":Infinity}}',flush=True)",
+            "overflowing_number": "print('{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":{\"protocolVersion\":1e9999}}',flush=True)",
+            "overflow": f"import sys;sys.stdout.write('x'*{fixed_adapters.KIRO_MAX_LINE + 1});sys.stdout.flush();time.sleep(10)",
+            "timeout": "time.sleep(10)",
+            "early": "raise SystemExit(0)",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, body in cases.items():
+                executable = root / f"{name}.py"
+                executable.write_text(f"#!/usr/bin/python3\nimport time\n{body}\n")
+                executable.chmod(0o755)
+                with self.subTest(name=name), self.assertRaises((ValueError, TimeoutError)):
+                    fixed_adapters.run_kiro_acp(
+                        executable, workspace=root, environment={"PATH": str(root)},
+                        plugin="cloudflare-docs", tool="search_cloudflare_documentation", marker="marker", timeout=1,
+                    )
 
     def test_native_discovery_rejects_incidental_identity_text(self) -> None:
         self.assertFalse(fixed_adapters.native_discovery_present({"error": {"missing": "context7"}}, "context7"))
         self.assertFalse(fixed_adapters.native_discovery_present({"message": "context7"}, "context7"))
         self.assertTrue(fixed_adapters.native_discovery_present({"servers": [{"name": "context7"}]}, "context7"))
+
+    def test_native_discovery_rejects_false_controls_at_every_envelope_depth(self) -> None:
+        approved = sealed_tuple("context7")
+        candidate = {"name": "context7", "tuple": approved}
+        controls = ("health", "healthy", "readiness", "ready", "connection", "connected", "connectivity", "enabled", "running", "loaded")
+        self.assertTrue(fixed_adapters.native_discovery_present(
+            {"data": {"inventory": {"servers": [candidate]}}}, "context7", approved,
+        ))
+        for control in controls:
+            envelopes = (
+                {control: False, "servers": [candidate]},
+                {"data": {control: False, "servers": [candidate]}},
+                {"data": {"inventory": {control: False, "servers": [candidate]}}},
+                {"servers": [{**candidate, control: False}]},
+            )
+            for envelope in envelopes:
+                with self.subTest(control=control, envelope=envelope):
+                    self.assertFalse(fixed_adapters.native_discovery_present(
+                        envelope, "context7", approved,
+                    ))
         self.assertTrue(fixed_adapters.manager_receipt_present({"products": ["context7"]}, "context7"))
+        for field in ("health", "healthy", "readiness", "ready", "connection", "connected", "connectivity", "enabled", "running", "loaded"):
+            with self.subTest(negated_control=field):
+                self.assertFalse(fixed_adapters.native_discovery_present(
+                    {"servers": [{"name": "context7", field: False}]}, "context7",
+                ))
+        for status in ("disconnected", "not healthy", "not available", "degraded", "cancelled"):
+            with self.subTest(negated_state=status):
+                self.assertFalse(fixed_adapters.native_discovery_present(
+                    {"servers": {"context7": {"status": status}}}, "context7",
+                ))
+
+    def test_native_discovery_rejects_zero_controls_recursively_but_allows_nonzero_numbers(self) -> None:
+        approved = sealed_tuple("context7")
+        candidate = {"name": "context7", "tuple": approved}
+        controls = ("health", "healthy", "readiness", "ready", "connection", "connected", "connectivity", "enabled", "running", "loaded")
+        for field in controls:
+            for zero in (0, 0.0):
+                envelope = {"outer": {"inner": {field: zero}}, "servers": [candidate]}
+                with self.subTest(field=field, zero=zero):
+                    self.assertFalse(fixed_adapters.native_discovery_present(envelope, "context7", approved))
+            self.assertTrue(fixed_adapters.native_discovery_present({field: 7, "servers": [candidate]}, "context7", approved))
+        for field in ("success", "ok"):
+            self.assertTrue(fixed_adapters.explicit_failure_marker({"nested": {field: 0}}))
+            self.assertTrue(fixed_adapters.explicit_failure_marker({"nested": {field: False}}))
+            self.assertFalse(fixed_adapters.explicit_failure_marker({"nested": {field: 7}}))
+
+    def test_native_discovery_rejects_same_collection_and_cross_depth_mixed_records(self) -> None:
+        approved = sealed_tuple("context7")
+        good = {"name": "context7", "tuple": approved}
+        partial = {"name": "context7"}
+        conflict = {"name": "context7", "tuple": {**approved, "package_version": "9.9.9"}}
+        for value in (
+            {"servers": [good, partial]},
+            {"servers": [good, conflict]},
+            {"servers": [good, dict(good)]},
+            {"servers": [good], "nested": {"connections": [partial]}},
+            {"servers": [good], "nested": {"entries": [conflict]}},
+            {"servers": [good], "nested": {"mcpServers": [dict(good)]}},
+        ):
+            with self.subTest(value=value):
+                self.assertFalse(fixed_adapters.native_discovery_present(value, "context7", approved))
+
+    def test_native_discovery_rejects_keyed_and_text_identity_contradictions(self) -> None:
+        approved = sealed_tuple("context7")
+        self.assertFalse(fixed_adapters.native_discovery_present({
+            "servers": {"context7": {"name": "attacker", "tuple": approved}},
+        }, "context7", approved))
+        self.assertFalse(fixed_adapters.native_discovery_present({
+            "servers": {"context7": {"name": "attacker", "tuple": approved}},
+            "connections": [{"name": "context7", "tuple": approved}],
+        }, "context7", approved))
+        for client in ("cursor", "kiro"):
+            with self.subTest(client=client):
+                self.assertFalse(fixed_adapters.native_discovery_output_present(
+                    client, ["context7: connected", "context7: failed"], "context7",
+                ))
+
+    def test_current_client_command_and_discovery_contracts_are_exact(self) -> None:
+        self.assertEqual(
+            fixed_adapters.CLIENT_ARGUMENTS["codex"],
+            ("exec", "--skip-git-repo-check", "--json", "--ephemeral", "--sandbox", "read-only"),
+        )
+        self.assertEqual(
+            fixed_adapters.CLIENT_ARGUMENTS["cursor"],
+            ("--print", "--output-format", "stream-json", "--mode", "ask", "--force", "--sandbox", "enabled", "--trust", "--approve-mcps"),
+        )
+        self.assertEqual(
+            fixed_adapters.CLIENT_ARGUMENTS["kiro"],
+            ("acp", "--agent-engine", "v3", "--auth-method", "cli"),
+        )
+        self.assertEqual(fixed_adapters.CLIENT_DISCOVERY_ARGUMENTS["codex"], ("mcp", "list", "--json"))
+        self.assertEqual(fixed_adapters.CLIENT_DISCOVERY_ARGUMENTS["cursor"], ("mcp", "list"))
+        self.assertEqual(fixed_adapters.CLIENT_DISCOVERY_ARGUMENTS["kiro"], ("mcp", "list"))
+
+    def test_plain_native_discovery_distinguishes_installed_before_from_healthy_after(self) -> None:
+        cursor = fixed_adapters.parsed_native_discovery("cursor", b"context7: connected\nother: connected\n")
+        self.assertTrue(fixed_adapters.native_discovery_output_present("cursor", cursor, "context7"))
+        self.assertFalse(fixed_adapters.native_discovery_output_present("cursor", ["missing context7"], "context7"))
+        self.assertFalse(fixed_adapters.native_discovery_output_present("kiro", ["context7: failed"], "context7"))
+        colored = fixed_adapters.parsed_native_discovery("kiro", b"\x1b[32m\xe2\x9c\x93 context7 connected\x1b[0m\n")
+        self.assertTrue(fixed_adapters.native_discovery_output_present("kiro", colored, "context7"))
+        approval = ["context7: not loaded (needs approval)"]
+        self.assertTrue(fixed_adapters.native_discovery_output_present(
+            "cursor", approval, "context7", phase="before",
+        ))
+        self.assertFalse(fixed_adapters.native_discovery_output_present(
+            "cursor", approval, "context7", phase="after",
+        ))
+        for status in ("not loaded", "needs approval", "disconnected", "stopped", "disabled", "failed", "error", "unavailable"):
+            with self.subTest(status=status):
+                self.assertFalse(fixed_adapters.native_discovery_output_present(
+                    "cursor", [f"context7: {status}"], "context7", phase="after",
+                ))
+        self.assertFalse(fixed_adapters.native_discovery_output_present(
+            "cursor", ["context7"], "context7", phase="after",
+        ))
+        for status in ("not connected", "not ready", "not running", "not enabled", "connected but degraded", "ready (unhealthy)"):
+            with self.subTest(explicit_negative=status):
+                self.assertFalse(fixed_adapters.native_discovery_output_present(
+                    "cursor", [f"context7: {status}"], "context7", phase="after",
+                ))
+        self.assertFalse(fixed_adapters.native_discovery_output_present(
+            "cursor", ["context7: connected (latency 2ms)"], "context7", phase="after",
+        ))
 
     def test_receipt_and_native_identity_require_the_exact_approved_tuple(self) -> None:
-        approved = {"product_id": "context7", "package_version": "1.0.0", "client_version": None, "observed_at": None}
+        approved = sealed_tuple("context7")
         correct = {"name": "context7", "tuple": dict(approved)}
         wrong = {"name": "context7", "tuple": {**approved, "package_version": "9.9.9"}}
         self.assertTrue(fixed_adapters.manager_receipt_present({"receipts": [correct]}, "context7", approved))
@@ -3280,6 +4562,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             finally:
                 fixed_adapters.MAX_STDOUT = original
 
+    @requires_disposable_observer_host
     def test_fixed_client_argv_uses_disposable_root_and_expected_marker(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3288,28 +4571,41 @@ class FixedAdapterContractTests(unittest.TestCase):
             workspace.mkdir(mode=0o700)
             (profile / ".agentplugins").mkdir(mode=0o700)
             receipts = profile / ".agentplugins" / "receipts.json"
-            receipts.write_text('{"products":["context7"]}')
+            approved = sealed_tuple("context7")
+            receipts.write_text(json.dumps({"products": [{"name": "context7", "tuple": approved}]}))
             receipts.chmod(0o600)
             binary = root / "codex-fixture.py"
             binary.write_text(
-                "#!/usr/bin/env python3\n"
+                "#!/usr/bin/python3\n"
                 "import json,sys\n"
                 "if sys.argv[1:] == ['--version']: print('codex-fixture-v1')\n"
-                "elif sys.argv[1:] == ['mcp','list','--json']: print(json.dumps({'servers':[{'name':'context7'}]}))\n"
+                f"elif sys.argv[1:] == ['mcp','list','--json']: print(json.dumps({{'servers':[{{'name':'context7','tuple':{approved!r}}}]}}))\n"
                 "else:\n"
                 " marker=sys.argv[-1].split(': ',1)[-1]\n"
-                " print(json.dumps([{'type':'item.completed','item':{'type':'mcp_tool_call','server':'context7','tool_name':'resolve-library-id','status':'completed','result':{'library':'context7'}}},{'type':'item.completed','item':{'type':'agent_message','text':marker}}]))\n"
+                " events=[{'type':'thread.started','thread_id':'reviewed-thread'},{'type':'turn.started'},{'type':'item.completed','item':{'type':'mcp_tool_call','server':'context7','tool_name':'resolve-library-id','status':'completed','result':{'library':'context7'}}},{'type':'item.completed','item':{'type':'agent_message','text':marker}},{'type':'turn.completed','usage':{'input_tokens':24763,'cached_input_tokens':23744,'output_tokens':122}}]\n"
+                " print('\\n'.join(json.dumps(event) for event in events))\n"
             )
             binary.chmod(0o755)
             item = {
                 "binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(),
-                "profile": str(profile), "client_id": "codex",
+                "profile": str(profile), "client_id": "codex", "native_projection": self.install_projection(profile, "codex", approved),
             }
-            marker, argv, _, _ = fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid())
+            with mock.patch.object(
+                fixed_adapters, "native_discovery_output_present",
+                wraps=fixed_adapters.native_discovery_output_present,
+            ) as discovery_check:
+                marker, argv, _, _ = fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid(), approved)
+            self.assertEqual(len(discovery_check.call_args_list), 2)
+            self.assertTrue(all(call.args[3] == approved for call in discovery_check.call_args_list))
+            self.assertEqual(
+                [call.kwargs["phase"] for call in discovery_check.call_args_list],
+                ["before", "after"],
+            )
             self.assertEqual(marker["client_version"], "codex-fixture-v1")
             self.assertEqual(argv[1:4], ["exec", "--skip-git-repo-check", "--json"])
             self.assertNotIn(str(profile), argv)
 
+    @requires_disposable_observer_host
     def test_fixed_client_rejects_prompt_echo_without_tool_event(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3318,20 +4614,537 @@ class FixedAdapterContractTests(unittest.TestCase):
             workspace.mkdir(mode=0o700)
             (profile / ".agentplugins").mkdir(mode=0o700)
             receipts = profile / ".agentplugins" / "receipts.json"
-            receipts.write_text('{"products":["context7"]}')
+            approved = sealed_tuple("context7")
+            receipts.write_text(json.dumps({"products": [{"name": "context7", "tuple": approved}]}))
             receipts.chmod(0o600)
             binary = root / "codex-fixture.py"
             binary.write_text(
-                "#!/usr/bin/env python3\n"
+                "#!/usr/bin/python3\n"
                 "import json,sys\n"
                 "if sys.argv[1:] == ['--version']: print('codex-fixture-v1')\n"
-                "elif sys.argv[1:] == ['mcp','list','--json']: print(json.dumps({'servers':[{'name':'context7'}]}))\n"
+                f"elif sys.argv[1:] == ['mcp','list','--json']: print(json.dumps({{'servers':[{{'name':'context7','tuple':{approved!r}}}]}}))\n"
                 "else: print(json.dumps(sys.argv[-1].split(': ',1)[-1]))\n"
             )
             binary.chmod(0o755)
-            item = {"binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(), "profile": str(profile), "client_id": "codex"}
+            item = {"binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(), "profile": str(profile), "client_id": "codex", "native_projection": self.install_projection(profile, "codex", approved)}
             with self.assertRaisesRegex(ValueError, "successful exact tool invocation"):
-                fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid())
+                fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid(), approved)
+
+    @requires_disposable_observer_host
+    def test_cursor_invocation_uses_stream_json_and_requires_healthy_after_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile, workspace = root / "profile", root / "workspace"
+            profile.mkdir(mode=0o700)
+            workspace.mkdir(mode=0o700)
+            (profile / ".agentplugins").mkdir(mode=0o700)
+            receipts = profile / ".agentplugins" / "receipts.json"
+            approved = sealed_tuple("context7")
+            receipts.write_text(json.dumps({"products": [{"name": "context7", "tuple": approved}]}))
+            receipts.chmod(0o600)
+            binary = root / "cursor-fixture.py"
+            binary.write_text(
+                "#!/usr/bin/python3\n"
+                "import json,os,sys\n"
+                "state=os.path.join(os.environ['HOME'],'approved')\n"
+                "if sys.argv[1:] == ['--version']: print('cursor-fixture-v1')\n"
+                "elif sys.argv[1:] == ['mcp','list']:\n"
+                " print('context7: connected' if os.path.exists(state) else 'context7: not loaded (needs approval)')\n"
+                "else:\n"
+                " assert sys.argv[1:4] == ['--print','--output-format','stream-json']\n"
+                " open(state,'w').close()\n"
+                " marker=sys.argv[-1].split(': ',1)[-1]\n"
+                " print(json.dumps({'type':'tool_call','subtype':'completed','call_id':'call-1','tool_call':{'mcpToolCall':{'args':{'serverName':'context7','toolName':'resolve-library-id','arguments':{}},'result':{'success':{'content':'resolved'}}}}}))\n"
+                " print(json.dumps({'type':'assistant','message':{'role':'assistant','content':[{'type':'text','text':marker}]}}))\n"
+            )
+            binary.chmod(0o755)
+            item = {
+                "binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(),
+                "profile": str(profile), "client_id": "cursor", "native_projection": self.install_projection(profile, "cursor", approved),
+            }
+            marker, argv, _, _ = fixed_adapters.invoke(
+                item, "context7", "cursor", "a" * 64, workspace, os.geteuid(), approved,
+            )
+            self.assertEqual(marker["client_version"], "cursor-fixture-v1")
+            self.assertEqual(argv[1:4], ["--print", "--output-format", "stream-json"])
+
+    @requires_disposable_observer_host
+    def test_profile_sealer_derives_receipt_and_projection_from_manager_info_and_native_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed, add_dir, info_dir, doctor_dir = root / "seed", root / "add", root / "info", root / "doctor"
+            seed.mkdir(mode=0o700)
+            add_dir.mkdir(mode=0o700)
+            info_dir.mkdir(mode=0o700)
+            doctor_dir.mkdir(mode=0o700)
+            mapping, matrix = {}, []
+            for plugin in sorted(fixed_adapters.HEROES):
+                relative = f"native/{plugin}.json"
+                mapping[plugin] = relative
+                native = seed / relative
+                native.parent.mkdir(mode=0o700, exist_ok=True)
+                native.write_text(json.dumps({"plugin": plugin}))
+                native.chmod(0o600)
+                approved = {
+                    "product_id": plugin, "package_version": "1.0.0",
+                    "distribution_id": f"reviewed/{plugin}", "release_sequence": 1,
+                    "distribution_kind": "upstream", "snapshot_sequence": 1,
+                    "tree_digest": "sha256:" + "a" * 64,
+                    "manifest_digest": "sha256:" + "b" * 64,
+                    "snapshot_digest": "sha256:" + "d" * 64,
+                    "binary_digest": "sha256:" + "e" * 64,
+                    "source_repository": f"upstream/{plugin}",
+                    "source_revision": "c" * 40, "source_path": f"plugins/{plugin}",
+                    "dependency_identity": "locked", "installer_version": "0.1.14",
+                    "adapter_version": "r14d", "client_version": None,
+                    "os": "linux", "architecture": "x86_64",
+                    "observed_at": "2026-08-26T00:00:00Z",
+                }
+                matrix.append({"plugin": plugin, "client": "cursor", "tuple": approved})
+                (add_dir / f"{plugin}.json").write_text(json.dumps({
+                    "schema_version": 1, "command": "add", "result": "success",
+                    "data": {
+                        "status": "completed", "plugin": plugin,
+                        "source": f"upstream/{plugin}//plugins/{plugin}",
+                        "revision": "c" * 40, "failed": 0,
+                        "targets": [{"target": "cursor", "status": "external_completed",
+                                     "output": {"result": {"plan": {"status": "completed"}}}}],
+                    },
+                }))
+                (info_dir / f"{plugin}.json").write_text(json.dumps({
+                    "schema_version": 1, "command": "info", "result": "success",
+                    "data": {"name": plugin, "source": f"upstream/{plugin}//plugins/{plugin}", "clients": [{
+                        "client_id": "cursor",
+                        "scope": "user", "materialization": "materialized", "activation": "active",
+                        "policy": "allowed", "verification": "installation_verified",
+                        "receipt_reconciled": True, "native_discovery_reconciled": True,
+                        "native_identity_state": "managed",
+                        "package_revision": {
+                            "version": "1.0.0", "resolved_revision": "c" * 40,
+                            "tree_digest": "sha256:" + "a" * 64,
+                            "manifest_digest": "sha256:" + "b" * 64,
+                        },
+                    }], "mixed_version": False},
+                }))
+            doctor = {
+                "schema_version": 1, "command": "doctor", "result": "success", "data": {
+                    "clients": [{"client_id": "cursor", "detected": True}],
+                    "inventory": [{
+                        "plugin": row["plugin"],
+                        "source": f'{row["tuple"]["source_repository"]}//{row["tuple"]["source_path"]}',
+                        "revision": row["tuple"]["source_revision"], "status": "completed",
+                    } for row in matrix],
+                },
+            }
+            for plugin in sorted(fixed_adapters.HEROES):
+                (doctor_dir / f"{plugin}.json").write_text(json.dumps(doctor))
+            matrix_file = root / "matrix.json"
+            matrix_file.write_text(json.dumps({"matrix": matrix}))
+            native_map = root / "native-map.json"
+            native_map.write_text(json.dumps(mapping))
+            helper = Path(__file__).parents[2] / "deploy" / "uap-observer-seal-profile.py"
+            common = [
+                "/usr/bin/python3", str(helper), "--client", "cursor",
+                "--root-owned-seed", str(seed), "--matrix-file", str(matrix_file),
+                "--manager-add-directory", str(add_dir),
+                "--manager-info-directory", str(info_dir),
+                "--post-doctor-directory", str(doctor_dir),
+                "--native-config-map", str(native_map),
+            ]
+            projection_digest = subprocess.run(
+                [*common, "--digest-only"], check=True, text=True, stdout=subprocess.PIPE,
+            ).stdout.strip()
+            original_bodies = {
+                "add": (add_dir / f'{matrix[0]["plugin"]}.json').read_bytes(),
+                "info": (info_dir / f'{matrix[0]["plugin"]}.json').read_bytes(),
+                "doctor": (doctor_dir / f'{matrix[0]["plugin"]}.json').read_bytes(),
+            }
+            strict_mutations = {
+                "add": original_bodies["add"].replace(b'"failed": 0', b'"failed": 1, "failed": 0', 1),
+                "info": original_bodies["info"].replace(b'"command": "info"', b'"command": "failure", "command": "info"', 1),
+                "doctor": original_bodies["doctor"].replace(b'"result": "success"', b'"result": "failure", "result": "success"', 1),
+            }
+            evidence_paths = {
+                "add": add_dir / f'{matrix[0]["plugin"]}.json',
+                "info": info_dir / f'{matrix[0]["plugin"]}.json',
+                "doctor": doctor_dir / f'{matrix[0]["plugin"]}.json',
+            }
+            for label, encoded in strict_mutations.items():
+                evidence_paths[label].write_bytes(encoded)
+                with self.subTest(duplicate_family=label), self.assertRaises(subprocess.CalledProcessError):
+                    subprocess.run([*common, "--digest-only"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                evidence_paths[label].write_bytes(original_bodies[label])
+            for label, path in evidence_paths.items():
+                value = json.loads(original_bodies[label])
+                value["data"]["nonfinite_probe"] = float("nan")
+                path.write_text(json.dumps(value))
+                with self.subTest(nonfinite_family=label), self.assertRaises(subprocess.CalledProcessError):
+                    subprocess.run([*common, "--digest-only"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                path.write_bytes(original_bodies[label])
+            for label, path in (
+                ("add", add_dir / f'{matrix[0]["plugin"]}.json'),
+                ("info", info_dir / f'{matrix[0]["plugin"]}.json'),
+                ("doctor", doctor_dir / f'{matrix[0]["plugin"]}.json'),
+            ):
+                changed = json.loads(original_bodies[label])
+                changed["data"]["capture_nonce"] = f"different-{label}"
+                path.write_text(json.dumps(changed))
+                changed_digest = subprocess.run(
+                    [*common, "--digest-only"], check=True, text=True, stdout=subprocess.PIPE,
+                ).stdout.strip()
+                self.assertNotEqual(changed_digest, projection_digest, label)
+                path.write_bytes(original_bodies[label])
+            config = root / "adapter.json"
+            config.write_text(json.dumps({
+                "matrix": matrix, "clients": {"cursor": {"native_projection": {
+                    "path": "/var/lib/uap-observer/proofs/cursor/native-projection.json",
+                    "sha256": projection_digest,
+                }}},
+            }))
+            protected_add = add_dir / f'{matrix[0]["plugin"]}.json'
+            changed_add = json.loads(protected_add.read_text())
+            changed_add["data"]["capture_nonce"] = "different-after-config-freeze"
+            protected_add.write_text(json.dumps(changed_add))
+            with self.assertRaises(subprocess.CalledProcessError):
+                subprocess.run(
+                    [*common, "--adapter-config", str(config)], check=True,
+                    text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                )
+            protected_add.write_bytes(original_bodies["add"])
+            failed = subprocess.run(
+                [*common, "--adapter-config", str(config)],
+                env={**os.environ, "UAP_OBSERVER_SEAL_FAILPOINT": "after-staging"},
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertFalse((seed / ".uap-observer-proof").exists())
+            self.assertEqual(
+                list(seed.glob(".uap-observer-proof.stage.*")), [],
+                "failed sealing left an unpublished proof stage",
+            )
+            ready_read, ready_write = os.pipe()
+            resume_read, resume_write = os.pipe()
+            pinned_seed, attacker_seed = root / "seed-pinned", root / "attacker-seed"
+            attacker_seed.mkdir(mode=0o700)
+            race_environment = {
+                **os.environ,
+                "UAP_OBSERVER_SEAL_TEST_RACE_POINT": "before-publication",
+                "UAP_OBSERVER_SEAL_TEST_READY_FD": str(ready_write),
+                "UAP_OBSERVER_SEAL_TEST_RESUME_FD": str(resume_read),
+            }
+            raced = subprocess.Popen(
+                [*common, "--adapter-config", str(config)], env=race_environment,
+                pass_fds=(ready_write, resume_read), text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            os.close(ready_write); os.close(resume_read)
+            try:
+                self.assertEqual(os.read(ready_read, 1), b"1")
+                seed.rename(pinned_seed)
+                seed.symlink_to(attacker_seed, target_is_directory=True)
+                os.write(resume_write, b"1")
+                _stdout, _stderr = raced.communicate(timeout=10)
+                self.assertNotEqual(raced.returncode, 0)
+                self.assertFalse((attacker_seed / ".uap-observer-proof").exists())
+                self.assertFalse((pinned_seed / ".uap-observer-proof").exists())
+                self.assertEqual(list(pinned_seed.glob(".uap-observer-proof.stage.*")), [])
+            finally:
+                os.close(ready_read); os.close(resume_write)
+                if raced.poll() is None:
+                    raced.kill(); raced.wait()
+                if seed.is_symlink():
+                    seed.unlink()
+                if pinned_seed.exists():
+                    pinned_seed.rename(seed)
+            completed = subprocess.run([
+                *common, "--adapter-config", str(config),
+            ], check=True, text=True, stdout=subprocess.PIPE)
+            projection = seed / ".uap-observer-proof" / "native-projection.json"
+            receipts = seed / ".uap-observer-proof" / "receipts.json"
+            self.assertEqual(completed.stdout.strip(), fixed_adapters.sha256(projection.read_bytes()))
+            self.assertEqual(stat.S_IMODE(projection.stat().st_mode), 0o400)
+            self.assertEqual(stat.S_IMODE(receipts.stat().st_mode), 0o400)
+            value = json.loads(projection.read_text())
+            self.assertEqual({entry["plugin"] for entry in value["entries"]}, fixed_adapters.HEROES)
+            self.assertTrue(all(entry["native_config"]["path"].startswith("/var/lib/uap-observer/proofs/cursor/native/") for entry in value["entries"]))
+            self.assertTrue(all(entry["client_config"]["path"].startswith("/var/lib/uap-observer/profiles/cursor/") for entry in value["entries"]))
+            receipt_value = json.loads(receipts.read_text())
+            self.assertTrue(fixed_adapters.receipt_binds_projection(receipt_value, value))
+            forged_receipt = json.loads(json.dumps(receipt_value))
+            forged_receipt["receipts"][0]["manager_add_sha256"] = "sha256:" + "0" * 64
+            self.assertFalse(fixed_adapters.receipt_binds_projection(forged_receipt, value))
+
+            specification = importlib.util.spec_from_file_location("profile_sealer", helper)
+            self.assertIsNotNone(specification)
+            self.assertIsNotNone(specification.loader)
+            sealer = importlib.util.module_from_spec(specification)
+            specification.loader.exec_module(sealer)
+            approved = matrix[0]["tuple"]
+            sealer.validate_approved_tuple(approved, matrix[0]["plugin"])
+            for extra in (
+                {"revision": approved["source_revision"]},
+                {"source": f'{approved["source_repository"]}//{approved["source_path"]}'},
+                {"SourceRevision": approved["source_revision"]},
+                {"source-revision": approved["source_revision"]},
+                {"nested": {"source_revision": approved["source_revision"]}},
+            ):
+                with self.subTest(approved_tuple_extra=extra), self.assertRaisesRegex(ValueError, "approved source tuple"):
+                    sealer.validate_approved_tuple({**approved, **extra}, matrix[0]["plugin"])
+            manager_add = json.loads((add_dir / f'{matrix[0]["plugin"]}.json').read_text())
+            manager_info = json.loads((info_dir / f'{matrix[0]["plugin"]}.json').read_text())
+            sealer.matching_add(manager_add, matrix[0]["plugin"], "cursor", approved)
+            sealer.matching_client(manager_info, matrix[0]["plugin"], "cursor", approved)
+            approved_inventory = {row["plugin"]: row["tuple"] for row in matrix}
+            sealer.matching_doctor(doctor, "cursor", approved_inventory)
+            for mutation in (
+                lambda value: value["data"]["clients"].append({"client_id": "kiro", "detected": True}),
+                lambda value: value["data"]["inventory"].pop(),
+                lambda value: value["data"]["inventory"][0].update(revision="d" * 40),
+                lambda value: value["data"]["inventory"][0].update(product_id="notion"),
+                lambda value: value["data"]["inventory"][0].update(name=False),
+                lambda value: value["data"]["inventory"][0].update(ProductId=value["data"]["inventory"][0]["plugin"]),
+                lambda value: value["data"]["inventory"][0].update(**{"product-id": value["data"]["inventory"][0]["plugin"]}),
+                lambda value: value["data"]["inventory"][0].update(nested={"name": "notion", "source_revision": "c" * 40}),
+                lambda value: value["data"]["inventory"][0].update(nested={"name": "unreviewed", "source_revision": "c" * 40}),
+                lambda value: value["data"]["inventory"][0].update(nested={"source_revision": "c" * 40, "productId": value["data"]["inventory"][0]["plugin"]}),
+                lambda value: value["data"]["inventory"][0].update(healthy=False),
+                lambda value: value.update(result="failure"),
+            ):
+                invalid_doctor = json.loads(json.dumps(doctor))
+                mutation(invalid_doctor)
+                with self.assertRaises(ValueError):
+                    sealer.matching_doctor(invalid_doctor, "cursor", approved_inventory)
+            tuple_doctor = json.loads(json.dumps(doctor))
+            tuple_doctor["data"]["inventory"][0]["tuple"] = approved_inventory[tuple_doctor["data"]["inventory"][0]["plugin"]]
+            sealer.matching_doctor(tuple_doctor, "cursor", approved_inventory)
+            for mutation in (
+                lambda value: value["data"]["inventory"][0].update(source="attacker/fork"),
+                lambda value: value["data"]["inventory"][0].update(revision="d" * 40),
+                lambda value: value["data"]["inventory"][0].update(source_revision="d" * 40),
+            ):
+                invalid_doctor = json.loads(json.dumps(tuple_doctor))
+                mutation(invalid_doctor)
+                with self.assertRaisesRegex(ValueError, "source tuple"):
+                    sealer.matching_doctor(invalid_doctor, "cursor", approved_inventory)
+            for field in ("success", "ok"):
+                for rejected in (False, 0, 0.0):
+                    with self.subTest(field=field, rejected=rejected):
+                        self.assertTrue(sealer.prohibited_lifecycle_state({"nested": {field: rejected}}))
+                for accepted in (True, 1, -1, 0.5):
+                    with self.subTest(field=field, accepted=accepted):
+                        self.assertFalse(sealer.prohibited_lifecycle_state({"nested": {field: accepted}}))
+            for status in ("success", "completed", "external_completed"):
+                accepted = json.loads(json.dumps(manager_add))
+                accepted["data"]["targets"][0]["status"] = status
+                sealer.matching_add(accepted, matrix[0]["plugin"], "cursor", approved)
+            for mutation in (
+                lambda value: value["data"]["targets"][0]["output"]["result"]["plan"].update(status="manual_activation_required"),
+                lambda value: value["data"]["targets"][0].update(manual_activation_required=True),
+                lambda value: value["data"].update(partial=True),
+                lambda value: value["data"].update(warnings=["policy_suspended"]),
+                lambda value: value["data"].update(events=[{"status": "failed"}]),
+                lambda value: value["data"].update(audit={"success": False}),
+                lambda value: value["data"].update(cancellations=1),
+            ):
+                incomplete = json.loads(json.dumps(manager_add))
+                mutation(incomplete)
+                with self.assertRaisesRegex(ValueError, "prohibited lifecycle"):
+                    sealer.matching_add(incomplete, matrix[0]["plugin"], "cursor", approved)
+            controls = ("health", "healthy", "readiness", "ready", "connection", "connected", "connectivity", "enabled", "running", "loaded")
+            for control in controls:
+                for zero in (0, 0.0):
+                    incomplete = json.loads(json.dumps(manager_add))
+                    incomplete["data"]["targets"][0]["nested"] = {"deeper": {control: zero}}
+                    with self.subTest(control=control, zero=zero), self.assertRaisesRegex(ValueError, "prohibited lifecycle"):
+                        sealer.matching_add(incomplete, matrix[0]["plugin"], "cursor", approved)
+                accepted = json.loads(json.dumps(manager_add))
+                accepted["data"]["targets"][0]["nested"] = {"deeper": {control: 7}}
+                sealer.matching_add(accepted, matrix[0]["plugin"], "cursor", approved)
+            for spelling in ("manual_activation_required", "manual-activation-required", "manual activation required"):
+                for location in ("key", "value"):
+                    incomplete = json.loads(json.dumps(manager_add))
+                    nested = incomplete["data"]["targets"][0].setdefault("nested", {})
+                    if location == "key":
+                        nested[spelling] = True
+                    else:
+                        nested["state"] = spelling
+                    with self.subTest(spelling=spelling, location=location), self.assertRaisesRegex(ValueError, "prohibited lifecycle"):
+                        sealer.matching_add(incomplete, matrix[0]["plugin"], "cursor", approved)
+            for spelling in ("MANUAL_ACTIVATION_REQUIRED", "Manual-Activation-Required", "Manual Activation Required"):
+                incomplete = json.loads(json.dumps(manager_add))
+                incomplete["data"]["targets"][0]["nested"] = {"State": spelling}
+                with self.subTest(cased_spelling=spelling), self.assertRaisesRegex(ValueError, "prohibited lifecycle"):
+                    sealer.matching_add(incomplete, matrix[0]["plugin"], "cursor", approved)
+            for mutation, message in (
+                (lambda value: value["data"].pop("revision"), "canonical source"),
+                (lambda value: value["data"].update(revision="d" * 40), "canonical source"),
+                (lambda value: value["data"].update(source="attacker/fork//plugins/package"), "canonical source"),
+                (lambda value: value["data"].update(source_revision="d" * 40), "revision alias"),
+                (lambda value: value["data"]["targets"][0]["output"].update(resolved_revision="d" * 40), "revision alias"),
+                (lambda value: value["data"]["targets"][0].update(package_revision="d" * 40), "package_revision authority"),
+                (lambda value: value["data"].update(Revision="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"]["targets"][0].update(sourceRevision="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"].update(SOURCEREVISION="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"].update(**{"source-repository": "attacker/fork"}), "unexpected source authority"),
+                (lambda value: value["data"].update(PACKAGEREVISION={}), "unexpected revision authority"),
+                (lambda value: value["data"].update(failed=False), "canonical source"),
+            ):
+                forged = json.loads(json.dumps(manager_add))
+                mutation(forged)
+                with self.assertRaisesRegex(ValueError, message):
+                    sealer.matching_add(forged, matrix[0]["plugin"], "cursor", approved)
+            for mutation, message in (
+                (lambda value: value["data"]["clients"][0]["package_revision"].pop("resolved_revision"), "approved release tuple"),
+                (lambda value: value["data"]["clients"][0]["package_revision"].update(resolved_revision="d" * 40), "approved release tuple"),
+                (lambda value: value["data"].update(source="attacker/fork//plugins/package"), "package source"),
+                (lambda value: value["data"].update(revision="d" * 40), "revision alias"),
+                (lambda value: value["data"]["clients"][0].update(source_revision="d" * 40), "revision alias"),
+                (lambda value: value["data"]["clients"][0].update(package_revision="d" * 40), "approved release tuple"),
+                (lambda value: value["data"]["clients"][0].update(nested={"source": "attacker/fork//plugins/package"}), "source authority"),
+                (lambda value: value["data"]["clients"][0].update(nested={"Source": "attacker/fork//plugins/package"}), "unexpected source authority"),
+                (lambda value: value["data"]["clients"][0].update(nested={"SOURCEREPOSITORY": "attacker/fork"}), "unexpected source authority"),
+                (lambda value: value["data"]["clients"][0].update(nested={"packageRevision": "d" * 40}), "unexpected revision authority"),
+                (lambda value: value["data"]["clients"][0].update(nested={"source_revision": approved["source_revision"], "SOURCEREVISION": approved["source_revision"]}), "unexpected revision authority"),
+            ):
+                forged = json.loads(json.dumps(manager_info))
+                mutation(forged)
+                with self.assertRaisesRegex(ValueError, message):
+                    sealer.matching_client(forged, matrix[0]["plugin"], "cursor", approved)
+            for mutation, message in (
+                (lambda value: value["data"]["inventory"][0].update(package_revision="d" * 40), "package_revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(resolved_revision="d" * 40), "revision alias"),
+                (lambda value: value["data"]["inventory"][0].update(Revision="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(sourceRevision="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(SOURCEREVISION="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(**{"source-revision": "d" * 40}), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(PACKAGEREVISION="d" * 40), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(nested={"deeper": {"Revision": "c" * 40}}), "unexpected revision authority"),
+                (lambda value: value["data"]["inventory"][0].update(nested={"deeper": {"source-repository": approved["source_repository"]}}), "unexpected source authority"),
+            ):
+                forged = json.loads(json.dumps(doctor))
+                mutation(forged)
+                with self.assertRaisesRegex(ValueError, message):
+                    sealer.matching_doctor(forged, "cursor", approved_inventory)
+            for impostor in (True, 1, 1.0):
+                forged_info = json.loads(json.dumps(manager_info))
+                forged_info["data"]["clients"][0]["nested"] = {"source_revision": impostor}
+                forged_doctor = json.loads(json.dumps(doctor))
+                forged_doctor["data"]["inventory"][0]["nested"] = {"source_revision": impostor}
+                with self.subTest(info_exact_type_impostor=impostor), self.assertRaisesRegex(ValueError, "revision alias"):
+                    sealer.matching_client(forged_info, matrix[0]["plugin"], "cursor", approved)
+                with self.subTest(doctor_exact_type_impostor=impostor), self.assertRaisesRegex(ValueError, "revision alias"):
+                    sealer.matching_doctor(forged_doctor, "cursor", approved_inventory)
+            for boolean in (True, False):
+                forged_add = json.loads(json.dumps(manager_add)); forged_add["schema_version"] = boolean
+                forged_info = json.loads(json.dumps(manager_info)); forged_info["schema_version"] = boolean
+                forged_doctor = json.loads(json.dumps(doctor)); forged_doctor["schema_version"] = boolean
+                with self.subTest(add_schema_boolean=boolean), self.assertRaises(ValueError):
+                    sealer.matching_add(forged_add, matrix[0]["plugin"], "cursor", approved)
+                with self.subTest(info_schema_boolean=boolean), self.assertRaises(ValueError):
+                    sealer.matching_client(forged_info, matrix[0]["plugin"], "cursor", approved)
+                with self.subTest(doctor_schema_boolean=boolean), self.assertRaises(ValueError):
+                    sealer.matching_doctor(forged_doctor, "cursor", approved_inventory)
+
+            native_path = seed / mapping[matrix[0]["plugin"]]
+            native_original = native_path.read_bytes()
+            for native_value in (
+                {"plugin": matrix[0]["plugin"], "revision": "d" * 40},
+                {"plugin": matrix[0]["plugin"], "nested": {"source_revision": "d" * 40}},
+            ):
+                native_path.write_text(json.dumps(native_value))
+                with self.subTest(native_alias=native_value), self.assertRaises(subprocess.CalledProcessError):
+                    subprocess.run([*common, "--digest-only"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            native_path.write_bytes(b'{"plugin":"context7","value":Infinity}')
+            with self.assertRaises(subprocess.CalledProcessError):
+                subprocess.run([*common, "--digest-only"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            native_path.write_bytes(native_original)
+
+    def test_profile_sealer_rejects_real_incomplete_cursor_and_kiro_records(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy" / "uap-observer-seal-profile.py"
+        specification = importlib.util.spec_from_file_location("real_shape_profile_sealer", helper)
+        self.assertIsNotNone(specification)
+        self.assertIsNotNone(specification.loader)
+        sealer = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(sealer)
+        fixtures = Path(__file__).parents[2] / "tests" / "fixtures" / "agentplugins-0.1.14"
+        add = json.loads((fixtures / "add.json").read_text())
+        info = json.loads((fixtures / "info.json").read_text())
+        add["data"]["targets"] = [
+            target for target in add["data"]["targets"] if target["target"] == "cursor"
+        ]
+        approved = {
+            "package_version": "1.0.0",
+            "source_repository": "upstash/context7",
+            "source_revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9",
+            "source_path": "plugins/agent-plugins/context7",
+            "distribution_id": "upstash/context7", "release_sequence": 1,
+            "tree_digest": "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8",
+            "manifest_digest": "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236",
+        }
+        with self.assertRaisesRegex(ValueError, "prohibited lifecycle"):
+            sealer.matching_add(add, "context7", "cursor", approved)
+        for client in ("cursor", "kiro"):
+            incomplete = json.loads(json.dumps(info))
+            incomplete["data"]["clients"] = [
+                record for record in incomplete["data"]["clients"] if record["client_id"] == client
+            ]
+            with self.subTest(client=client), self.assertRaisesRegex(ValueError, "incomplete or unreconciled"):
+                sealer.matching_client(incomplete, "context7", client, approved)
+        completed = json.loads(json.dumps(info))
+        completed["data"]["clients"] = [
+            record for record in completed["data"]["clients"] if record["client_id"] == "cursor"
+        ]
+        completed["data"]["clients"][0].update({
+            "activation": "active", "verification": "installation_verified",
+            "receipt_reconciled": True, "native_discovery_reconciled": True,
+            "native_identity_state": "managed",
+        })
+        sealer.matching_client(completed, "context7", "cursor", approved)
+        revision = info["data"]["clients"][1]["package_revision"]
+        self.assertEqual(
+            set(revision), {"version", "resolved_revision", "tree_digest", "manifest_digest"},
+        )
+
+    @requires_disposable_observer_host
+    def test_profile_sealer_native_config_bound_is_exact_and_mutation_safe(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy" / "uap-observer-seal-profile.py"
+        specification = importlib.util.spec_from_file_location("bounded_profile_sealer", helper)
+        self.assertIsNotNone(specification)
+        self.assertIsNotNone(specification.loader)
+        sealer = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(sealer)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            native = root / "mcp.json"
+            native.write_bytes(b"x" * sealer.MAX_NATIVE_CONFIG_BYTES)
+            native.chmod(0o600)
+            root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                self.assertEqual(
+                    len(sealer.protected_file_at(root_fd, "mcp.json", mode=0o600)),
+                    sealer.MAX_NATIVE_CONFIG_BYTES,
+                )
+                native.write_bytes(b"x" * (sealer.MAX_NATIVE_CONFIG_BYTES + 1))
+                native.chmod(0o600)
+                with self.assertRaisesRegex(ValueError, "4 MiB"):
+                    sealer.protected_file_at(root_fd, "mcp.json", mode=0o600)
+                native.write_bytes(b"{}")
+                native.chmod(0o600)
+                original_read = os.read
+                changed = False
+                def mutate_after_read(descriptor: int, count: int) -> bytes:
+                    nonlocal changed
+                    body = original_read(descriptor, count)
+                    if body and not changed:
+                        changed = True
+                        native.write_bytes(b'{"changed":true}')
+                        native.chmod(0o600)
+                    return body
+                with mock.patch.object(sealer.os, "read", side_effect=mutate_after_read), self.assertRaisesRegex(ValueError, "changed"):
+                    sealer.protected_file_at(root_fd, "mcp.json", mode=0o600)
+            finally:
+                os.close(root_fd)
 
     def test_consent_control_record_binds_the_full_request_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3359,6 +5172,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                 fixed_adapters.isolation_proof = original_isolation
 
 
+@requires_disposable_observer_host
 class ProfileProvisioningTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -3369,6 +5183,567 @@ class ProfileProvisioningTests(unittest.TestCase):
         cls.helper = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.helper)
 
+    def test_transaction_schema_rejects_boolean_identifier(self) -> None:
+        digest = "sha256:" + "a" * 64
+        body = json.loads(self.helper.transaction_body("codex", digest, True))
+        body["schema_version"] = True
+        payload = {key: body[key] for key in ("schema_version", "client", "seed_digest", "profile_preexisting", "phase", "previous_publication")}
+        body["payload_sha256"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        with self.assertRaisesRegex(ValueError, "marker is invalid"):
+            self.helper.validate_transaction(json.dumps(body).encode(), "codex")
+
+    def test_staging_tree_removal_fsyncs_parent_before_cleanup_continues(self) -> None:
+        calls = []
+        with mock.patch.object(self.helper, "remove_tree", side_effect=lambda parent, name: calls.append(("remove", parent, name))), mock.patch.object(self.helper, "fsync_directory", side_effect=lambda parent: calls.append(("fsync", parent))):
+            self.helper.remove_tree_durable(17, ".codex.new")
+        self.assertEqual(calls, [("remove", 17, ".codex.new"), ("fsync", 17)])
+
+    def test_interrupted_recovery_durably_removes_proof_staging_before_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            (profile_root / ".codex.new").mkdir()
+            (proof_root / ".codex.new").mkdir()
+            digest = "sha256:" + "a" * 64
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, False))
+            marker.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            calls = []
+            original_remove = self.helper.remove_tree
+            original_fsync = self.helper.fsync_directory
+            def remove(parent: int, name: str) -> None:
+                calls.append(("remove", parent, name))
+                original_remove(parent, name)
+            def sync(parent: int) -> None:
+                calls.append(("fsync", parent))
+                original_fsync(parent)
+            try:
+                with mock.patch.object(self.helper, "remove_tree", side_effect=remove), mock.patch.object(self.helper, "fsync_directory", side_effect=sync):
+                    self.assertFalse(self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", marker.name, digest,
+                        os.geteuid(), os.getegid(),
+                    ))
+            finally:
+                os.close(proof_fd); os.close(profile_fd)
+            proof_remove = calls.index(("remove", proof_fd, ".codex.new"))
+            self.assertEqual(calls[proof_remove + 1], ("fsync", proof_fd))
+            self.assertFalse(marker.exists())
+
+    def test_recovery_resyncs_already_absent_proof_target_before_removing_marker(self) -> None:
+        for proof_name in (".codex.new", "codex"):
+            with self.subTest(proof_name=proof_name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                profile_root, proof_root = root / "profiles", root / "proofs"
+                profile_root.mkdir(); proof_root.mkdir(); (proof_root / proof_name).mkdir()
+                digest = "sha256:" + "a" * 64
+                marker = profile_root / ".codex.transaction"
+                marker.write_bytes(self.helper.transaction_body("codex", digest, False))
+                marker.chmod(0o600)
+                profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+                proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+                original_remove = self.helper.remove_tree
+                original_fsync = self.helper.fsync_directory
+                removed_target = False
+
+                def remove(parent: int, name: str) -> None:
+                    nonlocal removed_target
+                    original_remove(parent, name)
+                    if parent == proof_fd and name == proof_name:
+                        removed_target = True
+
+                def fail_after_target_unlink(parent: int) -> None:
+                    if parent == proof_fd and removed_target:
+                        raise OSError("proof parent fsync failed")
+                    original_fsync(parent)
+
+                try:
+                    with mock.patch.object(self.helper, "remove_tree", side_effect=remove), mock.patch.object(self.helper, "fsync_directory", side_effect=fail_after_target_unlink), self.assertRaisesRegex(OSError, "proof parent fsync failed"):
+                        self.helper.recover_transaction(
+                            profile_fd, proof_fd, "codex", marker.name, digest,
+                            os.geteuid(), os.getegid(),
+                        )
+                    self.assertFalse((proof_root / proof_name).exists())
+                    self.assertTrue(marker.exists(), "recovery marker was removed before deletion durability")
+                    calls = []
+                    def sync_retry(parent: int) -> None:
+                        calls.append(("fsync", parent, marker.exists()))
+                        original_fsync(parent)
+                    with mock.patch.object(self.helper, "fsync_directory", side_effect=sync_retry):
+                        self.assertFalse(self.helper.recover_transaction(
+                            profile_fd, proof_fd, "codex", marker.name, digest,
+                            os.geteuid(), os.getegid(),
+                        ))
+                    self.assertIn(("fsync", proof_fd, True), calls)
+                    self.assertFalse(marker.exists())
+                finally:
+                    os.close(proof_fd); os.close(profile_fd)
+
+    def test_committed_marker_without_publication_record_resumes_rollback(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            (profile_root / "codex").mkdir(); (profile_root / "codex" / "published").write_text("partial")
+            (proof_root / "codex").mkdir(); (proof_root / "codex" / "proof").write_text("partial")
+            digest = "sha256:" + "a" * 64
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, True, "committed"))
+            marker.chmod(0o600)
+            lock = profile_root / ".codex.lock"
+            lock.write_bytes(b""); lock.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            lock_fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                self.assertFalse(self.helper.recover_transaction(
+                    profile_fd, proof_fd, "codex", marker.name, digest,
+                    os.geteuid(), os.getegid(), lock_fd,
+                ))
+            finally:
+                os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+            self.assertTrue((profile_root / "codex").is_dir())
+            self.assertEqual(list((profile_root / "codex").iterdir()), [])
+            self.assertFalse((proof_root / "codex").exists())
+            self.assertFalse(marker.exists())
+
+    def test_torn_publication_record_recovers_only_with_authenticated_transition(self) -> None:
+        digest = "sha256:" + "a" * 64
+        prior_values = ("", "sha256:" + "b" * 64)
+        helper_path = Path(__file__).parents[2] / "deploy" / "uap-observer-provision-profile.py"
+        child = (
+            "import importlib.util,os,sys\n"
+            "from pathlib import Path\n"
+            "spec=importlib.util.spec_from_file_location('provision',sys.argv[1]); h=importlib.util.module_from_spec(spec); spec.loader.exec_module(h)\n"
+            "root=Path(sys.argv[2]); digest=sys.argv[3]\n"
+            "pfd=os.open(root/'profiles',h.OPEN_DIRECTORY); qfd=os.open(root/'proofs',h.OPEN_DIRECTORY); lfd=os.open(root/'profiles/.codex.lock',os.O_RDWR|os.O_NOFOLLOW)\n"
+            "try: result=h.recover_transaction(pfd,qfd,'codex','.codex.transaction',digest,os.geteuid(),os.getegid(),lfd)\n"
+            "finally: os.close(lfd); os.close(qfd); os.close(pfd)\n"
+            "print('forward' if result else 'rollback')\n"
+        )
+        for previous in prior_values:
+            for prefix_length in range(len(digest) + 1):
+                with self.subTest(previous=previous or "empty", prefix_length=prefix_length), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    profile_root, proof_root = root / "profiles", root / "proofs"
+                    profile_root.mkdir(); proof_root.mkdir()
+                    (profile_root / "codex").mkdir()
+                    (profile_root / "codex" / "published").write_text("new")
+                    (proof_root / "codex").mkdir()
+                    (proof_root / "codex" / "proof").write_text("new")
+                    marker = profile_root / ".codex.transaction"
+                    marker.write_bytes(self.helper.transaction_body(
+                        "codex", digest, True, "committed", previous,
+                    ))
+                    marker.chmod(0o600)
+                    lock = profile_root / ".codex.lock"
+                    lock.write_bytes(digest.encode("ascii")[:prefix_length])
+                    lock.chmod(0o600)
+                    result = subprocess.run(
+                        [sys.executable, "-c", child, str(helper_path), str(root), digest],
+                        check=True, text=True, stdout=subprocess.PIPE,
+                    )
+                    if prefix_length == len(digest):
+                        self.assertEqual(result.stdout.strip(), "forward")
+                        self.assertEqual(lock.read_text(), digest)
+                        self.assertTrue(marker.exists())
+                    else:
+                        self.assertEqual(result.stdout.strip(), "rollback")
+                        self.assertEqual(lock.read_text(), previous)
+                        self.assertTrue((profile_root / "codex").is_dir())
+                        self.assertEqual(list((profile_root / "codex").iterdir()), [])
+                        self.assertFalse((proof_root / "codex").exists())
+                        self.assertFalse(marker.exists())
+
+    def test_publication_record_write_exposes_every_torn_prefix_and_fsync_failure(self) -> None:
+        digest = ("sha256:" + "a" * 64).encode("ascii")
+        with tempfile.TemporaryDirectory() as temporary:
+            record = Path(temporary) / "record"
+            for prefix_length in range(len(digest)):
+                with self.subTest(prefix_length=prefix_length):
+                    record.write_bytes(b"sha256:" + b"b" * 64)
+                    descriptor = os.open(record, os.O_RDWR | os.O_NOFOLLOW)
+                    original_write = os.write
+                    wrote_prefix = False
+
+                    def interrupted_write(fd: int, body) -> int:
+                        nonlocal wrote_prefix
+                        if wrote_prefix or prefix_length == 0:
+                            raise OSError("injected publication write error")
+                        wrote_prefix = True
+                        return original_write(fd, body[:prefix_length])
+
+                    try:
+                        if prefix_length == 0:
+                            def fail_after_truncate(name: str) -> None:
+                                if name == "after_publication_record_truncate":
+                                    raise OSError("injected publication write error")
+                            context = mock.patch.object(self.helper, "checkpoint", side_effect=fail_after_truncate)
+                        else:
+                            context = mock.patch.object(self.helper.os, "write", side_effect=interrupted_write)
+                        with context, self.assertRaisesRegex(OSError, "publication write error"):
+                            self.helper.write_publication_record(descriptor, digest)
+                    finally:
+                        os.close(descriptor)
+                    self.assertEqual(record.read_bytes(), digest[:prefix_length])
+
+            record.write_bytes(b"sha256:" + b"b" * 64)
+            descriptor = os.open(record, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                with mock.patch.object(self.helper.os, "fsync", side_effect=OSError("injected publication fsync failure")), self.assertRaisesRegex(OSError, "fsync failure"):
+                    self.helper.write_publication_record(descriptor, digest)
+            finally:
+                os.close(descriptor)
+            self.assertEqual(record.read_bytes(), digest)
+
+    def test_malformed_publication_record_without_marker_remains_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            record = Path(temporary) / "record"
+            record.write_bytes(b"sha256:attacker-prefix")
+            descriptor = os.open(record, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                with self.assertRaisesRegex(ValueError, "publication record is invalid"):
+                    self.helper.published_seed_digest(descriptor)
+            finally:
+                os.close(descriptor)
+            self.assertEqual(record.read_bytes(), b"sha256:attacker-prefix")
+
+    def test_authenticated_marker_does_not_authorize_conflicting_valid_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            digest = "sha256:" + "a" * 64
+            previous = "sha256:" + "b" * 64
+            conflicting = "sha256:" + "c" * 64
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, False, "committed", previous))
+            marker.chmod(0o600)
+            lock = profile_root / ".codex.lock"
+            lock.write_text(conflicting); lock.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            lock_fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                with self.assertRaisesRegex(ValueError, "conflicts with authenticated transaction"):
+                    self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", marker.name, digest,
+                        os.geteuid(), os.getegid(), lock_fd,
+                    )
+            finally:
+                os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+            self.assertEqual(lock.read_text(), conflicting)
+            self.assertTrue(marker.exists())
+
+    def test_durable_rollback_sidecar_overrides_committed_forward_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            (profile_root / "codex").mkdir(); (profile_root / "codex" / "published").write_text("partial")
+            (proof_root / "codex").mkdir(); (proof_root / "codex" / "proof").write_text("partial")
+            digest = "sha256:" + "a" * 64
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, False, "committed"))
+            marker.chmod(0o600)
+            sidecar = profile_root / ".codex.transaction.new"
+            sidecar.write_bytes(self.helper.transaction_body("codex", digest, False, "rollback"))
+            sidecar.chmod(0o600)
+            lock = profile_root / ".codex.lock"
+            lock.write_text(digest); lock.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            lock_fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                self.assertFalse(self.helper.recover_transaction(
+                    profile_fd, proof_fd, "codex", marker.name, digest,
+                    os.geteuid(), os.getegid(), lock_fd,
+                ))
+            finally:
+                os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+            self.assertFalse((profile_root / "codex").exists())
+            self.assertFalse((proof_root / "codex").exists())
+            self.assertEqual(lock.read_bytes(), b"")
+            self.assertFalse(marker.exists())
+            self.assertFalse(sidecar.exists())
+
+    def test_incomplete_transaction_sidecar_is_discarded_and_recovery_is_idempotent(self) -> None:
+        digest = "sha256:" + "a" * 64
+        complete = self.helper.transaction_body("codex", digest, True, "rollback")
+        for body in (b"", complete[:1], complete[:len(complete) // 2], b"{" + b" " * 4096):
+            with self.subTest(staged_bytes=len(body)), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                profile_root, proof_root = root / "profiles", root / "proofs"
+                profile_root.mkdir(); proof_root.mkdir()
+                (profile_root / "codex").mkdir()
+                (profile_root / "codex" / "published").write_text("partial")
+                (proof_root / "codex").mkdir()
+                (proof_root / "codex" / "proof").write_text("partial")
+                marker = profile_root / ".codex.transaction"
+                marker.write_bytes(self.helper.transaction_body("codex", digest, True, "committed"))
+                marker.chmod(0o600)
+                sidecar = profile_root / ".codex.transaction.new"
+                sidecar.write_bytes(body)
+                sidecar.chmod(0o600)
+                lock = profile_root / ".codex.lock"
+                lock.write_text(digest); lock.chmod(0o600)
+                profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+                proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+                lock_fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+                try:
+                    for _attempt in range(2):
+                        self.assertFalse(self.helper.recover_transaction(
+                            profile_fd, proof_fd, "codex", marker.name, digest,
+                            os.geteuid(), os.getegid(), lock_fd,
+                        ))
+                finally:
+                    os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+                self.assertTrue((profile_root / "codex").is_dir())
+                self.assertEqual(list((profile_root / "codex").iterdir()), [])
+                self.assertFalse((proof_root / "codex").exists())
+                self.assertFalse(marker.exists())
+                self.assertFalse(sidecar.exists())
+                self.assertEqual(lock.read_bytes(), b"")
+
+    def test_incomplete_initial_sidecar_cannot_wedge_a_fresh_transaction(self) -> None:
+        digest = "sha256:" + "a" * 64
+        body = self.helper.transaction_body("codex", digest, False, "preparing")
+        for staged in (b"", body[:len(body) // 2]):
+            with self.subTest(staged_bytes=len(staged)), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                profile_root, proof_root = root / "profiles", root / "proofs"
+                profile_root.mkdir(); proof_root.mkdir()
+                sidecar = profile_root / ".codex.transaction.new"
+                sidecar.write_bytes(staged)
+                sidecar.chmod(0o600)
+                profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+                proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+                try:
+                    self.assertFalse(self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", ".codex.transaction", digest,
+                        os.geteuid(), os.getegid(),
+                    ))
+                    self.assertFalse(self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", ".codex.transaction", digest,
+                        os.geteuid(), os.getegid(),
+                    ))
+                finally:
+                    os.close(proof_fd); os.close(profile_fd)
+                self.assertFalse(sidecar.exists())
+
+    def test_unprotected_incomplete_sidecar_fails_closed(self) -> None:
+        digest = "sha256:" + "a" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            sidecar = profile_root / ".codex.transaction.new"
+            sidecar.write_bytes(b"")
+            sidecar.chmod(0o640)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            try:
+                with self.assertRaisesRegex(ValueError, "sidecar is not protected"):
+                    self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", ".codex.transaction", digest,
+                        os.geteuid(), os.getegid(),
+                    )
+            finally:
+                os.close(proof_fd); os.close(profile_fd)
+            self.assertTrue(sidecar.exists())
+
+    def test_authenticated_transaction_sidecar_conflict_fails_closed(self) -> None:
+        digest = "sha256:" + "a" * 64
+        other_digest = "sha256:" + "b" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, False, "preparing"))
+            marker.chmod(0o600)
+            sidecar = profile_root / ".codex.transaction.new"
+            sidecar.write_bytes(self.helper.transaction_body("codex", other_digest, False, "committed"))
+            sidecar.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            try:
+                with self.assertRaisesRegex(ValueError, "sidecar differs"):
+                    self.helper.recover_transaction(
+                        profile_fd, proof_fd, "codex", marker.name, digest,
+                        os.geteuid(), os.getegid(),
+                    )
+            finally:
+                os.close(proof_fd); os.close(profile_fd)
+            self.assertTrue(marker.exists())
+            self.assertTrue(sidecar.exists())
+
+    def test_durable_committed_sidecar_is_promoted_before_recovery(self) -> None:
+        digest = "sha256:" + "a" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(); proof_root.mkdir()
+            (profile_root / "codex").mkdir(); (proof_root / "codex").mkdir()
+            marker = profile_root / ".codex.transaction"
+            marker.write_bytes(self.helper.transaction_body("codex", digest, False, "preparing"))
+            marker.chmod(0o600)
+            sidecar = profile_root / ".codex.transaction.new"
+            sidecar.write_bytes(self.helper.transaction_body("codex", digest, False, "committed"))
+            sidecar.chmod(0o600)
+            lock = profile_root / ".codex.lock"
+            lock.write_text(digest); lock.chmod(0o600)
+            profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+            lock_fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+            try:
+                self.assertTrue(self.helper.recover_transaction(
+                    profile_fd, proof_fd, "codex", marker.name, digest,
+                    os.geteuid(), os.getegid(), lock_fd,
+                ))
+            finally:
+                os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+            self.assertEqual(self.helper.validate_transaction(marker.read_bytes(), "codex")["phase"], "committed")
+            self.assertFalse(sidecar.exists())
+
+    def test_native_projection_validator_rejects_ambiguous_or_incomplete_schema(self) -> None:
+        digest = "sha256:" + "a" * 64
+        entry = {
+            "plugin": "context7", "tuple": sealed_tuple("context7"),
+            "native_config": {"path": "/var/lib/uap-observer/proofs/codex/native/context7.json", "sha256": digest},
+            "client_config": {"path": "/var/lib/uap-observer/profiles/codex/context7.json", "sha256": digest},
+            "manager_add_sha256": digest, "manager_info_sha256": digest,
+            "post_add_doctor_sha256": digest,
+        }
+        entries = [
+            {
+                **entry, "plugin": plugin, "tuple": sealed_tuple(plugin),
+                "native_config": {
+                    "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json", "sha256": digest,
+                },
+                "client_config": {
+                    "path": f"/var/lib/uap-observer/profiles/codex/{plugin}.json", "sha256": digest,
+                },
+            }
+            for plugin in sorted(fixed_adapters.HEROES)
+        ]
+        valid = {"schema_version": 1, "client_id": "codex", "entries": entries}
+        self.assertEqual(self.helper.validate_native_projection(valid, "codex"), entries)
+        kiro_entries = [{
+            **item,
+            "native_config": {
+                "path": f'/var/lib/uap-observer/proofs/kiro/native/{item["plugin"]}.json',
+                "sha256": digest,
+            },
+            "client_config": {
+                "path": "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json",
+                "sha256": digest,
+            },
+        } for item in entries]
+        valid_kiro = {"schema_version": 1, "client_id": "kiro", "entries": kiro_entries}
+        self.assertEqual(self.helper.validate_native_projection(valid_kiro, "kiro"), kiro_entries)
+        for conflicting in (
+            [{**kiro_entries[0], "client_config": {"path": "/var/lib/uap-observer/profiles/kiro/other/mcp.json", "sha256": digest}}, *kiro_entries[1:]],
+            [{**kiro_entries[0],
+              "native_config": {**kiro_entries[0]["native_config"], "sha256": "sha256:" + "c" * 64},
+              "client_config": {**kiro_entries[0]["client_config"], "sha256": "sha256:" + "c" * 64}}, *kiro_entries[1:]],
+        ):
+            with self.subTest(conflicting_shared_path=conflicting), self.assertRaisesRegex(ValueError, "conflicting"):
+                self.helper.validate_native_projection({**valid_kiro, "entries": conflicting}, "kiro")
+        receipts = {"schema_version": 1, "receipts": [{
+            "name": entry["plugin"], "tuple": entry["tuple"],
+            "manager_add_sha256": entry["manager_add_sha256"],
+            "manager_info_sha256": entry["manager_info_sha256"],
+            "post_add_doctor_sha256": entry["post_add_doctor_sha256"],
+        } for entry in entries]}
+        self.helper.validate_receipts(receipts, entries)
+        for mutation in (
+            lambda value: value.update(schema_version=True),
+            lambda value: value["receipts"].pop(),
+            lambda value: value["receipts"][0].update(tuple=sealed_tuple("context7")),
+            lambda value: value["receipts"][0].update(manager_add_sha256="sha256:" + "f" * 64),
+        ):
+            forged = json.loads(json.dumps(receipts))
+            mutation(forged)
+            with self.assertRaises(ValueError):
+                self.helper.validate_receipts(forged, entries)
+        malformed = (
+            {**valid, "schema_version": True},
+            {**valid, "client_id": "cursor"},
+            {**valid, "entries": []},
+            {**valid, "unexpected": 1},
+            {**valid, "entries": [{key: value for key, value in entry.items() if key != "client_config"}]},
+            {**valid, "entries": [{**entry, "unexpected": 1}]},
+            {**valid, "entries": [{**entry, "client_config": {"path": entry["client_config"]["path"]}}]},
+            {**valid, "entries": [{**entry, "client_config": {**entry["client_config"], "sha256": True}}]},
+            {**valid, "entries": [{**entries[0], "tuple": {"product_id": entries[0]["plugin"]}}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "extra": 1}}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "snapshot_sequence": True}}, *entries[1:]]},
+        )
+        for value in malformed:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                self.helper.validate_native_projection(value, "codex")
+        for encoded in (
+            b'{"schema_version":1,"schema_version":1,"client_id":"codex","entries":[]}',
+            b'{"schema_version":1,"Schema_Version":1,"client_id":"codex","entries":[]}',
+            b'{"schema_version":1,"client_id":"codex","entries":[],"value":NaN}',
+            b'{"schema_version":1,"client_id":"codex","entries":[],"value":1e400}',
+        ):
+            with self.subTest(encoded=encoded), self.assertRaises((ValueError, json.JSONDecodeError)):
+                self.helper.strict_json_loads(encoded)
+
+    def test_kiro_shared_mcp_config_is_one_protected_provisioning_surface(self) -> None:
+        digest = fixed_adapters.sha256(b"{}")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            staging = root / "staging"
+            proof = root / "proof"
+            (staging / ".kiro" / "settings").mkdir(parents=True)
+            (staging / ".kiro" / "settings" / "mcp.json").write_bytes(b"{}")
+            (proof / "native").mkdir(parents=True)
+            entries = []
+            for plugin in sorted(fixed_adapters.HEROES):
+                (proof / "native" / f"{plugin}.json").write_bytes(b"{}")
+                entries.append({
+                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                    "native_config": {
+                        "path": f"/var/lib/uap-observer/proofs/kiro/native/{plugin}.json",
+                        "sha256": digest,
+                    },
+                    "client_config": {
+                        "path": "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json",
+                        "sha256": digest,
+                    },
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                })
+            (proof / "native-projection.json").write_text(json.dumps({
+                "schema_version": 1, "client_id": "kiro", "entries": entries,
+            }))
+            (proof / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": [{
+                    "name": entry["plugin"], "tuple": entry["tuple"],
+                    "manager_add_sha256": entry["manager_add_sha256"],
+                    "manager_info_sha256": entry["manager_info_sha256"],
+                    "post_add_doctor_sha256": entry["post_add_doctor_sha256"],
+                } for entry in entries],
+            }))
+            for path in (proof / "native-projection.json", proof / "receipts.json"):
+                path.chmod(0o440)
+            staging_fd = os.open(staging, self.helper.OPEN_DIRECTORY)
+            proof_fd = os.open(proof, self.helper.OPEN_DIRECTORY)
+            try:
+                files, directories = self.helper.active_native_paths(proof_fd, "kiro", staging_fd)
+            finally:
+                os.close(proof_fd)
+                os.close(staging_fd)
+            self.assertEqual(files, {(".kiro", "settings", "mcp.json")})
+            self.assertEqual(directories, {(), (".kiro",), (".kiro", "settings")})
+
+    @requires_disposable_observer_host
     def test_copy_tree_uses_descriptors_and_preserves_exact_private_modes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3390,6 +5765,7 @@ class ProfileProvisioningTests(unittest.TestCase):
             self.assertEqual(copied.read_text(), "fixture")
             self.assertEqual(stat.S_IMODE(copied.stat().st_mode), 0o600)
 
+    @requires_disposable_observer_host
     def test_copy_tree_rejects_links_and_mutable_seed_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -3411,6 +5787,447 @@ class ProfileProvisioningTests(unittest.TestCase):
                     self.helper.checked_entry(source_fd, "regular")
             finally:
                 os.close(source_fd)
+
+    @requires_disposable_observer_host
+    def test_real_service_uid_can_use_provisioned_root_readonly_boundary(self) -> None:
+        workspace = Path(__file__).parents[2]
+        with tempfile.TemporaryDirectory(dir="/run", prefix="uap-observer-service-") as temporary:
+            root = Path(temporary)
+            root.chmod(0o711)
+            service_uid = service_gid = next(
+                candidate for candidate in range(62000, 65000)
+                if all(account.pw_uid != candidate for account in pwd.getpwall())
+            )
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(mode=0o711)
+            proof_root.mkdir(mode=0o711)
+            (profile_root / "codex").mkdir(mode=0o700)
+            try:
+                os.chown(profile_root / "codex", service_uid, service_gid)
+            except OSError as error:
+                if error.errno == errno.EINVAL:
+                    self.skipTest("provider user namespace does not map a disposable service UID")
+                raise
+            seed = root / "seed"
+            for directory in (seed / ".config", seed / ".auth", seed / ".cache", seed / ".state"):
+                directory.mkdir(parents=True, mode=0o700)
+            proof_seed = seed / self.helper.PROOF_SEED_NAME
+            native_proof = proof_seed / "native"
+            native_proof.mkdir(parents=True, mode=0o700)
+            approved = sealed_tuple("context7")
+            entries = []
+            for plugin in sorted(fixed_adapters.HEROES):
+                body = json.dumps({"plugin": plugin}).encode()
+                active = seed / ".config" / f"{plugin}.json"
+                active.write_bytes(body)
+                native = native_proof / f"{plugin}.json"
+                native.write_bytes(body)
+                entry_tuple = approved if plugin == "context7" else {**approved, "product_id": plugin}
+                entries.append({
+                    "plugin": plugin, "tuple": entry_tuple,
+                    "native_config": {
+                        "path": str(proof_root / "codex" / "native" / f"{plugin}.json"),
+                        "sha256": fixed_adapters.sha256(body),
+                    },
+                    "client_config": {
+                        "path": str(profile_root / "codex" / ".config" / f"{plugin}.json"),
+                        "sha256": fixed_adapters.sha256(body),
+                    },
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                })
+            projection = fixed_adapters.canonical_json({
+                "schema_version": 1, "client_id": "codex", "entries": entries,
+            })
+            (proof_seed / "native-projection.json").write_bytes(projection)
+            (proof_seed / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": [{
+                    "name": entry["plugin"], "tuple": entry["tuple"],
+                    "manager_add_sha256": entry["manager_add_sha256"],
+                    "manager_info_sha256": entry["manager_info_sha256"],
+                    "post_add_doctor_sha256": entry["post_add_doctor_sha256"],
+                } for entry in entries],
+            }))
+            account = mock.Mock(pw_uid=service_uid, pw_gid=service_gid)
+            argv = ["provision", "--client", "codex", "--root-owned-seed", str(seed), "--seed-digest", "show"]
+            patches = (
+                mock.patch.object(self.helper, "PROFILE_ROOT", profile_root),
+                mock.patch.object(self.helper, "PROOF_ROOT", proof_root),
+                mock.patch.object(self.helper.pwd, "getpwnam", return_value=account),
+            )
+            with patches[0], patches[1], patches[2], mock.patch("sys.argv", argv), mock.patch("sys.stdout") as output:
+                self.helper.main()
+                seed_digest = output.write.call_args_list[0].args[0].strip()
+            argv[-1] = seed_digest
+            with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch("sys.argv", argv):
+                self.helper.main()
+            item = {
+                "profile": str(profile_root / "codex"), "client_id": "codex",
+                "native_projection": {
+                    "path": str(proof_root / "codex" / "native-projection.json"),
+                    "sha256": fixed_adapters.sha256(projection),
+                },
+            }
+            child = (
+                "import json,os,sys\n"
+                "from pathlib import Path\n"
+                "from observer import fixed_adapters as adapter\n"
+                "uid=int(sys.argv[1]); gid=int(sys.argv[2]); item=json.loads(sys.argv[3]); approved=json.loads(sys.argv[4])\n"
+                "os.setgroups([gid]); os.setgid(gid); os.setuid(uid)\n"
+                "projection=adapter.verified_native_projection(item,'context7',approved,owner_uid=uid)\n"
+                "profile=Path(item['profile']); proof=Path(item['native_projection']['path'])\n"
+                "readable=bool(proof.read_bytes()) and bool((profile/'.config/context7.json').read_bytes())\n"
+                "writable=[]\n"
+                "for name in ('.auth','.cache','.state'):\n"
+                " p=profile/name/'write-test'; p.write_text('ok'); writable.append(p.read_text()=='ok')\n"
+                "blocked=[]\n"
+                "for operation in (lambda:(profile/'.config/context7.json').write_text('bad'),lambda:(profile/'.config/context7.json').rename(profile/'.config/moved'),lambda:(profile/'.config').rename(profile/'.config-moved')):\n"
+                " try: operation(); blocked.append(False)\n"
+                " except PermissionError: blocked.append(True)\n"
+                "print(json.dumps({'adapter':projection['client_id']=='codex','readable':readable,'writable':all(writable),'immutable':all(blocked)}))\n"
+            )
+            result = subprocess.run([
+                "/usr/bin/python3", "-c", child, str(service_uid), str(service_gid),
+                json.dumps(item), json.dumps(approved),
+            ], cwd=workspace, check=True, text=True, stdout=subprocess.PIPE)
+            self.assertEqual(json.loads(result.stdout), {
+                "adapter": True, "readable": True, "writable": True, "immutable": True,
+            })
+
+    @requires_disposable_observer_host
+    def test_publication_failpoints_rollback_and_retry_both_profile_and_proof(self) -> None:
+        boundaries = (
+            "after_transaction_staging_create", "after_transaction_partial_write",
+            "after_transaction_file_fsync", "after_transaction_rename", "after_transaction_fsync",
+            "after_profile_staging_mkdir", "after_profile_staging_fsync",
+            "after_staged_file_fsync", "after_staged_directory_fsync", "after_profile_copy", "after_profile_copy_fsync",
+            "after_empty_profile_remove", "after_empty_profile_remove_fsync",
+            "after_proof_staging_rename", "after_proof_staging_fsync",
+            "after_proof_ownership", "after_profile_ownership",
+            "after_profile_publish", "after_profile_publish_fsync",
+            "after_proof_publish", "after_proof_publish_fsync",
+            "after_transaction_commit_staging_create", "after_transaction_commit_partial_write",
+            "after_transaction_commit_file_fsync", "after_transaction_commit_rename", "after_transaction_commit_fsync",
+            "after_publication_record_fsync", "after_transaction_cleanup_fsync",
+        )
+        workspace = Path(__file__).parents[2]
+        with tempfile.TemporaryDirectory(dir="/run", prefix="uap-observer-publication-") as temporary:
+            root = Path(temporary)
+            seed = root / "seed"
+            seed.mkdir(mode=0o700)
+            proof_seed = seed / self.helper.PROOF_SEED_NAME
+            native_proof = proof_seed / "native"
+            native_proof.mkdir(parents=True, mode=0o700)
+            (proof_seed / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": [{
+                    "name": plugin, "tuple": sealed_tuple(plugin),
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            (proof_seed / "receipts.json").chmod(0o400)
+            (proof_seed / "native-projection.json").write_text(json.dumps({
+                "schema_version": 1, "client_id": "codex", "entries": [{
+                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                    "native_config": {
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "client_config": {
+                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            (proof_seed / "native-projection.json").chmod(0o400)
+            for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"):
+                (native_proof / f"{plugin}.json").write_text("{}")
+                (native_proof / f"{plugin}.json").chmod(0o400)
+            for plugin in sorted(fixed_adapters.HEROES):
+                (seed / f"active-{plugin}.json").write_text("{}")
+                (seed / f"active-{plugin}.json").chmod(0o600)
+            account = mock.Mock(pw_uid=os.geteuid(), pw_gid=os.getegid())
+
+            for boundary in boundaries:
+                with self.subTest(boundary=boundary):
+                    profile_root, proof_root = root / "profiles", root / "proofs"
+                    profile_root.mkdir(mode=0o711)
+                    proof_root.mkdir(mode=0o711)
+                    (profile_root / "codex").mkdir(mode=0o700)
+                    argv = ["provision", "--client", "codex", "--root-owned-seed", str(seed), "--seed-digest", "show"]
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch("sys.argv", argv), mock.patch("sys.stdout") as output:
+                        self.helper.main()
+                        digest = output.write.call_args_list[0].args[0].strip()
+                    argv[-1] = digest
+                    def failpoint(name: str) -> None:
+                        if name == boundary:
+                            raise OSError(f"failpoint {name}")
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch.object(self.helper, "checkpoint", side_effect=failpoint), mock.patch("sys.argv", argv), self.assertRaisesRegex(OSError, boundary):
+                        self.helper.main()
+                    self.assertTrue((profile_root / "codex").is_dir())
+                    self.assertEqual(list((profile_root / "codex").iterdir()), [])
+                    self.assertEqual(stat.S_IMODE((profile_root / "codex").stat().st_mode), 0o700)
+                    self.assertFalse((proof_root / "codex").exists())
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch("sys.argv", argv):
+                        self.helper.main()
+                    self.assertTrue((profile_root / "codex" / "active-context7.json").is_file())
+                    self.assertTrue((proof_root / "codex" / "native-projection.json").is_file())
+                    self.assertEqual(stat.S_IMODE((profile_root / "codex").stat().st_mode), 0o510)
+                    self.assertEqual(stat.S_IMODE((profile_root / "codex" / "active-context7.json").stat().st_mode), 0o440)
+                    shutil.rmtree(profile_root)
+                    shutil.rmtree(proof_root)
+
+            rollback_cases = {
+                "after_transaction_rollback_staging_create": "after_publication_record_fsync",
+                "after_transaction_rollback_partial_write": "after_publication_record_fsync",
+                "after_transaction_rollback_file_fsync": "after_publication_record_fsync",
+                "after_transaction_rollback_rename": "after_publication_record_fsync",
+                "after_transaction_rollback_fsync": "after_publication_record_fsync",
+                "after_rollback_profile_staging_removal": "after_profile_copy",
+                "after_rollback_proof_staging_removal": "after_proof_staging_fsync",
+                "after_rollback_profile_removal": "after_publication_record_fsync",
+                "after_rollback_proof_removal": "after_publication_record_fsync",
+                "after_rollback_empty_profile_restore": "after_publication_record_fsync",
+                "after_rollback_publication_restore": "after_publication_record_fsync",
+                "after_rollback_marker_cleanup_fsync": "after_publication_record_fsync",
+            }
+            for boundary, trigger in rollback_cases.items():
+                with self.subTest(rollback_boundary=boundary):
+                    profile_root, proof_root = root / "profiles", root / "proofs"
+                    profile_root.mkdir(mode=0o711)
+                    proof_root.mkdir(mode=0o711)
+                    (profile_root / "codex").mkdir(mode=0o700)
+                    argv = ["provision", "--client", "codex", "--root-owned-seed", str(seed), "--seed-digest", "show"]
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch("sys.argv", argv), mock.patch("sys.stdout") as output:
+                        self.helper.main()
+                        digest = output.write.call_args_list[0].args[0].strip()
+                    argv[-1] = digest
+                    rollback_started = False
+                    def interrupt_rollback(name: str) -> None:
+                        nonlocal rollback_started
+                        if name == trigger and not rollback_started:
+                            rollback_started = True
+                            raise OSError(f"begin rollback at {trigger}")
+                        if rollback_started and name == boundary:
+                            raise OSError(f"interrupt rollback at {boundary}")
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch.object(self.helper, "checkpoint", side_effect=interrupt_rollback), mock.patch("sys.argv", argv), self.assertRaisesRegex(OSError, boundary):
+                        self.helper.main()
+                    marker = profile_root / ".codex.transaction"
+                    self.assertTrue(
+                        marker.exists() or boundary == "after_rollback_marker_cleanup_fsync",
+                        "rollback journal disappeared before restoration completed",
+                    )
+                    profile_fd = os.open(profile_root, self.helper.OPEN_DIRECTORY)
+                    proof_fd = os.open(proof_root, self.helper.OPEN_DIRECTORY)
+                    lock_fd = os.open(profile_root / ".codex.lock", os.O_RDWR | os.O_NOFOLLOW)
+                    try:
+                        self.assertFalse(self.helper.recover_transaction(
+                            profile_fd, proof_fd, "codex", marker.name, digest,
+                            account.pw_uid, account.pw_gid, lock_fd,
+                        ))
+                        self.assertFalse(self.helper.recover_transaction(
+                            profile_fd, proof_fd, "codex", marker.name, digest,
+                            account.pw_uid, account.pw_gid, lock_fd,
+                        ))
+                    finally:
+                        os.close(lock_fd); os.close(proof_fd); os.close(profile_fd)
+                    self.assertTrue((profile_root / "codex").is_dir())
+                    self.assertEqual(list((profile_root / "codex").iterdir()), [])
+                    self.assertFalse((proof_root / "codex").exists())
+                    self.assertFalse(marker.exists())
+                    self.assertFalse((profile_root / ".codex.transaction.new").exists())
+                    with mock.patch.object(self.helper, "PROFILE_ROOT", profile_root), mock.patch.object(self.helper, "PROOF_ROOT", proof_root), mock.patch.object(self.helper.pwd, "getpwnam", return_value=account), mock.patch("sys.argv", argv):
+                        self.helper.main()
+                    self.assertTrue((profile_root / "codex" / "active-context7.json").is_file())
+                    self.assertTrue((proof_root / "codex" / "native-projection.json").is_file())
+                    shutil.rmtree(profile_root)
+                    shutil.rmtree(proof_root)
+
+    @requires_disposable_observer_host
+    def test_hard_termination_at_every_persistence_boundary_recovers_in_fresh_process(self) -> None:
+        boundaries = (
+            "after_transaction_staging_create", "after_transaction_partial_write",
+            "after_transaction_file_fsync", "after_transaction_rename", "after_transaction_fsync",
+            "after_profile_staging_mkdir", "after_profile_staging_fsync",
+            "after_staged_file_fsync", "after_staged_directory_fsync", "after_profile_copy", "after_profile_copy_fsync",
+            "after_empty_profile_remove", "after_empty_profile_remove_fsync",
+            "after_proof_staging_rename", "after_proof_staging_fsync",
+            "after_proof_ownership", "after_profile_ownership",
+            "after_profile_publish", "after_profile_publish_fsync",
+            "after_proof_publish", "after_proof_publish_fsync",
+            "after_transaction_commit_staging_create", "after_transaction_commit_partial_write",
+            "after_transaction_commit_file_fsync", "after_transaction_commit_rename", "after_transaction_commit_fsync",
+            "after_publication_record_fsync", "after_transaction_cleanup_fsync",
+        )
+        workspace = Path(__file__).parents[2]
+        helper_path = workspace / "deploy" / "uap-observer-provision-profile.py"
+        with tempfile.TemporaryDirectory(dir="/run", prefix="uap-observer-recovery-") as temporary:
+            root = Path(temporary)
+            seed = root / "seed"
+            proof_seed = seed / self.helper.PROOF_SEED_NAME
+            native_proof = proof_seed / "native"
+            native_proof.mkdir(parents=True, mode=0o700)
+            (proof_seed / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": [{
+                    "name": plugin, "tuple": sealed_tuple(plugin),
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            (proof_seed / "receipts.json").chmod(0o400)
+            (proof_seed / "native-projection.json").write_text(json.dumps({
+                "schema_version": 1, "client_id": "codex", "entries": [{
+                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                    "native_config": {
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "client_config": {
+                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            (proof_seed / "native-projection.json").chmod(0o400)
+            for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"):
+                (native_proof / f"{plugin}.json").write_text("{}")
+                (native_proof / f"{plugin}.json").chmod(0o400)
+            for plugin in sorted(fixed_adapters.HEROES):
+                (seed / f"active-{plugin}.json").write_text("{}")
+                (seed / f"active-{plugin}.json").chmod(0o600)
+            launcher = (
+                "import importlib.util,os,sys,types\n"
+                "from pathlib import Path\n"
+                f"spec=importlib.util.spec_from_file_location('provision', {str(helper_path)!r})\n"
+                "module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)\n"
+                "module.PROFILE_ROOT=Path(sys.argv[1]); module.PROOF_ROOT=Path(sys.argv[2])\n"
+                "module.pwd.getpwnam=lambda _name: types.SimpleNamespace(pw_uid=os.geteuid(),pw_gid=os.getegid())\n"
+                "boundary=sys.argv[3]\n"
+                "module.checkpoint=lambda name: os._exit(97) if name == boundary else None\n"
+                "sys.argv=['provision','--client','codex','--root-owned-seed',sys.argv[4],'--seed-digest',sys.argv[5]]\n"
+                "raise SystemExit(module.main())\n"
+            )
+            digest_process = subprocess.run(
+                ["/usr/bin/python3", "-c", launcher, str(root / "unused-profiles"), str(root / "unused-proofs"), "none", str(seed), "show"],
+                check=True, text=True, stdout=subprocess.PIPE,
+            )
+            digest = digest_process.stdout.strip()
+            for boundary in boundaries:
+                with self.subTest(boundary=boundary):
+                    profile_root, proof_root = root / f"profiles-{boundary}", root / f"proofs-{boundary}"
+                    profile_root.mkdir(mode=0o711)
+                    proof_root.mkdir(mode=0o711)
+                    (profile_root / "codex").mkdir(mode=0o700)
+                    crashed = subprocess.run([
+                        "/usr/bin/python3", "-c", launcher, str(profile_root), str(proof_root), boundary, str(seed), digest,
+                    ])
+                    self.assertEqual(crashed.returncode, 97)
+                    subprocess.run([
+                        "/usr/bin/python3", "-c", launcher, str(profile_root), str(proof_root), "none", str(seed), digest,
+                    ], check=True)
+                    self.assertTrue((profile_root / "codex" / "active-context7.json").is_file())
+                    self.assertTrue((proof_root / "codex" / "native-projection.json").is_file())
+                    self.assertEqual(stat.S_IMODE((profile_root / "codex").stat().st_mode), 0o510)
+                    self.assertEqual(stat.S_IMODE((profile_root / "codex" / "active-context7.json").stat().st_mode), 0o440)
+
+    @requires_disposable_observer_host
+    def test_two_process_serialization_recovers_after_sigkill_to_one_publication(self) -> None:
+        workspace = Path(__file__).parents[2]
+        helper_path = workspace / "deploy" / "uap-observer-provision-profile.py"
+        with tempfile.TemporaryDirectory(dir="/run", prefix="uap-observer-serialization-") as temporary:
+            root = Path(temporary)
+            seed = root / "seed"
+            proof_seed = seed / self.helper.PROOF_SEED_NAME
+            native_proof = proof_seed / "native"
+            native_proof.mkdir(parents=True, mode=0o700)
+            (proof_seed / "receipts.json").write_text(json.dumps({
+                "schema_version": 1, "receipts": [{
+                    "name": plugin, "tuple": sealed_tuple(plugin),
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            (proof_seed / "native-projection.json").write_text(json.dumps({
+                "schema_version": 1, "client_id": "codex", "entries": [{
+                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                    "native_config": {
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "client_config": {
+                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "sha256": fixed_adapters.sha256(b"{}"),
+                    },
+                    "manager_add_sha256": "sha256:" + "9" * 64,
+                    "manager_info_sha256": "sha256:" + "a" * 64,
+                    "post_add_doctor_sha256": "sha256:" + "b" * 64,
+                } for plugin in sorted(fixed_adapters.HEROES)],
+            }))
+            for plugin in sorted(fixed_adapters.HEROES):
+                (native_proof / f"{plugin}.json").write_text("{}")
+            for plugin in sorted(fixed_adapters.HEROES):
+                (seed / f"active-{plugin}.json").write_text("{}")
+            profile_root, proof_root = root / "profiles", root / "proofs"
+            profile_root.mkdir(mode=0o711)
+            proof_root.mkdir(mode=0o711)
+            (profile_root / "codex").mkdir(mode=0o700)
+            ready = root / "holder-ready"
+            launcher = (
+                "import importlib.util,os,signal,sys,types\n"
+                "from pathlib import Path\n"
+                f"spec=importlib.util.spec_from_file_location('provision', {str(helper_path)!r})\n"
+                "module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)\n"
+                "module.PROFILE_ROOT=Path(sys.argv[1]); module.PROOF_ROOT=Path(sys.argv[2])\n"
+                "module.pwd.getpwnam=lambda _name: types.SimpleNamespace(pw_uid=os.geteuid(),pw_gid=os.getegid())\n"
+                "mode=sys.argv[6]; ready=Path(sys.argv[7])\n"
+                "def checkpoint(name):\n"
+                " if mode=='hold' and name=='after_transaction_fsync': ready.write_text('ready'); signal.pause()\n"
+                "module.checkpoint=checkpoint\n"
+                "sys.argv=['provision','--client','codex','--root-owned-seed',sys.argv[3],'--seed-digest',sys.argv[4]]\n"
+                "raise SystemExit(module.main())\n"
+            )
+            digest = subprocess.run([
+                "/usr/bin/python3", "-c", launcher, str(profile_root), str(proof_root),
+                str(seed), "show", "unused", "normal", str(ready),
+            ], check=True, text=True, stdout=subprocess.PIPE).stdout.strip()
+            base = [
+                "/usr/bin/python3", "-c", launcher, str(profile_root), str(proof_root),
+                str(seed), digest, "unused",
+            ]
+            holder = subprocess.Popen([*base, "hold", str(ready)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            deadline = time.monotonic() + 5
+            while not ready.exists() and holder.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(ready.exists(), holder.stderr.read().decode() if holder.poll() is not None else "holder did not reach persistence boundary")
+            before = sorted(path.name for path in profile_root.iterdir())
+            waiter = subprocess.Popen([*base, "normal", str(ready)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            time.sleep(0.2)
+            self.assertIsNone(waiter.poll(), "second provisioner bypassed the per-client lock")
+            self.assertEqual(sorted(path.name for path in profile_root.iterdir()), before)
+            os.kill(holder.pid, signal.SIGKILL)
+            holder.wait(timeout=5)
+            holder.communicate()
+            waiter_stdout, waiter_stderr = waiter.communicate(timeout=10)
+            self.assertEqual(waiter.returncode, 0, waiter_stderr.decode())
+            self.assertIn(b"profile provisioned", waiter_stdout)
+            self.assertEqual([path.name for path in profile_root.iterdir() if path.is_dir()], ["codex"])
+            self.assertEqual([path.name for path in proof_root.iterdir() if path.is_dir()], ["codex"])
+            self.assertFalse(any(".new" in path.name or "transaction" in path.name for path in (*profile_root.iterdir(), *proof_root.iterdir())))
+            active_inode = (profile_root / "codex" / "active-context7.json").stat().st_ino
+            fresh = subprocess.run([*base, "normal", str(ready)], check=True, text=True, stdout=subprocess.PIPE)
+            self.assertIn("already provisioned", fresh.stdout)
+            self.assertEqual((profile_root / "codex" / "active-context7.json").stat().st_ino, active_inode)
+            self.assertFalse(any(".new" in path.name or "transaction" in path.name for path in (*profile_root.iterdir(), *proof_root.iterdir())))
 
 
 if __name__ == "__main__":

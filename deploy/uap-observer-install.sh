@@ -3,7 +3,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 install_lib="$script_dir/uap-observer-install-lib.sh"
-test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 07f66cf022d4a980b1e68711b1d78feaec102063546a604ea811f94316fbf4dc
+test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 67eee68b5b47c85076c9fe1f1d9ee91e888d225a5b81603eae9500a617862df1
 . "$install_lib"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -11,9 +11,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256'
+usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=792b825835457609526d086af1190e0ccd5f05f7d99cdc9bba58022f5b9f23da
+runtime_manifest_digest=7fff87a23a3c9669fcec412a2061e76778a5a88bfa98e0a14cb2fdbb7555439b
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 closure_digest=
 closure_stage=
@@ -35,21 +35,24 @@ observer_config_digest=${5:?$usage}
 untrusted_caddy_archive=${6:?$usage}
 untrusted_caddy_config=${7:?$usage}
 caddy_config_digest=${8:?$usage}
+untrusted_egress_allowlist=${9:?$usage}
+egress_allowlist_digest=${10:?$usage}
 install_identity=$(observer_install_input_identity \
   "$untrusted_source_root" "$runtime_manifest_digest" \
   "$untrusted_adapter_config" "$adapter_config_digest" \
   "$untrusted_observer_config" "$observer_config_digest" \
   "$untrusted_caddy_archive" "$caddy_archive_digest" \
-  "$untrusted_caddy_config" "$caddy_config_digest")
+  "$untrusted_caddy_config" "$caddy_config_digest" \
+  "$untrusted_egress_allowlist" "$egress_allowlist_digest")
 if [ -e /opt/uap-observer-current ] || [ -L /opt/uap-observer-current ]; then
   observer_validate_no_partial_paths
   observer_validate_completed_closure /opt/uap-observer-closures /opt/uap-observer-current "$install_identity"
   installed_target=$(observer_read_symlink_neutral /opt/uap-observer-current)
   installed_closure="/opt/$installed_target"
   observer_validate_installed_closure_sources "$installed_closure" "$untrusted_source_root" \
-    "$untrusted_adapter_config" "$untrusted_observer_config" "$untrusted_caddy_config" \
-    84047e65bd98291eec5cb18777e51d209e5b1767808ab42529a4af7bed8754bb \
-    977e59a8c2d8b7df845d136aaf514a52243529cb7ca22602d1fd2af4d0a77ddf \
+    "$untrusted_adapter_config" "$untrusted_observer_config" "$untrusted_caddy_config" "$untrusted_egress_allowlist" \
+    8768c618f51808ddaf2ab9e4b6f136ae428880d0d31dbd99f05bd206d9512486 \
+    8f52501c5fc67df6fdb15a3752bbc787f370f6aac193dcf92cf834e0241e1ad6 \
     b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
   observer_validate_installed_accounts_and_state "$installed_closure"
   observer_validate_protected_inputs "$installed_closure"
@@ -93,6 +96,7 @@ while read -r expected relative extra; do
 done < "$stage_root/deploy/uap-observer-runtime.sha256"
 install -o root -g root -m 0400 "$untrusted_adapter_config" "$stage_root/adapter-config.json"
 install -o root -g root -m 0644 "$untrusted_observer_config" "$stage_root/observer-config.json"
+install -o root -g root -m 0644 "$untrusted_egress_allowlist" "$stage_root/egress-allowlist.json"
 install -o root -g root -m 0400 "$untrusted_caddy_archive" "$stage_root/caddy_2.11.4_linux_amd64.tar.gz"
 test "$(sha256sum "$stage_root/caddy_2.11.4_linux_amd64.tar.gz" | cut -d' ' -f1)" = "527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
 test "$(tar -tzf "$stage_root/caddy_2.11.4_linux_amd64.tar.gz" | sort | tr '\n' ' ')" = "LICENSE README.md caddy "
@@ -108,8 +112,9 @@ caddy_binary=$stage_root/caddy
 caddy_config=$stage_root/Caddyfile
 runner_source="$source_root/observer/fixed_runner.py"
 adapter_source="$source_root/observer/fixed_adapters.py"
-runner_digest=84047e65bd98291eec5cb18777e51d209e5b1767808ab42529a4af7bed8754bb
-adapter_digest=977e59a8c2d8b7df845d136aaf514a52243529cb7ca22602d1fd2af4d0a77ddf
+egress_proxy_source="$source_root/deploy/uap-observer-egress-proxy.py"
+runner_digest=8768c618f51808ddaf2ab9e4b6f136ae428880d0d31dbd99f05bd206d9512486
+adapter_digest=8f52501c5fc67df6fdb15a3752bbc787f370f6aac193dcf92cf834e0241e1ad6
 caddy_digest=b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
 
 test -f "$runner_source"
@@ -121,6 +126,7 @@ test "$(sha256sum "$caddy_binary" | cut -d' ' -f1)" = "$caddy_digest"
 test "$(sha256sum "$source_root/caddy_2.11.4_linux_amd64.tar.gz" | cut -d' ' -f1)" = "$caddy_archive_digest"
 test "$("$caddy_binary" version | awk '{print $1}')" = "v2.11.4"
 test "sha256:$(sha256sum "$caddy_config" | cut -d' ' -f1)" = "$caddy_config_digest"
+test "sha256:$(sha256sum "$stage_root/egress-allowlist.json" | cut -d' ' -f1)" = "$egress_allowlist_digest"
 test "$(uname -s):$(uname -m)" = "Linux:x86_64"
 test "$(stat -c '%u:%a' "$adapter_config")" = "0:400"
 ! grep -q REPLACE_WITH "$observer_config"
@@ -138,11 +144,14 @@ for identity in codex cursor kiro control; do
   install -d -o "uap-observer-$identity" -g "uap-observer-$identity" -m 0700 "/var/empty/uap-observer-$identity"
 done
 getent group uap-observer >/dev/null || groupadd --system uap-observer
+getent group uap-observer-egress >/dev/null || groupadd --system uap-observer-egress
 getent group caddy >/dev/null || groupadd --system caddy
 id caddy >/dev/null 2>&1 || useradd --system --gid caddy --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy
 id uap-observer >/dev/null 2>&1 || useradd --system --gid uap-observer --home-dir /nonexistent --shell /usr/sbin/nologin uap-observer
+id uap-observer-egress >/dev/null 2>&1 || useradd --system --gid uap-observer-egress --home-dir /nonexistent --shell /usr/sbin/nologin uap-observer-egress
 usermod -a -G uap-observer-signer-ipc,uap-observer-runner-ipc uap-observer
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$source_root" python3 -B -c 'from observer.fixed_runner import reviewed_service_identities; reviewed_service_identities()'
+PYTHONDONTWRITEBYTECODE=1 python3 -B "$egress_proxy_source" --config "$stage_root/egress-allowlist.json" --validate-config
 
 identity_uids=
 identity_gids=
@@ -165,7 +174,7 @@ for identity in codex cursor kiro control; do
   identity_gids="$identity_gids $gid"
 done
 
-for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service; do
+for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service uap-observer-egress-proxy.service uap-observer-egress-proxy.socket; do
   if systemctl is-active --quiet "$unit"; then
     echo "stop observer services before installing a new immutable closure" >&2
     exit 1
@@ -174,7 +183,7 @@ done
 
 install -d -o root -g root -m 0711 /var/lib/uap-observer
 install -d -o uap-observer -g uap-observer -m 0700 /var/lib/uap-observer/state
-install -d -o root -g root -m 0711 /var/lib/uap-observer/jobs /var/lib/uap-observer/workspaces /var/lib/uap-observer/profiles
+install -d -o root -g root -m 0711 /var/lib/uap-observer/jobs /var/lib/uap-observer/workspaces /var/lib/uap-observer/profiles /var/lib/uap-observer/proofs
 for client in codex cursor kiro; do
   install -d -o "uap-observer-$client" -g "uap-observer-$client" -m 0700 "/var/lib/uap-observer/profiles/$client" "/var/lib/uap-observer/workspaces/$client"
 done
@@ -193,36 +202,49 @@ test ! -e /opt/uap-observer-venv.new
 PYTHONDONTWRITEBYTECODE=1 python3 -B -m venv /opt/uap-observer-venv.new
 PYTHONDONTWRITEBYTECODE=1 /opt/uap-observer-venv.new/bin/python -B -m pip install --no-compile --require-hashes --no-deps -r "$source_root/observer/requirements.lock"
 PYTHONDONTWRITEBYTECODE=1 /opt/uap-observer-venv.new/bin/python -B -m jsonschema -i "$adapter_config" "$source_root/deploy/uap-observer-adapter-config.schema.json"
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$source_root" /opt/uap-observer-venv.new/bin/python -B -c 'import json,sys; from observer.fixed_adapters import validate_config; validate_config(json.load(open(sys.argv[1], encoding="utf-8")))' "$adapter_config"
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$source_root" /opt/uap-observer-venv.new/bin/python -B -c 'import sys; from observer.fixed_adapters import strict_json_loads,validate_config; validate_config(strict_json_loads(open(sys.argv[1], "rb").read()))' "$adapter_config"
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$source_root" /opt/uap-observer-venv.new/bin/python -B -c 'import sys; from pathlib import Path; from observer.config import Config; Config.load(Path(sys.argv[1]))' "$observer_config"
 observer_remove_python_bytecode /opt/uap-observer-venv.new
 
-# Resolve only the reviewed service hosts at install time. The resulting hosts
-# file and cgroup-BPF allowlist remove runtime DNS and arbitrary IP egress from
-# the observer and adapter runner.
-PYTHONDONTWRITEBYTECODE=1 python3 -B - "$adapter_config" "$observer_config" "$stage_root/hosts" "$stage_root/egress-addresses" <<'PY'
-import ipaddress,json,socket,sys
+# Prove that the externally reviewed allowlist is exactly the canonical set of
+# hosts reachable from the fixed observer and adapter configuration. DNS is
+# intentionally deferred to the gateway for every new tunnel.
+PYTHONDONTWRITEBYTECODE=1 python3 -B - "$adapter_config" "$observer_config" "$stage_root/egress-allowlist.json" <<'PY'
+import json,math,sys
 from pathlib import Path
 from urllib.parse import urlsplit
-adapter=json.load(open(sys.argv[1], encoding="utf-8"))
-observer=json.load(open(sys.argv[2], encoding="utf-8"))
+def strict(path):
+    def pairs(items):
+        value={}
+        folded=set()
+        for key, child in items:
+            normalized=key.casefold()
+            if key in value or normalized in folded:
+                raise ValueError("duplicate or case-confusable JSON member")
+            value[key]=child
+            folded.add(normalized)
+        return value
+    def constant(value): raise ValueError("non-finite JSON number")
+    def floating(value):
+        decoded=float(value)
+        if not math.isfinite(decoded): raise ValueError("non-finite JSON number")
+        return decoded
+    with open(path,"rb") as stream:
+        return json.loads(stream.read(),object_pairs_hook=pairs,parse_constant=constant,parse_float=floating)
+adapter=strict(sys.argv[1])
+observer=strict(sys.argv[2])
 urls=[item["endpoint"] for item in adapter["matrix"]]
 urls += [adapter["chatgpt"]["mcp_endpoint"], observer["jwks_url"], observer["github_api_url"]]
-host_values={urlsplit(url).hostname for url in urls}
-if None in host_values:
+required_hosts={urlsplit(url).hostname for url in urls} | {"github.com"}
+if None in required_hosts or any(urlsplit(url).scheme != "https" or urlsplit(url).port not in (None,443) for url in urls):
     raise SystemExit("observer egress hostname is invalid")
-hosts=sorted(host_values)
-resolved={}
-for host in hosts:
-    values=sorted({str(ipaddress.ip_address(item[4][0])) for item in socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)})
-    if not values:
-        raise SystemExit("observer egress hostname did not resolve")
-    resolved[host]=values
-Path(sys.argv[3]).write_text("127.0.0.1 localhost\n::1 localhost\n" + "".join(f"{address} {host}\n" for host in hosts for address in resolved[host]))
-Path(sys.argv[4]).write_text("".join(f"{address}\n" for values in resolved.values() for address in values))
+egress_hosts=adapter.get("egress_hosts")
+if not isinstance(egress_hosts,list) or not required_hosts <= set(egress_hosts):
+    raise SystemExit("adapter egress_hosts omits a configured endpoint, JWKS, or GitHub host")
+allowlist=strict(sys.argv[3])
+if type(allowlist.get("schema_version")) is not int or allowlist.get("schema_version") != 1 or allowlist.get("hosts") != egress_hosts:
+    raise SystemExit("egress allowlist differs from exact adapter egress_hosts")
 PY
-chown root:root "$stage_root/hosts" "$stage_root/egress-addresses"
-chmod 0444 "$stage_root/hosts" "$stage_root/egress-addresses"
 
 test ! -e /opt/uap-observer-runtime.new
 install -d -o root -g root -m 0755 /opt/uap-observer-runtime.new/observer /opt/uap-observer-runtime.new/tests/e2e/schemas
@@ -235,6 +257,7 @@ done
 install -o root -g root -m 0555 "$source_root/deploy/uap-observer-signer.py" /opt/uap-observer-runtime.new/uap-observer-signer.py
 
 install -o root -g root -m 0755 "$runner_source" /usr/local/libexec/uap-observer-runner.new
+install -o root -g root -m 0555 "$egress_proxy_source" /usr/local/libexec/uap-observer-egress-proxy.new
 test "$(sha256sum /usr/local/libexec/uap-observer-runner.new | cut -d' ' -f1)" = "$runner_digest"
 install -o root -g root -m 0555 "$adapter_source" /usr/local/libexec/uap-observer-fixed-adapter.new
 for name in runtime notion chatgpt consent; do
@@ -246,6 +269,7 @@ install -o root -g root -m 0555 "$source_root/deploy/uap-observer-attest-consent
 install -o root -g root -m 0555 "$source_root/deploy/uap-observer-provision-profile.py" /usr/local/libexec/uap-observer-provision-profile.new
 install -o root -g root -m 0755 "$caddy_binary" /usr/local/bin/caddy.new
 install -o root -g root -m 0644 "$observer_config" /etc/uap-observer.json.new
+install -o root -g root -m 0644 "$stage_root/egress-allowlist.json" /etc/uap-observer-egress-allowlist.json.new
 install -o root -g uap-observer-adapter-config -m 0640 "$adapter_config" /etc/uap-observer-adapter-config.json.new
 installed_adapter_config_digest="sha256:$(sha256sum /etc/uap-observer-adapter-config.json.new | cut -d' ' -f1)"
 PYTHONDONTWRITEBYTECODE=1 /opt/uap-observer-venv.new/bin/python -B - "$adapter_digest" "$installed_adapter_config_digest" <<'PY'
@@ -271,14 +295,16 @@ chmod 0644 /etc/uap-observer-adapters.json.new
 install -o root -g caddy -m 0640 "$caddy_config" /etc/caddy/Caddyfile.new
 systemd_stage="$stage_root/systemd"
 install -d -o root -g root -m 0755 "$systemd_stage/uap-observer.service.d" "$systemd_stage/uap-observer-runner.service.d"
-for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service; do
+for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service uap-observer-egress-proxy.service uap-observer-egress-proxy.socket; do
   install -o root -g root -m 0644 "$source_root/deploy/$unit" "$systemd_stage/$unit"
 done
 for service in uap-observer uap-observer-runner; do
   {
     printf '%s\n' '[Service]' 'IPAddressDeny=any'
-    if [ "$service" = uap-observer ]; then printf '%s\n' 'IPAddressAllow=127.0.0.0/8 ::1/128'; fi
-    while read -r address; do printf 'IPAddressAllow=%s\n' "$address"; done < "$stage_root/egress-addresses"
+    # systemd's address filter is bidirectional. The observer must accept
+    # Caddy's exact loopback peer; only the gateway is available to the runner.
+    if [ "$service" = uap-observer ]; then printf '%s\n' 'IPAddressAllow=127.0.0.1/32'; fi
+    printf '%s\n' 'IPAddressAllow=127.0.0.2/32'
     if [ "$service" = uap-observer-runner ]; then
       PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$source_root" python3 -B - "$adapter_config" <<'PY'
 import sys
@@ -304,7 +330,7 @@ adapter_inode=$(stat -c '%d:%i' /usr/local/libexec/uap-observer-fixed-adapter.ne
 for name in runtime notion chatgpt consent; do
   test "$(stat -c '%d:%i' "/usr/local/libexec/uap-observer-adapter-$name.new")" = "$adapter_inode"
 done
-for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service; do
+for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service uap-observer-egress-proxy.service uap-observer-egress-proxy.socket; do
   cmp "$source_root/deploy/$unit" "$systemd_stage/$unit"
 done
 cmp "$observer_config" /etc/uap-observer.json.new
@@ -322,6 +348,7 @@ observer_copy_systemd_tree_neutral "$systemd_stage" "$closure_stage/systemd"
 mv /opt/uap-observer-venv.new "$closure_stage/venv"
 mv /opt/uap-observer-runtime.new "$closure_stage/runtime"
 mv /usr/local/libexec/uap-observer-runner.new "$closure_stage/libexec/uap-observer-runner"
+mv /usr/local/libexec/uap-observer-egress-proxy.new "$closure_stage/libexec/uap-observer-egress-proxy"
 mv /usr/local/libexec/uap-observer-fixed-adapter.new "$closure_stage/libexec/uap-observer-fixed-adapter"
 for name in runtime notion chatgpt consent; do
   mv "/usr/local/libexec/uap-observer-adapter-$name.new" "$closure_stage/libexec/uap-observer-adapter-$name"
@@ -331,10 +358,10 @@ mv /usr/local/libexec/uap-observer-attest-consent.new "$closure_stage/libexec/ua
 mv /usr/local/libexec/uap-observer-provision-profile.new "$closure_stage/libexec/uap-observer-provision-profile"
 mv /usr/local/bin/caddy.new "$closure_stage/bin/caddy"
 mv /etc/uap-observer.json.new "$closure_stage/etc/uap-observer.json"
+mv /etc/uap-observer-egress-allowlist.json.new "$closure_stage/etc/uap-observer-egress-allowlist.json"
 mv /etc/uap-observer-adapter-config.json.new "$closure_stage/etc/uap-observer-adapter-config.json"
 mv /etc/uap-observer-adapters.json.new "$closure_stage/etc/uap-observer-adapters.json"
 mv /etc/caddy/Caddyfile.new "$closure_stage/etc/Caddyfile"
-mv "$stage_root/hosts" "$closure_stage/etc/hosts"
 printf '%s\n' 'complete-v1' > "$closure_stage/.complete"
 printf '%s\n' "$install_identity" > "$closure_stage/.install-identity"
 apply_observer_closure_modes "$closure_stage"
@@ -345,7 +372,7 @@ closure_final="/opt/uap-observer-closures/$closure_digest"
 test ! -e "$closure_final"
 unit_validation="$stage_root/unit-validation"
 install -d -o root -g root -m 0700 "$unit_validation"
-for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service; do
+for unit in uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service uap-observer-egress-proxy.service uap-observer-egress-proxy.socket; do
   sed "s|/opt/uap-observer-current|$closure_stage|g" "$systemd_stage/$unit" > "$unit_validation/$unit"
 done
 systemd-analyze verify "$unit_validation"/*.service "$unit_validation"/*.socket

@@ -43,9 +43,10 @@ Install the complete reviewed checkout at `/opt/uap-observer`. Replace the
 public-key placeholder in a separate root-owned observer config and provision a
 root-owned `0640` adapter config matching
 `deploy/uap-observer-adapter-config.schema.json`; it contains only pinned
-binaries/profiles, request/release identities, the fixed consent-record directory, and ChatGPT binding data,
+binaries/profiles and per-profile native projection digests, canonical reviewed
+egress FQDNs, request/release identities, the fixed consent-record directory, and ChatGPT binding data,
 never argv, environment, or secrets. Run
-`deploy/uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG sha256:ADAPTER_DIGEST OBSERVER_CONFIG sha256:OBSERVER_DIGEST CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG sha256:CADDY_CONFIG_DIGEST`.
+`deploy/uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG sha256:ADAPTER_DIGEST OBSERVER_CONFIG sha256:OBSERVER_DIGEST CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG sha256:CADDY_CONFIG_DIGEST EGRESS_ALLOWLIST sha256:EGRESS_ALLOWLIST_DIGEST`.
 The installer creates the exact hardlinks and digest-pinned manifest, fails
 closed on placeholders, first copies every hash-locked input into a root-only
 staging closure, verifies that closure and both external configs, verifies the
@@ -67,20 +68,36 @@ signer, observer, and proxy only after provisioning the root-owned Ed25519 key.
 Never point an adapter at an original saved home. For each test client, first run
 `uap-observer-provision-profile --client CLIENT --root-owned-seed ABS_PATH --seed-digest show`,
 then repeat with the printed `sha256:` value. The helper rejects links/special
-files, copies into `/var/lib/uap-observer/profiles/CLIENT` with that client's UID
-and `0700`/`0600` modes, leaves the root-owned seed untouched, and never prints
+files, copies authentication/cache/state into `/var/lib/uap-observer/profiles/CLIENT`
+with client-owned `0700`/`0600` modes, makes the profile root and every active
+native-config ancestor root-owned mode `0510`, and makes each active native file
+root-owned, client-group-readable `0440`. It also moves sealed receipts,
+projections, and authoritative snapshots to root-owned `0440` files below
+`/var/lib/uap-observer/proofs`, leaves the root-owned seed untouched, and never prints
 file contents. A non-empty existing profile is never overwritten.
 
 The runtime and Notion adapters use only source-fixed Codex, Cursor, and Kiro
 version, native MCP list, and challenge-bound tool invocation argv against fresh
-disposable Git roots and adapter-owned test profiles. A pass requires a root-owned
-manager receipt, the exact product in both native list observations, and a
-structured successful tool-call event; prompt echo alone is inconclusive.
+disposable Git roots and adapter-owned test profiles. A pass requires the exact
+approved tuple in the manager receipt, the deployment-digested immutable native
+projection, its contained one-link native config and exact digest, the product
+in structured native discovery and a structured successful tool-call event
+containing the marker. Cursor name/status text plus a manager receipt is
+never tuple reconciliation. Kiro CLI 2.19.1 uses the observed ACP v1 shape
+with native sealed-config discovery, one `allow_once` response, and exact
+pending, completed, and successful turn-end record shapes. The checked-in fixture is
+a sanitized shape summary, not ordered raw frames; tests retain an observed
+multi-tool catalog and unrelated `kiro_power` failure shapes without asserting
+their order. Both Kiro executables are
+digest-bound. This validates the grammar, not the pending external 5x3 live
+matrix; the repository does not claim 15/15 or PASS.
+Prompt echo alone is inconclusive.
 Create consent with `uap-observer-attest-consent`; its root-owned `O_EXCL`
 record binds the full canonical request digest and is atomically moved into the
 root-only consumed directory by the supervisor only after the fixed consent
-applet succeeds. The ChatGPT adapter separately verifies the exact `.app.json`, performs a direct
-no-proxy/no-redirect public Cloudflare MCP initialize/list/read-only probe, and
+applet succeeds. The ChatGPT adapter separately verifies the exact `.app.json`,
+performs a no-redirect public Cloudflare MCP initialize/list/read-only probe
+through the fixed `FIXED_HTTPS_PROXY`, and
 then reads a short-lived challenge/request-bound root-owned human attestation
 created with `O_EXCL` by `uap-observer-attest-chatgpt`; the supervisor atomically
 tombstones it after adapter success. No real user project, copied auth, raw provider
@@ -90,8 +107,16 @@ runtime pairs, three Notion pairs, and one ChatGPT UI pair, all uniquely and
 cross-bound to the consent, challenge, run, directory/release identities, and
 pseudonyms.
 
-Run focused tests with:
+Run the portable unit, contract, and security suite (the same command as normal
+CI) with:
 
 ```sh
-timeout 120s python -m unittest discover -s observer/tests -v
+python3 -m unittest observer.tests.portable
+```
+
+The disposable observer host gate retains the tests which require deployment
+ownership, mount namespaces, peer credentials, or privileged race fixtures:
+
+```sh
+timeout 600s python3 -m unittest observer.tests.privileged -v
 ```

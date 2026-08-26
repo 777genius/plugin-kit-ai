@@ -7,6 +7,7 @@ import base64
 import binascii
 import grp
 import json
+import math
 import os
 import pwd
 import socket
@@ -64,9 +65,35 @@ def validate_payload(payload: bytes, *, key_id: str) -> None:
     if not payload.startswith(SIGNATURE_DOMAIN):
         raise ValueError("invalid signature domain")
     encoded = payload[len(SIGNATURE_DOMAIN):]
-    value = json.loads(encoded)
+    def object_from_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        folded: set[str] = set()
+        for name, child in pairs:
+            normalized = name.casefold()
+            if name in result or normalized in folded:
+                raise ValueError("duplicate or case-confusable JSON object member")
+            result[name] = child
+            folded.add(normalized)
+        return result
+
+    def reject_constant(value: str) -> object:
+        raise ValueError(f"non-finite JSON number: {value}")
+
+    def finite_float(value: str) -> float:
+        decoded = float(value)
+        if not math.isfinite(decoded):
+            reject_constant(value)
+        return decoded
+
+    try:
+        value = json.loads(
+            encoded, object_pairs_hook=object_from_pairs,
+            parse_constant=reject_constant, parse_float=finite_float,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, OverflowError) as error:
+        raise ValueError("invalid unsigned bundle JSON") from error
     required = {"schema_version", "challenge", "signed_at", "key_id", "artifacts"}
-    if not isinstance(value, dict) or set(value) != required or value.get("schema_version") != 1:
+    if not isinstance(value, dict) or set(value) != required or type(value.get("schema_version")) is not int or value.get("schema_version") != 1:
         raise ValueError("invalid unsigned bundle")
     if not isinstance(value.get("challenge"), str) or not all(child in "0123456789abcdef" for child in value["challenge"]) or len(value["challenge"]) != 64:
         raise ValueError("invalid unsigned bundle challenge")

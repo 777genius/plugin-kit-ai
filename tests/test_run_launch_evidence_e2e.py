@@ -1453,7 +1453,7 @@ with tempfile.TemporaryDirectory() as temporary:
             "workflow_ref": e2e.TRUSTED_OBSERVER_WORKFLOW_REF,
             "job_workflow_ref": e2e.TRUSTED_OBSERVER_JOB_WORKFLOW_REF,
             "workflow": "Signed Directory publication",
-            "event_names": ["push", "workflow_dispatch"],
+            "event_names": ["push", "schedule", "workflow_dispatch"],
             "job_name_suffix": "protected-observer-inputs",
         }])
 

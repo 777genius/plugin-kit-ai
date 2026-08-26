@@ -2046,6 +2046,15 @@ Prove the public promise in disposable environments and ship one stable release.
   discovery, and runtime E2E in Codex, Cursor, and Kiro: 15 required
   client/plugin runtime results. Repair is fault-injected once per client
   adapter rather than redundantly for every plugin.
+- **Current gate status: grammar validated; final matrix still not met.** A
+  sanitized Linux observed-shape summary dated 2026-08-26 validates the Kiro
+  CLI 2.19.1 ACP v1 retained shapes for native connected discovery, one
+  `allow_once` permission, pending/in-progress/completed targets, a result
+  marker, and a successful turn end. Their sequence is not asserted. Both
+  `kiro-cli` and delegated `kiro-cli-chat` are fixed digest inputs. It is not an
+  ordered raw ACP capture. This one observed hero
+  does not prove the five Kiro results;
+  the external live 5x3 matrix remains required before claiming 15/15 or PASS.
 - Notion's OAuth evidence is a separate artifact but is required for its three
   runtime results. Phase 0 must secure an isolated test workspace/identity and
   human consent; without it the release is not allowed to claim 15/15. The four
@@ -2400,6 +2409,9 @@ State schema compatibility must be tested before switching release origin.
   supported client.
 - Five hero plugins complete add/update/remove, discovery, and runtime across
   Codex, Cursor, and Kiro with 15 required runtime results.
+- The 15-result bullet is a release requirement, not current evidence. It is
+  presently pending the external live Kiro matrix. The Kiro CLI 2.19.1 ACP v1
+  grammar is validated, but one captured hero cannot promote 10/15 to PASS.
 - Context7 completes the actual one-command three-target lifecycle, not three
   separately composed single-target runs.
 - Notion supplies three separately recorded OAuth/runtime results using the
@@ -2511,6 +2523,9 @@ The first stable public release is ready when all of the following are true:
     complete add/update/remove, discovery, and runtime E2E in Codex, Cursor, and
     Kiro, producing 15 required client/plugin results; the three Notion results
     use the approved isolated identity and separate honest OAuth evidence.
+    This acceptance criterion is currently unmet and blocks launch: the
+    fail-closed Kiro CLI 2.19.1 ACP v1 grammar is implemented, while the five
+    externally executed Kiro matrix results remain pending.
 16. Cloudflare Docs completes the separately scoped registered-binding,
     Plugins UI activation, and read-only ChatGPT runtime flow; no broader
     ChatGPT package claim is inferred from it.

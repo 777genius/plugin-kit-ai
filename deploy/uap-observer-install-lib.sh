@@ -3,7 +3,7 @@
 # Shared, testable installer primitives. The caller supplies only disposable
 # roots in tests; production calls use the fixed system paths.
 
-observer_units='uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service'
+observer_units='uap-observer.service uap-observer-signer.service uap-observer-runner.service uap-observer-runner.socket uap-observer-caddy.service uap-observer-egress-proxy.service uap-observer-egress-proxy.socket'
 
 # Control data is never consumed through a pathname-opening utility.  The
 # parent and object are pinned without following links and O_NOATIME keeps
@@ -228,12 +228,14 @@ observer_partial_paths() {
     /opt/uap-observer-runtime.new \
     /opt/uap-observer-current.new \
     /usr/local/libexec/uap-observer-runner.new \
+    /usr/local/libexec/uap-observer-egress-proxy.new \
     /usr/local/libexec/uap-observer-fixed-adapter.new \
     /usr/local/libexec/uap-observer-attest-chatgpt.new \
     /usr/local/libexec/uap-observer-attest-consent.new \
     /usr/local/libexec/uap-observer-provision-profile.new \
     /usr/local/bin/caddy.new \
     /etc/uap-observer.json.new \
+    /etc/uap-observer-egress-allowlist.json.new \
     /etc/uap-observer-adapter-config.json.new \
     /etc/uap-observer-adapters.json.new \
     /etc/caddy/Caddyfile.new \
@@ -529,6 +531,8 @@ observer_install_input_identity() {
   caddy_config=$9
   shift 9
   caddy_config_digest=$1
+  egress_allowlist=$2
+  egress_allowlist_digest=$3
   manifest="$source_root/deploy/uap-observer-runtime.sha256"
   test -d "$source_root"
   test ! -L "$source_root"
@@ -546,7 +550,7 @@ observer_install_input_identity() {
     test ! -L "$source_root/$relative"
   done < "$manifest"
   (cd "$source_root" && sha256sum -c deploy/uap-observer-runtime.sha256 >/dev/null)
-  for input in "$adapter_config" "$observer_config" "$caddy_archive" "$caddy_config"; do
+  for input in "$adapter_config" "$observer_config" "$caddy_archive" "$caddy_config" "$egress_allowlist"; do
     test -f "$input"
     test ! -L "$input"
   done
@@ -554,16 +558,19 @@ observer_install_input_identity() {
   actual_observer="sha256:$(sha256sum "$observer_config" | cut -d' ' -f1)"
   actual_archive="sha256:$(sha256sum "$caddy_archive" | cut -d' ' -f1)"
   actual_caddy="sha256:$(sha256sum "$caddy_config" | cut -d' ' -f1)"
+  actual_egress="sha256:$(sha256sum "$egress_allowlist" | cut -d' ' -f1)"
   test "$actual_adapter" = "$adapter_config_digest"
   test "$actual_observer" = "$observer_config_digest"
   test "$actual_archive" = "sha256:$caddy_archive_digest"
   test "$actual_caddy" = "$caddy_config_digest"
+  test "$actual_egress" = "$egress_allowlist_digest"
   printf '%s\n' \
     "runtime-manifest sha256:$runtime_manifest_digest" \
     "adapter-config $actual_adapter" \
     "observer-config $actual_observer" \
     "caddy-archive $actual_archive" \
-    "caddy-config $actual_caddy" | sha256sum | cut -d' ' -f1
+    "caddy-config $actual_caddy" \
+    "egress-allowlist $actual_egress" | sha256sum | cut -d' ' -f1
 }
 
 observer_validate_completed_closure() {
@@ -604,6 +611,8 @@ observer_validate_completed_closure() {
   test "$actual_identity" = "$digest"
   test "$(stat -c '%u:%g:%a:%h' "$closure/etc/uap-observer-adapter-config.json")" = "0:$config_gid:640:1"
   test "$(stat -c '%u:%g:%a:%h' "$closure/etc/Caddyfile")" = "0:$caddy_gid:640:1"
+  test "$(stat -c '%u:%g:%a:%h' "$closure/etc/uap-observer-egress-allowlist.json")" = "0:0:644:1"
+  test "$(stat -c '%u:%g:%a:%h' "$closure/libexec/uap-observer-egress-proxy")" = "0:0:755:1"
   test -d "$systemd_root"
   test ! -L "$systemd_root"
   test "$(stat -c '%u:%g:%a' "$systemd_root")" = "$expected_owner:755"
@@ -639,7 +648,7 @@ observer_validate_installed_accounts_and_state() {
   closure=${1:-/opt/uap-observer-current}
   observer_runtime="$closure/runtime"
   PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$observer_runtime" observer_run_closure_python_script_neutral "$closure" python3 -B <<'PY'
-import grp,os,pwd,stat
+import grp,hashlib,json,math,os,pwd,re,stat
 from pathlib import Path
 from observer.fixed_runner import reviewed_service_identities
 
@@ -647,21 +656,168 @@ services=reviewed_service_identities()
 identities=[services[name][:2] for name in ("codex","cursor","kiro","control")]
 observer_uid,observer_gid,_=services["observer"]
 caddy_uid,caddy_gid,_=services["caddy"]
+egress_uid,egress_gid,_=services["egress"]
+if egress_uid == 0 or egress_gid == 0: raise SystemExit("egress gateway is privileged")
 
 def directory(path,uid,gid,mode):
     info=os.lstat(path)
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != uid or info.st_gid != gid or stat.S_IMODE(info.st_mode) != mode:
         raise SystemExit(f"installed state directory {path} differs")
 
+def native_projection(encoded,suffix,profile,proof):
+    if len(encoded) > 4 << 20:
+        raise SystemExit(f"installed native projection for {suffix} is oversized")
+    def pairs(items):
+        result={}; folded=set()
+        for key,value in items:
+            normalized=key.casefold()
+            if key in result or normalized in folded:
+                raise SystemExit(f"installed native projection for {suffix} has duplicate or case-confusable members")
+            result[key]=value; folded.add(normalized)
+        return result
+    def constant(_value):
+        raise SystemExit(f"installed native projection for {suffix} has a non-finite number")
+    def finite(value):
+        decoded=float(value)
+        if not math.isfinite(decoded):
+            raise SystemExit(f"installed native projection for {suffix} has a non-finite number")
+        return decoded
+    value=json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
+    evidence={"manager_add_sha256","manager_info_sha256","post_add_doctor_sha256"}
+    fields={"plugin","tuple","native_config","client_config",*evidence}
+    digest=re.compile(r"sha256:[a-f0-9]{64}")
+    tuple_fields={"product_id","tree_digest","manifest_digest","distribution_id","distribution_kind","release_sequence","package_version","source_repository","source_revision","source_path","snapshot_sequence","snapshot_digest","binary_digest","dependency_identity","installer_version","adapter_version","client_version","os","architecture","observed_at"}
+    tuple_digests={"tree_digest","manifest_digest","snapshot_digest","binary_digest"}
+    def release_tuple(item,plugin):
+        strings=tuple_fields-{"release_sequence","snapshot_sequence","client_version"}
+        if (not isinstance(item,dict) or set(item)!=tuple_fields or item.get("product_id")!=plugin
+            or any(type(item.get(field)) is not int or item[field]<1 for field in ("release_sequence","snapshot_sequence"))
+            or any(type(item.get(field)) is not str or not item[field] for field in strings)
+            or item.get("client_version") is not None
+            or re.fullmatch(r"[a-f0-9]{40}",str(item.get("source_revision",""))) is None
+            or any(digest.fullmatch(str(item.get(field,""))) is None for field in tuple_digests)
+            or str(item.get("source_repository","")).startswith("/") or "//" in str(item.get("source_repository",""))
+            or Path(str(item.get("source_path",""))).is_absolute() or ".." in Path(str(item.get("source_path",""))).parts):
+            raise SystemExit(f"installed release tuple for {suffix}/{plugin} is invalid")
+    if (not isinstance(value,dict) or set(value)!={"schema_version","client_id","entries"}
+        or type(value.get("schema_version")) is not int or value["schema_version"]!=1
+        or type(value.get("client_id")) is not str or value["client_id"]!=suffix
+        or not isinstance(value.get("entries"),list) or not value["entries"]):
+        raise SystemExit(f"installed native projection for {suffix} is invalid")
+    heroes={"agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion"}
+    plugins=set(); active_paths=set()
+    for entry in value["entries"]:
+        if (not isinstance(entry,dict) or set(entry)!=fields
+            or type(entry.get("plugin")) is not str or not entry["plugin"] or entry["plugin"] in plugins
+            or not isinstance(entry.get("tuple"),dict)
+            or any(type(entry.get(field)) is not str or digest.fullmatch(entry[field]) is None for field in evidence)):
+            raise SystemExit(f"installed native projection entry for {suffix} is invalid")
+        release_tuple(entry["tuple"],entry["plugin"])
+        plugins.add(entry["plugin"])
+        client_config=entry["client_config"]; native_config=entry["native_config"]
+        if (not isinstance(client_config,dict) or set(client_config)!={"path","sha256"}
+            or not isinstance(native_config,dict) or set(native_config)!={"path","sha256"}
+            or type(client_config.get("path")) is not str or type(native_config.get("path")) is not str
+            or type(client_config.get("sha256")) is not str or digest.fullmatch(client_config["sha256"]) is None
+            or type(native_config.get("sha256")) is not str or digest.fullmatch(native_config["sha256"]) is None
+            or client_config["sha256"]!=native_config["sha256"]):
+            raise SystemExit(f"installed native projection config for {suffix} is invalid")
+        active=Path(client_config["path"]); native=Path(native_config["path"])
+        try: active_relative=active.relative_to(profile)
+        except ValueError: raise SystemExit(f"active native config {active} escapes profile")
+        try: native_relative=native.relative_to(proof)
+        except ValueError: raise SystemExit(f"native config proof {native} escapes proof hierarchy")
+        if (not active_relative.parts or any(part in ("",".","..") for part in active_relative.parts)
+            or native_relative.parts != ("native",f'{entry["plugin"]}.json')):
+            raise SystemExit(f"installed native projection path for {suffix} is invalid")
+        active_paths.add(active)
+    duplicates=[group for group in ({path:[entry for entry in value["entries"] if Path(entry["client_config"]["path"])==path] for path in active_paths}).values() if len(group)>1]
+    if duplicates:
+        shared=profile / ".kiro" / "settings" / "mcp.json"
+        if (suffix!="kiro" or active_paths!={shared} or len(duplicates)!=1 or len(duplicates[0])!=len(heroes)
+            or len({entry["client_config"]["sha256"] for entry in duplicates[0]})!=1):
+            raise SystemExit(f"installed native projection for {suffix} has conflicting active configs")
+    if plugins != heroes:
+        raise SystemExit(f"installed native projection for {suffix} is incomplete")
+    return value
+
 directory("/var/empty",0,0,0o755)
 for suffix,(uid,gid) in zip(("codex","cursor","kiro","control"),identities):
     directory(f"/var/empty/uap-observer-{suffix}",uid,gid,0o700)
 directory("/var/lib/uap-observer",0,0,0o711)
 directory("/var/lib/uap-observer/state",observer_uid,observer_gid,0o700)
-for name in ("jobs","workspaces","profiles"): directory(f"/var/lib/uap-observer/{name}",0,0,0o711)
+for name in ("jobs","workspaces","profiles","proofs"): directory(f"/var/lib/uap-observer/{name}",0,0,0o711)
 for suffix,(uid,gid) in zip(("codex","cursor","kiro"),identities):
-    directory(f"/var/lib/uap-observer/profiles/{suffix}",uid,gid,0o700)
+    profile=Path(f"/var/lib/uap-observer/profiles/{suffix}")
     directory(f"/var/lib/uap-observer/workspaces/{suffix}",uid,gid,0o700)
+    proof=Path(f"/var/lib/uap-observer/proofs/{suffix}")
+    if proof.exists():
+        directory(str(profile),0,gid,0o510)
+        directory(str(proof),0,gid,0o510)
+        if {item.name for item in proof.iterdir()} != {"receipts.json","native-projection.json","native"}:
+            raise SystemExit(f"installed proof inventory for {suffix} differs")
+        directory(str(proof / "native"),0,gid,0o510)
+        if {item.name for item in (proof / "native").iterdir()} != {f"{name}.json" for name in ("agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion")}:
+            raise SystemExit(f"installed native proof inventory for {suffix} differs")
+        for item in (proof / "receipts.json",proof / "native-projection.json",*(proof / "native").iterdir()):
+            info=os.lstat(item)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != gid or stat.S_IMODE(info.st_mode) != 0o440 or info.st_nlink != 1:
+                raise SystemExit(f"installed proof file {item} differs")
+        projection=native_projection((proof / "native-projection.json").read_bytes(),suffix,profile,proof)
+        # Decode receipts with the same strict policy used by the projection.
+        def strict_pairs(items):
+            result={}; folded=set()
+            for key,value in items:
+                normalized=key.casefold()
+                if key in result or normalized in folded: raise SystemExit(f"installed receipts for {suffix} are ambiguous")
+                result[key]=value; folded.add(normalized)
+            return result
+        receipts=json.loads((proof / "receipts.json").read_bytes(),object_pairs_hook=strict_pairs,parse_constant=lambda value: (_ for _ in ()).throw(SystemExit(f"installed receipts for {suffix} contain a non-finite number")),parse_float=lambda value: float(value) if math.isfinite(float(value)) else (_ for _ in ()).throw(SystemExit(f"installed receipts for {suffix} contain a non-finite number")))
+        evidence={"manager_add_sha256","manager_info_sha256","post_add_doctor_sha256"}; receipt_fields={"name","tuple",*evidence}
+        records=receipts.get("receipts") if isinstance(receipts,dict) else None
+        if (not isinstance(receipts,dict) or set(receipts)!={"schema_version","receipts"}
+            or type(receipts.get("schema_version")) is not int or receipts["schema_version"]!=1
+            or not isinstance(records,list) or len(records)!=len(heroes)
+            or any(not isinstance(record,dict) or set(record)!=receipt_fields for record in records)):
+            raise SystemExit(f"installed receipts for {suffix} are invalid")
+        by_name={record.get("name"):record for record in records}
+        if set(by_name)!=heroes or len(by_name)!=len(records): raise SystemExit(f"installed receipts for {suffix} are incomplete")
+        for entry in projection["entries"]:
+            record=by_name[entry["plugin"]]
+            if record["tuple"]!=entry["tuple"] or any(record.get(field)!=entry.get(field) or digest.fullmatch(str(record.get(field,""))) is None for field in evidence):
+                raise SystemExit(f"installed receipts for {suffix} do not bind projection evidence")
+        for entry in projection["entries"]:
+            active=Path(entry["client_config"]["path"])
+            try: active.relative_to(profile)
+            except ValueError: raise SystemExit(f"active native config {active} escapes profile")
+            info=os.lstat(active)
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_gid != gid or stat.S_IMODE(info.st_mode) != 0o440 or info.st_nlink != 1:
+                raise SystemExit(f"active native config {active} is client-writable")
+            parent=active.parent
+            while True:
+                directory(str(parent),0,gid,0o510)
+                if parent == profile: break
+                parent=parent.parent
+            native=Path(entry["native_config"]["path"])
+            native_info=os.lstat(native)
+            if not stat.S_ISREG(native_info.st_mode) or native_info.st_uid != 0 or native_info.st_gid != gid or stat.S_IMODE(native_info.st_mode) != 0o440 or native_info.st_nlink != 1:
+                raise SystemExit(f"native config proof {native} differs")
+            active_fd=os.open(active,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+            native_fd=-1
+            try:
+                native_fd=os.open(native,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+                if os.fstat(active_fd)!=info or os.fstat(native_fd)!=native_info:
+                    raise SystemExit(f"active native config {active} changed during verification")
+                active_body=os.read(active_fd,(4 << 20)+1); native_body=os.read(native_fd,(4 << 20)+1)
+            finally:
+                if native_fd>=0: os.close(native_fd)
+                os.close(active_fd)
+            expected_digest=entry["client_config"]["sha256"]
+            if (len(active_body)>4 << 20 or len(native_body)>4 << 20 or active_body!=native_body
+                or "sha256:"+hashlib.sha256(active_body).hexdigest()!=expected_digest):
+                raise SystemExit(f"active native config {active} differs from its protected proof")
+    else:
+        directory(str(profile),uid,gid,0o700)
 directory("/var/lib/uap-observer-human",0,0,0o755)
 directory("/var/lib/uap-observer-human/pending",0,identities[3][1],0o750)
 for name in ("consumed","reserved"): directory(f"/var/lib/uap-observer-human/{name}",0,0,0o700)
@@ -692,14 +848,17 @@ observer_validate_installed_closure_sources() {
   adapter_config=$3
   observer_config=$4
   caddy_config=$5
-  runner_digest=$6
-  adapter_digest=$7
-  caddy_digest=$8
+  egress_allowlist=$6
+  runner_digest=$7
+  adapter_digest=$8
+  caddy_digest=$9
   observer_compare_regular_files_neutral "$observer_config" "$closure/etc/uap-observer.json"
   observer_compare_regular_files_neutral "$adapter_config" "$closure/etc/uap-observer-adapter-config.json"
   observer_compare_regular_files_neutral "$caddy_config" "$closure/etc/Caddyfile"
+  observer_compare_regular_files_neutral "$egress_allowlist" "$closure/etc/uap-observer-egress-allowlist.json"
   test "$(observer_sha256_regular_neutral "$closure/libexec/uap-observer-runner")" = "$runner_digest"
   test "$(observer_sha256_regular_neutral "$closure/libexec/uap-observer-fixed-adapter")" = "$adapter_digest"
+  observer_compare_regular_files_neutral "$source_root/deploy/uap-observer-egress-proxy.py" "$closure/libexec/uap-observer-egress-proxy"
   test "$(observer_sha256_regular_neutral "$closure/bin/caddy")" = "$caddy_digest"
   for name in $(observer_directory_inventory_neutral "$source_root/observer"); do
     case "$name" in *.py) ;; *) continue ;; esac
@@ -716,7 +875,7 @@ observer_validate_installed_closure_sources() {
   for unit in $observer_units; do observer_compare_regular_files_neutral "$source_root/deploy/$unit" "$closure/systemd/$unit"; done
   PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$closure/runtime" observer_run_closure_python_neutral "$closure" "$closure/venv/bin/python" -B -c 'import cryptography,jsonschema; import observer.http_server'
   PYTHONDONTWRITEBYTECODE=1 observer_run_closure_python_script_neutral "$closure" python3 -B "$closure/etc/uap-observer-adapter-config.json" "$closure/etc/uap-observer-adapters.json" "$adapter_digest" <<'PY'
-import hashlib,json,os,sys
+import hashlib,json,math,os,sys
 config_path,adapters_path,adapter_digest=sys.argv[1:]
 def read(path):
     descriptor=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NOATIME)
@@ -727,10 +886,32 @@ def read(path):
             if not block: return value
             value+=block
     finally: os.close(descriptor)
+def strict_adapter_manifest(encoded,expected):
+    def pairs(items):
+        result={}; folded=set()
+        for key,value in items:
+            normalized=key.casefold()
+            if key in result or normalized in folded:
+                raise ValueError("installed adapter registry has duplicate or case-confusable members")
+            result[key]=value; folded.add(normalized)
+        return result
+    def constant(value):
+        raise ValueError(f"installed adapter registry has a non-finite number: {value}")
+    def finite(value):
+        decoded=float(value)
+        if not math.isfinite(decoded):
+            raise ValueError(f"installed adapter registry has a non-finite number: {value}")
+        return decoded
+    value=json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
+    if (not isinstance(value,dict) or set(value)!={"schema_version","config","artifacts"}
+        or type(value.get("schema_version")) is not int or value["schema_version"]!=1
+        or value!=expected):
+        raise SystemExit("installed adapter registry differs")
+    return value
 config_digest="sha256:"+hashlib.sha256(read(config_path)).hexdigest()
 artifacts={"runtime-attestations.json":"runtime","notion-oauth-attestations.json":"notion","chatgpt-cloudflare-attestation.json":"chatgpt","consent.json":"consent"}
 expected={"schema_version":1,"config":{"path":"/opt/uap-observer-current/etc/uap-observer-adapter-config.json","sha256":config_digest},"artifacts":{artifact:{"path":f"/opt/uap-observer-current/libexec/uap-observer-adapter-{name}","sha256":"sha256:"+adapter_digest} for artifact,name in artifacts.items()}}
-if json.loads(read(adapters_path)) != expected: raise SystemExit("installed adapter registry differs")
+strict_adapter_manifest(read(adapters_path),expected)
 PY
 }
 
@@ -840,6 +1021,7 @@ apply_observer_closure_modes() {
   chown "root:$config_group" "$closure/etc/uap-observer-adapter-config.json"
   chown "root:$caddy_group" "$closure/etc/Caddyfile"
   chmod 0755 "$closure/libexec/uap-observer-runner" "$closure/libexec/uap-observer-fixed-adapter"
+  chmod 0755 "$closure/libexec/uap-observer-egress-proxy"
   for name in runtime notion chatgpt consent; do
     chmod 0755 "$closure/libexec/uap-observer-adapter-$name"
   done
@@ -847,6 +1029,8 @@ apply_observer_closure_modes() {
   test "$(stat -c '%u:%g:%a:%h' "$closure/etc/uap-observer-adapter-config.json")" = "0:$(getent group "$config_group" | cut -d: -f3):640:1"
   test "$(stat -c '%u:%g:%a:%h' "$closure/etc/Caddyfile")" = "0:$(getent group "$caddy_group" | cut -d: -f3):640:1"
   test "$(stat -c '%u:%g:%a' "$closure/etc/uap-observer-adapters.json")" = '0:0:644'
+  test "$(stat -c '%u:%g:%a' "$closure/etc/uap-observer-egress-allowlist.json")" = '0:0:644'
+  test "$(stat -c '%u:%g:%a' "$closure/libexec/uap-observer-egress-proxy")" = '0:0:755'
   test "$(stat -c '%u:%g:%a' "$closure/libexec/uap-observer-runner")" = '0:0:755'
   test -z "$(find "$closure" \( -type d -o -type f \) -perm /0022 -print -quit)"
 }
@@ -862,7 +1046,7 @@ if info!=root_before: raise PermissionError("systemd root changed while opening"
 if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
         or info.st_uid != 0 or info.st_gid != 0 or info.st_mode & 0o022):
     raise SystemExit("systemd root is unsafe")
-units=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service")
+units=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer-egress-proxy.service","uap-observer-egress-proxy.socket")
 dropins=("uap-observer.service.d","uap-observer-runner.service.d")
 allowed=set(units+dropins)
 actual={name for name in os.listdir(rootfd) if name.startswith("uap-observer")}
@@ -911,10 +1095,12 @@ observer_systemd_archive() {
   backup=$2
   live=${3:-}
   PYTHONDONTWRITEBYTECODE=1 python3 -B - "$operation" "$backup" "$live" <<'PY'
-import base64,ctypes,hashlib,json,os,secrets,stat,sys,tempfile
+import base64,ctypes,hashlib,json,math,os,secrets,stat,sys,tempfile
 
 operation,backup_path,live_path=sys.argv[1:]
-names=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer.service.d","uap-observer-runner.service.d")
+units=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer-egress-proxy.service","uap-observer-egress-proxy.socket")
+dropins=("uap-observer.service.d","uap-observer-runner.service.d")
+names=units+dropins
 dirflags=os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NOATIME
 fileflags=os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NOATIME
 libc=ctypes.CDLL(None,use_errno=True)
@@ -924,6 +1110,30 @@ libc.readlinkat.argtypes=(ctypes.c_int,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_
 CLONE_NEWNS=0x00020000; MS_RDONLY=1; MS_NOSUID=2; MS_NODEV=4; MS_NOEXEC=8
 MS_REMOUNT=32; MS_BIND=4096; MS_REC=16384; MS_PRIVATE=1<<18; MS_NOATIME=1024; MS_NODIRATIME=2048; MNT_DETACH=2
 namespace_ready=False
+def strict_json(encoded):
+    def pairs(items):
+        result={}; folded=set()
+        for key,value in items:
+            normalized=key.casefold()
+            if key in result or normalized in folded: raise PermissionError("installer recovery journal is invalid")
+            result[key]=value; folded.add(normalized)
+        return result
+    def constant(_value): raise PermissionError("installer recovery journal is invalid")
+    def finite(value):
+        decoded=float(value)
+        if not math.isfinite(decoded): raise PermissionError("installer recovery journal is invalid")
+        return decoded
+    return json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
+def journal_identity(encoded):
+    value=strict_json(encoded)
+    if (not isinstance(value,dict) or set(value)!={"version","present","records"}
+        or type(value.get("version")) is not int or value["version"]!=1
+        or not isinstance(value.get("present"),list) or not isinstance(value.get("records"),list)
+        or any(not isinstance(name,str) or name not in names for name in value["present"])
+        or len(set(value["present"]))!=len(value["present"])
+        or any(not isinstance(record,dict) for record in value["records"])):
+        raise PermissionError("installer recovery journal is invalid")
+    return value
 def call(result,label):
     if result!=0:
         error=ctypes.get_errno(); raise OSError(error,f"{label}: {os.strerror(error)}")
@@ -1091,9 +1301,9 @@ def load_archive():
     items,item_info=open_directory("items",dir_fd=backup)
     if item_info.st_uid or item_info.st_gid or stat.S_IMODE(item_info.st_mode)!=0o700: raise PermissionError("journal items are unsafe")
     manifest=read_file(backup,"manifest")
-    identity=json.loads(read_file(backup,"identity.json"))
+    identity=journal_identity(read_file(backup,"identity.json"))
     expected_manifest=b"".join((b"present " if name in identity["present"] else b"missing ")+str(index).encode()+b" "+name.encode()+b"\n" for index,name in enumerate(names))
-    if manifest!=expected_manifest or identity.get("version")!=1: raise PermissionError("installer recovery journal is invalid")
+    if manifest!=expected_manifest: raise PermissionError("installer recovery journal is invalid")
     return backup,items,identity,info,item_info
 
 if operation=="create":
@@ -1111,14 +1321,15 @@ if operation=="create":
             for index,name in enumerate(names):
                 try: entry=os.stat(name,dir_fd=live,follow_symlinks=False)
                 except FileNotFoundError: continue
-                if index<5 and not (stat.S_ISREG(entry.st_mode) or stat.S_ISLNK(entry.st_mode)): raise PermissionError("systemd unit target has unsafe type")
-                if index>=5 and not stat.S_ISDIR(entry.st_mode): raise PermissionError("systemd drop-in target has unsafe type")
-                copy(live,name,items,str(index),name,index<5); present.append(name); records.extend(scan(live,name,name,allow_link=index<5))
+                if name in units and not (stat.S_ISREG(entry.st_mode) or stat.S_ISLNK(entry.st_mode)): raise PermissionError("systemd unit target has unsafe type")
+                if name in dropins and not stat.S_ISDIR(entry.st_mode): raise PermissionError("systemd drop-in target has unsafe type")
+                allow_link=name in units
+                copy(live,name,items,str(index),name,allow_link); present.append(name); records.extend(scan(live,name,name,allow_link=allow_link))
             if os.fstat(live)!=rootinfo: raise PermissionError("systemd root changed while snapshotting")
             identity={"version":1,"present":present,"records":records}
             copied=[]
             for index,name in enumerate(names):
-                if name in present: copied.extend(scan(items,str(index),name,allow_link=index<5))
+                if name in present: copied.extend(scan(items,str(index),name,allow_link=name in units))
             if copied!=records: raise PermissionError("journal snapshot identity differs")
             encoded=json.dumps(identity,sort_keys=True,separators=(",",":")).encode()+b"\n"
             manifest=b"".join((b"present " if name in present else b"missing ")+str(index).encode()+b" "+name.encode()+b"\n" for index,name in enumerate(names))
@@ -1146,7 +1357,7 @@ elif operation in ("validate","compare","compare-stable"):
         actual=[]
         if set(os.listdir(items))!={str(names.index(name)) for name in identity["present"]}: raise PermissionError("journal inventory differs")
         for index,name in enumerate(names):
-            if name in identity["present"]: actual.extend(scan(items,str(index),name,allow_link=index<5))
+            if name in identity["present"]: actual.extend(scan(items,str(index),name,allow_link=name in units))
         if actual!=identity["records"]: raise PermissionError("journal payload differs")
         if operation in ("compare","compare-stable"):
             live,live_info=open_directory(live_path)
@@ -1161,7 +1372,7 @@ elif operation in ("validate","compare","compare-stable"):
                         if name in identity["present"]: raise PermissionError("systemd target disappeared after journaling")
                     else:
                         if name not in identity["present"]: raise PermissionError("systemd target appeared after journaling")
-                        current.extend(scan(live,name,name,allow_link=names.index(name)<5))
+                        current.extend(scan(live,name,name,allow_link=name in units))
                 if operation=="compare":
                     if current!=identity["records"]: raise PermissionError("systemd target drifted after journaling")
                 else:
@@ -1216,7 +1427,7 @@ observer_replace_systemd_entries() {
   systemd_root=$1
   shift
   PYTHONDONTWRITEBYTECODE=1 python3 -B - "$systemd_root" "$@" <<'PY'
-import base64,ctypes,errno,hashlib,json,os,secrets,signal,stat,sys,tempfile
+import base64,ctypes,errno,hashlib,json,math,os,secrets,signal,stat,sys,tempfile
 from pathlib import Path
 
 root_path=sys.argv[1]
@@ -1500,7 +1711,32 @@ expected_present=None
 expected_inventory=None
 expected_fingerprints={}
 restore_mode=bool(os.environ.get("UAP_OBSERVER_RESTORE_BACKUP"))
-journal_names=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer.service.d","uap-observer-runner.service.d")
+unit_names=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer-egress-proxy.service","uap-observer-egress-proxy.socket")
+dropin_names=("uap-observer.service.d","uap-observer-runner.service.d")
+journal_names=unit_names+dropin_names
+
+def strict_journal_identity(encoded):
+    def pairs(items):
+        result={}; folded=set()
+        for key,value in items:
+            normalized=key.casefold()
+            if key in result or normalized in folded: raise PermissionError("installer recovery journal is invalid")
+            result[key]=value; folded.add(normalized)
+        return result
+    def constant(_value): raise PermissionError("installer recovery journal is invalid")
+    def finite(value):
+        decoded=float(value)
+        if not math.isfinite(decoded): raise PermissionError("installer recovery journal is invalid")
+        return decoded
+    value=json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
+    if (not isinstance(value,dict) or set(value)!={"version","present","records"}
+        or type(value.get("version")) is not int or value["version"]!=1
+        or not isinstance(value.get("present"),list) or not isinstance(value.get("records"),list)
+        or any(not isinstance(name,str) or name not in journal_names for name in value["present"])
+        or len(set(value["present"]))!=len(value["present"])
+        or any(not isinstance(record,dict) for record in value["records"])):
+        raise PermissionError("installer recovery journal is invalid")
+    return value
 
 def observer_inventory() -> set[str]:
     return {name for name in os.listdir(rootfd) if name.startswith("uap-observer")}
@@ -1545,7 +1781,7 @@ def journal_precondition() -> None:
                 block=os.read(control,1<<20)
                 if not block: break
                 encoded+=block
-            identity=json.loads(encoded)
+            identity=strict_journal_identity(encoded)
         finally: os.close(control)
     finally: os.close(backup)
     expected=identity["records"]
@@ -1561,9 +1797,9 @@ def journal_precondition() -> None:
         # value, or be absent after a durable displacement.  Bind the exact
         # current fingerprint now and require it at every following mutation;
         # the complete journal remains the sole authority for the end state.
-        for index,name in enumerate(journal_names):
+        for name in journal_names:
             if name in actual:
-                expected_fingerprints[name]=fingerprint(rootfd,name,allow_link=index<5)
+                expected_fingerprints[name]=fingerprint(rootfd,name,allow_link=name in unit_names)
         expected_present=set(actual)
         expected_inventory=set(actual)
         require_inventory(expected_inventory,"journal-backed restore")
@@ -1613,13 +1849,13 @@ def journal_precondition() -> None:
             finally: os.close(pinned)
         else: raise PermissionError("systemd topology changed before replacement")
         output.append(record)
-    for index,name in enumerate(names):
+    for name in names:
         try: os.stat(name,dir_fd=rootfd,follow_symlinks=False)
         except FileNotFoundError:
             if name in present: raise PermissionError("systemd target disappeared before replacement")
         else:
             if name not in present: raise PermissionError("systemd target appeared before replacement")
-            visit(rootfd,name,name,index<5)
+            visit(rootfd,name,name,name in unit_names)
     if records!=expected: raise PermissionError("systemd target drifted immediately before replacement")
     expected_present=present
     expected_inventory=set(present)
@@ -1630,7 +1866,7 @@ def journal_precondition() -> None:
 
 def validate_capture(name: str, displaced: str) -> None:
     captured=[]
-    capture_visit(rootfd,displaced,name,journal_names.index(name)<5,captured)
+    capture_visit(rootfd,displaced,name,name in unit_names,captured)
     if captured!=expected_records[name]:
         raise PermissionError("systemd destination raced after validation")
 
@@ -2159,7 +2395,11 @@ activate_observer_systemd() {
   UAP_OBSERVER_COMPARE_BACKUP=$backup \
     UAP_OBSERVER_REPLACE_ENTRY_FAIL_AT=${UAP_OBSERVER_INSTALL_FAIL_AT:-} \
     observer_replace_systemd_entries "$@" || return 1
-  observer_install_step=7
+  # Keep the outer transaction checkpoint aligned with the exact replacement
+  # inventory (seven units plus two drop-in directories).
+  observer_install_step=0
+  for unit in $observer_units; do observer_install_step=$((observer_install_step + 1)); done
+  for service in uap-observer uap-observer-runner; do observer_install_step=$((observer_install_step + 1)); done
   validate_observer_systemd_inventory "$staged" "$systemd_root"
 }
 
@@ -2176,7 +2416,7 @@ validate_observer_systemd_inventory() {
 observer_compare_systemd_trees() {
   PYTHONDONTWRITEBYTECODE=1 python3 -B - "$1" "$2" <<'PY'
 import ctypes,os,signal,stat,sys,tempfile
-names=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer.service.d","uap-observer-runner.service.d")
+names=("uap-observer.service","uap-observer-signer.service","uap-observer-runner.service","uap-observer-runner.socket","uap-observer-caddy.service","uap-observer-egress-proxy.service","uap-observer-egress-proxy.socket","uap-observer.service.d","uap-observer-runner.service.d")
 dirflags=os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NOATIME
 fileflags=os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NOATIME
 libc=ctypes.CDLL(None,use_errno=True)
@@ -2186,6 +2426,10 @@ libc.readlinkat.argtypes=(ctypes.c_int,ctypes.c_char_p,ctypes.c_void_p,ctypes.c_
 CLONE_NEWNS=0x00020000; MS_RDONLY=1; MS_NOSUID=2; MS_NODEV=4; MS_NOEXEC=8
 MS_REMOUNT=32; MS_BIND=4096; MS_REC=16384; MS_PRIVATE=1<<18; MS_NOATIME=1024; MS_NODIRATIME=2048; MNT_DETACH=2
 namespace_ready=False
+systemd_compare_ready_fd=os.environ.get("UAP_OBSERVER_TEST_SYSTEMD_COMPARE_READY_FD")
+systemd_compare_resume_fd=os.environ.get("UAP_OBSERVER_TEST_SYSTEMD_COMPARE_RESUME_FD")
+if (systemd_compare_ready_fd is None)!=(systemd_compare_resume_fd is None):
+    raise RuntimeError("incomplete systemd comparison test synchronization")
 def metadata(info):
     # Access time is deliberately not a cross-tree authority.  A successful
     # daemon-reload may legitimately read the live unit after installation,
@@ -2202,9 +2446,10 @@ def attributes(parent,name,info,descriptor=None):
     follow=not stat.S_ISLNK(info.st_mode)
     return {key:os.getxattr(target,key,follow_symlinks=follow) for key in os.listxattr(target,follow_symlinks=follow)}
 def race_point(name):
-    ready=os.environ.get("UAP_OBSERVER_TEST_SYSTEMD_COMPARE_READY_FD")
-    if ready and name==os.environ.get("UAP_OBSERVER_TEST_SYSTEMD_COMPARE_NAME"):
-        os.write(int(ready),b"1"); os.kill(os.getpid(),signal.SIGSTOP)
+    if systemd_compare_ready_fd is not None and name==os.environ.get("UAP_OBSERVER_TEST_SYSTEMD_COMPARE_NAME"):
+        os.write(int(systemd_compare_ready_fd),b"1")
+        if os.read(int(systemd_compare_resume_fd),1)!=b"1":
+            raise RuntimeError("systemd comparison test synchronization closed")
 def link(parent,name,info):
     global namespace_ready
     if not namespace_ready:

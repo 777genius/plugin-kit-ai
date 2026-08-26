@@ -1,0 +1,10 @@
+[Unit]
+Description=UAP observer HTTPS CONNECT gateway socket
+
+[Socket]
+ListenStream=127.0.0.2:8766
+Accept=no
+Backlog=32
+
+[Install]
+WantedBy=sockets.target

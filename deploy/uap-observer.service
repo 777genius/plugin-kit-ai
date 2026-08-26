@@ -1,7 +1,7 @@
 [Unit]
 Description=UAP protected stable-launch observer
-After=network-online.target uap-observer-signer.service uap-observer-runner.socket
-Requires=uap-observer-signer.service uap-observer-runner.socket
+After=network-online.target uap-observer-egress-proxy.socket uap-observer-signer.service uap-observer-runner.socket
+Requires=uap-observer-egress-proxy.socket uap-observer-signer.service uap-observer-runner.socket
 
 [Service]
 Type=simple
@@ -12,6 +12,12 @@ SupplementaryGroups=uap-observer-signer-ipc uap-observer-runner-ipc
 ExecStart=/opt/uap-observer-current/venv/bin/python -m observer.http_server --config /opt/uap-observer-current/etc/uap-observer.json
 WorkingDirectory=/opt/uap-observer-current/runtime
 Environment=PYTHONPATH=/opt/uap-observer-current/runtime
+Environment=HTTPS_PROXY=http://127.0.0.2:8766
+Environment=https_proxy=http://127.0.0.2:8766
+Environment=HTTP_PROXY=http://127.0.0.2:8766
+Environment=http_proxy=http://127.0.0.2:8766
+Environment=NO_PROXY=
+Environment=no_proxy=
 Restart=on-failure
 NoNewPrivileges=yes
 PrivateDevices=yes
@@ -32,7 +38,6 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 InaccessiblePaths=-/var/run/docker.sock -/run/docker.sock
 ReadWritePaths=/var/lib/uap-observer/state
 ReadOnlyPaths=/opt/uap-observer-current
-BindReadOnlyPaths=/opt/uap-observer-current/etc/hosts:/etc/hosts
 UMask=0077
 
 [Install]

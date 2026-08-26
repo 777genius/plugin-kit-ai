@@ -13,7 +13,7 @@
   "signer_socket": "/run/uap-observer-signer/sign.sock",
   "runner_socket": "/run/uap-observer-runner.sock",
   "runner_source_path": "/opt/uap-observer-current/libexec/uap-observer-runner",
-  "runner_source_digest": "sha256:84047e65bd98291eec5cb18777e51d209e5b1767808ab42529a4af7bed8754bb",
+  "runner_source_digest": "sha256:8a791b21d3c13cbb858e8a043a3fefe0c593dba0d6c0522fe5e9df1aa55a815a",
   "runner_user": "root",
   "runner_timeout_seconds": 840,
   "policies": [
@@ -27,7 +27,7 @@
       "workflow_ref": "777genius/universal-agent-plugins/.github/workflows/directory-publication.yml@refs/heads/main",
       "job_workflow_ref": "777genius/universal-agent-plugins/.github/workflows/launch-evidence-e2e.yml@refs/heads/main",
       "workflow": "Signed Directory publication",
-      "event_names": ["push", "workflow_dispatch"],
+      "event_names": ["push", "schedule", "workflow_dispatch"],
       "job_name_suffix": "protected-observer-inputs"
     }
   ]

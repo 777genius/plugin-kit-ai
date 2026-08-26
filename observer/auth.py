@@ -24,6 +24,7 @@ from .config import Config, IdentityPolicy
 HEX40 = re.compile(r"^[a-f0-9]{40}$")
 DIGITS = re.compile(r"^[1-9][0-9]*$")
 JTI = re.compile(r"^[A-Za-z0-9._:-]{8,200}$")
+FIXED_HTTPS_PROXY = "http://127.0.0.2:8766"
 
 
 class AuthenticationError(ValueError):
@@ -40,12 +41,17 @@ def _b64url(value: str) -> bytes:
 
 
 class JsonFetcher:
+    def __init__(self) -> None:
+        self._opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({"https": FIXED_HTTPS_PROXY})
+        )
+
     def __call__(self, url: str) -> Any:
         request = urllib.request.Request(
             url,
             headers={"Accept": "application/vnd.github+json", "User-Agent": "uap-stable-launch-observer/1"},
         )
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with self._opener.open(request, timeout=10) as response:
             if response.status != 200 or response.geturl() != url:
                 raise AuthenticationError("GitHub identity corroboration failed")
             data = response.read((2 << 20) + 1)

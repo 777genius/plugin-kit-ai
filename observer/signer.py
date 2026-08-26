@@ -71,7 +71,7 @@ class SocketSigner:
         except (ValueError, UnicodeError):
             raise ValueError("cached observer response is invalid") from None
         required = {"schema_version", "challenge", "signed_at", "key_id", "artifacts", "signature"}
-        if not isinstance(bundle, dict) or set(bundle) != required or bundle.get("schema_version") != 1:
+        if not isinstance(bundle, dict) or set(bundle) != required or type(bundle.get("schema_version")) is not int or bundle.get("schema_version") != 1:
             raise ValueError("cached observer response is not canonical")
         if canonical_json(bundle) != encoded or bundle.get("challenge") != challenge or bundle.get("key_id") != self.key_id:
             raise ValueError("cached observer response identity is invalid")

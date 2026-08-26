@@ -7,6 +7,7 @@ import argparse
 import grp
 import hashlib
 import json
+import math
 import os
 import pwd
 import re
@@ -54,6 +55,7 @@ FIXED_ENTRYPOINTS = {
 
 SERVICE_ROLES = {
     "caddy": ("caddy", "caddy", "/var/lib/caddy", ()),
+    "egress": ("uap-observer-egress", "uap-observer-egress", "/nonexistent", ()),
     "observer": (
         "uap-observer", "uap-observer", "/nonexistent",
         ("uap-observer-signer-ipc", "uap-observer-runner-ipc"),
@@ -67,6 +69,32 @@ SERVICE_ROLES = {
         for identity in ("codex", "cursor", "kiro", "control")
     },
 }
+
+
+def strict_json_loads(encoded: bytes | str) -> Any:
+    """Apply the observer's fail-closed JSON evidence decoding policy."""
+    def object_from_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        value: dict[str, Any] = {}
+        folded: set[str] = set()
+        for key, child in pairs:
+            normalized = key.casefold()
+            if key in value or normalized in folded:
+                raise ValueError("duplicate or case-confusable JSON object member")
+            value[key] = child
+            folded.add(normalized)
+        return value
+
+    def reject_constant(value: str) -> Any:
+        raise ValueError(f"non-finite JSON number: {value}")
+
+    def finite_float(value: str) -> float:
+        decoded = float(value)
+        if not math.isfinite(decoded):
+            raise ValueError(f"non-finite JSON number: {value}")
+        return decoded
+
+    return json.loads(encoded, object_pairs_hook=object_from_pairs,
+                      parse_constant=reject_constant, parse_float=finite_float)
 
 
 def reviewed_service_identities() -> dict[str, tuple[int, int, frozenset[int]]]:
@@ -208,17 +236,18 @@ def validate_adapter_input_access(
     """Validate immutable inputs and prove each adapter identity can access them."""
     identities = identities or reviewed_service_identities()
     adapters = {name: identities[name] for name in ("codex", "cursor", "kiro", "control")}
-    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config = strict_json_loads(config_path.read_text(encoding="utf-8"))
     config_gid = grp.getgrnam("uap-observer-adapter-config").gr_gid
     expected_files = {
         Path(config["git"]["binary"]): config["git"]["sha256"],
         **{Path(item["binary"]): item["sha256"] for item in config["clients"].values()},
+        Path(config["clients"]["kiro"]["companion_binary"]): config["clients"]["kiro"]["companion_sha256"],
         Path(config["chatgpt"]["app_binding_path"]): config["chatgpt"]["app_binding_sha256"],
         Path(config["chatgpt"]["projection_receipt_path"]): config["chatgpt"]["projection_receipt_sha256"],
         Path(config["external_pr_evidence"]["path"]): config["external_pr_evidence"]["sha256"],
     }
     literal = (
-        {protected_root / "bin" / name for name in ("git", "codex", "cursor", "kiro")}
+        {protected_root / "bin" / name for name in ("git", "codex", "cursor", "kiro", "kiro-cli-chat")}
         | {protected_root / "chatgpt" / name for name in ("app-binding.json", "projection-receipt.json")}
         | {protected_root / "external-pr-evidence.json"}
     )
@@ -344,6 +373,79 @@ def write_new_owned(path: Path, value: bytes, *, uid: int | None = None, gid: in
         os.close(parent_fd)
 
 
+def revalidate_client_proofs(
+    config_path: Path, config_digest: str, client: str, uid: int, gid: int,
+) -> None:
+    """Revalidate sealed proof and native bytes after the job cgroup is empty."""
+    encoded_config = read_owned_regular(config_path, 4 << 20, owner_uid=0, exact_mode=0o640)
+    if "sha256:" + hashlib.sha256(encoded_config).hexdigest() != config_digest:
+        raise ValueError("adapter config changed during client observation")
+    config = strict_json_loads(encoded_config)
+    item = config.get("clients", {}).get(client)
+    if not isinstance(item, dict):
+        raise ValueError("adapter client proof config is absent")
+    profile = Path(str(item.get("profile", "")))
+    projection_item = item.get("native_projection")
+    if not isinstance(projection_item, dict) or set(projection_item) != {"path", "sha256"}:
+        raise ValueError("adapter client projection config differs")
+    projection_path = Path(str(projection_item["path"]))
+    projection_body = read_owned_regular(
+        projection_path, 4 << 20, owner_uid=0, exact_mode=0o440, group_gid=gid,
+    )
+    if "sha256:" + hashlib.sha256(projection_body).hexdigest() != projection_item["sha256"]:
+        raise ValueError("sealed client projection changed after observation")
+    receipt = read_owned_regular(
+        projection_path.with_name("receipts.json"), 4 << 20,
+        owner_uid=0, exact_mode=0o440, group_gid=gid,
+    )
+    receipt_value = strict_json_loads(receipt)
+    if not isinstance(receipt_value, dict) or set(receipt_value) != {"schema_version", "receipts"} or type(receipt_value.get("schema_version")) is not int or receipt_value.get("schema_version") != 1:
+        raise ValueError("sealed client receipt differs after observation")
+    projection = strict_json_loads(projection_body)
+    if (
+        not isinstance(projection, dict)
+        or set(projection) != {"schema_version", "client_id", "entries"}
+        or type(projection.get("schema_version")) is not int
+        or projection.get("schema_version") != 1
+    ):
+        raise ValueError("sealed client projection schema differs")
+    entries = projection["entries"]
+    if not isinstance(entries, list) or projection.get("client_id") != client:
+        raise ValueError("sealed client projection identity differs")
+    receipts = receipt_value["receipts"]
+    evidence_fields = {"manager_add_sha256", "manager_info_sha256", "post_add_doctor_sha256"}
+    if (
+        not isinstance(receipts, list) or len(receipts) != len(entries)
+        or any(not isinstance(record, dict) or set(record) != {"name", "tuple", *evidence_fields} for record in receipts)
+        or len({record["name"] for record in receipts}) != len(receipts)
+    ):
+        raise ValueError("sealed manager evidence receipt differs")
+    receipts_by_name = {record["name"]: record for record in receipts}
+    for entry in entries:
+        record = receipts_by_name.get(entry.get("plugin")) if isinstance(entry, dict) else None
+        if (
+            record is None or entry.get("tuple") != record.get("tuple")
+            or any(
+                entry.get(field) != record.get(field)
+                or re.fullmatch(r"sha256:[a-f0-9]{64}", str(entry.get(field, ""))) is None
+                for field in evidence_fields
+            )
+        ):
+            raise ValueError("sealed manager evidence binding differs")
+        native = entry.get("native_config") if isinstance(entry, dict) else None
+        client_native = entry.get("client_config") if isinstance(entry, dict) else None
+        if not isinstance(native, dict) or set(native) != {"path", "sha256"} or not isinstance(client_native, dict) or set(client_native) != {"path", "sha256"} or native["sha256"] != client_native["sha256"]:
+            raise ValueError("sealed native config proof differs")
+        proof_native_path = Path(str(native["path"]))
+        proof_body = read_owned_regular(proof_native_path, 4 << 20, owner_uid=0, exact_mode=0o440, group_gid=gid)
+        native_path = Path(str(client_native["path"]))
+        if not native_path.is_absolute() or profile not in native_path.parents:
+            raise ValueError("sealed active native config path escapes its profile")
+        body = read_owned_regular(native_path, 4 << 20, owner_uid=0, exact_mode=0o440, group_gid=gid)
+        if body != proof_body or "sha256:" + hashlib.sha256(body).hexdigest() != native["sha256"]:
+            raise ValueError("native config changed after all client processes terminated")
+
+
 def kill_process_group(
     process: subprocess.Popen[bytes], *, wait_seconds: float = KILL_WAIT_SECONDS,
     fatal: Any = os._exit,
@@ -405,6 +507,27 @@ def destroy_job_cgroup(
     except OSError:
         # Once cgroup.events proves the group empty, removal is advisory.
         pass
+
+
+def finalize_client_job(
+    job_cgroup: Path | None, revalidate: Any | None, primary_error: BaseException | None,
+) -> None:
+    """Empty the job cgroup, then fail closed on descriptor-bound proof drift."""
+    cleanup_error: BaseException | None = None
+    try:
+        if job_cgroup is not None:
+            destroy_job_cgroup(job_cgroup)
+    except BaseException as error:
+        cleanup_error = error
+    try:
+        if revalidate is not None:
+            revalidate()
+    except BaseException as revalidation_error:
+        if primary_error is not None or cleanup_error is not None:
+            raise ValueError("client proof revalidation failed after adapter termination") from (primary_error or cleanup_error)
+        raise revalidation_error
+    if cleanup_error is not None:
+        raise cleanup_error
 
 
 def transition_record(root: Path, challenge: str, action: str) -> None:
@@ -525,6 +648,7 @@ class ReviewedRunner:
                     if remaining <= 0:
                         raise TimeoutError("reviewed adapters exceeded total deadline")
                     job_cgroup = delegated_job_cgroup() if self.protected else None
+                    primary_error: BaseException | None = None
                     try:
                         def contain_and_drop_privileges() -> None:
                             if job_cgroup is not None:
@@ -553,17 +677,24 @@ class ReviewedRunner:
                             raise TimeoutError("reviewed adapter exceeded deadline") from None
                         finally:
                             kill_process_group(process)
+                        if return_code != 0:
+                            raise ValueError("reviewed adapter failed")
+                    except BaseException as error:
+                        primary_error = error
+                        raise
                     finally:
-                        if job_cgroup is not None:
-                            destroy_job_cgroup(job_cgroup)
-                    if return_code != 0:
-                        raise ValueError("reviewed adapter failed")
-                    partials.append(json.loads(read_owned_regular(output, MAX_ADAPTER_OUTPUT, owner_uid=uid)))
+                        revalidate = None
+                        if self.protected and identity in {"codex", "cursor", "kiro"}:
+                            revalidate = lambda: revalidate_client_proofs(
+                                adapter.config, adapter.config_digest, identity, uid, gid,
+                            )
+                        finalize_client_job(job_cgroup, revalidate, primary_error)
+                    partials.append(strict_json_loads(read_owned_regular(output, MAX_ADAPTER_OUTPUT, owner_uid=uid)))
                 if len(partials) == 1:
                     artifacts[adapter.artifact] = partials[0]
                 else:
                     allowed_partial_fields = {"schema_version", "attestations", "external_pr_evidence"}
-                    if not all(isinstance(partial, dict) and set(partial).issubset(allowed_partial_fields) and {"schema_version", "attestations"}.issubset(partial) and partial["schema_version"] == 1 and isinstance(partial["attestations"], list) for partial in partials):
+                    if not all(isinstance(partial, dict) and set(partial).issubset(allowed_partial_fields) and {"schema_version", "attestations"}.issubset(partial) and type(partial["schema_version"]) is int and partial["schema_version"] == 1 and isinstance(partial["attestations"], list) for partial in partials):
                         raise ValueError("split adapter artifact is not canonical")
                     merged = {"schema_version": 1, "attestations": [record for partial in partials for record in partial["attestations"]]}
                     external_values = [partial.get("external_pr_evidence") for partial in partials]
@@ -606,7 +737,7 @@ def handle(stream: socket.socket, runner: ReviewedRunner, allowed_uid: int) -> N
         length = struct.unpack("!I", read_exact(stream, 4))[0]
         if not 1 <= length <= MAX_MESSAGE:
             raise ValueError("runner request length is invalid")
-        request = json.loads(read_exact(stream, length))
+        request = strict_json_loads(read_exact(stream, length))
         if isinstance(request, dict) and request.get("operation") == "execute" and set(request) == {"operation", "context"}:
             response = canonical_json({"artifacts": runner.execute(request["context"])})
         elif isinstance(request, dict) and request.get("operation") in {"commit", "rollback"} and set(request) == {"operation", "challenge"}:
@@ -632,8 +763,8 @@ def serve(listener: socket.socket, runner: ReviewedRunner, allowed_uid: int, *, 
 
 
 def load_adapters(path: Path, *, adapter_gid: int | None = None, enforce_fixed: bool = False) -> tuple[Adapter, ...]:
-    value = json.loads(read_owned_regular(path, 64 << 10, owner_uid=0))
-    if not isinstance(value, dict) or set(value) != {"schema_version", "config", "artifacts"} or value.get("schema_version") != 1:
+    value = strict_json_loads(read_owned_regular(path, 64 << 10, owner_uid=0))
+    if not isinstance(value, dict) or set(value) != {"schema_version", "config", "artifacts"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1:
         raise ValueError("adapter manifest is not canonical")
     config_item, artifact_items = value["config"], value["artifacts"]
     if not isinstance(config_item, dict) or set(config_item) != {"path", "sha256"} or not isinstance(artifact_items, dict) or set(artifact_items) != ARTIFACT_NAMES:

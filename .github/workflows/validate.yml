@@ -81,6 +81,8 @@ jobs:
             python3 /tmp/openai-validate-plugin.py "$plugin"
           done
       - run: python3 -m unittest discover -s tests
+      - name: Run portable observer tests
+        run: python3 -m unittest observer.tests.portable
 
   agentplugins-chatgpt-catalog-v2:
     runs-on: ubuntu-latest

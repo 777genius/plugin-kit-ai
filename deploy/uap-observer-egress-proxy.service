@@ -1,0 +1,43 @@
+[Unit]
+Description=UAP observer HTTPS CONNECT allowlist gateway
+Requires=uap-observer-egress-proxy.socket
+After=network-online.target uap-observer-egress-proxy.socket
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/test -f /opt/uap-observer-current/.complete
+User=uap-observer-egress
+Group=uap-observer-egress
+ExecStart=/usr/bin/python3 -B /opt/uap-observer-current/libexec/uap-observer-egress-proxy --config /opt/uap-observer-current/etc/uap-observer-egress-allowlist.json --socket-fd 3
+Restart=on-failure
+StandardOutput=null
+StandardError=journal
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictRealtime=yes
+RemoveIPC=yes
+TasksMax=40
+MemoryMax=128M
+LimitNOFILE=128
+ReadOnlyPaths=/opt/uap-observer-current
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
