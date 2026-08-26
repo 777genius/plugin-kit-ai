@@ -218,6 +218,12 @@ func runLinuxOrdinarySupervisor() int {
 	specFile := os.NewFile(3, "plugin-kit-ai-command")
 	request := os.NewFile(4, "plugin-kit-ai-command-cleanup")
 	status := os.NewFile(5, "plugin-kit-ai-command-status")
+	// ExtraFiles deliberately clears CLOEXEC while launching this supervisor.
+	// Restore it before starting the supervised command: descriptors 3-5 are
+	// supervisor authority and must never be available to the command itself.
+	for _, fd := range []int{3, 4, 5} {
+		unix.CloseOnExec(fd)
+	}
 	result := linuxOrdinarySupervisorResult{}
 	writeResult := func() {
 		_ = json.NewEncoder(status).Encode(result)
@@ -246,14 +252,16 @@ func runLinuxOrdinarySupervisor() int {
 		writeResult()
 		return 125
 	}
-	waited := make(chan error, 1)
-	go func() { waited <- child.Wait() }()
 	requested := make(chan struct{}, 1)
 	go func() {
 		_, _ = io.Copy(io.Discard, request)
 		requested <- struct{}{}
 	}()
-	waitErr, cleanupErr, forced := superviseLinuxOrdinaryChildren(child.Process.Pid, waited, requested, spec.Grace)
+	cleanupErr, forced := superviseLinuxOrdinaryChildren(child.Process.Pid, requested, spec.Grace)
+	// Wait only after supervision has stopped using the leader as the stable
+	// process-group anchor. Until this sole reap, its numeric PID/PGID cannot be
+	// recycled, so no group signal can target an unrelated process.
+	waitErr := child.Wait()
 	result.Forced = forced
 	if cleanupErr != nil {
 		result.Error = cleanupErr.Error()
@@ -274,61 +282,87 @@ func runLinuxOrdinarySupervisor() int {
 	return 125
 }
 
-func superviseLinuxOrdinaryChildren(leaderPID int, waited <-chan error, requested <-chan struct{}, grace time.Duration) (error, error, bool) {
-	var waitErr error
+func superviseLinuxOrdinaryChildren(leaderPID int, requested <-chan struct{}, grace time.Duration) (error, bool) {
 	waitComplete := false
 	forced := false
-	select {
-	case waitErr = <-waited:
-		waitComplete = true
-	case <-requested:
-		forced = true
-	}
-	deadline := time.Now().Add(grace)
-	if forced {
-		deadline = time.Now().Add(processReapTimeout)
-	}
+	var deadline time.Time
 	var cleanupErr error
+	emptyBoundary := linuxQuiescentBoundary{required: 3}
+	groupSignaled := false
 	for {
 		live, inspectErr := linuxSupervisorLiveDescendants(os.Getpid())
-		cleanupErr = errors.Join(cleanupErr, inspectErr)
-		waitObservedThisPass := false
 		if !waitComplete {
-			select {
-			case waitErr = <-waited:
+			var info unix.Siginfo
+			if err := unix.Waitid(unix.P_PID, leaderPID, &info, unix.WEXITED|unix.WNOWAIT|unix.WNOHANG, nil); err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("observe supervised command exit: %w", err))
+			} else if info.Signo != 0 {
 				waitComplete = true
-				waitObservedThisPass = true
-			default:
+				deadline = time.Now().Add(grace)
 			}
 		}
 		select {
 		case <-requested:
-			forced = true
-			deadline = time.Now().Add(processReapTimeout)
+			if !forced {
+				forced = true
+				deadline = time.Now().Add(processReapTimeout)
+			}
 		default:
 		}
-		if forced || (live > 0 && time.Now().After(deadline)) {
+		if waitComplete && live > 0 && !deadline.IsZero() && time.Now().After(deadline) && !forced {
 			forced = true
-			if err := syscall.Kill(-leaderPID, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
-				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("terminate supervised command group: %w", err))
+			deadline = time.Now().Add(processReapTimeout)
+		}
+		if forced {
+			// The leader is deliberately unreaped here. Signal its numeric group at
+			// most once and only while that stable anchor is still controllably
+			// live; after natural exit, cleanup uses pidfd-bound descendants only.
+			if !groupSignaled {
+				groupSignaled = true
+				if err := signalOwnedLinuxProcessGroup(leaderPID, waitComplete, syscall.Kill); err != nil && !errors.Is(err, syscall.ESRCH) {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("terminate supervised command group: %w", err))
+				}
 			}
 			cleanupErr = errors.Join(cleanupErr, killLinuxSupervisorDescendants(os.Getpid()))
 		}
-		if live == 0 && waitComplete && !waitObservedThisPass {
-			return waitErr, cleanupErr, forced
+		// A single non-atomic procfs traversal can race a fork/reparent. Require
+		// three error-free, time-separated empty snapshots after leader exit.
+		if emptyBoundary.observe(waitComplete && live == 0, inspectErr) {
+			return cleanupErr, forced
+		} else {
+			if inspectErr != nil {
+				cleanupErr = errors.Join(cleanupErr, inspectErr)
+			}
 		}
-		if waitObservedThisPass {
-			// The descendant snapshot preceded Wait. Reaping the leader can
-			// reparent a detached child to this subreaper, so that snapshot is
-			// not evidence that the isolated boundary is empty. Rescan only
-			// after Wait's reparenting side effects are observable.
-			continue
-		}
-		if time.Now().After(deadline) && forced {
-			return waitErr, errors.Join(cleanupErr, fmt.Errorf("isolated ordinary-command supervisor did not empty before cleanup deadline")), forced
+		if forced && !deadline.IsZero() && time.Now().After(deadline) {
+			return errors.Join(cleanupErr, fmt.Errorf("isolated ordinary-command supervisor did not empty before cleanup deadline")), forced
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+// signalOwnedLinuxProcessGroup prohibits numeric PGID signaling once leader
+// exit has been observed. The leader remains unreaped throughout supervision,
+// but an exited leader no longer proves that its process group is the intended
+// live ownership boundary; detached members are handled through stable pidfds.
+func signalOwnedLinuxProcessGroup(leaderPID int, leaderExited bool, signal func(int, syscall.Signal) error) error {
+	if leaderExited {
+		return nil
+	}
+	return signal(-leaderPID, syscall.SIGKILL)
+}
+
+type linuxQuiescentBoundary struct {
+	required int
+	passes   int
+}
+
+func (boundary *linuxQuiescentBoundary) observe(empty bool, scanErr error) bool {
+	if !empty || scanErr != nil {
+		boundary.passes = 0
+		return false
+	}
+	boundary.passes++
+	return boundary.passes >= boundary.required
 }
 
 func linuxSupervisorLiveDescendants(root int) (int, error) {
@@ -681,7 +715,18 @@ func (containment *commandContainment) readSupervisorResult() error {
 		return nil
 	}
 	containment.supervisorRead = true
-	err := json.NewDecoder(containment.supervisorStatus).Decode(&containment.supervisorResult)
+	decoder := json.NewDecoder(containment.supervisorStatus)
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&containment.supervisorResult)
+	if err == nil {
+		var trailing any
+		if trailingErr := decoder.Decode(&trailing); !errors.Is(trailingErr, io.EOF) {
+			if trailingErr == nil {
+				trailingErr = fmt.Errorf("additional JSON value")
+			}
+			err = fmt.Errorf("isolated ordinary-command supervisor returned trailing status data: %w", trailingErr)
+		}
+	}
 	closeErr := containment.supervisorStatus.Close()
 	containment.supervisorStatus = nil
 	if errors.Is(err, io.EOF) {

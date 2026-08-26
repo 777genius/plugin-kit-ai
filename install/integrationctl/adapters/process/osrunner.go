@@ -609,16 +609,17 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	// first, then give the sole reaper durable ownership while bounding caller
 	// return; no second Wait or Process.Release may abandon a future zombie.
 	waitErr := closeContainmentAndWait(closeContainment, c.Wait, processReapTimeout)
+	capturedResult, capturedErr := finishExplicitCommand(termination.err, waitErr, stdout.Bytes(), stderr.Bytes())
 	if supervisionErr != nil {
-		return ports.CommandResult{}, withDuplexDiagnostic(errors.Join(supervisionErr, termination.err, waitErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(supervisionErr, capturedErr), stderr.Bytes())
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return ports.CommandResult{}, withDuplexDiagnostic(errors.Join(ctxErr, termination.err, waitErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(ctxErr, capturedErr), stderr.Bytes())
 	}
 	if termination.forcedMembers {
-		return ports.CommandResult{}, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), termination.err, waitErr), stderr.Bytes())
+		return capturedResult, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), capturedErr), stderr.Bytes())
 	}
-	return finishExplicitCommand(termination.err, waitErr, stdout.Bytes(), stderr.Bytes())
+	return capturedResult, capturedErr
 }
 
 func finishExplicitCommand(terminationErr, waitErr error, stdout, stderr []byte) (ports.CommandResult, error) {
@@ -638,12 +639,13 @@ func finishExplicitCommand(terminationErr, waitErr error, stdout, stderr []byte)
 		}
 	}
 	if terminationErr != nil {
-		return ports.CommandResult{}, withDuplexDiagnostic(joinCleanupAndWaitError("terminate supervised process", terminationErr, waitErr), stderr)
+		result := ports.CommandResult{ExitCode: 0, Stdout: stdout, Stderr: stderr}
+		return result, withDuplexDiagnostic(joinCleanupAndWaitError("terminate supervised process", terminationErr, waitErr), stderr)
 	}
 	if waitErr != nil {
 		return ports.CommandResult{}, waitErr
 	}
-	return ports.CommandResult{ExitCode: 0, Stdout: stdout}, nil
+	return ports.CommandResult{ExitCode: 0, Stdout: stdout, Stderr: stderr}, nil
 }
 
 func joinCleanupAndWaitError(operation string, cleanupErr, waitErr error) error {

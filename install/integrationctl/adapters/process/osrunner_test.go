@@ -295,6 +295,17 @@ func TestExplicitCleanupFailurePreservesNaturalNonzeroResultAndStderr(t *testing
 	}
 }
 
+func TestExplicitCleanupFailurePreservesNaturalZeroResultAndDiagnostics(t *testing.T) {
+	cleanupErr := errors.New("supervisor status cleanup failed")
+	result, err := finishExplicitCommand(cleanupErr, nil, []byte("zero-exit output"), []byte("zero-exit diagnostic"))
+	if result.ExitCode != 0 || string(result.Stdout) != "zero-exit output" || string(result.Stderr) != "zero-exit diagnostic" {
+		t.Fatalf("command result = %+v, want captured zero-exit stdout/stderr", result)
+	}
+	if !errors.Is(err, cleanupErr) || !strings.Contains(err.Error(), "zero-exit diagnostic") {
+		t.Fatalf("command error = %v, want cleanup failure and structured diagnostic", err)
+	}
+}
+
 func TestAttachFailureClosesContainmentBeforeStartingWait(t *testing.T) {
 	closed := false
 	err := cleanupAttachFailure(errors.New("attach failed"), func() terminationResult {

@@ -197,6 +197,57 @@ func TestOrdinaryRunWorksWhenDelegatedCgroupIsUnavailable(t *testing.T) {
 	}
 }
 
+func TestOrdinarySupervisorDescriptorsAreClosedBeforeCommandExec(t *testing.T) {
+	result, err := (OS{}).Run(context.Background(), ports.Command{
+		Argv: []string{"/bin/sh", "-c", `if printf '{"Forced":false}\n' 2>/dev/null >&5; then exit 97; fi; printf supervisor-fds-closed`},
+	})
+	if err != nil || result.ExitCode != 0 || string(result.Stdout) != "supervisor-fds-closed" {
+		t.Fatalf("supervised descriptor isolation result = %+v error = %v", result, err)
+	}
+}
+
+func TestSupervisorStatusRequiresOneAuthoritativeRecordAndEOF(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(writer, "{\"Forced\":false}\n{\"Forced\":true}\n"); err != nil {
+		t.Fatal(err)
+	}
+	_ = writer.Close()
+	containment := &commandContainment{supervisorStatus: reader}
+	if err := containment.readSupervisorResult(); err == nil || !strings.Contains(err.Error(), "trailing status data") {
+		t.Fatalf("forged multi-record supervisor status error = %v", err)
+	}
+}
+
+func TestExitedLeaderCannotAuthorizeNumericProcessGroupSignal(t *testing.T) {
+	called := false
+	err := signalOwnedLinuxProcessGroup(1234, true, func(int, syscall.Signal) error {
+		called = true
+		return nil
+	})
+	if err != nil || called {
+		t.Fatalf("signal after leader exit = (%v, called %v), want no numeric PGID signal", err, called)
+	}
+}
+
+func TestSupervisorEmptyBoundaryRequiresQuiescentErrorFreePasses(t *testing.T) {
+	boundary := linuxQuiescentBoundary{required: 3}
+	if boundary.observe(true, nil) || boundary.observe(true, nil) {
+		t.Fatal("non-atomic empty snapshots prematurely proved the boundary empty")
+	}
+	if boundary.observe(false, nil) {
+		t.Fatal("rapid adopted descendant was ignored")
+	}
+	if boundary.observe(true, nil) || boundary.observe(true, errors.New("proc scan uncertain")) {
+		t.Fatal("scan uncertainty did not reset the empty proof")
+	}
+	if boundary.observe(true, nil) || boundary.observe(true, nil) || !boundary.observe(true, nil) {
+		t.Fatal("three stable error-free snapshots did not prove quiescence")
+	}
+}
+
 func TestOSRunnerRapidSuccessfulCommandsPreserveNaturalExit(t *testing.T) {
 	// /bin/true commonly becomes waitable before the runner can acquire its
 	// post-Start pidfd. Exercise that attachment boundary enough times to prove
