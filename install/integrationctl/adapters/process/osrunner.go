@@ -242,7 +242,9 @@ func runDuplexMode(ctx context.Context, command ports.Command, exchange func(io.
 
 	earlyExit := exited && (!exchangeDone || plannedShutdownEnabled)
 	plannedShutdown := plannedShutdownEnabled && exchangeDone && exchangeErr == nil && supervisionErr == nil && !exited
-	_ = stdin.Close()
+	if !plannedShutdown {
+		_ = stdin.Close()
+	}
 	forced := false
 	if plannedShutdown {
 		// The successful exchange explicitly established the protocol's success
@@ -272,6 +274,14 @@ func runDuplexMode(ctx context.Context, command ports.Command, exchange func(io.
 		if !termination.leaderStopped && !exited {
 			termination = stopLeaderAfterContainmentFailure(termination, cmd.Process.Kill, containment.exited)
 		}
+	}
+	if plannedShutdown {
+		// Keep stdin open until containment has initiated and proved the requested
+		// termination. Closing it first lets an EOF-driven protocol process exit
+		// naturally in the scheduling gap and destroys planned-shutdown causality.
+		// The close remains unconditional after the bounded termination attempt so
+		// every return path releases the runner-owned pipe.
+		_ = stdin.Close()
 	}
 	_ = stdout.Close()
 	// Every successfully started leader has exactly one owned Wait. Even when
@@ -437,27 +447,33 @@ func (err *containmentWaitError) Unwrap() []error {
 	return causes
 }
 
-func splitCommandWaitError(err error) (exitErr *exec.ExitError, cleanupErr error, ok bool) {
+func splitCommandWaitError(err error) (exitCode int, cleanupErr error, ok bool) {
 	switch typed := err.(type) {
 	case *exec.ExitError:
-		return typed, nil, true
+		return typed.ExitCode(), nil, true
 	case *containmentWaitError:
-		innerExit, innerCleanup, innerOK := splitCommandWaitError(typed.waitErr)
-		if !innerOK {
-			return nil, nil, false
+		// A nil Wait result is the exact natural zero status. Preserve it when a
+		// runner-owned containment diagnostic is wrapped around that successful
+		// reap, just as the nonzero *exec.ExitError path is preserved below.
+		if typed.waitErr == nil {
+			return 0, typed.cleanupErr, true
 		}
-		return innerExit, errors.Join(typed.cleanupErr, innerCleanup), true
+		innerExitCode, innerCleanup, innerOK := splitCommandWaitError(typed.waitErr)
+		if !innerOK {
+			return 0, nil, false
+		}
+		return innerExitCode, errors.Join(typed.cleanupErr, innerCleanup), true
 	default:
-		return nil, nil, false
+		return 0, nil, false
 	}
 }
 
 func commandResultFromWait(waitErr error, stdout, stderr []byte) (ports.CommandResult, error, bool) {
-	exitErr, cleanupErr, ok := splitCommandWaitError(waitErr)
+	exitCode, cleanupErr, ok := splitCommandWaitError(waitErr)
 	if !ok {
 		return ports.CommandResult{}, nil, false
 	}
-	result := ports.CommandResult{ExitCode: exitErr.ExitCode(), Stdout: stdout, Stderr: stderr}
+	result := ports.CommandResult{ExitCode: exitCode, Stdout: stdout, Stderr: stderr}
 	if cleanupErr != nil {
 		return result, withDuplexDiagnostic(fmt.Errorf("close supervised process containment: %w", cleanupErr), stderr), true
 	}
@@ -550,9 +566,9 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	// A shorter independent delay can report exec.ErrWaitDelay for a rapid,
 	// otherwise clean command when its copy goroutines are briefly descheduled.
 	c.WaitDelay = processReapTimeout
-	var stdout bytes.Buffer
+	stdout := newSynchronizedOutputBuffer()
 	stderr := newBoundedDiagnosticBuffer(32 * 1024)
-	c.Stdout = &stdout
+	c.Stdout = stdout
 	c.Stderr = stderr
 	containment, err := newOrdinaryCommandContainment(c, treeExitGrace)
 	if err != nil {
@@ -672,6 +688,30 @@ func superviseExplicit(ctx context.Context, poll <-chan time.Time, exited func()
 	// scheduling turn. Re-check after observation so a natural exit cannot hide
 	// cancellation and incorrectly retain a successful command result.
 	return errors.Join(supervisionErr, ctx.Err())
+}
+
+// synchronizedOutputBuffer allows the sole Wait owner and exec's pipe-copy
+// goroutine to outlive the bounded caller without racing a returned result.
+// Bytes always returns an immutable snapshot rather than bytes.Buffer's alias.
+type synchronizedOutputBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func newSynchronizedOutputBuffer() *synchronizedOutputBuffer {
+	return &synchronizedOutputBuffer{}
+}
+
+func (buffer *synchronizedOutputBuffer) Write(value []byte) (int, error) {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return buffer.buffer.Write(value)
+}
+
+func (buffer *synchronizedOutputBuffer) Bytes() []byte {
+	buffer.mu.Lock()
+	defer buffer.mu.Unlock()
+	return append([]byte(nil), buffer.buffer.Bytes()...)
 }
 
 type boundedDiagnosticBuffer struct {

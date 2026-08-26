@@ -262,9 +262,9 @@ func TestContainmentCloseFailurePreservesExactExitStatusWithoutTrustingArbitrary
 	}
 	err := closeContainmentAndWait(func() error { return cleanupErr }, func() error { return exitErr }, time.Second)
 
-	gotExit, gotCleanup, ok := splitCommandWaitError(err)
-	if !ok || gotExit != exitErr || !errors.Is(gotCleanup, cleanupErr) {
-		t.Fatalf("split result = (%v, %v, %v), want exact exit status and cleanup error", gotExit, gotCleanup, ok)
+	gotExitCode, gotCleanup, ok := splitCommandWaitError(err)
+	if !ok || gotExitCode != exitErr.ExitCode() || !errors.Is(gotCleanup, cleanupErr) {
+		t.Fatalf("split result = (%v, %v, %v), want exact exit status and cleanup error", gotExitCode, gotCleanup, ok)
 	}
 	if _, _, ok := splitCommandWaitError(errors.Join(cleanupErr, exitErr)); ok {
 		t.Fatal("arbitrary joined ExitError was incorrectly trusted as a command wait result")
@@ -306,6 +306,18 @@ func TestExplicitCleanupFailurePreservesNaturalZeroResultAndDiagnostics(t *testi
 	}
 }
 
+func TestContainmentWaitCleanupFailurePreservesNaturalZeroResultAndDiagnostics(t *testing.T) {
+	cleanupErr := errors.New("containment status cleanup failed")
+	waitErr := &containmentWaitError{cleanupErr: cleanupErr, waitErr: nil}
+	result, err, ok := commandResultFromWait(waitErr, []byte("zero-exit output"), []byte("zero-exit diagnostic"))
+	if !ok || result.ExitCode != 0 || string(result.Stdout) != "zero-exit output" || string(result.Stderr) != "zero-exit diagnostic" {
+		t.Fatalf("command result = (%+v, %v), want captured natural-zero result", result, ok)
+	}
+	if !errors.Is(err, cleanupErr) || !strings.Contains(err.Error(), "zero-exit diagnostic") {
+		t.Fatalf("command error = %v, want containment cleanup failure and diagnostic", err)
+	}
+}
+
 func TestAttachFailureClosesContainmentBeforeStartingWait(t *testing.T) {
 	closed := false
 	err := cleanupAttachFailure(errors.New("attach failed"), func() terminationResult {
@@ -340,6 +352,33 @@ func TestBoundedDiagnosticBufferSupportsConcurrentWaitTimeoutDiagnostics(t *test
 		_ = buffer.Bytes()
 	}
 	<-done
+}
+
+func TestSynchronizedOutputSnapshotIsImmutableWhileSoleReaperFinishesLateWrite(t *testing.T) {
+	buffer := newSynchronizedOutputBuffer()
+	if _, err := buffer.Write([]byte("early")); err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	waitErr := boundedProcessWait(func() error {
+		<-release
+		_, _ = buffer.Write([]byte("-late"))
+		close(finished)
+		return nil
+	}, time.Millisecond)
+	if waitErr == nil || !strings.Contains(waitErr.Error(), "sole reaper retains ownership") {
+		t.Fatalf("bounded wait error = %v, want retained late writer", waitErr)
+	}
+	snapshot := buffer.Bytes()
+	close(release)
+	<-finished
+	if string(snapshot) != "early" {
+		t.Fatalf("returned snapshot changed after late write: %q", snapshot)
+	}
+	if current := string(buffer.Bytes()); current != "early-late" {
+		t.Fatalf("current output = %q, want completed late write", current)
+	}
 }
 
 func TestOSRunnerDuplexReportsForcedShutdownAfterSuccessfulExchange(t *testing.T) {
