@@ -22,8 +22,14 @@ func duplexContainmentPreflight() error {
 
 func naturalExitNeedsContainmentCleanup() bool { return false }
 
+func plannedTerminationExitExpected(error) bool { return false }
+
 func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
 	return nil, fmt.Errorf("process execution is unsupported on %s", runtime.GOOS)
+}
+
+func newOrdinaryCommandContainment(cmd *exec.Cmd, _ time.Duration) (*commandContainment, error) {
+	return newCommandContainment(cmd)
 }
 
 func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {

@@ -4,8 +4,10 @@ package process
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,19 +21,24 @@ import (
 )
 
 type commandContainment struct {
-	cmd              *exec.Cmd
-	mu               sync.Mutex
-	descendants      map[int]linuxTrackedProcess
-	scanErr          error
-	stop             chan struct{}
-	done             chan struct{}
-	trackerStarted   bool
-	groupOnly        bool
-	cgroupPath       string
-	cgroupDir        *os.File
-	closeTransferred bool
-	observeExit      func() (bool, error)
-	observeEmpty     func() (bool, error)
+	cmd                      *exec.Cmd
+	mu                       sync.Mutex
+	descendants              map[int]linuxTrackedProcess
+	scanErr                  error
+	stop                     chan struct{}
+	done                     chan struct{}
+	trackerStarted           bool
+	supervisorRequest        *os.File
+	supervisorStatus         *os.File
+	supervisorResult         linuxOrdinarySupervisorResult
+	supervisorRead           bool
+	cgroupPath               string
+	cgroupDir                *os.File
+	closeTransferred         bool
+	observeExit              func() (bool, error)
+	observeEmpty             func() (bool, error)
+	inspectLive              func(int) (bool, error)
+	prepareLeaderTermination func(int, time.Duration) (bool, error)
 }
 
 // This interval is frequent enough to observe normal Kiro startup forks while
@@ -40,6 +47,28 @@ const linuxDescendantScanInterval = 25 * time.Millisecond
 
 const linuxStartupDescendantScanInterval = time.Millisecond
 const linuxStartupDescendantScanWindow = 250 * time.Millisecond
+
+const linuxOrdinarySupervisorEnvironment = "PLUGIN_KIT_AI_ORDINARY_PROCESS_SUPERVISOR=1"
+
+type linuxOrdinarySupervisorSpec struct {
+	Path  string
+	Args  []string
+	Env   []string
+	Dir   string
+	Grace time.Duration
+}
+
+type linuxOrdinarySupervisorResult struct {
+	Forced bool
+	Error  string
+}
+
+func init() {
+	if os.Getenv("PLUGIN_KIT_AI_ORDINARY_PROCESS_SUPERVISOR") != "1" {
+		return
+	}
+	os.Exit(runLinuxOrdinarySupervisor())
+}
 
 func explicitContainmentSupervision() bool { return true }
 
@@ -73,6 +102,8 @@ func finishDuplexContainmentProbe(termination terminationResult, closeContainmen
 	var proofErr error
 	if !termination.leaderStopped {
 		proofErr = fmt.Errorf("probe leader shutdown was not proved")
+	} else if !termination.leaderTerminationInitiated {
+		proofErr = fmt.Errorf("probe leader shutdown was not initiated by containment")
 	}
 	if termination.err != nil || proofErr != nil {
 		return fmt.Errorf("safe duplex process containment primitive probe failed: %w", errors.Join(termination.err, proofErr, waitErr))
@@ -87,11 +118,288 @@ func finishDuplexContainmentProbe(termination terminationResult, closeContainmen
 
 func naturalExitNeedsContainmentCleanup() bool { return true }
 
+func plannedTerminationExitExpected(err error) bool {
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGKILL
+}
+
 func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
-	// Tree-aware non-duplex commands (notably Git acquisition) require the same
-	// atomic kernel boundary as duplex ACP. Sampling /proc cannot prove cleanup
-	// for a sub-millisecond setsid/double-fork escape.
-	return newDuplexCommandContainment(cmd)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return &commandContainment{
+		cmd:         cmd,
+		descendants: make(map[int]linuxTrackedProcess),
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
+	}, nil
+}
+
+func newOrdinaryCommandContainment(cmd *exec.Cmd, grace time.Duration) (*commandContainment, error) {
+	request, status, err := wrapLinuxOrdinaryCommand(cmd, grace)
+	if err != nil {
+		return nil, err
+	}
+	containment, err := newCommandContainment(cmd)
+	if err != nil {
+		_ = request.Close()
+		_ = status.Close()
+		return nil, err
+	}
+	containment.supervisorRequest = request
+	containment.supervisorStatus = status
+	return containment, nil
+}
+
+func wrapLinuxOrdinaryCommand(cmd *exec.Cmd, grace time.Duration) (*os.File, *os.File, error) {
+	if len(cmd.ExtraFiles) != 0 {
+		return nil, nil, fmt.Errorf("Linux ordinary-command supervisor requires unallocated extra descriptors")
+	}
+	commandEnvironment := cmd.Env
+	if commandEnvironment == nil {
+		commandEnvironment = os.Environ()
+	}
+	spec := linuxOrdinarySupervisorSpec{Path: cmd.Path, Args: append([]string(nil), cmd.Args...), Env: append([]string(nil), commandEnvironment...), Dir: cmd.Dir, Grace: grace}
+	encoded, err := json.Marshal(spec)
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode Linux ordinary-command supervisor request: %w", err)
+	}
+	fd, err := unix.MemfdCreate("plugin-kit-ai-command", unix.MFD_CLOEXEC)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create Linux ordinary-command supervisor request: %w", err)
+	}
+	specFile := os.NewFile(uintptr(fd), "plugin-kit-ai-command")
+	cleanupSpec := true
+	defer func() {
+		if cleanupSpec {
+			_ = specFile.Close()
+		}
+	}()
+	if _, err := specFile.Write(encoded); err != nil {
+		return nil, nil, fmt.Errorf("write Linux ordinary-command supervisor request: %w", err)
+	}
+	if _, err := specFile.Seek(0, io.SeekStart); err != nil {
+		return nil, nil, fmt.Errorf("rewind Linux ordinary-command supervisor request: %w", err)
+	}
+	requestReader, requestWriter, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
+	}
+	statusReader, statusWriter, err := os.Pipe()
+	if err != nil {
+		_ = requestReader.Close()
+		_ = requestWriter.Close()
+		return nil, nil, err
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		_ = requestReader.Close()
+		_ = requestWriter.Close()
+		_ = statusReader.Close()
+		_ = statusWriter.Close()
+		return nil, nil, fmt.Errorf("locate Linux ordinary-command supervisor: %w", err)
+	}
+	cmd.Path = executable
+	cmd.Args = []string{executable}
+	cmd.Env = append(os.Environ(), linuxOrdinarySupervisorEnvironment)
+	cmd.Dir = ""
+	cmd.ExtraFiles = append(cmd.ExtraFiles, specFile, requestReader, statusWriter)
+	cleanupSpec = false
+	// These child-side descriptors are closed by attach after Start has copied
+	// them into the isolated supervisor. Keep them on the containment so every
+	// pre-Start and attach failure also has one cleanup owner.
+	cmd.Cancel = nil
+	return requestWriter, statusReader, nil
+}
+
+func runLinuxOrdinarySupervisor() int {
+	specFile := os.NewFile(3, "plugin-kit-ai-command")
+	request := os.NewFile(4, "plugin-kit-ai-command-cleanup")
+	status := os.NewFile(5, "plugin-kit-ai-command-status")
+	result := linuxOrdinarySupervisorResult{}
+	writeResult := func() {
+		_ = json.NewEncoder(status).Encode(result)
+		_ = status.Close()
+	}
+	var spec linuxOrdinarySupervisorSpec
+	if err := json.NewDecoder(specFile).Decode(&spec); err != nil {
+		result.Error = fmt.Sprintf("decode supervisor request: %v", err)
+		writeResult()
+		return 125
+	}
+	_ = specFile.Close()
+	if err := unix.Prctl(unix.PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0); err != nil {
+		result.Error = fmt.Sprintf("establish isolated child-subreaper boundary: %v", err)
+		writeResult()
+		return 125
+	}
+	child := exec.Command(spec.Path, spec.Args[1:]...)
+	child.Env = spec.Env
+	child.Dir = spec.Dir
+	child.Stdout = os.Stdout
+	child.Stderr = os.Stderr
+	child.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := child.Start(); err != nil {
+		result.Error = fmt.Sprintf("start supervised command: %v", err)
+		writeResult()
+		return 125
+	}
+	waited := make(chan error, 1)
+	go func() { waited <- child.Wait() }()
+	requested := make(chan struct{}, 1)
+	go func() {
+		_, _ = io.Copy(io.Discard, request)
+		requested <- struct{}{}
+	}()
+	waitErr, cleanupErr, forced := superviseLinuxOrdinaryChildren(child.Process.Pid, waited, requested, spec.Grace)
+	result.Forced = forced
+	if cleanupErr != nil {
+		result.Error = cleanupErr.Error()
+	}
+	writeResult()
+	if waitErr == nil {
+		return 0
+	}
+	if exitErr, ok := waitErr.(*exec.ExitError); ok {
+		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			_ = syscall.Kill(os.Getpid(), status.Signal())
+			return 125
+		}
+		if exitErr.ExitCode() >= 0 {
+			return exitErr.ExitCode()
+		}
+	}
+	return 125
+}
+
+func superviseLinuxOrdinaryChildren(leaderPID int, waited <-chan error, requested <-chan struct{}, grace time.Duration) (error, error, bool) {
+	var waitErr error
+	waitComplete := false
+	forced := false
+	select {
+	case waitErr = <-waited:
+		waitComplete = true
+	case <-requested:
+		forced = true
+	}
+	deadline := time.Now().Add(grace)
+	if forced {
+		deadline = time.Now().Add(processReapTimeout)
+	}
+	var cleanupErr error
+	for {
+		live, inspectErr := linuxSupervisorLiveDescendants(os.Getpid())
+		cleanupErr = errors.Join(cleanupErr, inspectErr)
+		waitObservedThisPass := false
+		if !waitComplete {
+			select {
+			case waitErr = <-waited:
+				waitComplete = true
+				waitObservedThisPass = true
+			default:
+			}
+		}
+		select {
+		case <-requested:
+			forced = true
+			deadline = time.Now().Add(processReapTimeout)
+		default:
+		}
+		if forced || (live > 0 && time.Now().After(deadline)) {
+			forced = true
+			if err := syscall.Kill(-leaderPID, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("terminate supervised command group: %w", err))
+			}
+			cleanupErr = errors.Join(cleanupErr, killLinuxSupervisorDescendants(os.Getpid()))
+		}
+		if live == 0 && waitComplete && !waitObservedThisPass {
+			return waitErr, cleanupErr, forced
+		}
+		if waitObservedThisPass {
+			// The descendant snapshot preceded Wait. Reaping the leader can
+			// reparent a detached child to this subreaper, so that snapshot is
+			// not evidence that the isolated boundary is empty. Rescan only
+			// after Wait's reparenting side effects are observable.
+			continue
+		}
+		if time.Now().After(deadline) && forced {
+			return waitErr, errors.Join(cleanupErr, fmt.Errorf("isolated ordinary-command supervisor did not empty before cleanup deadline")), forced
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func linuxSupervisorLiveDescendants(root int) (int, error) {
+	identities, err := linuxDescendantIdentities(root)
+	if err != nil {
+		return 0, err
+	}
+	live := 0
+	for _, identity := range identities {
+		if identity.zombie {
+			continue
+		}
+		live++
+	}
+	return live, nil
+}
+
+func killLinuxSupervisorDescendants(root int) error {
+	identities, err := linuxDescendantIdentities(root)
+	var resultErr = err
+	for pid, identity := range identities {
+		if identity.zombie {
+			continue
+		}
+		pidfd, err := unix.PidfdOpen(pid, 0)
+		if err != nil {
+			if !errors.Is(err, syscall.ESRCH) {
+				resultErr = errors.Join(resultErr, fmt.Errorf("open stable supervisor child handle for %d: %w", pid, err))
+			}
+			continue
+		}
+		current, err := readLinuxProcessIdentity(pid)
+		if err == nil && current.startTime == identity.startTime && !current.zombie {
+			if err := unix.PidfdSendSignal(pidfd, unix.SIGKILL, nil, 0); err != nil && !errors.Is(err, syscall.ESRCH) {
+				resultErr = errors.Join(resultErr, fmt.Errorf("terminate stable supervisor child %d: %w", pid, err))
+			}
+		}
+		_ = unix.Close(pidfd)
+	}
+	return resultErr
+}
+
+func linuxDescendantIdentities(root int) (map[int]linuxProcessIdentity, error) {
+	result := make(map[int]linuxProcessIdentity)
+	queue := []int{root}
+	for len(queue) > 0 {
+		parent := queue[0]
+		queue = queue[1:]
+		children, err := linuxDirectChildIdentities(parent)
+		if err != nil {
+			if linuxProcessGone(err) {
+				continue
+			}
+			return result, err
+		}
+		for pid := range children {
+			if _, exists := result[pid]; exists {
+				continue
+			}
+			identity, err := readLinuxProcessIdentity(pid)
+			if linuxProcessGone(err) {
+				continue
+			}
+			if err != nil {
+				return result, err
+			}
+			result[pid] = identity
+			queue = append(queue, pid)
+		}
+	}
+	return result, nil
 }
 
 func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
@@ -156,15 +464,31 @@ func (containment *commandContainment) attach(cmd *exec.Cmd) error {
 	if containment.cgroupPath != "" {
 		return nil // CLONE_INTO_CGROUP attached the child atomically at creation.
 	}
-	if containment.groupOnly {
-		return nil
+	if containment.supervisorRequest != nil {
+		for _, file := range cmd.ExtraFiles {
+			if err := file.Close(); err != nil {
+				return fmt.Errorf("close inherited Linux supervisor descriptor: %w", err)
+			}
+		}
+		cmd.ExtraFiles = nil
 	}
 	identity, err := readLinuxProcessIdentity(cmd.Process.Pid)
 	if err != nil {
+		// A trusted command can complete between Start and attachment. Its
+		// process group remains the containment boundary and Wait still owns the
+		// exact exit status; there is no live leader identity left to stabilize.
+		// Treat this narrow natural-exit race as successful attachment instead of
+		// turning a rapid successful command into a runner failure.
+		if linuxProcessGone(err) {
+			return nil
+		}
 		return fmt.Errorf("read Linux process leader identity: %w", err)
 	}
 	pidfd, err := unix.PidfdOpen(identity.pid, 0)
 	if err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			return nil
+		}
 		return fmt.Errorf("open stable Linux process handle: %w", err)
 	}
 	containment.mu.Lock()
@@ -178,7 +502,10 @@ func (containment *commandContainment) attach(cmd *exec.Cmd) error {
 	return nil
 }
 
-func (containment *commandContainment) limitToProcessGroup() { containment.groupOnly = true }
+// Git and other tree-grace callers need the same detached-descendant proof as
+// every ordinary command. Retain this hook for platform-neutral call sites;
+// Linux intentionally does not reduce containment to a process group.
+func (containment *commandContainment) limitToProcessGroup() {}
 
 func (containment *commandContainment) terminate() terminationResult {
 	if containment.cmd.Process == nil {
@@ -187,7 +514,12 @@ func (containment *commandContainment) terminate() terminationResult {
 	if containment.cgroupPath != "" {
 		return containment.terminateCgroup()
 	}
+	if containment.supervisorRequest != nil {
+		return containment.terminateSupervisor()
+	}
 	scanErr := containment.scanDescendants()
+	leaderLive, leaderInspectErr := linuxProcessLive(containment.cmd.Process.Pid)
+	scanErr = errors.Join(scanErr, leaderInspectErr)
 	forcedMembers := false
 	groupMembers, groupScanErr := liveLinuxProcessGroupMembers(containment.cmd.Process.Pid)
 	if groupMembers > 0 {
@@ -196,12 +528,22 @@ func (containment *commandContainment) terminate() terminationResult {
 	scanErr = errors.Join(scanErr, groupScanErr)
 	containment.mu.Lock()
 	for pid, tracked := range containment.descendants {
-		if pid != containment.cmd.Process.Pid && linuxPidfdAlive(tracked.pidfd) {
+		if pid == containment.cmd.Process.Pid {
+			continue
+		}
+		live, err := liveLinuxTrackedProcess(pid, tracked)
+		if err != nil {
+			scanErr = errors.Join(scanErr, fmt.Errorf("classify tracked descendant %d before cleanup: %w", pid, err))
+			// If identity cannot be classified, preserve forced-cleanup
+			// causality rather than accepting a natural-looking command exit.
+			forcedMembers = true
+		} else if live {
 			forcedMembers = true
 		}
 	}
 	containment.mu.Unlock()
 	groupErr := syscall.Kill(-containment.cmd.Process.Pid, syscall.SIGKILL)
+	leaderTerminationInitiated := leaderLive && groupErr == nil
 	if errors.Is(groupErr, syscall.ESRCH) {
 		groupErr = nil
 	}
@@ -230,7 +572,35 @@ func (containment *commandContainment) terminate() terminationResult {
 		}
 	}
 	deadline := time.Now().Add(time.Second)
+	emptyPasses := 0
 	for {
+		// Killing a tracked parent can expose a child that forked after the
+		// previous snapshot. As the active subreaper, recover each newly adopted
+		// identity and repeat until a full pass proves that no live member remains.
+		if err := containment.scanDescendants(); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		}
+		containment.mu.Lock()
+		for pid, tracked := range containment.descendants {
+			if _, known := identities[pid]; known {
+				continue
+			}
+			identities[pid] = tracked
+			if pid == containment.cmd.Process.Pid {
+				continue
+			}
+			live, err := liveLinuxTrackedProcess(pid, tracked)
+			if err != nil {
+				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("classify newly adopted descendant %d before cleanup: %w", pid, err))
+				forcedMembers = true
+			} else if live {
+				forcedMembers = true
+				if err := unix.PidfdSendSignal(tracked.pidfd, unix.SIGKILL, nil, 0); err != nil && !errors.Is(err, syscall.ESRCH) {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("terminate newly adopted descendant %d through pidfd: %w", pid, err))
+				}
+			}
+		}
+		containment.mu.Unlock()
 		leaderStopped, observeErr := containment.exited()
 		remaining := 0
 		for pid, tracked := range identities {
@@ -238,6 +608,13 @@ func (containment *commandContainment) terminate() terminationResult {
 				continue
 			}
 			identity, err := readLinuxProcessIdentity(pid)
+			if err == nil && identity.startTime == tracked.startTime && identity.zombie && identity.ppid == os.Getpid() {
+				var info unix.Siginfo
+				if reapErr := unix.Waitid(unix.P_PID, pid, &info, unix.WEXITED|unix.WNOHANG, nil); reapErr != nil && !errors.Is(reapErr, syscall.ECHILD) && !errors.Is(reapErr, syscall.ESRCH) {
+					cleanupErr = errors.Join(cleanupErr, fmt.Errorf("reap adopted tracked descendant %d: %w", pid, reapErr))
+				}
+				continue
+			}
 			if err == nil && identity.startTime == tracked.startTime && !identity.zombie && linuxPidfdAlive(tracked.pidfd) {
 				remaining++
 			} else if err != nil && linuxPidfdAlive(tracked.pidfd) {
@@ -245,7 +622,12 @@ func (containment *commandContainment) terminate() terminationResult {
 			}
 		}
 		if leaderStopped && remaining == 0 {
-			return terminationResult{leaderStopped: true, forcedMembers: forcedMembers, err: errors.Join(groupErr, cleanupErr)}
+			emptyPasses++
+			if emptyPasses >= 2 {
+				return terminationResult{leaderStopped: true, leaderTerminationInitiated: leaderTerminationInitiated, forcedMembers: forcedMembers, err: errors.Join(groupErr, cleanupErr)}
+			}
+		} else {
+			emptyPasses = 0
 		}
 		if observeErr != nil {
 			cleanupErr = errors.Join(cleanupErr, observeErr)
@@ -257,10 +639,55 @@ func (containment *commandContainment) terminate() terminationResult {
 			if remaining != 0 {
 				cleanupErr = errors.Join(cleanupErr, fmt.Errorf("%d tracked descendant process(es) survived cleanup deadline", remaining))
 			}
-			return terminationResult{leaderStopped: leaderStopped, forcedMembers: forcedMembers, err: errors.Join(groupErr, cleanupErr)}
+			return terminationResult{leaderStopped: leaderStopped, leaderTerminationInitiated: leaderTerminationInitiated, forcedMembers: forcedMembers, err: errors.Join(groupErr, cleanupErr)}
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
+}
+
+func (containment *commandContainment) terminateSupervisor() terminationResult {
+	alreadyExited, observeErr := containment.exited()
+	requestErr := containment.supervisorRequest.Close()
+	containment.supervisorRequest = nil
+	if errors.Is(requestErr, os.ErrClosed) {
+		requestErr = nil
+	}
+	deadline := time.Now().Add(processReapTimeout)
+	exited := alreadyExited
+	for !exited && observeErr == nil && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+		exited, observeErr = containment.exited()
+	}
+	if !exited && observeErr == nil {
+		observeErr = fmt.Errorf("isolated ordinary-command supervisor did not stop before cleanup deadline")
+	}
+	var statusErr error
+	if exited {
+		statusErr = containment.readSupervisorResult()
+		if containment.supervisorResult.Error != "" {
+			statusErr = errors.Join(statusErr, errors.New(containment.supervisorResult.Error))
+		}
+	}
+	return terminationResult{
+		leaderStopped:              exited,
+		leaderTerminationInitiated: !alreadyExited && requestErr == nil,
+		forcedMembers:              containment.supervisorResult.Forced,
+		err:                        errors.Join(requestErr, observeErr, statusErr),
+	}
+}
+
+func (containment *commandContainment) readSupervisorResult() error {
+	if containment.supervisorRead || containment.supervisorStatus == nil {
+		return nil
+	}
+	containment.supervisorRead = true
+	err := json.NewDecoder(containment.supervisorStatus).Decode(&containment.supervisorResult)
+	closeErr := containment.supervisorStatus.Close()
+	containment.supervisorStatus = nil
+	if errors.Is(err, io.EOF) {
+		err = fmt.Errorf("isolated ordinary-command supervisor returned no cleanup proof")
+	}
+	return errors.Join(err, closeErr)
 }
 
 func (containment *commandContainment) exited() (bool, error) {
@@ -312,7 +739,7 @@ func (containment *commandContainment) settleNaturalExit(ctx context.Context, ti
 	}
 }
 
-func (containment *commandContainment) close() error {
+func (containment *commandContainment) close() (resultErr error) {
 	if containment.closeTransferred {
 		return fmt.Errorf("Linux descendant tracker ownership was transferred to its reaper")
 	}
@@ -327,10 +754,21 @@ func (containment *commandContainment) close() error {
 		containment.cgroupPath = ""
 		return nil
 	}
+	if containment.supervisorRequest != nil {
+		resultErr = errors.Join(resultErr, containment.supervisorRequest.Close())
+		containment.supervisorRequest = nil
+	}
+	if containment.supervisorStatus != nil {
+		resultErr = errors.Join(resultErr, containment.supervisorStatus.Close())
+		containment.supervisorStatus = nil
+	}
+	for _, file := range containment.cmd.ExtraFiles {
+		resultErr = errors.Join(resultErr, file.Close())
+	}
+	containment.cmd.ExtraFiles = nil
 	if containment.cmd.Process == nil {
 		return nil
 	}
-	var resultErr error
 	if containment.trackerStarted {
 		select {
 		case <-containment.stop:
@@ -374,9 +812,19 @@ func (containment *commandContainment) terminateCgroup() terminationResult {
 }
 
 func (containment *commandContainment) terminateCgroupWithin(timeout time.Duration) terminationResult {
-	members, inspectErr := readCgroupProcs(filepath.Join(containment.cgroupPath, "cgroup.procs"))
-	forced, inspectErr := cgroupForcedMemberCausality(containment.cmd.Process.Pid, members, inspectErr)
+	procsPath := filepath.Join(containment.cgroupPath, "cgroup.procs")
+	members, inspectErr := readCgroupProcs(procsPath)
+	forced, memberInspectErr, releaseMemberIdentities := containment.cgroupForcedMemberCausality(procsPath, members, inspectErr)
+	defer releaseMemberIdentities()
+	inspectErr = memberInspectErr
+	prepare := containment.prepareLeaderTermination
+	if prepare == nil {
+		prepare = prepareLinuxLeaderTermination
+	}
+	leaderPrepared, leaderInspectErr := prepare(containment.cmd.Process.Pid, timeout)
+	inspectErr = errors.Join(inspectErr, leaderInspectErr)
 	killErr := writeCgroupKill(filepath.Join(containment.cgroupPath, "cgroup.kill"), []byte("1"), 0)
+	leaderTerminationInitiated := leaderPrepared && killErr == nil
 	if errors.Is(killErr, os.ErrNotExist) {
 		killErr = nil
 	}
@@ -385,16 +833,155 @@ func (containment *commandContainment) terminateCgroupWithin(timeout time.Durati
 		exited, observeErr := containment.exited()
 		empty, emptyErr := containment.cgroupEmpty()
 		if exited && empty {
-			return terminationResult{leaderStopped: true, forcedMembers: forced, err: errors.Join(inspectErr, killErr, observeErr, emptyErr)}
+			return terminationResult{leaderStopped: true, leaderTerminationInitiated: leaderTerminationInitiated, forcedMembers: forced, err: errors.Join(inspectErr, killErr, observeErr, emptyErr)}
 		}
 		if time.Now().After(deadline) {
-			return terminationResult{leaderStopped: exited, forcedMembers: forced, err: errors.Join(inspectErr, killErr, observeErr, emptyErr, fmt.Errorf("duplex cgroup did not empty before cleanup deadline"))}
+			return terminationResult{leaderStopped: exited, leaderTerminationInitiated: leaderTerminationInitiated, forcedMembers: forced, err: errors.Join(inspectErr, killErr, observeErr, emptyErr, fmt.Errorf("duplex cgroup did not empty before cleanup deadline"))}
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 }
 
+func (containment *commandContainment) cgroupForcedMemberCausality(procsPath string, members []byte, inspectErr error) (bool, error, func()) {
+	if containment.inspectLive != nil {
+		forced, err := cgroupForcedMemberCausalityWithInspect(containment.cmd.Process.Pid, members, inspectErr, containment.inspectLive)
+		return forced, err, func() {}
+	}
+	return stableCgroupForcedMemberCausality(containment.cmd.Process.Pid, procsPath, members, inspectErr)
+}
+
+// stableCgroupForcedMemberCausality binds every pre-signal liveness decision to
+// a pidfd and procfs start time. cgroup.procs contains numeric PIDs, so using a
+// later unbound /proc lookup could attribute cleanup either to a naturally
+// exited zombie or to a recycled identity. The second membership snapshot
+// closes the list-to-pidfd race; retained pidfds keep each classified identity
+// stable through cgroup.kill.
+func stableCgroupForcedMemberCausality(leaderPID int, procsPath string, members []byte, inspectErr error) (bool, error, func()) {
+	type candidate struct {
+		identity linuxProcessIdentity
+		pidfd    int
+	}
+	candidates := make(map[int]candidate)
+	release := func() {
+		for _, candidate := range candidates {
+			_ = unix.Close(candidate.pidfd)
+		}
+	}
+	if inspectErr != nil {
+		return true, fmt.Errorf("inspect cgroup members before forced cleanup: %w", inspectErr), release
+	}
+	for _, raw := range strings.Fields(string(members)) {
+		pid, err := strconv.Atoi(raw)
+		if err != nil {
+			return true, fmt.Errorf("parse cgroup member %q before forced cleanup: %w", raw, err), release
+		}
+		if pid == leaderPID {
+			continue
+		}
+		identity, err := readLinuxProcessIdentity(pid)
+		if linuxProcessGone(err) {
+			continue
+		}
+		if err != nil {
+			return true, fmt.Errorf("inspect cgroup member %d identity before forced cleanup: %w", pid, err), release
+		}
+		pidfd, err := unix.PidfdOpen(pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			continue
+		}
+		if err != nil {
+			return true, fmt.Errorf("open stable cgroup member handle for %d: %w", pid, err), release
+		}
+		candidates[pid] = candidate{identity: identity, pidfd: pidfd}
+	}
+	confirmedMembers, err := readCgroupProcs(procsPath)
+	if err != nil {
+		return true, fmt.Errorf("confirm stable cgroup members before forced cleanup: %w", err), release
+	}
+	confirmed := make(map[int]bool)
+	for _, raw := range strings.Fields(string(confirmedMembers)) {
+		pid, parseErr := strconv.Atoi(raw)
+		if parseErr != nil {
+			return true, fmt.Errorf("parse confirmed cgroup member %q before forced cleanup: %w", raw, parseErr), release
+		}
+		confirmed[pid] = true
+	}
+	forced := false
+	for pid, candidate := range candidates {
+		if !confirmed[pid] {
+			continue
+		}
+		current, err := readLinuxProcessIdentity(pid)
+		if linuxProcessGone(err) || !linuxPidfdAlive(candidate.pidfd) {
+			continue
+		}
+		if err != nil {
+			return true, fmt.Errorf("confirm cgroup member %d identity before forced cleanup: %w", pid, err), release
+		}
+		if current.startTime != candidate.identity.startTime {
+			return true, fmt.Errorf("cgroup member %d identity changed before forced cleanup", pid), release
+		}
+		if !current.zombie {
+			forced = true
+		}
+	}
+	return forced, nil, release
+}
+
+// prepareLinuxLeaderTermination establishes a causal boundary before
+// cgroup.kill. Merely observing a live /proc entry is insufficient: a leader
+// can already be inside natural exit and receive SIGKILL before it becomes a
+// waitable zombie. A leader that accepts SIGSTOP and reaches a stopped state is
+// still controllably live after planned teardown was requested; a leader that
+// becomes a zombie first must be reported as a premature natural exit.
+func prepareLinuxLeaderTermination(pid int, timeout time.Duration) (bool, error) {
+	identity, err := readLinuxProcessIdentity(pid)
+	if linuxProcessGone(err) || (err == nil && identity.zombie) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect process leader before termination boundary: %w", err)
+	}
+	pidfd, err := unix.PidfdOpen(pid, 0)
+	if errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("open stable process leader handle before termination boundary: %w", err)
+	}
+	defer unix.Close(pidfd)
+	if err := unix.PidfdSendSignal(pidfd, unix.SIGSTOP, nil, 0); errors.Is(err, syscall.ESRCH) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("stop process leader at termination boundary: %w", err)
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		current, err := readLinuxProcessIdentity(pid)
+		if linuxProcessGone(err) || (err == nil && current.startTime == identity.startTime && current.zombie) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("observe process leader termination boundary: %w", err)
+		}
+		if current.startTime != identity.startTime {
+			return false, fmt.Errorf("process leader identity changed at termination boundary")
+		}
+		if current.stopped {
+			return true, nil
+		}
+		if time.Now().After(deadline) {
+			return false, fmt.Errorf("process leader did not stop before termination boundary deadline")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func cgroupForcedMemberCausality(leaderPID int, members []byte, inspectErr error) (bool, error) {
+	return cgroupForcedMemberCausalityWithInspect(leaderPID, members, inspectErr, linuxProcessLive)
+}
+
+func cgroupForcedMemberCausalityWithInspect(leaderPID int, members []byte, inspectErr error, inspect func(int) (bool, error)) (bool, error) {
 	if inspectErr != nil {
 		// Once cgroup.kill is requested, inability to inventory the scope makes
 		// descendant causality uncertain. Fail closed so a natural-looking leader
@@ -402,11 +989,44 @@ func cgroupForcedMemberCausality(leaderPID int, members []byte, inspectErr error
 		return true, fmt.Errorf("inspect cgroup members before forced cleanup: %w", inspectErr)
 	}
 	for _, raw := range strings.Fields(string(members)) {
-		if raw != strconv.Itoa(leaderPID) {
+		pid, err := strconv.Atoi(raw)
+		if err != nil {
+			return true, fmt.Errorf("parse cgroup member %q before forced cleanup: %w", raw, err)
+		}
+		if pid == leaderPID {
+			continue
+		}
+		live, err := inspect(pid)
+		if err != nil {
+			return true, fmt.Errorf("classify cgroup member %d before forced cleanup: %w", pid, err)
+		}
+		if live {
 			return true, nil
 		}
 	}
 	return false, nil
+}
+
+func (containment *commandContainment) processLive(pid int) (bool, error) {
+	if containment.inspectLive != nil {
+		return containment.inspectLive(pid)
+	}
+	return linuxProcessLive(pid)
+}
+
+// linuxProcessLive classifies the exact, currently installed procfs identity.
+// A zombie is already naturally exited and must not be attributed to a later
+// cleanup signal; disappearance during inspection likewise proves there is no
+// remaining identity to signal.
+func linuxProcessLive(pid int) (bool, error) {
+	identity, err := readLinuxProcessIdentity(pid)
+	if linuxProcessGone(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return !identity.zombie, nil
 }
 
 func (containment *commandContainment) settleCgroup(ctx context.Context, timeout time.Duration) (bool, error) {
@@ -449,6 +1069,7 @@ type linuxProcessIdentity struct {
 	pgid      int
 	startTime uint64
 	zombie    bool
+	stopped   bool
 }
 
 func readLinuxProcessIdentity(pid int) (linuxProcessIdentity, error) {
@@ -476,7 +1097,7 @@ func readLinuxProcessIdentity(pid int) (linuxProcessIdentity, error) {
 	if err != nil {
 		return linuxProcessIdentity{}, err
 	}
-	return linuxProcessIdentity{pid: pid, ppid: ppid, pgid: pgid, startTime: startTime, zombie: fields[0] == "Z"}, nil
+	return linuxProcessIdentity{pid: pid, ppid: ppid, pgid: pgid, startTime: startTime, zombie: fields[0] == "Z", stopped: fields[0] == "T" || fields[0] == "t"}, nil
 }
 
 func liveLinuxProcessGroupMembers(pgid int) (int, error) {
@@ -509,6 +1130,64 @@ type linuxTrackedProcess struct {
 func linuxPidfdAlive(pidfd int) bool {
 	err := unix.PidfdSendSignal(pidfd, 0, nil, 0)
 	return err == nil || errors.Is(err, syscall.EPERM)
+}
+
+func linuxProcessGone(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ENOENT) || errors.Is(err, syscall.ESRCH)
+}
+
+// liveLinuxTrackedProcess distinguishes a live descendant from an exited but
+// unreaped zombie. pidfd signal checks alone report zombies as present, which
+// would incorrectly attribute forced cleanup to a helper that exited naturally.
+// The start time binds the /proc observation to the identity represented by the
+// pidfd; disappearance after the pidfd check is an ordinary exit race.
+func liveLinuxTrackedProcess(pid int, tracked linuxTrackedProcess) (bool, error) {
+	if !linuxPidfdAlive(tracked.pidfd) {
+		return false, nil
+	}
+	identity, err := readLinuxProcessIdentity(pid)
+	if linuxProcessGone(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if identity.startTime != tracked.startTime {
+		return false, fmt.Errorf("process start time changed")
+	}
+	return !identity.zombie, nil
+}
+
+func linuxDirectChildIdentities(pid int) (map[int]uint64, error) {
+	childrenByIdentity := make(map[int]uint64)
+	tasks, err := os.ReadDir(fmt.Sprintf("/proc/%d/task", pid))
+	if err != nil {
+		return nil, err
+	}
+	for _, task := range tasks {
+		children, err := os.ReadFile(fmt.Sprintf("/proc/%d/task/%s/children", pid, task.Name()))
+		if err != nil {
+			if linuxProcessGone(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, rawChild := range strings.Fields(string(children)) {
+			child, err := strconv.Atoi(rawChild)
+			if err != nil {
+				continue
+			}
+			identity, err := readLinuxProcessIdentity(child)
+			if linuxProcessGone(err) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			childrenByIdentity[child] = identity.startTime
+		}
+	}
+	return childrenByIdentity, nil
 }
 
 func (containment *commandContainment) trackDescendants() {
@@ -554,8 +1233,13 @@ func (containment *commandContainment) scanDescendants() error {
 		seen[pid] = struct{}{}
 		tasks, err := os.ReadDir(fmt.Sprintf("/proc/%d/task", pid))
 		if err != nil {
-			if tracked, ok := containment.descendants[pid]; ok && linuxPidfdAlive(tracked.pidfd) {
-				scanErr = errors.Join(scanErr, fmt.Errorf("inspect tasks for live tracked process %d: %w", pid, err))
+			if tracked, ok := containment.descendants[pid]; ok {
+				live, classifyErr := liveLinuxTrackedProcess(pid, tracked)
+				if classifyErr != nil {
+					scanErr = errors.Join(scanErr, fmt.Errorf("classify tracked process %d after task inspection failed: %w", pid, classifyErr))
+				} else if live {
+					scanErr = errors.Join(scanErr, fmt.Errorf("inspect tasks for live tracked process %d: %w", pid, err))
+				}
 			}
 			continue
 		}
@@ -565,11 +1249,16 @@ func (containment *commandContainment) scanDescendants() error {
 				// Threads can disappear between ReadDir and opening their children
 				// file. The remaining live threads are still inspected in this same
 				// snapshot, so this race is not an ancestry blind spot.
-				if errors.Is(err, os.ErrNotExist) {
+				if linuxProcessGone(err) {
 					continue
 				}
-				if tracked, ok := containment.descendants[pid]; ok && linuxPidfdAlive(tracked.pidfd) {
-					scanErr = errors.Join(scanErr, fmt.Errorf("inspect children for live tracked process %d: %w", pid, err))
+				if tracked, ok := containment.descendants[pid]; ok {
+					live, classifyErr := liveLinuxTrackedProcess(pid, tracked)
+					if classifyErr != nil {
+						scanErr = errors.Join(scanErr, fmt.Errorf("classify tracked process %d after child inspection failed: %w", pid, classifyErr))
+					} else if live {
+						scanErr = errors.Join(scanErr, fmt.Errorf("inspect children for live tracked process %d: %w", pid, err))
+					}
 				}
 				continue
 			}
@@ -580,11 +1269,27 @@ func (containment *commandContainment) scanDescendants() error {
 				}
 				identity, err := readLinuxProcessIdentity(child)
 				if err != nil {
+					// A child can exit after the kernel children snapshot but
+					// before /proc/<pid>/stat is opened. There is no process left
+					// to contain in that case, so this ordinary exit race is not a
+					// loss of containment evidence.
+					if linuxProcessGone(err) {
+						continue
+					}
 					scanErr = errors.Join(scanErr, fmt.Errorf("read observed child %d of %d: %w", child, pid, err))
 					continue
 				}
 				pidfd, err := unix.PidfdOpen(child, 0)
 				if err != nil {
+					// Kernels can report ESRCH or EINVAL when that same observed
+					// child exits before the stable handle is acquired. Accept the
+					// race only after /proc proves the observed identity is no
+					// longer live; every failure for a surviving child remains
+					// fail-closed.
+					current, currentErr := readLinuxProcessIdentity(child)
+					if linuxProcessGone(currentErr) || (currentErr == nil && (current.zombie || current.startTime != identity.startTime)) {
+						continue
+					}
 					scanErr = errors.Join(scanErr, fmt.Errorf("open stable handle for observed child %d: %w", child, err))
 					continue
 				}
@@ -592,6 +1297,12 @@ func (containment *commandContainment) scanDescendants() error {
 				if err != nil || revalidated.startTime != identity.startTime {
 					_ = unix.Close(pidfd)
 					if err != nil {
+						// The pidfd pins the identity against reuse. If /proc now
+						// reports it gone, the observed child completed naturally;
+						// there is no descendant left to track or signal.
+						if linuxProcessGone(err) {
+							continue
+						}
 						scanErr = errors.Join(scanErr, fmt.Errorf("revalidate observed child %d identity: %w", child, err))
 					} else {
 						scanErr = errors.Join(scanErr, fmt.Errorf("revalidate observed child %d identity: process start time changed", child))
@@ -601,6 +1312,11 @@ func (containment *commandContainment) scanDescendants() error {
 				if revalidated.ppid != pid {
 					parent, parentErr := readLinuxProcessIdentity(pid)
 					if parentErr == nil && !parent.zombie {
+						current, currentErr := readLinuxProcessIdentity(child)
+						if linuxProcessGone(currentErr) || (currentErr == nil && (current.zombie || current.startTime != identity.startTime)) {
+							_ = unix.Close(pidfd)
+							continue
+						}
 						_ = unix.Close(pidfd)
 						scanErr = errors.Join(scanErr, fmt.Errorf("revalidate observed child %d parentage: live parent changed from %d to %d", child, pid, revalidated.ppid))
 						continue

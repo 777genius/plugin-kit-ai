@@ -42,6 +42,11 @@ func duplexContainmentPreflight() error {
 
 func naturalExitNeedsContainmentCleanup() bool { return true }
 
+func plannedTerminationExitExpected(err error) bool {
+	exitErr, ok := err.(*exec.ExitError)
+	return ok && exitErr.ExitCode() == int(cleanupExitCode)
+}
+
 const cleanupExitCode uint32 = 0xc0de0001
 
 func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
@@ -59,6 +64,10 @@ func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
 	containment := &commandContainment{cmd: cmd, job: job}
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: windows.CREATE_SUSPENDED}
 	return containment, nil
+}
+
+func newOrdinaryCommandContainment(cmd *exec.Cmd, _ time.Duration) (*commandContainment, error) {
+	return newCommandContainment(cmd)
 }
 
 func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {

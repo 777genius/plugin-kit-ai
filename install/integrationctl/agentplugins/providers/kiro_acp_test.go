@@ -631,12 +631,12 @@ func TestKiroACPRejectsUnpairedUTF16EscapesWithoutReplacement(t *testing.T) {
 	session := acpResponse(1, `{"sessionId":"s"}`)
 	connected := acpStatus("s", "alpha", "connected", `[{"name":"search","disabled":false}]`)
 	tests := map[string]string{
-		"tool name": initialize + session + acpStatus("s", "alpha", "connected", `[{"name":"\ud800","disabled":false}]`),
-		"server name": initialize + session + `{"jsonrpc":"2.0","method":"_kiro/mcp/status","params":{"sessionId":"s","serverName":"\ud800","status":"connected","tools":[{"name":"search","disabled":false}]}}` + "\n",
-		"object key": initialize + session + `{"jsonrpc":"2.0","method":"_kiro/mcp/status","params":{"sessionId":"s","serverName":"alpha","status":"connected","tools":[{"name":"search","disabled":false}],"\ud800":true}}` + "\n",
-		"extension value": initialize + `{"jsonrpc":"2.0","id":1,"result":{"sessionId":"s","extension":"\ud800"}}` + "\n",
+		"tool name":         initialize + session + acpStatus("s", "alpha", "connected", `[{"name":"\ud800","disabled":false}]`),
+		"server name":       initialize + session + `{"jsonrpc":"2.0","method":"_kiro/mcp/status","params":{"sessionId":"s","serverName":"\ud800","status":"connected","tools":[{"name":"search","disabled":false}]}}` + "\n",
+		"object key":        initialize + session + `{"jsonrpc":"2.0","method":"_kiro/mcp/status","params":{"sessionId":"s","serverName":"alpha","status":"connected","tools":[{"name":"search","disabled":false}],"\ud800":true}}` + "\n",
+		"extension value":   initialize + `{"jsonrpc":"2.0","id":1,"result":{"sessionId":"s","extension":"\ud800"}}` + "\n",
 		"queued settlement": initialize + session + connected + `{"jsonrpc":"2.0","method":"progress","params":{"extension":"\ud800"}}` + "\n",
-		"standalone low": initialize + `{"jsonrpc":"2.0","id":1,"result":{"sessionId":"\udfff"}}` + "\n",
+		"standalone low":    initialize + `{"jsonrpc":"2.0","id":1,"result":{"sessionId":"\udfff"}}` + "\n",
 	}
 	for name, output := range tests {
 		output := output

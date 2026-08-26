@@ -34,6 +34,15 @@ func duplexContainmentPreflight() error {
 
 func naturalExitNeedsContainmentCleanup() bool { return true }
 
+func plannedTerminationExitExpected(err error) bool {
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	return ok && status.Signaled() && status.Signal() == syscall.SIGKILL
+}
+
 func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
 	kqueue, err := unix.Kqueue()
 	if err != nil {
@@ -46,6 +55,10 @@ func newCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {
 		liveGroupMembers: darwinLiveGroupMembers,
 		killGroup:        syscall.Kill,
 	}, nil
+}
+
+func newOrdinaryCommandContainment(cmd *exec.Cmd, _ time.Duration) (*commandContainment, error) {
+	return newCommandContainment(cmd)
 }
 
 func newDuplexCommandContainment(cmd *exec.Cmd) (*commandContainment, error) {

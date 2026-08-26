@@ -17,9 +17,10 @@ import (
 type OS struct{}
 
 type terminationResult struct {
-	leaderStopped bool
-	forcedMembers bool
-	err           error
+	leaderStopped              bool
+	leaderTerminationInitiated bool
+	forcedMembers              bool
+	err                        error
 }
 
 type onceWriteCloser struct {
@@ -300,10 +301,21 @@ func runDuplexMode(ctx context.Context, command ports.Command, exchange func(io.
 		if termination.err != nil {
 			return withDuplexDiagnostic(fmt.Errorf("planned duplex process-tree shutdown failed: %w", errors.Join(termination.err, waitErr)), stderr.Bytes())
 		}
-		if waitErr == nil {
-			return nil
+		if !termination.leaderTerminationInitiated {
+			// An exit status alone cannot establish cleanup causality. The leader
+			// may have exited naturally after the final pre-teardown observation
+			// but before containment took action. Require the platform boundary to
+			// prove it observed a live leader and successfully requested its stop.
+			return withDuplexDiagnostic(errors.Join(errors.New("duplex process exited before planned process-tree shutdown could begin"), waitErr), stderr.Bytes())
 		}
-		if _, expectedTerminationStatus := waitErr.(*exec.ExitError); expectedTerminationStatus {
+		if waitErr == nil {
+			// A clean status proves that the process completed its own exit. In
+			// particular, stdout can reach EOF just before waitid reports the
+			// leader as waitable; accepting that status would let this narrow
+			// exit/teardown race masquerade as runner-requested shutdown.
+			return withDuplexDiagnostic(errors.New("duplex process exited before planned process-tree shutdown could begin"), stderr.Bytes())
+		}
+		if plannedTerminationExitExpected(waitErr) {
 			// The runner caused this status only after the exchange explicitly
 			// requested planned shutdown and containment proved the tree empty.
 			return nil
@@ -377,21 +389,79 @@ func cleanupAttachFailureWithin(attachErr error, terminate func() terminationRes
 func closeContainmentAndWait(closeContainment, wait func() error, timeout time.Duration) error {
 	closeErr := closeContainment()
 	waitErr := boundedProcessWait(func() error {
-		waitErr := wait()
+		processWaitErr := wait()
 		// A close that could not finish while the process was alive (for
 		// example, removal of a populated cgroup) remains owned by the sole
 		// reaper. Retry after Wait so eventual exit also releases containment
 		// resources even when the bounded caller has already returned.
 		if closeErr != nil {
-			return errors.Join(waitErr, closeContainment())
+			if retryErr := closeContainment(); retryErr != nil {
+				return &containmentWaitError{cleanupErr: retryErr, waitErr: processWaitErr}
+			}
 		}
-		return waitErr
+		return processWaitErr
 	}, timeout)
 	if closeErr == nil {
 		// Preserve *exec.ExitError so callers can retain natural exit status.
 		return waitErr
 	}
-	return errors.Join(closeErr, waitErr)
+	return &containmentWaitError{cleanupErr: closeErr, waitErr: waitErr}
+}
+
+// containmentWaitError keeps the process's exact Wait result separate from
+// containment uncertainty.  Its multi-error unwrap preserves errors.Is for
+// cleanup callers, while command-result extraction below only trusts this
+// runner-owned structure (never an arbitrary errors.Join containing an
+// unrelated *exec.ExitError).
+type containmentWaitError struct {
+	cleanupErr error
+	waitErr    error
+}
+
+func (err *containmentWaitError) Error() string {
+	joined := errors.Join(err.cleanupErr, err.waitErr)
+	if joined == nil {
+		return "containment wait failed without a recorded cause"
+	}
+	return joined.Error()
+}
+
+func (err *containmentWaitError) Unwrap() []error {
+	causes := make([]error, 0, 2)
+	if err.cleanupErr != nil {
+		causes = append(causes, err.cleanupErr)
+	}
+	if err.waitErr != nil {
+		causes = append(causes, err.waitErr)
+	}
+	return causes
+}
+
+func splitCommandWaitError(err error) (exitErr *exec.ExitError, cleanupErr error, ok bool) {
+	switch typed := err.(type) {
+	case *exec.ExitError:
+		return typed, nil, true
+	case *containmentWaitError:
+		innerExit, innerCleanup, innerOK := splitCommandWaitError(typed.waitErr)
+		if !innerOK {
+			return nil, nil, false
+		}
+		return innerExit, errors.Join(typed.cleanupErr, innerCleanup), true
+	default:
+		return nil, nil, false
+	}
+}
+
+func commandResultFromWait(waitErr error, stdout, stderr []byte) (ports.CommandResult, error, bool) {
+	exitErr, cleanupErr, ok := splitCommandWaitError(waitErr)
+	if !ok {
+		return ports.CommandResult{}, nil, false
+	}
+	result := ports.CommandResult{ExitCode: exitErr.ExitCode(), Stdout: stdout, Stderr: stderr}
+	if cleanupErr != nil {
+		return result, withDuplexDiagnostic(fmt.Errorf("close supervised process containment: %w", cleanupErr), stderr), true
+	}
+	return result, nil, true
 }
 
 func boundedProcessWait(wait func() error, timeout time.Duration) error {
@@ -466,9 +536,9 @@ func runCommand(ctx context.Context, cmd ports.Command, treeExitGrace time.Durat
 	}
 	// Every production command is explicitly supervised. Even commands that are
 	// nominally diagnostic can load client configuration and start helpers, and
-	// lifecycle commands can mutate or acquire state. On Linux the containment
-	// constructor uses CLONE_INTO_CGROUP, so there is no post-Start sampling
-	// window in which a descendant can escape.
+	// lifecycle commands can mutate or acquire state. Ordinary trusted commands
+	// retain bounded platform tree/process-group cleanup; strict duplex commands
+	// use the separate fail-closed containment constructor above.
 	return runExplicit(ctx, cmd, treeExitGrace, processGroupOnly)
 }
 
@@ -476,12 +546,15 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	c := exec.Command(command.Argv[0], command.Argv[1:]...)
 	c.Env = command.Env
 	c.Dir = command.Dir
-	c.WaitDelay = 100 * time.Millisecond
+	// Reuse the runner's bounded reap deadline for inherited I/O descriptors.
+	// A shorter independent delay can report exec.ErrWaitDelay for a rapid,
+	// otherwise clean command when its copy goroutines are briefly descheduled.
+	c.WaitDelay = processReapTimeout
 	var stdout bytes.Buffer
 	stderr := newBoundedDiagnosticBuffer(32 * 1024)
 	c.Stdout = &stdout
 	c.Stderr = stderr
-	containment, err := newCommandContainment(c)
+	containment, err := newOrdinaryCommandContainment(c, treeExitGrace)
 	if err != nil {
 		return ports.CommandResult{}, err
 	}
@@ -545,16 +618,32 @@ func runExplicit(ctx context.Context, command ports.Command, treeExitGrace time.
 	if termination.forcedMembers {
 		return ports.CommandResult{}, withDuplexDiagnostic(errors.Join(fmt.Errorf("process left live descendants that required forced cleanup"), termination.err, waitErr), stderr.Bytes())
 	}
-	if termination.err != nil {
-		return ports.CommandResult{}, withDuplexDiagnostic(joinCleanupAndWaitError("terminate supervised process", termination.err, waitErr), stderr.Bytes())
+	return finishExplicitCommand(termination.err, waitErr, stdout.Bytes(), stderr.Bytes())
+}
+
+func finishExplicitCommand(terminationErr, waitErr error, stdout, stderr []byte) (ports.CommandResult, error) {
+	// Termination and close failures are runner-owned cleanup causes. Keep them
+	// structurally separate from Wait so an exact natural *exec.ExitError can be
+	// trusted without accepting an arbitrary joined error supplied by a caller.
+	trustedWaitErr := waitErr
+	if terminationErr != nil {
+		trustedWaitErr = &containmentWaitError{
+			cleanupErr: fmt.Errorf("terminate supervised process: %w", terminationErr),
+			waitErr:    waitErr,
+		}
 	}
-	if waitErr == nil {
-		return ports.CommandResult{ExitCode: 0, Stdout: stdout.Bytes()}, nil
+	if trustedWaitErr != nil {
+		if result, resultErr, ok := commandResultFromWait(trustedWaitErr, stdout, stderr); ok {
+			return result, resultErr
+		}
 	}
-	if exitErr, ok := waitErr.(*exec.ExitError); ok {
-		return ports.CommandResult{ExitCode: exitErr.ExitCode(), Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}, nil
+	if terminationErr != nil {
+		return ports.CommandResult{}, withDuplexDiagnostic(joinCleanupAndWaitError("terminate supervised process", terminationErr, waitErr), stderr)
 	}
-	return ports.CommandResult{}, waitErr
+	if waitErr != nil {
+		return ports.CommandResult{}, waitErr
+	}
+	return ports.CommandResult{ExitCode: 0, Stdout: stdout}, nil
 }
 
 func joinCleanupAndWaitError(operation string, cleanupErr, waitErr error) error {

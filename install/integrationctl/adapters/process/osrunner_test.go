@@ -31,6 +31,16 @@ func successfulNoopDuplexContainment(*exec.Cmd) (duplexCommandContainment, error
 	return &noopDuplexCommandContainment{}, nil
 }
 
+type naturalExitBoundaryContainment struct{}
+
+func (*naturalExitBoundaryContainment) attach(*exec.Cmd) error { return nil }
+func (*naturalExitBoundaryContainment) terminate() terminationResult {
+	// Model containment finding an already-stopped leader and an empty tree.
+	return terminationResult{leaderStopped: true}
+}
+func (*naturalExitBoundaryContainment) exited() (bool, error) { return false, nil }
+func (*naturalExitBoundaryContainment) close() error          { return nil }
+
 func TestOSRunnerPreservesCommandOutputAndExitCode(t *testing.T) {
 	requireDuplexCapability(t)
 	if os.Getenv("AGENTPLUGINS_PROCESS_OUTPUT_HELPER") == "1" {
@@ -242,6 +252,49 @@ func TestCleanupFailurePreservesNaturalLeaderExitStatus(t *testing.T) {
 	}
 }
 
+func TestContainmentCloseFailurePreservesExactExitStatusWithoutTrustingArbitraryJoin(t *testing.T) {
+	cleanupErr := errors.New("containment cleanup failed")
+	command := exec.Command("/bin/sh", "-c", "exit 47")
+	runErr := command.Run()
+	exitErr, ok := runErr.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("helper error = %v, want *exec.ExitError", runErr)
+	}
+	err := closeContainmentAndWait(func() error { return cleanupErr }, func() error { return exitErr }, time.Second)
+
+	gotExit, gotCleanup, ok := splitCommandWaitError(err)
+	if !ok || gotExit != exitErr || !errors.Is(gotCleanup, cleanupErr) {
+		t.Fatalf("split result = (%v, %v, %v), want exact exit status and cleanup error", gotExit, gotCleanup, ok)
+	}
+	if _, _, ok := splitCommandWaitError(errors.Join(cleanupErr, exitErr)); ok {
+		t.Fatal("arbitrary joined ExitError was incorrectly trusted as a command wait result")
+	}
+	result, resultErr, ok := commandResultFromWait(err, []byte("command output"), []byte("command diagnostic"))
+	if !ok || result.ExitCode != 47 || string(result.Stdout) != "command output" || string(result.Stderr) != "command diagnostic" {
+		t.Fatalf("command result = (%+v, %v), want exact exit code/stdout/stderr", result, ok)
+	}
+	if !errors.Is(resultErr, cleanupErr) || !strings.Contains(resultErr.Error(), "command diagnostic") {
+		t.Fatalf("command error = %v, want cleanup uncertainty and diagnostic", resultErr)
+	}
+}
+
+func TestExplicitCleanupFailurePreservesNaturalNonzeroResultAndStderr(t *testing.T) {
+	cleanupErr := errors.New("supervisor cleanup failed")
+	command := exec.Command("/bin/sh", "-c", "exit 47")
+	waitErr := command.Run()
+	if _, ok := waitErr.(*exec.ExitError); !ok {
+		t.Fatalf("helper error = %v, want *exec.ExitError", waitErr)
+	}
+
+	result, err := finishExplicitCommand(cleanupErr, waitErr, []byte("command output"), []byte("command diagnostic"))
+	if result.ExitCode != 47 || string(result.Stdout) != "command output" || string(result.Stderr) != "command diagnostic" {
+		t.Fatalf("command result = %+v, want exact natural exit code/stdout/stderr", result)
+	}
+	if !errors.Is(err, cleanupErr) || !strings.Contains(err.Error(), "command diagnostic") {
+		t.Fatalf("command error = %v, want supervisor cleanup failure with stderr diagnostic", err)
+	}
+}
+
 func TestAttachFailureClosesContainmentBeforeStartingWait(t *testing.T) {
 	closed := false
 	err := cleanupAttachFailure(errors.New("attach failed"), func() terminationResult {
@@ -367,6 +420,36 @@ func TestOSRunnerDuplexPlannedShutdownRejectsExitBeforeTeardownRequest(t *testin
 	})
 	if err == nil || !strings.Contains(err.Error(), "exited before planned process-tree shutdown") {
 		t.Fatalf("premature planned-process exit error = %v", err)
+	}
+}
+
+func TestOSRunnerDuplexPlannedShutdownRejectsNaturalNonzeroExitAtTeardownBoundary(t *testing.T) {
+	if os.Getenv("AGENTPLUGINS_PROCESS_NATURAL_NONZERO_BOUNDARY_HELPER") == "1" {
+		if _, err := bufio.NewReader(os.Stdin).ReadString('\n'); err != nil {
+			os.Exit(46)
+		}
+		os.Exit(47)
+	}
+	environment := append(os.Environ(), "AGENTPLUGINS_PROCESS_NATURAL_NONZERO_BOUNDARY_HELPER=1")
+	err := runDuplexMode(context.Background(), ports.Command{
+		Argv: []string{os.Args[0], "-test.run=TestOSRunnerDuplexPlannedShutdownRejectsNaturalNonzeroExitAtTeardownBoundary"}, Env: environment,
+	}, func(stdin io.Writer, stdout io.Reader) error {
+		if _, err := io.WriteString(stdin, "verified\n"); err != nil {
+			return err
+		}
+		// EOF proves the helper closed its last inherited output descriptor. The
+		// scripted observer then models the narrow stale pre-teardown poll.
+		_, err := io.ReadAll(stdout)
+		return err
+	}, duplexPipeFactory{
+		output: os.Pipe,
+		input:  func(cmd *exec.Cmd) (io.WriteCloser, error) { return cmd.StdinPipe() },
+		containment: func(*exec.Cmd) (duplexCommandContainment, error) {
+			return &naturalExitBoundaryContainment{}, nil
+		},
+	}, true)
+	if err == nil || !strings.Contains(err.Error(), "exited before planned process-tree shutdown") {
+		t.Fatalf("natural nonzero teardown-boundary exit error = %v", err)
 	}
 }
 
