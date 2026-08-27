@@ -236,9 +236,10 @@ on `PATH`. Create one root-owned temporary bin directory per seed containing
 the pinned Git binary and only the exact pinned client under a name that 0.1.18
 recognizes (`codex`, `cursor`, or `kiro-cli`). Cursor uses a fixed two-line
 launcher into the verified bundle because its executable cannot be separated
-from its sibling dependencies. Create `.codex` explicitly, but export `CODEX_HOME` only
-for Codex. Before any source is resolved or installed, the sole detection gate
-is exactly `agentplugins doctor --format json` (no source or target operands):
+from its sibling dependencies. Create `.codex` and export `CODEX_HOME` only for
+Codex; an empty `.codex` directory is itself a positive Codex detection signal.
+Before any source is resolved or installed, the sole detection gate is exactly
+`agentplugins doctor --format json` (no source or target operands):
 
 ```sh
 AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.18/agentplugins
@@ -247,8 +248,11 @@ for client in codex cursor kiro; do
   evidence="/root/profile-seed-evidence/$client"
   client_path="/root/profile-seed-path/$client"
   install -d -o root -g root -m 0700 "$seed" "$seed/.config" "$seed/.cache" "$seed/.auth" "$seed/.state" \
-    "$seed/.agentplugins" "$seed/.codex" "$evidence/add" "$evidence/info" \
+    "$seed/.agentplugins" "$evidence/add" "$evidence/info" \
     "$evidence/doctor" "$evidence/post-doctor" "$client_path"
+  if [ "$client" = codex ]; then
+    install -d -o root -g root -m 0700 "$seed/.codex"
+  fi
   install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/git "$client_path/git"
   case "$client" in
     codex) install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/codex "$client_path/codex" ;;

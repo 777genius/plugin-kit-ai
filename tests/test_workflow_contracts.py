@@ -508,6 +508,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("/opt/uap-observer-current/libexec/uap-observer-provision-profile", runbook)
         self.assertIn("--matrix-file /root/uap-observer-matrix.json", runbook)
         self.assertIn("--post-doctor-directory", runbook)
+        self.assertIn('if [ "$client" = codex ]; then\n    install -d -o root -g root -m 0700 "$seed/.codex"', runbook)
+        self.assertNotIn('"$seed/.agentplugins" "$seed/.codex"', runbook)
         digest_phase = runbook.index("--digest-only")
         config_phase = runbook.index("uap-observer-adapter-config.template.json", digest_phase)
         validate_phase = runbook.index("python3 -m jsonschema", config_phase)

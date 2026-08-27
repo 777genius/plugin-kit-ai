@@ -1128,12 +1128,14 @@ with tempfile.TemporaryDirectory() as temporary:
                 e2e.TRUSTED_CLI_RELEASE_REPOSITORY, "agentplugins-v1.2.3", Path(tmp) / "agentplugins",
                 asset_name="agentplugins_1.2.3_linux_amd64",
                 fixture_fetch=lambda url, _limit, _accept: bodies[url],
-                attestation_verifier=lambda path, repo, workflow, tag, commit, digest: {"repository": repo, "workflow": workflow, "tag": tag, "tag_commit": commit, "asset_name": path.name, "asset_digest": digest, "verified": True},
+                attestation_verifier=lambda _path, repo, workflow, tag, commit, digest, subject_name: {"repository": repo, "workflow": workflow, "tag": tag, "tag_commit": commit, "asset_name": subject_name, "asset_digest": digest, "verified": True},
             )
             self.assertEqual(destination.read_bytes(), selected)
             self.assertEqual(resolved, manifest)
             self.assertEqual(digest, "sha256:" + e2e.hashlib.sha256(manifest_body).hexdigest())
             self.assertEqual((destination.parent / e2e.RELEASE_CHECKSUMS_NAME).read_bytes(), checksums_body)
+            attestation = json.loads((destination.parent / "agentplugins_1.2.3_linux_amd64.attestation.json").read_text())
+            self.assertEqual(attestation["asset_name"], "agentplugins_1.2.3_linux_amd64")
 
             tampered = {**bodies, f"{download}/agentplugins_1.2.3_linux_amd64": b"x" * len(selected)}
             with self.assertRaisesRegex(ValueError, "digest disagrees"):
@@ -1306,18 +1308,19 @@ with tempfile.TemporaryDirectory() as temporary:
 
     def test_github_attestation_pins_release_identity_predicate_subject_and_hosted_runner(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            asset = Path(tmp) / "agentplugins_0.1.18_linux_amd64"
+            asset = Path(tmp) / "agentplugins"
             asset.write_bytes(b"native")
             digest = "sha256:" + hashlib.sha256(asset.read_bytes()).hexdigest()
+            subject_name = "agentplugins_0.1.18_linux_amd64"
             statement = [{"verificationResult": {"statement": {
                 "predicateType": "https://slsa.dev/provenance/v1",
-                "subject": [{"name": asset.name, "digest": {"sha256": digest.removeprefix("sha256:")}}],
+                "subject": [{"name": subject_name, "digest": {"sha256": digest.removeprefix("sha256:")}}],
             }}}]
             completed = subprocess.CompletedProcess([], 0, json.dumps(statement), "")
             with mock.patch.object(e2e.subprocess, "run", return_value=completed) as invoked:
                 verified = e2e.verify_github_asset_attestation(
                     asset, e2e.TRUSTED_CLI_RELEASE_REPOSITORY, e2e.TRUSTED_CLI_RELEASE_WORKFLOW,
-                    e2e.TRUSTED_CLI_RELEASE_TAG, e2e.TRUSTED_CLI_RELEASE_COMMIT, digest,
+                    e2e.TRUSTED_CLI_RELEASE_TAG, e2e.TRUSTED_CLI_RELEASE_COMMIT, digest, subject_name,
                 )
             argv = invoked.call_args.args[0]
             for flag in (
@@ -1325,7 +1328,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 "--predicate-type", "--deny-self-hosted-runners",
             ):
                 self.assertIn(flag, argv)
-            self.assertEqual(verified["subject_name"], asset.name)
+            self.assertEqual(verified["subject_name"], subject_name)
             self.assertEqual(verified["subject_digest"], digest)
             self.assertEqual(verified["runner_environment"], "github-hosted")
             self.assertEqual(
@@ -1337,7 +1340,7 @@ with tempfile.TemporaryDirectory() as temporary:
                 with self.assertRaisesRegex(ValueError, "subject name/digest"):
                     e2e.verify_github_asset_attestation(
                         asset, e2e.TRUSTED_CLI_RELEASE_REPOSITORY, e2e.TRUSTED_CLI_RELEASE_WORKFLOW,
-                        e2e.TRUSTED_CLI_RELEASE_TAG, e2e.TRUSTED_CLI_RELEASE_COMMIT, digest,
+                        e2e.TRUSTED_CLI_RELEASE_TAG, e2e.TRUSTED_CLI_RELEASE_COMMIT, digest, subject_name,
                     )
             with self.assertRaisesRegex(ValueError, "trusted release identity"):
                 e2e.verify_github_asset_attestation(

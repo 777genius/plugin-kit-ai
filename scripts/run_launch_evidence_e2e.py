@@ -697,7 +697,7 @@ def validate_release_manifest(value: dict[str, Any], *, repository: str, tag: st
 def resolve_github_release(
     repository: str, tag: str, destination: Path, *, asset_name: str,
     token: str | None = None, fixture_fetch: Callable[[str, int, str], bytes] | None = None,
-    attestation_verifier: Callable[[Path, str, str, str, str, str], dict[str, Any]] | None = None,
+    attestation_verifier: Callable[[Path, str, str, str, str, str, str], dict[str, Any]] | None = None,
 ) -> tuple[Path, dict[str, Any], str]:
     """Resolve one published exact-tag release and checksum its selected asset.
 
@@ -785,7 +785,10 @@ def resolve_github_release(
         "release_id": release.get("id"), "immutable": True,
     }, sort_keys=True) + "\n")
     verifier = attestation_verifier or verify_github_asset_attestation
-    attestation = verifier(destination, repository, TRUSTED_CLI_RELEASE_WORKFLOW, tag, tag_commit, "sha256:" + declared["sha256"])
+    attestation = verifier(
+        destination, repository, TRUSTED_CLI_RELEASE_WORKFLOW, tag, tag_commit,
+        "sha256:" + declared["sha256"], asset_name,
+    )
     (destination.parent / f"{asset_name}.attestation.json").write_text(json.dumps(attestation, sort_keys=True) + "\n")
     return destination, manifest, manifest_digest
 
@@ -892,6 +895,7 @@ def validate_prepared_github_release(
 
 def verify_github_asset_attestation(
     asset: Path, repository: str, workflow: str, tag: str, tag_commit: str, digest: str,
+    subject_name: str | None = None,
 ) -> dict[str, Any]:
     """Cryptographically verify one GitHub artifact attestation with fixed identities."""
     if (
@@ -903,6 +907,9 @@ def verify_github_asset_attestation(
         raise ValueError("artifact attestation repository/workflow is not the trusted release identity")
     if not FULL_SHA.fullmatch(tag_commit) or not DIGEST.fullmatch(digest):
         raise ValueError("artifact attestation commit or digest is invalid")
+    subject_name = asset.name if subject_name is None else subject_name
+    if not isinstance(subject_name, str) or Path(subject_name).name != subject_name or not subject_name:
+        raise ValueError("artifact attestation subject name is invalid")
     command = [
         "gh", "attestation", "verify", str(asset), "--repo", repository,
         "--signer-workflow", workflow, "--source-ref", TRUSTED_CLI_RELEASE_SOURCE_REF,
@@ -928,7 +935,7 @@ def verify_github_asset_attestation(
         subjects = statement.get("subject", []) if isinstance(statement, dict) else []
         if (
             statement.get("predicateType") == "https://slsa.dev/provenance/v1"
-            and any(subject.get("name") == asset.name and subject.get("digest", {}).get("sha256") == expected_sha for subject in subjects if isinstance(subject, dict))
+            and any(subject.get("name") == subject_name and subject.get("digest", {}).get("sha256") == expected_sha for subject in subjects if isinstance(subject, dict))
         ):
             matching.append(record)
     if not matching:
@@ -937,7 +944,7 @@ def verify_github_asset_attestation(
         "repository": repository, "workflow": workflow, "tag": tag,
         "tag_commit": tag_commit, "issuer": "https://token.actions.githubusercontent.com",
         "source_ref": TRUSTED_CLI_RELEASE_SOURCE_REF, "source_digest": tag_commit,
-        "predicate_type": "https://slsa.dev/provenance/v1", "subject_name": asset.name,
+        "predicate_type": "https://slsa.dev/provenance/v1", "subject_name": subject_name,
         "subject_digest": digest, "runner_environment": "github-hosted",
         "asset_name": asset.name, "asset_digest": digest,
         "verified": True,
