@@ -93,6 +93,7 @@ jobs:
         run: |
           run_root="$RUNNER_TEMP/upstream-${{ matrix.package.id }}"
           mkdir -p "$run_root"/{home,state,workspace,config,cache,tmp,evidence}
+          mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}
           binary="$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
           isolated=(env -i PATH="$PATH" LANG=C.UTF-8 HOME="$run_root/home" USERPROFILE="$run_root/home" \
             XDG_CONFIG_HOME="$run_root/config" XDG_CACHE_HOME="$run_root/cache" \
@@ -125,6 +126,7 @@ jobs:
           assert data["revision"] == os.environ["EXPECTED_REVISION"]
           assert data["succeeded"] == 3 and data["failed"] == 0
           assert {item["target"] for item in data["targets"]} == {"codex", "cursor", "kiro"}
+          assert {item["status"] for item in data["targets"]} == {"external_completed"}
           assert remove["data"]["succeeded"] == 3 and remove["data"]["failed"] == 0
           evidence = {
               "schema_version": 1,
@@ -139,6 +141,8 @@ jobs:
               "install": "passed",
               "discovery": "passed",
               "remove": "passed",
+              "client_detection": "empty_disposable_config_roots",
+              "activation_executed": False,
               "runtime_executed": False,
               "authentication_executed": False,
               "run": {

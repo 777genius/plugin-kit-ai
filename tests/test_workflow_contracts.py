@@ -712,6 +712,9 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]', body)
         self.assertEqual(body.count("gh attestation verify"), 1)
         self.assertIn('--source-digest "$AGENTPLUGINS_COMMIT"', body)
+        self.assertIn('mkdir -p "$run_root/home"/{.codex,.cursor,.kiro}', body)
+        self.assertIn('{item["status"] for item in data["targets"]} == {"external_completed"}', body)
+        self.assertNotIn("kiro-cli", body)
 
     def test_nested_launch_workflow_permissions_never_escalate(self) -> None:
         publication = load(DIRECTORY_PUBLICATION)
