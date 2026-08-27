@@ -225,14 +225,17 @@ from the approved tuple as the canonical
 `source_repository@source_revision//source_path`; reject a missing revision, a
 non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.18
 prepares these clients and retains its immutable pre-execution plan in the add
-envelope. That nested plan may record `manual_activation_required`; the sibling
-realized activation must instead be `active` with `installation_verified`, no
-confirmation pending, and `group_phase: external_completed`. The same manual
-state anywhere outside that historical plan is incomplete and cannot be sealed.
-Its real successful add envelope uses `result: success`, `data.status:
-completed`, and a selected target status of `external_completed` (the validator
-below also accepts the documented success/completed status spellings at the
-target boundary).
+envelope. The sealer accepts either of the two real 0.1.18 completion shapes. A
+fully automated add must contain `result: success`, `data.status: completed`, a
+successful selected target, and a realized `active` / `installation_verified`
+activation with `group_phase: external_completed`. A client that requires an
+external activation must first be materialized, activated and verified in the
+exact pinned client, then completed by rerunning the same canonical add with
+`--activation-complete --auth-complete`; the exact CLI-emitted completion
+envelope must attest both facts and bind the same revision and digests. The
+immutable nested plan may still describe the earlier
+`manual_activation_required` state. Never merge,
+rewrite, or synthesize the two envelopes.
 
 The manager detects clients through `PATH`. Never run it with an ambient client
 on `PATH`. Create one root-owned temporary bin directory per seed containing
@@ -428,10 +431,13 @@ echo and MCP discovery do not count as skill runtime. These capability probes
 are not the final five-plugin-by-three-client launch matrix. Do not claim
 15/15/PASS until the external live matrix supplies all 15 required results.
 
-After human activation, repeat post-add doctor without a source operand and
-info with 0.1.18's installed identity syntax: the installed plugin name plus
-its exact `--target`. There is no receipt-export or automatic client-activation
-operation in agentplugins 0.1.18:
+After human activation, rerun the canonical add with both explicit completion
+flags. Store that exact output as the add evidence only when the original add
+was not already fully active; otherwise retain the original add and store the
+completion output separately. Then repeat post-add doctor without a source
+operand and info with 0.1.18's installed identity syntax: the installed plugin
+name plus its exact `--target`. There is no receipt-export operation in
+agentplugins 0.1.18:
 
 ```sh
 for client in codex cursor kiro; do
@@ -442,6 +448,10 @@ for client in codex cursor kiro; do
     XDG_CACHE_HOME="$seed/.cache" AGENTPLUGINS_HOME="$seed/.agentplugins" PATH="$client_path"
   if [ "$client" = codex ]; then set -- "$@" CODEX_HOME="$seed/.codex"; fi
   for plugin in agent-code-navigator context7 cloudflare-docs chrome-devtools notion; do
+    source="$(python3 -c 'import json,sys; c,p,f=sys.argv[1:]; rows=[r["tuple"] for r in json.load(open(f))["matrix"] if r["client"]==c and r["plugin"]==p]; assert len(rows)==1; r=rows[0]; print("{}@{}//{}".format(r["source_repository"],r["source_revision"],r["source_path"]))' "$client" "$plugin" /root/uap-observer-matrix.json)"
+    "$@" "$AGENTPLUGINS" add "$source" --target "$client" \
+      --activation-complete --auth-complete --format json \
+      >"$evidence/completion/$plugin.json"
     "$@" "$AGENTPLUGINS" doctor --format json \
       >"$evidence/post-doctor/$plugin.json"
     "$@" "$AGENTPLUGINS" info "$plugin" --target "$client" --format json \
@@ -454,7 +464,12 @@ Freeze `/root/uap-observer-matrix.json` first as an object containing only the
 final `matrix` array, root-owned mode `0400`. For each client, create
 `/root/native-config-$client.json` as a JSON object
 mapping each exact hero name to the profile-relative regular file the pinned
-client actually reads for that hero. Do not guess paths, hand-write tuple
+client actually reads for that hero. Cursor's four MCP entries intentionally
+share `.cursor/mcp.json`; Kiro's four MCP entries intentionally share
+`.kiro/settings/mcp.json`. Their skill uses the corresponding
+`.cursor/skills/code-tool-router/SKILL.md` or
+`.kiro/skills/code-tool-router/SKILL.md`. Codex maps each hero to its exact
+manager-installed native package file. Do not guess paths, hand-write tuple
 receipts, or treat name/status output as tuple binding. The repository sealer
 checks each manager record against the approved matrix tuple and each native
 config's containment, ownership, mode, link count, and SHA-256. It emits the

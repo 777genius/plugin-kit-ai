@@ -356,7 +356,10 @@ def reconcile_revision_aliases(
     visit(value, source_object=in_source)
 
 
-def matching_client(info: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> None:
+def matching_client(
+    info: dict[str, Any], plugin: str, client: str, approved: dict[str, Any],
+    *, completion_attested: bool = False,
+) -> None:
     if set(info) != {"schema_version", "command", "result", "data"} or type(info.get("schema_version")) is not int or info.get("schema_version") != 1 or info.get("command") != "info" or info.get("result") != "success":
         raise ValueError(f"{plugin}: manager info is not exact successful agentplugins JSON")
     data = info.get("data")
@@ -373,16 +376,32 @@ def matching_client(info: dict[str, Any], plugin: str, client: str, approved: di
     completed = {
         "scope": "user", "materialization": "materialized", "activation": "active",
         "verification": "installation_verified", "policy": "allowed",
-        "receipt_reconciled": True, "native_discovery_reconciled": True,
-        "native_identity_state": "managed",
     }
     lifecycle_differs = any(
         (record.get(key) is not expected) if isinstance(expected, bool) else (record.get(key) != expected)
         for key, expected in completed.items()
     )
-    if data.get("mixed_version") is not False or lifecycle_differs:
+    reconciliation = {
+        "receipt_reconciled": record.get("receipt_reconciled"),
+        "native_discovery_reconciled": record.get("native_discovery_reconciled"),
+        "native_identity_state": record.get("native_identity_state"),
+    }
+    reconciled = reconciliation == {
+        "receipt_reconciled": True, "native_discovery_reconciled": True,
+        "native_identity_state": "managed",
+    }
+    attested_manual = completion_attested and reconciliation == {
+        "receipt_reconciled": False, "native_discovery_reconciled": False,
+        "native_identity_state": "indeterminate",
+    }
+    if data.get("mixed_version") is not False or lifecycle_differs or not (reconciled or attested_manual):
         raise ValueError(f"{plugin}: manager info lifecycle is incomplete or unreconciled")
-    if prohibited_lifecycle_state(data):
+    lifecycle_view = copy.deepcopy(data)
+    if attested_manual:
+        lifecycle_record = lifecycle_view["clients"][0]
+        for key in reconciliation:
+            lifecycle_record.pop(key, None)
+    if prohibited_lifecycle_state(lifecycle_view):
         raise ValueError(f"{plugin}: manager info contains a prohibited lifecycle state")
     revision = record.get("package_revision")
     fields = {
@@ -400,7 +419,7 @@ def matching_client(info: dict[str, Any], plugin: str, client: str, approved: di
     reconcile_revision_aliases(info, approved, f"{plugin}: manager info")
 
 
-def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> None:
+def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> bool:
     """Validate the real agentplugins 0.1.18 add envelope and approved source."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "add" or value.get("result") != "success":
         raise ValueError(f"{plugin}: manager add is not successful agentplugins JSON")
@@ -408,13 +427,55 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
     expected_source = f'{approved.get("source_repository")}//{approved.get("source_path")}'
     expected_revision = approved.get("source_revision")
     if (
-        not isinstance(data, dict) or data.get("status") != "completed"
-        or data.get("plugin") != plugin or data.get("source") != expected_source
-        or data.get("revision") != expected_revision
-        or type(data.get("failed")) is not int or data.get("failed") != 0
+        not isinstance(data, dict) or data.get("plugin") != plugin
+        or data.get("source") != expected_source or data.get("revision") != expected_revision
         or not isinstance(expected_revision, str) or len(expected_revision) != 40
         or any(character not in "0123456789abcdef" for character in expected_revision)
     ):
+        raise ValueError(f"{plugin}: manager add does not bind the approved canonical source")
+    bindings = {
+        "source": expected_source, "revision": expected_revision,
+        "version": approved.get("package_version"), "tree_digest": approved.get("tree_digest"),
+        "manifest_digest": approved.get("manifest_digest"),
+    }
+    def reject_conflict(item: Any) -> bool:
+        if isinstance(item, list):
+            return any(reject_conflict(child) for child in item)
+        if not isinstance(item, dict):
+            return False
+        return (
+            any(key in item and not exact_equal(item[key], expected) for key, expected in bindings.items())
+            or any(reject_conflict(child) for child in item.values())
+        )
+    completion = data.get("status") is None and "targets" not in data
+    if completion:
+        result = data.get("result")
+        plan = result.get("plan") if isinstance(result, dict) else None
+        activation = result.get("activation") if isinstance(result, dict) else None
+        if (
+            data.get("dry_run") is not False
+            or any(not exact_equal(data.get(key), expected) for key, expected in bindings.items())
+            or not isinstance(plan, dict) or plan.get("client_id") != client
+            or not isinstance(activation, dict)
+            or activation.get("activation") != "active"
+            or activation.get("authentication") != "authenticated"
+            or activation.get("policy") != "allowed"
+            or activation.get("verification") != "installation_verified"
+            or activation.get("activation_attested") is not True
+            or activation.get("authentication_attested") is not True
+            or result.get("mutated") is not True
+            or result.get("requires_confirmation") is not False
+        ):
+            raise ValueError(f"{plugin}: manager add completion attestation is incomplete")
+        if reject_conflict(data):
+            raise ValueError(f"{plugin}: manager add contains a conflicting approved source tuple")
+        reconcile_revision_aliases(value, approved, f"{plugin}: manager add")
+        realized_envelope = copy.deepcopy(value)
+        realized_envelope["data"]["result"].pop("plan")
+        if prohibited_lifecycle_state(realized_envelope):
+            raise ValueError(f"{plugin}: manager add contains an incomplete or prohibited lifecycle state")
+        return True
+    if data.get("status") != "completed" or type(data.get("failed")) is not int or data.get("failed") != 0:
         raise ValueError(f"{plugin}: manager add does not bind the approved canonical source")
     targets = data.get("targets")
     if not isinstance(targets, list) or len(targets) != 1 or not isinstance(targets[0], dict):
@@ -442,17 +503,6 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
             f"{plugin}: manager add contains an incomplete or prohibited lifecycle state "
             "(realized activation)"
         )
-    bindings = {
-        "source": expected_source, "revision": expected_revision,
-        "version": approved.get("package_version"), "tree_digest": approved.get("tree_digest"),
-        "manifest_digest": approved.get("manifest_digest"),
-    }
-    def reject_conflict(item: Any) -> bool:
-        if isinstance(item, list):
-            return any(reject_conflict(child) for child in item)
-        if not isinstance(item, dict):
-            return False
-        return any(key in item and not exact_equal(item[key], expected) for key, expected in bindings.items()) or any(reject_conflict(child) for child in item.values())
     if reject_conflict(data):
         raise ValueError(f"{plugin}: manager add contains a conflicting approved source tuple")
     reconcile_revision_aliases(value, approved, f"{plugin}: manager add")
@@ -464,12 +514,39 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
     realized_result.pop("plan")
     if prohibited_lifecycle_state(realized_envelope):
         raise ValueError(f"{plugin}: manager add contains an incomplete or prohibited lifecycle state")
+    return False
 
 
 def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict[str, Any]]) -> None:
     """Validate one complete post-add 0.1.18 doctor inventory."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "doctor" or value.get("result") != "success":
         raise ValueError("post-add doctor is not the exact successful 0.1.18 envelope")
+    data = value.get("data")
+    if isinstance(data, dict) and set(data) == {
+        "clients", "findings", "installation_count", "open_operation_count", "read_only",
+        "supported_clients", "tool_version",
+    }:
+        clients = data.get("clients")
+        supported = data.get("supported_clients")
+        detected = [
+            item.get("client_id") for item in clients or []
+            if isinstance(item, dict) and item.get("status") == "detected"
+        ]
+        client_ids = {
+            item.get("client_id") for item in clients or [] if isinstance(item, dict)
+        }
+        supported_ids = {
+            item.get("client_id") for item in supported or [] if isinstance(item, dict)
+        }
+        expected_clients = {"codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"}
+        if (
+            data.get("read_only") is not True or data.get("open_operation_count") != 0
+            or data.get("installation_count") != len(HEROES) or data.get("findings") != []
+            or detected != [client] or client_ids != expected_clients or supported_ids != expected_clients
+            or prohibited_lifecycle_state(value)
+        ):
+            raise ValueError("post-add doctor does not prove one complete five-plugin profile")
+        return
     if prohibited_lifecycle_state(value):
         raise ValueError("post-add doctor contains an incomplete or prohibited lifecycle state")
     detected: list[str] = []
@@ -652,9 +729,12 @@ def main() -> int:
     active_groups: dict[Path, list[dict]] = {}
     for plugin in sorted(HEROES):
         add, add_body = load_object(args.manager_add_directory / f"{plugin}.json")
-        matching_add(add, plugin, args.client, approved[plugin])
+        completion_attested = matching_add(add, plugin, args.client, approved[plugin])
         info, info_body = load_object(args.manager_info_directory / f"{plugin}.json")
-        matching_client(info, plugin, args.client, approved[plugin])
+        matching_client(
+            info, plugin, args.client, approved[plugin],
+            completion_attested=completion_attested,
+        )
         relative = mapping[plugin]
         if type(relative) is not str:
             raise ValueError(f"{plugin}: native config map path is invalid")
@@ -687,9 +767,18 @@ def main() -> int:
         active_groups.setdefault(active_path, []).append(entry)
         receipts.append({"name": plugin, "tuple": approved[plugin], **evidence})
     duplicates = [group for group in active_groups.values() if len(group) > 1]
-    if args.client == "kiro":
-        shared = final_root / ".kiro" / "settings" / "mcp.json"
-        skill = final_root / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+    shared_profiles = {
+        "cursor": (
+            final_root / ".cursor" / "mcp.json",
+            final_root / ".cursor" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+        "kiro": (
+            final_root / ".kiro" / "settings" / "mcp.json",
+            final_root / ".kiro" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+    }
+    if args.client in shared_profiles:
+        shared, skill = shared_profiles[args.client]
         if (
             set(active_groups) != {shared, skill}
             or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1

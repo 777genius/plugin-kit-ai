@@ -5135,8 +5135,8 @@ class FixedAdapterContractTests(unittest.TestCase):
             mapping, matrix = {}, []
             for plugin in sorted(fixed_adapters.HEROES):
                 relative = (
-                    "skills/code-tool-router/SKILL.md"
-                    if plugin == "agent-code-navigator" else f"native/{plugin}.source"
+                    ".cursor/skills/code-tool-router/SKILL.md"
+                    if plugin == "agent-code-navigator" else ".cursor/mcp.json"
                 )
                 mapping[plugin] = relative
                 native = seed / relative
@@ -5347,6 +5347,11 @@ class FixedAdapterContractTests(unittest.TestCase):
             self.assertTrue(all(entry["native_config"]["path"].endswith(f'/{entry["plugin"]}.blob') for entry in value["entries"]))
             self.assertTrue(all(entry["native_config"]["path"].startswith("/var/lib/uap-observer/proofs/cursor/native/") for entry in value["entries"]))
             self.assertTrue(all(entry["client_config"]["path"].startswith("/var/lib/uap-observer/profiles/cursor/") for entry in value["entries"]))
+            cursor_mcp_paths = {
+                entry["client_config"]["path"]
+                for entry in value["entries"] if entry["component_kind"] == "mcp"
+            }
+            self.assertEqual(cursor_mcp_paths, {"/var/lib/uap-observer/profiles/cursor/.cursor/mcp.json"})
             receipt_value = json.loads(receipts.read_text())
             self.assertTrue(fixed_adapters.receipt_binds_projection(receipt_value, value))
             forged_receipt = json.loads(json.dumps(receipt_value))
@@ -5539,6 +5544,96 @@ class FixedAdapterContractTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 subprocess.run([*common, "--digest-only"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             native_path.write_bytes(native_original)
+
+    def test_profile_sealer_accepts_exact_completion_attestation_and_real_doctor(self) -> None:
+        helper = Path(__file__).parents[2] / "deploy" / "uap-observer-seal-profile.py"
+        specification = importlib.util.spec_from_file_location("completion_profile_sealer", helper)
+        self.assertIsNotNone(specification)
+        self.assertIsNotNone(specification.loader)
+        sealer = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(sealer)
+        approved = {
+            "package_version": "1.0.0",
+            "source_repository": "upstash/context7",
+            "source_revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9",
+            "source_path": "plugins/agent-plugins/context7",
+            "tree_digest": "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8",
+            "manifest_digest": "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236",
+        }
+        add = {
+            "schema_version": 1, "command": "add", "result": "success",
+            "data": {
+                "dry_run": False, "plugin": "context7",
+                "source": "upstash/context7//plugins/agent-plugins/context7",
+                "revision": approved["source_revision"], "version": approved["package_version"],
+                "tree_digest": approved["tree_digest"], "manifest_digest": approved["manifest_digest"],
+                "next_action": "verify reviewed authentication requirements",
+                "result": {
+                    "installation_id": "test-installation", "mutated": True,
+                    "requires_confirmation": False,
+                    "plan": {
+                        "client_id": "cursor", "scope": "user", "status": "manual_activation_required",
+                        "activation": "manual_activation_required", "verification": "package_validated",
+                    },
+                    "activation": {
+                        "activation": "active", "authentication": "authenticated",
+                        "policy": "allowed", "verification": "installation_verified",
+                        "activation_attested": True, "authentication_attested": True,
+                    },
+                },
+            },
+        }
+        self.assertTrue(sealer.matching_add(add, "context7", "cursor", approved))
+        for mutation in (
+            lambda value: value["data"]["result"]["activation"].update(activation_attested=False),
+            lambda value: value["data"]["result"].update(mutated=False),
+            lambda value: value["data"]["result"].update(nested={"tree_digest": "sha256:" + "f" * 64}),
+        ):
+            invalid = json.loads(json.dumps(add))
+            mutation(invalid)
+            with self.assertRaises(ValueError):
+                sealer.matching_add(invalid, "context7", "cursor", approved)
+        info = {
+            "schema_version": 1, "command": "info", "result": "success",
+            "data": {
+                "name": "context7", "source": "upstash/context7//plugins/agent-plugins/context7",
+                "mixed_version": False,
+                "clients": [{
+                    "client_id": "cursor", "scope": "user", "materialization": "materialized",
+                    "activation": "active", "verification": "installation_verified", "policy": "allowed",
+                    "receipt_reconciled": False, "native_discovery_reconciled": False,
+                    "native_identity_state": "indeterminate",
+                    "package_revision": {
+                        "version": approved["package_version"], "resolved_revision": approved["source_revision"],
+                        "tree_digest": approved["tree_digest"], "manifest_digest": approved["manifest_digest"],
+                    },
+                }],
+            },
+        }
+        sealer.matching_client(info, "context7", "cursor", approved, completion_attested=True)
+        with self.assertRaisesRegex(ValueError, "incomplete or unreconciled"):
+            sealer.matching_client(info, "context7", "cursor", approved)
+        expected_clients = ("chatgpt", "codex", "copilot", "cursor", "kiro", "vscode")
+        doctor = {
+            "schema_version": 1, "command": "doctor", "result": "success",
+            "data": {
+                "clients": [
+                    {"client_id": name, "status": "detected" if name == "cursor" else "not_detected"}
+                    for name in expected_clients
+                ],
+                "findings": [], "installation_count": 5, "open_operation_count": 0,
+                "read_only": True,
+                "supported_clients": [
+                    {"client_id": name, "package_mode": "native"} for name in expected_clients
+                ],
+                "tool_version": "0.1.18",
+            },
+        }
+        sealer.matching_doctor(doctor, "cursor", {"context7": approved})
+        incomplete_doctor = json.loads(json.dumps(doctor))
+        incomplete_doctor["data"]["findings"] = [{"status": "degraded"}]
+        with self.assertRaisesRegex(ValueError, "complete five-plugin profile"):
+            sealer.matching_doctor(incomplete_doctor, "cursor", {"context7": approved})
 
     def test_profile_sealer_rejects_real_incomplete_cursor_and_kiro_records(self) -> None:
         helper = Path(__file__).parents[2] / "deploy" / "uap-observer-seal-profile.py"
