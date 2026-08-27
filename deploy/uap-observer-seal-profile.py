@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import ctypes
 import hashlib
 import json
@@ -421,6 +422,26 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
     matches = [item for item in targets if item.get("target") == client]
     if len(matches) != 1 or matches[0].get("status") not in ADD_SUCCESS_STATUSES:
         raise ValueError(f"{plugin}: manager add target did not complete successfully")
+    target = matches[0]
+    output = target.get("output")
+    result = output.get("result") if isinstance(output, dict) else None
+    plan = result.get("plan") if isinstance(result, dict) else None
+    activation = result.get("activation") if isinstance(result, dict) else None
+    realized = {
+        "activation": "active", "policy": "allowed",
+        "verification": "installation_verified",
+    }
+    if (
+        not isinstance(plan, dict) or plan.get("client_id") != client
+        or not isinstance(activation, dict)
+        or any(activation.get(key) != expected for key, expected in realized.items())
+        or result.get("requires_confirmation") is not False
+        or result.get("group_phase") != "external_completed"
+    ):
+        raise ValueError(
+            f"{plugin}: manager add contains an incomplete or prohibited lifecycle state "
+            "(realized activation)"
+        )
     bindings = {
         "source": expected_source, "revision": expected_revision,
         "version": approved.get("package_version"), "tree_digest": approved.get("tree_digest"),
@@ -435,7 +456,13 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
     if reject_conflict(data):
         raise ValueError(f"{plugin}: manager add contains a conflicting approved source tuple")
     reconcile_revision_aliases(value, approved, f"{plugin}: manager add")
-    if prohibited_lifecycle_state(value):
+    realized_envelope = copy.deepcopy(value)
+    realized_result = realized_envelope["data"]["targets"][0]["output"]["result"]
+    # Agentplugins records the immutable pre-execution plan next to the realized
+    # activation. A manual plan is expected for clients that the manager then
+    # activates successfully; only the realized lifecycle is sealable evidence.
+    realized_result.pop("plan")
+    if prohibited_lifecycle_state(realized_envelope):
         raise ValueError(f"{plugin}: manager add contains an incomplete or prohibited lifecycle state")
 
 

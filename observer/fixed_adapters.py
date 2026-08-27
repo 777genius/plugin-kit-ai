@@ -41,6 +41,7 @@ ENTRYPOINT_ARTIFACT = {
 CONFIG_PATH = Path("/opt/uap-observer-current/etc/uap-observer-adapter-config.json")
 CONSENT_DIRECTORY = Path("/var/lib/uap-observer-consent/pending")
 GIT_BINARY = Path("/opt/uap-observer-inputs/bin/git")
+NODE_BINARY = Path("/opt/uap-observer-inputs/cursor/node")
 FIXED_INPUT_PATHS = {
     str(GIT_BINARY),
     "/opt/uap-observer-inputs/bin/codex",
@@ -579,6 +580,45 @@ def verified_executable(item: dict[str, Any], owner_uid: int) -> Path:
             raise ValueError("Kiro companion executable path differs")
         verify_executable_file(companion, item["companion_sha256"], owner_uid=owner_uid)
     return binary
+
+
+def verified_runtime_node(bundle: Any, owner_uid: int) -> Path:
+    """Return the exact Node runtime already bound by the Cursor bundle."""
+    if (
+        not isinstance(bundle, dict)
+        or set(bundle) != {"root", "manifest", "manifest_sha256"}
+        or bundle.get("root") != str(NODE_BINARY.parent)
+        or bundle.get("manifest") != "/opt/uap-observer-inputs/cursor-bundle.json"
+    ):
+        raise ValueError("fixed Node runtime bundle config differs")
+    files = verify_bundle(
+        root=Path(bundle["root"]), manifest=Path(bundle["manifest"]),
+        manifest_sha256=bundle["manifest_sha256"], owner_uid=owner_uid,
+    )
+    if NODE_BINARY not in files:
+        raise ValueError("fixed Node runtime is absent from its verified bundle")
+    info = os.lstat(NODE_BINARY)
+    if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o755:
+        raise ValueError("fixed Node runtime is not executable")
+    return NODE_BINARY
+
+
+def runtime_environment(profile: Path, runtime_node: Path | None = None) -> dict[str, str]:
+    """Build the minimal fixed environment inherited by the reviewed client."""
+    runtime_path = str(GIT_BINARY.parent)
+    if runtime_node is not None:
+        runtime_path += os.pathsep + str(runtime_node.parent)
+    environment = {
+        "PATH": runtime_path, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        "HOME": str(profile), "XDG_CONFIG_HOME": str(profile / ".config"),
+        "XDG_CACHE_HOME": str(profile / ".cache"),
+        "HTTPS_PROXY": FIXED_HTTPS_PROXY, "https_proxy": FIXED_HTTPS_PROXY,
+        "HTTP_PROXY": FIXED_HTTPS_PROXY, "http_proxy": FIXED_HTTPS_PROXY,
+        "NO_PROXY": "", "no_proxy": "",
+    }
+    if runtime_node is not None:
+        environment["NODE_USE_ENV_PROXY"] = "1"
+    return environment
 
 
 def verified_native_projection(
@@ -2173,17 +2213,13 @@ def write_skill_probe(workspace: Path, marker: str) -> Path:
 def invoke(
     item: dict[str, Any], plugin: str, client: str, challenge: str, workspace: Path,
     owner_uid: int, approved_tuple: dict[str, Any] | None = None,
+    runtime_node: Path | None = None,
 ) -> tuple[dict[str, Any], list[str], str, str]:
     binary = verified_executable(item, owner_uid)
     profile = Path(item["profile"])
-    environment = {
-        "PATH": str(GIT_BINARY.parent), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-        "HOME": str(profile), "XDG_CONFIG_HOME": str(profile / ".config"),
-        "XDG_CACHE_HOME": str(profile / ".cache"),
-        "HTTPS_PROXY": FIXED_HTTPS_PROXY, "https_proxy": FIXED_HTTPS_PROXY,
-        "HTTP_PROXY": FIXED_HTTPS_PROXY, "http_proxy": FIXED_HTTPS_PROXY,
-        "NO_PROXY": "", "no_proxy": "",
-    }
+    if plugin == "chrome-devtools" and runtime_node != NODE_BINARY:
+        raise ValueError("chrome-devtools requires the verified fixed Node runtime")
+    environment = runtime_environment(profile, runtime_node)
     if client == "codex":
         environment["CODEX_HOME"] = str(profile / ".codex")
     proof_path = Path(item["native_projection"]["path"])
@@ -2315,8 +2351,14 @@ def historical_external_pr_evidence_matches_request(evidence: Any, request: dict
 
 def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request: dict[str, Any], github: dict[str, Any], consent: dict[str, Any], workspace: Path, owner_uid: int, *, mount_config: dict[str, Any] | None = None) -> dict[str, Any]:
     plugin, client, challenge = item["plugin"], item["client"], request["challenge"]["value"]
+    runtime_node = None
+    if plugin == "chrome-devtools":
+        if mount_config is None:
+            raise ValueError("chrome-devtools runtime requires the protected adapter config")
+        runtime_node = verified_runtime_node(mount_config["clients"]["cursor"].get("bundle"), owner_uid)
     marker, argv, started, observed = invoke(
         client_config, plugin, client, challenge, workspace, owner_uid, item["tuple"],
+        runtime_node,
     )
     digest = lambda name: marker[name] if isinstance(marker.get(name), str) and str(marker[name]).startswith("sha256:") else (_ for _ in ()).throw(ValueError("fixed client digest marker is invalid"))
     safe_trace = [client, "protected-runtime-check", plugin, sha256(canonical_json(argv))]

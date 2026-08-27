@@ -224,9 +224,12 @@ not eligible protected inputs in agentplugins 0.1.18. Derive every add argument
 from the approved tuple as the canonical
 `source_repository@source_revision//source_path`; reject a missing revision, a
 non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.18
-prepares these clients, but an add record that still contains
-`manual_activation_required` anywhere is incomplete and cannot be sealed. Its
-real successful add envelope uses `result: success`, `data.status:
+prepares these clients and retains its immutable pre-execution plan in the add
+envelope. That nested plan may record `manual_activation_required`; the sibling
+realized activation must instead be `active` with `installation_verified`, no
+confirmation pending, and `group_phase: external_completed`. The same manual
+state anywhere outside that historical plan is incomplete and cannot be sealed.
+Its real successful add envelope uses `result: success`, `data.status:
 completed`, and a selected target status of `external_completed` (the validator
 below also accepts the documented success/completed status spellings at the
 target boundary).
@@ -268,6 +271,11 @@ for client in codex cursor kiro; do
       install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/kiro-cli-chat "$client_path/kiro-cli-chat"
       ;;
   esac
+  printf '%s\n' '#!/bin/sh' \
+    'exec /opt/uap-observer-inputs/cursor/node "$@"' \
+    >"$client_path/node"
+  chown root:root "$client_path/node"
+  chmod 0755 "$client_path/node"
   # Record and compare regular-file identity, inode, link count, mode, and digest.
   # Stop on a symlink, hardlink, digest mismatch, or an alias outside this list.
   find "$client_path" -maxdepth 1 -type f -printf '%f %D:%i %n %m\n' | LC_ALL=C sort
@@ -275,9 +283,9 @@ for client in codex cursor kiro; do
   test "$(sha256sum "$client_path/git" | cut -d' ' -f1)" = \
     "$(sha256sum /opt/uap-observer-inputs/bin/git | cut -d' ' -f1)"
   case "$client" in
-    codex) expected_names='codex git'; aliases='codex' ;;
-    cursor) expected_names='cursor git'; aliases='' ;;
-    kiro) expected_names='git kiro-cli kiro-cli-chat'; aliases='kiro-cli' ;;
+    codex) expected_names='codex git node'; aliases='codex' ;;
+    cursor) expected_names='cursor git node'; aliases='' ;;
+    kiro) expected_names='git kiro-cli kiro-cli-chat node'; aliases='kiro-cli' ;;
   esac
   test "$(find "$client_path" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" = "$expected_names"
   for alias in $aliases; do
@@ -298,6 +306,8 @@ bundle = config["clients"]["cursor"]["bundle"]
 verify_bundle(root=Path(bundle["root"]), manifest=Path(bundle["manifest"]), manifest_sha256=bundle["manifest_sha256"])
 PY
   fi
+  test "$(sed -n '2p' "$client_path/node")" = \
+    'exec /opt/uap-observer-inputs/cursor/node "$@"'
   if [ "$client" = kiro ]; then
     test "$(sha256sum "$client_path/kiro-cli-chat" | cut -d' ' -f1)" = \
       59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e
@@ -305,7 +315,8 @@ PY
       14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358
   fi
   set -- env HOME="$seed" XDG_CONFIG_HOME="$seed/.config" \
-    XDG_CACHE_HOME="$seed/.cache" AGENTPLUGINS_HOME="$seed/.agentplugins" PATH="$client_path"
+    XDG_CACHE_HOME="$seed/.cache" AGENTPLUGINS_HOME="$seed/.agentplugins" \
+    NODE_USE_ENV_PROXY=1 PATH="$client_path"
   if [ "$client" = codex ]; then set -- "$@" CODEX_HOME="$seed/.codex"; fi
   "$@" "$AGENTPLUGINS" doctor --format json >"$evidence/doctor/detection.json"
   python3 - "$client" "$evidence/doctor/detection.json" <<'PY'
@@ -371,6 +382,11 @@ PY
   done
 done
 ```
+
+The Node proxy flag is inert for non-Node components. For Chrome DevTools it
+makes the digest-bound Node runtime inherit the same loopback-only proxy
+boundary as the manager and reviewed client; it does not add another network
+route or executable search path.
 
 Stop unless the pre-add doctor file is structured successful JSON, names the
 intended target as the sole detected client, and contains no other recognized

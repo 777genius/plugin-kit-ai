@@ -3534,6 +3534,64 @@ class FixedAdapterContractTests(unittest.TestCase):
                 fixed_adapters.verified_git(item, owner_uid=1234)
             verify.assert_not_called()
 
+    def test_fixed_node_runtime_requires_the_verified_cursor_bundle(self) -> None:
+        bundle = {
+            "root": "/opt/uap-observer-inputs/cursor",
+            "manifest": "/opt/uap-observer-inputs/cursor-bundle.json",
+            "manifest_sha256": "sha256:" + "a" * 64,
+        }
+        executable = mock.Mock(st_mode=stat.S_IFREG | 0o755)
+        with (
+            mock.patch.object(
+                fixed_adapters, "verify_bundle", return_value={fixed_adapters.NODE_BINARY},
+            ) as verify,
+            mock.patch.object(fixed_adapters.os, "lstat", return_value=executable),
+        ):
+            self.assertEqual(
+                fixed_adapters.verified_runtime_node(bundle, owner_uid=1234),
+                fixed_adapters.NODE_BINARY,
+            )
+            verify.assert_called_once_with(
+                root=Path(bundle["root"]), manifest=Path(bundle["manifest"]),
+                manifest_sha256=bundle["manifest_sha256"], owner_uid=1234,
+            )
+
+        with mock.patch.object(fixed_adapters, "verify_bundle", return_value=set()):
+            with self.assertRaisesRegex(ValueError, "absent from its verified bundle"):
+                fixed_adapters.verified_runtime_node(bundle, owner_uid=1234)
+        with self.assertRaisesRegex(ValueError, "bundle config differs"):
+            fixed_adapters.verified_runtime_node({**bundle, "root": "/tmp/cursor"}, owner_uid=1234)
+
+    def test_node_runtime_environment_is_proxy_aware_and_path_bounded(self) -> None:
+        profile = Path("/var/lib/uap-observer/profiles/cursor")
+        plain = fixed_adapters.runtime_environment(profile)
+        self.assertEqual(plain["PATH"], str(fixed_adapters.GIT_BINARY.parent))
+        self.assertNotIn("NODE_USE_ENV_PROXY", plain)
+
+        node = fixed_adapters.runtime_environment(profile, fixed_adapters.NODE_BINARY)
+        self.assertEqual(
+            node["PATH"],
+            os.pathsep.join((
+                str(fixed_adapters.GIT_BINARY.parent),
+                str(fixed_adapters.NODE_BINARY.parent),
+            )),
+        )
+        self.assertEqual(node["NODE_USE_ENV_PROXY"], "1")
+        self.assertEqual(node["HTTPS_PROXY"], fixed_adapters.FIXED_HTTPS_PROXY)
+
+    def test_chrome_devtools_refuses_unverified_node_before_profile_access(self) -> None:
+        with (
+            mock.patch.object(
+                fixed_adapters, "verified_executable",
+                return_value=Path("/opt/uap-observer-inputs/cursor/cursor-agent"),
+            ),
+            self.assertRaisesRegex(ValueError, "verified fixed Node runtime"),
+        ):
+            fixed_adapters.invoke(
+                {"profile": "/tmp"}, "chrome-devtools", "cursor", "a" * 64,
+                Path("/tmp"), 1234,
+            )
+
     def test_historical_external_pr_capture_is_reusable_for_same_bound_state(self) -> None:
         request = Fixture(Path(tempfile.mkdtemp())).request()
         evidence = artifacts(request["challenge"]["value"])["runtime-attestations.json"]["external_pr_evidence"]
@@ -5111,7 +5169,19 @@ class FixedAdapterContractTests(unittest.TestCase):
                         "source": f"upstream/{plugin}//plugins/{plugin}",
                         "revision": "c" * 40, "failed": 0,
                         "targets": [{"target": "cursor", "status": "external_completed",
-                                     "output": {"result": {"plan": {"status": "completed"}}}}],
+                                     "output": {"result": {
+                                         "plan": {
+                                             "client_id": "cursor",
+                                             "status": "manual_activation_required",
+                                             "activation": "manual_activation_required",
+                                         },
+                                         "activation": {
+                                             "activation": "active", "authentication": "not_checked",
+                                             "policy": "allowed", "verification": "installation_verified",
+                                         },
+                                         "requires_confirmation": False,
+                                         "group_phase": "external_completed",
+                                     }}}],
                     },
                 }))
                 (info_dir / f"{plugin}.json").write_text(json.dumps({
@@ -5347,7 +5417,8 @@ class FixedAdapterContractTests(unittest.TestCase):
                 accepted["data"]["targets"][0]["status"] = status
                 sealer.matching_add(accepted, matrix[0]["plugin"], "cursor", approved)
             for mutation in (
-                lambda value: value["data"]["targets"][0]["output"]["result"]["plan"].update(status="manual_activation_required"),
+                lambda value: value["data"]["targets"][0]["output"]["result"]["activation"].update(activation="manual_activation_required"),
+                lambda value: value["data"]["targets"][0]["output"]["result"].update(requires_confirmation=True),
                 lambda value: value["data"]["targets"][0].update(manual_activation_required=True),
                 lambda value: value["data"].update(partial=True),
                 lambda value: value["data"].update(warnings=["policy_suspended"]),
