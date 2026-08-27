@@ -1441,7 +1441,12 @@ with tempfile.TemporaryDirectory() as temporary:
         self.assertEqual(config["cli_release_checksums_digest"], "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d")
         self.assertEqual(config["npm_facade_version"], "0.1.17")
         self.assertEqual(config["npm_facade_integrity"], "sha512-Dm3oWsJK6p1ge8ZPP2BX1s0PTtqKlBKGg3SO78cei9ItHb9RXmqrh/6cX94cgenbDvZ32G5eKlJ5ZJikzsGr0w==")
-        self.assertEqual(config["directory_source_digest"], e2e.sha256_file(ROOT / "registry/directory.json"))
+        # A pull request may carry an untrusted Directory review candidate, but
+        # must not rewrite the production launch identity to match that
+        # candidate. Main and every non-PR execution still fail closed if the
+        # production pin and checked-out Directory diverge.
+        if os.environ.get("GITHUB_EVENT_NAME") != "pull_request":
+            self.assertEqual(config["directory_source_digest"], e2e.sha256_file(ROOT / "registry/directory.json"))
         self.assertEqual(config["scenario_contract_digest"], e2e.sha256_file(e2e.SCENARIOS))
         schema = json.loads((ROOT / "tests/e2e/schemas/native-release-observation.schema.json").read_text())
         self.assertEqual(
