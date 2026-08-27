@@ -17,13 +17,26 @@ import (
 )
 
 func newUpdateCommand(app App, opts *options) *cobra.Command {
-	return &cobra.Command{
-		Use:   "update <name-or-installation-id>",
+	var all bool
+	command := &cobra.Command{
+		Use:   "update <name-or-installation-id> | update --all",
 		Short: "Safely update a tracked Agent Plugin across selected or installed clients",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateCommonOptions(opts); err != nil {
 				return err
+			}
+			if all {
+				if len(args) > 0 {
+					return fmt.Errorf("choose either one installation or --all")
+				}
+				if strings.TrimSpace(opts.target) != "" {
+					return fmt.Errorf("--target cannot be combined with --all; every installation keeps its recorded targets")
+				}
+				return runUpdateAll(cmd.Context(), cmd, app, opts)
+			}
+			if len(args) != 1 {
+				return fmt.Errorf("provide one installation or use --all")
 			}
 			if strings.TrimSpace(opts.target) == "" {
 				targets, err := defaultBoundTargets(app, args[0], opts.scope, false)
@@ -40,6 +53,8 @@ func newUpdateCommand(app App, opts *options) *cobra.Command {
 			return runUpdateMany(cmd.Context(), cmd, app, opts, args[0], targets)
 		},
 	}
+	command.Flags().BoolVar(&all, "all", false, "update every eligible tracked installation after one complete preflight")
+	return command
 }
 
 func newRepairCommand(app App, opts *options) *cobra.Command {

@@ -95,6 +95,29 @@ func TestOrdinaryDirectoryOriginPreservesProductionTrustAndBootstrap(t *testing.
 	}
 }
 
+func TestProductionDiscoveryUsesIndependentOriginAndCacheWithPinnedTrust(t *testing.T) {
+	clearDirectoryEnvironment(t)
+	root := t.TempDir()
+	client, err := newDiscoveryClient(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if client.Origin != defaultDiscoveryOrigin || client.Cache.Path != filepath.Join(root, "discovery-v1-cache.json") ||
+		len(client.Trust.Keys) != 1 || client.Trust.Keys[0].ID != defaultDiscoveryKeyID {
+		t.Fatalf("production Discovery configuration = %+v", client)
+	}
+	t.Setenv("AGENTPLUGINS_DISCOVERY_ORIGIN", "https://mirror.example/discovery/")
+	client, err = newDiscoveryClient(root)
+	if err != nil || client.Origin != "https://mirror.example/discovery/" {
+		t.Fatalf("custom Discovery origin = %q err=%v", client.Origin, err)
+	}
+	for _, value := range []string{"http://mirror.example/discovery/", "https://mirror.example/discovery", "https://mirror.example/discovery/../trust/"} {
+		if _, err := productionFeedOrigin(value, defaultDiscoveryOrigin, "AGENTPLUGINS_DISCOVERY_ORIGIN"); err == nil {
+			t.Fatalf("unsafe Discovery origin accepted: %q", value)
+		}
+	}
+}
+
 func TestMalformedDirectoryEnvironmentCausesZeroMutation(t *testing.T) {
 	clearDirectoryEnvironment(t)
 	t.Setenv("HOME", t.TempDir())
@@ -136,7 +159,7 @@ func TestProductionDirectoryOriginValidation(t *testing.T) {
 
 func clearDirectoryEnvironment(t *testing.T) {
 	t.Helper()
-	for _, name := range append(append([]string{}, forbiddenProductionDirectoryVariables...), "AGENTPLUGINS_DIRECTORY_ORIGIN") {
+	for _, name := range append(append([]string{}, forbiddenProductionDirectoryVariables...), "AGENTPLUGINS_DIRECTORY_ORIGIN", "AGENTPLUGINS_DISCOVERY_ORIGIN") {
 		value, existed := os.LookupEnv(name)
 		if err := os.Unsetenv(name); err != nil {
 			t.Fatal(err)

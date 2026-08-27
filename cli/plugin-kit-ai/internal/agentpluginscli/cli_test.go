@@ -125,6 +125,36 @@ func TestOperationalAndReadCommandsProduceVersionedJSON(t *testing.T) {
 	}
 }
 
+func TestValidateLoadsPackageWithoutDetectionOrStateMutation(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	plugin := writeCLIPlugin(t)
+	stdout, _, err := fixture.execute(false, "validate", plugin, "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertVersionedJSON(t, stdout, "validate")
+	var envelope struct {
+		Data validationResult `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if !envelope.Data.Conformant || envelope.Data.Name != "demo" || envelope.Data.SchemaURI != domain.PluginSchemaV1 {
+		t.Fatalf("validation result = %+v", envelope.Data)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 0 {
+		t.Fatalf("validate mutated state: %+v", state)
+	}
+	if _, _, err := fixture.execute(false, "validate", "demo"); err == nil || !strings.Contains(err.Error(), "local path or exact") {
+		t.Fatalf("short-name validation error = %v", err)
+	}
+}
+
 func TestLifecycleOutputKeepsPrivatePathsOutOfPublicJSON(t *testing.T) {
 	t.Parallel()
 	privatePath := "/home/private-user/.codex/plugins/demo"
@@ -215,6 +245,98 @@ func TestAutomatedAddRequiresExplicitTargetButNotYes(t *testing.T) {
 	}
 	if _, _, err := fixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
 		t.Fatalf("explicit-target add without --yes failed: %v", err)
+	}
+}
+
+func TestInstallAliasProducesTheSamePlanAndStateAsAdd(t *testing.T) {
+	t.Parallel()
+	plugin := writeCLIPlugin(t)
+	addFixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	installFixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+
+	addOutput, _, err := addFixture.execute(false, "add", plugin, "--target", "cursor", "--dry-run", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	installOutput, _, err := installFixture.execute(false, "install", plugin, "--target", "cursor", "--dry-run", "--format", "json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	normalize := func(encoded string) map[string]any {
+		var value map[string]any
+		if err := json.Unmarshal([]byte(encoded), &value); err != nil {
+			t.Fatal(err)
+		}
+		var strip func(any)
+		strip = func(current any) {
+			switch item := current.(type) {
+			case map[string]any:
+				for _, key := range []string{"operation_id", "installation_id", "physical_artifact_id"} {
+					delete(item, key)
+				}
+				for _, child := range item {
+					strip(child)
+				}
+			case []any:
+				for _, child := range item {
+					strip(child)
+				}
+			}
+		}
+		strip(value)
+		return value
+	}
+	if addPlan, installPlan := normalize(addOutput), normalize(installOutput); !reflect.DeepEqual(addPlan, installPlan) {
+		t.Fatalf("install alias plan differs from add:\nadd=%s\ninstall=%s", addOutput, installOutput)
+	}
+	for name, fixture := range map[string]cliFixture{"add": addFixture, "install": installFixture} {
+		state, err := fixture.store.Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(state.Installations) != 0 {
+			t.Fatalf("%s dry-run mutated state: %+v", name, state)
+		}
+	}
+	if _, _, err := addFixture.execute(false, "add", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := installFixture.execute(false, "install", plugin, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	addState, err := addFixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	installState, err := installFixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(addState.Installations) != 1 || len(installState.Installations) != 1 {
+		t.Fatalf("alias installation counts differ: add=%d install=%d", len(addState.Installations), len(installState.Installations))
+	}
+	addInstallation, installInstallation := addState.Installations[0], installState.Installations[0]
+	if addInstallation.DeclaredName != installInstallation.DeclaredName || addInstallation.OriginMode != installInstallation.OriginMode ||
+		addInstallation.Source.RequestedSource != installInstallation.Source.RequestedSource ||
+		addInstallation.Source.CanonicalSource != installInstallation.Source.CanonicalSource ||
+		addInstallation.Source.ResolvedRevision != installInstallation.Source.ResolvedRevision ||
+		addInstallation.Source.TreeDigest != installInstallation.Source.TreeDigest ||
+		!reflect.DeepEqual(addInstallation.Package, installInstallation.Package) {
+		t.Fatalf("install alias persisted different package state:\nadd=%+v\ninstall=%+v", addInstallation, installInstallation)
+	}
+	if len(addInstallation.Clients) != 1 || len(installInstallation.Clients) != 1 {
+		t.Fatalf("alias client counts differ: add=%d install=%d", len(addInstallation.Clients), len(installInstallation.Clients))
+	}
+	var addClient, installClient domain.ClientBinding
+	for _, addClient = range addInstallation.Clients {
+	}
+	for _, installClient = range installInstallation.Clients {
+	}
+	if addClient.ClientID != installClient.ClientID || addClient.Scope != installClient.Scope ||
+		addClient.Materialization != installClient.Materialization || addClient.Activation != installClient.Activation ||
+		addClient.Authentication != installClient.Authentication || addClient.Policy != installClient.Policy ||
+		addClient.Verification != installClient.Verification || !reflect.DeepEqual(addClient.PackageRevision, installClient.PackageRevision) {
+		t.Fatalf("install alias persisted different client state:\nadd=%+v\ninstall=%+v", addClient, installClient)
 	}
 }
 

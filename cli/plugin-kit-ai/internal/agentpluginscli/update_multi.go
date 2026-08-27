@@ -33,6 +33,16 @@ type updateMultiResult struct {
 	Targets     []updateTargetResult `json:"targets"`
 }
 
+type preparedUpdateMany struct {
+	loaded        loadedPackage
+	service       usecase.Service
+	inputs        []usecase.AddInput
+	compatibility []usecase.AddInput
+	selected      []domain.ClientID
+	result        updateMultiResult
+	noChange      bool
+}
+
 func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *options, selector string, targets []domain.ClientID) error {
 	state, err := app.StateStore.Load()
 	if err != nil {
@@ -42,22 +52,44 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	if err != nil {
 		return err
 	}
+	prepared, err := prepareUpdateMany(ctx, app, opts, installation, targets, !opts.dryRun)
+	if prepared != nil {
+		defer prepared.cleanup()
+	}
+	if err != nil {
+		if prepared != nil {
+			_ = renderUpdateMultiResult(cmd, opts, prepared.result)
+			return fmt.Errorf("group update preflight failed; no target was changed: %w%s", err, groupNextAction(prepared.result.Targets))
+		}
+		return err
+	}
+	if opts.dryRun {
+		return renderUpdateMultiResult(cmd, opts, prepared.result)
+	}
+	result, applyErr := applyPreparedUpdate(ctx, prepared)
+	if renderErr := renderUpdateMultiResult(cmd, opts, result); renderErr != nil && applyErr == nil {
+		applyErr = renderErr
+	}
+	return applyErr
+}
+
+func prepareUpdateMany(ctx context.Context, app App, opts *options, installation domain.Installation, targets []domain.ClientID, probeVersion bool) (*preparedUpdateMany, error) {
 	if installation.NeedsRebind || installation.Package.LoaderKind != domain.LoaderKindAgentPlugins {
-		return fmt.Errorf("update requires a bound Agent Plugins installation")
+		return nil, fmt.Errorf("update requires a bound Agent Plugins installation")
 	}
 	for _, target := range targets {
 		if !installationHasTarget(installation, target, opts.scope) {
-			return fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
+			return nil, fmt.Errorf("plugin is not installed for target %q in %s scope; no target was changed", target, opts.scope)
 		}
 	}
 	allTargets := installationTargets(installation, opts.scope)
-	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil, !opts.dryRun && installation.OriginMode == domain.OriginModeDirectory)
+	_, detected, err := preflightSelectedTargets(ctx, app, targets, nil, probeVersion && installation.OriginMode == domain.OriginModeDirectory)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	installedClients, err := preflightInstalledBindings(installedBindingTargets(installation, opts.scope), detected)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	writeProgress(app, opts.format, "Resolving and validating one updated Agent Plugin package for every selected target...")
 	operation := domain.DirectoryUpdate
@@ -69,13 +101,15 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, operation, 0, installation.Source.ResolvedRevision, detected)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if loaded.cleanup != nil {
-		defer loaded.cleanup()
+	prepared := &preparedUpdateMany{loaded: loaded}
+	fail := func(err error) (*preparedUpdateMany, error) {
+		prepared.cleanup()
+		return nil, err
 	}
 	if installation.OriginMode != domain.OriginModeDirectory && domain.ComputeSourceBindingID(loaded.envelope.Source) != installation.Source.SourceBindingID {
-		return fmt.Errorf("resolved source identity changed; use agentplugins switch after reviewing provenance")
+		return fail(fmt.Errorf("resolved source identity changed; use agentplugins switch after reviewing provenance"))
 	}
 	service := lifecycleService(app, detected)
 	inputs := make([]usecase.AddInput, 0, len(targets))
@@ -91,7 +125,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		target := client.ClientID
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
-			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
+			return fail(fmt.Errorf("preflight target %s: %w; no target was changed", target, err))
 		}
 		input := usecase.AddInput{
 			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
@@ -105,7 +139,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		client := detected[target]
 		clientPackage := cloneLoadedPackage(loaded)
 		if err := prepareLoadedPackageForClient(&clientPackage, target); err != nil {
-			return fmt.Errorf("preflight target %s: %w; no target was changed", target, err)
+			return fail(fmt.Errorf("preflight target %s: %w; no target was changed", target, err))
 		}
 		inputs = append(inputs, usecase.AddInput{
 			Envelope: clientPackage.envelope, Client: client, Scope: domain.ScopeUser,
@@ -117,7 +151,7 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 	}
 	operationID, err := newOperationGroupID()
 	if err != nil {
-		return err
+		return fail(err)
 	}
 	result.OperationID = operationID
 	planned, err := service.UpdateGroup(ctx, usecase.GroupInput{Targets: inputs, CompatibilityChecks: compatibility, OperationGroupID: operationID, DryRun: true})
@@ -127,30 +161,48 @@ func runUpdateMany(ctx context.Context, cmd *cobra.Command, app App, opts *optio
 		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: groupTargetStatus(targetResult), Output: output, NextAction: nextLifecycleAction(targetResult)})
 	}
 	result.Succeeded = len(planned.Targets)
+	prepared.service, prepared.inputs, prepared.compatibility = service, inputs, compatibility
+	prepared.selected, prepared.result = selected, result
+	prepared.noChange = len(planned.Targets) > 0
+	for _, targetResult := range planned.Targets {
+		if !targetResult.NoChange {
+			prepared.noChange = false
+			break
+		}
+	}
 	if err != nil {
 		result.Status, result.Failed, result.Succeeded = "preflight_failed", len(inputs), 0
-		_ = renderUpdateMultiResult(cmd, opts, result)
-		return fmt.Errorf("group update preflight failed; no target was changed: %w%s", err, groupNextAction(result.Targets))
+		prepared.result = result
+		return prepared, err
 	}
-	if opts.dryRun {
-		return renderUpdateMultiResult(cmd, opts, result)
-	}
-	applied, groupErr := service.UpdateGroup(ctx, usecase.GroupInput{Targets: inputs, CompatibilityChecks: compatibility, OperationGroupID: operationID, Confirmed: true})
+	return prepared, nil
+}
+
+func applyPreparedUpdate(ctx context.Context, prepared *preparedUpdateMany) (updateMultiResult, error) {
+	result := prepared.result
+	applied, groupErr := prepared.service.UpdateGroup(ctx, usecase.GroupInput{Targets: prepared.inputs, CompatibilityChecks: prepared.compatibility, OperationGroupID: result.OperationID, Confirmed: true})
 	result.Status, result.Targets, result.Succeeded = string(applied.Phase), result.Targets[:0], 0
 	for index, targetResult := range applied.Targets {
-		output := newAddResultData(inputs[index].Envelope, targetResult, false)
-		output.OperationID = operationID
-		result.Targets = append(result.Targets, updateTargetResult{Target: string(selected[index]), Selected: true, Status: groupTargetStatus(targetResult), Output: output, NextAction: nextLifecycleAction(targetResult)})
+		output := newAddResultData(prepared.inputs[index].Envelope, targetResult, false)
+		output.OperationID = result.OperationID
+		result.Targets = append(result.Targets, updateTargetResult{Target: string(prepared.selected[index]), Selected: true, Status: groupTargetStatus(targetResult), Output: output, NextAction: nextLifecycleAction(targetResult)})
 		if targetResult.GroupPhase == usecase.GroupTargetExternalCompleted {
 			result.Succeeded++
 		}
 	}
 	if groupErr != nil {
-		result.Status, result.Failed = groupFailureStatus(applied.Phase), len(inputs)-result.Succeeded
-		_ = renderUpdateMultiResult(cmd, opts, result)
-		return groupErr
+		result.Status, result.Failed = groupFailureStatus(applied.Phase), len(prepared.inputs)-result.Succeeded
+		return result, groupErr
 	}
-	return renderUpdateMultiResult(cmd, opts, result)
+	return result, nil
+}
+
+func (prepared *preparedUpdateMany) cleanup() {
+	if prepared == nil || prepared.loaded.cleanup == nil {
+		return
+	}
+	_ = prepared.loaded.cleanup()
+	prepared.loaded.cleanup = nil
 }
 
 func installationHasTarget(installation domain.Installation, target domain.ClientID, scope string) bool {

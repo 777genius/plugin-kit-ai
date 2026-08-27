@@ -42,7 +42,6 @@ func (*naturalExitBoundaryContainment) exited() (bool, error) { return false, ni
 func (*naturalExitBoundaryContainment) close() error          { return nil }
 
 func TestOSRunnerPreservesCommandOutputAndExitCode(t *testing.T) {
-	requireDuplexCapability(t)
 	if os.Getenv("AGENTPLUGINS_PROCESS_OUTPUT_HELPER") == "1" {
 		fmt.Fprint(os.Stdout, "expected stdout")
 		fmt.Fprint(os.Stderr, "expected stderr")
@@ -62,7 +61,6 @@ func TestOSRunnerPreservesCommandOutputAndExitCode(t *testing.T) {
 }
 
 func TestOSRunnerCleanExitWithoutOtherGroupMembersRemainsSuccess(t *testing.T) {
-	requireDuplexCapability(t)
 	if os.Getenv("AGENTPLUGINS_PROCESS_CLEAN_EXIT_HELPER") == "1" {
 		fmt.Fprint(os.Stdout, "clean")
 		os.Exit(0)

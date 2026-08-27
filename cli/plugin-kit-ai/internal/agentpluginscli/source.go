@@ -13,6 +13,7 @@ import (
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/catalog"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/packagedigest"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	clientplanner "github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/planner"
@@ -20,7 +21,7 @@ import (
 
 var (
 	shortNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,63}$`)
-	exactGitPattern  = regexp.MustCompile(`^(?:github:)?([A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*)@([0-9a-f]{40})//(.+)$`)
+	exactGitPattern  = regexp.MustCompile(`^(?:github:)?([A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*)@([0-9a-f]{40})(?://(.+))?$`)
 )
 
 type loadedPackage struct {
@@ -42,6 +43,7 @@ type packageResolutionRequest struct {
 	RetainRecorded    bool
 	Selector          string
 	RequestedSelector string
+	DirectBinding     *domain.SourceBinding
 }
 
 func (app App) addResolutionRequest(selector string, targets []domain.ClientID) packageResolutionRequest {
@@ -50,7 +52,8 @@ func (app App) addResolutionRequest(selector string, targets []domain.ClientID) 
 
 func (app App) loadInstalledPackage(ctx context.Context, installation domain.Installation, targets []domain.ClientID, operation domain.DirectoryOperation, releaseSequence uint64, resolvedRevision string, clients map[domain.ClientID]domain.DetectedClient) (loadedPackage, error) {
 	if installation.OriginMode != domain.OriginModeDirectory || installation.Directory == nil {
-		return app.loadPackageFor(ctx, updateSource(installation), packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients})
+		binding := installation.Source
+		return app.loadPackageFor(ctx, updateSource(installation), packageResolutionRequest{Targets: targets, Operation: operation, Clients: clients, DirectBinding: &binding})
 	}
 	sequence := releaseSequence
 	if sequence == 0 {
@@ -248,10 +251,70 @@ func (app App) loadPackageFor(ctx context.Context, raw string, request packageRe
 	if match := exactGitPattern.FindStringSubmatch(requested); match != nil {
 		return app.acquireGitHub(ctx, requested, match[1], match[2], match[3], "")
 	}
+	if strings.HasPrefix(requested, "discovery:") {
+		return app.acquireDiscovery(ctx, requested, request)
+	}
 	if !isDirectorySelector(requested) {
-		return loadedPackage{}, fmt.Errorf("source must be a local path, an exact owner/repo@FULL_SHA//path source, or a Directory selector")
+		return loadedPackage{}, fmt.Errorf("source must be a local path, an exact owner/repo@FULL_SHA[//path] source, a discovery: slug, or a Directory selector")
 	}
 	return app.acquireDirectory(ctx, requested, request)
+}
+
+func (app App) acquireDiscovery(ctx context.Context, selector string, request packageResolutionRequest) (loadedPackage, error) {
+	if app.DiscoveryClient == nil || app.SourceAcquirer == nil {
+		return loadedPackage{}, fmt.Errorf("signed Discovery Index dependencies are unavailable; use owner/repository@FULL_SHA[//path]")
+	}
+	bundle, err := app.DiscoveryClient.Load(ctx, 0)
+	if err != nil {
+		return loadedPackage{}, fmt.Errorf("load signed Discovery Index: %w", err)
+	}
+	var matches []discoveryv1.Record
+	for _, record := range bundle.Search.Records {
+		if record.Slug == selector {
+			matches = append(matches, record)
+		}
+	}
+	if len(matches) != 1 {
+		if len(matches) == 0 {
+			return loadedPackage{}, fmt.Errorf("Discovery package %q was not found", selector)
+		}
+		return loadedPackage{}, fmt.Errorf("Discovery package %q is ambiguous", selector)
+	}
+	record := matches[0]
+	if record.Availability != "available" {
+		return loadedPackage{}, fmt.Errorf("Discovery package %q is unavailable and cannot be newly acquired", selector)
+	}
+	for _, target := range request.Targets {
+		compatible := false
+		for _, client := range record.CompatibleClients {
+			if string(target) == client {
+				compatible = true
+				break
+			}
+		}
+		if !compatible {
+			return loadedPackage{}, fmt.Errorf("Discovery package %q does not declare portable components for %s", selector, target)
+		}
+	}
+	if request.DirectBinding != nil && (request.DirectBinding.Repository != record.Repository || request.DirectBinding.PackageSubpath != record.PackagePath) {
+		return loadedPackage{}, fmt.Errorf("Discovery selector %q changed repository or package path; use agentplugins switch explicitly", selector)
+	}
+	loaded, err := app.acquireGitHub(ctx, selector, record.Repository, record.Revision, record.PackagePath, record.TreeDigest)
+	if err != nil {
+		return loadedPackage{}, err
+	}
+	if loaded.envelope.ManifestDigest != record.ManifestDigest || loaded.envelope.Manifest.Name != record.Name {
+		_ = loaded.cleanup()
+		return loadedPackage{}, fmt.Errorf("signed Discovery metadata does not match acquired package manifest")
+	}
+	// Discovery is the stable update channel; the exact commit and digests remain
+	// separately bound in ResolvedRevision, TreeDigest, and ManifestDigest. If the
+	// SHA URL became the canonical source, every legitimate index advance would
+	// look like an unauthorized publisher/source switch.
+	loaded.envelope.Source.CanonicalSource = record.Slug
+	loaded.envelope.Source.SourceBindingHint = "discovery-v1"
+	_, _ = fmt.Fprintf(app.errorOutput(), "WARNING [conformant_unreviewed]: %s passed static Agent Plugins 1.0 checks but has no runtime review\n", selector)
+	return loaded, nil
 }
 
 func (app App) acquireLocal(ctx context.Context, requested string) (loadedPackage, error) {
