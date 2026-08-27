@@ -1,0 +1,3 @@
+# These files are hashed as raw frozen launch inputs on every supported runner.
+/registry/directory.json text eol=lf
+/tests/e2e/launch-scenarios.json text eol=lf

@@ -1428,6 +1428,9 @@ with tempfile.TemporaryDirectory() as temporary:
                 )
 
     def test_production_identity_is_fixed_cross_repository_configuration(self) -> None:
+        attributes = (ROOT / ".gitattributes").read_text().splitlines()
+        self.assertIn("/registry/directory.json text eol=lf", attributes)
+        self.assertIn("/tests/e2e/launch-scenarios.json text eol=lf", attributes)
         config = e2e.read_production_config()
         self.assertEqual(config["catalog_repository"], "777genius/universal-agent-plugins")
         self.assertEqual(config["cli_release_repository"], "777genius/plugin-kit-ai")
