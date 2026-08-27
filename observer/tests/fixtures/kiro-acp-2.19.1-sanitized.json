@@ -10,7 +10,7 @@
     "argv": ["kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"],
     "protocol_version": 1,
     "native_config_source": "~/.kiro/settings/mcp.json",
-    "native_install_command": "npx universal-agent-plugins@0.1.14 add cloudflare-docs --target kiro",
+    "native_install_command": "npx universal-agent-plugins@0.1.16 add cloudflare-docs --target kiro",
     "final_native_5x3_matrix": "pending_external"
   },
   "public_contract": {

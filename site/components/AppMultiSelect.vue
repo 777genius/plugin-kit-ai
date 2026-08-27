@@ -24,6 +24,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
 }>()
+const hydrated = ref(false)
+onMounted(() => { hydrated.value = true })
 
 const selected = computed(() => props.options.filter(option => props.modelValue.includes(option.value)))
 const summary = computed(() => selected.value.length === 1 ? selected.value[0]!.label : `${selected.value.length} agents`)
@@ -50,7 +52,7 @@ function toggle(value: string) {
 
 <template>
   <PopoverRoot>
-    <PopoverTrigger class="app-multiselect__trigger" :aria-label="`${label}: ${summary}`">
+    <PopoverTrigger class="app-multiselect__trigger" :aria-label="`${label}: ${summary}`" :data-hydrated="hydrated ? 'true' : 'false'">
       <span class="app-multiselect__value">
         <span class="app-multiselect__icons" aria-hidden="true">
           <span v-for="option in selected.slice(0, 3)" :key="option.value"><img v-if="option.icon" :src="option.icon" alt="" width="19" height="19" /></span>

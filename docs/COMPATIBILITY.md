@@ -73,7 +73,7 @@ explicit preview prerelease; the other rows are stable releases:
 | `chrome-devtools-mcp` | `1.7.0` |
 | `@upstash/context7-mcp` | `4.0.3` |
 | `firebase-tools` | `15.28.1` |
-| `@hubspot/cli` | `8.14.0-beta.0` preview prerelease |
+| `@hubspot/cli` | `8.14.0-beta.1` preview prerelease |
 | `mcp/dockerhub` | OCI digest `sha256:76454af…d4248` |
 
 The code-intelligence skills document current optional versions of Semble

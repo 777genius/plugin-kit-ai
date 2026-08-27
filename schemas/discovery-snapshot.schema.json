@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://777genius.github.io/universal-agent-plugins/schemas/discovery-snapshot.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "discovery_schema_version", "sequence", "publication_id", "source_commit",
+    "generated_at", "expires_at", "complete", "query_manifest_digest",
+    "partitions", "search_projection", "records"
+  ],
+  "properties": {
+    "discovery_schema_version": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "publication_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "complete": { "const": true },
+    "query_manifest_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "partitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["query", "size_min", "size_max", "total_count"],
+        "properties": {
+          "query": { "type": "string", "minLength": 1 },
+          "size_min": { "type": "integer", "minimum": 0 },
+          "size_max": { "type": "integer", "minimum": 0 },
+          "total_count": { "type": "integer", "minimum": 0, "maximum": 1000 }
+        }
+      }
+    },
+    "search_projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest", "record_count"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^search/[0-9]{20}\\.json$" },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "record_count": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "record": {
+      "allOf": [
+        { "$ref": "https://777genius.github.io/universal-agent-plugins/schemas/discovery-search.schema.json#/$defs/record" },
+        {
+          "type": "object",
+          "required": ["author", "first_seen", "last_seen"]
+        }
+      ]
+    }
+  }
+}

@@ -9,11 +9,12 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build && node scripts/finalize-csp.mjs",
-    "generate": "nuxt generate && node scripts/finalize-csp.mjs",
+    "generate": "nuxt generate && node scripts/finalize-404.mjs && node scripts/finalize-csp.mjs",
     "lint": "nuxt prepare && eslint .",
     "test": "node --test --experimental-strip-types tests/*.test.ts",
     "test:contracts": "node --test --experimental-strip-types tests/accessibility.test.ts",
     "test:browser": "playwright test",
+    "test:e2e": "playwright test",
     "typecheck": "nuxt prepare && vue-tsc --noEmit",
     "check:generated": "node scripts/check-generated.mjs",
     "check:links": "node scripts/check-generated.mjs"

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "query": "\"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json\" filename:plugin.json",
+  "maximum_file_size": 1048576,
+  "maximum_records": 10000,
+  "seeds": [
+    {
+      "repository": "agentplugins/agent-plugins-spec",
+      "paths": []
+    },
+    {
+      "repository": "777genius/universal-agent-plugins",
+      "paths": [
+        "plugins"
+      ]
+    }
+  ]
+}

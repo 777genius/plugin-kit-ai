@@ -218,6 +218,9 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 .app-combobox__empty { padding: 13px 10px; color: var(--subtle); font-size: .76rem; text-align: center; }
 .catalog-meta { margin: 15px 2px 18px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
 .catalog-count { color: var(--subtle); font-size: .72rem; }
+.discovery-status { margin: 5px 0 0; color: var(--subtle); font-size: .64rem; }
+.discovery-status--current { color: var(--green); }.discovery-status--cached { color: var(--cyan); }.discovery-status--stale, .discovery-status--unavailable { color: var(--coral); }
+.catalog-more { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; margin-top: 28px; color: var(--subtle); font-size: .72rem; }
 .catalog-submit { min-height: 38px; padding-inline: 13px; border-radius: 10px; font-size: .72rem; }
 .catalog-end-submit { margin-top: 24px; display: flex; justify-content: center; }
 .plugin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
@@ -232,6 +235,7 @@ code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospac
 .plugin-card h3 { margin: 21px 0 11px; font-size: 1.22rem; text-transform: capitalize; }
 .plugin-card__description { color: var(--muted); font-size: .86rem; line-height: 1.65; }
 .plugin-card__author { position: relative; z-index: 2; margin-bottom: 22px; color: var(--subtle); font-size: .7rem; }.plugin-card__author a { color: var(--primary-bright); }
+.plugin-card__provenance { width: 100%; margin: -10px 0 18px; padding: 9px 10px; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; color: var(--subtle); background: var(--surface-raised); font-size: .62rem; line-height: 1.55; }.plugin-card__provenance code { color: var(--muted); overflow-wrap: anywhere; }
 .plugin-card__auth { margin: -12px 0 18px; color: var(--muted); font-size: .68rem; }
 .plugin-card__bottom { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 13px; }
 .plugin-card__install { width: 100%; display: grid; grid-template-columns: minmax(130px, .42fr) minmax(0, 1fr); gap: 7px; align-items: stretch; }.plugin-card__install .app-multiselect__trigger { height: 100%; min-height: 44px; }

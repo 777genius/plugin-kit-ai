@@ -82,7 +82,7 @@ LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION = "0.1.13"
 LOCKED_NPM_LAUNCHER_ARGUMENT = "${PLUGIN_ROOT}/" + LOCKED_NPM_RUNTIME_PATH + "/launcher.mjs"
 LOCKED_NPM_LAUNCHER_DIGEST = "sha256:043042ce8ec048010a2077c0d241ee43022d5c187bec062040ea186073ae0d2a"
 LOCKED_NPM_IGNORED_INSTALL_SCRIPT_ALLOWLIST = {
-    ("@hubspot/cli", "8.14.0-beta.0"): frozenset({
+    ("@hubspot/cli", "8.14.0-beta.1"): frozenset({
         (
             "node_modules/esbuild", "0.25.12",
             "sha512-bbPBYYrtZbkt6Os6FiTLCTFxvq4tt3JKall1vRwshA3fdVztsLAatFaZobhkBC8/BrPetoa0oksYoKXoG4ryJg==",
@@ -96,12 +96,25 @@ LOCKED_NPM_IGNORED_INSTALL_SCRIPT_ALLOWLIST = {
     }),
 }
 LOCKED_NPM_OPTIONAL_INSTALL_SCRIPT_ALLOWLIST = {
-    ("@hubspot/cli", "8.14.0-beta.0"): frozenset({
+    ("@hubspot/cli", "8.14.0-beta.1"): frozenset({
         (
             "node_modules/fsevents", "2.3.3",
             "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
         ),
     }),
+}
+LOCKED_NPM_SECURITY_OVERRIDES = {
+    ("@hubspot/cli", "8.14.0-beta.1"): {
+        "@sentry/node": "10.71.0",
+    },
+    # firebase-tools 15.28.1 still permits vulnerable @opentelemetry/core 1.x
+    # and uuid 9.x transitively. Override their immediate parents to the first
+    # dependency lines that contain the upstream fixes, then prove the MCP
+    # runtime separately in an isolated E2E fixture.
+    ("firebase-tools", "15.28.1"): {
+        "@google-cloud/pubsub": "6.0.1",
+        "gaxios": "8.0.0",
+    },
 }
 
 
@@ -1171,8 +1184,7 @@ def validate_locked_npm_runtime(package_root: Path) -> None:
     lock_body = lock_path.read_bytes()
     lock = read_object(lock_path)
     require(
-        set(package) == {"name", "version", "private", "dependencies"}
-        and package.get("private") is True
+        package.get("private") is True
         and isinstance(package.get("dependencies"), dict)
         and len(package["dependencies"]) == 1,
         f"{package_path}: runtime package must contain one exact production dependency and no scripts",
@@ -1183,6 +1195,15 @@ def validate_locked_npm_runtime(package_root: Path) -> None:
         and version and not any(token in version for token in ("*", "^", "~", ">", "<", "||", " ")),
         f"{package_path}: runtime dependency must use one exact npm version",
     )
+    expected_overrides = LOCKED_NPM_SECURITY_OVERRIDES.get((dependency, version), {})
+    expected_package_fields = {"name", "version", "private", "dependencies"}
+    if expected_overrides:
+        expected_package_fields.add("overrides")
+    require(
+        set(package) == expected_package_fields,
+        f"{package_path}: runtime package must contain one exact production dependency and no scripts",
+    )
+    require(package.get("overrides", {}) == expected_overrides, f"{package_path}: runtime security overrides differ from the reviewed allowlist")
     require(
         set(config) == {"schema_version", "package", "version", "entrypoint", "package_lock_sha256", "omit_optional"}
         and config.get("schema_version") == 1
@@ -1208,6 +1229,16 @@ def validate_locked_npm_runtime(package_root: Path) -> None:
     require(packages[""].get("dependencies") == {dependency: version}, f"{lock_path}: root dependency identity mismatch")
     root_dependency = packages.get(f"node_modules/{dependency}")
     require(isinstance(root_dependency, dict) and root_dependency.get("version") == version, f"{lock_path}: locked root package version mismatch")
+    for overridden, overridden_version in expected_overrides.items():
+        matches = [
+            entry for relative, entry in packages.items()
+            if relative == f"node_modules/{overridden}" or relative.endswith(f"/node_modules/{overridden}")
+        ]
+        require(matches and all(
+            isinstance(entry, dict) and entry.get("version") == overridden_version
+            for entry in matches
+        ),
+                f"{lock_path}: security override {overridden}@{overridden_version} is not exact across the lockfile")
     ignored_install_scripts: set[tuple[str, str, str]] = set()
     optional_install_scripts: set[tuple[str, str, str]] = set()
     for relative, entry in packages.items():

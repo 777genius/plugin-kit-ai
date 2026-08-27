@@ -43,7 +43,14 @@ createServer((request, response) => {
   if (existsSync(file) && statSync(file).isDirectory()) file = resolve(file, 'index.html')
   if (!existsSync(file) && existsSync(`${file}.html`)) file = `${file}.html`
   if (!existsSync(file) || !statSync(file).isFile()) {
-    response.writeHead(404).end()
+    const fallback = resolve(root, '404.html')
+    if (!existsSync(fallback)) {
+      response.writeHead(404).end()
+      return
+    }
+    response.writeHead(404, { 'cache-control': 'no-store', 'content-type': mime['.html'] })
+    if (request.method === 'HEAD') response.end()
+    else createReadStream(fallback).pipe(response)
     return
   }
 

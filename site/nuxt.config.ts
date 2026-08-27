@@ -21,6 +21,8 @@ const siteUrl = (process.env.NUXT_PUBLIC_SITE_URL
   ?? 'https://777genius.github.io/universal-agent-plugins').replace(/\/$/, '')
 const baseURL = process.env.NUXT_APP_BASE_URL ?? '/'
 const repositoryUrl = 'https://github.com/777genius/universal-agent-plugins'
+const discoveryKeyID = process.env.NUXT_PUBLIC_DISCOVERY_KEY_ID ?? 'uap-discovery-2026-01'
+const discoveryPublicKey = process.env.NUXT_PUBLIC_DISCOVERY_PUBLIC_KEY ?? 'IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc='
 // Production HTML is finalized after prerendering so script-src contains the
 // hashes of the exact Nuxt-generated inline scripts and style elements for
 // each route. The finalizer also adds byte-exact hashes for Reka UI's two
@@ -60,6 +62,8 @@ export default defineNuxtConfig({
       siteUrl,
       baseURL,
       repositoryUrl,
+      discoveryKeyID,
+      discoveryPublicKey,
     },
   },
   nitro: {
@@ -68,6 +72,7 @@ export default defineNuxtConfig({
       crawlLinks: false,
       routes: [
         '/',
+        '/404.html',
         '/plugins',
         '/robots.txt',
         '/sitemap.xml',

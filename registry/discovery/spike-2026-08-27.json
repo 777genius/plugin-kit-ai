@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-08-27T02:57:26Z",
+  "source": {
+    "kind": "github_code_search",
+    "query": "\"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json\" filename:plugin.json",
+    "sort": "indexed",
+    "order": "asc",
+    "authenticated": true
+  },
+  "partition_strategy": {
+    "qualifier": "size",
+    "maximum_results_per_leaf": 90,
+    "leaf_partitions": 53,
+    "largest_leaf": 90,
+    "complete": true
+  },
+  "results": {
+    "raw_matches": 2665,
+    "exact_manifest_paths": 2659,
+    "unique_repositories": 967,
+    "duplicate_repository_paths": 0,
+    "candidate_validation": "deferred_to_full_signed_discovery_run"
+  },
+  "rate_limits": {
+    "code_search_requests_per_minute": 10,
+    "repository_metadata_transport": "graphql_alias_batches",
+    "repositories_per_graphql_request": 50
+  },
+  "competitive_sample": {
+    "source": "https://plugins.sh/api/v1/plugins?limit=100&offset=0&sort=newest",
+    "observed_total": 2233,
+    "sample_size": 100,
+    "live_exact_sha_sources": 100,
+    "unique_repository_paths": 100,
+    "duplicate_repository_paths": 0,
+    "matching_discovery_query": 100,
+    "official_schema_valid": 97,
+    "records_imported": 0
+  }
+}

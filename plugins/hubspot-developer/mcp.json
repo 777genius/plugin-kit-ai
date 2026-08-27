@@ -13,7 +13,7 @@
         "agentplugins"
       ],
       "env": {
-        "HUBSPOT_CLI_VERSION": "8.14.0-beta.0"
+        "HUBSPOT_CLI_VERSION": "8.14.0-beta.1"
       }
     }
   }

@@ -41,6 +41,7 @@ describe('catalog filtering', () => {
     assert.deepEqual(availableFilters(plugins), {
       categories: ['development', 'documentation'],
       components: ['mcp', 'skills'],
+      owners: ['Community package for Upstash', 'Example contributor'],
     })
   })
 })

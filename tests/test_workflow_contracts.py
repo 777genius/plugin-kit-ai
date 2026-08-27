@@ -15,6 +15,7 @@ LIVE = ROOT / ".github/workflows/live-e2e.yml"
 PAGES = ROOT / ".github/workflows/pages.yml"
 VALIDATE = ROOT / ".github/workflows/validate.yml"
 DIRECTORY_PUBLICATION = ROOT / ".github/workflows/directory-publication.yml"
+DISCOVERY_INDEX = ROOT / ".github/workflows/discovery-index.yml"
 OBSERVER_RUNBOOK = ROOT / "docs/OBSERVER_OPERATIONS.md"
 PUBLICATION_INPUTS = {
     "publication_id": "string",
@@ -32,6 +33,10 @@ def load(path: Path):
 
 def commands(job):
     return "\n".join(step.get("run", "") for step in job["steps"] if isinstance(step, dict))
+
+
+def pinned_requirements(body: str) -> set[str]:
+    return set(re.findall(r"(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]+==[A-Za-z0-9_.+-]+", body))
 
 
 class WorkflowContractTests(unittest.TestCase):
@@ -84,7 +89,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                 "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
                 "snapshot_digest": digest, "binary_digest": digest,
-                "dependency_identity": "locked", "installer_version": "0.1.14",
+                "dependency_identity": "locked", "installer_version": "0.1.16",
                 "adapter_version": "r14d", "client_version": None,
                 "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
             }
@@ -231,7 +236,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_kiro_acp_2191_grammar_is_distinguished_from_pending_live_matrix(self) -> None:
         adapter = (ROOT / "observer/fixed_adapters.py").read_text()
-        plan = (ROOT / "docs/UNIVERSAL_DIRECTORY_AND_CLI_IMPLEMENTATION_PLAN.md").read_text()
+        plan = (ROOT / "docs/E2E_AND_COMPETITIVE_LAUNCH_PLAN.md").read_text()
         runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()
         for text in (adapter, plan, runbook):
             self.assertIn("2.19.1", text)
@@ -308,7 +313,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_stable_launch_versions_equal_trusted_contract(self) -> None:
         version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
-        self.assertEqual(version, "0.1.14")
+        self.assertEqual(version, "0.1.16")
         tag = f"agentplugins-v{version}"
         asset_prefix = f"agentplugins_{version}_"
         production = json.loads((ROOT / "tests/e2e/production-launch.json").read_text())
@@ -327,9 +332,9 @@ class WorkflowContractTests(unittest.TestCase):
         # leave a stale observer trust pin behind.
         request_policy = adapter_schema["properties"]["request_policy"]["properties"]
         self.assertEqual((version, request_policy["release_manifest_digest"]["const"], request_policy["release_checksums_digest"]["const"]), (
-            "0.1.14",
-            "sha256:21b72bb9fc82df2b45ce2e83ea79eeb5b8436cfd9b09f8ccfcbb25c8d0fda8f9",
-            "sha256:bd9f8de83b9b04589d2b29ce36ae079bf5f67b10b8f44c5ab811fc5d6706ff6b",
+            "0.1.16",
+            "sha256:1e7300899df0b98b181cfdfb6b08fd34cb57b64e500649538afe8d48ea0b83e0",
+            "sha256:1a92ed016f364d89dda04645b338302b1c0a8f1f90032d001530bb3cf8cde4b1",
         ))
         self.assertEqual(schema["properties"]["cli_release_tag"]["const"], tag)
         self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["tag"]["const"], tag)
@@ -353,6 +358,51 @@ class WorkflowContractTests(unittest.TestCase):
         workflow = load(DIRECTORY_PUBLICATION)
         prepare_commands = commands(workflow["jobs"]["prepare"])
         self.assertIn("PyYAML==6.0.3", prepare_commands)
+
+    def test_discovery_index_is_lkg_protected_and_deploys_the_exact_ledger(self) -> None:
+        workflow = load(DISCOVERY_INDEX)
+        self.assertEqual(workflow["concurrency"], {
+            "group": "directory-publication-schema-1",
+            "cancel-in-progress": "false",
+        })
+        self.assertEqual(
+            {entry["cron"] for entry in workflow["on"]["schedule"]},
+            {"17 */6 * * *", "43 2 * * *", "11 3 * * 0"},
+        )
+        self.assertNotIn("pull_request", workflow["on"])
+        scan = workflow["jobs"]["scan"]
+        signer = workflow["jobs"]["sign-and-publish"]
+        self.assertEqual(scan["environment"], "discovery-read")
+        self.assertEqual(signer["environment"], "discovery-publication")
+        scan_body = yaml.safe_dump(scan)
+        self.assertIn("build_discovery_index.py", scan_body)
+        self.assertIn("previous-snapshot", scan_body)
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", scan_body)
+        self.assertNotIn("secrets.", scan_body)
+        self.assertNotIn("DISCOVERY_ED25519_PRIVATE_KEY", scan_body)
+        self.assertNotIn("DIRECTORY_ED25519_PRIVATE_KEY", scan_body)
+        signer_body = yaml.safe_dump(signer)
+        self.assertIn("DISCOVERY_ED25519_PRIVATE_KEY", signer_body)
+        self.assertIn("DISCOVERY_PUBLISHER_APP_PRIVATE_KEY", signer_body)
+        self.assertNotIn("DIRECTORY_ED25519_PRIVATE_KEY", signer_body)
+        self.assertNotIn("DIRECTORY_PUBLISHER_APP_PRIVATE_KEY", signer_body)
+        self.assertNotIn("${{ github.token }}", signer_body)
+        self.assertIn("registry/discovery/trusted-keys.json", signer_body)
+        self.assertIn("UAP-DISCOVERY", (ROOT / "scripts/discovery_publication.py").read_text())
+        self.assertIn("git push --atomic", commands(signer))
+        self.assertIn("discovery-index-sequence-", commands(signer))
+        incomplete = workflow["jobs"]["incomplete-scan"]
+        self.assertIn("needs.scan.outputs.complete != 'true'", incomplete["if"])
+        self.assertIn("exit 1", commands(incomplete))
+        deploy = workflow["jobs"]["deploy"]
+        checkout = next(step for step in deploy["steps"] if step.get("uses", "").startswith("actions/checkout"))
+        self.assertEqual(checkout["with"]["ref"], "${{ needs.sign-and-publish.outputs.ledger_commit }}")
+        self.assertIn("observe_discovery_index.py", commands(workflow["jobs"]["observe"]))
+        for job_name in ("scan", "sign-and-publish", "observe"):
+            with self.subTest(job=job_name):
+                body = commands(workflow["jobs"][job_name])
+                self.assertIn("cryptography==46.0.3", pinned_requirements(body))
+                self.assertIn("jsonschema==4.26.0", pinned_requirements(body))
 
     def test_pages_concurrency_isolates_prs_from_production(self) -> None:
         workflow = load(PAGES)
@@ -409,8 +459,8 @@ class WorkflowContractTests(unittest.TestCase):
             "repository does not install UID-, cgroup-, or service-identity firewall rules",
             "`IPAddressDeny=any`",
             "resolve_github_release",
-            '"agentplugins-v0.1.14"',
-            'asset_name="agentplugins_0.1.14_linux_amd64"',
+            '"agentplugins-v0.1.16"',
+            'asset_name="agentplugins_0.1.16_linux_amd64"',
             '"$AGENTPLUGINS" add "$source" --target "$client" --format json',
             '"$AGENTPLUGINS" info "$plugin" --target "$client" --format json',
             "manual_activation_required",
@@ -501,9 +551,9 @@ class WorkflowContractTests(unittest.TestCase):
             ("linux", "amd64"), ("windows", "amd64"), ("windows", "arm64"),
         })
         self.assertEqual({slot["asset"] for slot in slots}, {
-            "agentplugins_0.1.14_darwin_arm64", "agentplugins_0.1.14_darwin_amd64",
-            "agentplugins_0.1.14_linux_arm64", "agentplugins_0.1.14_linux_amd64",
-            "agentplugins_0.1.14_windows_amd64.exe", "agentplugins_0.1.14_windows_arm64.exe",
+            "agentplugins_0.1.16_darwin_arm64", "agentplugins_0.1.16_darwin_amd64",
+            "agentplugins_0.1.16_linux_arm64", "agentplugins_0.1.16_linux_amd64",
+            "agentplugins_0.1.16_windows_amd64.exe", "agentplugins_0.1.16_windows_arm64.exe",
         })
         aggregate_commands = commands(aggregate)
         self.assertIn("['subject_name'] == x['asset_name']", aggregate_commands)
@@ -516,8 +566,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--npm-facade", commands(npm))
         self.assertIn("--npm-binary-cache", commands(npm))
         self.assertIn('AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"', commands(npm))
-        self.assertIn("universal-agent-plugins-0.1.14.tgz", commands(npm))
-        self.assertIn("--asset-name agentplugins_0.1.14_linux_amd64", commands(npm))
+        self.assertIn("universal-agent-plugins-0.1.16.tgz", commands(npm))
+        self.assertIn("--asset-name agentplugins_0.1.16_linux_amd64", commands(npm))
         self.assertNotIn("universal-agent-plugins.tgz", commands(npm))
         self.assertEqual(yaml.safe_dump(native).count("tzdata==2026.3"), 1)
         self.assertEqual(yaml.safe_dump(npm).count("tzdata==2026.3"), 1)
@@ -593,8 +643,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--release-tag", body)
         production = (ROOT / "tests/e2e/production-launch.json").read_text()
         self.assertIn('"cli_release_repository": "777genius/plugin-kit-ai"', production)
-        self.assertIn('"cli_release_tag": "agentplugins-v0.1.14"', production)
-        self.assertIn('"cli_release_commit": "caffa9ac2a962462a05d5342250f4810ddce0856"', production)
+        self.assertIn('"cli_release_tag": "agentplugins-v0.1.16"', production)
+        self.assertIn('"cli_release_commit": "efa4023e3c82a2f01b31d12e59fe8ea86c567e67"', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
         self.assertIn('token=os.environ.get("GH_TOKEN")', prepare)
@@ -631,7 +681,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("SHA256SUMS", text)
                 self.assertIn("overwrite: false", text)
                 if path == LAUNCH:
-                    self.assertIn("agentplugins_0.1.14_linux_amd64", text)
+                    self.assertIn("agentplugins_0.1.16_linux_amd64", text)
                 self.assertNotIn("AGENTPLUGINS_VERSION: \"0.1.6\"", text)
 
     def test_live_workflow_is_read_only_and_does_not_publish(self) -> None:
@@ -697,6 +747,19 @@ class WorkflowContractTests(unittest.TestCase):
         scheduled_body = yaml.safe_dump(scheduled)
         self.assertNotIn("inputs.publication_", scheduled_body)
         self.assertNotIn("launch-evidence-e2e.yml", scheduled_body)
+        for name, job in scheduled.items():
+            with self.subTest(job=name):
+                job_commands = commands(job)
+                requirements = pinned_requirements(job_commands)
+                self.assertIn("cryptography==46.0.3", requirements)
+                self.assertIn("jsonschema==4.26.0", requirements)
+                self.assertIn("PyYAML==6.0.3", requirements)
+                self.assertLess(
+                    job_commands.index("jsonschema==4.26.0"),
+                    job_commands.index("scripts/run_launch_evidence_e2e.py")
+                    if "scripts/run_launch_evidence_e2e.py" in job_commands
+                    else job_commands.index("from scripts.run_launch_evidence_e2e import"),
+                )
         observation = commands(scheduled["scheduled-production-directory-observation"])
         self.assertIn("fetch_production_directory", observation)
         self.assertIn('"runtime_claims": False', observation)
@@ -917,7 +980,7 @@ class WorkflowContractTests(unittest.TestCase):
         )
         persist = publication["jobs"]["record_launch_approval"]
         body = commands(persist)
-        self.assertIn("jsonschema==4.26.0", body)
+        self.assertIn("jsonschema==4.26.0", pinned_requirements(body))
         self.assertNotIn("jsonschema==4.25.1", str(publication))
         self.assertIn("materialize_launch_evidence.py verify-bundle", body)
         self.assertIn("--verify-attestation", body)

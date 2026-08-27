@@ -13,6 +13,10 @@
 /.github/workflows/directory-publication.yml @777genius
 /.github/workflows/validate.yml @777genius
 /registry/publication/ @777genius
+/registry/discovery/ @777genius
+/schemas/discovery-*.schema.json @777genius
+/scripts/*discovery*.py @777genius
+/tests/test_discovery_index.py @777genius
 /registry/directory.json @777genius
 /plugins/ @777genius
 /bridges/ @777genius

@@ -3,6 +3,6 @@
   "package": "firebase-tools",
   "version": "15.28.1",
   "entrypoint": "node_modules/firebase-tools/lib/bin/firebase.js",
-  "package_lock_sha256": "sha256:c8b1feed6566ffd76f54ebf873a7b1f23232f0b6bb8a2b75baef7f7163c9774a",
+  "package_lock_sha256": "sha256:f2edbe4b1d6d5ae4f384d17f2cf52302a9c6d9e5c4bb70db9888d47e1deac265",
   "omit_optional": true
 }

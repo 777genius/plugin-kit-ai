@@ -167,6 +167,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Install pinned launch harness dependencies
+        run: python -m pip install --disable-pip-version-check cryptography==46.0.3 jsonschema==4.26.0 PyYAML==6.0.3
       - name: Validate fixture-only non-runtime harness
         run: |
           run_root="/tmp/uap-live-contract-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -189,6 +191,8 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Install pinned launch harness dependencies
+        run: python -m pip install --disable-pip-version-check cryptography==46.0.3 jsonschema==4.26.0 PyYAML==6.0.3
       - name: Observe the current signed production identity without runtime claims
         run: |
           python - <<'PY'

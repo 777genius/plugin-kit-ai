@@ -27,6 +27,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+const hydrated = ref(false)
+onMounted(() => { hydrated.value = true })
 
 watchEffect(() => {
   if (!props.options.length) throw new Error(`AppCombobox "${props.label}" requires at least one option`)
@@ -59,6 +61,7 @@ function selectCurrentText(event: FocusEvent | MouseEvent) {
       <ComboboxInput
         class="app-combobox__input"
         :aria-label="label"
+        :data-hydrated="hydrated ? 'true' : 'false'"
         :display-value="displayValue"
         :placeholder="searchPlaceholder"
         @focus="selectCurrentText"

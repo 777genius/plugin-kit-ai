@@ -10,11 +10,12 @@ import { pluginCommands } from '~/utils/commands'
 const props = defineProps<{ plugin: RegistryPlugin }>()
 const { asset, pluginIcon } = useSite()
 const { current, expired, published } = useDirectoryStatus()
+const isDiscovered = computed(() => props.plugin.trust_state === 'conformant_unreviewed')
 const availableClients = computed(() => clients.filter(client => props.plugin.client_support.clients.includes(client.id)))
 const initialTarget = availableClients.value.find(client => client.id === 'cursor')?.id ?? availableClients.value[0]?.id
 const targets = ref<(typeof clients)[number]['id'][]>(initialTarget ? [initialTarget] : [])
 const resolution = computed(() => resolveDistribution(props.plugin, targets.value))
-const selectedDistribution = computed(() => current.value ? resolution.value.distribution : undefined)
+const selectedDistribution = computed(() => isDiscovered.value || current.value ? resolution.value.distribution : undefined)
 const command = computed(() => selectedDistribution.value ? pluginCommands(props.plugin, targets.value).add : '')
 const targetOptions = computed(() => clients.map(client => ({
   value: client.id,
@@ -22,6 +23,7 @@ const targetOptions = computed(() => clients.map(client => ({
   icon: asset(`client-icons/${client.icon}`),
   disabled: !props.plugin.client_support.clients.includes(client.id),
   description: (() => {
+    if (isDiscovered.value) return props.plugin.discovery?.availability === 'available' ? 'Compatibility is validated again before installation' : 'Unavailable at its indexed source'
     if (!published.value) return 'Unavailable: review data is not installation authority'
     if (expired.value) return 'Unavailable: signed Directory snapshot expired'
     const source = expectedDistribution(props.plugin, [client.id])
@@ -30,6 +32,12 @@ const targetOptions = computed(() => clients.map(client => ({
   })(),
 })))
 const authLabel = computed(() => authenticationLabel(resolution.value.distribution, targets.value, props.plugin.authentication))
+const provenanceURL = computed(() => {
+  const source = selectedDistribution.value?.source ?? props.plugin.source
+  if (!source?.revision) return ''
+  const suffix = source.path ? `/${source.path}` : ''
+  return `https://github.com/${source.repository}/tree/${source.revision}${suffix}`
+})
 
 function updateTargets(values: string[]) {
   const allowed = new Set(availableClients.value.map(client => client.id))
@@ -42,12 +50,14 @@ function updateTargets(values: string[]) {
   <article class="plugin-card">
     <div class="plugin-card__top">
       <span class="plugin-card__icon"><img :src="pluginIcon(plugin)" alt="" width="32" height="32" loading="lazy" /></span>
-      <span class="source-pill">{{ selectedDistribution ? `Install candidate · ${selectedDistribution.label}` : expired ? 'Stale Directory · history only' : !published ? 'Review preview · history only' : 'No install candidate' }}</span>
+      <span class="source-pill">{{ isDiscovered ? plugin.discovery?.availability === 'available' ? 'Schema conformant · unreviewed' : 'Unavailable · unreviewed' : selectedDistribution ? `Install candidate · ${selectedDistribution.label}` : expired ? 'Stale Directory · history only' : !published ? 'Review preview · history only' : 'No install candidate' }}</span>
     </div>
-    <h3><NuxtLink class="plugin-card__title-link" :to="`/plugins/${plugin.name}`">{{ plugin.display_name }}</NuxtLink></h3>
-    <p v-if="selectedDistribution" class="plugin-card__author">Install candidate v{{ selectedDistribution.version }} · release {{ selectedDistribution.release_sequence }}</p>
+    <h3><a v-if="isDiscovered" class="plugin-card__title-link" :href="provenanceURL" target="_blank" rel="noreferrer">{{ plugin.display_name }}</a><NuxtLink v-else class="plugin-card__title-link" :to="`/plugins/${plugin.name}`">{{ plugin.display_name }}</NuxtLink></h3>
+    <p v-if="selectedDistribution && !isDiscovered" class="plugin-card__author">Install candidate v{{ selectedDistribution.version }} · release {{ selectedDistribution.release_sequence }}</p>
+    <p v-else-if="isDiscovered" class="plugin-card__author">Agent Plugins {{ plugin.discovery?.schema_version }} · {{ plugin.discovery?.stars }} GitHub stars · runtime not reviewed</p>
     <p class="plugin-card__description">{{ plugin.description }}</p>
-    <p v-if="selectedDistribution" class="plugin-card__author">Install source by {{ selectedDistribution.publisher }}<template v-if="selectedDistribution.id !== plugin.declared_default_distribution"> (signed fallback for selected clients)</template> · <a :href="githubSourceUrl(plugin, selectedDistribution)" target="_blank" rel="noreferrer">exact provenance <span class="sr-only">for {{ plugin.name }}</span></a><template v-if="plugin.distributions.length > 1"> · {{ plugin.distributions.length - 1 }} historical {{ plugin.distributions.length === 2 ? 'alternative' : 'alternatives' }}</template></p>
+    <p v-if="selectedDistribution" class="plugin-card__author">{{ isDiscovered ? 'Discovered source' : 'Install source' }} by {{ selectedDistribution.publisher }}<template v-if="selectedDistribution.id !== plugin.declared_default_distribution"> (signed fallback for selected clients)</template> · <a :href="isDiscovered ? provenanceURL : githubSourceUrl(plugin, selectedDistribution)" target="_blank" rel="noreferrer">exact provenance <span class="sr-only">for {{ plugin.name }}</span></a><template v-if="plugin.distributions.length > 1"> · {{ plugin.distributions.length - 1 }} historical {{ plugin.distributions.length === 2 ? 'alternative' : 'alternatives' }}</template></p>
+    <p v-if="isDiscovered" class="plugin-card__provenance"><strong>Immutable commit</strong> <code>{{ plugin.source.revision }}</code><br /><strong>Manifest</strong> <code>{{ plugin.discovery?.manifest_digest }}</code></p>
     <p v-if="resolution.fallback_reason && current" class="plugin-card__author">{{ resolution.fallback_reason }}</p>
     <p class="plugin-card__auth">{{ authLabel }}</p>
     <div class="plugin-card__bottom">
@@ -55,12 +65,12 @@ function updateTargets(values: string[]) {
         <li v-for="component in selectedDistribution.components" :key="component">{{ component }}</li>
       </ul>
       <span v-if="selectedDistribution" class="validation-badge">
-        <span aria-hidden="true">✓</span> {{ validationLabel(selectedDistribution) }}
+        <span aria-hidden="true">✓</span> {{ isDiscovered ? 'Schema conformant · unreviewed' : validationLabel(selectedDistribution) }}
       </span>
       <div class="plugin-card__install">
         <AppMultiSelect v-if="targets.length" :model-value="targets" :label="`Choose clients for ${plugin.display_name}`" :options="targetOptions" @update:model-value="updateTargets" />
         <CommandSnippet v-if="selectedDistribution" label="Add" kind="add" :command="command" />
-        <span v-else class="plugin-card__author">{{ expired ? 'Commands disabled because the signed Directory snapshot is stale.' : !published ? 'Commands disabled because review data is not installation authority.' : resolution.unavailable_reason }}</span>
+        <span v-else class="plugin-card__author">{{ isDiscovered ? 'Unavailable at its indexed immutable source; no install command is generated.' : expired ? 'Commands disabled because the signed Directory snapshot is stale.' : !published ? 'Commands disabled because review data is not installation authority.' : resolution.unavailable_reason }}</span>
       </div>
     </div>
   </article>

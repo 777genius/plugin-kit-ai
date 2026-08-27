@@ -23,6 +23,7 @@ export type DeliveryMode = 'managed' | 'prepared' | 'manual_activation'
 export type DistributionStatus = 'candidate' | 'active' | 'suspended'
 export type ReleaseStatus = 'active' | 'superseded' | 'revoked'
 export type TargetAuthentication = 'not_required' | 'required' | 'unknown'
+export type TrustState = 'reviewed' | 'conformant_unreviewed'
 
 export interface AppBinding {
   app_key: string
@@ -142,6 +143,20 @@ export interface RegistryPlugin {
     delivery: Partial<Record<ClientID, DeliveryMode>>
     scopes: Partial<Record<ClientID, string[]>>
     app_bindings: Partial<Record<ClientID, AppBinding>>
+  }
+  trust_state?: TrustState
+  discovery?: {
+    sequence: number
+    generated_at: string
+    expires_at: string
+    repository_updated_at: string
+    stars: number
+    schema_version: '1.0.0'
+    manifest_digest: string
+    tree_digest: string
+    mcp_transports: string[]
+    availability: 'available' | 'unavailable'
+    reviewed_distribution_id?: string
   }
 }
 

@@ -400,7 +400,7 @@ def matching_client(info: dict[str, Any], plugin: str, client: str, approved: di
 
 
 def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> None:
-    """Validate the real agentplugins 0.1.14 add envelope and approved source."""
+    """Validate the real agentplugins 0.1.16 add envelope and approved source."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "add" or value.get("result") != "success":
         raise ValueError(f"{plugin}: manager add is not successful agentplugins JSON")
     data = value.get("data")
@@ -440,9 +440,9 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
 
 
 def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict[str, Any]]) -> None:
-    """Validate one complete post-add 0.1.14 doctor inventory."""
+    """Validate one complete post-add 0.1.16 doctor inventory."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "doctor" or value.get("result") != "success":
-        raise ValueError("post-add doctor is not the exact successful 0.1.14 envelope")
+        raise ValueError("post-add doctor is not the exact successful 0.1.16 envelope")
     if prohibited_lifecycle_state(value):
         raise ValueError("post-add doctor contains an incomplete or prohibited lifecycle state")
     detected: list[str] = []

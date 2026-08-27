@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://777genius.github.io/universal-agent-plugins/schemas/discovery-latest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pointer_schema_version",
+    "snapshot_schema_version",
+    "sequence",
+    "snapshot_path",
+    "envelope_path",
+    "search_path",
+    "fetch_contract"
+  ],
+  "properties": {
+    "pointer_schema_version": { "const": 1 },
+    "snapshot_schema_version": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "snapshot_path": { "type": "string", "pattern": "^snapshots/[0-9]{20}\\.json$" },
+    "envelope_path": { "type": "string", "pattern": "^snapshots/[0-9]{20}\\.envelope\\.json$" },
+    "search_path": { "type": "string", "pattern": "^search/[0-9]{20}\\.json$" },
+    "fetch_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_redirects", "latest_max_bytes", "snapshot_max_bytes", "envelope_max_bytes", "search_max_bytes", "retry_attempts"],
+      "properties": {
+        "max_redirects": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "latest_max_bytes": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "snapshot_max_bytes": { "type": "integer", "minimum": 1, "maximum": 16777216 },
+        "envelope_max_bytes": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "search_max_bytes": { "type": "integer", "minimum": 1, "maximum": 10485760 },
+        "retry_attempts": { "type": "integer", "minimum": 1, "maximum": 3 }
+      }
+    }
+  }
+}

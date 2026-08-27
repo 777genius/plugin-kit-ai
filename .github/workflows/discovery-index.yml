@@ -1,0 +1,354 @@
+name: Signed Discovery Index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "registry/directory.json"
+      - "registry/discovery/**"
+      - "registry/discovery/trusted-keys.json"
+      - "schemas/discovery-*.schema.json"
+      - "scripts/build_discovery_index.py"
+      - "scripts/discovery_publication.py"
+      - "scripts/sign_discovery_index.py"
+      - "scripts/verify_discovery_index.py"
+      - ".github/workflows/discovery-index.yml"
+  schedule:
+    - cron: "17 */6 * * *"
+    - cron: "43 2 * * *"
+    - cron: "11 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Bounded discovery mode
+        required: true
+        default: refresh
+        type: choice
+        options: [refresh, discover, reconcile]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: directory-publication-schema-1
+  cancel-in-progress: false
+
+env:
+  LEDGER_BRANCH: directory-publication-ledger
+  FEED_PATH: discovery
+
+jobs:
+  scan:
+    name: Scan inert public packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    environment: discovery-read
+    permissions:
+      contents: read
+    outputs:
+      complete: ${{ steps.scan.outputs.complete }}
+      candidate_digest: ${{ steps.scan.outputs.candidate_digest }}
+      ledger_head: ${{ steps.ledger.outputs.head }}
+      mode: ${{ steps.mode.outputs.value }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.LEDGER_BRANCH }}
+          path: ledger
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install pinned validation dependencies
+        run: python3 -m pip install --disable-pip-version-check cryptography==46.0.3 jsonschema==4.26.0 PyYAML==6.0.3
+      - name: Select deterministic schedule mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          REQUESTED_MODE: ${{ inputs.mode }}
+        run: |
+          if test "${EVENT_NAME}" = workflow_dispatch; then
+            mode="${REQUESTED_MODE}"
+          elif test "${EVENT_NAME}" = schedule && test "${SCHEDULE}" = "11 3 * * 0"; then
+            mode=reconcile
+          elif test "${EVENT_NAME}" = schedule && test "${SCHEDULE}" = "43 2 * * *"; then
+            mode=discover
+          elif test "${EVENT_NAME}" = push; then
+            mode=discover
+          else
+            mode=refresh
+          fi
+          case "${mode}" in refresh|discover|reconcile) ;; *) exit 1 ;; esac
+          echo "value=${mode}" >> "$GITHUB_OUTPUT"
+      - name: Authenticate previous last-known-good snapshot
+        id: ledger
+        working-directory: source
+        run: |
+          echo "head=$(git -C ../ledger rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          if test -f "../ledger/${FEED_PATH}/latest.json"; then
+            python3 scripts/verify_discovery_index.py \
+              --feed "../ledger/${FEED_PATH}" \
+              --trusted-keys registry/discovery/trusted-keys.json
+            snapshot_path="$(python3 -c 'import json; print(json.load(open("../ledger/discovery/latest.json"))["snapshot_path"])')"
+            printf 'path=%s\n' "../ledger/${FEED_PATH}/${snapshot_path}" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build complete candidate without executing package content
+        id: scan
+        working-directory: source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MODE: ${{ steps.mode.outputs.value }}
+          PREVIOUS_SNAPSHOT: ${{ steps.ledger.outputs.path }}
+        run: |
+          args=(--mode "${MODE}" --output ../candidate.json --diagnostics-output ../diagnostics.json)
+          if test -n "${PREVIOUS_SNAPSHOT}"; then
+            args+=(--previous-snapshot "${PREVIOUS_SNAPSHOT}")
+          fi
+          set +e
+          python3 scripts/build_discovery_index.py "${args[@]}"
+          status=$?
+          set -e
+          test -f ../candidate.json
+          test -f ../diagnostics.json
+          test "$(wc -c < ../candidate.json)" -le 16777216
+          if test "${status}" -eq 0; then
+            complete=true
+          elif test "${status}" -eq 3; then
+            complete=false
+            echo "::warning::Discovery scan was incomplete. The published last-known-good index remains active."
+          else
+            exit "${status}"
+          fi
+          echo "complete=${complete}" >> "$GITHUB_OUTPUT"
+          echo "candidate_digest=sha256:$(sha256sum ../candidate.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: discovery-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            candidate.json
+            diagnostics.json
+          if-no-files-found: error
+          retention-days: 7
+
+  sign-and-publish:
+    name: Sign and append complete snapshot
+    if: needs.scan.outputs.complete == 'true' && github.ref == 'refs/heads/main'
+    needs: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: discovery-publication
+    permissions:
+      contents: read
+    outputs:
+      ledger_commit: ${{ steps.commit.outputs.ledger_commit }}
+      sequence: ${{ steps.sign.outputs.sequence }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: source
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.LEDGER_BRANCH }}
+          path: ledger
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: discovery-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install pinned signer dependencies
+        run: python3 -m pip install --disable-pip-version-check cryptography==46.0.3 jsonschema==4.26.0
+      - name: Recheck exact candidate and ledger identities
+        id: preflight
+        env:
+          EXPECTED_CANDIDATE_DIGEST: ${{ needs.scan.outputs.candidate_digest }}
+          EXPECTED_LEDGER_HEAD: ${{ needs.scan.outputs.ledger_head }}
+        run: |
+          test "sha256:$(sha256sum candidate/candidate.json | cut -d' ' -f1)" = "${EXPECTED_CANDIDATE_DIGEST}"
+          test "$(git -C ledger rev-parse HEAD)" = "${EXPECTED_LEDGER_HEAD}"
+          tag_prefix=discovery-index-sequence-
+          mapfile -t tags < <(git -C ledger tag --list "${tag_prefix}*" | LC_ALL=C sort)
+          sequence=0
+          for tag in "${tags[@]}"; do
+            sequence=$((sequence + 1))
+            test "${tag}" = "${tag_prefix}$(printf '%020d' "${sequence}")"
+            git -C ledger merge-base --is-ancestor "refs/tags/${tag}" HEAD
+          done
+          if test -f "ledger/${FEED_PATH}/latest.json"; then
+            test "${sequence}" -gt 0
+            test "$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')" = "${sequence}"
+          else
+            test "${sequence}" -eq 0
+          fi
+          echo "next_sequence=$((sequence + 1))" >> "$GITHUB_OUTPUT"
+      - name: Sign in the separate Discovery signature domain
+        id: sign
+        working-directory: source
+        env:
+          DISCOVERY_ED25519_PRIVATE_KEY: ${{ secrets.DISCOVERY_ED25519_PRIVATE_KEY }}
+          DISCOVERY_SIGNING_KEY_ID: ${{ vars.DISCOVERY_SIGNING_KEY_ID }}
+          EXPECTED_SEQUENCE: ${{ steps.preflight.outputs.next_sequence }}
+        run: |
+          python3 scripts/sign_discovery_index.py \
+            --candidate ../candidate/candidate.json \
+            --feed "../ledger/${FEED_PATH}" \
+            --trusted-keys registry/discovery/trusted-keys.json \
+            --publication-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --source-commit "${GITHUB_SHA}" \
+            --key-id "${DISCOVERY_SIGNING_KEY_ID}" \
+            --result ../publication.json
+          python3 scripts/verify_discovery_index.py \
+            --feed "../ledger/${FEED_PATH}" \
+            --trusted-keys registry/discovery/trusted-keys.json
+          sequence="$(python3 -c 'import json; print(json.load(open("../publication.json"))["sequence"])')"
+          test "${sequence}" = "${EXPECTED_SEQUENCE}"
+          echo "sequence=${sequence}" >> "$GITHUB_OUTPUT"
+      - name: Commit only the immutable Discovery append
+        id: commit
+        working-directory: ledger
+        env:
+          SEQUENCE: ${{ steps.sign.outputs.sequence }}
+        run: |
+          git config user.name universal-agent-plugins-publisher[bot]
+          git config user.email 247038142+universal-agent-plugins-publisher[bot]@users.noreply.github.com
+          git add -- discovery
+          stem="$(printf '%020d' "${SEQUENCE}")"
+          mapfile -t changed < <(git diff --cached --name-status)
+          test "${#changed[@]}" -eq 4
+          expected=(
+            "discovery/latest.json"
+            "discovery/search/${stem}.json"
+            "discovery/snapshots/${stem}.envelope.json"
+            "discovery/snapshots/${stem}.json"
+          )
+          mapfile -t actual < <(printf '%s\n' "${changed[@]}" | awk '{ print $2 }' | LC_ALL=C sort)
+          test "${actual[*]}" = "${expected[*]}"
+          for change in "${changed[@]}"; do
+            status="${change%%$'\t'*}"
+            path="${change#*$'\t'}"
+            if test "${path}" = discovery/latest.json; then
+              case "${status}" in A|M) ;; *) exit 1 ;; esac
+            else
+              test "${status}" = A
+            fi
+          done
+          git commit -m "chore(discovery): publish sequence ${SEQUENCE}"
+          echo "ledger_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Acquire dedicated publisher token
+        id: publisher
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.DISCOVERY_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.DISCOVERY_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Atomically append branch and immutable sequence tag
+        working-directory: ledger
+        env:
+          PUBLISHER_TOKEN: ${{ steps.publisher.outputs.token }}
+          SEQUENCE: ${{ steps.sign.outputs.sequence }}
+        run: |
+          tag="discovery-index-sequence-$(printf '%020d' "${SEQUENCE}")"
+          test -z "$(git tag --list "${tag}")"
+          git tag "${tag}"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${PUBLISHER_TOKEN}" | base64 -w0)"
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+          GIT_CONFIG_VALUE_0="${auth_header}" \
+          git push --atomic origin "HEAD:refs/heads/${LEDGER_BRANCH}" "refs/tags/${tag}:refs/tags/${tag}"
+
+  incomplete-scan:
+    name: Report incomplete scan without replacing LKG
+    if: always() && needs.scan.result == 'success' && needs.scan.outputs.complete != 'true'
+    needs: scan
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Discovery scan was incomplete. Diagnostics were retained and publication was skipped." >&2
+          exit 1
+
+  deploy:
+    name: Deploy exact ledger tree
+    if: needs.sign-and-publish.result == 'success'
+    needs: sign-and-publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sign-and-publish.outputs.ledger_commit }}
+          path: exact-pages-tree
+          persist-credentials: false
+      - name: Archive exact ledger commit
+        env:
+          LEDGER_COMMIT: ${{ needs.sign-and-publish.outputs.ledger_commit }}
+        run: |
+          test "$(git -C exact-pages-tree rev-parse HEAD)" = "${LEDGER_COMMIT}"
+          tar --directory exact-pages-tree -cvf "$RUNNER_TEMP/artifact.tar" --exclude=.git --exclude=.github .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          if-no-files-found: error
+          retention-days: 1
+      - name: Deploy exact ledger tree
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+  observe:
+    name: Verify exact production Discovery sequence
+    needs: [sign-and-publish, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install pinned verification dependencies
+        run: python3 -m pip install --disable-pip-version-check cryptography==46.0.3 jsonschema==4.26.0
+      - name: Reacquire bounded production artifacts and verify signature
+        env:
+          EXPECTED_SEQUENCE: ${{ needs.sign-and-publish.outputs.sequence }}
+        run: |
+          python3 scripts/observe_discovery_index.py \
+            --origin https://777genius.github.io/universal-agent-plugins/discovery \
+            --trusted-keys registry/discovery/trusted-keys.json \
+            --minimum-sequence "${EXPECTED_SEQUENCE}" \
+            --output "$RUNNER_TEMP/discovery-observation.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: discovery-production-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/discovery-observation.json
+          if-no-files-found: error
+          retention-days: 30

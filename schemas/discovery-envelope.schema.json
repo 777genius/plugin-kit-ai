@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://777genius.github.io/universal-agent-plugins/schemas/discovery-envelope.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "envelope_schema_version",
+    "snapshot_schema_version",
+    "sequence",
+    "key_id",
+    "algorithm",
+    "signature_domain",
+    "snapshot_digest",
+    "signature"
+  ],
+  "properties": {
+    "envelope_schema_version": { "const": 1 },
+    "snapshot_schema_version": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "key_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
+    "algorithm": { "const": "Ed25519" },
+    "signature_domain": { "const": "UAP-DISCOVERY-INDEX-ED25519-V1" },
+    "snapshot_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "signature": { "type": "string", "minLength": 88, "maxLength": 88 }
+  }
+}

@@ -4,6 +4,8 @@ import { pluginCommands } from '~/utils/commands'
 import { deliveryLabel, expectedDistribution, resolveDistribution } from '~/utils/registry'
 
 const registry = useRegistry()
+const reviewedCount = computed(() => registry.plugins.filter(plugin => plugin.trust_state !== 'conformant_unreviewed').length)
+const discoveryCount = computed(() => registry.plugins.length - reviewedCount.value)
 const { current, expired, published } = useDirectoryStatus()
 const { asset, repositoryUrl } = useSite()
 const preferredDemoNames = ['cloudflare-docs', 'agent-code-navigator']
@@ -167,7 +169,7 @@ useHead({ link: [{ rel: 'canonical', href: `${useRuntimeConfig().public.siteUrl}
       <PluginCatalog
         :plugins="registry.plugins"
         :heading="`Explore ${registry.plugins.length} plugins`"
-        :intro="`${registry.plugins.length} reviewed products, each with one Default source and immutable provenance. Alternatives stay on the same product page.`"
+        :intro="`${reviewedCount} reviewed products${discoveryCount ? ` plus ${discoveryCount} schema-conformant unreviewed packages` : ''}. Every install source is pinned to immutable provenance.`"
       />
     </div>
 

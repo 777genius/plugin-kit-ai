@@ -4,5 +4,9 @@
   "private": true,
   "dependencies": {
     "firebase-tools": "15.28.1"
+  },
+  "overrides": {
+    "@google-cloud/pubsub": "6.0.1",
+    "gaxios": "8.0.0"
   }
 }

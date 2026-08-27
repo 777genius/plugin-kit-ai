@@ -72,6 +72,8 @@ jobs:
         env:
           NUXT_APP_BASE_URL: /universal-agent-plugins/
           NUXT_PUBLIC_SITE_URL: https://777genius.github.io/universal-agent-plugins
+          NUXT_PUBLIC_DISCOVERY_KEY_ID: test-discovery
+          NUXT_PUBLIC_DISCOVERY_PUBLIC_KEY: ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=
         run: |
           pnpm generate
           pnpm check:generated

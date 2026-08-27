@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://777genius.github.io/universal-agent-plugins/schemas/discovery-search.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["search_schema_version", "sequence", "generated_at", "records"],
+  "properties": {
+    "search_schema_version": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "records": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "slug", "name", "description", "owner", "repository", "package_path",
+        "revision", "version", "license", "schema_version", "components",
+        "mcp_transports", "compatible_clients", "authentication", "status",
+        "runtime_reviewed", "tree_digest", "manifest_digest", "stars",
+        "repository_updated_at", "reviewed_distribution_id", "availability"
+      ],
+      "properties": {
+        "slug": { "type": "string", "pattern": "^discovery:[a-z0-9-]+/[a-z0-9._-]+(?://[A-Za-z0-9._/-]+)?$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 500 },
+        "owner": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "repository": { "type": "string", "pattern": "^[a-z0-9-]+/[a-z0-9._-]+$" },
+        "package_path": { "type": "string", "pattern": "^(?:|[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)$" },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "version": { "type": ["string", "null"] },
+        "license": { "type": ["string", "null"] },
+        "schema_version": { "const": "1.0.0" },
+        "components": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["extensions", "mcp", "skills"],
+          "properties": {
+            "extensions": { "type": "integer", "minimum": 0 },
+            "mcp": { "type": "integer", "minimum": 0 },
+            "skills": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "mcp_transports": { "type": "array", "uniqueItems": true, "items": { "enum": ["stdio", "streamable-http", "sse"] } },
+        "compatible_clients": { "type": "array", "uniqueItems": true, "items": { "enum": ["codex", "cursor", "copilot", "vscode", "kiro"] } },
+        "authentication": { "enum": ["not_required", "required", "unknown"] },
+        "status": { "const": "conformant_unreviewed" },
+        "runtime_reviewed": { "const": false },
+        "tree_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "manifest_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "stars": { "type": "integer", "minimum": 0 },
+        "repository_updated_at": { "type": "string", "format": "date-time" },
+        "reviewed_distribution_id": { "type": ["string", "null"] },
+        "availability": { "enum": ["available", "unavailable"] },
+        "author": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string" },
+            "email": { "type": "string" },
+            "url": { "type": "string" }
+          }
+        },
+        "first_seen": { "type": "string", "format": "date-time" },
+        "last_seen": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

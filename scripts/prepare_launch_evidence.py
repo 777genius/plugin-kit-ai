@@ -47,6 +47,14 @@ def main() -> int:
         cli_repository, release_tag, args.run_root / "release" / args.asset_name,
         asset_name=args.asset_name, token=os.environ.get("GH_TOKEN"),
     )
+    checksums_digest = sha256_file(args.run_root / "release" / "checksums.txt")
+    if (
+        release_digest != config["cli_release_manifest_digest"]
+        or checksums_digest != config["cli_release_checksums_digest"]
+        or sha256_file(Path(__file__).parents[1] / "registry/directory.json") != config["directory_source_digest"]
+        or sha256_file(Path(__file__).parents[1] / "tests/e2e/launch-scenarios.json") != config["scenario_contract_digest"]
+    ):
+        raise ValueError("resolved launch inputs differ from the frozen 0.1.16 tuple")
     release_identity = json.loads((args.run_root / "release" / "github-release-identity.json").read_text())
     if (
         release_identity.get("tag_commit") != config["cli_release_commit"]
@@ -64,9 +72,11 @@ def main() -> int:
     npm_package = None
     if args.npm_facade:
         _, npm_package = resolve_npm_package(
-            "universal-agent-plugins", manifest["version"],
-            args.run_root / "npm" / f"universal-agent-plugins-{manifest['version']}.tgz",
+            config["npm_facade_package"], config["npm_facade_version"],
+            args.run_root / "npm" / f"universal-agent-plugins-{config['npm_facade_version']}.tgz",
         )
+        if npm_package["integrity"] != config["npm_facade_integrity"]:
+            raise ValueError("npm facade integrity differs from the frozen 0.1.16 tuple")
     challenge = make_challenge(
         os.environ["GITHUB_SHA"], os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"],
         args.caller_event_name, args.caller_ref, args.caller_workflow_ref,
@@ -77,7 +87,7 @@ def main() -> int:
         "schema_version": 1, "catalog_repository": catalog_repository,
         "cli_release_repository": cli_repository, "cli_release_tag": release_tag,
         "release_manifest": manifest, "release_manifest_digest": release_digest,
-        "release_checksums_digest": sha256_file(args.run_root / "release" / "checksums.txt"),
+        "release_checksums_digest": checksums_digest,
         "github_release_identity": release_identity,
         "authenticated_asset": {"name": args.asset_name, "digest": sha256_file(asset)},
         "github_asset_attestation": json.loads((args.run_root / "release" / f"{args.asset_name}.attestation.json").read_text()),

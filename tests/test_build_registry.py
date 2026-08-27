@@ -1186,7 +1186,7 @@ class DirectoryDomainTests(unittest.TestCase):
         package = registry.ROOT / "plugins" / "hubspot-developer"
         registry.validate_locked_npm_runtime(package)
         runtime = json.loads((package / registry.LOCKED_NPM_RUNTIME_PATH / "runtime.json").read_text())
-        self.assertEqual((runtime["package"], runtime["version"]), ("@hubspot/cli", "8.14.0-beta.0"))
+        self.assertEqual((runtime["package"], runtime["version"]), ("@hubspot/cli", "8.14.0-beta.1"))
         self.assertFalse(runtime["omit_optional"])
         source = self.source()
         distribution = next(
@@ -1214,6 +1214,18 @@ class DirectoryDomainTests(unittest.TestCase):
             config.pop("omit_optional")
             config_path.write_text(json.dumps(config))
             with self.assertRaisesRegex(registry.RegistryError, "runtime identity does not match"):
+                registry.validate_locked_npm_runtime(package)
+
+    def test_locked_npm_runtime_rejects_non_string_dependency_version_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "context7"
+            shutil.copytree(registry.ROOT / "plugins" / "context7", package)
+            package_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "package.json"
+            document = json.loads(package_path.read_text())
+            dependency = next(iter(document["dependencies"]))
+            document["dependencies"][dependency] = ["1.2.3"]
+            package_path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(registry.RegistryError, "one exact npm version"):
                 registry.validate_locked_npm_runtime(package)
 
     def test_locked_npm_runtime_binds_ignored_install_script_allowlist(self) -> None:
@@ -1246,6 +1258,47 @@ class DirectoryDomainTests(unittest.TestCase):
             config["package_lock_sha256"] = registry.digest_bytes(lock_path.read_bytes())
             config_path.write_text(json.dumps(config))
             with self.assertRaisesRegex(registry.RegistryError, "optional install scripts differ"):
+                registry.validate_locked_npm_runtime(package)
+
+    def test_locked_npm_runtime_requires_exact_reviewed_security_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "firebase"
+            shutil.copytree(registry.ROOT / "plugins" / "firebase", package)
+            package_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "package.json"
+            document = json.loads(package_path.read_text())
+            document["overrides"]["gaxios"] = "7.1.3"
+            package_path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(registry.RegistryError, "security overrides differ"):
+                registry.validate_locked_npm_runtime(package)
+
+    def test_locked_npm_runtime_requires_override_at_every_lockfile_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "hubspot-developer"
+            shutil.copytree(registry.ROOT / "plugins" / "hubspot-developer", package)
+            lock_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "package-lock.json"
+            lock = json.loads(lock_path.read_text())
+            lock["packages"]["node_modules/@sentry/node"]["version"] = "10.70.0"
+            lock_path.write_text(json.dumps(lock))
+            config_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "runtime.json"
+            config = json.loads(config_path.read_text())
+            config["package_lock_sha256"] = registry.digest_bytes(lock_path.read_bytes())
+            config_path.write_text(json.dumps(config))
+            with self.assertRaisesRegex(registry.RegistryError, "security override .* is not exact"):
+                registry.validate_locked_npm_runtime(package)
+
+    def test_locked_npm_runtime_rejects_malformed_override_entry_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "hubspot-developer"
+            shutil.copytree(registry.ROOT / "plugins" / "hubspot-developer", package)
+            lock_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "package-lock.json"
+            lock = json.loads(lock_path.read_text())
+            lock["packages"]["node_modules/@sentry/node"] = None
+            lock_path.write_text(json.dumps(lock))
+            config_path = package / registry.LOCKED_NPM_RUNTIME_PATH / "runtime.json"
+            config = json.loads(config_path.read_text())
+            config["package_lock_sha256"] = registry.digest_bytes(lock_path.read_bytes())
+            config_path.write_text(json.dumps(config))
+            with self.assertRaisesRegex(registry.RegistryError, "security override .* is not exact"):
                 registry.validate_locked_npm_runtime(package)
 
     def test_locked_launcher_rejects_symlinked_plugin_data_and_repairs_mode(self) -> None:

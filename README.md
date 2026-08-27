@@ -87,10 +87,14 @@ The CLI is not limited to this Directory. Install any valid Agent Plugins 1.0
 package from a local directory or an immutable GitHub revision:
 
 ```bash
+npx universal-agent-plugins search docs
+npx universal-agent-plugins validate ./my-plugin
 npx universal-agent-plugins add ./my-plugin --target cursor
 npx universal-agent-plugins add \
   777genius/universal-agent-plugins@2ddbb99dd190c1792b79904f9875e6322bccd243//plugins/cloudflare-docs \
   --target cursor
+npx universal-agent-plugins outdated --all
+npx universal-agent-plugins update --all
 ```
 
 The package can use the portable root `plugin.json` layout or the official
@@ -98,6 +102,15 @@ The package can use the portable root `plugin.json` layout or the official
 sources to a full commit SHA so every install is reproducible. Short names such
 as `cloudflare-docs` resolve through this repository's reviewed Directory; external
 packages do not need to be copied into it.
+
+Search combines the reviewed Directory with a signed Discovery Index of public,
+schema-conformant packages. Discovery results are labelled **unreviewed** and
+use a publisher-qualified selector such as
+`discovery:owner/repository//plugins/example`; the CLI resolves it to the exact
+indexed commit and revalidates the package before changing any client. The
+index signature proves the metadata came from this project, not that package
+code or runtime behavior was endorsed. Existing installations keep their
+recorded source, and `update --all` never silently switches publishers.
 
 Directory source labels describe provenance, not endorsement. **Upstream**
 means the complete package is pinned in its upstream owner's repository;

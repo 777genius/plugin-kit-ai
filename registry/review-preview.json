@@ -7649,7 +7649,7 @@
             "path": "plugins/firebase"
           },
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
-          "tree_digest": "sha256:d48433bf9e17bbe9417e90e39dabd25bec83e2975960f64a458c2cc94335f77f",
+          "tree_digest": "sha256:9eb03dff4657072184c449e510b8f474d6f3f37376d11023040d6d5b35f13533",
           "manifest_digest": "sha256:dbc739597d146ae4a4e416045f3ff5a3d07e6e1cc81c80de71ff0ffefe6eaf73"
         }
       ]
@@ -11123,8 +11123,8 @@
             "path": "plugins/hubspot-developer"
           },
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
-          "tree_digest": "sha256:f8fbb1d3b6e16db839f23a6f6f58e5339e473f31852e9bf577ddb64badb4a24e",
-          "manifest_digest": "sha256:4d591f71a943e133eb26de76b24324f7ccae5d3c19869401a404ad06842c669f"
+          "tree_digest": "sha256:283db3be8bab86cc35119ad2a115d3bdae1df4a239a8a42a50c044de04cdcf0a",
+          "manifest_digest": "sha256:cfba4137d81cd99683d3b6312597725a4b38c79a9678b854723037730013acb2"
         }
       ]
     },
