@@ -61,21 +61,17 @@ func (client Client) Load(ctx context.Context, installedFloor uint64) (VerifiedB
 		}
 	}
 	if cacheErr == nil && cached.Snapshot.Sequence >= floor {
-		if err := ValidityError(cached.Snapshot, now); err == nil {
-			authoritative, err := client.Cache.Observe(cached, client.Trust)
-			if err != nil {
-				return VerifiedBundle{}, err
-			}
-			if authoritative.Snapshot.Sequence < floor {
-				return VerifiedBundle{}, fmt.Errorf("%w: got %d, floor %d", ErrRollback, authoritative.Snapshot.Sequence, floor)
-			}
-			return authoritative, ValidityError(authoritative.Snapshot, now)
-		}
-	}
-	if cacheErr == nil && cached.Snapshot.Sequence >= floor {
 		if err := ValidityError(cached.Snapshot, now); err != nil {
 			return VerifiedBundle{}, err
 		}
+		authoritative, err := client.Cache.Observe(cached, client.Trust)
+		if err != nil {
+			return VerifiedBundle{}, err
+		}
+		if authoritative.Snapshot.Sequence < floor {
+			return VerifiedBundle{}, fmt.Errorf("%w: got %d, floor %d", ErrRollback, authoritative.Snapshot.Sequence, floor)
+		}
+		return authoritative, ValidityError(authoritative.Snapshot, now)
 	}
 	if remoteErr != nil {
 		return VerifiedBundle{}, remoteErr
@@ -145,7 +141,7 @@ func (client Client) originURL() (*url.URL, error) {
 	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, ErrUnsafeOrigin
 	}
-	if parsed.Scheme != "https" && !(client.AllowHTTPForTests && parsed.Scheme == "http") {
+	if parsed.Scheme != "https" && (!client.AllowHTTPForTests || parsed.Scheme != "http") {
 		return nil, ErrUnsafeOrigin
 	}
 	if !strings.HasSuffix(parsed.Path, "/") {

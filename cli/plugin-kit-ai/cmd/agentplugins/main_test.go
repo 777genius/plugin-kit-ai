@@ -56,7 +56,7 @@ func TestMainUsesProductionDirectoryTrustAndReleaseBootstrap(t *testing.T) {
 }
 
 func TestHardenedHTTPClientRedirectPolicy(t *testing.T) {
-	check := hardenedHTTPClient().CheckRedirect
+	check := hardenedHTTPClient("Directory").CheckRedirect
 	original, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/latest.json", nil)
 	first, _ := http.NewRequest(http.MethodGet, "https://directory.example/registry/one.json", nil)
 	first.Header.Set("Authorization", "secret")
@@ -83,6 +83,10 @@ func TestHardenedHTTPClientRedirectPolicy(t *testing.T) {
 	downgrade, _ := http.NewRequest(http.MethodGet, "http://directory.example/registry/latest.json", nil)
 	if err := check(downgrade, []*http.Request{original}); err == nil {
 		t.Fatal("HTTPS downgrade redirect was accepted")
+	}
+	discoveryCheck := hardenedHTTPClient("Discovery").CheckRedirect
+	if err := discoveryCheck(crossOrigin, []*http.Request{original}); err == nil || !strings.Contains(err.Error(), "Discovery redirect") {
+		t.Fatalf("Discovery redirect diagnostic = %v", err)
 	}
 }
 

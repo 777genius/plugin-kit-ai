@@ -136,6 +136,7 @@ func runUpdateAll(ctx context.Context, cmd *cobra.Command, app App, opts *option
 			view.Status, view.Reason = "apply_failed", applyErr.Error()
 			result.Failed++
 			result.Status = "partial_failure"
+			markUnattemptedUpdateAll(&result, preparedItems, index+1)
 			_ = renderUpdateAll(cmd, opts, result)
 			return applyErr
 		}
@@ -143,6 +144,14 @@ func runUpdateAll(ctx context.Context, cmd *cobra.Command, app App, opts *option
 		result.Updated++
 	}
 	return renderUpdateAll(cmd, opts, result)
+}
+
+func markUnattemptedUpdateAll(result *updateAllResult, prepared []preparedUpdateAllItem, start int) {
+	for index := start; index < len(prepared); index++ {
+		view := &result.Installations[prepared[index].resultIndex]
+		view.Status = "not_attempted"
+		view.Reason = "batch stopped after an earlier apply failure"
+	}
 }
 
 func updateAllDirectoryContext(ctx context.Context, app App, state domain.StateFileV2, installations []domain.Installation) (directoryv1.VerifiedBundle, bool, map[domain.ClientID]domain.DetectedClient, error, error) {

@@ -276,7 +276,7 @@ func inspectOutdatedInstallation(bundle directoryv1.VerifiedBundle, bundleOK boo
 			TreeDigest: selection.TreeDigest, ManifestDigest: selection.ManifestDigest}
 		return item
 	}
-	if errors.Is(err, domain.ErrDirectoryIneligible) && isNoSafeDirectoryUpdate(err) {
+	if errors.Is(err, domain.ErrDirectoryIneligible) && errors.Is(err, domain.ErrDirectoryNoSafeUpdate) {
 		if len(item.Warnings) > 0 {
 			item.Status, item.Reason = "blocked", "installed release is unsafe and no later eligible release is available"
 		} else {
@@ -286,10 +286,6 @@ func inspectOutdatedInstallation(bundle directoryv1.VerifiedBundle, bundleOK boo
 	}
 	item.Status, item.Reason = "blocked", err.Error()
 	return item
-}
-
-func isNoSafeDirectoryUpdate(err error) bool {
-	return strings.Contains(err.Error(), "no later eligible non-revoked release exists in the recorded distribution")
 }
 
 // staticDetectedClientSource is used only to reuse the exact client-surface

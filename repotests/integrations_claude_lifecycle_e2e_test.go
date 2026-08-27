@@ -452,6 +452,7 @@ add_state() {
     printf '%s\t%s\t1\n' "$plugin_ref" "$scope" >> "$tmp"
   fi
   mv "$tmp" "$state_file"
+  return 0
 }
 
 has_state() {
@@ -528,6 +529,7 @@ record_marketplace() {
     printf '%s\t%s\n' "$marketplace_name" "$root" >> "$tmp"
   fi
   mv "$tmp" "$marketplaces_file"
+  return 0
 }
 
 marketplace_root() {

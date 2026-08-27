@@ -131,7 +131,7 @@ func newDiscoveryClient(dataRoot string) (*discoveryv1.Client, error) {
 		return nil, err
 	}
 	return &discoveryv1.Client{
-		Origin: origin, HTTPClient: hardenedHTTPClient(),
+		Origin: origin, HTTPClient: hardenedHTTPClient("Discovery"),
 		Trust: discoveryv1.TrustStore{Keys: []discoveryv1.TrustedKey{{ID: defaultDiscoveryKeyID, PublicKey: ed25519.PublicKey(publicKey), State: discoveryv1.KeyCurrent}}},
 		Cache: discoveryv1.Cache{Path: filepath.Join(dataRoot, "discovery-v1-cache.json")},
 	}, nil
@@ -188,7 +188,7 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 		return nil, err
 	}
 	return &directoryv1.Client{
-		Origin: origin, HTTPClient: hardenedHTTPClient(),
+		Origin: origin, HTTPClient: hardenedHTTPClient("Directory"),
 		Trust: trust,
 		// The production bootstrap is intentionally absent until the first
 		// post-merge Directory publication. Short-name resolution fails closed
@@ -232,17 +232,17 @@ func agentpluginsHome() (string, error) {
 	return filepath.Join(root, "agentplugins"), nil
 }
 
-func hardenedHTTPClient() *http.Client {
+func hardenedHTTPClient(feed string) *http.Client {
 	return &http.Client{
 		Timeout: 20 * time.Second,
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
 			if len(via) > 2 {
-				return fmt.Errorf("too many Directory redirects")
+				return fmt.Errorf("too many %s redirects", feed)
 			}
 			if request.URL.Scheme != "https" || len(via) == 0 ||
 				!strings.EqualFold(request.URL.Scheme, via[0].URL.Scheme) ||
 				!strings.EqualFold(request.URL.Host, via[0].URL.Host) {
-				return fmt.Errorf("Directory redirect must remain on the original HTTPS origin")
+				return fmt.Errorf("%s redirect must remain on the original HTTPS origin", feed)
 			}
 			request.Header.Del("Authorization")
 			request.Header.Del("Cookie")

@@ -276,13 +276,13 @@ func (app App) acquireDiscovery(ctx context.Context, selector string, request pa
 	}
 	if len(matches) != 1 {
 		if len(matches) == 0 {
-			return loadedPackage{}, fmt.Errorf("Discovery package %q was not found", selector)
+			return loadedPackage{}, fmt.Errorf("discovery package %q was not found", selector)
 		}
-		return loadedPackage{}, fmt.Errorf("Discovery package %q is ambiguous", selector)
+		return loadedPackage{}, fmt.Errorf("discovery package %q is ambiguous", selector)
 	}
 	record := matches[0]
 	if record.Availability != "available" {
-		return loadedPackage{}, fmt.Errorf("Discovery package %q is unavailable and cannot be newly acquired", selector)
+		return loadedPackage{}, fmt.Errorf("discovery package %q is unavailable and cannot be newly acquired", selector)
 	}
 	for _, target := range request.Targets {
 		compatible := false
@@ -293,11 +293,11 @@ func (app App) acquireDiscovery(ctx context.Context, selector string, request pa
 			}
 		}
 		if !compatible {
-			return loadedPackage{}, fmt.Errorf("Discovery package %q does not declare portable components for %s", selector, target)
+			return loadedPackage{}, fmt.Errorf("discovery package %q does not declare portable components for %s", selector, target)
 		}
 	}
 	if request.DirectBinding != nil && (request.DirectBinding.Repository != record.Repository || request.DirectBinding.PackageSubpath != record.PackagePath) {
-		return loadedPackage{}, fmt.Errorf("Discovery selector %q changed repository or package path; use agentplugins switch explicitly", selector)
+		return loadedPackage{}, fmt.Errorf("discovery selector %q changed repository or package path; use agentplugins switch explicitly", selector)
 	}
 	loaded, err := app.acquireGitHub(ctx, selector, record.Repository, record.Revision, record.PackagePath, record.TreeDigest)
 	if err != nil {

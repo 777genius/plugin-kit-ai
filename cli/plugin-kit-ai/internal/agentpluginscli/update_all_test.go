@@ -103,6 +103,21 @@ func TestUpdateAllDryRunAndTargetGuardRemainNonInteractive(t *testing.T) {
 	}
 }
 
+func TestUpdateAllMarksRemainingPreparedItemsNotAttempted(t *testing.T) {
+	result := updateAllResult{Installations: []updateAllInstallation{
+		{Name: "alpha", Status: "apply_failed"},
+		{Name: "beta", Status: "planned"},
+		{Name: "gamma", Status: "planned"},
+	}}
+	prepared := []preparedUpdateAllItem{{resultIndex: 0}, {resultIndex: 1}, {resultIndex: 2}}
+	markUnattemptedUpdateAll(&result, prepared, 1)
+	for _, index := range []int{1, 2} {
+		if result.Installations[index].Status != "not_attempted" || result.Installations[index].Reason == "" {
+			t.Fatalf("remaining installation %d = %+v", index, result.Installations[index])
+		}
+	}
+}
+
 func writeNamedCLIPlugin(t *testing.T, name, version string) string {
 	t.Helper()
 	root := t.TempDir()

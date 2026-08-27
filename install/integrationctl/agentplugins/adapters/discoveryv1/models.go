@@ -367,7 +367,6 @@ func parseSearch(body []byte) (Search, error) {
 }
 
 func validateNested(root map[string]json.RawMessage, snapshot bool) error {
-	var projection map[string]json.RawMessage
 	if snapshot {
 		if err := exactObject(root["search_projection"], []string{"path", "digest", "record_count"}); err != nil {
 			return strictError("search projection: %v", err)
@@ -381,7 +380,6 @@ func validateNested(root map[string]json.RawMessage, snapshot bool) error {
 				return strictError("partition: %v", err)
 			}
 		}
-		_ = projection
 	}
 	var records []json.RawMessage
 	if err := json.Unmarshal(root["records"], &records); err != nil {
@@ -469,8 +467,9 @@ func validateRecords(records []Record, generated time.Time, snapshot bool) error
 		if records[i].Repository != records[j].Repository {
 			return records[i].Repository < records[j].Repository
 		}
-		if strings.ToLower(records[i].PackagePath) != strings.ToLower(records[j].PackagePath) {
-			return strings.ToLower(records[i].PackagePath) < strings.ToLower(records[j].PackagePath)
+		left, right := strings.ToLower(records[i].PackagePath), strings.ToLower(records[j].PackagePath)
+		if left != right {
+			return left < right
 		}
 		return records[i].Slug < records[j].Slug
 	}) {
