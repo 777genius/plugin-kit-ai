@@ -16,6 +16,7 @@ PAGES = ROOT / ".github/workflows/pages.yml"
 VALIDATE = ROOT / ".github/workflows/validate.yml"
 DIRECTORY_PUBLICATION = ROOT / ".github/workflows/directory-publication.yml"
 DISCOVERY_INDEX = ROOT / ".github/workflows/discovery-index.yml"
+UPSTREAM_PROMOTION = ROOT / ".github/workflows/upstream-promotion-readiness.yml"
 OBSERVER_RUNBOOK = ROOT / "docs/OBSERVER_OPERATIONS.md"
 PUBLICATION_INPUTS = {
     "publication_id": "string",
@@ -40,6 +41,48 @@ def pinned_requirements(body: str) -> set[str]:
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_upstream_promotion_readiness_is_manual_and_read_only(self) -> None:
+        workflow = load(UPSTREAM_PROMOTION)
+        self.assertEqual(set(workflow["on"]), {"workflow_dispatch"})
+        self.assertEqual(set(workflow["on"]["workflow_dispatch"]["inputs"]), {
+            "upstream_pr_number", "repository_id", "package_path", "review_record_json",
+        })
+        self.assertEqual(workflow["on"]["workflow_dispatch"]["inputs"]["upstream_pr_number"]["type"], "number")
+        self.assertEqual(workflow["permissions"], {"contents": "read"})
+        self.assertEqual(set(workflow["jobs"]), {"readiness"})
+        job = workflow["jobs"]["readiness"]
+        self.assertEqual(job["runs-on"], "ubuntu-latest")
+        self.assertEqual(job["timeout-minutes"], "30")
+        body = commands(job)
+        self.assertEqual(pinned_requirements(body), {"jsonschema==4.25.1", "PyYAML==6.0.3"})
+        self.assertIn("gh repo view", body)
+        self.assertIn("gh pr view", body)
+        self.assertIn('"state": pr.get("state")', body)
+        self.assertIn('"head_ref_oid": pr.get("headRefOid")', body)
+        self.assertIn('"merge_commit_oid": merge.get("oid")', body)
+        self.assertIn('("base_ref_name", "default_branch")', body)
+        self.assertNotIn('metadata["base_ref_name"] != metadata["default_branch"]', body)
+        self.assertIn('"base_ref_name": pr.get("baseRefName")', body)
+        self.assertIn('"default_branch": default.get("name")', body)
+        self.assertIn("env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone", body)
+        self.assertIn("--filter=blob:none --no-checkout --single-branch --sparse", body)
+        self.assertIn("env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -C official -c credential.helper= fetch", body)
+        self.assertIn("refs/pull/${UPSTREAM_PR_NUMBER}/head", body)
+        self.assertIn('test "$(git -C official rev-parse', body)
+        self.assertIn('sparse-checkout set --no-cone "/${PACKAGE_PATH}/"', body)
+        self.assertIn('checkout --detach "$HEAD_OID"', body)
+        self.assertIn("validate_review_journey.py promotion", body)
+        self.assertIn("--pr-metadata pr-metadata.json", body)
+        for forbidden_input in ("reviewed_pr_head_sha", "official_candidate_sha", "official_default_branch"):
+            self.assertNotIn(forbidden_input, workflow["on"]["workflow_dispatch"]["inputs"])
+        self.assertNotIn("git push", body)
+        self.assertNotRegex(body, r"\bgh pr (?:create|merge)\b")
+        dumped = yaml.safe_dump(workflow)
+        for forbidden in ("contents: write", "pull-requests: write", "id-token: write", "secrets.", "SIGNING", "PUBLISHER"):
+            self.assertNotIn(forbidden, dumped)
+        upload = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/upload-artifact"))
+        self.assertEqual(set(upload["with"]["path"].splitlines()), {"pr-metadata.json", "promotion-candidate.json", "readiness-diagnostics.json"})
+
     def test_adapter_egress_and_native_projection_are_canonical_generic_contracts(self) -> None:
         schema = json.loads((ROOT / "deploy/uap-observer-adapter-config.schema.json").read_text())
         self.assertIn("egress_hosts", schema["required"])

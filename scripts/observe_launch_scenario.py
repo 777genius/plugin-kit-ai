@@ -5801,9 +5801,13 @@ def command_artifact(name: str, argv: list[str], cwd: Path) -> dict[str, Any]:
 
 def promotion_scenario(binary: Path, scenario: str, root: Path, challenge: str) -> tuple[bool, dict[str, Any]]:
     repository = root / "upstream-repository"
-    package = repository / "packages" / "fixture-bridge"
+    package = repository / "packages" / "chrome-devtools"
     package.parent.mkdir(parents=True)
-    shutil.copytree(FIXTURE_ROOT / "plugins" / "fixture-bridge", package)
+    shutil.copytree(Path(__file__).resolve().parents[1] / "plugins" / "cloudflare-docs", package)
+    manifest = json.loads((package / "plugin.json").read_text())
+    manifest["name"] = "chrome-devtools"
+    manifest["repository"] = "https://github.com/fixture/upstream"
+    (package / "plugin.json").write_text(json.dumps(manifest, indent=2) + "\n")
     fixture_git(repository, "init", "-q", "-b", "main")
     reviewed_revision = fixture_commit(repository, "reviewed package", "2026-01-01T00:00:00Z")
     reviewed_tree = __import__("build_registry").directory_tree_digest(package)
@@ -5815,24 +5819,43 @@ def promotion_scenario(binary: Path, scenario: str, root: Path, challenge: str) 
     else:
         (repository / "MERGE-NOTE.md").write_text("Docs outside the reviewed package.\n")
     candidate_revision = fixture_commit(repository, "merged candidate", "2026-01-02T00:00:00Z")
-    evidence = sorted([
-        command_artifact("package-validation", [sys.executable, str(Path(__file__).resolve().parent / "validate_catalog.py")], Path(__file__).resolve().parents[1]),
-        command_artifact("registry-policy", [sys.executable, str(Path(__file__).resolve().parent / "build_registry.py"), "--check"], Path(__file__).resolve().parents[1]),
-    ], key=lambda item: item["name"])
+    fixture_git(repository, "remote", "add", "origin", "https://github.com/fixture/upstream.git")
+    fixture_git(repository, "update-ref", "refs/remotes/origin/main", candidate_revision)
+    fixture_git(repository, "update-ref", "refs/remotes/origin/pull/17/head", reviewed_revision)
+    evidence = [{
+        "schema_version": 1, "id": "fixture-materialization-codex", "product_id": "chrome-devtools",
+        "distribution_id": "fixture/chrome-devtools", "release_sequence": 1,
+        "package_tree_digest": reviewed_tree, "manifest_digest": reviewed_manifest,
+        "source_repository": "fixture/upstream", "source_revision": candidate_revision,
+        "source_path": "packages/chrome-devtools", "level": "materialization", "outcome": "passed",
+        "client": "codex", "client_version": "fixture-1", "installer_version": "0.1.18",
+        "os": "linux", "architecture": "amd64", "observed_at": "2026-01-02T00:00:00Z",
+        "artifact": {"repository": "fixture/upstream", "revision": candidate_revision,
+                     "path": "evidence/codex.json", "digest": "sha256:" + "1" * 64},
+    }]
     review_record = root / "promotion-review.json"
     review_record.write_text(json.dumps({
-        "schema_version": 1, "repository": "fixture/upstream", "path": "packages/fixture-bridge",
+        "schema_version": 3, "repository": "fixture/upstream", "path": "packages/chrome-devtools",
         "reviewed_revision": reviewed_revision, "reviewed_tree_digest": reviewed_tree,
-        "reviewed_manifest_digest": reviewed_manifest, "product_id": "fixture-bridge",
-        "distribution_id": "fixture/fixture-bridge", "required_components": ["skills"],
-        "required_targets": ["codex"], "policy_status": "active", "evidence_artifacts": evidence,
+        "reviewed_manifest_digest": reviewed_manifest, "product_id": "chrome-devtools",
+        "manifest_name": "chrome-devtools", "distribution_id": "fixture/chrome-devtools",
+        "release_sequence": 1,
+        "policy": {"status": "active", "minimum_installer_version": "0.1.18", "targets": [
+            {"client": "codex", "scopes": ["user"], "delivery": "managed", "authentication": "not_required"},
+        ]}, "evidence": evidence,
+    }, sort_keys=True))
+    pr_metadata = root / "pr-metadata.json"
+    pr_metadata.write_text(json.dumps({
+        "schema_version": 1, "repository_id": "fixture/upstream", "upstream_pr_number": 17,
+        "url": "https://github.com/fixture/upstream/pull/17", "state": "MERGED", "is_draft": False,
+        "head_ref_oid": reviewed_revision, "merge_commit_oid": candidate_revision,
+        "base_ref_name": "main", "default_branch": "main", "merged_at": "2026-01-02T00:00:00Z",
     }, sort_keys=True))
     candidate_output = root / "promotion-candidate.json"
     before = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
     before_repository = tree_digest(repository)
-    argv = [str(JOURNEY_VALIDATOR), "promotion", "--repository", str(repository), "--repository-id", "fixture/upstream", "--reviewed-revision", reviewed_revision, "--candidate-revision", candidate_revision, "--path", "packages/fixture-bridge", "--review-record", str(review_record), "--candidate-output", str(candidate_output)]
+    argv = [str(JOURNEY_VALIDATOR), "promotion", "--repository", str(repository), "--pr-metadata", str(pr_metadata), "--path", "packages/chrome-devtools", "--review-record", str(review_record), "--candidate-output", str(candidate_output)]
     completed, trace = traced(Path(sys.executable), argv, root, challenge)
-    trace["argv"] = ["validate-review-journey", "promotion", "--repository", "disposable-upstream", "--reviewed-revision", reviewed_revision, "--candidate-revision", candidate_revision, "--path", "packages/fixture-bridge"]
     result = json.loads(completed.stdout)
     after_repository = tree_digest(repository)
     after = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
@@ -5841,7 +5864,7 @@ def promotion_scenario(binary: Path, scenario: str, root: Path, challenge: str) 
         deterministic = candidate_output.is_file() and hashlib.sha256(candidate_output.read_bytes()).hexdigest() == result.get("candidate_digest", "").removeprefix("sha256:")
         proof = {"digest_match": result.get("exact_match") is True, "promotion_simulated": completed.returncode == 0 and deterministic, "identity_gates_complete": gate_names == list(__import__("validate_review_journey").REQUIRED_PROMOTION_GATES), "repository_unchanged": before_repository == after_repository}
     else:
-        proof = {"digest_mismatch": result.get("outcome") == "rejected" and "bytes differ" in result.get("reason", ""), "promotion_refused": completed.returncode == 2 and not candidate_output.exists(), "zero_mutation": before == after and before_repository == after_repository}
+        proof = {"digest_mismatch": result.get("outcome") == "rejected" and result.get("byte_classification") == "changed", "promotion_refused": completed.returncode == 2 and not candidate_output.exists(), "zero_mutation": before == after and before_repository == after_repository}
     return all(proof.values()), {"command_traces": [trace], "before": before, "after": after, "proof": proof, **proof, "validator_artifact": result, "reviewed_revision": reviewed_revision, "candidate_revision": candidate_revision}
 
 

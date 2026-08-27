@@ -647,6 +647,21 @@ class DirectoryDomainTests(unittest.TestCase):
         })
         return source, repository, package, revision
 
+    def test_unversioned_agent_plugins_package_uses_directory_empty_version(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            source, _repository, package, _revision = self.local_external_release(Path(tmp))
+            manifest_path = package / "plugin.json"
+            manifest = json.loads(manifest_path.read_text())
+            del manifest["version"]
+            manifest_path.write_text(json.dumps(manifest) + "\n")
+            facts = registry.validated_package_facts(package)
+            self.assertEqual(facts["package_version"], "")
+            release = source["distributions"][-1]["releases"][0]
+            release["package_version"] = ""
+            release["tree_digest"] = registry.directory_tree_digest(package)
+            release["manifest_digest"] = registry.digest_bytes(manifest_path.read_bytes())
+            registry.validate_release_package(package, release)
+
     def isolate_external_product(self, source):
         product = source["products"][-1]
         distribution = source["distributions"][-1]
@@ -1414,6 +1429,17 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual(context7["package_source"], {"repository": "upstash/context7", "revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9", "path": "plugins/agent-plugins/context7"})
         self.assertEqual(context7["tree_digest"], "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8")
         self.assertEqual(context7["manifest_digest"], "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236")
+
+    def test_upstream_publisher_owner_comparison_is_case_insensitive(self) -> None:
+        self.assertEqual(registry.validate_source_repository("ChromeDevTools/chrome-devtools-mcp"), "ChromeDevTools/chrome-devtools-mcp")
+        self.assertEqual(registry.canonical_manifest_repository("https://github.com/ChromeDevTools/chrome-devtools-mcp"), "ChromeDevTools/chrome-devtools-mcp")
+        source = self.source()
+        distribution = next(item for item in source["distributions"] if item["id"] == "upstash/context7")
+        distribution["releases"][0]["package_source"]["repository"] = "Upstash/context7"
+        for observation in source["evidence"]:
+            if observation["distribution_id"] == "upstash/context7":
+                observation["source_repository"] = "Upstash/context7"
+        registry.validate_directory(source, verify_packages=False)
 
     def bridge_reports(self):
         import build_bridges

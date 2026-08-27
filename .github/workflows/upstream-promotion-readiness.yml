@@ -1,0 +1,136 @@
+name: Upstream promotion readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_pr_number:
+        description: Positive merged pull request number in the official repository
+        required: true
+        type: number
+      repository_id:
+        description: Canonical official GitHub owner/repository
+        required: true
+        type: string
+      package_path:
+        description: Exact package path in the official repository
+        required: true
+        type: string
+      review_record_json:
+        description: Complete version 3 independent review record with Directory evidence
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out readiness validator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: readiness-source
+          persist-credentials: false
+
+      - name: Install pinned validator dependencies
+        run: python3 -m pip install jsonschema==4.25.1 PyYAML==6.0.3
+
+      - name: Acquire canonical public PR metadata and official refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_PATH: ${{ inputs.package_path }}
+          REPOSITORY_ID: ${{ inputs.repository_id }}
+          UPSTREAM_PR_NUMBER: ${{ inputs.upstream_pr_number }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          sys.path.insert(0, "readiness-source/scripts")
+          from build_registry import validate_registry_path
+          if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*", os.environ["REPOSITORY_ID"]) is None:
+              raise SystemExit("invalid official repository identity")
+          if re.fullmatch(r"[1-9][0-9]*", os.environ["UPSTREAM_PR_NUMBER"]) is None:
+              raise SystemExit("upstream PR number must be positive")
+          validate_registry_path(os.environ["PACKAGE_PATH"])
+          PY
+          gh repo view "$REPOSITORY_ID" --json nameWithOwner,defaultBranchRef > repository-metadata.raw.json
+          gh pr view "$UPSTREAM_PR_NUMBER" --repo "$REPOSITORY_ID" \
+            --json number,url,state,isDraft,headRefOid,mergeCommit,baseRefName,mergedAt > pr-metadata.raw.json
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          repository = json.loads(Path("repository-metadata.raw.json").read_text())
+          pr = json.loads(Path("pr-metadata.raw.json").read_text())
+          requested_repository = os.environ["REPOSITORY_ID"]
+          number = int(os.environ["UPSTREAM_PR_NUMBER"])
+          default = repository.get("defaultBranchRef") or {}
+          merge = pr.get("mergeCommit") or {}
+          metadata = {
+              "schema_version": 1, "repository_id": repository.get("nameWithOwner"),
+              "upstream_pr_number": pr.get("number"), "url": pr.get("url"),
+              "state": pr.get("state"), "is_draft": pr.get("isDraft"),
+              "head_ref_oid": pr.get("headRefOid"), "merge_commit_oid": merge.get("oid"),
+              "base_ref_name": pr.get("baseRefName"), "default_branch": default.get("name"),
+              "merged_at": pr.get("mergedAt"),
+          }
+          sha = re.compile(r"[0-9a-f]{40}")
+          expected_url = f"https://github.com/{requested_repository}/pull/{number}"
+          if metadata["repository_id"].casefold() != requested_repository.casefold(): raise SystemExit("repository identity mismatch")
+          if metadata["upstream_pr_number"] != number or metadata["url"].casefold() != expected_url.casefold(): raise SystemExit("PR identity mismatch")
+          if metadata["state"] != "MERGED" or metadata["is_draft"] is not False: raise SystemExit("PR must be non-draft and MERGED")
+          if not all(isinstance(metadata[field], str) and metadata[field] for field in ("base_ref_name", "default_branch")): raise SystemExit("PR branch metadata is required")
+          if not isinstance(metadata["merged_at"], str): raise SystemExit("merged timestamp is required")
+          if not all(isinstance(metadata[field], str) and sha.fullmatch(metadata[field]) for field in ("head_ref_oid", "merge_commit_oid")): raise SystemExit("full PR head and merge commit oids are required")
+          body = json.dumps(metadata, sort_keys=True, separators=(",", ":")) + "\n"
+          if len(body.encode()) > 16384: raise SystemExit("PR metadata exceeds size bound")
+          Path("pr-metadata.json").write_text(body)
+          PY
+          DEFAULT_BRANCH=$(python3 -c 'import json; print(json.load(open("pr-metadata.json"))["default_branch"])')
+          HEAD_OID=$(python3 -c 'import json; print(json.load(open("pr-metadata.json"))["head_ref_oid"])')
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -c credential.helper= clone \
+            --filter=blob:none --no-checkout --single-branch --sparse \
+            "https://github.com/${REPOSITORY_ID}.git" official
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -C official -c credential.helper= fetch --no-tags origin \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}" \
+            "+refs/pull/${UPSTREAM_PR_NUMBER}/head:refs/remotes/origin/pull/${UPSTREAM_PR_NUMBER}/head"
+          test "$(git -C official rev-parse refs/remotes/origin/pull/${UPSTREAM_PR_NUMBER}/head^{commit})" = "$HEAD_OID"
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -C official -c credential.helper= \
+            sparse-checkout set --no-cone "/${PACKAGE_PATH}/"
+          env -u GH_TOKEN GIT_TERMINAL_PROMPT=0 git -C official -c credential.helper= \
+            checkout --detach "$HEAD_OID"
+
+      - name: Materialize the supplied review record
+        env:
+          REVIEW_RECORD_JSON: ${{ inputs.review_record_json }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          value = json.loads(os.environ["REVIEW_RECORD_JSON"])
+          Path("review-record.json").write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
+          PY
+
+      - name: Validate promotion readiness offline
+        env:
+          PACKAGE_PATH: ${{ inputs.package_path }}
+        run: |
+          set +e
+          python3 readiness-source/scripts/validate_review_journey.py promotion \
+            --repository official --pr-metadata pr-metadata.json \
+            --path "$PACKAGE_PATH" --review-record review-record.json \
+            --candidate-output promotion-candidate.json | tee readiness-diagnostics.json
+          status=${PIPESTATUS[0]}
+          exit "$status"
+
+      - name: Upload read-only readiness output
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-promotion-readiness-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            pr-metadata.json
+            promotion-candidate.json
+            readiness-diagnostics.json
+          if-no-files-found: warn
+          retention-days: 14

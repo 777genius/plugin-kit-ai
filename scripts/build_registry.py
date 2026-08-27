@@ -38,7 +38,10 @@ from portable_paths import (
     MAX_TREE_BYTES as PORTABLE_MAX_TREE_BYTES,
     validate_segment,
 )
-from validate_catalog import ValidationError, normalized_executable_basename, validate_plugin
+from validate_catalog import (
+    ValidationError, normalized_executable_basename, validate_mcp, validate_plugin,
+    validate_skills,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,8 +56,10 @@ LEGACY_CATALOG_DIGESTS = {
     ROOT / "registry" / "index.json": "sha256:c38141953857be29383813e56e58383457c8b14ac8e2bdfcbcdec31bcd4b7207",
 }
 REPOSITORY_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]{0,98}[a-z0-9])?$")
+GITHUB_REPOSITORY_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 CATEGORY_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+REGISTRY_PATH_SEGMENT_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 DESCRIPTOR_FIELDS = {"schema_version", "repository", "revision", "path", "categories"}
 APPROVED_ARCHIVE_HOSTS = {"codeload.github.com"}
 APPROVED_API_HOSTS = {"api.github.com"}
@@ -262,6 +267,12 @@ def validate_repository(value: object) -> str:
     return value
 
 
+def validate_source_repository(value: object) -> str:
+    require(isinstance(value, str) and GITHUB_REPOSITORY_RE.fullmatch(value) is not None, "source repository must be a canonical GitHub owner/repo")
+    require(not value.endswith(".git"), "source repository must not use a .git suffix")
+    return value
+
+
 def validate_registry_path(value: object) -> str:
     require(isinstance(value, str) and value.isascii(), "path must be non-empty ASCII")
     require(len(value) <= 512, "path exceeds 512 characters")
@@ -271,6 +282,7 @@ def validate_registry_path(value: object) -> str:
     require(value and not path.is_absolute() and path.as_posix() == value, "path must be a normalized relative POSIX path")
     require(len(path.parts) <= MAX_PATH_DEPTH, f"path exceeds depth {MAX_PATH_DEPTH}")
     for segment in path.parts:
+        require(REGISTRY_PATH_SEGMENT_RE.fullmatch(segment) is not None, f"invalid registry path segment: {segment!r}")
         try:
             validate_segment(segment)
         except ValueError as error:
@@ -520,7 +532,28 @@ def validated_package_facts(root: Path) -> dict[str, object]:
     if mcp_path.is_file():
         validate_schema(read_object(mcp_path), mcp_path, "mcp")
     try:
-        mcp_count, skill_count = validate_plugin(root)
+        if "version" in manifest:
+            mcp_count, skill_count = validate_plugin(root)
+        else:
+            # Agent Plugins 1.0 permits an absent version. Reuse the catalog's
+            # component validators while retaining its portable package boundary.
+            require(not root.is_symlink(), f"{root}: plugin root cannot be a symlink")
+            from portable_paths import validate_tree
+            validate_tree(root)
+            require(manifest["name"] == root.name, f"{manifest_path}: name must match package directory")
+            require(
+                isinstance(manifest.get("description"), str) and bool(manifest["description"]),
+                f"{manifest_path}: description required",
+            )
+            keywords = manifest.get("keywords")
+            require(
+                isinstance(keywords, list) and all(isinstance(item, str) for item in keywords),
+                f"{manifest_path}: keywords must be strings",
+            )
+            require((root / "README.md").is_file(), f"{root}: package README required")
+            require(not any(path.exists() for path in (root / ".mcp.json", root / ".codex-plugin")), f"{root}: client-specific files are forbidden in portable core")
+            mcp_count, skill_count = validate_mcp(root), validate_skills(root)
+            require(mcp_count + skill_count > 0, f"{root}: catalog packages must contain a component")
     except (ValidationError, ValueError) as error:
         raise RegistryError(str(error)) from error
     components = []
@@ -536,7 +569,7 @@ def validated_package_facts(root: Path) -> dict[str, object]:
     require(isinstance(author, dict) and isinstance(author.get("name"), str) and author["name"], f"{manifest_path}: author metadata required")
     return {
         "manifest_name": manifest["name"],
-        "package_version": manifest["version"],
+        "package_version": manifest.get("version", ""),
         "agent_plugins_schema": manifest["$schema"],
         "description": manifest["description"],
         "author": author,
@@ -572,7 +605,7 @@ def canonical_manifest_repository(value: object) -> str | None:
     if parsed.scheme != "https" or parsed.hostname != "github.com" or parsed.username or parsed.password or parsed.query or parsed.fragment:
         return None
     candidate = parsed.path.strip("/")
-    return candidate if REPOSITORY_RE.fullmatch(candidate) and not candidate.endswith(".git") else None
+    return candidate if GITHUB_REPOSITORY_RE.fullmatch(candidate) and not candidate.endswith(".git") else None
 
 
 def external_entry(descriptor: dict[str, object], opener=None) -> dict[str, object]:  # type: ignore[no-untyped-def]
@@ -1085,7 +1118,7 @@ def validate_changed_external_releases(
         distribution = next(item for item in source["distributions"] if item["id"] == identity[0])
         package_source = release["package_source"]
         label = f"{identity[0]}@{identity[1]}"
-        source_repository = validate_repository(package_source["repository"])
+        source_repository = validate_source_repository(package_source["repository"])
         revision = package_source["revision"]
         require(isinstance(revision, str) and SHA_RE.fullmatch(revision) is not None, f"{label}: external source revision must be a full lowercase commit SHA")
         package_path = validate_registry_path(package_source["path"])
@@ -1328,7 +1361,7 @@ def validate_release_package(
     remain a valid Agent Plugins package, and have a closed runtime.
     """
     package_source = release["package_source"]
-    source_repository = validate_repository(package_source["repository"])
+    source_repository = validate_source_repository(package_source["repository"])
     revision = package_source["revision"]
     require(
         (allow_unresolved_revision and revision is None)
@@ -1639,7 +1672,7 @@ def validate_directory(
                 require("build_provenance" not in release, f"{distribution['id']}@{sequence}: build provenance is reserved for community bridge releases")
             if distribution["kind"] == "upstream":
                 publisher = str(distribution["id"]).split("/", 1)[0]
-                require(str(package_source["repository"]).split("/", 1)[0] == publisher, f"{distribution['id']}@{sequence}: upstream package must be sourced from the upstream publisher namespace")
+                require(str(package_source["repository"]).split("/", 1)[0].casefold() == publisher.casefold(), f"{distribution['id']}@{sequence}: upstream package must be sourced from the upstream publisher namespace")
             # Only an unresolved in-repository release represents the package
             # bytes in this checkout. Bound historical releases are immutable
             # at their recorded commit and may intentionally differ after the

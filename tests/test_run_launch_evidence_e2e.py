@@ -4622,6 +4622,15 @@ else: raise SystemExit(2)
                     else:
                         self.assertEqual(artifact["outcome"], "accepted")
                         self.assertTrue(artifact["gates"])
+                    if scenario.startswith("promotion_gate_"):
+                        self.assertEqual(value["command_traces"][0]["argv"], [
+                            str(observer.JOURNEY_VALIDATOR), "promotion",
+                            "--repository", str(root / "upstream-repository"),
+                            "--pr-metadata", str(root / "pr-metadata.json"),
+                            "--path", "packages/chrome-devtools",
+                            "--review-record", str(root / "promotion-review.json"),
+                            "--candidate-output", str(root / "promotion-candidate.json"),
+                        ])
                     if scenario == "promotion_gate_digest_match":
                         match_candidate_digest = artifact["candidate_digest"]
             repeat = parent / "promotion_gate_digest_match_repeat"
