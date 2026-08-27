@@ -5613,6 +5613,25 @@ class FixedAdapterContractTests(unittest.TestCase):
         sealer.matching_client(info, "context7", "cursor", approved, completion_attested=True)
         with self.assertRaisesRegex(ValueError, "incomplete or unreconciled"):
             sealer.matching_client(info, "context7", "cursor", approved)
+        automatic_add = json.loads(json.dumps(add))
+        automatic_add["data"]["result"]["plan"]["client_id"] = "kiro"
+        automatic_add["data"]["result"]["activation"].pop("activation_attested")
+        self.assertTrue(sealer.matching_add(automatic_add, "context7", "kiro", approved))
+        for impostor in (None, False, 0, 1, 1.0, "true"):
+            invalid = json.loads(json.dumps(automatic_add))
+            invalid["data"]["result"]["activation"]["activation_attested"] = impostor
+            with self.subTest(automatic_activation_attested=impostor), self.assertRaises(ValueError):
+                sealer.matching_add(invalid, "context7", "kiro", approved)
+        kiro_info = json.loads(json.dumps(info))
+        kiro_record = kiro_info["data"]["clients"][0]
+        kiro_record["client_id"] = "kiro"
+        for field in ("receipt_reconciled", "native_discovery_reconciled", "native_identity_state"):
+            kiro_record.pop(field)
+        sealer.matching_client(
+            kiro_info, "context7", "kiro", approved, completion_attested=True,
+        )
+        with self.assertRaisesRegex(ValueError, "incomplete or unreconciled"):
+            sealer.matching_client(kiro_info, "context7", "kiro", approved)
         expected_clients = ("chatgpt", "codex", "copilot", "cursor", "kiro", "vscode")
         doctor = {
             "schema_version": 1, "command": "doctor", "result": "success",
@@ -5630,6 +5649,16 @@ class FixedAdapterContractTests(unittest.TestCase):
             },
         }
         sealer.matching_doctor(doctor, "cursor", {"context7": approved})
+        healthy_doctor = json.loads(json.dumps(doctor))
+        healthy_doctor["data"]["findings"] = [{
+            "status": "healthy", "code": "no_degradation_detected",
+            "message": "no tracked degradation was detected",
+        }]
+        sealer.matching_doctor(healthy_doctor, "cursor", {"context7": approved})
+        malformed_healthy = json.loads(json.dumps(healthy_doctor))
+        malformed_healthy["data"]["findings"][0]["extra"] = True
+        with self.assertRaisesRegex(ValueError, "complete five-plugin profile"):
+            sealer.matching_doctor(malformed_healthy, "cursor", {"context7": approved})
         incomplete_doctor = json.loads(json.dumps(doctor))
         incomplete_doctor["data"]["findings"] = [{"status": "degraded"}]
         with self.assertRaisesRegex(ValueError, "complete five-plugin profile"):

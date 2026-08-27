@@ -390,10 +390,16 @@ def matching_client(
         "receipt_reconciled": True, "native_discovery_reconciled": True,
         "native_identity_state": "managed",
     }
-    attested_manual = completion_attested and reconciliation == {
-        "receipt_reconciled": False, "native_discovery_reconciled": False,
-        "native_identity_state": "indeterminate",
-    }
+    attested_manual = completion_attested and (
+        reconciliation == {
+            "receipt_reconciled": False, "native_discovery_reconciled": False,
+            "native_identity_state": "indeterminate",
+        }
+        or (
+            client == "kiro"
+            and not any(key in record for key in reconciliation)
+        )
+    )
     if data.get("mixed_version") is not False or lifecycle_differs or not (reconciled or attested_manual):
         raise ValueError(f"{plugin}: manager info lifecycle is incomplete or unreconciled")
     lifecycle_view = copy.deepcopy(data)
@@ -461,10 +467,19 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
             or activation.get("authentication") != "authenticated"
             or activation.get("policy") != "allowed"
             or activation.get("verification") != "installation_verified"
-            or activation.get("activation_attested") is not True
             or activation.get("authentication_attested") is not True
             or result.get("mutated") is not True
             or result.get("requires_confirmation") is not False
+        ):
+            raise ValueError(f"{plugin}: manager add completion attestation is incomplete")
+        activation_attested = activation.get("activation_attested")
+        if (
+            (client == "cursor" and activation_attested is not True)
+            or (
+                client in {"codex", "kiro"}
+                and "activation_attested" in activation and activation_attested is not True
+            )
+            or client not in {"codex", "cursor", "kiro"}
         ):
             raise ValueError(f"{plugin}: manager add completion attestation is incomplete")
         if reject_conflict(data):
@@ -541,7 +556,14 @@ def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict
         expected_clients = {"codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"}
         if (
             data.get("read_only") is not True or data.get("open_operation_count") != 0
-            or data.get("installation_count") != len(HEROES) or data.get("findings") != []
+            or data.get("installation_count") != len(HEROES)
+            or data.get("findings") not in (
+                [],
+                [{
+                    "status": "healthy", "code": "no_degradation_detected",
+                    "message": "no tracked degradation was detected",
+                }],
+            )
             or detected != [client] or client_ids != expected_clients or supported_ids != expected_clients
             or prohibited_lifecycle_state(value)
         ):

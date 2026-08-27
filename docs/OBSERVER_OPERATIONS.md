@@ -232,7 +232,12 @@ activation with `group_phase: external_completed`. A client that requires an
 external activation must first be materialized, activated and verified in the
 exact pinned client, then completed by rerunning the same canonical add with
 `--activation-complete --auth-complete`; the exact CLI-emitted completion
-envelope must attest both facts and bind the same revision and digests. The
+envelope must bind the same revision and digests. Cursor must explicitly attest
+both activation and authentication. Codex and Kiro may omit only
+`activation_attested` after their native verifier has already recorded
+`active` / `installation_verified`; `authentication_attested` remains required.
+Kiro 0.1.18 info omits reconciliation fields, so that shape is eligible only
+next to an accepted completion envelope. The
 immutable nested plan may still describe the earlier
 `manual_activation_required` state. Never merge,
 rewrite, or synthesize the two envelopes.
@@ -399,6 +404,9 @@ and revision reproduce the approved canonical argument, and the one requested
 target has status `success`, `completed`, or `external_completed`, with no
 failed target or incomplete, warning, error, cancellation, audit, event, or
 conflicting lifecycle state at any depth.
+The post-add 0.1.18 doctor may report either an empty findings array or its
+single exact healthy `no_degradation_detected` record. Any unknown, degraded,
+additional, or malformed finding is unsealable.
 
 The hosted probe established all five exact canonical sources install for
 Codex and materialize for Cursor. A separate disposable Cursor 2026.08.25
@@ -432,9 +440,10 @@ are not the final five-plugin-by-three-client launch matrix. Do not claim
 15/15/PASS until the external live matrix supplies all 15 required results.
 
 After human activation, rerun the canonical add with both explicit completion
-flags. Store that exact output as the add evidence only when the original add
-was not already fully active; otherwise retain the original add and store the
-completion output separately. Then repeat post-add doctor without a source
+flags. Preserve both raw outputs. Put the exact envelope accepted for that
+client in the sealer's `add` directory and archive the other under
+`materialized` or `completion`; never combine their fields. Then repeat
+post-add doctor without a source
 operand and info with 0.1.18's installed identity syntax: the installed plugin
 name plus its exact `--target`. There is no receipt-export operation in
 agentplugins 0.1.18:

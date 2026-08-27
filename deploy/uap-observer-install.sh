@@ -13,7 +13,7 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=5889dcd1fc07da9a947da32f3ca5e26db17fb73aed70d2515ecd3cb80e6e45ac
+runtime_manifest_digest=e7da0d384d95e78c3f09fac551636b971b121934ba3e6e7e6cc36a5efe19492f
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 closure_digest=
 closure_stage=
