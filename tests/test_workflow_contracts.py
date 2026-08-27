@@ -260,12 +260,13 @@ class WorkflowContractTests(unittest.TestCase):
     def test_installer_runtime_pins_equal_current_manifest_and_files(self) -> None:
         installer = (ROOT / "deploy/uap-observer-install.sh").read_text()
         manifest_path = ROOT / "deploy/uap-observer-runtime.sha256"
-        manifest = dict(
-            reversed(line.split(maxsplit=1))
-            for line in manifest_path.read_text().splitlines() if line.strip()
-        )
+        entries = [line.split(maxsplit=1) for line in manifest_path.read_text().splitlines() if line.strip()]
+        self.assertTrue(entries)
+        self.assertEqual(len(entries), len({relative for _, relative in entries}))
+        manifest = {relative: digest for digest, relative in entries}
         def file_digest(relative: str) -> str:
             return hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        self.assertEqual(manifest, {relative: file_digest(relative) for relative in manifest})
         self.assertEqual(manifest["observer/fixed_runner.py"], file_digest("observer/fixed_runner.py"))
         self.assertEqual(manifest["observer/fixed_adapters.py"], file_digest("observer/fixed_adapters.py"))
         assignments = dict(re.findall(
