@@ -102,7 +102,10 @@ def parse_connect(header: bytes, allowlist: frozenset[str]) -> str:
     if "host" not in seen:
         raise ProxyError("Host is required")
     host_line = next(line.split(":", 1)[1].strip() for line in lines[1:] if line.split(":", 1)[0].lower() == "host")
-    if host_line != authority:
+    # RFC 9110 defines Host as uri-host with an optional port. CONNECT still
+    # requires its explicit :443 authority above; clients may normalize the
+    # default port out of Host without changing the destination.
+    if host_line not in {host, authority}:
         raise ProxyError("Host differs from CONNECT authority")
     return host
 

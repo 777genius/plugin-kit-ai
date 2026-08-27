@@ -68,6 +68,16 @@ class ConnectTests(unittest.TestCase):
         header = b"CONNECT api.github.com:443 HTTP/1.1\r\nHost: api.github.com:443\r\n\r\n"
         self.assertEqual(proxy.parse_connect(header, self.allowlist), "api.github.com")
 
+    def test_accepts_host_with_normalized_default_port(self):
+        header = b"CONNECT api.github.com:443 HTTP/1.1\r\nHost: api.github.com\r\n\r\n"
+        self.assertEqual(proxy.parse_connect(header, self.allowlist), "api.github.com")
+
+    def test_rejects_host_with_a_different_or_noncanonical_port(self):
+        for host in ("api.github.com:444", "api.github.com:0443", "API.github.com"):
+            header = f"CONNECT api.github.com:443 HTTP/1.1\r\nHost: {host}\r\n\r\n".encode()
+            with self.subTest(host=host), self.assertRaises(proxy.ProxyError):
+                proxy.parse_connect(header, self.allowlist)
+
     def test_rejects_malformed_or_unsafe_authorities(self):
         authorities = [
             "user@api.github.com:443", "api.github.com:444", "api.github.com", "127.0.0.1:443",
