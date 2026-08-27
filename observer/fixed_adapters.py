@@ -1867,7 +1867,7 @@ class KiroACPSkillContract:
         if not isinstance(record, dict) or explicit_failure_marker(record):
             raise ValueError("Kiro ACP skill flow emitted an explicit failure or malformed record")
         if self.phase == "initialize":
-            if not self._outer(record, {"jsonrpc", "id", "result"}) or record.get("id") != 0:
+            if not self._outer(record, {"jsonrpc", "id", "result"}) or type(record.get("id")) is not int or record.get("id") != 0:
                 raise ValueError("Kiro ACP skill initialize response differs")
             result = record.get("result")
             capabilities = result.get("agentCapabilities") if isinstance(result, dict) else None
@@ -1875,7 +1875,7 @@ class KiroACPSkillContract:
                 raise ValueError("Kiro ACP skill protocol negotiation differs")
             self.phase = "new"
             return None
-        if self.phase == "new" and self._outer(record, {"jsonrpc", "id", "result"}) and record.get("id") == 1:
+        if self.phase == "new" and self._outer(record, {"jsonrpc", "id", "result"}) and type(record.get("id")) is int and record.get("id") == 1:
             result = record.get("result")
             if not isinstance(result, dict) or set(result) != {"sessionId"} or not isinstance(result.get("sessionId"), str) or not result["sessionId"]:
                 raise ValueError("Kiro ACP skill session/new response differs")
@@ -1961,7 +1961,7 @@ class KiroACPSkillContract:
             self.permission_id, self.allow_once_id = permission_id, options[0]["optionId"]
             self.phase = "disclose_permitted"
             return {"jsonrpc": "2.0", "id": self.permission_id, "result": {"outcome": {"outcome": "selected", "optionId": self.allow_once_id}}}
-        if self._outer(record, {"jsonrpc", "id", "result"}) and record.get("id") == 2:
+        if self._outer(record, {"jsonrpc", "id", "result"}) and type(record.get("id")) is int and record.get("id") == 2:
             if self.phase != "turn_end" or record.get("result") != {"stopReason": "end_turn"}:
                 raise ValueError("Kiro ACP skill prompt response differs")
             self.prompt_done, self.phase = True, "done"

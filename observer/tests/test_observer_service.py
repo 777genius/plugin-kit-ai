@@ -4612,6 +4612,8 @@ class FixedAdapterContractTests(unittest.TestCase):
         skill_path = Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md")
         base = self.kiro_skill_acp_records(marker, skill_path)
         mutations = (
+            lambda rows: rows[0].update(id=False),
+            lambda rows: rows[1].update(id=True),
             lambda rows: rows[4]["params"]["update"]["availableCommands"][-1]["_meta"]["kiro"].update(matched=False),
             lambda rows: rows[4]["params"]["update"]["availableCommands"][-1]["_meta"]["kiro"].update(path="/foreign/SKILL.md"),
             lambda rows: rows.insert(5, json.loads(json.dumps(rows[4]))),
@@ -4632,6 +4634,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             lambda rows: rows.insert(12, {"jsonrpc": "2.0", "method": "_kiro/unknown", "params": {"sessionId": "skill-session"}}),
             lambda rows: rows[14]["params"]["update"].update(status="failed"),
             lambda rows: rows[16]["result"].update(stopReason="cancelled"),
+            lambda rows: rows[16].update(id=2.0),
         )
         for mutation in mutations:
             records = json.loads(json.dumps(base))

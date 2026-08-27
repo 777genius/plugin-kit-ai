@@ -4919,6 +4919,31 @@ print("accepted")
         self.assertFalse(value["proof"]["manager_unchanged"])
         self.assertFalse(value["proof"]["unknown_option_reported"])
 
+    def test_materialized_ledger_authenticates_current_production_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "registry" / "schemas" / "1"
+            snapshots = root / "snapshots"
+            snapshots.mkdir(parents=True)
+            shutil.copy2(PUBLICATION / "latest.json", root / "latest.json")
+            snapshot = snapshots / "00000000000000000007.json"
+            envelope = snapshots / "00000000000000000007.envelope.json"
+            shutil.copy2(PUBLICATION / "snapshot.json", snapshot)
+            shutil.copy2(PUBLICATION / "envelope-current.json", envelope)
+            with mock.patch.object(
+                e2e, "PRODUCTION_DIRECTORY_TRUST", PUBLICATION / "trusted-keys.json",
+            ):
+                identity = e2e.production_identity_from_materialized_ledger(root)
+                self.assertEqual(identity, {
+                    "publication_id": "fixture-1",
+                    "sequence": 7,
+                    "snapshot_digest": "sha256:c2d6a5570426f99956a247d8a164e7a2d7ddbf69b071ec5c74c7cf3c88054683",
+                    "source_commit": "d" * 40,
+                })
+                snapshot.unlink()
+                snapshot.symlink_to(PUBLICATION / "snapshot.json")
+                with self.assertRaisesRegex(ValueError, "contains a symlink"):
+                    e2e.production_identity_from_materialized_ledger(root)
+
     def test_stale_public_pointer_is_rejected_against_caller_identity(self) -> None:
         latest = (PUBLICATION / "latest.json").read_bytes()
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(e2e, "bounded_https_get", return_value=latest):

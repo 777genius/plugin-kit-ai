@@ -188,6 +188,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: directory-publication-ledger
+          path: _production-ledger
+          fetch-depth: 1
+          persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -199,11 +205,24 @@ jobs:
           import json
           import tempfile
           from pathlib import Path
-          from scripts.run_launch_evidence_e2e import fetch_production_directory, read_production_config
+          from scripts.run_launch_evidence_e2e import (
+              fetch_production_directory,
+              production_identity_from_materialized_ledger,
+              read_production_config,
+          )
 
           config = read_production_config()
+          identity = production_identity_from_materialized_ledger(
+              Path("_production-ledger/registry/schemas/1")
+          )
           with tempfile.TemporaryDirectory(prefix="uap-scheduled-production-") as tmp:
-              environment, snapshot, digest = fetch_production_directory(Path(tmp) / "directory")
+              environment, snapshot, digest = fetch_production_directory(
+                  Path(tmp) / "directory",
+                  expected_publication_id=identity["publication_id"],
+                  expected_sequence=identity["sequence"],
+                  expected_snapshot_digest=identity["snapshot_digest"],
+                  expected_source_commit=identity["source_commit"],
+              )
           if environment["AGENTPLUGINS_DIRECTORY_ORIGIN"] != config["production_origin"]:
               raise ValueError("production observation resolved an unexpected origin")
           observation = {

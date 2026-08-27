@@ -796,9 +796,23 @@ class WorkflowContractTests(unittest.TestCase):
                 )
         observation = commands(scheduled["scheduled-production-directory-observation"])
         self.assertIn("fetch_production_directory", observation)
+        self.assertIn("production_identity_from_materialized_ledger", observation)
+        for keyword in (
+            "expected_publication_id", "expected_sequence",
+            "expected_snapshot_digest", "expected_source_commit",
+        ):
+            self.assertIn(keyword, observation)
         self.assertIn('"runtime_claims": False', observation)
         self.assertIn('"oauth_claims": False', observation)
         self.assertIn("SHA256SUMS", observation)
+        ledger_checkouts = [
+            step for step in scheduled["scheduled-production-directory-observation"]["steps"]
+            if isinstance(step, dict)
+            and step.get("with", {}).get("ref") == "directory-publication-ledger"
+        ]
+        self.assertEqual(len(ledger_checkouts), 1)
+        self.assertEqual(ledger_checkouts[0]["with"].get("path"), "_production-ledger")
+        self.assertEqual(ledger_checkouts[0]["with"].get("persist-credentials"), "false")
         public_reads = workflow["jobs"]["public-read-flows"]
         self.assertEqual(
             public_reads["if"], "github.event_name == 'schedule' || inputs.consent"

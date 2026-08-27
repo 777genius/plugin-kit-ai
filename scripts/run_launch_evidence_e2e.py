@@ -1166,6 +1166,62 @@ def validated_directory_environment(
     }, snapshot, digest)
 
 
+def production_identity_from_materialized_ledger(root: Path) -> dict[str, Any]:
+    """Authenticate the current materialized ledger before probing Pages."""
+    root = root.resolve(strict=True)
+    latest_path = root / "latest.json"
+    latest_bytes = latest_path.read_bytes()
+    try:
+        latest = parse_json_bytes(
+            latest_bytes, "materialized production latest pointer",
+            max_bytes=MAX_LATEST_BYTES,
+        )
+        if canonical_json(latest) != latest_bytes:
+            raise PublicationError("materialized production latest pointer is not canonical JSON")
+        validate_latest(latest)
+    except (PublicationError, OSError, TypeError) as error:
+        raise ValueError(f"invalid materialized production pointer: {error}") from error
+
+    resolved: dict[str, Path] = {}
+    for key in ("snapshot_path", "envelope_path"):
+        relative = latest[key]
+        candidate = root / relative
+        cursor = root
+        for part in Path(relative).parts:
+            cursor /= part
+            if cursor.is_symlink():
+                raise ValueError("materialized production path contains a symlink")
+        try:
+            candidate.resolve(strict=True).relative_to(root)
+        except (OSError, ValueError) as error:
+            raise ValueError("materialized production path escapes its ledger root") from error
+        if not candidate.is_file():
+            raise ValueError("materialized production artifact is not a regular file")
+        resolved[key] = candidate
+
+    config = read_production_config()
+    _, snapshot, digest = validated_directory_environment(
+        config["production_origin"], resolved["snapshot_path"],
+        resolved["envelope_path"], PRODUCTION_DIRECTORY_TRUST,
+    )
+    if snapshot.get("sequence") != latest.get("sequence"):
+        raise ValueError("materialized production pointer and signed snapshot disagree")
+    identity = {
+        "publication_id": snapshot.get("publication_id"),
+        "sequence": snapshot.get("sequence"),
+        "snapshot_digest": digest,
+        "source_commit": snapshot.get("source_commit"),
+    }
+    if (
+        not isinstance(identity["publication_id"], str) or not identity["publication_id"]
+        or type(identity["sequence"]) is not int or identity["sequence"] < 1
+        or not DIGEST.fullmatch(identity["snapshot_digest"])
+        or not FULL_SHA.fullmatch(str(identity["source_commit"]))
+    ):
+        raise ValueError("materialized production identity is incomplete")
+    return identity
+
+
 def fetch_production_directory(
     destination: Path, *, expected_publication_id: str, expected_sequence: int,
     expected_snapshot_digest: str, expected_source_commit: str,
