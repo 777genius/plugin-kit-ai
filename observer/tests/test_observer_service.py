@@ -62,10 +62,17 @@ def sealed_tuple(product: str) -> dict[str, Any]:
         "source_repository": f"owner/{product}", "source_revision": "b" * 40,
         "source_path": f"plugins/{product}", "snapshot_sequence": 1,
         "snapshot_digest": digest, "binary_digest": digest,
-        "dependency_identity": "locked", "installer_version": "0.1.17",
+        "dependency_identity": "locked", "installer_version": "0.1.18",
         "adapter_version": "r14d", "client_version": None,
         "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
     }
+
+
+def native_fixture_relative(plugin: str) -> Path:
+    return (
+        Path("skills/code-tool-router/SKILL.md")
+        if plugin == "agent-code-navigator" else Path(f"active-{plugin}.json")
+    )
 
 
 class Fixture:
@@ -99,7 +106,7 @@ class Fixture:
             github_api_url="https://api.github.com", audience="stable-launch-observer",
             issuer="https://token.actions.githubusercontent.com", key_id="fixture-ed25519",
             public_key_base64=base64.b64encode(public_bytes).decode(),
-            cli_release_repository="777genius/plugin-kit-ai", cli_release_tag="agentplugins-v0.1.17",
+            cli_release_repository="777genius/plugin-kit-ai", cli_release_tag="agentplugins-v0.1.18",
             signer_socket=root / "sign.sock", runner_socket=root / "runner.sock",
             runner_source_path=runner_source,
             runner_source_digest="sha256:" + hashlib.sha256(runner_source.read_bytes()).hexdigest(),
@@ -126,7 +133,7 @@ class Fixture:
         value = {
             "schema_version": 1, "purpose": "stable-launch-e2e",
             "catalog_repository": self.policy.repository,
-            "cli_release_repository": "777genius/plugin-kit-ai", "cli_release_tag": "agentplugins-v0.1.17",
+            "cli_release_repository": "777genius/plugin-kit-ai", "cli_release_tag": "agentplugins-v0.1.18",
             "release_manifest_digest": release, "release_checksums_digest": "sha256:" + "f" * 64,
             "directory_digest": directory, "scenario_contract_digest": scenario,
             "github": {"sha": sha, "run_id": "1001", "run_attempt": "2"},
@@ -261,7 +268,7 @@ def artifacts(challenge: str = "a" * 64) -> dict[str, Any]:
             "catalog_repository": "777genius/universal-agent-plugins", "catalog_sha": "a" * 40,
             "directory_snapshot_digest": "sha256:" + "c" * 64, "directory_sequence": 1,
             "directory_publication_id": "fixture-publication", "directory_source_commit": "4" * 40,
-            "release_repository": "777genius/plugin-kit-ai", "release_tag": "agentplugins-v0.1.17",
+            "release_repository": "777genius/plugin-kit-ai", "release_tag": "agentplugins-v0.1.18",
             "release_commit": "5" * 40, "release_manifest_digest": "sha256:" + "b" * 64,
         },
     }
@@ -944,32 +951,47 @@ class FixedRunnerFixtureTests(unittest.TestCase):
             proof = root / "proofs" / "codex"
             profile.mkdir(mode=0o700)
             proof.mkdir(parents=True, mode=0o700)
-            native = profile / "native.json"
-            native.write_bytes(b"native-v1")
-            native.chmod(0o440)
-            native_digest = "sha256:" + hashlib.sha256(native.read_bytes()).hexdigest()
-            proof_native = proof / "native.json"
-            proof_native.write_bytes(native.read_bytes())
-            proof_native.chmod(0o440)
-            projection = proof / "native-projection.json"
-            projection.write_bytes(canonical_json({
-                "schema_version": 1, "client_id": "codex", "entries": [{
-                    "plugin": "context7", "tuple": {"product_id": "context7"},
-                    "native_config": {"path": str(proof_native), "sha256": native_digest},
-                    "client_config": {"path": str(native), "sha256": native_digest},
+            (proof / "native").mkdir(mode=0o700)
+            entries, receipt_rows = [], []
+            native = profile / "context7.json"
+            for plugin in sorted(fixed_runner.RUNTIME_HEROES):
+                component_kind = "skill" if plugin == "agent-code-navigator" else "mcp"
+                body = (
+                    b"---\nname: code-tool-router\n---\n"
+                    if component_kind == "skill" else canonical_json({"plugin": plugin})
+                )
+                active = (
+                    profile / "skills" / "code-tool-router" / "SKILL.md"
+                    if component_kind == "skill" else profile / f"{plugin}.json"
+                )
+                active.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                active.write_bytes(body)
+                active.chmod(0o440)
+                proof_native = proof / "native" / f"{plugin}.blob"
+                proof_native.write_bytes(body)
+                proof_native.chmod(0o440)
+                native_digest = "sha256:" + hashlib.sha256(body).hexdigest()
+                evidence = {
                     "manager_add_sha256": "sha256:" + "9" * 64,
                     "manager_info_sha256": "sha256:" + "a" * 64,
                     "post_add_doctor_sha256": "sha256:" + "b" * 64,
-                }],
+                }
+                tuple_value = {"product_id": plugin}
+                entries.append({
+                    "plugin": plugin, "component_kind": component_kind,
+                    "tuple": tuple_value,
+                    "native_config": {"path": str(proof_native), "sha256": native_digest},
+                    "client_config": {"path": str(active), "sha256": native_digest},
+                    **evidence,
+                })
+                receipt_rows.append({"name": plugin, "tuple": tuple_value, **evidence})
+            projection = proof / "native-projection.json"
+            projection.write_bytes(canonical_json({
+                "schema_version": 2, "client_id": "codex", "entries": entries,
             }))
             projection.chmod(0o440)
             receipts = proof / "receipts.json"
-            receipts.write_bytes(canonical_json({"schema_version": 1, "receipts": [{
-                "name": "context7", "tuple": {"product_id": "context7"},
-                "manager_add_sha256": "sha256:" + "9" * 64,
-                "manager_info_sha256": "sha256:" + "a" * 64,
-                "post_add_doctor_sha256": "sha256:" + "b" * 64,
-            }]}))
+            receipts.write_bytes(canonical_json({"schema_version": 1, "receipts": receipt_rows}))
             receipts.chmod(0o440)
             config = root / "adapter.json"
             config.write_bytes(canonical_json({"clients": {"codex": {
@@ -3433,14 +3455,22 @@ class FixedAdapterContractTests(unittest.TestCase):
         native_proof.mkdir(mode=0o700)
         entries = []
         for plugin in sorted(fixed_adapters.HEROES):
-            native = profile / f"{plugin}.native.json"
-            native.write_text(json.dumps({"plugin": plugin}))
+            native = (
+                profile / "skills" / "code-tool-router" / "SKILL.md"
+                if plugin == "agent-code-navigator" else profile / f"{plugin}.native"
+            )
+            native.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+            native.write_text(
+                "# code-tool-router\n" if plugin == "agent-code-navigator"
+                else json.dumps({"plugin": plugin})
+            )
             native.chmod(0o440)
-            protected_native = native_proof / f"{plugin}.json"
+            protected_native = native_proof / f"{plugin}.blob"
             protected_native.write_bytes(native.read_bytes())
             protected_native.chmod(0o440)
             entries.append({
                 "plugin": plugin,
+                "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
                 "tuple": approved if plugin == "context7" else {**approved, "product_id": plugin},
                 "native_config": {"path": str(protected_native), "sha256": fixed_adapters.sha256(native.read_bytes())},
                 "client_config": {"path": str(native), "sha256": fixed_adapters.sha256(native.read_bytes())},
@@ -3449,7 +3479,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "post_add_doctor_sha256": "sha256:" + "b" * 64,
             })
         projection.write_bytes(fixed_adapters.canonical_json({
-            "schema_version": 1, "client_id": client,
+            "schema_version": 2, "client_id": client,
             "entries": entries,
         }))
         projection.chmod(0o440)
@@ -3649,6 +3679,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "client_version": "codex-1", "client_id": "codex",
                 "manager_before_digest": digest, "manager_after_digest": digest,
                 "native_before_digest": digest, "native_after_digest": digest,
+                "invocation_marker_digest": digest,
                 "discovery_argv": ["codex", "mcp", "list", "--json"], "tool": "resolve-library-id",
             }, ["codex", "exec"], observed, observed)
             common = {"client": "codex", "application_id": "app", "endpoint": "https://example.test/mcp"}
@@ -3927,7 +3958,7 @@ class FixedAdapterContractTests(unittest.TestCase):
         normal = b"\n".join(fixed_adapters.canonical_json(event) for event in (tool, message)) + b"\n"
         parsed = fixed_adapters.parsed_json_stream(normal)
         self.assertEqual(parsed, [tool, message])
-        self.assertTrue(fixed_adapters.successful_client_evidence(
+        self.assertFalse(fixed_adapters.successful_client_evidence(
             "cursor", parsed, "resolve-library-id", "context7", marker,
         ))
 
@@ -4008,42 +4039,157 @@ class FixedAdapterContractTests(unittest.TestCase):
                     "codex", stream, "resolve-library-id", "context7", marker,
                 ))
 
-    def test_cursor_stream_events_require_exact_assistant_marker_and_successful_mcp_call(self) -> None:
-        marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
-        tool_event = {
-            "type": "tool_call", "subtype": "completed", "call_id": "call-1",
-            "tool_call": {"mcpToolCall": {
-                "args": {"serverName": "context7", "toolName": "resolve-library-id", "arguments": {}},
-                "result": {"success": {"content": "resolved"}},
+    @staticmethod
+    def codex_skill_records(marker: str, skill_path: Path, skill_body: str) -> list[dict[str, Any]]:
+        read = f'/bin/bash -lc "sed -n \'1,240p\' {skill_path}"'
+        search = "/bin/bash -lc \"rg -n '^UAP_SKILL_SECRET_' .\""
+        return [
+            {"type": "thread.started", "thread_id": "reviewed-skill-thread"},
+            {"type": "turn.started"},
+            {"type": "item.completed", "item": {
+                "id": "item-preface", "type": "agent_message",
+                "text": "I am using the installed code-tool-router skill for exact search.",
             }},
-        }
-        marker_event = {
-            "type": "assistant",
-            "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]},
-        }
-        self.assertTrue(fixed_adapters.successful_client_evidence(
-            "cursor", [tool_event, marker_event], "resolve-library-id", "context7", marker,
+            {"type": "item.started", "item": {
+                "id": "item-read", "type": "command_execution", "command": read,
+                "aggregated_output": "", "exit_code": None, "status": "in_progress",
+            }},
+            {"type": "item.completed", "item": {
+                "id": "item-read", "type": "command_execution", "command": read,
+                "aggregated_output": skill_body, "exit_code": 0, "status": "completed",
+            }},
+            {"type": "item.started", "item": {
+                "id": "item-search", "type": "command_execution", "command": search,
+                "aggregated_output": "", "exit_code": None, "status": "in_progress",
+            }},
+            {"type": "item.completed", "item": {
+                "id": "item-search", "type": "command_execution", "command": search,
+                "aggregated_output": f"./uap-skill-probe.txt:1:{marker}\n", "exit_code": 0, "status": "completed",
+            }},
+            {"type": "item.completed", "item": {"id": "item-marker", "type": "agent_message", "text": marker}},
+            {"type": "turn.completed", "usage": {
+                "input_tokens": 44805, "cached_input_tokens": 28160,
+                "cache_write_input_tokens": 0, "output_tokens": 258,
+                "reasoning_output_tokens": 16,
+            }},
+        ]
+
+    def test_codex_0147_skill_stream_requires_skill_read_hidden_search_and_marker(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "a" * 64
+        skill_path = Path("/var/lib/uap-observer/profiles/codex/.codex/plugins/cache/reviewed/agent-code-navigator/skills/code-tool-router/SKILL.md")
+        skill_body = "---\nname: code-tool-router\n---\n# Code Tool Router\n"
+        records = self.codex_skill_records(marker, skill_path, skill_body)
+        self.assertTrue(fixed_adapters.successful_codex_skill_evidence(
+            records, marker, skill_path, skill_body.encode(),
         ))
-        for forged in (
-            [marker_event],
-            [tool_event, {"type": "user", "message": marker_event["message"]}],
-            [tool_event, {**marker_event, "message": {
-                **marker_event["message"],
-                "content": marker_event["message"]["content"] + [{"type": "text", "text": "extra"}],
-            }}],
-            [{**tool_event, "subtype": "started"}, marker_event],
-            [{**tool_event, "tool_call": {"mcpToolCall": {
-                **tool_event["tool_call"]["mcpToolCall"], "result": {"error": "failed"},
-            }}}, marker_event],
-            [{**tool_event, "tool_call": {"mcpToolCall": {
-                **tool_event["tool_call"]["mcpToolCall"],
-                "args": {"serverName": "different", "toolName": "resolve-library-id"},
-            }}}, marker_event],
-        ):
-            with self.subTest(forged=forged):
-                self.assertFalse(fixed_adapters.successful_client_evidence(
-                    "cursor", forged, "resolve-library-id", "context7", marker,
+        without_preface = [*records[:2], *records[3:]]
+        self.assertTrue(fixed_adapters.successful_codex_skill_evidence(
+            without_preface, marker, skill_path, skill_body.encode(),
+        ))
+        mutations = (
+            lambda rows: rows[2]["item"].update(text=marker),
+            lambda rows: rows[3]["item"].update(command=rows[3]["item"]["command"].replace(str(skill_path), "/foreign/SKILL.md")),
+            lambda rows: rows[4]["item"].update(aggregated_output=skill_body + "forged\n"),
+            lambda rows: rows[5]["item"].update(command="/bin/bash -lc \"rg UAP_SKILL_SECRET_ .\""),
+            lambda rows: rows[6]["item"].update(aggregated_output=marker + "\n"),
+            lambda rows: rows[6]["item"].update(exit_code=1),
+            lambda rows: rows[6]["item"].update(id="item-read"),
+            lambda rows: rows[7]["item"].update(text=f"`{marker}`"),
+            lambda rows: rows.insert(7, {"type": "item.completed", "item": {"id": "extra", "type": "agent_message", "text": "extra"}}),
+            lambda rows: rows[8].update(type="turn.failed"),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(records))
+            mutation(forged)
+            with self.subTest(mutation=mutation):
+                self.assertFalse(fixed_adapters.successful_codex_skill_evidence(
+                    forged, marker, skill_path, skill_body.encode(),
                 ))
+
+    @staticmethod
+    def cursor_thinking(session: str, text: str = "reviewed read-only step") -> list[dict]:
+        return [
+            {"type": "thinking", "subtype": "delta", "session_id": session, "text": text, "timestamp_ms": 1},
+            {"type": "thinking", "subtype": "completed", "session_id": session, "timestamp_ms": 2},
+        ]
+
+    @staticmethod
+    def cursor_tool_pair(session: str, kind: str, started: dict, completed: dict, sequence: int) -> list[dict]:
+        call, model, tool_id = f"call-{sequence}", f"model-{sequence}", f"tool-{sequence}"
+        common = {"hookAdditionalContexts": [], "startedAtMs": str(sequence), "toolCallId": tool_id}
+        outer = {"type": "tool_call", "session_id": session, "model_call_id": model, "call_id": call, "timestamp_ms": sequence}
+        key = kind + "ToolCall"
+        return [
+            {**outer, "subtype": "started", "tool_call": {**common, key: started}},
+            {**outer, "subtype": "completed", "timestamp_ms": sequence + 1, "tool_call": {**common, "completedAtMs": str(sequence + 1), key: completed}},
+        ]
+
+    @classmethod
+    def cursor_stream_shell(cls, prompt: str, workspace: Path, marker: str) -> tuple[list[dict], str]:
+        session = "cursor-session"
+        return ([
+            {"type": "system", "subtype": "init", "session_id": session, "apiKeySource": "login", "cwd": str(workspace), "model": "Auto", "permissionMode": "default"},
+            {"type": "user", "session_id": session, "message": {"role": "user", "content": [{"type": "text", "text": prompt}]}},
+            *cls.cursor_thinking(session),
+        ], session)
+
+    @classmethod
+    def cursor_finish(cls, session: str, marker: str) -> list[dict]:
+        return [
+            *cls.cursor_thinking(session, "return the exact result"),
+            {"type": "assistant", "session_id": session, "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]}},
+            {"type": "result", "subtype": "success", "session_id": session, "request_id": "request-1", "duration_ms": 10, "duration_api_ms": 9, "is_error": False, "result": "preface" + marker, "usage": {"cacheReadTokens": 1, "cacheWriteTokens": 0, "inputTokens": 2, "outputTokens": 3}},
+        ]
+
+    def test_cursor_20260825_skill_stream_requires_read_search_marker_and_terminal(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "a" * 64
+        workspace = Path("/tmp/cursor-skill-workspace")
+        skill = Path("/profile/.cursor/plugins/local/acn/skills/code-tool-router/SKILL.md")
+        body = b"---\nname: code-tool-router\n---\n"
+        rows, session = self.cursor_stream_shell(fixed_adapters.SKILL_PROBE_PROMPT, workspace, marker)
+        rows += self.cursor_tool_pair(session, "read", {"args": {"path": str(skill)}}, {"args": {"path": str(skill)}, "result": {"success": {"content": body.decode(), "exceededLimit": False, "fileSize": len(body), "isEmpty": False, "path": str(skill), "readRange": {"startLine": 1, "endLine": 4}, "relatedCursorRulePaths": [], "relatedCursorRules": [], "totalLines": 4}}}, 10)
+        rows += self.cursor_thinking(session)
+        grep_args = {"caseInsensitive": False, "multiline": False, "offset": 0, "path": str(workspace), "pattern": fixed_adapters.SKILL_PROBE_QUERY, "toolCallId": "tool-20"}
+        grep_success = {"outputMode": "content", "path": str(workspace), "pattern": fixed_adapters.SKILL_PROBE_QUERY, "workspaceResults": {str(workspace): {"content": {"clientTruncated": False, "matches": [{"file": "./uap-skill-probe.txt", "matches": [{"content": marker, "contentTruncated": False, "isContextLine": False, "lineNumber": 1}]}], "ripgrepTruncated": False, "totalLines": 1, "totalMatchedLines": 1}}}}
+        rows += self.cursor_tool_pair(session, "grep", {"args": grep_args}, {"args": grep_args, "result": {"success": grep_success}}, 20)
+        rows += self.cursor_finish(session, marker)
+        self.assertTrue(fixed_adapters.successful_cursor_skill_evidence(rows, marker, skill, body, workspace))
+        mutations = (
+            lambda value: value[0].update(cwd="/foreign"),
+            lambda value: value[4]["tool_call"]["readToolCall"]["args"].update(path="/foreign/SKILL.md"),
+            lambda value: value[8]["tool_call"]["grepToolCall"]["args"].update(pattern="UAP_SKILL_SECRET_"),
+            lambda value: value[9]["tool_call"]["grepToolCall"]["result"]["success"]["workspaceResults"][str(workspace)]["content"]["matches"][0]["matches"][0].update(content="forged"),
+            lambda value: value[-2]["message"]["content"][0].update(text=f"`{marker}`"),
+            lambda value: value[-1].update(is_error=True),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(rows)); mutation(forged)
+            with self.subTest(mutation=mutation):
+                self.assertFalse(fixed_adapters.successful_cursor_skill_evidence(forged, marker, skill, body, workspace))
+
+    def test_cursor_20260825_mcp_stream_requires_discovery_call_marker_and_terminal(self) -> None:
+        marker = "UAP_OBSERVER_OK cursor context7 " + "b" * 64
+        workspace, plugin, tool = Path("/tmp/cursor-mcp-workspace"), "context7", "resolve-library-id"
+        rows, session = self.cursor_stream_shell(fixed_adapters.mcp_probe_prompt(plugin, tool, marker), workspace, marker)
+        discovery_args = {"server": plugin, "toolCallId": "tool-10", "toolName": tool}
+        description = json.dumps({"mode": "single_tool", "namespace": plugin, "namespaceStatus": "ready", "tool": {"tool": tool}})
+        rows += self.cursor_tool_pair(session, "getMcpTools", {"args": discovery_args}, {"args": discovery_args, "result": {"success": {"content": description}}}, 10)
+        rows += self.cursor_thinking(session)
+        target_args = {"args": {"libraryName": "React", "query": "React"}, "name": f"{plugin}-{tool}", "providerIdentifier": plugin, "serverIdentifier": plugin, "skipApproval": False, "smartModeApprovalOnly": False, "toolCallId": "tool-20", "toolName": tool}
+        rows += self.cursor_tool_pair(session, "mcp", {"args": target_args, "description": "Resolve React"}, {"args": target_args, "description": "Resolve React", "result": {"success": {"content": [{"text": {"text": "resolved"}}], "isError": False}}}, 20)
+        rows += self.cursor_finish(session, marker)
+        self.assertTrue(fixed_adapters.successful_cursor_mcp_evidence(rows, tool, plugin, marker, workspace))
+        mutations = (
+            lambda value: value[4]["tool_call"]["getMcpToolsToolCall"]["args"].update(server="foreign"),
+            lambda value: value[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"].update(content="{}"),
+            lambda value: value[8]["tool_call"]["mcpToolCall"]["args"].update(providerIdentifier="foreign"),
+            lambda value: value[9]["tool_call"]["mcpToolCall"]["result"]["success"].update(isError=True),
+            lambda value: value[-1].update(subtype="failed"),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(rows)); mutation(forged)
+            with self.subTest(mutation=mutation):
+                self.assertFalse(fixed_adapters.successful_cursor_mcp_evidence(forged, tool, plugin, marker, workspace))
 
     def test_tool_success_rejects_false_zero_empty_error_and_marker_after_failure(self) -> None:
         codex_marker = "UAP_OBSERVER_OK codex context7 " + "a" * 64
@@ -4147,14 +4293,14 @@ class FixedAdapterContractTests(unittest.TestCase):
                     "cursor", stream, "resolve-library-id", "context7", marker,
                 ))
 
-    def test_cursor_pinned_grammar_rejects_every_unreviewed_field_and_ambiguity_hint(self) -> None:
+    def test_cursor_legacy_two_event_grammar_is_never_accepted(self) -> None:
         marker = "UAP_OBSERVER_OK cursor context7 " + "a" * 64
         tool = {"type": "tool_call", "subtype": "completed", "call_id": "call-1", "tool_call": {"mcpToolCall": {
             "args": {"serverName": "context7", "toolName": "resolve-library-id", "arguments": {}},
             "result": {"success": {"content": "resolved"}},
         }}}
         assistant = {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": marker}]}}
-        self.assertTrue(fixed_adapters.successful_client_evidence(
+        self.assertFalse(fixed_adapters.successful_client_evidence(
             "cursor", [tool, assistant], "resolve-library-id", "context7", marker,
         ))
         mutations = (
@@ -4188,7 +4334,7 @@ class FixedAdapterContractTests(unittest.TestCase):
         assistant = {"type": "assistant", "message": {
             "role": "assistant", "content": [{"type": "text", "text": marker}],
         }}
-        self.assertTrue(fixed_adapters.successful_client_evidence(
+        self.assertFalse(fixed_adapters.successful_client_evidence(
             "cursor", [tool, assistant], "resolve-library-id", "context7", marker,
         ))
         malformed_streams = (
@@ -4221,7 +4367,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "approved tuple"):
                 fixed_adapters.verified_native_projection(item, "context7", {**approved, "package_version": "9.9.9"}, owner_uid=os.geteuid())
-            native = profile / "context7.native.json"
+            native = profile / "context7.native"
             native.chmod(0o644)
             with self.assertRaisesRegex(ValueError, "mode"):
                 fixed_adapters.verified_native_projection(item, "context7", approved, owner_uid=os.geteuid())
@@ -4270,7 +4416,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             {"jsonrpc": "2.0", "id": 2, "result": {"stopReason": "end_turn"}},
         ]
 
-    def test_kiro_acp_2191_exact_positive_contract_and_permission_answer(self) -> None:
+    def test_kiro_acp_2200_exact_positive_contract_and_permission_answer(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "a" * 64
         contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
         answer = None
@@ -4281,7 +4427,7 @@ class FixedAdapterContractTests(unittest.TestCase):
         self.assertTrue(contract.complete())
         self.assertEqual(answer, {"jsonrpc": "2.0", "id": "permission-opaque", "result": {"outcome": {"outcome": "selected", "optionId": "once"}}})
 
-    def test_kiro_acp_2191_adversarial_records_fail_closed(self) -> None:
+    def test_kiro_acp_2200_adversarial_records_fail_closed(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "b" * 64
         base = self.kiro_acp_records(marker)
         mutations = [
@@ -4348,6 +4494,153 @@ class FixedAdapterContractTests(unittest.TestCase):
                     contract.accept(record)
                 self.assertTrue(contract.complete())
 
+    def test_kiro_acp_2200_accepts_vetted_auxiliary_and_external_mcp_status(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "f" * 64
+        records = self.kiro_acp_records(marker)
+        tools = [{"name": "search_cloudflare_documentation"}, {"name": "other_tool"}]
+        external = [
+            {"jsonrpc": "2.0", "method": "_kiro/tools/didChange", "params": {"sessionId": "opaque-session", "tools": []}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connected", "tools": tools}]}},
+            {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "opaque-session", "update": {"sessionUpdate": "config_option_update", "configOptions": []}}},
+        ]
+        candidate = [*records[:2], *external, *records[4:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        for mutation in (
+            lambda rows: rows[2]["params"].update(sessionId="foreign"),
+            lambda rows: rows[3]["params"]["servers"][0].update(status="failed"),
+            lambda rows: rows[4]["params"]["servers"][0]["tools"].append({"name": "search_cloudflare_documentation"}),
+            lambda rows: rows.insert(2, {"jsonrpc": "2.0", "method": "_kiro/unknown", "params": {"sessionId": "opaque-session"}}),
+        ):
+            forged = json.loads(json.dumps(candidate))
+            mutation(forged)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in forged:
+                    contract.accept(record)
+
+    @staticmethod
+    def kiro_skill_acp_records(marker: str, skill_path: Path) -> list[dict[str, Any]]:
+        session, disclose, search = "skill-session", "disclose-call", "search-call"
+        update = lambda body: {"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": session, "update": body}}
+        skill_meta = {
+            "kiro": {
+                "toolOrigin": "acp", "toolId": "disclose_context",
+                "disclosedContext": {
+                    "type": "skill", "displayName": "code-tool-router", "uri": skill_path.as_uri(),
+                },
+            },
+        }
+        search_meta = {"kiro": {"toolOrigin": "default", "toolId": "grep_search"}}
+        commands = [{
+            "name": name, "description": f"fixture {name}",
+            "_meta": {"kiro": {
+                "type": "skill", "scope": "global", "matched": True,
+                "path": str(skill_path if name == "code-tool-router" else skill_path.parent.parent / name / "SKILL.md"),
+            }},
+        } for name in (
+            "code-architecture-map", "code-impact-analysis",
+            "code-intelligence-doctor", "code-tool-router",
+        )]
+        output = f"You searched for ^UAP_SKILL_SECRET_ and received the following results:\nuap-skill-probe.txt\n1:{marker}"
+        return [
+            {"jsonrpc": "2.0", "id": 0, "result": {"protocolVersion": 1, "agentCapabilities": {"mcpCapabilities": {"http": True}}}},
+            {"jsonrpc": "2.0", "id": 1, "result": {"sessionId": session}},
+            {"jsonrpc": "2.0", "method": "_kiro/tools/didChange", "params": {"sessionId": session, "tools": []}},
+            update({"sessionUpdate": "config_option_update", "configOptions": []}),
+            update({"sessionUpdate": "available_commands_update", "availableCommands": commands}),
+            update({
+                "sessionUpdate": "tool_call", "status": "pending", "title": "Loaded skill: code-tool-router",
+                "toolCallId": disclose, "kind": "other", "rawInput": {"name": "code-tool-router"}, "_meta": skill_meta,
+            }),
+            {"jsonrpc": "2.0", "id": "skill-permission", "method": "session/request_permission", "params": {
+                "sessionId": session,
+                "toolCall": {"toolCallId": disclose, "title": "Loaded skill: code-tool-router", "status": "pending"},
+                "options": [
+                    {"optionId": "once", "name": "Allow once", "kind": "allow_once"},
+                    {"optionId": "always", "name": "Allow always", "kind": "allow_always"},
+                    {"optionId": "reject", "name": "Reject once", "kind": "reject_once"},
+                    {"optionId": "reject-always", "name": "Reject always", "kind": "reject_always"},
+                ],
+            }},
+            update({"sessionUpdate": "tool_call_update", "status": "in_progress", "toolCallId": disclose, "_meta": skill_meta}),
+            update({
+                "sessionUpdate": "tool_call_update", "status": "completed", "toolCallId": disclose,
+                "content": [{"type": "content", "content": {"type": "text", "text": "Loaded code-tool-router"}}],
+                "rawOutput": {"skill": "code-tool-router", "path": str(skill_path), "success": True}, "_meta": skill_meta,
+            }),
+            update({
+                "sessionUpdate": "tool_call", "status": "pending", "title": "Grep Search",
+                "toolCallId": search, "kind": "search",
+                "rawInput": {"query": "^UAP_SKILL_SECRET_", "explanation": "Find the hidden fixture marker"},
+                "_meta": search_meta,
+            }),
+            update({"sessionUpdate": "tool_call_update", "status": "in_progress", "toolCallId": search, "_meta": search_meta}),
+            update({
+                "sessionUpdate": "tool_call_update", "status": "completed", "title": "Grep Search",
+                "toolCallId": search, "content": [{"type": "content", "content": {"type": "text", "text": output}}],
+                "rawOutput": {"output": output, "success": True}, "_meta": search_meta,
+            }),
+            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": f"`{marker[:24]}"}}),
+            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": f"{marker[24:]}`"}}),
+            update({"sessionUpdate": "session_info_update", "status": "success", "_meta": {"kiro": {"kind": "turn_completion"}}}),
+            update({"sessionUpdate": "session_info_update", "stopReason": "end_turn", "_meta": {"kiro": {"kind": "turn_end"}}}),
+            {"jsonrpc": "2.0", "id": 2, "result": {"stopReason": "end_turn"}},
+        ]
+
+    def test_kiro_acp_2200_skill_positive_contract_uses_hidden_marker(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "a" * 64
+        skill_path = Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md")
+        contract = fixed_adapters.KiroACPSkillContract(marker, skill_path)
+        answer = None
+        for record in self.kiro_skill_acp_records(marker, skill_path):
+            candidate = contract.accept(record)
+            if candidate is not None:
+                answer = candidate
+        self.assertTrue(contract.complete())
+        self.assertEqual(answer, {
+            "jsonrpc": "2.0", "id": "skill-permission",
+            "result": {"outcome": {"outcome": "selected", "optionId": "once"}},
+        })
+
+    def test_kiro_acp_2200_skill_adversarial_records_fail_closed(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "b" * 64
+        skill_path = Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md")
+        base = self.kiro_skill_acp_records(marker, skill_path)
+        mutations = (
+            lambda rows: rows[4]["params"]["update"]["availableCommands"][-1]["_meta"]["kiro"].update(matched=False),
+            lambda rows: rows[4]["params"]["update"]["availableCommands"][-1]["_meta"]["kiro"].update(path="/foreign/SKILL.md"),
+            lambda rows: rows.insert(5, json.loads(json.dumps(rows[4]))),
+            lambda rows: rows[5]["params"]["update"]["rawInput"].update(name="foreign"),
+            lambda rows: rows[5]["params"]["update"]["_meta"]["kiro"].update(toolOrigin="default"),
+            lambda rows: rows[6]["params"]["toolCall"].update(toolCallId="foreign"),
+            lambda rows: rows[6]["params"]["options"][1].update(optionId="once"),
+            lambda rows: rows[6].update(id=True),
+            lambda rows: rows[8]["params"]["update"]["rawOutput"].update(path="/foreign/SKILL.md"),
+            lambda rows: rows[9]["params"]["update"]["rawInput"].update(query="UAP_SKILL_SECRET_"),
+            lambda rows: rows[9]["params"]["update"]["_meta"]["kiro"].update(toolOrigin="acp"),
+            lambda rows: rows[11]["params"]["update"].update(
+                content=[{"type": "content", "content": {"type": "text", "text": "prompt echo"}}],
+                rawOutput={"output": "prompt echo", "success": True},
+            ),
+            lambda rows: rows[11]["params"]["update"].update(status="failed"),
+            lambda rows: rows.__setitem__(9, rows[12]),
+            lambda rows: rows.insert(12, {"jsonrpc": "2.0", "method": "_kiro/unknown", "params": {"sessionId": "skill-session"}}),
+            lambda rows: rows[14]["params"]["update"].update(status="failed"),
+            lambda rows: rows[16]["result"].update(stopReason="cancelled"),
+        )
+        for mutation in mutations:
+            records = json.loads(json.dumps(base))
+            mutation(records)
+            contract = fixed_adapters.KiroACPSkillContract(marker, skill_path)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in records:
+                    contract.accept(record)
+
     def test_kiro_acp_runner_writes_only_canonical_fixed_requests(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "c" * 64
         records = self.kiro_acp_records(marker)
@@ -4379,6 +4672,53 @@ class FixedAdapterContractTests(unittest.TestCase):
             self.assertEqual(seen[2]["params"]["sessionId"], "opaque-session")
             self.assertEqual(seen[3]["result"]["outcome"], {"outcome": "selected", "optionId": "once"})
             self.assertEqual(summary["target_chain"], ["pending", "in_progress", "completed"])
+
+    def test_kiro_acp_skill_runner_never_places_hidden_marker_in_prompt(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "c" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            skill_path = root / "profile" / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+            skill_path.parent.mkdir(parents=True)
+            skill_path.write_text("# code-tool-router\n")
+            records = self.kiro_skill_acp_records(marker, skill_path)
+            executable = root / "kiro-skill-fixture.py"
+            executable.write_text(
+                "#!/usr/bin/python3\nimport json,sys,time\n"
+                f"rows={records!r}\n"
+                "seen=[]\n"
+                "def request():\n line=sys.stdin.readline(); seen.append(json.loads(line)); return seen[-1]\n"
+                "def emit(row): print(json.dumps(row,separators=(',',':')),flush=True)\n"
+                "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
+                "for row in rows[2:7]: emit(row)\n"
+                "request()\n"
+                "open('skill-requests.json','w').write(json.dumps(seen,separators=(',',':')))\n"
+                "for row in rows[7:]: emit(row)\n"
+                "time.sleep(10)\n"
+            )
+            executable.chmod(0o755)
+            summary, _, _ = fixed_adapters.run_kiro_acp(
+                executable, workspace=root, environment={"PATH": str(root)},
+                plugin="agent-code-navigator", tool="grep_search", marker=marker,
+                skill_path=skill_path, timeout=3,
+            )
+            seen = json.loads((root / "skill-requests.json").read_text())
+            prompt = seen[2]["params"]["prompt"][0]["text"]
+            self.assertNotIn(marker, prompt)
+            self.assertNotIn("c" * 64, prompt)
+            self.assertIn("UAP_SKILL_SECRET_", prompt)
+            self.assertEqual(summary["capability"], "skill")
+            self.assertEqual(summary["target_chain"], ["disclose", "search", "marker"])
+
+    def test_skill_probe_is_private_exclusive_and_challenge_bound(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "d" * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            probe = fixed_adapters.write_skill_probe(root, marker)
+            self.assertEqual(probe.read_text(), marker + "\n")
+            self.assertEqual(stat.S_IMODE(probe.stat().st_mode), 0o400)
+            with self.assertRaises(FileExistsError):
+                fixed_adapters.write_skill_probe(root, marker)
 
     def test_kiro_acp_successful_prompt_response_is_chunk_independent_boundary(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "d" * 64
@@ -4694,18 +5034,31 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "else:\n"
                 " assert sys.argv[1:4] == ['--print','--output-format','stream-json']\n"
                 " open(state,'w').close()\n"
-                " marker=sys.argv[-1].split(': ',1)[-1]\n"
-                " print(json.dumps({'type':'tool_call','subtype':'completed','call_id':'call-1','tool_call':{'mcpToolCall':{'args':{'serverName':'context7','toolName':'resolve-library-id','arguments':{}},'result':{'success':{'content':'resolved'}}}}}))\n"
-                " print(json.dumps({'type':'assistant','message':{'role':'assistant','content':[{'type':'text','text':marker}]}}))\n"
+                " prompt=sys.argv[-1]\n"
+                " marker=prompt.rsplit(': ',1)[-1]\n"
+                " session='cursor-session'\n"
+                " def thinking(sequence):\n"
+                "  return [{'type':'thinking','subtype':'delta','session_id':session,'text':'reviewed read-only step','timestamp_ms':sequence},{'type':'thinking','subtype':'completed','session_id':session,'timestamp_ms':sequence+1}]\n"
+                " def pair(kind,started,completed,sequence):\n"
+                "  key=kind+'ToolCall'; call='call-'+str(sequence); model='model-'+str(sequence); tool_id='tool-'+str(sequence); common={'hookAdditionalContexts':[],'startedAtMs':str(sequence),'toolCallId':tool_id}; outer={'type':'tool_call','session_id':session,'model_call_id':model,'call_id':call,'timestamp_ms':sequence}; return [{**outer,'subtype':'started','tool_call':{**common,key:started}},{**outer,'subtype':'completed','timestamp_ms':sequence+1,'tool_call':{**common,'completedAtMs':str(sequence+1),key:completed}}]\n"
+                " events=[{'type':'system','subtype':'init','session_id':session,'apiKeySource':'login','cwd':os.getcwd(),'model':'Auto','permissionMode':'default'},{'type':'user','session_id':session,'message':{'role':'user','content':[{'type':'text','text':prompt}]}},*thinking(1)]\n"
+                " discovery_args={'server':'context7','toolCallId':'tool-10','toolName':'resolve-library-id'}\n"
+                " description=json.dumps({'mode':'single_tool','namespace':'context7','namespaceStatus':'ready','tool':{'tool':'resolve-library-id'}})\n"
+                " events+=pair('getMcpTools',{'args':discovery_args},{'args':discovery_args,'result':{'success':{'content':description}}},10)+thinking(12)\n"
+                " target_args={'args':{'libraryName':'React','query':'React'},'name':'context7-resolve-library-id','providerIdentifier':'context7','serverIdentifier':'context7','skipApproval':False,'smartModeApprovalOnly':False,'toolCallId':'tool-20','toolName':'resolve-library-id'}\n"
+                " events+=pair('mcp',{'args':target_args,'description':'Resolve React'},{'args':target_args,'description':'Resolve React','result':{'success':{'content':[{'text':{'text':'resolved'}}],'isError':False}}},20)+thinking(22)\n"
+                " events+=[{'type':'assistant','session_id':session,'message':{'role':'assistant','content':[{'type':'text','text':marker}]}},{'type':'result','subtype':'success','session_id':session,'request_id':'request-1','duration_ms':10,'duration_api_ms':9,'is_error':False,'result':'preface'+marker,'usage':{'cacheReadTokens':1,'cacheWriteTokens':0,'inputTokens':2,'outputTokens':3}}]\n"
+                " print('\\n'.join(json.dumps(event) for event in events))\n"
             )
             binary.chmod(0o755)
             item = {
                 "binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(),
                 "profile": str(profile), "client_id": "cursor", "native_projection": self.install_projection(profile, "cursor", approved),
             }
-            marker, argv, _, _ = fixed_adapters.invoke(
-                item, "context7", "cursor", "a" * 64, workspace, os.geteuid(), approved,
-            )
+            with mock.patch.object(fixed_adapters, "verified_executable", return_value=binary):
+                marker, argv, _, _ = fixed_adapters.invoke(
+                    item, "context7", "cursor", "a" * 64, workspace, os.geteuid(), approved,
+                )
             self.assertEqual(marker["client_version"], "cursor-fixture-v1")
             self.assertEqual(argv[1:4], ["--print", "--output-format", "stream-json"])
 
@@ -4720,11 +5073,17 @@ class FixedAdapterContractTests(unittest.TestCase):
             doctor_dir.mkdir(mode=0o700)
             mapping, matrix = {}, []
             for plugin in sorted(fixed_adapters.HEROES):
-                relative = f"native/{plugin}.json"
+                relative = (
+                    "skills/code-tool-router/SKILL.md"
+                    if plugin == "agent-code-navigator" else f"native/{plugin}.source"
+                )
                 mapping[plugin] = relative
                 native = seed / relative
-                native.parent.mkdir(mode=0o700, exist_ok=True)
-                native.write_text(json.dumps({"plugin": plugin}))
+                native.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                native.write_text(
+                    "# code-tool-router\n" if plugin == "agent-code-navigator"
+                    else json.dumps({"plugin": plugin})
+                )
                 native.chmod(0o600)
                 approved = {
                     "product_id": plugin, "package_version": "1.0.0",
@@ -4736,7 +5095,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                     "binary_digest": "sha256:" + "e" * 64,
                     "source_repository": f"upstream/{plugin}",
                     "source_revision": "c" * 40, "source_path": f"plugins/{plugin}",
-                    "dependency_identity": "locked", "installer_version": "0.1.17",
+                    "dependency_identity": "locked", "installer_version": "0.1.18",
                     "adapter_version": "r14d", "client_version": None,
                     "os": "linux", "architecture": "x86_64",
                     "observed_at": "2026-08-26T00:00:00Z",
@@ -4906,7 +5265,13 @@ class FixedAdapterContractTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(projection.stat().st_mode), 0o400)
             self.assertEqual(stat.S_IMODE(receipts.stat().st_mode), 0o400)
             value = json.loads(projection.read_text())
+            self.assertEqual(value["schema_version"], 2)
             self.assertEqual({entry["plugin"] for entry in value["entries"]}, fixed_adapters.HEROES)
+            self.assertEqual(
+                {entry["plugin"]: entry["component_kind"] for entry in value["entries"]},
+                {plugin: ("skill" if plugin == "agent-code-navigator" else "mcp") for plugin in fixed_adapters.HEROES},
+            )
+            self.assertTrue(all(entry["native_config"]["path"].endswith(f'/{entry["plugin"]}.blob') for entry in value["entries"]))
             self.assertTrue(all(entry["native_config"]["path"].startswith("/var/lib/uap-observer/proofs/cursor/native/") for entry in value["entries"]))
             self.assertTrue(all(entry["client_config"]["path"].startswith("/var/lib/uap-observer/profiles/cursor/") for entry in value["entries"]))
             receipt_value = json.loads(receipts.read_text())
@@ -5086,11 +5451,12 @@ class FixedAdapterContractTests(unittest.TestCase):
                 with self.subTest(doctor_schema_boolean=boolean), self.assertRaises(ValueError):
                     sealer.matching_doctor(forged_doctor, "cursor", approved_inventory)
 
-            native_path = seed / mapping[matrix[0]["plugin"]]
+            native_plugin = "context7"
+            native_path = seed / mapping[native_plugin]
             native_original = native_path.read_bytes()
             for native_value in (
-                {"plugin": matrix[0]["plugin"], "revision": "d" * 40},
-                {"plugin": matrix[0]["plugin"], "nested": {"source_revision": "d" * 40}},
+                {"plugin": native_plugin, "revision": "d" * 40},
+                {"plugin": native_plugin, "nested": {"source_revision": "d" * 40}},
             ):
                 native_path.write_text(json.dumps(native_value))
                 with self.subTest(native_alias=native_value), self.assertRaises(subprocess.CalledProcessError):
@@ -5652,46 +6018,57 @@ class ProfileProvisioningTests(unittest.TestCase):
     def test_native_projection_validator_rejects_ambiguous_or_incomplete_schema(self) -> None:
         digest = "sha256:" + "a" * 64
         entry = {
-            "plugin": "context7", "tuple": sealed_tuple("context7"),
-            "native_config": {"path": "/var/lib/uap-observer/proofs/codex/native/context7.json", "sha256": digest},
+            "plugin": "context7", "component_kind": "mcp", "tuple": sealed_tuple("context7"),
+            "native_config": {"path": "/var/lib/uap-observer/proofs/codex/native/context7.blob", "sha256": digest},
             "client_config": {"path": "/var/lib/uap-observer/profiles/codex/context7.json", "sha256": digest},
             "manager_add_sha256": digest, "manager_info_sha256": digest,
             "post_add_doctor_sha256": digest,
         }
         entries = [
             {
-                **entry, "plugin": plugin, "tuple": sealed_tuple(plugin),
+                **entry, "plugin": plugin,
+                "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                "tuple": sealed_tuple(plugin),
                 "native_config": {
-                    "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json", "sha256": digest,
+                    "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.blob", "sha256": digest,
                 },
                 "client_config": {
-                    "path": f"/var/lib/uap-observer/profiles/codex/{plugin}.json", "sha256": digest,
+                    "path": (
+                        "/var/lib/uap-observer/profiles/codex/skills/code-tool-router/SKILL.md"
+                        if plugin == "agent-code-navigator"
+                        else f"/var/lib/uap-observer/profiles/codex/{plugin}.json"
+                    ),
+                    "sha256": digest,
                 },
             }
             for plugin in sorted(fixed_adapters.HEROES)
         ]
-        valid = {"schema_version": 1, "client_id": "codex", "entries": entries}
+        valid = {"schema_version": 2, "client_id": "codex", "entries": entries}
         self.assertEqual(self.helper.validate_native_projection(valid, "codex"), entries)
         kiro_entries = [{
             **item,
             "native_config": {
-                "path": f'/var/lib/uap-observer/proofs/kiro/native/{item["plugin"]}.json',
+                "path": f'/var/lib/uap-observer/proofs/kiro/native/{item["plugin"]}.blob',
                 "sha256": digest,
             },
             "client_config": {
-                "path": "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json",
+                "path": (
+                    "/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md"
+                    if item["plugin"] == "agent-code-navigator"
+                    else "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json"
+                ),
                 "sha256": digest,
             },
         } for item in entries]
-        valid_kiro = {"schema_version": 1, "client_id": "kiro", "entries": kiro_entries}
+        valid_kiro = {"schema_version": 2, "client_id": "kiro", "entries": kiro_entries}
         self.assertEqual(self.helper.validate_native_projection(valid_kiro, "kiro"), kiro_entries)
         for conflicting in (
             [{**kiro_entries[0], "client_config": {"path": "/var/lib/uap-observer/profiles/kiro/other/mcp.json", "sha256": digest}}, *kiro_entries[1:]],
-            [{**kiro_entries[0],
-              "native_config": {**kiro_entries[0]["native_config"], "sha256": "sha256:" + "c" * 64},
-              "client_config": {**kiro_entries[0]["client_config"], "sha256": "sha256:" + "c" * 64}}, *kiro_entries[1:]],
+            [kiro_entries[0], {**kiro_entries[1],
+              "native_config": {**kiro_entries[1]["native_config"], "sha256": "sha256:" + "c" * 64},
+              "client_config": {**kiro_entries[1]["client_config"], "sha256": "sha256:" + "c" * 64}}, *kiro_entries[2:]],
         ):
-            with self.subTest(conflicting_shared_path=conflicting), self.assertRaisesRegex(ValueError, "conflicting"):
+            with self.subTest(conflicting_shared_path=conflicting), self.assertRaises(ValueError):
                 self.helper.validate_native_projection({**valid_kiro, "entries": conflicting}, "kiro")
         receipts = {"schema_version": 1, "receipts": [{
             "name": entry["plugin"], "tuple": entry["tuple"],
@@ -5722,6 +6099,19 @@ class ProfileProvisioningTests(unittest.TestCase):
             {**valid, "entries": [{**entries[0], "tuple": {"product_id": entries[0]["plugin"]}}, *entries[1:]]},
             {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "extra": 1}}, *entries[1:]]},
             {**valid, "entries": [{**entries[0], "tuple": {**entries[0]["tuple"], "snapshot_sequence": True}}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "component_kind": "mcp"}, *entries[1:]]},
+            {**valid, "entries": [{**entries[0], "client_config": {
+                **entries[0]["client_config"],
+                "path": "/var/lib/uap-observer/profiles/codex/agent-code-navigator.json",
+            }}, *entries[1:]]},
+            {**valid, "entries": [entries[0], {**entries[1], "client_config": {
+                **entries[1]["client_config"],
+                "path": "/var/lib/uap-observer/profiles/codex/skills/code-tool-router/SKILL.md",
+            }}, *entries[2:]]},
+            {**valid, "entries": [{**item, "client_config": {
+                **item["client_config"],
+                "path": "/var/lib/uap-observer/profiles/codex/shared.json",
+            }} for item in entries]},
         )
         for value in malformed:
             with self.subTest(value=value), self.assertRaises(ValueError):
@@ -5735,7 +6125,7 @@ class ProfileProvisioningTests(unittest.TestCase):
             with self.subTest(encoded=encoded), self.assertRaises((ValueError, json.JSONDecodeError)):
                 self.helper.strict_json_loads(encoded)
 
-    def test_kiro_shared_mcp_config_is_one_protected_provisioning_surface(self) -> None:
+    def test_kiro_skill_and_shared_mcp_config_are_protected_provisioning_surfaces(self) -> None:
         digest = fixed_adapters.sha256(b"{}")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -5743,18 +6133,26 @@ class ProfileProvisioningTests(unittest.TestCase):
             proof = root / "proof"
             (staging / ".kiro" / "settings").mkdir(parents=True)
             (staging / ".kiro" / "settings" / "mcp.json").write_bytes(b"{}")
+            (staging / ".kiro" / "skills" / "code-tool-router").mkdir(parents=True)
+            (staging / ".kiro" / "skills" / "code-tool-router" / "SKILL.md").write_bytes(b"{}")
             (proof / "native").mkdir(parents=True)
             entries = []
             for plugin in sorted(fixed_adapters.HEROES):
-                (proof / "native" / f"{plugin}.json").write_bytes(b"{}")
+                (proof / "native" / f"{plugin}.blob").write_bytes(b"{}")
                 entries.append({
-                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                    "plugin": plugin,
+                    "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": sealed_tuple(plugin),
                     "native_config": {
-                        "path": f"/var/lib/uap-observer/proofs/kiro/native/{plugin}.json",
+                        "path": f"/var/lib/uap-observer/proofs/kiro/native/{plugin}.blob",
                         "sha256": digest,
                     },
                     "client_config": {
-                        "path": "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json",
+                        "path": (
+                            "/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md"
+                            if plugin == "agent-code-navigator"
+                            else "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json"
+                        ),
                         "sha256": digest,
                     },
                     "manager_add_sha256": "sha256:" + "9" * 64,
@@ -5762,7 +6160,7 @@ class ProfileProvisioningTests(unittest.TestCase):
                     "post_add_doctor_sha256": "sha256:" + "b" * 64,
                 })
             (proof / "native-projection.json").write_text(json.dumps({
-                "schema_version": 1, "client_id": "kiro", "entries": entries,
+                "schema_version": 2, "client_id": "kiro", "entries": entries,
             }))
             (proof / "receipts.json").write_text(json.dumps({
                 "schema_version": 1, "receipts": [{
@@ -5781,8 +6179,14 @@ class ProfileProvisioningTests(unittest.TestCase):
             finally:
                 os.close(proof_fd)
                 os.close(staging_fd)
-            self.assertEqual(files, {(".kiro", "settings", "mcp.json")})
-            self.assertEqual(directories, {(), (".kiro",), (".kiro", "settings")})
+            self.assertEqual(files, {
+                (".kiro", "settings", "mcp.json"),
+                (".kiro", "skills", "code-tool-router", "SKILL.md"),
+            })
+            self.assertEqual(directories, {
+                (), (".kiro",), (".kiro", "settings"), (".kiro", "skills"),
+                (".kiro", "skills", "code-tool-router"),
+            })
 
     @requires_disposable_observer_host
     def test_copy_tree_uses_descriptors_and_preserves_exact_private_modes(self) -> None:
@@ -5859,19 +6263,26 @@ class ProfileProvisioningTests(unittest.TestCase):
             entries = []
             for plugin in sorted(fixed_adapters.HEROES):
                 body = json.dumps({"plugin": plugin}).encode()
-                active = seed / ".config" / f"{plugin}.json"
+                relative = (
+                    Path("skills/code-tool-router/SKILL.md")
+                    if plugin == "agent-code-navigator" else Path(".config") / f"{plugin}.json"
+                )
+                active = seed / relative
+                active.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
                 active.write_bytes(body)
-                native = native_proof / f"{plugin}.json"
+                native = native_proof / f"{plugin}.blob"
                 native.write_bytes(body)
                 entry_tuple = approved if plugin == "context7" else {**approved, "product_id": plugin}
                 entries.append({
-                    "plugin": plugin, "tuple": entry_tuple,
+                    "plugin": plugin,
+                    "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": entry_tuple,
                     "native_config": {
-                        "path": str(proof_root / "codex" / "native" / f"{plugin}.json"),
+                        "path": str(proof_root / "codex" / "native" / f"{plugin}.blob"),
                         "sha256": fixed_adapters.sha256(body),
                     },
                     "client_config": {
-                        "path": str(profile_root / "codex" / ".config" / f"{plugin}.json"),
+                        "path": str(profile_root / "codex" / relative),
                         "sha256": fixed_adapters.sha256(body),
                     },
                     "manager_add_sha256": "sha256:" + "9" * 64,
@@ -5879,7 +6290,7 @@ class ProfileProvisioningTests(unittest.TestCase):
                     "post_add_doctor_sha256": "sha256:" + "b" * 64,
                 })
             projection = fixed_adapters.canonical_json({
-                "schema_version": 1, "client_id": "codex", "entries": entries,
+                "schema_version": 2, "client_id": "codex", "entries": entries,
             })
             (proof_seed / "native-projection.json").write_bytes(projection)
             (proof_seed / "receipts.json").write_text(json.dumps({
@@ -5970,14 +6381,16 @@ class ProfileProvisioningTests(unittest.TestCase):
             }))
             (proof_seed / "receipts.json").chmod(0o400)
             (proof_seed / "native-projection.json").write_text(json.dumps({
-                "schema_version": 1, "client_id": "codex", "entries": [{
-                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                "schema_version": 2, "client_id": "codex", "entries": [{
+                    "plugin": plugin,
+                    "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": sealed_tuple(plugin),
                     "native_config": {
-                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.blob",
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "client_config": {
-                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "path": str(Path("/var/lib/uap-observer/profiles/codex") / native_fixture_relative(plugin)),
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "manager_add_sha256": "sha256:" + "9" * 64,
@@ -5987,11 +6400,13 @@ class ProfileProvisioningTests(unittest.TestCase):
             }))
             (proof_seed / "native-projection.json").chmod(0o400)
             for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"):
-                (native_proof / f"{plugin}.json").write_text("{}")
-                (native_proof / f"{plugin}.json").chmod(0o400)
+                (native_proof / f"{plugin}.blob").write_text("{}")
+                (native_proof / f"{plugin}.blob").chmod(0o400)
             for plugin in sorted(fixed_adapters.HEROES):
-                (seed / f"active-{plugin}.json").write_text("{}")
-                (seed / f"active-{plugin}.json").chmod(0o600)
+                active = seed / native_fixture_relative(plugin)
+                active.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                active.write_text("{}")
+                active.chmod(0o600)
             account = mock.Mock(pw_uid=os.geteuid(), pw_gid=os.getegid())
 
             for boundary in boundaries:
@@ -6123,14 +6538,16 @@ class ProfileProvisioningTests(unittest.TestCase):
             }))
             (proof_seed / "receipts.json").chmod(0o400)
             (proof_seed / "native-projection.json").write_text(json.dumps({
-                "schema_version": 1, "client_id": "codex", "entries": [{
-                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                "schema_version": 2, "client_id": "codex", "entries": [{
+                    "plugin": plugin,
+                    "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": sealed_tuple(plugin),
                     "native_config": {
-                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.blob",
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "client_config": {
-                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "path": str(Path("/var/lib/uap-observer/profiles/codex") / native_fixture_relative(plugin)),
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "manager_add_sha256": "sha256:" + "9" * 64,
@@ -6140,11 +6557,13 @@ class ProfileProvisioningTests(unittest.TestCase):
             }))
             (proof_seed / "native-projection.json").chmod(0o400)
             for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"):
-                (native_proof / f"{plugin}.json").write_text("{}")
-                (native_proof / f"{plugin}.json").chmod(0o400)
+                (native_proof / f"{plugin}.blob").write_text("{}")
+                (native_proof / f"{plugin}.blob").chmod(0o400)
             for plugin in sorted(fixed_adapters.HEROES):
-                (seed / f"active-{plugin}.json").write_text("{}")
-                (seed / f"active-{plugin}.json").chmod(0o600)
+                active = seed / native_fixture_relative(plugin)
+                active.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                active.write_text("{}")
+                active.chmod(0o600)
             launcher = (
                 "import importlib.util,os,sys,types\n"
                 "from pathlib import Path\n"
@@ -6199,14 +6618,16 @@ class ProfileProvisioningTests(unittest.TestCase):
                 } for plugin in sorted(fixed_adapters.HEROES)],
             }))
             (proof_seed / "native-projection.json").write_text(json.dumps({
-                "schema_version": 1, "client_id": "codex", "entries": [{
-                    "plugin": plugin, "tuple": sealed_tuple(plugin),
+                "schema_version": 2, "client_id": "codex", "entries": [{
+                    "plugin": plugin,
+                    "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                    "tuple": sealed_tuple(plugin),
                     "native_config": {
-                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.json",
+                        "path": f"/var/lib/uap-observer/proofs/codex/native/{plugin}.blob",
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "client_config": {
-                        "path": f"/var/lib/uap-observer/profiles/codex/active-{plugin}.json",
+                        "path": str(Path("/var/lib/uap-observer/profiles/codex") / native_fixture_relative(plugin)),
                         "sha256": fixed_adapters.sha256(b"{}"),
                     },
                     "manager_add_sha256": "sha256:" + "9" * 64,
@@ -6215,9 +6636,11 @@ class ProfileProvisioningTests(unittest.TestCase):
                 } for plugin in sorted(fixed_adapters.HEROES)],
             }))
             for plugin in sorted(fixed_adapters.HEROES):
-                (native_proof / f"{plugin}.json").write_text("{}")
+                (native_proof / f"{plugin}.blob").write_text("{}")
             for plugin in sorted(fixed_adapters.HEROES):
-                (seed / f"active-{plugin}.json").write_text("{}")
+                active = seed / native_fixture_relative(plugin)
+                active.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                active.write_text("{}")
             profile_root, proof_root = root / "profiles", root / "proofs"
             profile_root.mkdir(mode=0o711)
             proof_root.mkdir(mode=0o711)

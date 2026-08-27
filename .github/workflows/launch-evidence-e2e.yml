@@ -97,7 +97,7 @@ permissions:
   contents: read
 
 env:
-  AGENTPLUGINS_VERSION: "0.1.17"
+  AGENTPLUGINS_VERSION: "0.1.18"
 
 concurrency:
   group: stable-launch-evidence-${{ github.repository }}-${{ github.sha }}-${{ github.run_attempt }}
@@ -134,12 +134,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {runner: macos-15, os: macos, architecture: arm64, asset: agentplugins_0.1.17_darwin_arm64}
-          - {runner: macos-15-intel, os: macos, architecture: amd64, asset: agentplugins_0.1.17_darwin_amd64}
-          - {runner: ubuntu-24.04-arm, os: linux, architecture: arm64, asset: agentplugins_0.1.17_linux_arm64}
-          - {runner: ubuntu-24.04, os: linux, architecture: amd64, asset: agentplugins_0.1.17_linux_amd64}
-          - {runner: windows-2025, os: windows, architecture: amd64, asset: agentplugins_0.1.17_windows_amd64.exe}
-          - {runner: windows-11-arm, os: windows, architecture: arm64, asset: agentplugins_0.1.17_windows_arm64.exe}
+          - {runner: macos-15, os: macos, architecture: arm64, asset: agentplugins_0.1.18_darwin_arm64}
+          - {runner: macos-15-intel, os: macos, architecture: amd64, asset: agentplugins_0.1.18_darwin_amd64}
+          - {runner: ubuntu-24.04-arm, os: linux, architecture: arm64, asset: agentplugins_0.1.18_linux_arm64}
+          - {runner: ubuntu-24.04, os: linux, architecture: amd64, asset: agentplugins_0.1.18_linux_amd64}
+          - {runner: windows-2025, os: windows, architecture: amd64, asset: agentplugins_0.1.18_windows_amd64.exe}
+          - {runner: windows-11-arm, os: windows, architecture: arm64, asset: agentplugins_0.1.18_windows_arm64.exe}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
@@ -222,7 +222,7 @@ jobs:
           PUBLICATION_LEDGER_COMMIT: ${{ inputs.publication_ledger_commit }}
         run: |
           run_root="${RUNNER_TEMP}/uap-node22-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.17_linux_amd64 --npm-facade \
+          python scripts/prepare_launch_evidence.py --asset-name agentplugins_0.1.18_linux_amd64 --npm-facade \
             --publication-id "$PUBLICATION_ID" --publication-sequence "$PUBLICATION_SEQUENCE" \
             --publication-snapshot-digest "$PUBLICATION_SNAPSHOT_DIGEST" --publication-source-commit "$PUBLICATION_SOURCE_COMMIT" \
             --publication-ledger-commit "$PUBLICATION_LEDGER_COMMIT" \
@@ -233,15 +233,15 @@ jobs:
           export AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"
           mkdir "$run_root/npm-audit"
           cd "$run_root/npm-audit"
-          npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.17
+          npm install --ignore-scripts=false --save-exact universal-agent-plugins@0.1.18
           npm audit signatures
           cd "$GITHUB_WORKSPACE"
-          npm install --global "$run_root/npm/universal-agent-plugins-0.1.17.tgz" --ignore-scripts=false
+          npm install --global "$run_root/npm/universal-agent-plugins-0.1.18.tgz" --ignore-scripts=false
           npm_package_root="$(npm root --global)/universal-agent-plugins"
           test -d "$npm_package_root"
           test "$(node --version | cut -d. -f1)" = v22
           python scripts/observe_release_facade.py --context "$run_root/context.json" \
-            --executable "$npm_package_root/bin/agentplugins.js" --asset-name agentplugins_0.1.17_linux_amd64 \
+            --executable "$npm_package_root/bin/agentplugins.js" --asset-name agentplugins_0.1.18_linux_amd64 \
             --kind npm --os any --architecture any --node-major 22 --npm-project "$run_root/npm-audit" \
             --npm-package-root "$npm_package_root" --npm-binary-cache "$AGENTPLUGINS_CACHE_DIR" \
             --output npm-observation.json
@@ -321,9 +321,9 @@ jobs:
           assert release_identity['repository'] == config['cli_release_repository']
           assert release_identity['tag'] == config['cli_release_tag'] and release_identity['immutable'] is True
           expected_assets={
-              'agentplugins_0.1.17_darwin_arm64','agentplugins_0.1.17_darwin_amd64',
-              'agentplugins_0.1.17_linux_arm64','agentplugins_0.1.17_linux_amd64',
-              'agentplugins_0.1.17_windows_arm64.exe','agentplugins_0.1.17_windows_amd64.exe',
+              'agentplugins_0.1.18_darwin_arm64','agentplugins_0.1.18_darwin_amd64',
+              'agentplugins_0.1.18_linux_arm64','agentplugins_0.1.18_linux_amd64',
+              'agentplugins_0.1.18_windows_arm64.exe','agentplugins_0.1.18_windows_amd64.exe',
           }
           attestations=[x['github_asset_attestation'] for x in native]
           assert {x['asset_name'] for x in attestations} == expected_assets
@@ -593,7 +593,7 @@ jobs:
           EVIDENCE_RUN_ATTEMPT: ${{ needs.protected-observer-inputs.outputs.evidence_run_attempt }}
         run: |
           python scripts/run_launch_evidence_e2e.py --prepared-context "$RUN_ROOT/context.json" \
-            --asset-name agentplugins_0.1.17_linux_amd64 \
+            --asset-name agentplugins_0.1.18_linux_amd64 \
             --native-observations native-observations \
             --observer-bundle "$RUN_ROOT/live-inputs/observer-bundle.json" \
             --attestations "$RUN_ROOT/live-inputs/runtime-attestations.json" \

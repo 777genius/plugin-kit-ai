@@ -82,13 +82,18 @@ disposable Git roots and adapter-owned test profiles. A pass requires the exact
 approved tuple in the manager receipt, the deployment-digested immutable native
 projection, its contained one-link native config and exact digest, the product
 in structured native discovery and a structured successful tool-call event
-containing the marker. Cursor name/status text plus a manager receipt is
-never tuple reconciliation. Kiro CLI 2.19.1 uses the observed ACP v1 shape
+containing the marker. Cursor 2026.08.25 requires its complete bounded
+system/user/thinking/tool/result stream: MCP evidence binds discovery and the
+target call, while skill evidence binds the installed skill bytes and exact
+hidden-marker search. The former two-event Cursor shape, name/status text, or a
+manager receipt alone is never runtime evidence. Kiro CLI 2.20.0 uses the observed ACP v1 shape
 with native sealed-config discovery, one `allow_once` response, and exact
-pending, completed, and successful turn-end record shapes. The checked-in fixture is
-a sanitized shape summary, not ordered raw frames; tests retain an observed
-multi-tool catalog and unrelated `kiro_power` failure shapes without asserting
-their order. Both Kiro executables are
+pending, in-progress, completed, and successful turn-end record shapes. Its
+Agent Code Navigator proof separately requires native skill disclosure plus an
+exact hidden-marker `grep_search`; MCP discovery or prompt echo cannot satisfy
+that contract; unrelated `kiro_power` failure shapes are rejected and cannot
+satisfy either capability contract. The checked-in fixture is a sanitized shape
+summary, not ordered raw frames. Both Kiro executables are
 digest-bound. This validates the grammar, not the pending external 5x3 live
 matrix; the repository does not claim 15/15 or PASS.
 Prompt echo alone is inconclusive.

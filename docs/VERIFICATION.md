@@ -7,7 +7,7 @@ contains the cited bytes and is accompanied by their SHA-256. These are
 historical observations, not claims about current rolling clients or package
 trees. Current stable-launch runtime/OAuth evidence is unavailable until the
 protected launch workflow succeeds against one exact signed production
-publication and the attested `agentplugins-v0.1.17` release.
+publication and the attested `agentplugins-v0.1.18` release.
 
 Current distribution, release sequence, tree digest, and manifest digest are
 generated from [`registry/directory.json`](../registry/directory.json) and are

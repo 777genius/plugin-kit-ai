@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 env:
-  AGENTPLUGINS_VERSION: "0.1.17"
-  AGENTPLUGINS_COMMIT: f4f5113c4176173c2ff3ca7e72c9fb71af1516b8
+  AGENTPLUGINS_VERSION: "0.1.18"
+  AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
 
 jobs:
   install-lifecycle:

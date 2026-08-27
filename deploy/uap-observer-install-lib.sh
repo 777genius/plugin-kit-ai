@@ -684,7 +684,7 @@ def native_projection(encoded,suffix,profile,proof):
         return decoded
     value=json.loads(encoded,object_pairs_hook=pairs,parse_constant=constant,parse_float=finite)
     evidence={"manager_add_sha256","manager_info_sha256","post_add_doctor_sha256"}
-    fields={"plugin","tuple","native_config","client_config",*evidence}
+    fields={"plugin","component_kind","tuple","native_config","client_config",*evidence}
     digest=re.compile(r"sha256:[a-f0-9]{64}")
     tuple_fields={"product_id","tree_digest","manifest_digest","distribution_id","distribution_kind","release_sequence","package_version","source_repository","source_revision","source_path","snapshot_sequence","snapshot_digest","binary_digest","dependency_identity","installer_version","adapter_version","client_version","os","architecture","observed_at"}
     tuple_digests={"tree_digest","manifest_digest","snapshot_digest","binary_digest"}
@@ -700,7 +700,7 @@ def native_projection(encoded,suffix,profile,proof):
             or Path(str(item.get("source_path",""))).is_absolute() or ".." in Path(str(item.get("source_path",""))).parts):
             raise SystemExit(f"installed release tuple for {suffix}/{plugin} is invalid")
     if (not isinstance(value,dict) or set(value)!={"schema_version","client_id","entries"}
-        or type(value.get("schema_version")) is not int or value["schema_version"]!=1
+        or type(value.get("schema_version")) is not int or value["schema_version"]!=2
         or type(value.get("client_id")) is not str or value["client_id"]!=suffix
         or not isinstance(value.get("entries"),list) or not value["entries"]):
         raise SystemExit(f"installed native projection for {suffix} is invalid")
@@ -709,6 +709,7 @@ def native_projection(encoded,suffix,profile,proof):
     for entry in value["entries"]:
         if (not isinstance(entry,dict) or set(entry)!=fields
             or type(entry.get("plugin")) is not str or not entry["plugin"] or entry["plugin"] in plugins
+            or entry.get("component_kind") not in {"skill","mcp"}
             or not isinstance(entry.get("tuple"),dict)
             or any(type(entry.get(field)) is not str or digest.fullmatch(entry[field]) is None for field in evidence)):
             raise SystemExit(f"installed native projection entry for {suffix} is invalid")
@@ -728,15 +729,26 @@ def native_projection(encoded,suffix,profile,proof):
         try: native_relative=native.relative_to(proof)
         except ValueError: raise SystemExit(f"native config proof {native} escapes proof hierarchy")
         if (not active_relative.parts or any(part in ("",".","..") for part in active_relative.parts)
-            or native_relative.parts != ("native",f'{entry["plugin"]}.json')):
+            or native_relative.parts != ("native",f'{entry["plugin"]}.blob')):
             raise SystemExit(f"installed native projection path for {suffix} is invalid")
+        skill_suffix=active.parts[-3:]==("skills","code-tool-router","SKILL.md")
+        if (entry["component_kind"]=="skill") != skill_suffix:
+            raise SystemExit(f"installed native projection capability path for {suffix} is invalid")
         active_paths.add(active)
+    kinds={entry["plugin"]:entry["component_kind"] for entry in value["entries"]}
+    if kinds != {plugin:("skill" if plugin=="agent-code-navigator" else "mcp") for plugin in heroes}:
+        raise SystemExit(f"installed native projection component kind for {suffix} is invalid")
     duplicates=[group for group in ({path:[entry for entry in value["entries"] if Path(entry["client_config"]["path"])==path] for path in active_paths}).values() if len(group)>1]
-    if duplicates:
+    if suffix=="kiro":
         shared=profile / ".kiro" / "settings" / "mcp.json"
-        if (suffix!="kiro" or active_paths!={shared} or len(duplicates)!=1 or len(duplicates[0])!=len(heroes)
+        skill=profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+        if (active_paths!={shared,skill} or len(duplicates)!=1 or len(duplicates[0])!=len(heroes)-1
+            or {entry["plugin"] for entry in duplicates[0]} != heroes-{"agent-code-navigator"}
+            or any(entry["component_kind"]!="mcp" for entry in duplicates[0])
             or len({entry["client_config"]["sha256"] for entry in duplicates[0]})!=1):
             raise SystemExit(f"installed native projection for {suffix} has conflicting active configs")
+    elif duplicates:
+        raise SystemExit(f"installed native projection for {suffix} has conflicting active configs")
     if plugins != heroes:
         raise SystemExit(f"installed native projection for {suffix} is incomplete")
     return value
@@ -757,7 +769,7 @@ for suffix,(uid,gid) in zip(("codex","cursor","kiro"),identities):
         if {item.name for item in proof.iterdir()} != {"receipts.json","native-projection.json","native"}:
             raise SystemExit(f"installed proof inventory for {suffix} differs")
         directory(str(proof / "native"),0,gid,0o510)
-        if {item.name for item in (proof / "native").iterdir()} != {f"{name}.json" for name in ("agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion")}:
+        if {item.name for item in (proof / "native").iterdir()} != {f"{name}.blob" for name in ("agent-code-navigator","context7","cloudflare-docs","chrome-devtools","notion")}:
             raise SystemExit(f"installed native proof inventory for {suffix} differs")
         for item in (proof / "receipts.json",proof / "native-projection.json",*(proof / "native").iterdir()):
             info=os.lstat(item)

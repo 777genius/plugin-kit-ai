@@ -58,8 +58,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertEqual(schema["$defs"]["bundle"]["properties"]["manifest"]["const"], "/opt/uap-observer-inputs/cursor-bundle.json")
         kiro_rule = client["allOf"][2]["then"]
         self.assertEqual(kiro_rule["required"], ["companion_binary", "companion_sha256"])
-        self.assertEqual(kiro_rule["properties"]["sha256"]["const"], "sha256:adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336")
-        self.assertEqual(kiro_rule["properties"]["companion_sha256"]["const"], "sha256:c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4")
+        self.assertEqual(kiro_rule["properties"]["sha256"]["const"], "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358")
+        self.assertEqual(kiro_rule["properties"]["companion_sha256"]["const"], "sha256:59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e")
         installer = (ROOT / "deploy/uap-observer-install.sh").read_text()
         self.assertIn('required_hosts={urlsplit(url).hostname for url in urls} | {"github.com"}', installer)
         self.assertIn("required_hosts <= set(egress_hosts)", installer)
@@ -95,13 +95,13 @@ class WorkflowContractTests(unittest.TestCase):
                 "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                 "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
                 "snapshot_digest": digest, "binary_digest": digest,
-                "dependency_identity": "locked", "installer_version": "0.1.17",
+                "dependency_identity": "locked", "installer_version": "0.1.18",
                 "adapter_version": "r14d", "client_version": None,
                 "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
             }
         entry = {
-            "plugin": "context7", "tuple": release_tuple("context7"),
-            "native_config": {"path": "/proof/codex/native/context7.json", "sha256": digest},
+            "plugin": "context7", "component_kind": "mcp", "tuple": release_tuple("context7"),
+            "native_config": {"path": "/proof/codex/native/context7.blob", "sha256": digest},
             "client_config": {"path": "/profile/codex/context7.json", "sha256": digest},
             "manager_add_sha256": digest, "manager_info_sha256": digest,
             "post_add_doctor_sha256": digest,
@@ -109,13 +109,21 @@ class WorkflowContractTests(unittest.TestCase):
         heroes = ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")
         entries = [
             {
-                **entry, "plugin": plugin, "tuple": release_tuple(plugin),
-                "native_config": {"path": f"/proof/codex/native/{plugin}.json", "sha256": digest},
-                "client_config": {"path": f"/profile/codex/{plugin}.json", "sha256": digest},
+                **entry, "plugin": plugin,
+                "component_kind": "skill" if plugin == "agent-code-navigator" else "mcp",
+                "tuple": release_tuple(plugin),
+                "native_config": {"path": f"/proof/codex/native/{plugin}.blob", "sha256": digest},
+                "client_config": {
+                    "path": (
+                        "/profile/codex/skills/code-tool-router/SKILL.md"
+                        if plugin == "agent-code-navigator" else f"/profile/codex/{plugin}.json"
+                    ),
+                    "sha256": digest,
+                },
             }
             for plugin in heroes
         ]
-        valid = {"schema_version": 1, "client_id": "codex", "entries": entries}
+        valid = {"schema_version": 2, "client_id": "codex", "entries": entries}
         self.assertEqual(
             validate(json.dumps(valid).encode(), "codex", Path("/profile/codex"), Path("/proof/codex")),
             valid,
@@ -123,13 +131,18 @@ class WorkflowContractTests(unittest.TestCase):
         kiro_entries = [{
             **item,
             "native_config": {
-                "path": f'/proof/kiro/native/{item["plugin"]}.json', "sha256": digest,
+                "path": f'/proof/kiro/native/{item["plugin"]}.blob', "sha256": digest,
             },
             "client_config": {
-                "path": "/profile/kiro/.kiro/settings/mcp.json", "sha256": digest,
+                "path": (
+                    "/profile/kiro/.kiro/skills/code-tool-router/SKILL.md"
+                    if item["plugin"] == "agent-code-navigator"
+                    else "/profile/kiro/.kiro/settings/mcp.json"
+                ),
+                "sha256": digest,
             },
         } for item in entries]
-        valid_kiro = {"schema_version": 1, "client_id": "kiro", "entries": kiro_entries}
+        valid_kiro = {"schema_version": 2, "client_id": "kiro", "entries": kiro_entries}
         self.assertEqual(
             validate(json.dumps(valid_kiro).encode(), "kiro", Path("/profile/kiro"), Path("/proof/kiro")),
             valid_kiro,
@@ -140,14 +153,15 @@ class WorkflowContractTests(unittest.TestCase):
                 *kiro_entries[1:],
             ]},
             {**valid_kiro, "entries": [
-                {**kiro_entries[0],
-                 "native_config": {**kiro_entries[0]["native_config"], "sha256": "sha256:" + "c" * 64},
-                 "client_config": {**kiro_entries[0]["client_config"], "sha256": "sha256:" + "c" * 64}},
-                *kiro_entries[1:],
+                kiro_entries[0],
+                {**kiro_entries[1],
+                 "native_config": {**kiro_entries[1]["native_config"], "sha256": "sha256:" + "c" * 64},
+                 "client_config": {**kiro_entries[1]["client_config"], "sha256": "sha256:" + "c" * 64}},
+                *kiro_entries[2:],
             ]},
             {**valid_kiro, "client_id": "codex", "entries": [{
                 **item,
-                "native_config": {"path": f'/proof/codex/native/{item["plugin"]}.json', "sha256": digest},
+                "native_config": {"path": f'/proof/codex/native/{item["plugin"]}.blob', "sha256": digest},
                 "client_config": {"path": "/profile/codex/.kiro/settings/mcp.json", "sha256": digest},
             } for item in entries]},
         ):
@@ -240,17 +254,17 @@ class WorkflowContractTests(unittest.TestCase):
                 with self.subTest(body=body):
                     self.assertNotEqual(rejected.returncode, 0)
 
-    def test_kiro_acp_2191_grammar_is_distinguished_from_pending_live_matrix(self) -> None:
+    def test_kiro_acp_2200_grammar_is_distinguished_from_pending_live_matrix(self) -> None:
         adapter = (ROOT / "observer/fixed_adapters.py").read_text()
         plan = (ROOT / "docs/E2E_AND_COMPETITIVE_LAUNCH_PLAN.md").read_text()
         runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()
         for text in (adapter, plan, runbook):
-            self.assertIn("2.19.1", text)
+            self.assertIn("2.20.0", text)
         self.assertIn('("acp", "--agent-engine", "v3", "--auth-method", "cli")', adapter)
-        self.assertIn("one observed hero", plan)
-        self.assertIn("Do not claim 15/15/PASS", runbook)
+        self.assertIn("capability probes do not replace the five-result launch matrix", plan)
+        self.assertIn("are not the final five-plugin-by-three-client launch matrix", runbook)
         self.assertNotIn("KIRO_STRUCTURED_CAPTURE_GATE", adapter)
-        fixture = json.loads((ROOT / "observer/tests/fixtures/kiro-acp-2.19.1-sanitized.json").read_text())
+        fixture = json.loads((ROOT / "observer/tests/fixtures/kiro-acp-2.20.0-sanitized.json").read_text())
         summary = fixture["observed_shape_summary"]
         self.assertEqual(summary["final_native_5x3_matrix"], "pending_external")
         self.assertEqual(summary["evidence_kind"], "sanitized_observed_shape_summary_not_raw_ordered_acp_frames")
@@ -320,7 +334,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_stable_launch_versions_equal_trusted_contract(self) -> None:
         version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
-        self.assertEqual(version, "0.1.17")
+        self.assertEqual(version, "0.1.18")
         tag = f"agentplugins-v{version}"
         asset_prefix = f"agentplugins_{version}_"
         production = json.loads((ROOT / "tests/e2e/production-launch.json").read_text())
@@ -339,9 +353,9 @@ class WorkflowContractTests(unittest.TestCase):
         # leave a stale observer trust pin behind.
         request_policy = adapter_schema["properties"]["request_policy"]["properties"]
         self.assertEqual((version, request_policy["release_manifest_digest"]["const"], request_policy["release_checksums_digest"]["const"]), (
-            "0.1.17",
-            "sha256:0cff701caffb4798561a3accb51ca442d1fad512b3de0ae7ffe88e9f2d47c206",
-            "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d",
+            "0.1.18",
+            "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57",
+            "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8",
         ))
         self.assertEqual(schema["properties"]["cli_release_tag"]["const"], tag)
         self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["tag"]["const"], tag)
@@ -466,8 +480,8 @@ class WorkflowContractTests(unittest.TestCase):
             "repository does not install UID-, cgroup-, or service-identity firewall rules",
             "`IPAddressDeny=any`",
             "resolve_github_release",
-            '"agentplugins-v0.1.17"',
-            'asset_name="agentplugins_0.1.17_linux_amd64"',
+            '"agentplugins-v0.1.18"',
+            'asset_name="agentplugins_0.1.18_linux_amd64"',
             '"$AGENTPLUGINS" add "$source" --target "$client" --format json',
             '"$AGENTPLUGINS" info "$plugin" --target "$client" --format json',
             "manual_activation_required",
@@ -558,9 +572,9 @@ class WorkflowContractTests(unittest.TestCase):
             ("linux", "amd64"), ("windows", "amd64"), ("windows", "arm64"),
         })
         self.assertEqual({slot["asset"] for slot in slots}, {
-            "agentplugins_0.1.17_darwin_arm64", "agentplugins_0.1.17_darwin_amd64",
-            "agentplugins_0.1.17_linux_arm64", "agentplugins_0.1.17_linux_amd64",
-            "agentplugins_0.1.17_windows_amd64.exe", "agentplugins_0.1.17_windows_arm64.exe",
+            "agentplugins_0.1.18_darwin_arm64", "agentplugins_0.1.18_darwin_amd64",
+            "agentplugins_0.1.18_linux_arm64", "agentplugins_0.1.18_linux_amd64",
+            "agentplugins_0.1.18_windows_amd64.exe", "agentplugins_0.1.18_windows_arm64.exe",
         })
         aggregate_commands = commands(aggregate)
         self.assertIn("['subject_name'] == x['asset_name']", aggregate_commands)
@@ -573,8 +587,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--npm-facade", commands(npm))
         self.assertIn("--npm-binary-cache", commands(npm))
         self.assertIn('AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"', commands(npm))
-        self.assertIn("universal-agent-plugins-0.1.17.tgz", commands(npm))
-        self.assertIn("--asset-name agentplugins_0.1.17_linux_amd64", commands(npm))
+        self.assertIn("universal-agent-plugins-0.1.18.tgz", commands(npm))
+        self.assertIn("--asset-name agentplugins_0.1.18_linux_amd64", commands(npm))
         self.assertNotIn("universal-agent-plugins.tgz", commands(npm))
         self.assertEqual(yaml.safe_dump(native).count("tzdata==2026.3"), 1)
         self.assertEqual(yaml.safe_dump(npm).count("tzdata==2026.3"), 1)
@@ -650,8 +664,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--release-tag", body)
         production = (ROOT / "tests/e2e/production-launch.json").read_text()
         self.assertIn('"cli_release_repository": "777genius/plugin-kit-ai"', production)
-        self.assertIn('"cli_release_tag": "agentplugins-v0.1.17"', production)
-        self.assertIn('"cli_release_commit": "f4f5113c4176173c2ff3ca7e72c9fb71af1516b8"', production)
+        self.assertIn('"cli_release_tag": "agentplugins-v0.1.18"', production)
+        self.assertIn('"cli_release_commit": "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
         self.assertIn('token=os.environ.get("GH_TOKEN")', prepare)
@@ -688,7 +702,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("SHA256SUMS", text)
                 self.assertIn("overwrite: false", text)
                 if path == LAUNCH:
-                    self.assertIn("agentplugins_0.1.17_linux_amd64", text)
+                    self.assertIn("agentplugins_0.1.18_linux_amd64", text)
                 self.assertNotIn("AGENTPLUGINS_VERSION: \"0.1.6\"", text)
 
     def test_live_workflow_is_read_only_and_does_not_publish(self) -> None:
@@ -714,7 +728,7 @@ class WorkflowContractTests(unittest.TestCase):
         body = (ROOT / ".github/workflows/upstream-package-e2e.yml").read_text()
         workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
         self.assertEqual(workflow["permissions"], {"attestations": "read", "contents": "read"})
-        self.assertIn("AGENTPLUGINS_COMMIT: f4f5113c4176173c2ff3ca7e72c9fb71af1516b8", body)
+        self.assertIn("AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7", body)
         self.assertIn("--pattern release-manifest.json", body)
         self.assertIn('manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]', body)
         self.assertEqual(body.count("gh attestation verify"), 1)

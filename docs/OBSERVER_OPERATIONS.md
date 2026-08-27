@@ -168,27 +168,27 @@ flag, tag commit, exact asset set, manifest/checksums agreement, selected asset
 SHA-256, and GitHub artifact attestation before writing the binary:
 
 ```sh
-install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.17
+install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.18
 PYTHONPATH="$SOURCE_ROOT" python3 - <<'PY'
 import hashlib
 import subprocess
 from pathlib import Path
 from scripts.run_launch_evidence_e2e import resolve_github_release
 
-root = Path("/root/approved-inputs/agentplugins-0.1.17")
+root = Path("/root/approved-inputs/agentplugins-0.1.18")
 binary, manifest, manifest_digest = resolve_github_release(
-    "777genius/plugin-kit-ai", "agentplugins-v0.1.17",
-    root / "agentplugins", asset_name="agentplugins_0.1.17_linux_amd64",
+    "777genius/plugin-kit-ai", "agentplugins-v0.1.18",
+    root / "agentplugins", asset_name="agentplugins_0.1.18_linux_amd64",
 )
-if manifest_digest != "sha256:0cff701caffb4798561a3accb51ca442d1fad512b3de0ae7ffe88e9f2d47c206":
+if manifest_digest != "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57":
     raise SystemExit("release-manifest.json differs from the deployment pin")
 checksums = "sha256:" + hashlib.sha256((root / "checksums.txt").read_bytes()).hexdigest()
-if checksums != "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d":
+if checksums != "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8":
     raise SystemExit("checksums.txt differs from the deployment pin")
 observed = subprocess.run([binary, "version"], check=True, text=True,
                           stdout=subprocess.PIPE).stdout.strip()
-if manifest["version"] != "0.1.17" or observed != "agentplugins 0.1.17":
-    raise SystemExit("selected manager binary is not exact agentplugins 0.1.17")
+if manifest["version"] != "0.1.18" or observed != "agentplugins 0.1.18":
+    raise SystemExit("selected manager binary is not exact agentplugins 0.1.18")
 PY
 ```
 
@@ -220,10 +220,10 @@ never put them in a script, image, adapter config, service environment, or
 evidence. Prefer device flow for the persistent test profile.
 
 Materialize the five reviewed heroes separately in each seed. Short names are
-not eligible protected inputs in agentplugins 0.1.17. Derive every add argument
+not eligible protected inputs in agentplugins 0.1.18. Derive every add argument
 from the approved tuple as the canonical
 `source_repository@source_revision//source_path`; reject a missing revision, a
-non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.17
+non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.18
 prepares these clients, but an add record that still contains
 `manual_activation_required` anywhere is incomplete and cannot be sealed. Its
 real successful add envelope uses `result: success`, `data.status:
@@ -233,7 +233,7 @@ target boundary).
 
 The manager detects clients through `PATH`. Never run it with an ambient client
 on `PATH`. Create one root-owned temporary bin directory per seed containing
-the pinned Git binary and only the exact pinned client under a name that 0.1.17
+the pinned Git binary and only the exact pinned client under a name that 0.1.18
 recognizes (`codex`, `cursor`, or `kiro-cli`). Cursor uses a fixed two-line
 launcher into the verified bundle because its executable cannot be separated
 from its sibling dependencies. Create `.codex` explicitly, but export `CODEX_HOME` only
@@ -241,7 +241,7 @@ for Codex. Before any source is resolved or installed, the sole detection gate
 is exactly `agentplugins doctor --format json` (no source or target operands):
 
 ```sh
-AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.17/agentplugins
+AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.18/agentplugins
 for client in codex cursor kiro; do
   seed="/root/profile-seeds/$client"
   evidence="/root/profile-seed-evidence/$client"
@@ -296,9 +296,9 @@ PY
   fi
   if [ "$client" = kiro ]; then
     test "$(sha256sum "$client_path/kiro-cli-chat" | cut -d' ' -f1)" = \
-      c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4
+      59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e
     test "$(sha256sum "$client_path/kiro-cli" | cut -d' ' -f1)" = \
-      adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336
+      14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358
   fi
   set -- env HOME="$seed" XDG_CONFIG_HOME="$seed/.config" \
     XDG_CACHE_HOME="$seed/.cache" AGENTPLUGINS_HOME="$seed/.agentplugins" PATH="$client_path"
@@ -325,7 +325,7 @@ value = json.loads(pathlib.Path(path).read_bytes(), object_pairs_hook=pairs,
 if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
         or value["schema_version"] != 1 or value.get("command") != "doctor"
         or value.get("result") != "success"):
-    raise SystemExit("doctor did not return the exact successful 0.1.17 envelope")
+    raise SystemExit("doctor did not return the exact successful 0.1.18 envelope")
 positive = []
 def visit(item):
     if isinstance(item, dict):
@@ -371,15 +371,18 @@ done
 Stop unless the pre-add doctor file is structured successful JSON, names the
 intended target as the sole detected client, and contains no other recognized
 client. Stop unless every add
-file is the exact successful structured 0.1.17 envelope, its top-level source
+file is the exact successful structured 0.1.18 envelope, its top-level source
 and revision reproduce the approved canonical argument, and the one requested
 target has status `success`, `completed`, or `external_completed`, with no
 failed target or incomplete, warning, error, cancellation, audit, event, or
 conflicting lifecycle state at any depth.
 
 The hosted probe established all five exact canonical sources install for
-Codex and materialize for Cursor. Kiro must be logged in before attempting any
-Power/MCP activation. An unauthenticated Kiro probe mutated its seed and then
+Codex and materialize for Cursor. A separate disposable Cursor 2026.08.25
+capture proved Agent Code Navigator skill use and Context7 MCP runtime against
+the current full JSONL lifecycle; it is capability evidence, not the final
+five-package Cursor row. Kiro must be logged in before attempting any Power/MCP
+activation. An unauthenticated Kiro probe mutated its seed and then
 failed four MCP activations; that is partial state, not sealable evidence. On
 any post-mutation failure, stop, retain the sanitized failure record, log in,
 remove or repair the partial registrations using the pinned client and manager,
@@ -389,25 +392,26 @@ exact pinned client using only its seed and disposable identity, then verify all
 five native registrations. If activation cannot be completed on this Linux
 host, that profile is inconclusive and must not be provisioned or represented
 as reconciled. The validated Kiro runtime grammar is ACP protocol v1 from Kiro
-CLI 2.19.1, invoked only as `kiro-cli acp --agent-engine v3 --auth-method cli`.
+CLI 2.20.0, invoked only as `kiro-cli acp --agent-engine v3 --auth-method cli`.
 The protected `kiro-cli` digest is
-`adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336` and
+`14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358` and
 the required protected `kiro-cli-chat` companion digest is
-`c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4`.
+`59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e`.
 The adapter sends `session/new` with `mcpServers: []`; Kiro must load the sealed
- native `~/.kiro/settings/mcp.json` itself. The checked-in file is a sanitized
- summary of observed structured discovery, permission, tool-result, marker, and
- terminal shapes; it is not an ordered raw ACP capture. The observed shapes
- include a connected multi-tool catalog and an unrelated `kiro_power` failure
- after the successful prompt-response boundary. This is grammar evidence from
- one disposable observation, not the
-final five-plugin-by-three-client launch matrix. Do not claim 15/15/PASS until
-the external live matrix supplies all 15 required results.
+native `~/.kiro/settings/mcp.json` itself. The checked-in file is a sanitized
+summary of the observed multi-tool catalog, permission, tool-result, marker,
+and terminal shapes; it is not an ordered raw ACP capture. Agent Code Navigator is
+a separate capability: Kiro must discover and disclose the sealed
+`code-tool-router/SKILL.md`, run the default `grep_search` tool with the exact
+hidden-marker query, and return only the marker found in tool output. Prompt
+echo and MCP discovery do not count as skill runtime. These capability probes
+are not the final five-plugin-by-three-client launch matrix. Do not claim
+15/15/PASS until the external live matrix supplies all 15 required results.
 
 After human activation, repeat post-add doctor without a source operand and
-info with 0.1.17's installed identity syntax: the installed plugin name plus
+info with 0.1.18's installed identity syntax: the installed plugin name plus
 its exact `--target`. There is no receipt-export or automatic client-activation
-operation in agentplugins 0.1.17:
+operation in agentplugins 0.1.18:
 
 ```sh
 for client in codex cursor kiro; do
@@ -519,7 +523,7 @@ for client in codex cursor kiro; do
 done
 ```
 
-Real 0.1.17 info JSON reports `data.source` as `repository//path` (without the
+Real 0.1.18 info JSON reports `data.source` as `repository//path` (without the
 revision in that display field). Its `package_revision` has exactly `version`,
 `resolved_revision`, `tree_digest`, and `manifest_digest`; it does not repeat
 distribution metadata. The sealer checks those fields and the displayed source

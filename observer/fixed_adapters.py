@@ -10,6 +10,7 @@ import math
 import os
 import re
 import selectors
+import shlex
 import shutil
 import signal
 import stat
@@ -113,21 +114,42 @@ def validate_release_tuple(value: Any, plugin: str, *, sealed: bool = True) -> d
     ):
         raise ValueError("fixed client tuple provenance is invalid")
     return value
-PROBE_TOOLS = {
-    "agent-code-navigator": "search_code",
+MCP_PROBE_TOOLS = {
     "context7": "resolve-library-id",
     "cloudflare-docs": "search_cloudflare_documentation",
     "chrome-devtools": "list_pages",
     "notion": "search",
 }
+SKILL_PROBE_TOOL = "grep_search"
+SKILL_PROBE_TITLE = "Grep Search"
+SKILL_PROBE_QUERY = "^UAP_SKILL_SECRET_"
+SKILL_NAME = "code-tool-router"
+SKILL_PROBE_PROMPT = (
+    "Read-only disposable test. Use the installed code-tool-router skill to find the only line "
+    "beginning UAP_SKILL_SECRET_ in this workspace. Return that exact line only."
+)
+MCP_PROBE_HINTS = {
+    "context7": " with libraryName React",
+    "cloudflare-docs": " with query Cloudflare Durable Objects SQLite storage API",
+    "chrome-devtools": "",
+    "notion": " with query UAP read-only probe",
+}
+CURSOR_MAX_THINKING_EVENTS = 32
 KIRO_PROTOCOL_VERSION = 1
-KIRO_CLI_SHA256 = "sha256:adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336"
-KIRO_CHAT_SHA256 = "sha256:c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4"
+KIRO_CLI_SHA256 = "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358"
+KIRO_CHAT_SHA256 = "sha256:59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e"
 KIRO_MAX_LINE = 256 << 10
 KIRO_MAX_OUTPUT = 1 << 20
 KIRO_MAX_TOOLS = 64
 KIRO_MAX_TOOL_NAME = 256
+KIRO_MAX_AUXILIARY = 256
 KIRO_TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}")
+KIRO_AUXILIARY_METHODS = {
+    "_kiro/mcp/status", "_kiro/governance/state", "_kiro/tools/didChange",
+    "_kiro/powers/items_changed", "_kiro/steering/documents_changed",
+    "_kiro/sessions/changed", "_kiro/hooks/didChange", "_kiro/diagnostics/changed",
+}
+KIRO_AUXILIARY_UPDATES = {"available_commands_update", "config_option_update", "current_mode_update"}
 
 
 def canonical_json(value: Any) -> bytes:
@@ -356,7 +378,7 @@ def validate_config(value: dict[str, Any]) -> None:
         or kiro.get("companion_binary") != "/opt/uap-observer-inputs/bin/kiro-cli-chat"
         or kiro.get("companion_sha256") != KIRO_CHAT_SHA256
     ):
-        raise ValueError("Kiro ACP executables differ from the captured 2.19.1 closure")
+        raise ValueError("Kiro ACP executables differ from the captured 2.20.0 closure")
     if any("companion_binary" in value["clients"][client] or "companion_sha256" in value["clients"][client] for client in {"codex", "cursor"}):
         raise ValueError("non-Kiro client has an unreviewed companion executable")
     if "bundle" in value["clients"]["codex"] or "bundle" in value["clients"]["kiro"]:
@@ -575,18 +597,55 @@ def verified_native_projection(
     proof_fd = verify_root_readonly_directory(path.parent, label="fixed client proof directory")
     os.close(proof_fd)
     value = load_json(path, projection["sha256"], owner_uid=0, mode=0o440)
-    if set(value) != {"schema_version", "client_id", "entries"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1:
+    if set(value) != {"schema_version", "client_id", "entries"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 2:
         raise ValueError("fixed client native projection proof is not canonical")
     entries = value.get("entries")
     if value.get("client_id") != item.get("client_id") or not isinstance(entries, list):
         raise ValueError("fixed client native projection identity differs")
     evidence_fields = {"manager_add_sha256", "manager_info_sha256", "post_add_doctor_sha256"}
-    if any(not isinstance(entry, dict) or set(entry) != {"plugin", "tuple", "native_config", "client_config", *evidence_fields} for entry in entries):
+    entry_fields = {"plugin", "component_kind", "tuple", "native_config", "client_config", *evidence_fields}
+    if any(not isinstance(entry, dict) or set(entry) != entry_fields for entry in entries):
         raise ValueError("fixed client native projection entry is invalid")
     if {entry["plugin"] for entry in entries} != HEROES:
         raise ValueError("fixed client native projection omits a hero")
+    active_groups: dict[Path, list[dict[str, Any]]] = {}
     for entry in entries:
         validate_release_tuple(entry.get("tuple"), entry["plugin"])
+        expected_kind = "skill" if entry["plugin"] == "agent-code-navigator" else "mcp"
+        if entry.get("component_kind") != expected_kind:
+            raise ValueError("fixed client native projection component kind is invalid")
+        native = entry.get("native_config")
+        client_native = entry.get("client_config")
+        if (
+            not isinstance(native, dict) or set(native) != {"path", "sha256"}
+            or not isinstance(client_native, dict) or set(client_native) != {"path", "sha256"}
+            or native.get("sha256") != client_native.get("sha256")
+            or re.fullmatch(r"sha256:[a-f0-9]{64}", str(native.get("sha256", ""))) is None
+        ):
+            raise ValueError("fixed client native projection config is invalid")
+        native_path = Path(str(native.get("path", "")))
+        expected_native_path = path.parent / "native" / f'{entry["plugin"]}.blob'
+        client_path = Path(str(client_native.get("path", "")))
+        if native_path != expected_native_path or not client_path.is_absolute() or profile not in client_path.parents:
+            raise ValueError("fixed client native projection path is invalid")
+        skill_suffix = client_path.parts[-3:] == ("skills", "code-tool-router", "SKILL.md")
+        if (expected_kind == "skill") != skill_suffix:
+            raise ValueError("fixed client native projection capability path is invalid")
+        active_groups.setdefault(client_path, []).append(entry)
+    duplicates = [group for group in active_groups.values() if len(group) > 1]
+    if item.get("client_id") == "kiro":
+        shared = profile / ".kiro" / "settings" / "mcp.json"
+        skill = profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+        if (
+            set(active_groups) != {shared, skill}
+            or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1
+            or {entry["plugin"] for entry in duplicates[0]} != HEROES - {"agent-code-navigator"}
+            or any(entry["component_kind"] != "mcp" for entry in duplicates[0])
+            or len({entry["client_config"]["sha256"] for entry in duplicates[0]}) != 1
+        ):
+            raise ValueError("fixed client native projection has conflicting active configs")
+    elif duplicates:
+        raise ValueError("fixed client native projection has conflicting active configs")
     validate_release_tuple(approved_tuple, plugin)
     matches = [
         entry for entry in entries
@@ -596,6 +655,8 @@ def verified_native_projection(
     if len(matches) != 1 or len({entry["plugin"] for entry in entries}) != len(entries):
         raise ValueError("fixed client native projection does not bind the exact approved tuple")
     match = matches[0]
+    if match["component_kind"] != ("skill" if plugin == "agent-code-navigator" else "mcp"):
+        raise ValueError("fixed client native projection capability differs")
     native = match["native_config"]
     if not isinstance(native, dict) or set(native) != {"path", "sha256"}:
         raise ValueError("fixed client native config proof is invalid")
@@ -604,6 +665,13 @@ def verified_native_projection(
         raise ValueError("fixed client native config proof escapes its protected hierarchy")
     verify_root_readonly_ancestors(path.parent, native_path.parent)
     proof_body = read_regular(native_path, native.get("sha256"), owner_uid=0, mode=0o440)
+    if match["component_kind"] == "skill":
+        if not proof_body.strip():
+            raise ValueError("fixed client native skill proof is empty")
+    else:
+        decoded = strict_json_loads(proof_body)
+        if not isinstance(decoded, dict):
+            raise ValueError("fixed client native MCP proof is not a JSON object")
     client_native = match["client_config"]
     if not isinstance(client_native, dict) or set(client_native) != {"path", "sha256"} or client_native.get("sha256") != native.get("sha256"):
         raise ValueError("fixed client active native config contract differs")
@@ -1032,11 +1100,102 @@ def successful_codex_turn_completion(value: Any) -> bool:
     if not isinstance(value, dict) or set(value) != {"type", "usage"} or value.get("type") != "turn.completed":
         return False
     usage = value.get("usage")
+    known_shapes = (
+        {"input_tokens", "cached_input_tokens", "output_tokens"},
+        {"input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens"},
+    )
     return bool(
-        isinstance(usage, dict)
-        and set(usage) == {"input_tokens", "cached_input_tokens", "output_tokens"}
+        isinstance(usage, dict) and set(usage) in known_shapes
         and all(type(usage.get(field)) is int and usage[field] >= 0 for field in usage)
         and usage["cached_input_tokens"] <= usage["input_tokens"]
+    )
+
+
+def _codex_command_event(
+    value: Any, *, event_type: str, item_id: str | None, command: str,
+    output: str, exit_code: int | None, status: str,
+) -> str | None:
+    if not isinstance(value, dict) or set(value) != {"type", "item"} or value.get("type") != event_type:
+        return None
+    item = value.get("item")
+    if not isinstance(item, dict) or set(item) != {"id", "type", "command", "aggregated_output", "exit_code", "status"}:
+        return None
+    identifier = item.get("id")
+    if (
+        not isinstance(identifier, str) or not identifier
+        or item_id is not None and identifier != item_id
+        or item.get("type") != "command_execution" or item.get("command") != command
+        or item.get("aggregated_output") != output or item.get("exit_code") != exit_code
+        or item.get("status") != status
+    ):
+        return None
+    return identifier
+
+
+def _successful_codex_skill_marker_event(value: Any, expected_marker: str) -> bool:
+    if not isinstance(value, dict) or set(value) != {"type", "item"} or value.get("type") != "item.completed":
+        return False
+    item = value.get("item")
+    return bool(
+        isinstance(item, dict) and set(item) == {"id", "type", "text"}
+        and isinstance(item.get("id"), str) and item["id"]
+        and item.get("type") == "agent_message" and item.get("text") == expected_marker
+    )
+
+
+def successful_codex_skill_evidence(
+    events: Any, expected_marker: str, skill_path: Path, skill_body: bytes,
+) -> bool:
+    """Recognize the reviewed Codex 0.147 installed-skill and exact-search stream."""
+    if not isinstance(events, list) or len(events) not in {8, 9} or any(not isinstance(event, dict) for event in events):
+        return False
+    if any(explicit_failure_marker(event) for event in events):
+        return False
+    if set(events[0]) != {"type", "thread_id"} or events[0].get("type") != "thread.started" or not isinstance(events[0].get("thread_id"), str) or not events[0]["thread_id"]:
+        return False
+    if events[1] != {"type": "turn.started"}:
+        return False
+    cursor = 2
+    if len(events) == 9:
+        preface = events[cursor]
+        item = preface.get("item") if isinstance(preface, dict) else None
+        if (
+            set(preface) != {"type", "item"} or preface.get("type") != "item.completed"
+            or not isinstance(item, dict) or set(item) != {"id", "type", "text"}
+            or item.get("type") != "agent_message" or not isinstance(item.get("text"), str)
+            or SKILL_NAME not in item["text"] or expected_marker in item["text"]
+        ):
+            return False
+        cursor += 1
+    try:
+        decoded_skill = skill_body.decode("utf-8", "strict")
+    except UnicodeDecodeError:
+        return False
+    read_command = f'/bin/bash -lc "sed -n \'1,240p\' {shlex.quote(str(skill_path))}"'
+    search_command = f'/bin/bash -lc "rg -n \'{SKILL_PROBE_QUERY}\' ."'
+    read_id = _codex_command_event(
+        events[cursor], event_type="item.started", item_id=None, command=read_command,
+        output="", exit_code=None, status="in_progress",
+    )
+    if read_id is None or _codex_command_event(
+        events[cursor + 1], event_type="item.completed", item_id=read_id,
+        command=read_command, output=decoded_skill, exit_code=0, status="completed",
+    ) is None:
+        return False
+    search_id = _codex_command_event(
+        events[cursor + 2], event_type="item.started", item_id=None, command=search_command,
+        output="", exit_code=None, status="in_progress",
+    )
+    if search_id is None or search_id == read_id or _codex_command_event(
+        events[cursor + 3], event_type="item.completed", item_id=search_id,
+        command=search_command, output=f"./uap-skill-probe.txt:1:{expected_marker}\n",
+        exit_code=0, status="completed",
+    ) is None:
+        return False
+    return bool(
+        _successful_codex_skill_marker_event(events[cursor + 4], expected_marker)
+        and successful_codex_turn_completion(events[cursor + 5])
+        and cursor + 5 == len(events) - 1
     )
 
 
@@ -1047,6 +1206,226 @@ def _cursor_related_terminal(value: Any, tool: str, plugin: str) -> bool:
     candidate = envelope.get("mcpToolCall") if isinstance(envelope, dict) else None
     arguments = candidate.get("args") if isinstance(candidate, dict) else None
     return isinstance(arguments, dict) and arguments.get("serverName", arguments.get("server")) == plugin and arguments.get("toolName", arguments.get("tool")) == tool
+
+
+def mcp_probe_prompt(plugin: str, tool: str, marker: str) -> str:
+    return (
+        f"Read-only disposable test. Invoke the installed {plugin} MCP tool named {tool} exactly once"
+        f"{MCP_PROBE_HINTS[plugin]}. After the tool succeeds, return the exact marker only: {marker}"
+    )
+
+
+def _same_path(value: Any, expected: Path) -> bool:
+    return isinstance(value, str) and Path(value).resolve(strict=False) == expected.resolve(strict=False)
+
+
+def _cursor_thinking_block(events: list[Any], index: int, session: str, marker: str) -> int:
+    deltas = 0
+    while index < len(events):
+        event = events[index]
+        if not isinstance(event, dict) or event.get("type") != "thinking" or event.get("subtype") != "delta":
+            break
+        if (
+            set(event) != {"type", "subtype", "session_id", "text", "timestamp_ms"}
+            or event.get("session_id") != session or not isinstance(event.get("text"), str)
+            or not event["text"] or marker in event["text"]
+            or type(event.get("timestamp_ms")) is not int or event["timestamp_ms"] < 1
+        ):
+            raise ValueError("Cursor thinking delta differs from the reviewed stream")
+        deltas += 1
+        if deltas > CURSOR_MAX_THINKING_EVENTS:
+            raise ValueError("Cursor thinking delta bound exceeded")
+        index += 1
+    if deltas < 1 or index >= len(events):
+        raise ValueError("Cursor thinking block is absent")
+    completed = events[index]
+    if (
+        not isinstance(completed, dict)
+        or set(completed) != {"type", "subtype", "session_id", "timestamp_ms"}
+        or completed.get("type") != "thinking" or completed.get("subtype") != "completed"
+        or completed.get("session_id") != session
+        or type(completed.get("timestamp_ms")) is not int or completed["timestamp_ms"] < 1
+    ):
+        raise ValueError("Cursor thinking completion differs from the reviewed stream")
+    return index + 1
+
+
+def _cursor_preface(events: list[Any], index: int, session: str, marker: str) -> int:
+    if index >= len(events) or not isinstance(events[index], dict) or events[index].get("type") != "assistant":
+        return index
+    event = events[index]
+    if set(event) != {"type", "session_id", "model_call_id", "timestamp_ms", "message"}:
+        raise ValueError("Cursor assistant preface envelope differs")
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if (
+        event.get("session_id") != session or not isinstance(event.get("model_call_id"), str) or not event["model_call_id"]
+        or type(event.get("timestamp_ms")) is not int or event["timestamp_ms"] < 1
+        or not isinstance(message, dict) or set(message) != {"role", "content"} or message.get("role") != "assistant"
+        or not isinstance(content, list) or len(content) != 1 or not isinstance(content[0], dict)
+        or set(content[0]) != {"type", "text"} or content[0].get("type") != "text"
+        or not isinstance(content[0].get("text"), str) or not content[0]["text"] or marker in content[0]["text"]
+    ):
+        raise ValueError("Cursor assistant preface differs")
+    return index + 1
+
+
+def _cursor_tool_pair(events: list[Any], index: int, session: str, kind: str) -> tuple[dict[str, Any], dict[str, Any], str, int]:
+    if index + 1 >= len(events):
+        raise ValueError("Cursor tool pair is incomplete")
+    start, end = events[index], events[index + 1]
+    outer_start = {"type", "subtype", "session_id", "model_call_id", "call_id", "timestamp_ms", "tool_call"}
+    if not isinstance(start, dict) or not isinstance(end, dict) or set(start) != outer_start or set(end) != outer_start:
+        raise ValueError("Cursor tool event envelope differs")
+    identity = (start.get("session_id"), start.get("model_call_id"), start.get("call_id"))
+    if (
+        start.get("type") != "tool_call" or start.get("subtype") != "started"
+        or end.get("type") != "tool_call" or end.get("subtype") != "completed"
+        or identity != (end.get("session_id"), end.get("model_call_id"), end.get("call_id"))
+        or identity[0] != session or any(not isinstance(value, str) or not value for value in identity[1:])
+        or any(type(event.get("timestamp_ms")) is not int or event["timestamp_ms"] < 1 for event in (start, end))
+    ):
+        raise ValueError("Cursor tool event identity differs")
+    key = kind + "ToolCall"
+    start_envelope, end_envelope = start.get("tool_call"), end.get("tool_call")
+    if (
+        not isinstance(start_envelope, dict) or set(start_envelope) != {"hookAdditionalContexts", "startedAtMs", "toolCallId", key}
+        or not isinstance(end_envelope, dict) or set(end_envelope) != {"hookAdditionalContexts", "startedAtMs", "completedAtMs", "toolCallId", key}
+        or start_envelope["hookAdditionalContexts"] != [] or end_envelope["hookAdditionalContexts"] != []
+        or start_envelope["toolCallId"] != end_envelope["toolCallId"]
+        or not isinstance(start_envelope["toolCallId"], str) or not start_envelope["toolCallId"]
+        or start_envelope["startedAtMs"] != end_envelope["startedAtMs"]
+        or any(not isinstance(envelope.get(field), str) or not envelope[field].isdigit() for envelope, field in ((start_envelope, "startedAtMs"), (end_envelope, "completedAtMs")))
+    ):
+        raise ValueError("Cursor tool payload framing differs")
+    return start_envelope[key], end_envelope[key], start_envelope["toolCallId"], index + 2
+
+
+def _cursor_stream_start(events: Any, prompt: str, workspace: Path) -> tuple[list[Any], str, int]:
+    if not isinstance(events, list) or len(events) < 8 or len(events) > 96 or any(not isinstance(event, dict) for event in events):
+        raise ValueError("Cursor stream size differs")
+    if any(explicit_failure_marker(event) for event in events):
+        raise ValueError("Cursor stream contains an explicit failure")
+    system, user = events[0], events[1]
+    if (
+        set(system) != {"type", "subtype", "session_id", "apiKeySource", "cwd", "model", "permissionMode"}
+        or system.get("type") != "system" or system.get("subtype") != "init"
+        or not isinstance(system.get("session_id"), str) or not system["session_id"]
+        or system.get("apiKeySource") != "login" or not _same_path(system.get("cwd"), workspace)
+        or not isinstance(system.get("model"), str) or not system["model"] or system.get("permissionMode") != "default"
+    ):
+        raise ValueError("Cursor initialization differs")
+    expected_user = {"role": "user", "content": [{"type": "text", "text": prompt}]}
+    if set(user) != {"type", "session_id", "message"} or user.get("type") != "user" or user.get("session_id") != system["session_id"] or user.get("message") != expected_user:
+        raise ValueError("Cursor user prompt differs")
+    return events, system["session_id"], 2
+
+
+def _cursor_stream_finish(events: list[Any], index: int, session: str, marker: str) -> bool:
+    index = _cursor_thinking_block(events, index, session, marker)
+    if index + 2 != len(events):
+        return False
+    assistant, result = events[index], events[index + 1]
+    if set(assistant) != {"type", "session_id", "message"} or assistant.get("session_id") != session:
+        return False
+    message = assistant.get("message")
+    if message != {"role": "assistant", "content": [{"type": "text", "text": marker}]}:
+        return False
+    usage = result.get("usage") if isinstance(result, dict) else None
+    return bool(
+        set(result) == {"type", "subtype", "session_id", "request_id", "duration_ms", "duration_api_ms", "is_error", "result", "usage"}
+        and result.get("type") == "result" and result.get("subtype") == "success" and result.get("session_id") == session
+        and isinstance(result.get("request_id"), str) and result["request_id"]
+        and type(result.get("duration_ms")) is int and result["duration_ms"] >= 0
+        and type(result.get("duration_api_ms")) is int and result["duration_api_ms"] >= 0
+        and result.get("is_error") is False and isinstance(result.get("result"), str)
+        and result["result"].endswith(marker) and result["result"].count(marker) == 1
+        and isinstance(usage, dict) and set(usage) == {"cacheReadTokens", "cacheWriteTokens", "inputTokens", "outputTokens"}
+        and all(type(value) is int and value >= 0 for value in usage.values())
+    )
+
+
+def successful_cursor_skill_evidence(events: Any, marker: str, skill_path: Path, skill_body: bytes, workspace: Path) -> bool:
+    try:
+        events, session, index = _cursor_stream_start(events, SKILL_PROBE_PROMPT, workspace)
+        index = _cursor_thinking_block(events, index, session, marker)
+        index = _cursor_preface(events, index, session, marker)
+        read_start, read_end, _, index = _cursor_tool_pair(events, index, session, "read")
+        if not isinstance(read_start, dict) or set(read_start) != {"args"} or not isinstance(read_end, dict) or set(read_end) != {"args", "result"} or read_start["args"] != read_end["args"]:
+            return False
+        if not isinstance(read_start["args"], dict) or set(read_start["args"]) != {"path"} or not _same_path(read_start["args"]["path"], skill_path):
+            return False
+        decoded = skill_body.decode("utf-8", "strict")
+        success = read_end["result"].get("success") if isinstance(read_end["result"], dict) and set(read_end["result"]) == {"success"} else None
+        # Cursor's read tool reports the terminal empty position after a final
+        # newline as one additional line.
+        expected_lines = decoded.count("\n") + 1
+        if (
+            not isinstance(success, dict) or set(success) != {"content", "exceededLimit", "fileSize", "isEmpty", "path", "readRange", "relatedCursorRulePaths", "relatedCursorRules", "totalLines"}
+            or success.get("content") != decoded or success.get("exceededLimit") is not False or success.get("isEmpty") is not False
+            or success.get("fileSize") != len(skill_body) or not _same_path(success.get("path"), skill_path)
+            or success.get("readRange") != {"startLine": 1, "endLine": expected_lines}
+            or success.get("totalLines") != expected_lines or success.get("relatedCursorRulePaths") != [] or success.get("relatedCursorRules") != []
+        ):
+            return False
+        index = _cursor_thinking_block(events, index, session, marker)
+        index = _cursor_preface(events, index, session, marker)
+        grep_start, grep_end, grep_id, index = _cursor_tool_pair(events, index, session, "grep")
+        if not isinstance(grep_start, dict) or set(grep_start) != {"args"} or not isinstance(grep_end, dict) or set(grep_end) != {"args", "result"} or grep_start["args"] != grep_end["args"]:
+            return False
+        args = grep_start["args"]
+        if not isinstance(args, dict) or set(args) != {"caseInsensitive", "multiline", "offset", "path", "pattern", "toolCallId"} or args.get("toolCallId") != grep_id or args.get("caseInsensitive") is not False or args.get("multiline") is not False or args.get("offset") != 0 or args.get("pattern") != SKILL_PROBE_QUERY or not _same_path(args.get("path"), workspace):
+            return False
+        success = grep_end["result"].get("success") if isinstance(grep_end["result"], dict) and set(grep_end["result"]) == {"success"} else None
+        roots = success.get("workspaceResults") if isinstance(success, dict) else None
+        if not isinstance(roots, dict) or len(roots) != 1:
+            return False
+        root_name, root_result = next(iter(roots.items()))
+        expected_content = {"clientTruncated": False, "matches": [{"file": "./uap-skill-probe.txt", "matches": [{"content": marker, "contentTruncated": False, "isContextLine": False, "lineNumber": 1}]}], "ripgrepTruncated": False, "totalLines": 1, "totalMatchedLines": 1}
+        if set(success) != {"outputMode", "path", "pattern", "workspaceResults"} or success.get("outputMode") != "content" or success.get("pattern") != SKILL_PROBE_QUERY or not _same_path(success.get("path"), workspace) or not _same_path(root_name, workspace) or root_result != {"content": expected_content}:
+            return False
+        return _cursor_stream_finish(events, index, session, marker)
+    except (UnicodeDecodeError, ValueError, OSError):
+        return False
+
+
+def successful_cursor_mcp_evidence(events: Any, tool: str, plugin: str, marker: str, workspace: Path) -> bool:
+    prompt = mcp_probe_prompt(plugin, tool, marker)
+    try:
+        events, session, index = _cursor_stream_start(events, prompt, workspace)
+        index = _cursor_thinking_block(events, index, session, marker)
+        index = _cursor_preface(events, index, session, marker)
+        discovery_start, discovery_end, discovery_id, index = _cursor_tool_pair(events, index, session, "getMcpTools")
+        if not isinstance(discovery_start, dict) or set(discovery_start) != {"args"} or not isinstance(discovery_end, dict) or set(discovery_end) != {"args", "result"} or discovery_start["args"] != discovery_end["args"]:
+            return False
+        discovery_args = discovery_start["args"]
+        if not isinstance(discovery_args, dict) or set(discovery_args) != {"server", "toolCallId", "toolName"} or discovery_args.get("toolCallId") != discovery_id or discovery_args.get("server") != plugin or discovery_args.get("toolName") != tool:
+            return False
+        success = discovery_end["result"].get("success") if isinstance(discovery_end["result"], dict) and set(discovery_end["result"]) == {"success"} else None
+        content = success.get("content") if isinstance(success, dict) and set(success) == {"content"} else None
+        description = strict_json_loads(content) if isinstance(content, str) else None
+        described_tool = description.get("tool") if isinstance(description, dict) else None
+        if not isinstance(description, dict) or description.get("mode") != "single_tool" or description.get("namespace") != plugin or description.get("namespaceStatus") != "ready" or not isinstance(described_tool, dict) or described_tool.get("tool") != tool:
+            return False
+        index = _cursor_thinking_block(events, index, session, marker)
+        target_start, target_end, target_id, index = _cursor_tool_pair(events, index, session, "mcp")
+        if not isinstance(target_start, dict) or not isinstance(target_end, dict) or set(target_start) != {"args", "description"} or set(target_end) != {"args", "description", "result"} or target_start["args"] != target_end["args"] or target_start["description"] != target_end["description"]:
+            return False
+        args = target_start["args"]
+        if (
+            not isinstance(args, dict) or set(args) != {"args", "name", "providerIdentifier", "serverIdentifier", "skipApproval", "smartModeApprovalOnly", "toolCallId", "toolName"}
+            or args.get("toolCallId") != target_id or args.get("providerIdentifier") != plugin or args.get("serverIdentifier") != plugin or args.get("toolName") != tool
+            or args.get("name") != f"{plugin}-{tool}" or args.get("skipApproval") is not False or args.get("smartModeApprovalOnly") is not False
+            or not isinstance(args.get("args"), dict) or not isinstance(target_start.get("description"), str) or not target_start["description"] or marker in target_start["description"]
+        ):
+            return False
+        result = target_end["result"]
+        success = result.get("success") if isinstance(result, dict) and set(result) == {"success"} else None
+        if not reviewed_success_payload(success):
+            return False
+        return _cursor_stream_finish(events, index, session, marker)
+    except (ValueError, OSError, json.JSONDecodeError):
+        return False
 
 
 def successful_client_evidence(client: str, value: Any, tool: str, plugin: str, expected_marker: str) -> bool:
@@ -1069,24 +1448,17 @@ def successful_client_evidence(client: str, value: Any, tool: str, plugin: str, 
             and markers[0] == successes[0] + 1
         )
     if client == "cursor":
-        # Each JSONL line is one outer event.  Arrays (including nested arrays)
-        # are never event envelopes and must not be collapsed into an accepted
-        # tool or marker record.
-        if len(events) != 2 or any(not isinstance(event, dict) for event in events):
-            return False
-        successes = [index for index, event in enumerate(events) if successful_cursor_tool_event(event, tool, plugin)]
-        markers = [index for index, event in enumerate(events) if successful_cursor_marker_event(event, expected_marker)]
-        # The pinned stream contract contains exactly one completed MCP call
-        # followed by exactly one assistant marker.  No progress, result,
-        # summary, ambiguity-count, or other unreviewed event is permitted.
-        return successes == [0] and markers == [1]
+        # Current Cursor evidence is accepted only by the complete pinned
+        # 2026.08.25 stream recognizers above, which also bind the prompt,
+        # session, discovery/read phase, target tool, marker, and final result.
+        return False
     # Kiro has no reviewed structured output contract. Text, including an exact
     # challenge marker, cannot independently establish a tool call.
     return False
 
 
 class KiroACPContract:
-    """Fail-closed recognizer for the captured Kiro CLI 2.19.1 ACP v1 flow."""
+    """Fail-closed recognizer for the captured Kiro CLI 2.20.0 ACP v1 flow."""
 
     def __init__(self, plugin: str, tool: str, marker: str) -> None:
         self.plugin, self.tool, self.marker = plugin, tool, marker
@@ -1099,6 +1471,7 @@ class KiroACPContract:
         self.discovery_tools: tuple[str, ...] | None = None
         self.marker_parts: list[str] = []
         self.turn_completion = self.turn_end = self.prompt_done = False
+        self.auxiliary_count = 0
 
     @staticmethod
     def _outer(record: Any, fields: set[str]) -> bool:
@@ -1114,6 +1487,58 @@ class KiroACPContract:
         if not isinstance(update, dict) or not isinstance(update.get("sessionUpdate"), str):
             raise ValueError("Kiro ACP update is malformed")
         return update
+
+    def _count_auxiliary(self) -> None:
+        self.auxiliary_count += 1
+        if self.auxiliary_count > KIRO_MAX_AUXILIARY:
+            raise ValueError("Kiro ACP auxiliary notification bound exceeded")
+
+    def _external_mcp_status(self, record: dict[str, Any]) -> bool:
+        if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") != "_kiro/mcp/status":
+            return False
+        params = record.get("params")
+        if not isinstance(params, dict) or not isinstance(params.get("servers"), list):
+            raise ValueError("Kiro ACP MCP status notification is malformed")
+        if "sessionId" in params and self.session_id is not None and params["sessionId"] != self.session_id:
+            raise ValueError("Kiro ACP MCP status belongs to another session")
+        matches = [server for server in params["servers"] if isinstance(server, dict) and server.get("name") == self.plugin]
+        if not matches:
+            self._count_auxiliary()
+            return True
+        if len(matches) != 1 or self.tool_call_id is not None:
+            raise ValueError("Kiro ACP MCP status target is ambiguous or late")
+        server = matches[0]
+        status, tools = server.get("status"), server.get("tools", [])
+        if status not in {"connecting", "connected"} or not isinstance(tools, list) or len(tools) > KIRO_MAX_TOOLS:
+            raise ValueError("Kiro ACP MCP status target differs")
+        identities = []
+        for item in tools:
+            name = item.get("name") if isinstance(item, dict) else None
+            if not isinstance(name, str) or KIRO_TOOL_NAME.fullmatch(name) is None:
+                raise ValueError("Kiro ACP MCP status catalog is malformed")
+            identities.append(name)
+        if len(set(identities)) != len(identities) or status == "connected" and identities.count(self.tool) != 1:
+            raise ValueError("Kiro ACP MCP status catalog is ambiguous or missing the target")
+        catalog = tuple(identities)
+        if status == "connected":
+            self.discovery_tools = catalog
+        elif self.discovery_tools is not None:
+            raise ValueError("Kiro ACP MCP status regressed after connection")
+        self.discovery.append(status)
+        if self.discovery not in (["connecting"], ["connecting", "connected"]):
+            raise ValueError("Kiro ACP MCP status is conflicting or duplicated")
+        return True
+
+    def _accept_auxiliary(self, record: dict[str, Any]) -> bool:
+        if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") not in KIRO_AUXILIARY_METHODS:
+            return False
+        params = record.get("params")
+        if not isinstance(params, dict) or not params:
+            raise ValueError("Kiro ACP auxiliary notification is malformed")
+        if "sessionId" in params and self.session_id is not None and params["sessionId"] != self.session_id:
+            raise ValueError("Kiro ACP auxiliary notification belongs to another session")
+        self._count_auxiliary()
+        return True
 
     def accept(self, record: Any) -> dict[str, Any] | None:
         if not isinstance(record, dict) or explicit_failure_marker(record):
@@ -1183,6 +1608,11 @@ class KiroACPContract:
                 self.tool_call_id = call_id
                 self.phase = "pending"
                 return None
+            if kind in KIRO_AUXILIARY_UPDATES:
+                if self.tool_call_id is not None:
+                    raise ValueError("Kiro ACP auxiliary update arrived after target execution")
+                self._count_auxiliary()
+                return None
             if kind == "tool_call_update":
                 if update.get("toolCallId") != self.tool_call_id or self.phase not in {"permitted", "in_progress"}:
                     raise ValueError("Kiro ACP tool update is reordered or foreign")
@@ -1216,6 +1646,11 @@ class KiroACPContract:
                 self.phase = "marker"
                 return None
             if kind == "session_info_update":
+                meta = update.get("_meta")
+                kiro = meta.get("kiro") if isinstance(meta, dict) else None
+                if isinstance(kiro, dict) and kiro.get("kind") == "context_usage" and self.tool_call_id is None:
+                    self._count_auxiliary()
+                    return None
                 if self.phase not in {"marker", "turn_completion"} or "".join(self.marker_parts) != self.marker:
                     raise ValueError("Kiro ACP terminal update is reordered")
                 meta = update.get("_meta")
@@ -1228,6 +1663,8 @@ class KiroACPContract:
                 raise ValueError("Kiro ACP terminal status differs or is duplicated")
             raise ValueError("Kiro ACP emitted an unknown control update")
 
+        if self._external_mcp_status(record) or self._accept_auxiliary(record):
+            return None
         if self._outer(record, {"jsonrpc", "id", "method", "params"}) and record.get("method") == "session/request_permission":
             if self.phase != "pending" or self.permission_id is not None:
                 raise ValueError("Kiro ACP permission request is extra or reordered")
@@ -1262,11 +1699,292 @@ class KiroACPContract:
         return self.phase == "done" and self.prompt_done and self.turn_end and self.discovery == ["connecting", "connected"] and "".join(self.marker_parts) == self.marker
 
 
+def _nested_strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [text for child in value for text in _nested_strings(child)]
+    if isinstance(value, dict):
+        return [text for child in value.values() for text in _nested_strings(child)]
+    return []
+
+
+def _contains_exact_line(value: Any, expected: str) -> bool:
+    return any(
+        line == expected or line.endswith(":" + expected)
+        for text in _nested_strings(value)
+        for line in text.splitlines()
+    )
+
+
+class KiroACPSkillContract:
+    """Recognize one installed-skill disclosure and challenge-bound built-in search."""
+
+    AUXILIARY_METHODS = KIRO_AUXILIARY_METHODS
+    AUXILIARY_UPDATES = {"config_option_update", "current_mode_update"}
+
+    def __init__(self, marker: str, skill_path: Path) -> None:
+        self.marker = marker
+        self.skill_path = skill_path
+        self.session_id: str | None = None
+        self.phase = "initialize"
+        self.skill_catalog_seen = False
+        self.disclose_call_id: str | None = None
+        self.permission_id: Any = None
+        self.allow_once_id: str | None = None
+        self.search_call_id: str | None = None
+        self.search_output_seen = False
+        self.marker_parts: list[str] = []
+        self.turn_completion = self.turn_end = self.prompt_done = False
+        self.auxiliary_count = 0
+
+    @staticmethod
+    def _outer(record: Any, fields: set[str]) -> bool:
+        return isinstance(record, dict) and set(record) == fields and record.get("jsonrpc") == "2.0"
+
+    def _session_update(self, record: dict[str, Any]) -> dict[str, Any] | None:
+        if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") != "session/update":
+            return None
+        params = record.get("params")
+        if not isinstance(params, dict) or set(params) != {"sessionId", "update"} or params.get("sessionId") != self.session_id:
+            raise ValueError("Kiro ACP skill session update envelope differs")
+        update = params.get("update")
+        if not isinstance(update, dict) or not isinstance(update.get("sessionUpdate"), str):
+            raise ValueError("Kiro ACP skill update is malformed")
+        return update
+
+    def _accept_auxiliary(self, record: dict[str, Any]) -> bool:
+        if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") not in self.AUXILIARY_METHODS:
+            return False
+        params = record.get("params")
+        if not isinstance(params, dict) or not params:
+            raise ValueError("Kiro ACP auxiliary notification is malformed")
+        if "sessionId" in params and self.session_id is not None and params["sessionId"] != self.session_id:
+            raise ValueError("Kiro ACP auxiliary notification belongs to another session")
+        self.auxiliary_count += 1
+        if self.auxiliary_count > KIRO_MAX_AUXILIARY:
+            raise ValueError("Kiro ACP auxiliary notification bound exceeded")
+        return True
+
+    def _catalog_match(self, update: dict[str, Any]) -> bool:
+        commands = update.get("availableCommands")
+        if not isinstance(commands, list) or not commands:
+            return False
+        matches = []
+        for command in commands:
+            if not isinstance(command, dict) or command.get("name") != SKILL_NAME:
+                continue
+            strings = _nested_strings(command)
+            matches.append(
+                str(self.skill_path) in strings
+                and any(value is True for value in self._nested_values(command, "matched"))
+            )
+        return matches == [True]
+
+    @staticmethod
+    def _nested_values(value: Any, key: str) -> list[Any]:
+        values: list[Any] = []
+        if isinstance(value, list):
+            for child in value:
+                values.extend(KiroACPSkillContract._nested_values(child, key))
+        elif isinstance(value, dict):
+            for name, child in value.items():
+                if name == key:
+                    values.append(child)
+                values.extend(KiroACPSkillContract._nested_values(child, key))
+        return values
+
+    @staticmethod
+    def _meta(update: dict[str, Any]) -> dict[str, Any]:
+        meta = update.get("_meta")
+        kiro = meta.get("kiro") if isinstance(meta, dict) else None
+        if not isinstance(kiro, dict):
+            raise ValueError("Kiro ACP skill tool metadata is absent")
+        return kiro
+
+    def _accept_disclose_call(self, update: dict[str, Any]) -> None:
+        if self.phase != "running" or not self.skill_catalog_seen or self.disclose_call_id is not None:
+            raise ValueError("Kiro ACP skill disclosure is reordered")
+        call_id = update.get("toolCallId")
+        raw_input = update.get("rawInput")
+        meta = self._meta(update)
+        disclosed = meta.get("disclosedContext")
+        if (
+            update.get("status") != "pending"
+            or not isinstance(call_id, str) or not call_id
+            or raw_input != {"name": SKILL_NAME}
+            or meta.get("toolOrigin") != "acp"
+            or not isinstance(disclosed, dict)
+            or disclosed.get("type") != "skill"
+            or disclosed.get("displayName") != SKILL_NAME
+            or disclosed.get("uri") != self.skill_path.as_uri()
+        ):
+            raise ValueError("Kiro ACP skill disclosure identity differs")
+        self.disclose_call_id, self.phase = call_id, "disclose_pending"
+
+    def _accept_search_call(self, update: dict[str, Any]) -> None:
+        if self.phase != "disclosed" or self.search_call_id is not None:
+            raise ValueError("Kiro ACP built-in search is reordered")
+        call_id = update.get("toolCallId")
+        raw_input = update.get("rawInput")
+        meta = self._meta(update)
+        if (
+            update.get("status") != "pending" or update.get("title") != SKILL_PROBE_TITLE
+            or not isinstance(call_id, str) or not call_id
+            or not isinstance(raw_input, dict) or set(raw_input) - {"query", "explanation"}
+            or raw_input.get("query") != SKILL_PROBE_QUERY
+            or "explanation" in raw_input and (not isinstance(raw_input["explanation"], str) or not raw_input["explanation"])
+            or meta.get("toolOrigin") != "default"
+        ):
+            raise ValueError("Kiro ACP built-in search identity differs")
+        self.search_call_id, self.phase = call_id, "search_pending"
+
+    def _accept_tool_update(self, update: dict[str, Any]) -> None:
+        call_id, status = update.get("toolCallId"), update.get("status")
+        if call_id == self.disclose_call_id:
+            if status == "in_progress" and self.phase == "disclose_permitted":
+                self.phase = "disclose_running"
+                return
+            if status == "completed" and self.phase in {"disclose_permitted", "disclose_running"}:
+                if str(self.skill_path) not in _nested_strings(update) or SKILL_NAME not in _nested_strings(update):
+                    raise ValueError("Kiro ACP skill disclosure result differs")
+                self.phase = "disclosed"
+                return
+            raise ValueError("Kiro ACP skill disclosure update is reordered")
+        if call_id == self.search_call_id:
+            if status == "in_progress" and self.phase == "search_pending":
+                self.phase = "search_running"
+                return
+            if status == "completed" and self.phase == "search_running":
+                if not _contains_exact_line(update, self.marker):
+                    raise ValueError("Kiro ACP built-in search did not return the hidden marker")
+                self.search_output_seen, self.phase = True, "search_completed"
+                return
+            raise ValueError("Kiro ACP built-in search update is reordered")
+        raise ValueError("Kiro ACP skill flow contains a foreign tool update")
+
+    def accept(self, record: Any) -> dict[str, Any] | None:
+        if not isinstance(record, dict) or explicit_failure_marker(record):
+            raise ValueError("Kiro ACP skill flow emitted an explicit failure or malformed record")
+        if self.phase == "initialize":
+            if not self._outer(record, {"jsonrpc", "id", "result"}) or record.get("id") != 0:
+                raise ValueError("Kiro ACP skill initialize response differs")
+            result = record.get("result")
+            capabilities = result.get("agentCapabilities") if isinstance(result, dict) else None
+            if type(result.get("protocolVersion")) is not int or result.get("protocolVersion") != KIRO_PROTOCOL_VERSION or not isinstance(capabilities, dict):
+                raise ValueError("Kiro ACP skill protocol negotiation differs")
+            self.phase = "new"
+            return None
+        if self.phase == "new" and self._outer(record, {"jsonrpc", "id", "result"}) and record.get("id") == 1:
+            result = record.get("result")
+            if not isinstance(result, dict) or set(result) != {"sessionId"} or not isinstance(result.get("sessionId"), str) or not result["sessionId"]:
+                raise ValueError("Kiro ACP skill session/new response differs")
+            self.session_id, self.phase = result["sessionId"], "running"
+            return None
+        update = self._session_update(record)
+        if update is not None:
+            kind = update["sessionUpdate"]
+            if kind == "available_commands_update":
+                if self.skill_catalog_seen or self.disclose_call_id is not None or not self._catalog_match(update):
+                    raise ValueError("Kiro ACP installed skill catalog differs")
+                self.skill_catalog_seen = True
+                return None
+            if kind in self.AUXILIARY_UPDATES:
+                if self.disclose_call_id is not None:
+                    raise ValueError("Kiro ACP auxiliary update arrived after skill execution")
+                self.auxiliary_count += 1
+                if self.auxiliary_count > KIRO_MAX_AUXILIARY:
+                    raise ValueError("Kiro ACP auxiliary update bound exceeded")
+                return None
+            if kind == "tool_call":
+                title = update.get("title")
+                if title == SKILL_PROBE_TITLE:
+                    self._accept_search_call(update)
+                else:
+                    self._accept_disclose_call(update)
+                return None
+            if kind == "tool_call_update":
+                self._accept_tool_update(update)
+                return None
+            if kind == "agent_message_chunk":
+                if self.phase not in {"search_completed", "marker"} or set(update) != {"sessionUpdate", "content"}:
+                    raise ValueError("Kiro ACP skill marker is reordered")
+                content = update.get("content")
+                if not isinstance(content, dict) or set(content) != {"type", "text"} or content.get("type") != "text" or not isinstance(content.get("text"), str) or not content["text"]:
+                    raise ValueError("Kiro ACP skill marker chunk differs")
+                self.marker_parts.append(content["text"])
+                joined = "".join(self.marker_parts)
+                if not any(candidate.startswith(joined) for candidate in (self.marker, f"`{self.marker}`")):
+                    raise ValueError("Kiro ACP skill marker differs")
+                self.phase = "marker"
+                return None
+            if kind == "session_info_update":
+                meta = update.get("_meta")
+                kiro = meta.get("kiro") if isinstance(meta, dict) else None
+                if isinstance(kiro, dict) and kiro.get("kind") == "context_usage":
+                    self.auxiliary_count += 1
+                    if self.auxiliary_count > KIRO_MAX_AUXILIARY:
+                        raise ValueError("Kiro ACP auxiliary update bound exceeded")
+                    return None
+                if self.phase not in {"marker", "turn_completion"} or "".join(self.marker_parts) not in {self.marker, f"`{self.marker}`"}:
+                    raise ValueError("Kiro ACP skill terminal update is reordered")
+                if set(update) == {"sessionUpdate", "status", "_meta"} and kiro == {"kind": "turn_completion"} and update.get("status") == "success" and not self.turn_completion:
+                    self.turn_completion, self.phase = True, "turn_completion"
+                    return None
+                if set(update) == {"sessionUpdate", "stopReason", "_meta"} and kiro == {"kind": "turn_end"} and update.get("stopReason") == "end_turn" and self.turn_completion and not self.turn_end:
+                    self.turn_end, self.phase = True, "turn_end"
+                    return None
+                raise ValueError("Kiro ACP skill terminal status differs")
+            raise ValueError("Kiro ACP skill flow emitted an unknown control update")
+        if self._accept_auxiliary(record):
+            return None
+        if self._outer(record, {"jsonrpc", "id", "method", "params"}) and record.get("method") == "session/request_permission":
+            if self.phase != "disclose_pending" or self.permission_id is not None:
+                raise ValueError("Kiro ACP skill permission request is extra or reordered")
+            permission_id = record.get("id")
+            if type(permission_id) not in {int, str} or isinstance(permission_id, str) and not permission_id:
+                raise ValueError("Kiro ACP skill permission request id has an unsupported type")
+            params = record.get("params")
+            if not isinstance(params, dict) or set(params) != {"sessionId", "toolCall", "options"} or params.get("sessionId") != self.session_id:
+                raise ValueError("Kiro ACP skill permission envelope differs")
+            call = params.get("toolCall")
+            if not isinstance(call, dict) or call.get("toolCallId") != self.disclose_call_id or call.get("status") != "pending":
+                raise ValueError("Kiro ACP skill permission target differs")
+            options = params.get("options")
+            if not isinstance(options, list) or [item.get("kind") for item in options if isinstance(item, dict)] != ["allow_once", "allow_always", "reject_once", "reject_always"]:
+                raise ValueError("Kiro ACP skill permission options differ")
+            if (
+                any(set(item) != {"optionId", "name", "kind"} or not isinstance(item.get("optionId"), str) or not item["optionId"] for item in options)
+                or len({item["optionId"] for item in options}) != len(options)
+            ):
+                raise ValueError("Kiro ACP skill permission options are malformed")
+            self.permission_id, self.allow_once_id = permission_id, options[0]["optionId"]
+            self.phase = "disclose_permitted"
+            return {"jsonrpc": "2.0", "id": self.permission_id, "result": {"outcome": {"outcome": "selected", "optionId": self.allow_once_id}}}
+        if self._outer(record, {"jsonrpc", "id", "result"}) and record.get("id") == 2:
+            if self.phase != "turn_end" or record.get("result") != {"stopReason": "end_turn"}:
+                raise ValueError("Kiro ACP skill prompt response differs")
+            self.prompt_done, self.phase = True, "done"
+            return None
+        raise ValueError("Kiro ACP skill flow emitted an unknown control record")
+
+    def complete(self) -> bool:
+        return bool(
+            self.phase == "done" and self.prompt_done and self.turn_end
+            and self.skill_catalog_seen and self.search_output_seen
+            and "".join(self.marker_parts) in {self.marker, f"`{self.marker}`"}
+        )
+
+
 def _acp_request(identifier: int, method: str, params: dict[str, Any]) -> bytes:
     return canonical_json({"jsonrpc": "2.0", "id": identifier, "method": method, "params": params}) + b"\n"
 
 
-def run_kiro_acp(binary: Path, *, workspace: Path, environment: dict[str, str], plugin: str, tool: str, marker: str, timeout: int = COMMAND_SECONDS) -> tuple[dict[str, Any], str, str]:
+def run_kiro_acp(
+    binary: Path, *, workspace: Path, environment: dict[str, str], plugin: str,
+    tool: str, marker: str, skill_path: Path | None = None,
+    timeout: int = COMMAND_SECONDS,
+) -> tuple[dict[str, Any], str, str]:
     """Run the fixed Kiro ACP process with bounded newline JSON I/O."""
     started, deadline = utc_now(), time.monotonic() + timeout
     process = subprocess.Popen(
@@ -1275,7 +1993,10 @@ def run_kiro_acp(binary: Path, *, workspace: Path, environment: dict[str, str], 
         start_new_session=True, close_fds=True,
     )
     assert process.stdin is not None and process.stdout is not None
-    contract = KiroACPContract(plugin, tool, marker)
+    contract: KiroACPContract | KiroACPSkillContract = (
+        KiroACPSkillContract(marker, skill_path)
+        if skill_path is not None else KiroACPContract(plugin, tool, marker)
+    )
     try:
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
@@ -1325,7 +2046,11 @@ def run_kiro_acp(binary: Path, *, workspace: Path, environment: dict[str, str], 
                 if contract.phase == "new" and not sent_new:
                     process.stdin.write(_acp_request(1, "session/new", {"cwd": str(workspace), "mcpServers": []})); process.stdin.flush(); sent_new = True
                 if contract.phase == "running" and not sent_prompt:
-                    prompt = f"Read-only disposable test. Invoke the installed {plugin} MCP tool named {tool} exactly once. After the tool succeeds, return the exact marker only: {marker}"
+                    prompt = (
+                        SKILL_PROBE_PROMPT
+                        if skill_path is not None else
+                        mcp_probe_prompt(plugin, tool, marker)
+                    )
                     process.stdin.write(_acp_request(2, "session/prompt", {"sessionId": contract.session_id, "prompt": [{"type": "text", "text": prompt}]})); process.stdin.flush(); sent_prompt = True
                 # The exact successful prompt response is the framing boundary.
                 # Bytes after it are outside this observation even when already
@@ -1339,12 +2064,21 @@ def run_kiro_acp(binary: Path, *, workspace: Path, environment: dict[str, str], 
         except BrokenPipeError: pass
         process.stdout.close()
         terminate_group(process)
-    summary = {
-        "protocol_version": KIRO_PROTOCOL_VERSION, "mcp_http": True,
-        "server": plugin, "tool": tool, "discovery": list(contract.discovery),
-        "permission": "allow_once", "target_chain": ["pending", "in_progress", "completed"],
-        "turn_completion": "success", "turn_end": "end_turn",
-    }
+    if skill_path is not None:
+        summary = {
+            "protocol_version": KIRO_PROTOCOL_VERSION, "capability": "skill",
+            "skill": SKILL_NAME, "tool": tool, "catalog_match": True,
+            "permission": "allow_once", "target_chain": ["disclose", "search", "marker"],
+            "turn_completion": "success", "turn_end": "end_turn",
+        }
+    else:
+        assert isinstance(contract, KiroACPContract)
+        summary = {
+            "protocol_version": KIRO_PROTOCOL_VERSION, "mcp_http": True,
+            "server": plugin, "tool": tool, "discovery": list(contract.discovery),
+            "permission": "allow_once", "target_chain": ["pending", "in_progress", "completed"],
+            "turn_completion": "success", "turn_end": "end_turn",
+        }
     return summary, started, utc_now()
 
 
@@ -1406,19 +2140,42 @@ def terminate_group(
             raise RuntimeError("fatal adapter cleanup callback returned")
 
 
+def write_skill_probe(workspace: Path, marker: str) -> Path:
+    """Create one challenge-bound read-only probe inside the disposable workspace."""
+    workspace_fd = os.open(workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    descriptor = -1
+    try:
+        info = os.fstat(workspace_fd)
+        if info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise ValueError("skill probe workspace is not private")
+        descriptor = os.open(
+            "uap-skill-probe.txt",
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o400,
+            dir_fd=workspace_fd,
+        )
+        encoded = (marker + "\n").encode()
+        view = memoryview(encoded)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("skill probe write was incomplete")
+            view = view[written:]
+        os.fsync(descriptor)
+        os.fsync(workspace_fd)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(workspace_fd)
+    return workspace / "uap-skill-probe.txt"
+
+
 def invoke(
     item: dict[str, Any], plugin: str, client: str, challenge: str, workspace: Path,
     owner_uid: int, approved_tuple: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[str], str, str]:
     binary = verified_executable(item, owner_uid)
     profile = Path(item["profile"])
-    expected_marker = f"UAP_OBSERVER_OK {client} {plugin} {challenge}"
-    tool = PROBE_TOOLS[plugin]
-    prompt = (
-        f"Read-only disposable test. Invoke the installed {plugin} MCP tool named {tool} exactly once. "
-        f"After the tool succeeds, return the exact marker only: {expected_marker}"
-    )
-    argv = [str(binary), *CLIENT_ARGUMENTS[client], prompt]
     environment = {
         "PATH": str(GIT_BINARY.parent), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
         "HOME": str(profile), "XDG_CONFIG_HOME": str(profile / ".config"),
@@ -1443,8 +2200,22 @@ def invoke(
     if not receipt_binds_projection(manager_before, native_projection):
         raise ValueError("manager receipt does not bind the sealed add/info/doctor evidence")
     native_entry = next(entry for entry in native_projection["entries"] if entry["plugin"] == plugin)
+    component_kind = native_entry["component_kind"]
+    expected_marker = (
+        f"UAP_SKILL_SECRET_{challenge}" if component_kind == "skill"
+        else f"UAP_OBSERVER_OK {client} {plugin} {challenge}"
+    )
+    tool = SKILL_PROBE_TOOL if component_kind == "skill" else MCP_PROBE_TOOLS[plugin]
+    prompt = (
+        SKILL_PROBE_PROMPT
+        if component_kind == "skill" else
+        mcp_probe_prompt(plugin, tool, expected_marker)
+    )
+    argv = [str(binary), *CLIENT_ARGUMENTS[client], prompt]
     native_path = Path(native_entry["client_config"]["path"])
     native_config_before = regular_snapshot(native_path, native_entry["client_config"]["sha256"], owner_uid=0, mode=0o440)
+    if component_kind == "skill":
+        write_skill_probe(workspace, expected_marker)
     version_stdout, _, _ = run_client([str(binary), "--version"], workspace=workspace, environment=environment, timeout=10)
     if len(version_stdout) > 4096:
         raise ValueError("fixed client version observation failed")
@@ -1455,6 +2226,7 @@ def invoke(
         summary, started, ended = run_kiro_acp(
             binary, workspace=workspace, environment=environment,
             plugin=plugin, tool=tool, marker=expected_marker,
+            skill_path=native_path if component_kind == "skill" else None,
         )
         native_before = native_after = summary
         discovery_argv = [str(binary), *CLIENT_ARGUMENTS[client]]
@@ -1466,9 +2238,26 @@ def invoke(
         native_before = parsed_native_discovery(client, native_before_bytes)
         if not native_discovery_output_present(client, native_before, plugin, approved_tuple, phase="before"):
             raise ValueError("native discovery did not contain the approved product")
-        stdout, started, ended = run_client(argv, workspace=workspace, environment=environment)
+        stdout, started, ended = run_client(
+            argv, workspace=workspace, environment=environment,
+            timeout=120 if client == "cursor" else COMMAND_SECONDS,
+        )
         invocation = parsed_json_stream(stdout)
-        succeeded = successful_client_evidence(client, invocation, tool, plugin, expected_marker)
+        succeeded = (
+            successful_codex_skill_evidence(
+                invocation, expected_marker, native_path, native_config_before["body"],
+            )
+            if component_kind == "skill" and client == "codex"
+            else successful_cursor_skill_evidence(
+                invocation, expected_marker, native_path, native_config_before["body"], workspace,
+            )
+            if component_kind == "skill" and client == "cursor"
+            else successful_cursor_mcp_evidence(
+                invocation, tool, plugin, expected_marker, workspace,
+            )
+            if component_kind == "mcp" and client == "cursor"
+            else successful_client_evidence(client, invocation, tool, plugin, expected_marker)
+        )
         if not succeeded:
             raise ValueError("fixed client did not emit a successful exact tool invocation")
         native_after_bytes, _, _ = run_client(discovery_argv, workspace=workspace, environment=environment, timeout=10)
@@ -1490,7 +2279,9 @@ def invoke(
         "manager_before_digest": receipt_before["sha256"], "manager_after_digest": sha256(manager_after_bytes),
         "native_before_digest": sha256(canonical_json(native_before)), "native_after_digest": sha256(canonical_json(native_after)),
         "native_projection_digest": projection_before["sha256"],
-        "discovery_argv": [client, *(CLIENT_ARGUMENTS[client] if client == "kiro" else CLIENT_DISCOVERY_ARGUMENTS[client])], "tool": tool,
+        "discovery_argv": [client, *(CLIENT_ARGUMENTS[client] if client == "kiro" else CLIENT_DISCOVERY_ARGUMENTS[client])],
+        "tool": tool, "component_kind": component_kind,
+        "invocation_marker_digest": sha256(expected_marker.encode()),
     }
     return marker, argv, started, ended
 
@@ -1548,7 +2339,7 @@ def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request:
             "discovery_operation": {"operation": "discovery", "argv": marker["discovery_argv"], "discovered": True, "product_id": plugin},
             "invocation_operation": {
                 "operation": "tool_call", "tool": marker["tool"], "product_id": plugin,
-                "marker_digest": sha256(f"UAP_OBSERVER_OK {client} {plugin} {challenge}".encode()), "succeeded": True,
+                "marker_digest": digest("invocation_marker_digest"), "succeeded": True,
             },
         },
         "pseudonymous_identity_id": consent["pseudonymous_identity_id"],

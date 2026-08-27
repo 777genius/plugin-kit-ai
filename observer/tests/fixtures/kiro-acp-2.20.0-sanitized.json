@@ -4,13 +4,16 @@
     "evidence_kind": "sanitized_observed_shape_summary_not_raw_ordered_acp_frames",
     "ordering_claim": "none",
     "platform": "linux-amd64",
-    "kiro_cli_version": "2.19.1",
-    "kiro_cli_sha256": "adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336",
-    "kiro_cli_chat_sha256": "c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4",
+    "kiro_cli_version": "2.20.0",
+    "kiro_cli_sha256": "14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358",
+    "kiro_cli_chat_sha256": "59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e",
     "argv": ["kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"],
     "protocol_version": 1,
     "native_config_source": "~/.kiro/settings/mcp.json",
-    "native_install_command": "npx universal-agent-plugins@0.1.17 add cloudflare-docs --target kiro",
+    "native_skill_source": "~/.kiro/skills/code-tool-router/SKILL.md",
+    "native_install_command": "npx universal-agent-plugins@0.1.18 add cloudflare-docs --target kiro",
+    "native_skill_install_command": "npx universal-agent-plugins@0.1.18 add agent-code-navigator --target kiro",
+    "skill_runtime_observation": "real_disposable_workspace_read_only_success",
     "final_native_5x3_matrix": "pending_external"
   },
   "public_contract": {
@@ -23,7 +26,24 @@
     "turn_completion_status": "success",
     "turn_end_stop_reason": "end_turn",
     "observed_connected_catalog_shape": "target_once_with_other_unique_enabled_named_tools",
-    "observed_post_terminal_shape": "unrelated_kiro_power_failure_after_successful_prompt_response"
+    "observed_post_terminal_shape": "unrelated_kiro_power_failure_after_successful_prompt_response",
+    "skill": {
+      "available_command": "code-tool-router",
+      "available_command_matched": true,
+      "disclosure_tool": "disclose_context",
+      "search_tool": "grep_search",
+      "search_title": "Grep Search",
+      "search_origin": "default",
+      "search_query": "^UAP_SKILL_SECRET_",
+      "target_statuses": [
+        "pending",
+        "in_progress",
+        "completed"
+      ],
+      "final_marker_source": "tool_output_only",
+      "turn_completion_status": "success",
+      "turn_end_stop_reason": "end_turn"
+    }
   },
   "placeholders": {
     "session_id": "<opaque-session-id>",

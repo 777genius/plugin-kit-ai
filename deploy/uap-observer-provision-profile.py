@@ -459,13 +459,13 @@ def validate_native_projection(value, client: str) -> list[dict]:
     """Validate the exact projection schema before it can affect publication."""
     entries = value.get("entries") if isinstance(value, dict) else None
     evidence_fields = {"manager_add_sha256", "manager_info_sha256", "post_add_doctor_sha256"}
-    entry_fields = {"plugin", "tuple", "native_config", "client_config", *evidence_fields}
+    entry_fields = {"plugin", "component_kind", "tuple", "native_config", "client_config", *evidence_fields}
     digest_pattern = re.compile(r"sha256:[a-f0-9]{64}")
     if (
         not isinstance(value, dict)
         or set(value) != {"schema_version", "client_id", "entries"}
         or type(value.get("schema_version")) is not int
-        or value.get("schema_version") != 1
+        or value.get("schema_version") != 2
         or type(value.get("client_id")) is not str
         or value.get("client_id") != client
         or not isinstance(entries, list)
@@ -477,6 +477,7 @@ def validate_native_projection(value, client: str) -> list[dict]:
         if (
             not isinstance(entry, dict) or set(entry) != entry_fields
             or type(entry.get("plugin")) is not str or not entry["plugin"] or entry["plugin"] in plugins
+            or entry.get("component_kind") not in {"skill", "mcp"}
             or not isinstance(entry.get("tuple"), dict)
             or any(
                 type(entry.get(field)) is not str or digest_pattern.fullmatch(entry[field]) is None
@@ -497,20 +498,32 @@ def validate_native_projection(value, client: str) -> list[dict]:
             or config["sha256"] != native["sha256"]
         ):
             raise ValueError("profile seed native projection config is invalid")
+        active = Path(config["path"])
+        skill_suffix = active.parts[-3:] == ("skills", "code-tool-router", "SKILL.md")
+        if (entry["component_kind"] == "skill") != skill_suffix:
+            raise ValueError("profile seed native projection capability path is invalid")
     if plugins != HEROES:
         raise ValueError("profile seed native projection is incomplete")
+    kinds = {entry["plugin"]: entry["component_kind"] for entry in entries}
+    if kinds != {plugin: ("skill" if plugin == "agent-code-navigator" else "mcp") for plugin in HEROES}:
+        raise ValueError("profile seed native projection component kind is invalid")
     by_active_path: dict[str, list[dict]] = {}
     for entry in entries:
         by_active_path.setdefault(entry["client_config"]["path"], []).append(entry)
     duplicates = [group for group in by_active_path.values() if len(group) > 1]
-    if duplicates:
+    if client == "kiro":
         shared = str(Path("/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json"))
+        skill = str(Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md"))
         if (
-            client != "kiro" or set(by_active_path) != {shared}
-            or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES)
+            set(by_active_path) != {shared, skill}
+            or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1
+            or {entry["plugin"] for entry in duplicates[0]} != HEROES - {"agent-code-navigator"}
+            or any(entry["component_kind"] != "mcp" for entry in duplicates[0])
             or len({entry["client_config"]["sha256"] for entry in duplicates[0]}) != 1
         ):
             raise ValueError("profile seed native projection has conflicting active configs")
+    elif duplicates:
+        raise ValueError("profile seed native projection has conflicting active configs")
     return entries
 
 
@@ -744,7 +757,7 @@ def active_native_paths(proof_fd: int, client: str, staging_fd: int) -> tuple[se
         native_path = Path(native["path"])
         native_relative = next((candidate for prefix in proof_prefixes if (candidate := _relative_to(native_path, prefix)) is not None), None)
         if (
-            native_relative is None or native_relative.parts != ("native", f'{entry["plugin"]}.json')
+            native_relative is None or native_relative.parts != ("native", f'{entry["plugin"]}.blob')
         ):
             raise ValueError("profile seed native config proof escapes its proof hierarchy")
         parts = relative.parts
@@ -788,6 +801,7 @@ def active_native_paths(proof_fd: int, client: str, staging_fd: int) -> tuple[se
             os.close(native_parent)
         if parts in files and not (
             client == "kiro" and parts == (".kiro", "settings", "mcp.json")
+            and entry["component_kind"] == "mcp"
         ):
             raise ValueError("profile seed native projection repeats an active config")
         files.add(parts)
@@ -812,7 +826,7 @@ def seal_proof_directory(directory_fd: int, uid: int, gid: int) -> None:
             os.close(descriptor)
     native_fd = os.open("native", OPEN_DIRECTORY, dir_fd=directory_fd)
     try:
-        if set(os.listdir(native_fd)) != {f"{plugin}.json" for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")}:
+        if set(os.listdir(native_fd)) != {f"{plugin}.blob" for plugin in ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")}:
             raise ValueError("profile seed native proof inventory differs")
         for name in os.listdir(native_fd):
             descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=native_fd)

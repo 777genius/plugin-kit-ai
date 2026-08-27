@@ -46,6 +46,9 @@ ARTIFACT_IDENTITIES = {
     "chatgpt-cloudflare-attestation.json": ("control",),
     "consent.json": ("control",),
 }
+RUNTIME_HEROES = {
+    "agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion",
+}
 FIXED_CONFIG = Path("/opt/uap-observer-current/etc/uap-observer-adapter-config.json")
 FIXED_ENTRYPOINTS = {
         artifact: Path(f"/opt/uap-observer-current/libexec/uap-observer-adapter-{name}")
@@ -445,11 +448,26 @@ def revalidate_client_proofs(
         not isinstance(projection, dict)
         or set(projection) != {"schema_version", "client_id", "entries"}
         or type(projection.get("schema_version")) is not int
-        or projection.get("schema_version") != 1
+        or projection.get("schema_version") != 2
     ):
         raise ValueError("sealed client projection schema differs")
     entries = projection["entries"]
-    if not isinstance(entries, list) or projection.get("client_id") != client:
+    entry_fields = {
+        "plugin", "component_kind", "tuple", "native_config", "client_config",
+        "manager_add_sha256", "manager_info_sha256", "post_add_doctor_sha256",
+    }
+    if (
+        not isinstance(entries, list) or projection.get("client_id") != client
+        or len(entries) != len(RUNTIME_HEROES)
+        or any(not isinstance(entry, dict) or set(entry) != entry_fields for entry in entries)
+        or {entry["plugin"] for entry in entries} != RUNTIME_HEROES
+        or len({entry["plugin"] for entry in entries}) != len(entries)
+        or any(
+            entry["component_kind"]
+            != ("skill" if entry["plugin"] == "agent-code-navigator" else "mcp")
+            for entry in entries
+        )
+    ):
         raise ValueError("sealed client projection identity differs")
     receipts = receipt_value["receipts"]
     evidence_fields = {"manager_add_sha256", "manager_info_sha256", "post_add_doctor_sha256"}
@@ -460,6 +478,7 @@ def revalidate_client_proofs(
     ):
         raise ValueError("sealed manager evidence receipt differs")
     receipts_by_name = {record["name"]: record for record in receipts}
+    active_groups: dict[Path, list[dict[str, Any]]] = {}
     for entry in entries:
         record = receipts_by_name.get(entry.get("plugin")) if isinstance(entry, dict) else None
         if (
@@ -476,13 +495,42 @@ def revalidate_client_proofs(
         if not isinstance(native, dict) or set(native) != {"path", "sha256"} or not isinstance(client_native, dict) or set(client_native) != {"path", "sha256"} or native["sha256"] != client_native["sha256"]:
             raise ValueError("sealed native config proof differs")
         proof_native_path = Path(str(native["path"]))
+        expected_proof = projection_path.parent / "native" / f'{entry["plugin"]}.blob'
+        if proof_native_path != expected_proof:
+            raise ValueError("sealed native config proof path differs")
         proof_body = read_owned_regular(proof_native_path, 4 << 20, owner_uid=0, exact_mode=0o440, group_gid=gid)
         native_path = Path(str(client_native["path"]))
         if not native_path.is_absolute() or profile not in native_path.parents:
             raise ValueError("sealed active native config path escapes its profile")
+        active_groups.setdefault(native_path, []).append(entry)
+        skill_suffix = native_path.parts[-3:] == ("skills", "code-tool-router", "SKILL.md")
+        if entry["component_kind"] == "skill":
+            if not skill_suffix or not proof_body.strip():
+                raise ValueError("sealed active skill config differs")
+        else:
+            if skill_suffix:
+                raise ValueError("sealed MCP config aliases the skill path")
+            decoded = strict_json_loads(proof_body)
+            if not isinstance(decoded, dict):
+                raise ValueError("sealed MCP config is not a JSON object")
         body = read_owned_regular(native_path, 4 << 20, owner_uid=0, exact_mode=0o440, group_gid=gid)
         if body != proof_body or "sha256:" + hashlib.sha256(body).hexdigest() != native["sha256"]:
             raise ValueError("native config changed after all client processes terminated")
+    duplicates = [group for group in active_groups.values() if len(group) > 1]
+    if client == "kiro":
+        shared = profile / ".kiro" / "settings" / "mcp.json"
+        skill = profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+        if (
+            set(active_groups) != {shared, skill}
+            or len(duplicates) != 1 or len(duplicates[0]) != len(RUNTIME_HEROES) - 1
+            or {entry["plugin"] for entry in duplicates[0]}
+            != RUNTIME_HEROES - {"agent-code-navigator"}
+            or any(entry["component_kind"] != "mcp" for entry in duplicates[0])
+            or len({entry["client_config"]["sha256"] for entry in duplicates[0]}) != 1
+        ):
+            raise ValueError("sealed client projection has conflicting active configs")
+    elif duplicates:
+        raise ValueError("sealed client projection has conflicting active configs")
 
 
 def kill_process_group(

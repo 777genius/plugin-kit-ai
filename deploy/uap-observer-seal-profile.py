@@ -400,7 +400,7 @@ def matching_client(info: dict[str, Any], plugin: str, client: str, approved: di
 
 
 def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict[str, Any]) -> None:
-    """Validate the real agentplugins 0.1.17 add envelope and approved source."""
+    """Validate the real agentplugins 0.1.18 add envelope and approved source."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "add" or value.get("result") != "success":
         raise ValueError(f"{plugin}: manager add is not successful agentplugins JSON")
     data = value.get("data")
@@ -440,9 +440,9 @@ def matching_add(value: dict[str, Any], plugin: str, client: str, approved: dict
 
 
 def matching_doctor(value: dict[str, Any], client: str, approved: dict[str, dict[str, Any]]) -> None:
-    """Validate one complete post-add 0.1.17 doctor inventory."""
+    """Validate one complete post-add 0.1.18 doctor inventory."""
     if set(value) != {"schema_version", "command", "result", "data"} or type(value.get("schema_version")) is not int or value.get("schema_version") != 1 or value.get("command") != "doctor" or value.get("result") != "success":
-        raise ValueError("post-add doctor is not the exact successful 0.1.17 envelope")
+        raise ValueError("post-add doctor is not the exact successful 0.1.18 envelope")
     if prohibited_lifecycle_state(value):
         raise ValueError("post-add doctor contains an incomplete or prohibited lifecycle state")
     detected: list[str] = []
@@ -536,7 +536,7 @@ def remove_staged_proof(seed_fd: int, name: str) -> None:
             try:
                 for plugin in HEROES:
                     try:
-                        os.unlink(f"{plugin}.json", dir_fd=native_fd)
+                        os.unlink(f"{plugin}.blob", dir_fd=native_fd)
                     except FileNotFoundError:
                         pass
             finally:
@@ -622,27 +622,57 @@ def main() -> int:
     entries, receipts = [], []
     native_bodies: dict[str, bytes] = {}
     final_root = Path("/var/lib/uap-observer/profiles") / args.client
+    active_groups: dict[Path, list[dict]] = {}
     for plugin in sorted(HEROES):
         add, add_body = load_object(args.manager_add_directory / f"{plugin}.json")
         matching_add(add, plugin, args.client, approved[plugin])
         info, info_body = load_object(args.manager_info_directory / f"{plugin}.json")
         matching_client(info, plugin, args.client, approved[plugin])
         relative = mapping[plugin]
+        if type(relative) is not str:
+            raise ValueError(f"{plugin}: native config map path is invalid")
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or not relative_path.parts or any(part in {"", ".", ".."} for part in relative_path.parts):
+            raise ValueError(f"{plugin}: native config map path is invalid")
         native_body = protected_file_at(seed_fd, relative, mode=0o600)
-        native_value = strict_json_loads(native_body)
-        if not isinstance(native_value, dict):
-            raise ValueError(f"{plugin}: native config must be a JSON object")
-        reconcile_revision_aliases(native_value, approved[plugin], f"{plugin}: native config")
+        component_kind = "skill" if plugin == "agent-code-navigator" else "mcp"
+        active_path = final_root / relative_path
+        skill_suffix = active_path.parts[-3:] == ("skills", "code-tool-router", "SKILL.md")
+        if (component_kind == "skill") != skill_suffix:
+            raise ValueError(f"{plugin}: native config capability path is invalid")
+        if component_kind == "mcp":
+            native_value = strict_json_loads(native_body)
+            if not isinstance(native_value, dict):
+                raise ValueError(f"{plugin}: native config must be a JSON object")
+            reconcile_revision_aliases(native_value, approved[plugin], f"{plugin}: native config")
+        elif not native_body.strip():
+            raise ValueError(f"{plugin}: native skill must not be empty")
         native_bodies[plugin] = native_body
         native_digest = digest(native_body)
-        native = {"path": f"/var/lib/uap-observer/proofs/{args.client}/native/{plugin}.json", "sha256": native_digest}
+        native = {"path": f"/var/lib/uap-observer/proofs/{args.client}/native/{plugin}.blob", "sha256": native_digest}
         client_config = {"path": str(final_root / relative), "sha256": native_digest}
         evidence = {
             "manager_add_sha256": digest(add_body),
             "manager_info_sha256": digest(info_body),
         }
-        entries.append({"plugin": plugin, "tuple": approved[plugin], "native_config": native, "client_config": client_config, **evidence})
+        entry = {"plugin": plugin, "component_kind": component_kind, "tuple": approved[plugin], "native_config": native, "client_config": client_config, **evidence}
+        entries.append(entry)
+        active_groups.setdefault(active_path, []).append(entry)
         receipts.append({"name": plugin, "tuple": approved[plugin], **evidence})
+    duplicates = [group for group in active_groups.values() if len(group) > 1]
+    if args.client == "kiro":
+        shared = final_root / ".kiro" / "settings" / "mcp.json"
+        skill = final_root / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+        if (
+            set(active_groups) != {shared, skill}
+            or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1
+            or {entry["plugin"] for entry in duplicates[0]} != HEROES - {"agent-code-navigator"}
+            or any(entry["component_kind"] != "mcp" for entry in duplicates[0])
+            or len({entry["client_config"]["sha256"] for entry in duplicates[0]}) != 1
+        ):
+            raise ValueError("native config map has conflicting active configs")
+    elif duplicates:
+        raise ValueError("native config map has conflicting active configs")
     for plugin in sorted(HEROES):
         doctor, doctor_body = load_object(args.post_doctor_directory / f"{plugin}.json")
         matching_doctor(doctor, args.client, approved)
@@ -652,7 +682,7 @@ def main() -> int:
         entry["post_add_doctor_sha256"] = doctor_digest
         receipt["post_add_doctor_sha256"] = doctor_digest
     receipt_value = {"schema_version": 1, "receipts": receipts}
-    projection_value = {"schema_version": 1, "client_id": args.client, "entries": entries}
+    projection_value = {"schema_version": 2, "client_id": args.client, "entries": entries}
     projection_digest = digest(canonical(projection_value))
     if args.digest_only:
         if args.adapter_config is not None:
@@ -692,7 +722,7 @@ def main() -> int:
         for name, body, mode in outputs:
             write_sealed_file(stage_fd, name, body, mode)
         for plugin, native_body in sorted(native_bodies.items()):
-            write_sealed_file(native_fd, f"{plugin}.json", native_body, 0o400)
+            write_sealed_file(native_fd, f"{plugin}.blob", native_body, 0o400)
         seal_failpoint("after-staging")
         os.fsync(native_fd)
         os.fsync(stage_fd)

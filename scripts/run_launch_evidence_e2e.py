@@ -88,7 +88,7 @@ TRUSTED_OBSERVER_JOB_WORKFLOW_REF = f"{TRUSTED_CATALOG_REPOSITORY}/.github/workf
 TRUSTED_CLI_RELEASE_REPOSITORY = "777genius/plugin-kit-ai"
 TRUSTED_CLI_RELEASE_TAG = "agentplugins-v" + STABLE_LAUNCH_VERSION_FILE.read_text(encoding="utf-8").strip()
 TRUSTED_CLI_RELEASE_WORKFLOW = "777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml"
-TRUSTED_CLI_RELEASE_COMMIT = "f4f5113c4176173c2ff3ca7e72c9fb71af1516b8"
+TRUSTED_CLI_RELEASE_COMMIT = "74a3790ee15d92afda8e8e3dd8f903c04811cfc7"
 TRUSTED_CLI_RELEASE_SOURCE_REF = "refs/heads/main"
 TRUSTED_SANITIZED_CAPTURE_MANIFEST = "sha256:1e7e5ca4d72be2e188bbfa002cf19975b4e1b100913a329bbaf963b5633abb85"
 
@@ -530,11 +530,11 @@ def read_production_config() -> dict[str, Any]:
         or value.get("cli_release_tag") != TRUSTED_CLI_RELEASE_TAG
         or value.get("cli_release_commit") != TRUSTED_CLI_RELEASE_COMMIT
         or value.get("cli_release_workflow") != TRUSTED_CLI_RELEASE_WORKFLOW
-        or value.get("cli_release_manifest_digest") != "sha256:0cff701caffb4798561a3accb51ca442d1fad512b3de0ae7ffe88e9f2d47c206"
-        or value.get("cli_release_checksums_digest") != "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d"
+        or value.get("cli_release_manifest_digest") != "sha256:0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57"
+        or value.get("cli_release_checksums_digest") != "sha256:d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8"
         or value.get("npm_facade_package") != "universal-agent-plugins"
-        or value.get("npm_facade_version") != "0.1.17"
-        or value.get("npm_facade_integrity") != "sha512-Dm3oWsJK6p1ge8ZPP2BX1s0PTtqKlBKGg3SO78cei9ItHb9RXmqrh/6cX94cgenbDvZ32G5eKlJ5ZJikzsGr0w=="
+        or value.get("npm_facade_version") != "0.1.18"
+        or value.get("npm_facade_integrity") != "sha512-48UfVVaGrvmniWQpoiXQYZvTS3QqrCN0HFLSQBVCsqQJwPdecRtuK9XEsOs4nTMQuWImjX6ZAflUeY/79biRZg=="
         or value.get("directory_source_digest") != "sha256:8e8fdfc231a95a6b59fde7f552701b32ccc29eab51386b6d663f9ace7067de91"
         or value.get("scenario_contract_digest") != "sha256:d62f160de32f9af53d7bb2d7c03fbfa8c3203e2fe5c99e616985b1e583996e66"
         or value.get("copilot_cli_package") != "@github/copilot"
@@ -1113,7 +1113,7 @@ def parse_stable_version(value: str) -> tuple[int, int, int]:
         raise ValueError("Agent Plugins version must be an exact semantic version")
     parsed = tuple(int(match.group(index)) for index in (1, 2, 3))
     if parsed < MINIMUM_STABLE_VERSION:
-        raise ValueError("stable launch requires agentplugins 0.1.17 or newer")
+        raise ValueError("stable launch requires agentplugins 0.1.18 or newer")
     return parsed
 
 
