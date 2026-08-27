@@ -39,7 +39,8 @@ installer-managed deployment files are:
 
 | Artifact | Installed path | Mode |
 | --- | --- | --- |
-| Git, Codex, Cursor, Kiro native executables | `/opt/uap-observer-inputs/bin/{git,codex,cursor,kiro,kiro-cli-chat}` | root-owned `0755` regular files; Kiro requires both digest-pinned executables |
+| Git, Codex, Kiro native executables | `/opt/uap-observer-inputs/bin/{git,codex,kiro,kiro-cli-chat}` | root-owned `0755` regular files; Kiro requires both digest-pinned executables |
+| Complete Cursor Agent bundle | `/opt/uap-observer-inputs/cursor/` plus `/opt/uap-observer-inputs/cursor-bundle.json` | root-owned closure; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
 | ChatGPT app binding and projection receipt | `/opt/uap-observer-inputs/chatgpt/{app-binding.json,projection-receipt.json}` | `root:uap-observer-adapter-config`, `0640` |
 | independently captured external-PR evidence | `/opt/uap-observer-inputs/external-pr-evidence.json` | `root:uap-observer-adapter-config`, `0640` |
 | operator-approved proxy FQDN allowlist | `/opt/uap-observer-current/etc/uap-observer-egress-allowlist.json` | `root:root`, `0644`, one-link regular file |
@@ -53,7 +54,10 @@ or copy units into `/etc/systemd/system` manually.
 There may be no other entries under `/opt/uap-observer-inputs`; directories
 must be root-owned and not group/other-writable. Every file must have one hard
 link, no path may be a symlink, and every `sha256:` in the adapter config must
-match its bytes. The external PR record must validate against
+match its bytes. Cursor is one bounded bundle because its launcher depends on
+the sibling Node runtime and JavaScript/native modules. The manifest binds
+every relative path, mode, size, and digest; a launcher-only copy is invalid.
+The external PR record must validate against
 `tests/e2e/schemas/external-pr-evidence.schema.json`, identify a genuinely
 external unmerged PR, and bind its successful head checks to the exact release
 and Directory identity. A local fork simulation is not sufficient.
@@ -66,11 +70,22 @@ service identities.
 getent group uap-observer-adapter-config >/dev/null || \
   groupadd --system uap-observer-adapter-config
 install -d -o root -g root -m 0755 /opt/uap-observer-inputs \
-  /opt/uap-observer-inputs/bin /opt/uap-observer-inputs/chatgpt
-for name in git codex cursor kiro kiro-cli-chat; do
+  /opt/uap-observer-inputs/bin /opt/uap-observer-inputs/chatgpt \
+  /opt/uap-observer-inputs/cursor
+for name in git codex kiro kiro-cli-chat; do
   install -o root -g root -m 0755 "/root/approved-inputs/$name" \
     "/opt/uap-observer-inputs/bin/$name"
 done
+cp -a --reflink=auto /root/approved-inputs/cursor/. \
+  /opt/uap-observer-inputs/cursor/
+chown -R root:root /opt/uap-observer-inputs/cursor
+find /opt/uap-observer-inputs/cursor -type d -exec chmod 0755 {} +
+find /opt/uap-observer-inputs/cursor -type f -perm /111 -exec chmod 0755 {} +
+find /opt/uap-observer-inputs/cursor -type f ! -perm /111 -exec chmod 0644 {} +
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SOURCE_ROOT" python3 -B \
+  "$SOURCE_ROOT/scripts/build_observer_client_bundle.py" \
+  /opt/uap-observer-inputs/cursor \
+  /opt/uap-observer-inputs/cursor-bundle.json
 for name in app-binding.json projection-receipt.json; do
   install -o root -g uap-observer-adapter-config -m 0640 \
     "/root/approved-inputs/$name" "/opt/uap-observer-inputs/chatgpt/$name"
@@ -79,6 +94,7 @@ install -o root -g uap-observer-adapter-config -m 0640 \
   /root/approved-inputs/external-pr-evidence.json \
   /opt/uap-observer-inputs/external-pr-evidence.json
 sha256sum /opt/uap-observer-inputs/bin/* \
+  /opt/uap-observer-inputs/cursor-bundle.json \
   /opt/uap-observer-inputs/chatgpt/* \
   /opt/uap-observer-inputs/external-pr-evidence.json
 ```
@@ -217,9 +233,10 @@ target boundary).
 
 The manager detects clients through `PATH`. Never run it with an ambient client
 on `PATH`. Create one root-owned temporary bin directory per seed containing
-the pinned Git binary and only the exact pinned client under names that 0.1.17
-recognizes (`codex`, the `cursor` and `agent` aliases for the same pinned Cursor
-bytes, or `kiro-cli`). Create `.codex` explicitly, but export `CODEX_HOME` only
+the pinned Git binary and only the exact pinned client under a name that 0.1.17
+recognizes (`codex`, `cursor`, or `kiro-cli`). Cursor uses a fixed two-line
+launcher into the verified bundle because its executable cannot be separated
+from its sibling dependencies. Create `.codex` explicitly, but export `CODEX_HOME` only
 for Codex. Before any source is resolved or installed, the sole detection gate
 is exactly `agentplugins doctor --format json` (no source or target operands):
 
@@ -236,8 +253,11 @@ for client in codex cursor kiro; do
   case "$client" in
     codex) install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/codex "$client_path/codex" ;;
     cursor)
-      install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/cursor "$client_path/cursor"
-      install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/cursor "$client_path/agent"
+      printf '%s\n' '#!/bin/sh' \
+        'exec /opt/uap-observer-inputs/cursor/cursor-agent "$@"' \
+        >"$client_path/cursor"
+      chown root:root "$client_path/cursor"
+      chmod 0755 "$client_path/cursor"
       ;;
     kiro)
       install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/kiro "$client_path/kiro-cli"
@@ -247,13 +267,12 @@ for client in codex cursor kiro; do
   # Record and compare regular-file identity, inode, link count, mode, and digest.
   # Stop on a symlink, hardlink, digest mismatch, or an alias outside this list.
   find "$client_path" -maxdepth 1 -type f -printf '%f %D:%i %n %m\n' | LC_ALL=C sort
-  sha256sum "$client_path"/* /opt/uap-observer-inputs/bin/git \
-    "/opt/uap-observer-inputs/bin/$client"
+  sha256sum "$client_path"/* /opt/uap-observer-inputs/bin/git
   test "$(sha256sum "$client_path/git" | cut -d' ' -f1)" = \
     "$(sha256sum /opt/uap-observer-inputs/bin/git | cut -d' ' -f1)"
   case "$client" in
     codex) expected_names='codex git'; aliases='codex' ;;
-    cursor) expected_names='agent cursor git'; aliases='agent cursor' ;;
+    cursor) expected_names='cursor git'; aliases='' ;;
     kiro) expected_names='git kiro-cli kiro-cli-chat'; aliases='kiro-cli' ;;
   esac
   test "$(find "$client_path" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')" = "$expected_names"
@@ -263,6 +282,18 @@ for client in codex cursor kiro; do
     test "$(sha256sum "$client_path/$alias" | cut -d' ' -f1)" = \
       "$(sha256sum "/opt/uap-observer-inputs/bin/$client" | cut -d' ' -f1)"
   done
+  if [ "$client" = cursor ]; then
+    test "$(sed -n '2p' "$client_path/cursor")" = \
+      'exec /opt/uap-observer-inputs/cursor/cursor-agent "$@"'
+    PYTHONPATH="$SOURCE_ROOT" python3 -B - <<'PY'
+import json
+from pathlib import Path
+from observer.client_bundle import verify_bundle
+config = json.loads(Path("/root/uap-observer-adapter-config.template.json").read_text())
+bundle = config["clients"]["cursor"]["bundle"]
+verify_bundle(root=Path(bundle["root"]), manifest=Path(bundle["manifest"]), manifest_sha256=bundle["manifest_sha256"])
+PY
+  fi
   if [ "$client" = kiro ]; then
     test "$(sha256sum "$client_path/kiro-cli-chat" | cut -d' ' -f1)" = \
       c8c4edf122e66b07cc96729823ffa04d6f9a4dfd887590d36b76f809fce039c4

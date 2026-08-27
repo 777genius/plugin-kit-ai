@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from observer.client_bundle import verify_bundle
+
 HEROES = {"agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"}
 CLIENTS = {"codex", "cursor", "kiro"}
 ARTIFACT_MODE = {
@@ -41,12 +43,17 @@ GIT_BINARY = Path("/opt/uap-observer-inputs/bin/git")
 FIXED_INPUT_PATHS = {
     str(GIT_BINARY),
     "/opt/uap-observer-inputs/bin/codex",
-    "/opt/uap-observer-inputs/bin/cursor",
+    "/opt/uap-observer-inputs/cursor",
+    "/opt/uap-observer-inputs/cursor/cursor-agent",
+    "/opt/uap-observer-inputs/cursor-bundle.json",
     "/opt/uap-observer-inputs/bin/kiro",
     "/opt/uap-observer-inputs/bin/kiro-cli-chat",
     "/opt/uap-observer-inputs/chatgpt/app-binding.json",
     "/opt/uap-observer-inputs/chatgpt/projection-receipt.json",
     "/opt/uap-observer-inputs/external-pr-evidence.json",
+}
+FIXED_MOUNT_PATHS = FIXED_INPUT_PATHS - {
+    "/opt/uap-observer-inputs/cursor/cursor-agent",
 }
 PRIVACY_RESULT = {
     "real_project_accessed": False, "absolute_paths_exported": False,
@@ -327,8 +334,22 @@ def validate_config(value: dict[str, Any]) -> None:
         raise ValueError("adapter client allowlist differs")
     if any(value["clients"][client].get("client_id") != client for client in CLIENTS):
         raise ValueError("adapter client identity differs")
-    if any(value["clients"][client].get("binary") != f"/opt/uap-observer-inputs/bin/{client}" for client in CLIENTS):
+    expected_binaries = {
+        "codex": "/opt/uap-observer-inputs/bin/codex",
+        "cursor": "/opt/uap-observer-inputs/cursor/cursor-agent",
+        "kiro": "/opt/uap-observer-inputs/bin/kiro",
+    }
+    if any(value["clients"][client].get("binary") != expected_binaries[client] for client in CLIENTS):
         raise ValueError("adapter client binary differs from its literal dedicated path")
+    cursor_bundle = value["clients"]["cursor"].get("bundle")
+    if (
+        not isinstance(cursor_bundle, dict)
+        or set(cursor_bundle) != {"root", "manifest", "manifest_sha256"}
+        or cursor_bundle.get("root") != "/opt/uap-observer-inputs/cursor"
+        or cursor_bundle.get("manifest") != "/opt/uap-observer-inputs/cursor-bundle.json"
+        or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(cursor_bundle.get("manifest_sha256", "")))
+    ):
+        raise ValueError("Cursor bundle contract differs")
     kiro = value["clients"]["kiro"]
     if (
         kiro.get("sha256") != KIRO_CLI_SHA256
@@ -338,6 +359,8 @@ def validate_config(value: dict[str, Any]) -> None:
         raise ValueError("Kiro ACP executables differ from the captured 2.19.1 closure")
     if any("companion_binary" in value["clients"][client] or "companion_sha256" in value["clients"][client] for client in {"codex", "cursor"}):
         raise ValueError("non-Kiro client has an unreviewed companion executable")
+    if "bundle" in value["clients"]["codex"] or "bundle" in value["clients"]["kiro"]:
+        raise ValueError("non-Cursor client has an unreviewed bundle")
     if any(value["clients"][client].get("profile") != f"/var/lib/uap-observer/profiles/{client}" for client in CLIENTS):
         raise ValueError("adapter client profile root differs")
     for client in CLIENTS:
@@ -353,6 +376,8 @@ def validate_config(value: dict[str, Any]) -> None:
         value.get("git", {}).get("binary"),
         *(value["clients"][client].get("binary") for client in CLIENTS),
         value["clients"]["kiro"].get("companion_binary"),
+        cursor_bundle.get("root"),
+        cursor_bundle.get("manifest"),
         value.get("chatgpt", {}).get("app_binding_path"),
         value.get("chatgpt", {}).get("projection_receipt_path"),
         value.get("external_pr_evidence", {}).get("path"),
@@ -442,7 +467,7 @@ def verify_positive_mount_namespace(mountinfo: str) -> None:
     """Prove every non-kernel filesystem is mounted at an explicit runtime path."""
     if len(mountinfo) > (1 << 20):
         raise ValueError("mount namespace description exceeds size bound")
-    fixed_paths = tuple(sorted(FIXED_INPUT_PATHS))
+    fixed_paths = tuple(sorted(FIXED_MOUNT_PATHS))
     allowed = (
         "/opt/uap-observer-current", "/usr/bin", "/usr/lib", "/usr/lib64",
         "/lib", "/lib64",
@@ -496,11 +521,30 @@ def isolation_proof(config: dict[str, Any]) -> dict[str, Any]:
 
 def verified_executable(item: dict[str, Any], owner_uid: int) -> Path:
     expected = {"binary", "sha256", "profile", "client_id", "native_projection"}
+    if isinstance(item, dict) and item.get("client_id") == "cursor":
+        expected |= {"bundle"}
     if isinstance(item, dict) and item.get("client_id") == "kiro":
         expected |= {"companion_binary", "companion_sha256"}
     if not isinstance(item, dict) or set(item) != expected:
         raise ValueError("fixed client config is invalid")
     binary = Path(item["binary"])
+    if item["client_id"] == "cursor":
+        bundle = item["bundle"]
+        if (
+            not isinstance(bundle, dict)
+            or set(bundle) != {"root", "manifest", "manifest_sha256"}
+            or bundle.get("root") != "/opt/uap-observer-inputs/cursor"
+            or bundle.get("manifest") != "/opt/uap-observer-inputs/cursor-bundle.json"
+        ):
+            raise ValueError("fixed Cursor bundle config differs")
+        files = verify_bundle(
+            root=Path(bundle["root"]),
+            manifest=Path(bundle["manifest"]),
+            manifest_sha256=bundle["manifest_sha256"],
+            owner_uid=owner_uid,
+        )
+        if binary not in files:
+            raise ValueError("fixed Cursor executable is absent from its bundle")
     verify_executable_file(binary, item["sha256"], owner_uid=owner_uid)
     profile = Path(item["profile"])
     profile_fd = verify_root_readonly_directory(profile, label="fixed client profile")

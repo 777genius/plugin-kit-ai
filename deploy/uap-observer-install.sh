@@ -13,7 +13,7 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=fb18dc9dd577027bab58955c0b49c0a9c28e2dee734cdf3471a7605f6f4ed40c
+runtime_manifest_digest=d2b28a6ffcc3fbc3d0e932e3333a991d83ae277fa6d328a5d3944bba2a8d67bc
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 closure_digest=
 closure_stage=
@@ -51,8 +51,8 @@ if [ -e /opt/uap-observer-current ] || [ -L /opt/uap-observer-current ]; then
   installed_closure="/opt/$installed_target"
   observer_validate_installed_closure_sources "$installed_closure" "$untrusted_source_root" \
     "$untrusted_adapter_config" "$untrusted_observer_config" "$untrusted_caddy_config" "$untrusted_egress_allowlist" \
-    8768c618f51808ddaf2ab9e4b6f136ae428880d0d31dbd99f05bd206d9512486 \
-    8f52501c5fc67df6fdb15a3752bbc787f370f6aac193dcf92cf834e0241e1ad6 \
+    432dd41c305aaa2dc1db46cf03aca4ad366c51d9fb8b1611db05f32b3e0a4557 \
+    c79e2f0eb8cca31d374f8f1b352ca3a9c50d45b03af351387d90d79751e8f70d \
     b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
   observer_validate_installed_accounts_and_state "$installed_closure"
   observer_validate_protected_inputs "$installed_closure"
@@ -113,8 +113,8 @@ caddy_config=$stage_root/Caddyfile
 runner_source="$source_root/observer/fixed_runner.py"
 adapter_source="$source_root/observer/fixed_adapters.py"
 egress_proxy_source="$source_root/deploy/uap-observer-egress-proxy.py"
-runner_digest=8768c618f51808ddaf2ab9e4b6f136ae428880d0d31dbd99f05bd206d9512486
-adapter_digest=8f52501c5fc67df6fdb15a3752bbc787f370f6aac193dcf92cf834e0241e1ad6
+runner_digest=432dd41c305aaa2dc1db46cf03aca4ad366c51d9fb8b1611db05f32b3e0a4557
+adapter_digest=c79e2f0eb8cca31d374f8f1b352ca3a9c50d45b03af351387d90d79751e8f70d
 caddy_digest=b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
 
 test -f "$runner_source"

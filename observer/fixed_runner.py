@@ -25,6 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from observer.client_bundle import verify_bundle
+
 MAX_MESSAGE = 8 << 20
 MAX_ADAPTER_OUTPUT = 4 << 20
 RUNNER_TOTAL_SECONDS = 840
@@ -238,24 +240,57 @@ def validate_adapter_input_access(
     adapters = {name: identities[name] for name in ("codex", "cursor", "kiro", "control")}
     config = strict_json_loads(config_path.read_text(encoding="utf-8"))
     config_gid = grp.getgrnam("uap-observer-adapter-config").gr_gid
+    cursor = config["clients"]["cursor"]
+    bundle = cursor.get("bundle")
+    expected_bundle = {
+        "root": str(protected_root / "cursor"),
+        "manifest": str(protected_root / "cursor-bundle.json"),
+    }
+    if (
+        not isinstance(bundle, dict)
+        or set(bundle) != {"root", "manifest", "manifest_sha256"}
+        or any(bundle.get(key) != value for key, value in expected_bundle.items())
+    ):
+        raise ValueError("protected Cursor bundle config differs")
+    bundle_root = Path(bundle["root"])
+    bundle_manifest = Path(bundle["manifest"])
+    bundle_files = verify_bundle(
+        root=bundle_root,
+        manifest=bundle_manifest,
+        manifest_sha256=bundle["manifest_sha256"],
+    )
+    if Path(cursor["binary"]) not in bundle_files:
+        raise ValueError("protected Cursor executable is absent from its bundle")
+    cursor_digest = "sha256:" + hashlib.sha256(Path(cursor["binary"]).read_bytes()).hexdigest()
+    if cursor_digest != cursor["sha256"]:
+        raise ValueError("protected Cursor executable digest differs")
+
     expected_files = {
         Path(config["git"]["binary"]): config["git"]["sha256"],
-        **{Path(item["binary"]): item["sha256"] for item in config["clients"].values()},
+        **{
+            Path(config["clients"][name]["binary"]): config["clients"][name]["sha256"]
+            for name in ("codex", "kiro")
+        },
         Path(config["clients"]["kiro"]["companion_binary"]): config["clients"]["kiro"]["companion_sha256"],
         Path(config["chatgpt"]["app_binding_path"]): config["chatgpt"]["app_binding_sha256"],
         Path(config["chatgpt"]["projection_receipt_path"]): config["chatgpt"]["projection_receipt_sha256"],
         Path(config["external_pr_evidence"]["path"]): config["external_pr_evidence"]["sha256"],
     }
     literal = (
-        {protected_root / "bin" / name for name in ("git", "codex", "cursor", "kiro", "kiro-cli-chat")}
+        {protected_root / "bin" / name for name in ("git", "codex", "kiro", "kiro-cli-chat")}
         | {protected_root / "chatgpt" / name for name in ("app-binding.json", "projection-receipt.json")}
         | {protected_root / "external-pr-evidence.json"}
     )
     if set(expected_files) != literal:
         raise ValueError("protected input paths differ")
-    expected_dirs = {protected_root, protected_root / "bin", protected_root / "chatgpt"}
+    bundle_tree = set(bundle_root.rglob("*")) | {bundle_root}
+    bundle_dirs = {path for path in bundle_tree if path.is_dir()}
+    bundle_paths = {path for path in bundle_tree if path.is_file()}
+    if bundle_paths != set(bundle_files):
+        raise ValueError("protected Cursor bundle inventory differs")
+    expected_dirs = {protected_root, protected_root / "bin", protected_root / "chatgpt"} | bundle_dirs
     actual = set(protected_root.rglob("*")) | {protected_root}
-    if actual != expected_dirs | literal:
+    if actual != expected_dirs | literal | bundle_paths | {bundle_manifest}:
         raise ValueError("protected input tree contains an unexpected path")
 
     for directory in expected_dirs:
@@ -279,10 +314,14 @@ def validate_adapter_input_access(
         actual_digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
         if actual_digest != digest:
             raise ValueError("protected input digest differs")
-    probes = tuple((path, path.parent == protected_root / "bin") for path in sorted(expected_files))
+    probes = tuple(
+        [(path, path.parent == protected_root / "bin") for path in sorted(expected_files)]
+        + [(bundle_manifest, False)]
+        + [(path, bool(os.lstat(path).st_mode & stat.S_IXUSR)) for path in bundle_files]
+    )
     for uid, gid, gids in adapters.values():
         access_probe(uid, gid, gids, probes)
-    return tuple(path for path, _ in probes)
+    return tuple(sorted(literal | {bundle_root, bundle_manifest}))
 
 
 def canonical_json(value: Any) -> bytes:

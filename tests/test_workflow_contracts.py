@@ -52,6 +52,10 @@ class WorkflowContractTests(unittest.TestCase):
         client = schema["$defs"]["client"]
         self.assertIn("native_projection", client["required"])
         self.assertEqual(set(client["properties"]["native_projection"]["required"]), {"path", "sha256"})
+        cursor_rule = client["allOf"][1]["then"]
+        self.assertIn("bundle", cursor_rule["required"])
+        self.assertEqual(cursor_rule["properties"]["binary"]["const"], "/opt/uap-observer-inputs/cursor/cursor-agent")
+        self.assertEqual(schema["$defs"]["bundle"]["properties"]["manifest"]["const"], "/opt/uap-observer-inputs/cursor-bundle.json")
         kiro_rule = client["allOf"][2]["then"]
         self.assertEqual(kiro_rule["required"], ["companion_binary", "companion_sha256"])
         self.assertEqual(kiro_rule["properties"]["sha256"]["const"], "sha256:adab7305f27302bb4da93590ecb6d6ac49b9cad6d7f4cd17010735358cf32336")
@@ -63,6 +67,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('type(allowlist.get("schema_version")) is not int', installer)
         runner = (ROOT / "observer/fixed_runner.py").read_text()
         self.assertIn('Path(config["clients"]["kiro"]["companion_binary"])', runner)
+        self.assertIn("verify_bundle(", runner)
+        self.assertIn("literal | {bundle_root, bundle_manifest}", runner)
         runner_unit = (ROOT / "deploy/uap-observer-runner.service").read_text()
         self.assertIn("BindReadOnlyPaths=/opt/uap-observer-current /var/lib/uap-observer/proofs /var/lib/uap-observer/profiles", runner_unit)
         writable = next(line for line in runner_unit.splitlines() if line.startswith("BindPaths=-/var/lib/uap-observer/profiles/"))

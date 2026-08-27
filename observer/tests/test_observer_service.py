@@ -34,6 +34,7 @@ from cryptography.hazmat.primitives.hashes import SHA256
 
 import observer.fixed_runner as fixed_runner
 import observer.fixed_adapters as fixed_adapters
+from observer import client_bundle
 from observer.auth import AuthenticationError, GitHubCorroborator, JwksCache, OidcVerifier, ReplayStore
 from observer.canonical import canonical_json, request_digest, signed_payload, validate_redacted
 from observer.config import Config, IdentityPolicy
@@ -3171,30 +3172,45 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
             protected = Path(temporary) / "uap-observer-inputs"
             (protected / "bin").mkdir(parents=True)
             (protected / "chatgpt").mkdir()
+            (protected / "cursor").mkdir()
             files = {
                 protected / "bin/git": b"git",
                 protected / "bin/codex": b"codex",
-                protected / "bin/cursor": b"cursor",
                 protected / "bin/kiro": b"kiro",
                 protected / "bin/kiro-cli-chat": b"kiro-chat",
                 protected / "chatgpt/app-binding.json": b"app",
                 protected / "chatgpt/projection-receipt.json": b"receipt",
                 protected / "external-pr-evidence.json": b"evidence",
+                protected / "cursor/cursor-agent": b"cursor",
+                protected / "cursor/index.js": b"index",
             }
             for path, payload in files.items():
                 path.write_bytes(payload)
-                path.chmod(0o755 if path.parent == protected / "bin" else 0o640)
+                path.chmod(0o755 if path.parent in {protected / "bin", protected / "cursor"} and path.name != "index.js" else (0o644 if path.parent == protected / "cursor" else 0o640))
                 os.chown(path, 0, 0)
-            for directory in (protected, protected / "bin", protected / "chatgpt"):
-                directory.chmod(0o711)
+            for directory in (protected, protected / "bin", protected / "chatgpt", protected / "cursor"):
+                directory.chmod(0o755 if directory == protected / "cursor" else 0o711)
                 os.chown(directory, 0, 0)
-            digest = lambda path: "sha256:" + hashlib.sha256(files[path]).hexdigest()
+            bundle_manifest = protected / "cursor-bundle.json"
+            bundle_manifest.write_bytes(client_bundle.canonical_json(client_bundle.inventory_bundle(protected / "cursor")))
+            bundle_manifest.chmod(0o644)
+            os.chown(bundle_manifest, 0, 0)
+            digest = lambda path: "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
             config = Path(temporary) / "config.json"
             config.write_text(json.dumps({
                 "git": {"binary": str(protected / "bin/git"), "sha256": digest(protected / "bin/git")},
                 "clients": {
-                    name: {"binary": str(protected / f"bin/{name}"), "sha256": digest(protected / f"bin/{name}")}
-                    for name in ("codex", "cursor", "kiro")
+                    "codex": {"binary": str(protected / "bin/codex"), "sha256": digest(protected / "bin/codex")},
+                    "cursor": {
+                        "binary": str(protected / "cursor/cursor-agent"),
+                        "sha256": digest(protected / "cursor/cursor-agent"),
+                        "bundle": {
+                            "root": str(protected / "cursor"),
+                            "manifest": str(bundle_manifest),
+                            "manifest_sha256": digest(bundle_manifest),
+                        },
+                    },
+                    "kiro": {"binary": str(protected / "bin/kiro"), "sha256": digest(protected / "bin/kiro")},
                 },
                 "chatgpt": {
                     "app_binding_path": str(protected / "chatgpt/app-binding.json"),
@@ -3223,12 +3239,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 self.assertEqual(len(fixed_runner.validate_adapter_input_access(
                     config, protected_root=protected, identities=identities,
                     access_probe=lambda uid, gid, gids, paths: probes.append((uid, gid, gids, paths)),
-                )), 8)
+                )), 9)
                 self.assertEqual(
                     [(uid, gid, gids) for uid, gid, gids, _ in probes],
                     list(identities.values()),
                 )
-                self.assertTrue(all(len(paths) == 8 for _, _, _, paths in probes))
+                self.assertTrue(all(len(paths) == 10 for _, _, _, paths in probes))
                 for excluded, (denied_uid, _, _) in identities.items():
                     with self.subTest(excluded=excluded):
                         def deny(uid: int, _gid: int, _gids: frozenset[int], _paths: tuple[tuple[Path, bool], ...]) -> None:
@@ -3239,6 +3255,24 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                                 config, protected_root=protected, identities=identities,
                                 access_probe=deny,
                             )
+                cursor_index = protected / "cursor/index.js"
+                cursor_index.write_bytes(b"tampered")
+                with self.assertRaisesRegex(ValueError, "bundle bytes differ"):
+                    fixed_runner.validate_adapter_input_access(
+                        config, protected_root=protected, identities=identities,
+                        access_probe=lambda *_args: None,
+                    )
+                cursor_index.write_bytes(files[cursor_index])
+                unexpected = protected / "cursor/unexpected.js"
+                unexpected.write_bytes(b"unexpected")
+                unexpected.chmod(0o644)
+                os.chown(unexpected, 0, 0)
+                with self.assertRaisesRegex(ValueError, "bundle bytes differ"):
+                    fixed_runner.validate_adapter_input_access(
+                        config, protected_root=protected, identities=identities,
+                        access_probe=lambda *_args: None,
+                    )
+                unexpected.unlink()
                 # Search permission is sufficient: the probe must not require
                 # directory listing permission from an adapter identity.
                 # A production input root has searchable ancestors.  The
@@ -3527,11 +3561,18 @@ class FixedAdapterContractTests(unittest.TestCase):
         root = "10 1 0:1 / / ro - tmpfs tmpfs ro\n"
         allowed = root + "11 10 8:1 /usr/bin /usr/bin ro - ext4 /dev/root ro\n"
         fixed_adapters.verify_positive_mount_namespace(allowed)
+        fixed_adapters.verify_positive_mount_namespace(
+            allowed + "12 10 8:2 /opt/uap-observer-inputs/cursor /opt/uap-observer-inputs/cursor ro - ext4 /dev/root ro\n",
+        )
         for target in ("/var/www/customer-project", "/usr/local/src/repository", "/workspace/project", "/var/www/link-to-project", "/var/lib/uap-observer/state"):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, "non-allowlisted"):
                 fixed_adapters.verify_positive_mount_namespace(allowed + f"12 10 8:2 /project {target} ro - ext4 /dev/fixture ro\n")
         with self.assertRaisesRegex(ValueError, "non-allowlisted"):
             fixed_adapters.verify_positive_mount_namespace(allowed + "12 10 0:9 / /var/www ro - tmpfs tmpfs ro\n")
+        with self.assertRaisesRegex(ValueError, "non-allowlisted"):
+            fixed_adapters.verify_positive_mount_namespace(
+                allowed + "12 10 8:2 /opt/uap-observer-inputs/unexpected /opt/uap-observer-inputs/unexpected ro - ext4 /dev/fixture ro\n",
+            )
         with self.assertRaisesRegex(ValueError, "alternate-path"):
             fixed_adapters.verify_positive_mount_namespace(
                 root + "12 10 8:2 /var/www/customer-project /opt/uap-observer-inputs/bin/codex ro - ext4 /dev/fixture ro\n",
