@@ -22,6 +22,7 @@ type commandContainment struct {
 	cmd              *exec.Cmd
 	kqueue           int
 	exitObservation  latchedExitObservation
+	kevent           func(int, []unix.Kevent_t, []unix.Kevent_t, *unix.Timespec) (int, error)
 	liveGroupMembers func(int) (int, error)
 	killGroup        func(int, syscall.Signal) error
 }
@@ -69,7 +70,13 @@ func (containment *commandContainment) attach(cmd *exec.Cmd) error {
 	change := unix.Kevent_t{}
 	unix.SetKevent(&change, cmd.Process.Pid, unix.EVFILT_PROC, unix.EV_ADD|unix.EV_ENABLE|unix.EV_CLEAR)
 	change.Fflags = unix.NOTE_EXIT
-	_, err := unix.Kevent(containment.kqueue, []unix.Kevent_t{change}, nil, nil)
+	var err error
+	for {
+		_, err = containment.callKevent([]unix.Kevent_t{change}, nil, nil)
+		if !errors.Is(err, syscall.EINTR) {
+			break
+		}
+	}
 	if errors.Is(err, syscall.ESRCH) {
 		containment.exitObservation.latch()
 		return nil
@@ -128,9 +135,22 @@ func (containment *commandContainment) exited() (bool, error) {
 	return containment.exitObservation.observe(func() (bool, error) {
 		events := make([]unix.Kevent_t, 1)
 		timeout := unix.Timespec{}
-		n, err := unix.Kevent(containment.kqueue, nil, events, &timeout)
+		n, err := containment.callKevent(nil, events, &timeout)
+		if errors.Is(err, syscall.EINTR) {
+			// A signal can interrupt this non-blocking observation after Git or
+			// another short-lived child exits. The NOTE_EXIT event remains queued,
+			// so let the supervised poll retry instead of failing a clean command.
+			return false, nil
+		}
 		return err == nil && n > 0 && events[0].Fflags&unix.NOTE_EXIT != 0, err
 	})
+}
+
+func (containment *commandContainment) callKevent(changes, events []unix.Kevent_t, timeout *unix.Timespec) (int, error) {
+	if containment.kevent != nil {
+		return containment.kevent(containment.kqueue, changes, events, timeout)
+	}
+	return unix.Kevent(containment.kqueue, changes, events, timeout)
 }
 
 func (containment *commandContainment) groupMembers(pgid int) (int, error) {
