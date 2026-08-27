@@ -124,6 +124,15 @@ func TestStagerProjectsKiroStdioRuntimeContractBeforeNativeImport(t *testing.T) 
 	if projected["cwd"] != plan.ActivePath {
 		t.Fatalf("Kiro cwd = %v, want %v", projected["cwd"], plan.ActivePath)
 	}
+	var foundMCP bool
+	for _, object := range delivery.NativeObjects {
+		if object.Kind == kiroMCPObjectKind && object.LogicalName == "local" {
+			foundMCP = object.Path == filepath.Join(plan.NativeRegistryRoot, "settings", "mcp.json") && strings.HasPrefix(object.ManagedDigest, "sha256:")
+		}
+	}
+	if !foundMCP {
+		t.Fatalf("Kiro MCP ownership was not staged: %+v", delivery.NativeObjects)
+	}
 }
 
 func TestStagerProjectsCursorNativeManifestAndRuntimeContract(t *testing.T) {
@@ -415,7 +424,7 @@ func stagingPlan(t *testing.T, client domain.ClientID, mode domain.PackageMode) 
 		status = domain.PlanManualActivationRequired
 		activation = domain.ActivationManual
 	}
-	return domain.DeliveryPlan{
+	plan := domain.DeliveryPlan{
 		ClientID: client, Scope: domain.ScopeUser, Status: status, PackageMode: mode,
 		Activation: activation, Authentication: domain.AuthenticationNotChecked,
 		Policy: domain.PolicyAllowed, Verification: domain.VerificationPackageValid,
@@ -426,6 +435,10 @@ func stagingPlan(t *testing.T, client domain.ClientID, mode domain.PackageMode) 
 			{Kind: domain.ComponentExtension, Name: "cursor", Support: domain.SupportUnsupported},
 		},
 	}
+	if client == domain.ClientKiro {
+		plan.NativeRegistryRoot = filepath.Join(t.TempDir(), ".kiro")
+	}
+	return plan
 }
 
 func supportFor(mode domain.PackageMode) domain.SupportLevel {

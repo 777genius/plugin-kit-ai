@@ -42,7 +42,14 @@ func queuedACPRealPipeEvidence(reader io.Reader) (queued, eof bool, resultErr er
 			resultErr = fmt.Errorf("ACP pipe descriptor is invalid")
 			return
 		}
-		queued = events&unix.POLLIN != 0
+		if events&unix.POLLIN != 0 {
+			available, ioctlErr := queuedPipeBytes(int(fd))
+			if ioctlErr != nil {
+				resultErr = fmt.Errorf("inspect queued ACP pipe bytes: %w", ioctlErr)
+				return
+			}
+			queued = available > 0
+		}
 		eof = events&unix.POLLHUP != 0 && !queued
 	})
 	return queued, eof, errors.Join(resultErr, err)

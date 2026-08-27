@@ -30,7 +30,11 @@ type Activator struct {
 // it cannot drift from the provider's activation paths.
 func (activator Activator) AutomaticallyActivates(request domain.ActivationRequest) bool {
 	if request.Client.ClientID == domain.ClientKiro {
-		return strings.TrimSpace(request.BackendExecutable) != "" && mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+		if strings.TrimSpace(request.Client.ConfigRoot) == "" || !kiroNativeComponents(request.Plan.Components) {
+			return false
+		}
+		return !hasSupportedMCP(request.Plan.Components) ||
+			(strings.TrimSpace(request.BackendExecutable) != "" && isKiroCLI(request.BackendExecutable))
 	}
 	return activationObservable(request, activator.Runner)
 }
@@ -38,7 +42,7 @@ func (activator Activator) AutomaticallyActivates(request domain.ActivationReque
 // PreflightActivation rejects lifecycle configurations that would otherwise
 // discover a missing required capability only after native client mutation.
 func (activator Activator) PreflightActivation(request domain.ActivationRequest) error {
-	if !activator.AutomaticallyActivates(request) || request.Client.ClientID != domain.ClientKiro {
+	if !activator.AutomaticallyActivates(request) || request.Client.ClientID != domain.ClientKiro || !hasSupportedMCP(request.Plan.Components) {
 		return nil
 	}
 	runner, ok := activator.Runner.(duplexCapabilityRunner)
@@ -64,7 +68,18 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 	case domain.ClientChatGPT:
 		return requireExternalUninstall(outcome, request.ExternalUninstalled, "uninstall the plugin in ChatGPT Plugins, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
 	case domain.ClientKiro:
-		return requireExternalUninstall(outcome, request.ExternalUninstalled, "remove the custom Power in Kiro, then rerun remove with `--external-uninstalled` (also use the flag if it was never imported)"), nil
+		if len(kiroObjects(request.NativeObjects)) == 0 {
+			return requireExternalUninstall(outcome, request.ExternalUninstalled, "remove the legacy custom Power in Kiro, then rerun remove with `--external-uninstalled`"), nil
+		}
+		if !request.Confirmed {
+			outcome.UserActions = append(outcome.UserActions, "agentplugins will remove its managed Kiro skills and MCP entries automatically")
+			return outcome, nil
+		}
+		if err := deactivateKiroNative(ctx, request); err != nil {
+			return outcome, err
+		}
+		outcome.ExternalRemovalComplete = true
+		return outcome, nil
 	case domain.ClientCopilot, domain.ClientVSCode:
 		if request.ExternalUninstalled {
 			outcome.ExternalRemovalComplete = true
@@ -193,34 +208,38 @@ func (activator Activator) Activate(ctx context.Context, request domain.Activati
 		}
 		return outcome, nil
 	case domain.ClientKiro:
-		if !mcpOnly(request.Plan.Components) {
+		if !activator.AutomaticallyActivates(request) {
 			outcome.Activation = domain.ActivationManual
-			outcome.UserActions = append(outcome.UserActions, "import the prepared package as a custom Power in Kiro, then verify it is active")
-			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("Kiro: Powers > Add Custom Power > Import power from a folder > select %s > Install, then verify %s is active", request.Delivery.ActivePath, request.DeclaredName))
+			outcome.UserActions = append(outcome.UserActions, "install a current Kiro CLI and rerun add to register the package's skills and MCP servers")
+			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("Kiro native installation requires a writable config root and, for MCP packages, a complete Kiro CLI distribution at %s", request.Delivery.ActivePath))
 			return outcome, nil
 		}
 		if request.VerifyOnly {
-			if err := activator.verifyKiroMCP(ctx, request); err != nil {
-				if errors.Is(err, errKiroACPContractUnknown) {
-					return manualKiroVerification(outcome, request), nil
+			if err := verifyKiroNativeObjects(request.Client.ConfigRoot, request.Delivery.NativeObjects, false); err != nil {
+				return failedActivation(outcome, "repair the managed Kiro skills and MCP configuration", err)
+			}
+			if hasSupportedMCP(request.Plan.Components) {
+				if err := activator.verifyKiroMCP(ctx, request); err != nil {
+					if errors.Is(err, errKiroACPContractUnknown) {
+						return manualKiroVerification(outcome, request), nil
+					}
+					return failedActivation(outcome, fmt.Sprintf("rerun structured Kiro ACP verification with `%s acp --agent-engine v3 --auth-method cli`", request.BackendExecutable), err)
 				}
-				return failedActivation(outcome, fmt.Sprintf("rerun structured Kiro ACP verification with `%s acp --agent-engine v3 --auth-method cli`", request.BackendExecutable), err)
 			}
 			outcome.Activation = domain.ActivationActive
 			outcome.Verification = domain.VerificationInstalled
 			return outcome, nil
 		}
-		if !activator.AutomaticallyActivates(request) {
-			outcome.Activation = domain.ActivationManual
-			outcome.UserActions = append(outcome.UserActions, "install kiro-cli and rerun add to import and verify the prepared MCP configuration")
-			outcome.LocalActions = append(outcome.LocalActions, fmt.Sprintf("install a complete Kiro CLI distribution (including kiro-cli-chat), then rerun add for %s to import and verify the native MCP configuration", request.Delivery.ActivePath))
-			return outcome, nil
+		if err := activateKiroNative(ctx, request); err != nil {
+			return failedActivation(outcome, "retry the managed Kiro native installation", err)
 		}
-		if err := activator.activateKiroMCP(ctx, request); err != nil {
-			if errors.Is(err, errKiroACPContractUnknown) {
-				return manualKiroVerification(outcome, request), nil
+		if hasSupportedMCP(request.Plan.Components) {
+			if err := activator.verifyKiroMCP(ctx, request); err != nil {
+				if errors.Is(err, errKiroACPContractUnknown) {
+					return manualKiroVerification(outcome, request), nil
+				}
+				return failedActivation(outcome, fmt.Sprintf("retry structured Kiro ACP verification with `%s acp --agent-engine v3 --auth-method cli`", request.BackendExecutable), err)
 			}
-			return failedActivation(outcome, fmt.Sprintf("rerun the MCP import from %s, then retry structured verification with `%s acp --agent-engine v3 --auth-method cli`", filepath.Join(request.Delivery.ActivePath, "mcp.json"), request.BackendExecutable), err)
 		}
 		outcome.Activation = domain.ActivationActive
 		outcome.Verification = domain.VerificationInstalled
@@ -347,14 +366,6 @@ func (activator Activator) verifyCodex(ctx context.Context, request domain.Activ
 	}
 }
 
-func (activator Activator) activateKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
-	config := filepath.Join(request.Delivery.ActivePath, "mcp.json")
-	if _, err := activator.runClientResult(ctx, "Kiro CLI", request.BackendExecutable, "mcp", "import", "--file", config, "global", "--force"); err != nil {
-		return fmt.Errorf("import Kiro MCP configuration: %w", err)
-	}
-	return activator.verifyKiroMCP(ctx, request)
-}
-
 func (activator Activator) verifyKiroMCP(ctx context.Context, request domain.ActivationRequest) error {
 	runner, ok := activator.Runner.(duplexCommandRunner)
 	if !ok {
@@ -417,10 +428,13 @@ func failedActivation(outcome domain.ActivationOutcome, next string, err error) 
 	return outcome, err
 }
 
-func mcpOnly(components []domain.ComponentDecision) bool {
+func kiroNativeComponents(components []domain.ComponentDecision) bool {
 	found := false
 	for _, component := range components {
-		if component.Support == domain.SupportUnsupported || component.Kind != domain.ComponentMCPServer {
+		if component.Support == domain.SupportUnsupported {
+			continue
+		}
+		if component.Kind != domain.ComponentSkill && component.Kind != domain.ComponentMCPServer {
 			return false
 		}
 		found = true
@@ -676,8 +690,14 @@ func activationObservable(request domain.ActivationRequest, runner CommandRunner
 	case domain.ClientCodex, domain.ClientCopilot, domain.ClientVSCode:
 		return true
 	case domain.ClientKiro:
+		if !kiroNativeComponents(request.Plan.Components) || !isKiroCLI(request.BackendExecutable) {
+			return false
+		}
+		if !hasSupportedMCP(request.Plan.Components) {
+			return true
+		}
 		_, duplexAvailable := runner.(duplexCommandRunner)
-		return duplexAvailable && mcpOnly(request.Plan.Components) && isKiroCLI(request.BackendExecutable)
+		return duplexAvailable
 	default:
 		return false
 	}

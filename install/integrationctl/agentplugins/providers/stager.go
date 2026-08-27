@@ -219,6 +219,13 @@ func (stager Stager) stage(
 			ProtectionClass: "managed",
 		},
 	}
+	if plan.ClientID == domain.ClientKiro {
+		kiroObjects, err := buildKiroNativeObjects(stagingPath, envelope, plan)
+		if err != nil {
+			return domain.StagedDelivery{}, err
+		}
+		objects = append(objects, kiroObjects...)
+	}
 	return domain.StagedDelivery{
 		ClientID:       plan.ClientID,
 		OwnedBase:      plan.TargetRoot,

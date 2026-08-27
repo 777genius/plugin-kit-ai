@@ -616,7 +616,7 @@ func TestClientListingDoesNotConvertUnknownAuthentication(t *testing.T) {
 	}
 }
 
-func TestActivatorPinsDetectedKiroExecutableForImportAndACPVerification(t *testing.T) {
+func TestActivatorPinsDetectedKiroExecutableForACPVerification(t *testing.T) {
 	t.Parallel()
 	runner := &recordingRunner{duplexOutput: connectedACP("demo-server"), duplexLive: true}
 	request := activationRequest(t, domain.ClientKiro)
@@ -629,10 +629,7 @@ func TestActivatorPinsDetectedKiroExecutableForImportAndACPVerification(t *testi
 	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
 		t.Fatalf("outcome = %+v", outcome)
 	}
-	want := [][]string{
-		{"/test/bin/kiro-cli", "mcp", "import", "--file", filepath.Join(request.Delivery.ActivePath, "mcp.json"), "global", "--force"},
-		{"/test/bin/kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"},
-	}
+	want := [][]string{{"/test/bin/kiro-cli", "acp", "--agent-engine", "v3", "--auth-method", "cli"}}
 	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
 		t.Fatalf("commands = %#v, want %#v", got, want)
 	}
@@ -671,17 +668,31 @@ func TestActivatorContainmentPreflightFailureCannotMutateKiro(t *testing.T) {
 	}
 }
 
-func TestActivatorKeepsKiroUIComponentsToOneActionableManualStep(t *testing.T) {
+func TestActivatorInstallsKiroSkillWithoutManualPowerImport(t *testing.T) {
 	t.Parallel()
 	request := activationRequest(t, domain.ClientKiro)
 	request.BackendExecutable = "/test/bin/kiro-cli"
 	request.Plan.Components = []domain.ComponentDecision{{Kind: domain.ComponentSkill, Name: "guide", Support: domain.SupportNative}}
+	source := filepath.Join(request.Delivery.ActivePath, "skills", "guide")
+	writeTestFile(t, filepath.Join(source, "SKILL.md"), "---\nname: guide\ndescription: Guide\n---\n")
+	digest, err := digestKiroSkillDirectory(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Delivery.NativeObjects = []domain.NativeObjectOwnership{{
+		ObjectID: "kiro-skill:guide", Kind: kiroSkillObjectKind, LogicalName: "guide",
+		Path: filepath.Join(request.Client.ConfigRoot, "skills", "guide"), SourceRelative: "skills/guide",
+		ManagedDigest: digest, ProtectionClass: "managed",
+	}}
 	outcome, err := (Activator{Runner: &recordingRunner{}}).Activate(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if outcome.Activation != domain.ActivationManual || len(outcome.LocalActions) != 1 || !strings.Contains(outcome.LocalActions[0], request.Delivery.ActivePath) || !strings.Contains(outcome.LocalActions[0], "verify") {
+	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled {
 		t.Fatalf("outcome = %+v", outcome)
+	}
+	if _, err := os.Stat(filepath.Join(request.Client.ConfigRoot, "skills", "guide", "SKILL.md")); err != nil {
+		t.Fatalf("installed Kiro skill: %v", err)
 	}
 }
 
@@ -882,13 +893,14 @@ func TestChatGPTActivationCanOnlyCompleteByExplicitAttestation(t *testing.T) {
 
 func activationRequest(t *testing.T, client domain.ClientID) domain.ActivationRequest {
 	t.Helper()
-	base := filepath.Join(t.TempDir(), "managed")
+	root := t.TempDir()
+	base := filepath.Join(root, "managed")
 	active := filepath.Join(base, "demo")
 	if err := os.MkdirAll(active, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return domain.ActivationRequest{
-		Client:       domain.DetectedClient{ClientID: client, Status: domain.DetectionDetected},
+		Client:       domain.DetectedClient{ClientID: client, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(root, ".kiro")},
 		DeclaredName: "demo",
 		Plan: domain.DeliveryPlan{
 			ClientID: client, ActivePath: active, PhysicalArtifactID: "demo-0123456789ab",

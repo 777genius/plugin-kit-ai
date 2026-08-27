@@ -145,6 +145,11 @@ func (planner Planner) Plan(
 		plan.Status = domain.PlanReady
 		plan.Activation = domain.ActivationPrepared
 	}
+	if plan.Status != domain.PlanUnsupported && client.ClientID == domain.ClientKiro &&
+		strings.TrimSpace(client.ConfigRoot) != "" && hasOnlyKiroNativeComponents(plan.Components) {
+		plan.Status = domain.PlanReady
+		plan.Activation = domain.ActivationPrepared
+	}
 
 	switch client.ClientID {
 	case domain.ClientCodex:
@@ -164,7 +169,7 @@ func (planner Planner) Plan(
 			plan.UserActions = append(plan.UserActions, "GitHub Copilot CLI is required for automatic activation")
 		}
 	case domain.ClientKiro:
-		plan.UserActions = append(plan.UserActions, "finish the prepared Power installation in Kiro")
+		plan.UserActions = append(plan.UserActions, "agentplugins will install and verify the package's global Kiro skills and MCP servers automatically")
 	case domain.ClientVSCode:
 		if strings.TrimSpace(planner.Detected[domain.ClientCopilot].ExecutablePath) != "" {
 			plan.UserActions = append(plan.UserActions, "agentplugins will install through GitHub Copilot CLI; VS Code discovers it automatically")
@@ -487,6 +492,20 @@ func hasSupportedKind(decisions []domain.ComponentDecision, kind domain.Componen
 		}
 	}
 	return false
+}
+
+func hasOnlyKiroNativeComponents(decisions []domain.ComponentDecision) bool {
+	found := false
+	for _, item := range decisions {
+		if item.Support == domain.SupportUnsupported {
+			continue
+		}
+		if item.Kind != domain.ComponentSkill && item.Kind != domain.ComponentMCPServer {
+			return false
+		}
+		found = true
+	}
+	return found
 }
 
 func missingChatGPTAppBindings(envelope domain.PackageEnvelope) []string {

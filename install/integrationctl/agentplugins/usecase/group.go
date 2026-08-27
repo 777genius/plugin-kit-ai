@@ -554,6 +554,12 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 		}
 		outcome, activationErr := service.Activator.Activate(ctx, domain.ActivationRequest{Client: target.input.Client, Plan: target.plan, Delivery: delivery,
 			DeclaredName: target.input.Envelope.Manifest.Name, Replacing: replace, Interactive: target.input.Interactive, BackendExecutable: target.input.BackendExecutable,
+			PreviousNativeObjects: func() []domain.NativeObjectOwnership {
+				if target.managed == nil {
+					return nil
+				}
+				return append([]domain.NativeObjectOwnership(nil), target.managed.NativeObjects...)
+			}(),
 			VerifyOnly: target.noChange, ActivationComplete: target.input.ActivationComplete})
 		if target.noChange && target.managed != nil {
 			if activationErr == nil && !clientVerifierAvailable(target.input, target.plan) && target.managed.Activation == domain.ActivationActive && target.managed.Verification == domain.VerificationInstalled {
