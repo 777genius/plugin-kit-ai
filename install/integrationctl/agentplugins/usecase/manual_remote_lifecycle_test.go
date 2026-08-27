@@ -90,6 +90,20 @@ func TestKiroSkillSupportsAutomaticAddUpdateAndRepair(t *testing.T) {
 	if repaired.Targets[0].Activation.Activation != domain.ActivationActive || repaired.Targets[0].Activation.Verification != domain.VerificationInstalled {
 		t.Fatalf("Kiro repair did not restore native installation: %+v", repaired.Targets[0])
 	}
+	removed, err := service.RemoveGroup(context.Background(), RemoveGroupInput{
+		Selector:         added.InstallationID,
+		Targets:          []RemoveInput{{Client: client, Scope: domain.ScopeUser}},
+		OperationGroupID: "kiro-remove", Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !removed.Mutated {
+		t.Fatalf("Kiro grouped remove did not mutate: %+v", removed)
+	}
+	if _, err := os.Stat(filepath.Join(client.ConfigRoot, "skills", "docs")); !os.IsNotExist(err) {
+		t.Fatalf("Kiro grouped remove retained managed skill: %v", err)
+	}
 }
 
 func signedChatGPTInput(t *testing.T, client domain.DetectedClient, version, treeDigest, manifestDigest string) AddInput {
