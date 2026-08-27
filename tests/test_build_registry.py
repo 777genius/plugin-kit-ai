@@ -1032,10 +1032,12 @@ class DirectoryDomainTests(unittest.TestCase):
             }
             expected_status = "suspended" if distribution["id"] in suspended_live_npx else "active"
             self.assertEqual(distribution["status"], expected_status)
-            expected_sequences = [1, 2] if distribution["id"] in {
-                "777genius/chrome-devtools-bridge", "777genius/context7", "777genius/firebase",
-                "777genius/hubspot-developer",
-            } else [1]
+            if distribution["id"] in {"777genius/firebase", "777genius/hubspot-developer"}:
+                expected_sequences = [1, 2, 3]
+            elif distribution["id"] in {"777genius/chrome-devtools-bridge", "777genius/context7"}:
+                expected_sequences = [1, 2]
+            else:
+                expected_sequences = [1]
             self.assertEqual([item["sequence"] for item in distribution["releases"]], expected_sequences)
             self.assertEqual(
                 [item["tree_digest_algorithm"] for item in distribution["releases"]],
@@ -1070,6 +1072,11 @@ class DirectoryDomainTests(unittest.TestCase):
                     policy["status"] == "active"
                     and package_source["revision"] is None
                     and runtime_root.is_dir()
+                ):
+                    expected_minimum = registry.LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION
+                if (
+                    distribution["id"] in {"777genius/firebase", "777genius/hubspot-developer"}
+                    and policy["release_sequence"] >= 2
                 ):
                     expected_minimum = registry.LOCKED_NPM_RUNTIME_MINIMUM_INSTALLER_VERSION
                 if distribution["id"] == "upstash/context7":
@@ -1164,7 +1171,7 @@ class DirectoryDomainTests(unittest.TestCase):
         ):
             registry.validate_active_local_runtime_closures(source)
 
-    def test_firebase_locked_runtime_is_active_at_sequence_two(self) -> None:
+    def test_firebase_locked_runtime_is_active_at_sequence_three(self) -> None:
         registry.validate_locked_npm_runtime(registry.ROOT / "plugins" / "firebase")
         source = self.source()
         distribution = next(
@@ -1174,15 +1181,15 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual(distribution["status"], "active")
         self.assertEqual(
             [(policy["release_sequence"], policy["status"]) for policy in distribution["release_policies"]],
-            [(1, "revoked"), (2, "active")],
+            [(1, "revoked"), (2, "revoked"), (3, "active")],
         )
         resolution = registry.resolve_directory(source, "firebase", ["codex"])
         self.assertEqual(
             (resolution["distribution_id"], resolution["release_sequence"]),
-            ("777genius/firebase", 2),
+            ("777genius/firebase", 3),
         )
 
-    def test_hubspot_preview_locked_runtime_is_active_at_sequence_two(self) -> None:
+    def test_hubspot_preview_locked_runtime_is_active_at_sequence_three(self) -> None:
         package = registry.ROOT / "plugins" / "hubspot-developer"
         registry.validate_locked_npm_runtime(package)
         runtime = json.loads((package / registry.LOCKED_NPM_RUNTIME_PATH / "runtime.json").read_text())
@@ -1197,12 +1204,12 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual(
             [(policy["release_sequence"], policy["status"], policy["minimum_installer_version"])
              for policy in distribution["release_policies"]],
-            [(1, "revoked", "0.1.8"), (2, "active", "0.1.13")],
+            [(1, "revoked", "0.1.8"), (2, "revoked", "0.1.13"), (3, "active", "0.1.13")],
         )
         resolution = registry.resolve_directory(source, "hubspot-developer", ["codex"])
         self.assertEqual(
             (resolution["distribution_id"], resolution["release_sequence"]),
-            ("777genius/hubspot-developer", 2),
+            ("777genius/hubspot-developer", 3),
         )
 
     def test_locked_npm_runtime_requires_boolean_omit_optional(self) -> None:

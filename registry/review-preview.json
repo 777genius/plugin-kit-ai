@@ -7111,7 +7111,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7121,7 +7121,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7131,7 +7131,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7141,7 +7141,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7151,7 +7151,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7165,7 +7165,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7179,7 +7179,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7193,7 +7193,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7207,7 +7207,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7221,7 +7221,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7235,7 +7235,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7249,7 +7249,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7263,7 +7263,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7277,7 +7277,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7291,187 +7291,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7486,36 +7306,10 @@
             {
               "client": "copilot",
               "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7530,6 +7324,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -7537,7 +7345,7 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7552,6 +7360,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -7559,7 +7381,25 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7574,6 +7414,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -7581,7 +7435,43 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -7600,6 +7490,24 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -7607,7 +7515,99 @@
             }
           ],
           "distribution_id": "777genius/firebase",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/firebase",
+          "release_sequence": 3
         }
       ],
       "distributions": [
@@ -7615,8 +7615,8 @@
           "id": "777genius/firebase",
           "kind": "community",
           "status": "active",
-          "release_sequence": 2,
-          "package_version": "0.2.0",
+          "release_sequence": 3,
+          "package_version": "0.2.1",
           "components": [
             "mcp"
           ],
@@ -7649,8 +7649,8 @@
             "path": "plugins/firebase"
           },
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
-          "tree_digest": "sha256:9eb03dff4657072184c449e510b8f474d6f3f37376d11023040d6d5b35f13533",
-          "manifest_digest": "sha256:dbc739597d146ae4a4e416045f3ff5a3d07e6e1cc81c80de71ff0ffefe6eaf73"
+          "tree_digest": "sha256:f29d3dffebdc119f57a32b29461863ecde25aaed11aa8e5473d3cc857d3e5eb0",
+          "manifest_digest": "sha256:ae8b10620d67a17a08e8aeb80910a66436b86f26716854b520ad3b414b2af3b2"
         }
       ]
     },
@@ -10585,7 +10585,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10595,7 +10595,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10605,7 +10605,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10615,7 +10615,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10625,7 +10625,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10639,7 +10639,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10653,7 +10653,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10667,7 +10667,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10681,7 +10681,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10695,7 +10695,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10709,7 +10709,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10723,7 +10723,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10737,7 +10737,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10751,7 +10751,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10765,187 +10765,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -10960,36 +10780,10 @@
             {
               "client": "copilot",
               "authentication": "required"
-            },
-            {
-              "client": "vscode",
-              "authentication": "required"
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
-        },
-        {
-          "targets": [
-            {
-              "client": "codex",
-              "authentication": "required"
-            },
-            {
-              "client": "cursor",
-              "authentication": "required"
-            },
-            {
-              "client": "copilot",
-              "authentication": "required"
-            },
-            {
-              "client": "kiro",
-              "authentication": "required"
-            }
-          ],
-          "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -11004,6 +10798,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -11011,7 +10819,7 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -11026,6 +10834,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -11033,7 +10855,25 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -11048,6 +10888,20 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -11055,7 +10909,43 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
         },
         {
           "targets": [
@@ -11074,6 +10964,24 @@
             {
               "client": "vscode",
               "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
             },
             {
               "client": "kiro",
@@ -11081,7 +10989,99 @@
             }
           ],
           "distribution_id": "777genius/hubspot-developer",
-          "release_sequence": 2
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
+        },
+        {
+          "targets": [
+            {
+              "client": "codex",
+              "authentication": "required"
+            },
+            {
+              "client": "cursor",
+              "authentication": "required"
+            },
+            {
+              "client": "copilot",
+              "authentication": "required"
+            },
+            {
+              "client": "vscode",
+              "authentication": "required"
+            },
+            {
+              "client": "kiro",
+              "authentication": "required"
+            }
+          ],
+          "distribution_id": "777genius/hubspot-developer",
+          "release_sequence": 3
         }
       ],
       "distributions": [
@@ -11089,8 +11089,8 @@
           "id": "777genius/hubspot-developer",
           "kind": "community",
           "status": "active",
-          "release_sequence": 2,
-          "package_version": "0.2.0",
+          "release_sequence": 3,
+          "package_version": "0.2.1",
           "components": [
             "mcp"
           ],
@@ -11123,8 +11123,8 @@
             "path": "plugins/hubspot-developer"
           },
           "tree_digest_algorithm": "agentplugins-tree-sha256-v1",
-          "tree_digest": "sha256:283db3be8bab86cc35119ad2a115d3bdae1df4a239a8a42a50c044de04cdcf0a",
-          "manifest_digest": "sha256:cfba4137d81cd99683d3b6312597725a4b38c79a9678b854723037730013acb2"
+          "tree_digest": "sha256:3b3e4ae662d980e425fbf54dc7423c211e6a81fb1593ace561734392f14fb377",
+          "manifest_digest": "sha256:359e99c1974c94248663ad639688755409dafc0751fe31a650602b3984a03d92"
         }
       ]
     },
