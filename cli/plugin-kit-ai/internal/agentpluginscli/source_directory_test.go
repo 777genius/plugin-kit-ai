@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/sourceacquisition"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 )
@@ -839,6 +840,130 @@ func TestDirectLocalAndFullSHASourcesBypassDirectory(t *testing.T) {
 	}
 }
 
+func TestSignedDiscoverySelectorAcquiresExactDigestAsUnreviewedDirectSource(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	plugin := writeCLIPlugin(t)
+	local, err := fixture.app.acquireLocal(context.Background(), plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	treeDigest, manifestDigest := local.envelope.TreeDigest, local.envelope.ManifestDigest
+	if err := local.cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	selector := "discovery:owner/demo//plugin"
+	revision := strings.Repeat("a", 40)
+	record := discoveryv1.Record{
+		Slug: selector, Name: "demo", Repository: "owner/demo", PackagePath: "plugin", Revision: revision,
+		TreeDigest: treeDigest, ManifestDigest: manifestDigest, Availability: "available", CompatibleClients: []string{"cursor"},
+	}
+	discovery := &fixedDiscoveryClient{bundle: discoveryv1.VerifiedBundle{
+		Snapshot: discoveryv1.Snapshot{Sequence: 9}, Search: discoveryv1.Search{Records: []discoveryv1.Record{record}},
+		Digest: "sha256:" + strings.Repeat("9", 64),
+	}}
+	acquirer := &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: plugin}
+	fixture.app.DiscoveryClient, fixture.app.SourceAcquirer = discovery, acquirer
+	_, stderr, err := fixture.execute(false, "install", selector, "--target", "cursor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if discovery.calls != 1 || acquirer.verifiedCalls != 1 || acquirer.directGitCalls != 0 || len(state.Installations) != 1 {
+		t.Fatalf("Discovery boundary calls/state = discovery:%d verified:%d direct:%d state:%+v", discovery.calls, acquirer.verifiedCalls, acquirer.directGitCalls, state)
+	}
+	installation := state.Installations[0]
+	if installation.OriginMode != domain.OriginModeDirect || installation.Directory != nil || installation.Source.RequestedSource != selector ||
+		installation.Source.CanonicalSource != selector || installation.Source.Repository != "owner/demo" || installation.Source.ResolvedRevision != revision ||
+		installation.Source.SourceBindingID != domain.ComputeSourceBindingID(domain.SourceIdentity{RequestedSource: selector, CanonicalSource: selector, Repository: "owner/demo", PackageSubpath: "plugin"}) ||
+		!strings.Contains(stderr, "conformant_unreviewed") {
+		t.Fatalf("Discovery install provenance = installation:%+v stderr:%q", installation, stderr)
+	}
+}
+
+func TestSignedDiscoverySelectorUpdatesSameRepositoryPathWithoutSourceSwitch(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, []domain.DetectedClient{fixtureClient(t, domain.ClientCursor)})
+	firstRoot := writeCLIPlugin(t)
+	secondRoot := writeCLIPlugin(t)
+	manifestPath := filepath.Join(secondRoot, "plugin.json")
+	body, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifestPath, []byte(strings.Replace(string(body), `"version": "1.0.0"`, `"version": "2.0.0"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	identity := func(root string) (string, string) {
+		t.Helper()
+		loaded, loadErr := fixture.app.acquireLocal(context.Background(), root)
+		if loadErr != nil {
+			t.Fatal(loadErr)
+		}
+		defer loaded.cleanup()
+		return loaded.envelope.TreeDigest, loaded.envelope.ManifestDigest
+	}
+	firstTree, firstManifest := identity(firstRoot)
+	secondTree, secondManifest := identity(secondRoot)
+	selector := "discovery:owner/demo//plugin"
+	firstRevision, secondRevision := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	version := "1.0.0"
+	record := discoveryv1.Record{Slug: selector, Name: "demo", Version: &version, Repository: "owner/demo", PackagePath: "plugin",
+		Revision: firstRevision, TreeDigest: firstTree, ManifestDigest: firstManifest, Availability: "available", CompatibleClients: []string{"cursor"}}
+	discovery := &fixedDiscoveryClient{bundle: discoveryv1.VerifiedBundle{Snapshot: discoveryv1.Snapshot{Sequence: 1}, Search: discoveryv1.Search{Records: []discoveryv1.Record{record}}}}
+	fixture.app.DiscoveryClient = discovery
+	fixture.app.SourceAcquirer = &localBackedSourceAcquirer{delegate: fixture.app.SourceAcquirer, root: firstRoot,
+		revisionRoots: map[string]string{firstRevision: firstRoot, secondRevision: secondRoot}}
+
+	if _, _, err := fixture.execute(false, "install", selector, "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err := fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	initialBindingID := state.Installations[0].Source.SourceBindingID
+
+	version = "2.0.0"
+	record.Version, record.Revision, record.TreeDigest, record.ManifestDigest = &version, secondRevision, secondTree, secondManifest
+	discovery.bundle.Snapshot.Sequence = 2
+	discovery.bundle.Search.Records = []discoveryv1.Record{record}
+	if _, _, err := fixture.execute(false, "update", "demo", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	state, err = fixture.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := state.Installations[0]
+	if updated.Source.SourceBindingID != initialBindingID || updated.Source.CanonicalSource != selector ||
+		updated.Source.ResolvedRevision != secondRevision || updated.Source.TreeDigest != secondTree ||
+		updated.Package.Version != version || updated.Package.ManifestDigest != secondManifest {
+		t.Fatalf("Discovery update lost channel or immutable identity: %+v", updated)
+	}
+}
+
+func TestDiscoveryUpdateRejectsRepositoryOrPathRebindingBeforeAcquisition(t *testing.T) {
+	t.Parallel()
+	fixture := newCLIFixture(t, nil)
+	selector := "discovery:owner/demo//plugin"
+	fixture.app.DiscoveryClient = &fixedDiscoveryClient{bundle: discoveryv1.VerifiedBundle{
+		Search: discoveryv1.Search{Records: []discoveryv1.Record{{
+			Slug: selector, Name: "demo", Repository: "attacker/demo", PackagePath: "plugin", Revision: strings.Repeat("b", 40),
+			TreeDigest: "sha256:" + strings.Repeat("1", 64), ManifestDigest: "sha256:" + strings.Repeat("2", 64), Availability: "available",
+		}}},
+	}}
+	counter := &countingSourceAcquirer{delegate: fixture.app.SourceAcquirer}
+	fixture.app.SourceAcquirer = counter
+	_, err := fixture.app.acquireDiscovery(context.Background(), selector, packageResolutionRequest{DirectBinding: &domain.SourceBinding{Repository: "owner/demo", PackageSubpath: "plugin"}})
+	if err == nil || !strings.Contains(err.Error(), "use agentplugins switch explicitly") || counter.calls != 0 {
+		t.Fatalf("Discovery rebind error=%v acquisitions=%d", err, counter.calls)
+	}
+}
+
 func TestProductionGitHubAcquirerOutputResolvesAsDirectExactSource(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is unavailable")
@@ -929,6 +1054,24 @@ func TestExplicitLocalPathRecognizesOnlyPortableExplicitAndAbsoluteWindowsForms(
 	for _, value := range []string{"plugin", "existing-plugin", `C:plugin`, `owner\\plugin`, `\\server`} {
 		if explicitLocalPath(value) {
 			t.Errorf("explicitLocalPath(%q) = true", value)
+		}
+	}
+}
+
+func TestExactGitSourceAcceptsRootAndSubpathPackages(t *testing.T) {
+	revision := strings.Repeat("a", 40)
+	for source, path := range map[string]string{
+		"owner/repo@" + revision:              "",
+		"owner/repo@" + revision + "//plugin": "plugin",
+	} {
+		match := exactGitPattern.FindStringSubmatch(source)
+		if match == nil || match[1] != "owner/repo" || match[2] != revision || match[3] != path {
+			t.Fatalf("exact source %q match = %v", source, match)
+		}
+	}
+	for _, source := range []string{"owner/repo@" + revision + "//", "owner/repo@main", "owner/repo"} {
+		if exactGitPattern.MatchString(source) {
+			t.Fatalf("invalid exact source accepted: %q", source)
 		}
 	}
 }

@@ -30,8 +30,12 @@ community bridge is not mistaken for its upstream project. Direct local paths
 and exact GitHub revisions work without Directory submission.
 
 ```bash
+npx universal-agent-plugins search docs
+npx universal-agent-plugins validate ./my-plugin
 npx universal-agent-plugins add context7 --dry-run --target cursor
 npx universal-agent-plugins add context7 --target codex,cursor,kiro
+npx universal-agent-plugins outdated --all
+npx universal-agent-plugins update --all
 npx universal-agent-plugins update context7 --target codex,cursor,kiro
 npx universal-agent-plugins repair context7 --target codex,cursor,kiro
 npx universal-agent-plugins remove context7 --target codex,cursor,kiro
@@ -45,6 +49,15 @@ reviewed; branches, tags, and abbreviated SHAs are rejected. `add`, `update`,
 `repair`, and `remove` accept comma-separated targets. `repair` reapplies the
 recorded revision; `update` selects a newer eligible release. `switch` moves the
 whole installation to a qualified Directory distribution or exact source.
+
+`search` combines the reviewed Directory with a separately signed Discovery
+Index. Unreviewed results use publisher-qualified `discovery:owner/repo//path`
+selectors and show their exact indexed commit before install. The CLI
+reacquires and validates those package bytes before mutation; the index
+signature authenticates metadata but is not a package or runtime endorsement.
+`outdated` is read-only, while `update --all` keeps every installation's
+recorded source and targets and fails the batch preflight before mutation if any
+planned update is unsafe.
 
 For Agent Plugins 1.0, the root `plugin.json` is the install authority. A
 `plugin.yaml` file is legacy `plugin-kit-ai` authoring input only: it is not

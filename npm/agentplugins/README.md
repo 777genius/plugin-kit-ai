@@ -23,7 +23,7 @@ binary matching the exact npm version, verifies the SHA-256 embedded in the npm
 tarball, then caches it under XDG Cache or LocalAppData. It never falls back to
 `latest` and never sends `GITHUB_TOKEN` to public downloads.
 
-Release 0.1.5 passed exact native npm bootstrap proofs on all six supported
+Release 0.1.15 passed exact native npm bootstrap proofs on all six supported
 platforms:
 
 | OS | x64 | arm64 |
@@ -38,8 +38,12 @@ the binary runs.
 ```bash
 npx universal-agent-plugins doctor
 npx universal-agent-plugins list
+npx universal-agent-plugins search docs
+npx universal-agent-plugins validate ./my-plugin
 npx universal-agent-plugins add context7 --dry-run --target cursor
 npx universal-agent-plugins add context7 --target codex,cursor,kiro
+npx universal-agent-plugins outdated --all
+npx universal-agent-plugins update --all
 npx universal-agent-plugins update context7 --target codex,cursor,kiro
 npx universal-agent-plugins repair context7 --target codex,cursor,kiro
 npx universal-agent-plugins remove context7 --target codex,cursor,kiro
@@ -50,6 +54,15 @@ npx universal-agent-plugins switch context7 --to upstash/context7
 reapplies or reactivates the recorded revision; it does not update or change
 source. `switch` moves the complete installation to a qualified Directory
 distribution or exact source, so it uses `--to` instead of `--target`.
+
+`search` combines reviewed Directory releases with a separately signed
+Discovery Index. Discovery results remain visibly unreviewed and use an exact,
+publisher-qualified selector such as `discovery:owner/repo//path`. Before any
+mutation, the CLI reacquires the indexed commit and validates the package. The
+index signature authenticates discovery metadata; it does not endorse package
+code or runtime behavior. `outdated` is read-only. `update --all` preserves each
+installation's recorded source and targets and performs a complete batch
+preflight before applying updates.
 
 A successful non-dry-run, multi-target `add --format json` includes one
 `data.acquisition` proof and a `data.target_outcomes` object keyed by every

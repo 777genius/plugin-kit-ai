@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/statemigration"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/domain"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/ports"
@@ -16,6 +17,10 @@ import (
 
 type DirectoryClient interface {
 	Load(context.Context, uint64) (directoryv1.VerifiedBundle, error)
+}
+
+type DiscoveryClient interface {
+	Load(context.Context, uint64) (discoveryv1.VerifiedBundle, error)
 }
 
 type SourceAcquirer interface {
@@ -31,6 +36,7 @@ type App struct {
 	StateStore          transaction.StateStore
 	Detector            ports.ClientDetector
 	DirectoryClient     DirectoryClient
+	DiscoveryClient     DiscoveryClient
 	SourceAcquirer      SourceAcquirer
 	PackageLoader       ports.PackageLoader
 	NativePackageLoader ports.PackageLoader

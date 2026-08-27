@@ -284,9 +284,10 @@ type DirectorySelection struct {
 }
 
 var (
-	ErrDirectoryNotFound   = errors.New("directory selector not found")
-	ErrDirectoryAmbiguous  = errors.New("directory selector is ambiguous")
-	ErrDirectoryIneligible = errors.New("no eligible directory release")
+	ErrDirectoryNotFound     = errors.New("directory selector not found")
+	ErrDirectoryAmbiguous    = errors.New("directory selector is ambiguous")
+	ErrDirectoryIneligible   = errors.New("no eligible directory release")
+	ErrDirectoryNoSafeUpdate = errors.New("no safe directory update")
 )
 
 // ResolveDirectory is deterministic and side-effect free. It selects one
@@ -676,11 +677,16 @@ func uniqueClients(values []ClientID) []ClientID {
 }
 func ineligibleError(id string, reasons []eligibilityReason) error {
 	parts := []string{}
+	noSafeUpdate := false
 	for _, r := range reasons {
 		parts = append(parts, r.message)
+		noSafeUpdate = noSafeUpdate || r.code == "no_safe_update"
 	}
 	if len(parts) == 0 {
 		parts = []string{"no release matches the operation"}
+	}
+	if noSafeUpdate {
+		return fmt.Errorf("%w: %w in %q: %s", ErrDirectoryIneligible, ErrDirectoryNoSafeUpdate, id, strings.Join(parts, "; "))
 	}
 	return fmt.Errorf("%w in %q: %s", ErrDirectoryIneligible, id, strings.Join(parts, "; "))
 }

@@ -21,6 +21,7 @@ import (
 	processadapter "github.com/777genius/plugin-kit-ai/install/integrationctl/adapters/process"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/clientdetect"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/directoryv1"
+	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/discoveryv1"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/loader"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/processlock"
 	"github.com/777genius/plugin-kit-ai/install/integrationctl/agentplugins/adapters/sourceacquisition"
@@ -40,7 +41,11 @@ var (
 	defaultDirectoryOrigin    = "https://777genius.github.io/universal-agent-plugins/registry/schemas/1/"
 	defaultDirectoryKeyID     = "uap-directory-2026-01"
 	defaultDirectoryPublicKey = "HalXARjat+v3ylTPLMAnvuavRo4ZfrF+DbWwsjlp2bI="
+	defaultDiscoveryOrigin    = "https://777genius.github.io/universal-agent-plugins/discovery/"
+	defaultDiscoveryKeyID     = "uap-discovery-2026-01"
+	defaultDiscoveryPublicKey = "IxWvGuscXR9crlCrGyBQZNqroYNVPbBA1B3pnjSffhc="
 	directoryClientFactory    = newDirectoryClient
+	discoveryClientFactory    = newDiscoveryClient
 )
 
 func main() {
@@ -60,6 +65,10 @@ func run() error {
 		return err
 	}
 	directoryClient, err := directoryClientFactory(dataRoot)
+	if err != nil {
+		return err
+	}
+	discoveryClient, err := discoveryClientFactory(dataRoot)
 	if err != nil {
 		return err
 	}
@@ -97,6 +106,7 @@ func run() error {
 		LegacyStateLock:     locks.FileLock{BaseDir: filepath.Join(home, ".plugin-kit-ai", "locks")},
 		Detector:            clientdetect.NewOS(home),
 		DirectoryClient:     directoryClient,
+		DiscoveryClient:     discoveryClient,
 		SourceAcquirer:      lazySourceAcquirer{dataRoot: dataRoot, acquirer: sourceacquisition.Acquirer{TempRoot: dataRoot}},
 		PackageLoader:       packageLoader,
 		NativePackageLoader: loader.OpenAILoader{Loader: packageLoader},
@@ -109,6 +119,22 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return agentpluginscli.NewRoot(app).ExecuteContext(ctx)
+}
+
+func newDiscoveryClient(dataRoot string) (*discoveryv1.Client, error) {
+	publicKey, err := base64.StdEncoding.Strict().DecodeString(defaultDiscoveryPublicKey)
+	if err != nil || len(publicKey) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("decode Discovery public key")
+	}
+	origin, err := productionFeedOrigin(os.Getenv("AGENTPLUGINS_DISCOVERY_ORIGIN"), defaultDiscoveryOrigin, "AGENTPLUGINS_DISCOVERY_ORIGIN")
+	if err != nil {
+		return nil, err
+	}
+	return &discoveryv1.Client{
+		Origin: origin, HTTPClient: hardenedHTTPClient("Discovery"),
+		Trust: discoveryv1.TrustStore{Keys: []discoveryv1.TrustedKey{{ID: defaultDiscoveryKeyID, PublicKey: ed25519.PublicKey(publicKey), State: discoveryv1.KeyCurrent}}},
+		Cache: discoveryv1.Cache{Path: filepath.Join(dataRoot, "discovery-v1-cache.json")},
+	}, nil
 }
 
 // lazySourceAcquirer creates the private temporary root only once a validated
@@ -162,7 +188,7 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 		return nil, err
 	}
 	return &directoryv1.Client{
-		Origin: origin, HTTPClient: hardenedHTTPClient(),
+		Origin: origin, HTTPClient: hardenedHTTPClient("Directory"),
 		Trust: trust,
 		// The production bootstrap is intentionally absent until the first
 		// post-merge Directory publication. Short-name resolution fails closed
@@ -173,16 +199,20 @@ func newDirectoryClient(dataRoot string) (*directoryv1.Client, error) {
 }
 
 func productionDirectoryOrigin(environmentValue string) (string, error) {
+	return productionFeedOrigin(environmentValue, defaultDirectoryOrigin, "AGENTPLUGINS_DIRECTORY_ORIGIN")
+}
+
+func productionFeedOrigin(environmentValue, fallback, variable string) (string, error) {
 	origin := strings.TrimSpace(environmentValue)
 	if origin == "" {
-		origin = defaultDirectoryOrigin
+		origin = fallback
 	}
 	parsed, err := url.Parse(origin)
 	if err != nil || parsed.Scheme != "https" || parsed.Opaque != "" || parsed.Host == "" || parsed.Hostname() == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" {
-		return "", fmt.Errorf("AGENTPLUGINS_DIRECTORY_ORIGIN must be an absolute credential-free HTTPS URL without query or fragment")
+		return "", fmt.Errorf("%s must be an absolute credential-free HTTPS URL without query or fragment", variable)
 	}
 	if !strings.HasSuffix(parsed.Path, "/") || parsed.RawPath != "" || strings.Contains(parsed.Path, "\\") || path.Clean(parsed.Path) != strings.TrimSuffix(parsed.Path, "/") {
-		return "", fmt.Errorf("AGENTPLUGINS_DIRECTORY_ORIGIN must have a clean, unescaped directory path ending in /")
+		return "", fmt.Errorf("%s must have a clean, unescaped directory path ending in /", variable)
 	}
 	return parsed.String(), nil
 }
@@ -202,17 +232,17 @@ func agentpluginsHome() (string, error) {
 	return filepath.Join(root, "agentplugins"), nil
 }
 
-func hardenedHTTPClient() *http.Client {
+func hardenedHTTPClient(feed string) *http.Client {
 	return &http.Client{
 		Timeout: 20 * time.Second,
 		CheckRedirect: func(request *http.Request, via []*http.Request) error {
 			if len(via) > 2 {
-				return fmt.Errorf("too many Directory redirects")
+				return fmt.Errorf("too many %s redirects", feed)
 			}
 			if request.URL.Scheme != "https" || len(via) == 0 ||
 				!strings.EqualFold(request.URL.Scheme, via[0].URL.Scheme) ||
 				!strings.EqualFold(request.URL.Host, via[0].URL.Host) {
-				return fmt.Errorf("Directory redirect must remain on the original HTTPS origin")
+				return fmt.Errorf("%s redirect must remain on the original HTTPS origin", feed)
 			}
 			request.Header.Del("Authorization")
 			request.Header.Del("Cookie")

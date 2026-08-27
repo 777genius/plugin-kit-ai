@@ -16,9 +16,10 @@ import (
 func newAddCommand(app App, opts *options) *cobra.Command {
 	var activationComplete, authComplete bool
 	command := &cobra.Command{
-		Use:   "add <name-or-source>",
-		Short: "Plan and install one Agent Plugins 1.0 package for one or more clients",
-		Args:  cobra.ExactArgs(1),
+		Use:     "add <name-or-source>",
+		Aliases: []string{"install"},
+		Short:   "Plan and install one Agent Plugins 1.0 package for one or more clients",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := validateCommonOptions(opts); err != nil {
 				return err

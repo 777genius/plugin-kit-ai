@@ -84,13 +84,17 @@ func (containment *commandContainment) terminate() terminationResult {
 		return terminationResult{err: os.ErrProcessDone}
 	}
 	members, inspectErr := containment.groupMembers(containment.cmd.Process.Pid)
+	stopped, observeErr := containment.exited()
+	if inspectErr == nil && observeErr == nil && stopped && members == 0 {
+		return terminationResult{leaderStopped: true}
+	}
 	killErr := containment.signalGroup(-containment.cmd.Process.Pid, syscall.SIGKILL)
 	if errors.Is(killErr, syscall.ESRCH) {
 		killErr = nil
 	}
 	deadline := time.Now().Add(time.Second)
 	for {
-		stopped, observeErr := containment.exited()
+		stopped, observeErr = containment.exited()
 		remaining, groupErr := containment.groupMembers(containment.cmd.Process.Pid)
 		if stopped && remaining == 0 {
 			return terminationResult{leaderStopped: true, forcedMembers: members > 0, err: errors.Join(inspectErr, killErr, observeErr, groupErr)}

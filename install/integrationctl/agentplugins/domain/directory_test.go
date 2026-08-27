@@ -203,6 +203,20 @@ func TestResolveDirectoryOperationMatrixAndTopLevelRevocation(t *testing.T) {
 	}
 }
 
+func TestResolveDirectoryUpdateWithoutSuccessorReturnsTypedNoSafeUpdate(t *testing.T) {
+	snapshot := testDirectory()
+	request := request("owner/tool", ClientCodex)
+	request.Operation = DirectoryUpdate
+	request.Recorded = &RecordedDirectoryRelease{
+		ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 3,
+		ResolvedRevision: testRelease(3, "").PackageSource.Revision,
+	}
+	_, err := ResolveDirectory(snapshot, request)
+	if !errors.Is(err, ErrDirectoryIneligible) || !errors.Is(err, ErrDirectoryNoSafeUpdate) {
+		t.Fatalf("no-successor update error = %v", err)
+	}
+}
+
 func TestResolveDirectoryRecordedReAddRetainsExactRelease(t *testing.T) {
 	s := testDirectory()
 	recorded := &RecordedDirectoryRelease{ProductID: "tool", DistributionID: "owner/tool", ReleaseSequence: 2, ResolvedRevision: testRelease(2, "").PackageSource.Revision}
