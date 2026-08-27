@@ -422,6 +422,7 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		},
 		DeclaredName: input.Envelope.Manifest.Name, Replacing: replace,
 		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
+		PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), previousClient.NativeObjects...),
 	})
 	result.Activation = outcome
 	if activationErr != nil && outcome.Activation == "" {
@@ -492,7 +493,8 @@ func (service Service) resume(
 		Client: input.Client, Plan: result.Plan, Delivery: delivery,
 		DeclaredName: input.Envelope.Manifest.Name, Replacing: true,
 		Interactive: input.Interactive, BackendExecutable: input.BackendExecutable,
-		VerifyOnly: true, ActivationComplete: input.ActivationComplete,
+		PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
+		VerifyOnly:            true, ActivationComplete: input.ActivationComplete,
 	})
 	// Authentication completion is a separate phase. Client installation/list
 	// evidence must never silently complete it.
@@ -540,7 +542,10 @@ func clientVerifierAvailable(input AddInput, plan domain.DeliveryPlan) bool {
 			return false
 		}
 		for _, component := range plan.Components {
-			if component.Support == domain.SupportUnsupported || component.Kind != domain.ComponentMCPServer {
+			if component.Support == domain.SupportUnsupported {
+				continue
+			}
+			if component.Kind != domain.ComponentSkill && component.Kind != domain.ComponentMCPServer {
 				return false
 			}
 		}
@@ -687,7 +692,7 @@ func (service Service) verifyClientReadOnly(ctx context.Context, input AddInput,
 		return domain.ActivationOutcome{}, nil
 	}
 	delivery := domain.StagedDelivery{ClientID: input.Client.ClientID, OwnedBase: result.Plan.TargetRoot, ActivePath: client.TargetLocator, ArtifactDigest: managedDigest(client), NativeObjects: client.NativeObjects}
-	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, VerifyOnly: true})
+	outcome, err := service.Activator.Activate(ctx, domain.ActivationRequest{Client: input.Client, Plan: result.Plan, Delivery: delivery, DeclaredName: input.Envelope.Manifest.Name, Replacing: true, BackendExecutable: input.BackendExecutable, PreviousNativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...), VerifyOnly: true})
 	if outcome.Authentication == "" || outcome.Authentication == domain.AuthenticationNotChecked {
 		outcome.Authentication = client.Authentication
 	}

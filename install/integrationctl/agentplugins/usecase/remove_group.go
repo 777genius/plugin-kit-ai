@@ -126,7 +126,8 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 		}
 		outcome, err := service.Activator.Deactivate(ctx, domain.DeactivationRequest{Client: targetInput.Client, DeclaredName: installation.DeclaredName,
 			CurrentActivation: client.Activation, Interactive: targetInput.Interactive, ExternalUninstalled: targetInput.ExternalUninstalled,
-			Confirmed: false, PhysicalArtifactID: client.PhysicalArtifact, BackendExecutable: targetInput.BackendExecutable})
+			Confirmed: false, PhysicalArtifactID: client.PhysicalArtifact, BackendExecutable: targetInput.BackendExecutable,
+			NativeObjects: append([]domain.NativeObjectOwnership(nil), client.NativeObjects...)})
 		result.Targets[targetIndex].Deactivation = outcome
 		if err != nil {
 			return result, err
@@ -153,7 +154,8 @@ func (service Service) RemoveGroup(ctx context.Context, input RemoveGroupInput) 
 		item := &planned[plannedIndex]
 		outcome, err := service.Activator.Deactivate(ctx, domain.DeactivationRequest{Client: item.input.Client, DeclaredName: installation.DeclaredName,
 			CurrentActivation: item.client.Activation, Interactive: item.input.Interactive, ExternalUninstalled: item.input.ExternalUninstalled,
-			Confirmed: true, PhysicalArtifactID: item.client.PhysicalArtifact, BackendExecutable: item.input.BackendExecutable})
+			Confirmed: true, PhysicalArtifactID: item.client.PhysicalArtifact, BackendExecutable: item.input.BackendExecutable,
+			NativeObjects: append([]domain.NativeObjectOwnership(nil), item.client.NativeObjects...)})
 		for _, resultIndex := range item.resultIndexes {
 			result.Targets[resultIndex].Deactivation = outcome
 		}

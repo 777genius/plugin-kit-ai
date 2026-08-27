@@ -432,49 +432,75 @@ func inspectKiroRegistry(plan domain.DeliveryPlan, managed *domain.ClientBinding
 	if root == "" {
 		return registryIndeterminate, nil
 	}
-	// Custom Powers without MCP are activated manually and the adapter has no
-	// documented read-only registry contract for their installed identities.
-	// Their local prepared-package boundary was inspected above, so an
-	// absent/owned local package may be prepared safely. Mixed Powers still have
-	// to inspect every supported MCP name below; a manual skill surface must not
-	// hide a positive collision in Kiro's authoritative global MCP registry.
-	if !hasSupportedMCP(plan.Components) {
-		return registryClear, nil
-	}
 	if _, err := os.Lstat(root); os.IsNotExist(err) {
 		return registryClear, nil
 	} else if err != nil {
 		return registryIndeterminate, err
 	}
+	if managed != nil {
+		if err := verifyKiroNativeObjects(root, managed.NativeObjects, true); err != nil {
+			return registryIndeterminate, err
+		}
+	}
 	finding := registryClear
-	mcpPath := filepath.Join(root, "settings", "mcp.json")
-	body, err := os.ReadFile(mcpPath)
-	if os.IsNotExist(err) {
-		return finding, nil
-	}
-	if err != nil {
-		return registryIndeterminate, err
-	}
-	value, err := decodeStrictJSONObject(body)
-	if err != nil {
-		return registryIndeterminate, err
-	}
-	servers, ok := value["mcpServers"].(map[string]any)
-	if !ok {
-		return registryIndeterminate, nil
+	mcp := map[string]any{}
+	if hasSupportedMCP(plan.Components) {
+		mcpPath := filepath.Join(root, "settings", "mcp.json")
+		if err := validateKiroNativePath(root, mcpPath); err != nil {
+			return registryIndeterminate, err
+		}
+		var err error
+		mcp, _, _, _, err = readKiroMCPConfig(mcpPath)
+		if err != nil {
+			return registryIndeterminate, err
+		}
 	}
 	for _, component := range plan.Components {
-		if component.Kind != domain.ComponentMCPServer || component.Support == domain.SupportUnsupported {
+		if component.Support == domain.SupportUnsupported {
 			continue
 		}
-		if _, exists := servers[component.Name]; exists {
-			if managed == nil {
-				return registryCollision, nil
+		var exists bool
+		switch component.Kind {
+		case domain.ComponentSkill:
+			skillPath := filepath.Join(root, "skills", component.Name)
+			if err := validateKiroNativePath(root, skillPath); err != nil {
+				return registryIndeterminate, err
 			}
-			finding = registryExpected
+			_, statErr := os.Lstat(skillPath)
+			exists = statErr == nil
+			if statErr != nil && !os.IsNotExist(statErr) {
+				return registryIndeterminate, statErr
+			}
+		case domain.ComponentMCPServer:
+			_, exists = mcp[component.Name]
+		default:
+			continue
 		}
+		if !exists {
+			continue
+		}
+		if managed == nil {
+			return registryCollision, nil
+		}
+		if !managedKiroObjectExists(managed.NativeObjects, component.Kind, component.Name) {
+			return registryIndeterminate, nil
+		}
+		finding = registryExpected
 	}
 	return finding, nil
+}
+
+func managedKiroObjectExists(objects []domain.NativeObjectOwnership, kind domain.ComponentKind, name string) bool {
+	want := kiroSkillObjectKind
+	if kind == domain.ComponentMCPServer {
+		want = kiroMCPObjectKind
+	}
+	for _, object := range objects {
+		if object.Kind == want && object.LogicalName == name {
+			return true
+		}
+	}
+	return false
 }
 
 func hasSupportedMCP(components []domain.ComponentDecision) bool {

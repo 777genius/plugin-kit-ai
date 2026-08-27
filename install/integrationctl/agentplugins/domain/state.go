@@ -124,6 +124,7 @@ type NativeObjectOwnership struct {
 	Kind            string `json:"kind"`
 	LogicalName     string `json:"logical_name,omitempty"`
 	Path            string `json:"path,omitempty"`
+	SourceRelative  string `json:"source_relative,omitempty"`
 	BeforeDigest    string `json:"before_digest,omitempty"`
 	ManagedDigest   string `json:"managed_digest,omitempty"`
 	ProtectionClass string `json:"protection_class"`

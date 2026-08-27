@@ -97,6 +97,7 @@ func (service Service) Remove(ctx context.Context, input RemoveInput) (RemoveRes
 		Confirmed:           input.Confirmed && !input.DryRun,
 		PhysicalArtifactID:  client.PhysicalArtifact,
 		BackendExecutable:   input.BackendExecutable,
+		NativeObjects:       append([]domain.NativeObjectOwnership(nil), client.NativeObjects...),
 	})
 	result.Deactivation = deactivation
 	if err != nil {

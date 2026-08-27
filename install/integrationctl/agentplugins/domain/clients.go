@@ -157,6 +157,9 @@ type ActivationRequest struct {
 	Replacing         bool           `json:"replacing"`
 	Interactive       bool           `json:"interactive"`
 	BackendExecutable string         `json:"-"`
+	// PreviousNativeObjects binds replacement preflight to the exact native
+	// objects recorded by the currently installed package revision.
+	PreviousNativeObjects []NativeObjectOwnership `json:"-"`
 	// VerifyOnly forbids client mutation and asks the provider to inspect the
 	// current client state. ActivationComplete is an explicit user attestation
 	// accepted only when verification is unavailable or returns unknown evidence.
@@ -179,14 +182,15 @@ type ActivationOutcome struct {
 }
 
 type DeactivationRequest struct {
-	Client              DetectedClient  `json:"client"`
-	DeclaredName        string          `json:"declared_name"`
-	CurrentActivation   ActivationState `json:"current_activation"`
-	Interactive         bool            `json:"interactive"`
-	ExternalUninstalled bool            `json:"external_uninstalled"`
-	Confirmed           bool            `json:"confirmed"`
-	PhysicalArtifactID  string          `json:"physical_artifact_id"`
-	BackendExecutable   string          `json:"-"`
+	Client              DetectedClient          `json:"client"`
+	DeclaredName        string                  `json:"declared_name"`
+	CurrentActivation   ActivationState         `json:"current_activation"`
+	Interactive         bool                    `json:"interactive"`
+	ExternalUninstalled bool                    `json:"external_uninstalled"`
+	Confirmed           bool                    `json:"confirmed"`
+	PhysicalArtifactID  string                  `json:"physical_artifact_id"`
+	BackendExecutable   string                  `json:"-"`
+	NativeObjects       []NativeObjectOwnership `json:"-"`
 }
 
 type DeactivationOutcome struct {

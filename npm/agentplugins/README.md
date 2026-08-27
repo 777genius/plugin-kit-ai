@@ -114,9 +114,11 @@ pending or cancelled rather than runtime success. Directory badges and status
 describe only the exact schema, materialization, discovery, runtime, or OAuth
 evidence collected—not every plugin/client/environment combination.
 
-For native MCP-only Kiro packages, a complete supported Kiro CLI distribution
-is verified automatically after import with a bounded structured ACP v1
-initialize/session handshake. The handshake supplies no MCP definitions and
+Kiro skills are installed directly into the documented global skills path.
+For packages with MCP servers, agentplugins atomically merges only its owned
+entries into Kiro's global `mcp.json`, preserves unrelated configuration, and
+uses a complete supported Kiro CLI distribution for a bounded structured ACP
+v1 initialize/session handshake. The handshake supplies no MCP definitions and
 sends no prompt, model turn, tool call, or permission response: Kiro must load
 the installed native configuration and report each planned server connected
 with enabled tools. The verifier keeps ACP stdin open while it drains a bounded
@@ -125,9 +127,9 @@ protocol evidence before supervised containment stops and reaps the long-lived
 child. Automatic Kiro ACP verification is available only on Linux after
 capability preflight proves delegated cgroup v2 creation, atomic
 CLONE_INTO_CGROUP placement, and cgroup.kill. macOS, Windows, and Linux hosts
-without every required proof fail preflight before any native mutation. On
-those hosts, install or import the package manually in Kiro, activate it in
-Kiro's UI, and verify its servers there; that workflow is outside this
+without every required proof fail preflight before any MCP mutation. On those
+hosts, use Kiro's documented manual skill and MCP configuration paths; that
+workflow is outside this
 automatic CLI path. Failure to start ACP after a supported preflight may still
 leave a manual verification action. This proves session loading, not runtime
 tool end-to-end behavior. Once ACP starts, companion-launch
