@@ -10,7 +10,7 @@ the product competitive with `plugins.sh`.
 
 The release is complete when:
 
-1. `universal-agent-plugins@0.1.16` has one exact, current, protected launch
+1. `universal-agent-plugins@0.1.17` has one exact, current, protected launch
    evidence set.
 2. The five hero packages pass runtime E2E in Codex, Cursor, and Kiro: 15/15
    client/package results.
@@ -93,7 +93,7 @@ them.
    it does not replace the external five-result runtime matrix.
 2. The implementation branch moved the old `0.1.14` launch fixtures to the
    current public `0.1.15`, but the newly added discovery commands require a
-   new immutable `0.1.16` release and one final exact-tuple update after its
+   new immutable `0.1.17` release and one final exact-tuple update after its
    six-platform assets and npm integrity exist.
 3. The public production Directory endpoint is not deployed; the staged signed
    ledger exists, but protected launch evidence blocked promotion.
@@ -206,12 +206,12 @@ Make every following result refer to the same repository and release identity.
 2. Freeze the launch tuple:
    - catalog repository commit;
    - CLI repository commit;
-   - `agentplugins-v0.1.16` tag;
+   - `agentplugins-v0.1.17` tag;
    - npm package version and integrity;
    - release manifest and checksum digest;
    - Directory source digest;
    - scenario contract digest.
-3. Replace stable-launch pins and fixtures with `0.1.16` only after verifying
+3. Replace stable-launch pins and fixtures with `0.1.17` only after verifying
    its released assets. Do not predict checksums or npm integrity before the
    release exists.
 4. Do not regenerate historical evidence in place. New evidence gets a new
@@ -225,7 +225,7 @@ Make every following result refer to the same repository and release identity.
 
 ### Acceptance criteria
 
-- One machine-readable launch tuple identifies only `0.1.16`.
+- One machine-readable launch tuple identifies only `0.1.17`.
 - Docs, fixture directories, workflow inputs, and npm assertions agree.
 
 ## 6. Phase 1 - Repair the scheduled and protected gates
@@ -322,7 +322,7 @@ package-routed runtime until separately proved.
 
 ### Acceptance criteria
 
-- 15/15 results pass for the `0.1.16` launch tuple.
+- 15/15 results pass for the `0.1.17` launch tuple.
 - Notion has three separately bound authentication/runtime results.
 - Cleanup proves no artifacts remain outside owned test roots.
 - The public evidence bundle contains no credentials, home paths, account IDs,
@@ -338,7 +338,7 @@ Promote the already staged design into a publicly consumable product.
 
 1. Restore observer verification inputs only in the protected
    `stable-launch-e2e` environment.
-2. Run the exact protected launch gate against `0.1.16` evidence.
+2. Run the exact protected launch gate against `0.1.17` evidence.
 3. Sign and append the next Directory sequence.
 4. Materialize the static site from that exact signed snapshot.
 5. Deploy only after snapshot identity, source commit, and ledger commit match.
@@ -368,7 +368,7 @@ Promote the already staged design into a publicly consumable product.
 ### Acceptance criteria
 
 - The production Directory endpoint returns `200` with a valid signature.
-- A clean `0.1.16` CLI resolves a reviewed short name from production.
+- A clean `0.1.17` CLI resolves a reviewed short name from production.
 - Offline/tampered tests prove fail-closed behavior without losing installed
   state.
 
@@ -689,7 +689,7 @@ tests in `plugin-kit-ai`, followed by the six-platform release workflow.
 
 - current-main validation workflow green;
 - scheduled Live E2E green;
-- protected launch evidence green for exact `0.1.16` tuple;
+- protected launch evidence green for exact `0.1.17` tuple;
 - signed Directory production endpoint returns and verifies;
 - site loads the same signed sequence;
 - npm clean install resolves the matching binary and checksum;
@@ -720,7 +720,7 @@ Kill switches:
 
 ## 15. Final acceptance checklist
 
-- [ ] Stable launch tuple is entirely `0.1.16`.
+- [ ] Stable launch tuple is entirely `0.1.17`.
 - [ ] Scheduled and protected E2E workflows are green.
 - [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro.
 - [ ] Notion evidence is separately authenticated and sanitized.
@@ -746,7 +746,7 @@ Complexity: 7/10
 
 Expected changes:
 
-- E2E workflow and `0.1.16` closure: 100-400 lines plus external runs;
+- E2E workflow and `0.1.17` closure: 100-400 lines plus external runs;
 - CLI parity commands and tests: 700-1,400 lines;
 - static Discovery Index pipeline and contracts: 1,000-2,000 lines;
 - website integration and browser tests: 300-700 lines;
@@ -759,7 +759,7 @@ rewrite and no database service.
 ## 17. Implementation order
 
 ```text
-Exact 0.1.16 baseline
+Exact 0.1.17 baseline
   -> scheduled CI repair
   -> 15/15 runtime evidence
   -> signed production Directory

@@ -1,0 +1,161 @@
+name: upstream Agent Plugins package E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  attestations: read
+  contents: read
+
+env:
+  AGENTPLUGINS_VERSION: "0.1.17"
+  AGENTPLUGINS_COMMIT: f4f5113c4176173c2ff3ca7e72c9fb71af1516b8
+
+jobs:
+  install-lifecycle:
+    name: ${{ matrix.package.id }} on Codex, Cursor, and Kiro
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - id: chrome-devtools-mcp
+            source: 777genius/chrome-devtools-mcp@76d7e7dd3942c3f5ff64cd51c6f08cc902cdc16e//agent-plugin
+            repository: 777genius/chrome-devtools-mcp
+            revision: 76d7e7dd3942c3f5ff64cd51c6f08cc902cdc16e
+            plugin: chrome-devtools-mcp
+            version: 1.8.0
+          - id: cloudflare-docs
+            source: 777genius/mcp-server-cloudflare@3897acdb389b453205c559e2b79acc8bd5909bfa//apps/docs-ai-search/agent-plugin
+            repository: 777genius/mcp-server-cloudflare
+            revision: 3897acdb389b453205c559e2b79acc8bd5909bfa
+            plugin: cloudflare-docs
+            version: ""
+          - id: github-mcp-server
+            source: 777genius/github-mcp-server@ee5658fe9fc3aea7214640851283f719c021368d//agent-plugin
+            repository: 777genius/github-mcp-server
+            revision: ee5658fe9fc3aea7214640851283f719c021368d
+            plugin: github-mcp-server
+            version: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Download and authenticate the exact released CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "agentplugins-v${AGENTPLUGINS_VERSION}" \
+            --repo 777genius/plugin-kit-ai \
+            --pattern "agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64" \
+            --pattern checksums.txt \
+            --pattern release-manifest.json \
+            --dir "$RUNNER_TEMP/release"
+          chmod +x "$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
+          cd "$RUNNER_TEMP/release"
+          sha256sum --check checksums.txt --ignore-missing
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("release-manifest.json").read_text())
+          asset = manifest["assets"]["linux-amd64"]
+          binary = Path(asset["file"])
+          assert manifest["schema_version"] == 2
+          assert manifest["tag"] == f"agentplugins-v{os.environ['AGENTPLUGINS_VERSION']}"
+          assert manifest["version"] == os.environ["AGENTPLUGINS_VERSION"]
+          assert manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]
+          assert asset["file"] == f"agentplugins_{os.environ['AGENTPLUGINS_VERSION']}_linux_amd64"
+          assert asset["size"] == binary.stat().st_size
+          assert asset["sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
+          PY
+          for asset in "agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64" checksums.txt release-manifest.json; do
+            gh attestation verify "$asset" \
+              --repo 777genius/plugin-kit-ai \
+              --signer-workflow 777genius/plugin-kit-ai/.github/workflows/agentplugins-release.yml \
+              --source-digest "$AGENTPLUGINS_COMMIT"
+          done
+          test "$(./agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64 version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+      - name: Install, inspect, and remove from three disposable client homes
+        env:
+          SOURCE: ${{ matrix.package.source }}
+          EXPECTED_REPOSITORY: ${{ matrix.package.repository }}
+          EXPECTED_REVISION: ${{ matrix.package.revision }}
+          EXPECTED_PLUGIN: ${{ matrix.package.plugin }}
+          EXPECTED_VERSION: ${{ matrix.package.version }}
+        run: |
+          run_root="$RUNNER_TEMP/upstream-${{ matrix.package.id }}"
+          mkdir -p "$run_root"/{home,state,workspace,config,cache,tmp,evidence}
+          binary="$RUNNER_TEMP/release/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
+          isolated=(env -i PATH="$PATH" LANG=C.UTF-8 HOME="$run_root/home" USERPROFILE="$run_root/home" \
+            XDG_CONFIG_HOME="$run_root/config" XDG_CACHE_HOME="$run_root/cache" \
+            AGENTPLUGINS_HOME="$run_root/state" TMPDIR="$run_root/tmp" \
+            GIT_CONFIG_GLOBAL="$run_root/home/.gitconfig" GIT_CONFIG_NOSYSTEM=1 \
+            GIT_TERMINAL_PROMPT=0 CI=true)
+          cd "$run_root/workspace"
+          "${isolated[@]}" "$binary" add "$SOURCE" --target codex,cursor,kiro --format json > "$run_root/evidence/add.json"
+          "${isolated[@]}" "$binary" info "$EXPECTED_PLUGIN" --target codex,cursor,kiro --format json > "$run_root/evidence/info.json"
+          "${isolated[@]}" "$binary" remove "$EXPECTED_PLUGIN" --target codex,cursor,kiro --external-uninstalled --format json > "$run_root/evidence/remove.json"
+          python3 - "$run_root/evidence" <<'PY'
+          import hashlib
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          add = json.loads((root / "add.json").read_text())
+          info = json.loads((root / "info.json").read_text())
+          remove = json.loads((root / "remove.json").read_text())
+          assert add["result"] == info["result"] == remove["result"] == "success"
+          data = add["data"]
+          assert data["plugin"] == os.environ["EXPECTED_PLUGIN"]
+          expected_version = os.environ["EXPECTED_VERSION"]
+          if expected_version:
+              assert data.get("version") == expected_version
+          else:
+              assert not data.get("version")
+          assert data["revision"] == os.environ["EXPECTED_REVISION"]
+          assert data["succeeded"] == 3 and data["failed"] == 0
+          assert {item["target"] for item in data["targets"]} == {"codex", "cursor", "kiro"}
+          assert remove["data"]["succeeded"] == 3 and remove["data"]["failed"] == 0
+          evidence = {
+              "schema_version": 1,
+              "cli_version": os.environ["AGENTPLUGINS_VERSION"],
+              "repository": os.environ["EXPECTED_REPOSITORY"],
+              "revision": data["revision"],
+              "plugin": data["plugin"],
+              "plugin_version": data.get("version") or None,
+              "tree_digest": data["tree_digest"],
+              "manifest_digest": data["manifest_digest"],
+              "clients": sorted(item["target"] for item in data["targets"]),
+              "install": "passed",
+              "discovery": "passed",
+              "remove": "passed",
+              "runtime_executed": False,
+              "authentication_executed": False,
+              "run": {
+                  "repository": os.environ["GITHUB_REPOSITORY"],
+                  "run_id": os.environ["GITHUB_RUN_ID"],
+                  "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "source_commit": os.environ["GITHUB_SHA"],
+              },
+          }
+          body = json.dumps(evidence, indent=2, sort_keys=True) + "\n"
+          (root / "evidence.json").write_text(body)
+          (root / "evidence.sha256").write_text(hashlib.sha256(body.encode()).hexdigest() + "  evidence.json\n")
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-package-${{ matrix.package.id }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/upstream-${{ matrix.package.id }}/evidence
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: false

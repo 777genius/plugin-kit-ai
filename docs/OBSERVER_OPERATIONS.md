@@ -152,27 +152,27 @@ flag, tag commit, exact asset set, manifest/checksums agreement, selected asset
 SHA-256, and GitHub artifact attestation before writing the binary:
 
 ```sh
-install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.16
+install -d -o root -g root -m 0700 /root/approved-inputs/agentplugins-0.1.17
 PYTHONPATH="$SOURCE_ROOT" python3 - <<'PY'
 import hashlib
 import subprocess
 from pathlib import Path
 from scripts.run_launch_evidence_e2e import resolve_github_release
 
-root = Path("/root/approved-inputs/agentplugins-0.1.16")
+root = Path("/root/approved-inputs/agentplugins-0.1.17")
 binary, manifest, manifest_digest = resolve_github_release(
-    "777genius/plugin-kit-ai", "agentplugins-v0.1.16",
-    root / "agentplugins", asset_name="agentplugins_0.1.16_linux_amd64",
+    "777genius/plugin-kit-ai", "agentplugins-v0.1.17",
+    root / "agentplugins", asset_name="agentplugins_0.1.17_linux_amd64",
 )
-if manifest_digest != "sha256:1e7300899df0b98b181cfdfb6b08fd34cb57b64e500649538afe8d48ea0b83e0":
+if manifest_digest != "sha256:0cff701caffb4798561a3accb51ca442d1fad512b3de0ae7ffe88e9f2d47c206":
     raise SystemExit("release-manifest.json differs from the deployment pin")
 checksums = "sha256:" + hashlib.sha256((root / "checksums.txt").read_bytes()).hexdigest()
-if checksums != "sha256:1a92ed016f364d89dda04645b338302b1c0a8f1f90032d001530bb3cf8cde4b1":
+if checksums != "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d":
     raise SystemExit("checksums.txt differs from the deployment pin")
 observed = subprocess.run([binary, "version"], check=True, text=True,
                           stdout=subprocess.PIPE).stdout.strip()
-if manifest["version"] != "0.1.16" or observed != "agentplugins 0.1.16":
-    raise SystemExit("selected manager binary is not exact agentplugins 0.1.16")
+if manifest["version"] != "0.1.17" or observed != "agentplugins 0.1.17":
+    raise SystemExit("selected manager binary is not exact agentplugins 0.1.17")
 PY
 ```
 
@@ -204,10 +204,10 @@ never put them in a script, image, adapter config, service environment, or
 evidence. Prefer device flow for the persistent test profile.
 
 Materialize the five reviewed heroes separately in each seed. Short names are
-not eligible protected inputs in agentplugins 0.1.16. Derive every add argument
+not eligible protected inputs in agentplugins 0.1.17. Derive every add argument
 from the approved tuple as the canonical
 `source_repository@source_revision//source_path`; reject a missing revision, a
-non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.16
+non-40-lowercase-hex revision, or any source field mismatch. Agentplugins 0.1.17
 prepares these clients, but an add record that still contains
 `manual_activation_required` anywhere is incomplete and cannot be sealed. Its
 real successful add envelope uses `result: success`, `data.status:
@@ -217,14 +217,14 @@ target boundary).
 
 The manager detects clients through `PATH`. Never run it with an ambient client
 on `PATH`. Create one root-owned temporary bin directory per seed containing
-the pinned Git binary and only the exact pinned client under names that 0.1.16
+the pinned Git binary and only the exact pinned client under names that 0.1.17
 recognizes (`codex`, the `cursor` and `agent` aliases for the same pinned Cursor
 bytes, or `kiro-cli`). Create `.codex` explicitly, but export `CODEX_HOME` only
 for Codex. Before any source is resolved or installed, the sole detection gate
 is exactly `agentplugins doctor --format json` (no source or target operands):
 
 ```sh
-AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.16/agentplugins
+AGENTPLUGINS=/root/approved-inputs/agentplugins-0.1.17/agentplugins
 for client in codex cursor kiro; do
   seed="/root/profile-seeds/$client"
   evidence="/root/profile-seed-evidence/$client"
@@ -294,7 +294,7 @@ value = json.loads(pathlib.Path(path).read_bytes(), object_pairs_hook=pairs,
 if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
         or value["schema_version"] != 1 or value.get("command") != "doctor"
         or value.get("result") != "success"):
-    raise SystemExit("doctor did not return the exact successful 0.1.16 envelope")
+    raise SystemExit("doctor did not return the exact successful 0.1.17 envelope")
 positive = []
 def visit(item):
     if isinstance(item, dict):
@@ -340,7 +340,7 @@ done
 Stop unless the pre-add doctor file is structured successful JSON, names the
 intended target as the sole detected client, and contains no other recognized
 client. Stop unless every add
-file is the exact successful structured 0.1.16 envelope, its top-level source
+file is the exact successful structured 0.1.17 envelope, its top-level source
 and revision reproduce the approved canonical argument, and the one requested
 target has status `success`, `completed`, or `external_completed`, with no
 failed target or incomplete, warning, error, cancellation, audit, event, or
@@ -374,9 +374,9 @@ final five-plugin-by-three-client launch matrix. Do not claim 15/15/PASS until
 the external live matrix supplies all 15 required results.
 
 After human activation, repeat post-add doctor without a source operand and
-info with 0.1.16's installed identity syntax: the installed plugin name plus
+info with 0.1.17's installed identity syntax: the installed plugin name plus
 its exact `--target`. There is no receipt-export or automatic client-activation
-operation in agentplugins 0.1.16:
+operation in agentplugins 0.1.17:
 
 ```sh
 for client in codex cursor kiro; do
@@ -488,7 +488,7 @@ for client in codex cursor kiro; do
 done
 ```
 
-Real 0.1.16 info JSON reports `data.source` as `repository//path` (without the
+Real 0.1.17 info JSON reports `data.source` as `repository//path` (without the
 revision in that display field). Its `package_revision` has exactly `version`,
 `resolved_revision`, `tree_digest`, and `manifest_digest`; it does not repeat
 distribution metadata. The sealer checks those fields and the displayed source

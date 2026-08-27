@@ -89,7 +89,7 @@ class WorkflowContractTests(unittest.TestCase):
                 "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
                 "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
                 "snapshot_digest": digest, "binary_digest": digest,
-                "dependency_identity": "locked", "installer_version": "0.1.16",
+                "dependency_identity": "locked", "installer_version": "0.1.17",
                 "adapter_version": "r14d", "client_version": None,
                 "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
             }
@@ -313,7 +313,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_stable_launch_versions_equal_trusted_contract(self) -> None:
         version = (ROOT / "tests/e2e/stable-launch-version.txt").read_text().strip()
-        self.assertEqual(version, "0.1.16")
+        self.assertEqual(version, "0.1.17")
         tag = f"agentplugins-v{version}"
         asset_prefix = f"agentplugins_{version}_"
         production = json.loads((ROOT / "tests/e2e/production-launch.json").read_text())
@@ -332,9 +332,9 @@ class WorkflowContractTests(unittest.TestCase):
         # leave a stale observer trust pin behind.
         request_policy = adapter_schema["properties"]["request_policy"]["properties"]
         self.assertEqual((version, request_policy["release_manifest_digest"]["const"], request_policy["release_checksums_digest"]["const"]), (
-            "0.1.16",
-            "sha256:1e7300899df0b98b181cfdfb6b08fd34cb57b64e500649538afe8d48ea0b83e0",
-            "sha256:1a92ed016f364d89dda04645b338302b1c0a8f1f90032d001530bb3cf8cde4b1",
+            "0.1.17",
+            "sha256:0cff701caffb4798561a3accb51ca442d1fad512b3de0ae7ffe88e9f2d47c206",
+            "sha256:7351f9ebfdc1d1d4f5943aca7f0ba2df9132adc54fb94436d3b992be5fd16d0d",
         ))
         self.assertEqual(schema["properties"]["cli_release_tag"]["const"], tag)
         self.assertEqual(schema["properties"]["github_release_identity"]["properties"]["tag"]["const"], tag)
@@ -459,8 +459,8 @@ class WorkflowContractTests(unittest.TestCase):
             "repository does not install UID-, cgroup-, or service-identity firewall rules",
             "`IPAddressDeny=any`",
             "resolve_github_release",
-            '"agentplugins-v0.1.16"',
-            'asset_name="agentplugins_0.1.16_linux_amd64"',
+            '"agentplugins-v0.1.17"',
+            'asset_name="agentplugins_0.1.17_linux_amd64"',
             '"$AGENTPLUGINS" add "$source" --target "$client" --format json',
             '"$AGENTPLUGINS" info "$plugin" --target "$client" --format json',
             "manual_activation_required",
@@ -551,9 +551,9 @@ class WorkflowContractTests(unittest.TestCase):
             ("linux", "amd64"), ("windows", "amd64"), ("windows", "arm64"),
         })
         self.assertEqual({slot["asset"] for slot in slots}, {
-            "agentplugins_0.1.16_darwin_arm64", "agentplugins_0.1.16_darwin_amd64",
-            "agentplugins_0.1.16_linux_arm64", "agentplugins_0.1.16_linux_amd64",
-            "agentplugins_0.1.16_windows_amd64.exe", "agentplugins_0.1.16_windows_arm64.exe",
+            "agentplugins_0.1.17_darwin_arm64", "agentplugins_0.1.17_darwin_amd64",
+            "agentplugins_0.1.17_linux_arm64", "agentplugins_0.1.17_linux_amd64",
+            "agentplugins_0.1.17_windows_amd64.exe", "agentplugins_0.1.17_windows_arm64.exe",
         })
         aggregate_commands = commands(aggregate)
         self.assertIn("['subject_name'] == x['asset_name']", aggregate_commands)
@@ -566,8 +566,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--npm-facade", commands(npm))
         self.assertIn("--npm-binary-cache", commands(npm))
         self.assertIn('AGENTPLUGINS_CACHE_DIR="$run_root/npm-binary-cache"', commands(npm))
-        self.assertIn("universal-agent-plugins-0.1.16.tgz", commands(npm))
-        self.assertIn("--asset-name agentplugins_0.1.16_linux_amd64", commands(npm))
+        self.assertIn("universal-agent-plugins-0.1.17.tgz", commands(npm))
+        self.assertIn("--asset-name agentplugins_0.1.17_linux_amd64", commands(npm))
         self.assertNotIn("universal-agent-plugins.tgz", commands(npm))
         self.assertEqual(yaml.safe_dump(native).count("tzdata==2026.3"), 1)
         self.assertEqual(yaml.safe_dump(npm).count("tzdata==2026.3"), 1)
@@ -643,8 +643,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--release-tag", body)
         production = (ROOT / "tests/e2e/production-launch.json").read_text()
         self.assertIn('"cli_release_repository": "777genius/plugin-kit-ai"', production)
-        self.assertIn('"cli_release_tag": "agentplugins-v0.1.16"', production)
-        self.assertIn('"cli_release_commit": "efa4023e3c82a2f01b31d12e59fe8ea86c567e67"', production)
+        self.assertIn('"cli_release_tag": "agentplugins-v0.1.17"', production)
+        self.assertIn('"cli_release_commit": "f4f5113c4176173c2ff3ca7e72c9fb71af1516b8"', production)
         prepare = (ROOT / "scripts/prepare_launch_evidence.py").read_text()
         self.assertNotIn('os.environ.get("GITHUB_TOKEN")', prepare)
         self.assertIn('token=os.environ.get("GH_TOKEN")', prepare)
@@ -681,7 +681,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn("SHA256SUMS", text)
                 self.assertIn("overwrite: false", text)
                 if path == LAUNCH:
-                    self.assertIn("agentplugins_0.1.16_linux_amd64", text)
+                    self.assertIn("agentplugins_0.1.17_linux_amd64", text)
                 self.assertNotIn("AGENTPLUGINS_VERSION: \"0.1.6\"", text)
 
     def test_live_workflow_is_read_only_and_does_not_publish(self) -> None:
@@ -702,6 +702,16 @@ class WorkflowContractTests(unittest.TestCase):
             "contents": "read",
             "id-token": "write",
         })
+
+    def test_upstream_package_cohort_authenticates_exact_release_assets(self) -> None:
+        body = (ROOT / ".github/workflows/upstream-package-e2e.yml").read_text()
+        workflow = load(ROOT / ".github/workflows/upstream-package-e2e.yml")
+        self.assertEqual(workflow["permissions"], {"attestations": "read", "contents": "read"})
+        self.assertIn("AGENTPLUGINS_COMMIT: f4f5113c4176173c2ff3ca7e72c9fb71af1516b8", body)
+        self.assertIn("--pattern release-manifest.json", body)
+        self.assertIn('manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]', body)
+        self.assertEqual(body.count("gh attestation verify"), 1)
+        self.assertIn('--source-digest "$AGENTPLUGINS_COMMIT"', body)
 
     def test_nested_launch_workflow_permissions_never_escalate(self) -> None:
         publication = load(DIRECTORY_PUBLICATION)

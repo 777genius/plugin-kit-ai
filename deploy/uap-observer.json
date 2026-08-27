@@ -9,7 +9,7 @@
   "key_id": "uap-stable-launch-2026-08",
   "public_key_base64": "REPLACE_WITH_32_BYTE_ED25519_PUBLIC_KEY_BASE64",
   "cli_release_repository": "777genius/plugin-kit-ai",
-  "cli_release_tag": "agentplugins-v0.1.16",
+  "cli_release_tag": "agentplugins-v0.1.17",
   "signer_socket": "/run/uap-observer-signer/sign.sock",
   "runner_socket": "/run/uap-observer-runner.sock",
   "runner_source_path": "/opt/uap-observer-current/libexec/uap-observer-runner",

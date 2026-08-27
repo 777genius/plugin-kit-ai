@@ -54,7 +54,7 @@ def main() -> int:
         or sha256_file(Path(__file__).parents[1] / "registry/directory.json") != config["directory_source_digest"]
         or sha256_file(Path(__file__).parents[1] / "tests/e2e/launch-scenarios.json") != config["scenario_contract_digest"]
     ):
-        raise ValueError("resolved launch inputs differ from the frozen 0.1.16 tuple")
+        raise ValueError("resolved launch inputs differ from the frozen 0.1.17 tuple")
     release_identity = json.loads((args.run_root / "release" / "github-release-identity.json").read_text())
     if (
         release_identity.get("tag_commit") != config["cli_release_commit"]
@@ -76,7 +76,7 @@ def main() -> int:
             args.run_root / "npm" / f"universal-agent-plugins-{config['npm_facade_version']}.tgz",
         )
         if npm_package["integrity"] != config["npm_facade_integrity"]:
-            raise ValueError("npm facade integrity differs from the frozen 0.1.16 tuple")
+            raise ValueError("npm facade integrity differs from the frozen 0.1.17 tuple")
     challenge = make_challenge(
         os.environ["GITHUB_SHA"], os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"],
         args.caller_event_name, args.caller_ref, args.caller_workflow_ref,

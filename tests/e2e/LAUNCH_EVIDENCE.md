@@ -11,7 +11,7 @@ for that release dependency.
 Live runs take neither repository nor release-tag identity from the caller.
 `tests/e2e/production-launch.json` fixes the catalog repository to
 `777genius/universal-agent-plugins` and the binary release repository/tag to
-`777genius/plugin-kit-ai` / `agentplugins-v0.1.16`. This makes the immutable
+`777genius/plugin-kit-ai` / `agentplugins-v0.1.17`. This makes the immutable
 upstream CLI manifest an explicit prerequisite for evidence at the exact catalog
 commit (`GITHUB_SHA`); the challenge binds both sides of that release sequence.
 `scripts/prepare_launch_evidence.py` uses the catalog workflow token only for
@@ -30,7 +30,7 @@ name, and SHA-256 in addition to verifying repository, tag, version, size, and
 SHA-256 against both authenticated release metadata files. There are no production URL/checksum/version
 inputs. The manifest must contain macOS arm64/amd64, Linux arm64/amd64, and
 Windows arm64/amd64 assets. The separately published exact
-`universal-agent-plugins@0.1.16` npm facade is resolved from the npm registry;
+`universal-agent-plugins@0.1.17` npm facade is resolved from the npm registry;
 its exact registry tarball URL and bytes are verified against `dist.integrity`,
 its npm provenance/signatures are cryptographically audited, and it is installed
 on Node 22. The resolved installed executable must be byte-for-byte identical to
@@ -103,7 +103,7 @@ runs `npm audit signatures`, verifies registry integrity and
 `remove` lifecycle directly. An info pass requires the released Agent Plugins
 CLI to reconcile the receipt plus exact native `copilot --version` and
 `copilot plugin list` argv/product identity. A copied client file, fixture, or
-external discovery record cannot pass. The fixed 0.1.16 contract must be
+external discovery record cannot pass. The fixed 0.1.17 contract must be
 published intact or the gate fails closed. Notion is forbidden in the
 primary artifact;
 its separate artifact must contain exactly three passed runtime records for

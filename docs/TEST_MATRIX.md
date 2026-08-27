@@ -5,7 +5,7 @@ install, an auth challenge is not OAuth success, and tool discovery is not a
 tool call. `Direct harness` means MCP Inspector, not a client installation.
 All passes below are historical. Current stable-launch runtime/OAuth status is
 explicitly unavailable until the protected launch workflow completes against
-the exact signed production publication and attested `agentplugins-v0.1.16`
+the exact signed production publication and attested `agentplugins-v0.1.17`
 release.
 
 Current distribution, release sequence, and digest identity are generated from
