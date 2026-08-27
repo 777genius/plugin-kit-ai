@@ -18,9 +18,11 @@ from scripts.build_bridges import PinnedRepository
 from scripts.build_discovery_index import (
     DiscoveryError,
     GitHubAPI,
+    MAX_PREVIOUS_SNAPSHOT_BYTES,
     SameOriginRedirect,
     build_candidate,
     discover_search_items,
+    load_previous,
     make_record,
     repository_states,
 )
@@ -160,7 +162,52 @@ def candidate_record(revision: str) -> dict[str, object]:
     }
 
 
+def previous_snapshot(records: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "discovery_schema_version": 1,
+        "sequence": 1,
+        "publication_id": "fixture-1",
+        "source_commit": "b" * 40,
+        "generated_at": "2026-08-27T00:00:00Z",
+        "expires_at": "2026-08-30T00:00:00Z",
+        "complete": True,
+        "query_manifest_digest": "sha256:" + "3" * 64,
+        "partitions": [],
+        "search_projection": {
+            "path": "search/00000000000000000001.json",
+            "digest": "sha256:" + "4" * 64,
+            "record_count": len(records),
+        },
+        "records": records,
+    }
+
+
 class DiscoveryIndexTests(unittest.TestCase):
+    def test_valid_previous_snapshot_is_loaded_by_bounded_parser(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "snapshot.json"
+            record = candidate_record("a" * 40)
+            path.write_bytes(canonical_json(previous_snapshot([record])))
+            self.assertEqual(load_previous(path), [record])
+
+    def test_previous_snapshot_parser_fails_closed(self):
+        cases = {
+            "oversized": (
+                b" " * (MAX_PREVIOUS_SNAPSHOT_BYTES + 1),
+                f"exceeds {MAX_PREVIOUS_SNAPSHOT_BYTES} bytes",
+            ),
+            "duplicate-key": (b'{"complete":true,"complete":true}', "duplicate JSON key 'complete'"),
+            "non-finite": (b'{"sequence":NaN}', "non-integer JSON number 'NaN' is forbidden"),
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name, (body, error) in cases.items():
+                with self.subTest(name=name):
+                    path = root / f"{name}.json"
+                    path.write_bytes(body)
+                    with self.assertRaisesRegex(DiscoveryError, error):
+                        load_previous(path)
+
     def test_github_api_redirect_cannot_exfiltrate_the_job_token(self):
         handler = SameOriginRedirect("https://api.github.com")
         request = urllib.request.Request(
@@ -345,6 +392,30 @@ class DiscoveryIndexTests(unittest.TestCase):
             self.assertTrue(candidate["complete"])
             self.assertEqual(diagnostics, [])
             self.assertEqual(len(candidate["records"]), 1)
+            self.assertEqual(candidate["mode"], "discover")
+
+    def test_empty_refresh_continues_as_deterministic_discover(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            mirror, revision = create_mirror(Path(temporary))
+            config = {
+                "schema_version": 1,
+                "query": '"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json" filename:plugin.json',
+                "maximum_file_size": 10,
+                "maximum_records": 100,
+                "seeds": [],
+            }
+            arguments = {
+                "api": FixtureAPI(revision),
+                "config": config,
+                "generated_at": "2026-08-27T00:00:00Z",
+                "previous_records": [],
+                "mirror_root": mirror,
+            }
+            refreshed = build_candidate(mode="refresh", **arguments)
+            discovered = build_candidate(mode="discover", **arguments)
+        self.assertEqual(refreshed, discovered)
+        self.assertEqual(refreshed[0]["mode"], "discover")
+        self.assertEqual(len(refreshed[0]["records"]), 1)
 
     def test_refresh_retains_unavailable_previous_record_but_blocks_new_install(self):
         class MissingAPI:
@@ -404,6 +475,8 @@ class DiscoveryIndexTests(unittest.TestCase):
         pinned.assert_not_called()
         self.assertTrue(candidate["complete"])
         self.assertEqual(diagnostics, [])
+        self.assertEqual(candidate["mode"], "refresh")
+        self.assertEqual(candidate["partitions"], [])
         self.assertEqual(candidate["records"][0]["last_seen"], "2026-08-27T06:00:00Z")
         self.assertEqual(candidate["records"][0]["revision"], "a" * 40)
 

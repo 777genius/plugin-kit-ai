@@ -27,7 +27,15 @@ import jsonschema
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.build_bridges import BridgeError, GIT_MODES, LFS_HEADER, PinnedRepository, git, portable_path
 from scripts.build_registry import directory_tree_digest, digest_bytes, read_json
-from scripts.directory_publication import canonical_json, format_timestamp, parse_timestamp, sha256_digest, validate_with_schema
+from scripts.directory_publication import (
+    PublicationError,
+    canonical_json,
+    format_timestamp,
+    parse_timestamp,
+    read_json as read_bounded_json,
+    sha256_digest,
+    validate_with_schema,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +56,7 @@ MAX_FILE_BYTES = 16 << 20
 MAX_TREE_BYTES = 64 << 20
 MAX_RECORDS = 10_000
 MAX_API_BYTES = 8 << 20
+MAX_PREVIOUS_SNAPSHOT_BYTES = 16 << 20
 REPOSITORY_GRAPHQL_BATCH = 50
 SEARCH_STABILITY_ATTEMPTS = 3
 SEARCH_PARTITION_MAX = 90
@@ -470,8 +479,11 @@ def make_record(repository: PinnedRepository, state: dict[str, Any], package_pat
 def load_previous(path: Path | None) -> list[dict[str, Any]]:
     if path is None:
         return []
-    value = read_json(path, max_bytes=16 << 20)
-    validate_with_schema(value, SNAPSHOT_SCHEMA)
+    try:
+        value = read_bounded_json(path, max_bytes=MAX_PREVIOUS_SNAPSHOT_BYTES)
+        validate_with_schema(value, SNAPSHOT_SCHEMA)
+    except PublicationError as error:
+        raise DiscoveryError(str(error)) from error
     require(value.get("complete") is True, "previous Discovery snapshot is incomplete")
     validate_previous_records(value["records"])
     return value["records"]
@@ -507,9 +519,14 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
                     previous_records: list[dict[str, Any]], mirror_root: Path | None = None) -> tuple[dict[str, Any], list[dict[str, str]]]:
     parse_timestamp(generated_at, "generated_at")
     validate_previous_records(previous_records)
+    # A refresh is intentionally metadata-only once records exist. On a fresh
+    # ledger (or after an authenticated empty snapshot), however, there is
+    # nothing to refresh; continue as a discover scan so the signed index does
+    # not remain permanently empty while accurately recording the scan mode.
+    effective_mode = "discover" if mode == "refresh" and not previous_records else mode
     previous = {record_identity(item["repository"], item["package_path"]): item for item in previous_records}
     partitions: list[dict[str, Any]] = []
-    if mode == "refresh":
+    if effective_mode == "refresh":
         paths: dict[str, set[str]] = {}
         for record in previous_records:
             paths.setdefault(record["repository"], set()).add(record["package_path"])
@@ -588,7 +605,7 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
                         records.pop(identity, None)
         finally:
             pinned.close()
-    if mode == "reconcile":
+    if effective_mode == "reconcile":
         for identity, record in list(records.items()):
             if identity in discovered:
                 continue
@@ -620,12 +637,12 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
         for package_path in package_paths
     )
     query_manifest = {
-        "schema_version": config["schema_version"], "mode": mode, "query": config["query"],
+        "schema_version": config["schema_version"], "mode": effective_mode, "query": config["query"],
         "partitions": partitions, "candidate_paths_digest": sha256_digest(canonical_json(candidate_path_identities)),
     }
     candidate = {
         "candidate_schema_version": 1,
-        "mode": mode,
+        "mode": effective_mode,
         "generated_at": generated_at,
         "complete": complete,
         "query_manifest_digest": sha256_digest(canonical_json(query_manifest)),
