@@ -20,11 +20,11 @@ jobs:
       fail-fast: false
       matrix:
         package:
-          - id: chrome-devtools-mcp
-            source: 777genius/chrome-devtools-mcp@76d7e7dd3942c3f5ff64cd51c6f08cc902cdc16e//agent-plugin
+          - id: chrome-devtools
+            source: 777genius/chrome-devtools-mcp@4ff0c06eab3c2e7af216b24a9350867d5dccb4c8//agent-plugin
             repository: 777genius/chrome-devtools-mcp
-            revision: 76d7e7dd3942c3f5ff64cd51c6f08cc902cdc16e
-            plugin: chrome-devtools-mcp
+            revision: 4ff0c06eab3c2e7af216b24a9350867d5dccb4c8
+            plugin: chrome-devtools
             version: 1.8.0
           - id: cloudflare-docs
             source: 777genius/mcp-server-cloudflare@3897acdb389b453205c559e2b79acc8bd5909bfa//apps/docs-ai-search/agent-plugin
@@ -32,11 +32,11 @@ jobs:
             revision: 3897acdb389b453205c559e2b79acc8bd5909bfa
             plugin: cloudflare-docs
             version: ""
-          - id: github-mcp-server
-            source: 777genius/github-mcp-server@ee5658fe9fc3aea7214640851283f719c021368d//agent-plugin
+          - id: github
+            source: 777genius/github-mcp-server@14092de9940741511d224e0d7071ac02910bda11//agent-plugin
             repository: 777genius/github-mcp-server
-            revision: ee5658fe9fc3aea7214640851283f719c021368d
-            plugin: github-mcp-server
+            revision: 14092de9940741511d224e0d7071ac02910bda11
+            plugin: github
             version: ""
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
