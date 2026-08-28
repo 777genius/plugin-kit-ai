@@ -81,7 +81,9 @@ them.
 - three deterministic community bridges;
 - signed snapshot generation, verification, cache, expiry, and sequence floor;
 - static website and Git-native external submission flow;
-- six-platform `0.1.18` binaries and npm facade;
+- public-release-only evidence outside the protected hero contract:
+  six-platform `0.1.19` binaries and npm facade, with public provenance and a
+  clean-registry lifecycle proof;
 - contributor fork-PR E2E.
 
 ### 3.2 Launch status and remaining blockers
@@ -97,10 +99,15 @@ them.
    not replace the approved upstream Context7 tuple in the protected matrix.
    The Kiro ACP capture remains a sanitized shape summary. Its capability probes do not replace the five-result launch matrix.
    Their sequence is not asserted.
-2. The exact public `0.1.18` tag, six-platform release manifest, checksums, npm
-   integrity, and Linux binary are pinned. Validation and registry CI passed on
-   the current checkpoint; the protected launch workflow still needs to validate
-   the final evidence tuple.
+2. Outside the protected hero contract, the latest public CLI is
+   `universal-agent-plugins@0.1.19`, built from exact commit
+   `6a916221cd2a67192dd13d2eb2475a6451d22723`. Its release manifest,
+   checksums, six native platform proofs, npm provenance, and clean-registry
+   add/info/doctor/update/remove lifecycle passed in
+   [release run 33170444069](https://github.com/777genius/plugin-kit-ai/actions/runs/33170444069)
+   and [npm run 33170941697](https://github.com/777genius/plugin-kit-ai/actions/runs/33170941697).
+   The accepted protected hero matrix remains bound to `0.1.18` until all four
+   consent-bound rows pass and a new exact tuple is approved.
 3. Signed production Directory sequence 13 is live and verifies. Signed
    sequence 16 is staged but is not production: the protected observer gate
    correctly blocked promotion. The staged snapshot digest is
@@ -117,15 +124,24 @@ them.
    lifecycle evidence: [Chrome DevTools #2623](https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623),
    [Cloudflare #465](https://github.com/cloudflare/mcp-server-cloudflare/pull/465),
    and [GitHub MCP Server #3169](https://github.com/github/github-mcp-server/pull/3169).
-6. Released `0.1.18` now ships `search`, read-only `validate`, `outdated`, and
-   `update --all`. The planned `install` alias of `add` is the remaining CLI
-   parity item.
+6. Released `0.1.18` ships the `install` alias, `search`, read-only `validate`,
+   `outdated`, and `update --all`. Released `0.1.19` additionally keeps grouped
+   dry-runs process-inert while preserving filesystem and managed-package
+   identity checks; actual mutations still run native preflight before any
+   client changes.
 7. The public sequence-13 short-name Context7 install currently fails closed:
    its community distribution is suspended for the operation and the upstream
    alternative lacks current passed Kiro materialization evidence. Exact-SHA
-   direct installation still works. Do not promote the Quick Start broadly
-   until a higher signed sequence restores one eligible reviewed default.
-8. The first real Discovery reconciliation in
+   direct installation through public `0.1.19` passed one process-inert grouped
+   dry-run for Codex, Cursor, and Kiro with tree digest
+   `sha256:663f92049d29218aa8a5506a4f40fcc3002583a63730d4584ec12c84d481503d`.
+   Do not advertise the short alias until a higher signed sequence restores one
+   eligible reviewed default.
+8. The public README Quick Start remains usable: `cloudflare-docs` resolved
+   through production sequence 13 and public `0.1.19` passed one grouped
+   Codex/Cursor/Kiro dry-run with no mutation and tree digest
+   `sha256:2b1d984194324b50b756a893a576f3d795262bd7edfec6d7167863ca8be93a2c`.
+9. The first real Discovery reconciliation in
    [run 33149260051](https://github.com/777genius/universal-agent-plugins/actions/runs/33149260051)
    found 2,431 conformant candidates and 283 invalid packages. Publication
    correctly retained the previous last-known-good index because five malformed
@@ -136,6 +152,9 @@ them.
 ### 3.3 Implementation checkpoint
 
 - Exact `0.1.18` release tuple: complete.
+- Latest public CLI release `0.1.19`: public-release evidence only, outside the
+  protected hero tuple; published, provenance-verified, and clean-registry
+  lifecycle-verified.
 - Capability-specific native projection (`skill` versus `mcp`): implemented.
 - Real disposable Agent Code Navigator skill runtime: passed in Codex 0.147.0,
   Cursor 2026.08.25, and Kiro CLI 2.20.0. Cursor also passed a native Context7
@@ -809,13 +828,15 @@ Kill switches:
       fail-closed.
 - [ ] The current staged sequence 16 is promoted only after protected evidence
       passes.
-- [ ] `install` is shipped as an alias; `search`, `validate`, `outdated`, and
-      `update --all` are already in `0.1.18`.
-- [ ] Reviewed Directory and unreviewed Discovery Index are visibly distinct.
+- [x] `install`, `search`, `validate`, `outdated`, and `update --all` are
+      shipped.
+- [x] Reviewed Directory and unreviewed Discovery Index are visibly distinct
+      in labels, provenance text, commands, and browser-tested cards.
 - [ ] Discovery covers all reproducibly found conformant packages and targets
       2,000+ unique package paths without padding.
-- [ ] Website search and client multi-select pass browser E2E.
-- [ ] No install telemetry is introduced.
+- [x] Website search and client multi-select pass 16 desktop/mobile browser E2E
+      cases in isolated profiles.
+- [x] No install telemetry, analytics, or tracking scripts are introduced.
 - [x] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA lifecycle
       evidence.
 - [ ] Existing installs never change source implicitly.
@@ -844,7 +865,7 @@ rewrite and no database service.
 ## 17. Implementation order
 
 ```text
-Exact 0.1.18 baseline
+Protected 0.1.18 evidence baseline + public CLI 0.1.19
   -> scheduled CI repair
   -> 15/15 runtime evidence
   -> signed production Directory
