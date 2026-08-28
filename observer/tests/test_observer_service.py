@@ -4570,6 +4570,28 @@ class FixedAdapterContractTests(unittest.TestCase):
         self.assertTrue(contract.complete())
         self.assertEqual(answer, {"jsonrpc": "2.0", "id": "permission-opaque", "result": {"outcome": {"outcome": "selected", "optionId": "once"}}})
 
+    def test_kiro_acp_2200_reports_client_display_error_before_terminal_order(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "a" * 64
+        records = self.kiro_acp_records(marker)
+        display_error = {
+            "jsonrpc": "2.0", "method": "session/update", "params": {
+                "sessionId": "opaque-session", "update": {
+                    "sessionUpdate": "session_info_update",
+                    "_meta": {"kiro": {
+                        "kind": "display_error", "displayError": True,
+                        "errorType": "mcp_connection_error", "message": "redacted",
+                    }},
+                },
+            },
+        }
+        contract = fixed_adapters.KiroACPContract(
+            "cloudflare-docs", "search_cloudflare_documentation", marker,
+        )
+        for record in records[:2]:
+            contract.accept(record)
+        with self.assertRaisesRegex(ValueError, "client display error"):
+            contract.accept(display_error)
+
     def test_kiro_acp_2200_accepts_current_power_discovery_and_client_target_shape(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "6" * 64
         records = self.kiro_acp_records(marker)
@@ -5169,6 +5191,27 @@ class FixedAdapterContractTests(unittest.TestCase):
             "result": {"outcome": {"outcome": "selected", "optionId": "once"}},
         })
 
+    def test_kiro_acp_2200_skill_reports_client_display_error(self) -> None:
+        marker = "UAP_SKILL_SECRET_" + "a" * 64
+        skill_path = Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md")
+        records = self.kiro_skill_acp_records(marker, skill_path)
+        display_error = {
+            "jsonrpc": "2.0", "method": "session/update", "params": {
+                "sessionId": "skill-session", "update": {
+                    "sessionUpdate": "session_info_update",
+                    "_meta": {"kiro": {
+                        "kind": "display_error", "displayError": True,
+                        "errorType": "client_error", "message": "redacted",
+                    }},
+                },
+            },
+        }
+        contract = fixed_adapters.KiroACPSkillContract(marker, skill_path)
+        for record in records[:2]:
+            contract.accept(record)
+        with self.assertRaisesRegex(ValueError, "client display error"):
+            contract.accept(display_error)
+
     def test_kiro_acp_2200_skill_adversarial_records_fail_closed(self) -> None:
         marker = "UAP_SKILL_SECRET_" + "b" * 64
         skill_path = Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md")
@@ -5218,8 +5261,10 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "seen=[]\n"
                 "def request():\n line=sys.stdin.readline(); seen.append(json.loads(line)); return seen[-1]\n"
                 "def emit(row): print(json.dumps(row,separators=(',',':')),flush=True)\n"
-                "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
-                "for row in rows[2:6]: emit(row)\n"
+                "request(); emit(rows[0]); request(); emit(rows[1])\n"
+                "for row in rows[2:4]: emit(row)\n"
+                "request()\n"
+                "for row in rows[4:6]: emit(row)\n"
                 "request()\n"
                 "open('requests.json','w').write(json.dumps(seen,separators=(',',':')))\n"
                 "for row in rows[6:]: emit(row)\n"
@@ -5253,8 +5298,10 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "seen=[]\n"
                 "def request():\n line=sys.stdin.readline(); seen.append(json.loads(line)); return seen[-1]\n"
                 "def emit(row): print(json.dumps(row,separators=(',',':')),flush=True)\n"
-                "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
-                "for row in rows[2:7]: emit(row)\n"
+                "request(); emit(rows[0]); request(); emit(rows[1])\n"
+                "for row in rows[2:5]: emit(row)\n"
+                "request()\n"
+                "for row in rows[5:7]: emit(row)\n"
                 "request()\n"
                 "open('skill-requests.json','w').write(json.dumps(seen,separators=(',',':')))\n"
                 "for row in rows[7:]: emit(row)\n"
@@ -5311,8 +5358,10 @@ class FixedAdapterContractTests(unittest.TestCase):
                     "def request(): return json.loads(sys.stdin.readline())\n"
                     "def line(row): return json.dumps(row,separators=(',',':'))+'\\n'\n"
                     "def emit(row): sys.stdout.write(line(row)); sys.stdout.flush()\n"
-                    "request(); emit(rows[0]); request(); emit(rows[1]); request()\n"
-                    "for row in rows[2:6]: emit(row)\n"
+                    "request(); emit(rows[0]); request(); emit(rows[1])\n"
+                    "for row in rows[2:4]: emit(row)\n"
+                    "request()\n"
+                    "for row in rows[4:6]: emit(row)\n"
                     "request()\n"
                     "for row in rows[6:-1]: emit(row)\n"
                     + (

@@ -1735,6 +1735,10 @@ class KiroACPContract:
         started = [item for item in self.discovery_channels.values() if item]
         return bool(started) and all(item == ["connecting", "connected"] for item in started)
 
+    def ready_for_prompt(self) -> bool:
+        """Do not start a turn until the target MCP catalog is connected."""
+        return self.phase == "running" and self._discovery_ready()
+
     def _external_mcp_status(self, record: dict[str, Any]) -> bool:
         if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") != "_kiro/mcp/status":
             return False
@@ -2057,6 +2061,8 @@ class KiroACPContract:
             if kind == "session_info_update":
                 meta = update.get("_meta")
                 kiro = meta.get("kiro") if isinstance(meta, dict) else None
+                if isinstance(kiro, dict) and kiro.get("kind") == "display_error":
+                    raise ValueError("Kiro ACP reported a client display error")
                 if isinstance(kiro, dict) and kiro.get("kind") == "pending_interaction":
                     options = kiro.get("options")
                     pending = kiro.get("pendingInteraction")
@@ -2487,6 +2493,8 @@ class KiroACPSkillContract:
             if kind == "session_info_update":
                 meta = update.get("_meta")
                 kiro = meta.get("kiro") if isinstance(meta, dict) else None
+                if isinstance(kiro, dict) and kiro.get("kind") == "display_error":
+                    raise ValueError("Kiro ACP skill flow reported a client display error")
                 if isinstance(kiro, dict) and kiro.get("kind") == "context_usage":
                     self.auxiliary_count += 1
                     if self.auxiliary_count > KIRO_MAX_AUXILIARY:
@@ -2540,6 +2548,10 @@ class KiroACPSkillContract:
             and self.skill_catalog_seen and self.search_output_seen
             and "".join(self.marker_parts) in {self.marker, f"`{self.marker}`"}
         )
+
+    def ready_for_prompt(self) -> bool:
+        """Do not ask for the skill before Kiro has published its native catalog."""
+        return self.phase == "running" and self.skill_catalog_seen
 
 
 def _acp_request(identifier: int, method: str, params: dict[str, Any]) -> bytes:
@@ -2611,7 +2623,7 @@ def run_kiro_acp(
                     process.stdin.write(canonical_json(response) + b"\n"); process.stdin.flush()
                 if contract.phase == "new" and not sent_new:
                     process.stdin.write(_acp_request(1, "session/new", {"cwd": str(workspace), "mcpServers": []})); process.stdin.flush(); sent_new = True
-                if contract.phase == "running" and not sent_prompt:
+                if contract.ready_for_prompt() and not sent_prompt:
                     prompt = (
                         SKILL_PROBE_PROMPT
                         if skill_path is not None else
