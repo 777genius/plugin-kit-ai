@@ -1429,6 +1429,11 @@ class DirectoryDomainTests(unittest.TestCase):
         self.assertEqual(context7["package_source"], {"repository": "upstash/context7", "revision": "769c6cd22c3d95462d1f55d789e9532cabefa5a9", "path": "plugins/agent-plugins/context7"})
         self.assertEqual(context7["tree_digest"], "sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8")
         self.assertEqual(context7["manifest_digest"], "sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236")
+        context7_policy = distributions["upstash/context7"]["release_policies"][0]
+        self.assertEqual(
+            {target["client"]: target["authentication"] for target in context7_policy["targets"]},
+            {client: "required" for client in ("codex", "cursor", "copilot", "vscode", "kiro")},
+        )
 
     def test_upstream_publisher_owner_comparison_is_case_insensitive(self) -> None:
         self.assertEqual(registry.validate_source_repository("ChromeDevTools/chrome-devtools-mcp"), "ChromeDevTools/chrome-devtools-mcp")
@@ -1972,7 +1977,12 @@ class DirectoryDomainTests(unittest.TestCase):
         ]
         self.assertTrue(targets)
         for distribution, target in targets:
-            expected = "not_required" if distribution["product_id"] in expected_not_required else "required"
+            expected = (
+                "not_required"
+                if distribution["product_id"] in expected_not_required
+                and distribution["id"] != "upstash/context7"
+                else "required"
+            )
             self.assertEqual(target["authentication"], expected, (distribution["id"], target["client"]))
 
         notion = [target for distribution, target in targets if distribution["product_id"] == "notion"]

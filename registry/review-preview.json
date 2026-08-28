@@ -5912,15 +5912,15 @@
           "eligible_targets": [
             {
               "client": "codex",
-              "authentication": "not_required"
+              "authentication": "required"
             },
             {
               "client": "cursor",
-              "authentication": "not_required"
+              "authentication": "required"
             },
             {
               "client": "kiro",
-              "authentication": "not_required"
+              "authentication": "required"
             }
           ],
           "current_evidence": [

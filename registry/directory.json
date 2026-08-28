@@ -3442,11 +3442,11 @@
           "status": "active",
           "minimum_installer_version": "0.1.13",
           "targets": [
-            {"client": "codex", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "cursor", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "copilot", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"},
-            {"client": "vscode", "authentication": "not_required", "scopes": ["user"], "delivery": "prepared"},
-            {"client": "kiro", "authentication": "not_required", "scopes": ["user"], "delivery": "managed"}
+            {"client": "codex", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
+            {"client": "cursor", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
+            {"client": "copilot", "authentication": "required", "scopes": ["user"], "delivery": "managed"},
+            {"client": "vscode", "authentication": "required", "scopes": ["user"], "delivery": "prepared"},
+            {"client": "kiro", "authentication": "required", "scopes": ["user"], "delivery": "managed"}
           ],
           "current_evidence": [
             "context7/upstash-materialization-codex-cli-0.1.13",
