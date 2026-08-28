@@ -119,6 +119,36 @@ func TestGroupedPreflightFailureMutatesNoTarget(t *testing.T) {
 	}
 }
 
+func TestGroupedDryRunDoesNotObserveNativeClientIdentity(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
+	observer := &countingNativeObserver{}
+	service.NativeObserver = observer
+
+	result, err := service.AddGroup(context.Background(), GroupInput{
+		Targets: []AddInput{
+			addInput(t, cursor, "https://example.com/dry-run"),
+			addInput(t, kiro, "https://example.com/dry-run"),
+		},
+		OperationGroupID: "group-dry-run",
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observer.calls != 0 {
+		t.Fatalf("group dry-run observed native client identity %d times", observer.calls)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Mutated || len(state.Installations) != 0 {
+		t.Fatalf("group dry-run mutated state: result=%+v state=%+v", result, state)
+	}
+}
+
 func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRollback(t *testing.T) {
 	t.Parallel()
 	service, store, cursor := serviceFixture(t)
@@ -326,6 +356,10 @@ type fixedNativeObserver struct {
 	err         error
 }
 
+type countingNativeObserver struct {
+	calls int
+}
+
 type failNthVerificationStager struct {
 	verificationFailureStager
 	calls  int
@@ -363,4 +397,9 @@ func (*failNthGroupActivator) Deactivate(context.Context, domain.DeactivationReq
 
 func (observer fixedNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	return observer.observation, observer.err
+}
+
+func (observer *countingNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	observer.calls++
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
 }

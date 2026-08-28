@@ -299,8 +299,10 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			return result, fmt.Errorf("update target %s is not installed", target.Client.ClientID)
 		}
 		result.Targets[targetIndex].Plan = plan
-		if err := service.observeGroupNativeIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
-			return result, err
+		if !input.DryRun {
+			if err := service.observeGroupNativeIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
+				return result, err
+			}
 		}
 		noChange := managed != nil && !input.Repair && !input.Switch && groupPackageUnchanged(*managed, target) && containsSurface(managed.AffectedSurfaces, string(target.Client.ClientID))
 		if noChange {

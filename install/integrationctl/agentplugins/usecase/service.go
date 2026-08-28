@@ -241,16 +241,33 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		binding := state.Installations[installationIndex].Clients[clientBindingID]
 		managedBinding = &binding
 	}
-	if managedBinding == nil {
-		if err := service.observeNativeIdentity(ctx, input.Client, plan, nil); err != nil {
-			return result, err
-		}
-	}
 	if input.DistributionSuspended && normalizedOriginMode(input.OriginMode) == domain.OriginModeDirectory && !isMaterialized {
 		return result, fmt.Errorf("distribution is suspended; adding a target is blocked")
 	}
 	if !isMaterialized && (input.ActivationComplete || input.AuthComplete) {
 		return result, fmt.Errorf("lifecycle completion flags require an already materialized package; run add first, then rerun add with the completion flags")
+	}
+	if input.DryRun {
+		if replace && !isMaterialized {
+			return result, fmt.Errorf("plugin is not materialized for %s; use add", input.Client.ClientID)
+		}
+		if isMaterialized {
+			current := state.Installations[installationIndex].Clients[clientBindingID]
+			result.Activation = lifecycleOutcome(current)
+			if err := service.verifyManagedTarget(ctx, input.Client, input.Scope, current, "dry-run"); err != nil {
+				return result, err
+			}
+			if !replace && !packageRevisionMatches(current.PackageRevision, input.Envelope) {
+				return result, fmt.Errorf("plugin is already materialized for %s at a different revision; use update", input.Client.ClientID)
+			}
+			result.NoChange = !replace && lifecycleConverged(current)
+		}
+		return result, nil
+	}
+	if managedBinding == nil {
+		if err := service.observeNativeIdentity(ctx, input.Client, plan, nil); err != nil {
+			return result, err
+		}
 	}
 	if isMaterialized && !replace {
 		current := state.Installations[installationIndex].Clients[clientBindingID]
@@ -317,9 +334,6 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 			}
 			return service.resume(ctx, input, result, installationID, clientBindingID, previousClient)
 		}
-	}
-	if input.DryRun {
-		return result, nil
 	}
 	if !input.Confirmed {
 		result.RequiresConfirmation = true

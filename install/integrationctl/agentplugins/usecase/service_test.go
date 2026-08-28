@@ -31,6 +31,8 @@ func TestAddDryRunAndUnconfirmedPlanDoNotMutateStateOrClient(t *testing.T) {
 		mode := mode
 		t.Run(mode, func(t *testing.T) {
 			service, store, client := serviceFixture(t)
+			observer := &countingNativeObserver{}
+			service.NativeObserver = observer
 			input := addInput(t, client, "https://example.com/one")
 			input.DryRun = mode == "dry_run"
 			input.Confirmed = false
@@ -50,6 +52,9 @@ func TestAddDryRunAndUnconfirmedPlanDoNotMutateStateOrClient(t *testing.T) {
 			}
 			if _, err := os.Lstat(result.Plan.ActivePath); !os.IsNotExist(err) {
 				t.Fatalf("client path mutated: %v", err)
+			}
+			if mode == "dry_run" && observer.calls != 0 {
+				t.Fatalf("dry-run observed native client identity %d times", observer.calls)
 			}
 		})
 	}
@@ -631,6 +636,36 @@ func TestNoChangeChecksManagedDigestBeforeReturning(t *testing.T) {
 	}
 	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
 		t.Fatalf("no-change error = %v", err)
+	}
+}
+
+func TestNoChangeDryRunChecksManagedDigestWithoutNativeObservation(t *testing.T) {
+	t.Parallel()
+	service, store, client := serviceFixture(t)
+	input := addInput(t, client, "https://example.com/no-change-dry-run")
+	input.Confirmed = true
+	installed, err := service.Add(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer := &countingNativeObserver{}
+	service.NativeObserver = observer
+	if err := os.WriteFile(filepath.Join(installed.Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	input.DryRun, input.Confirmed = true, false
+	if _, err := service.Add(context.Background(), input); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
+		t.Fatalf("dry-run managed digest error = %v", err)
+	}
+	if observer.calls != 0 {
+		t.Fatalf("dry-run observed native client identity %d times", observer.calls)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 {
+		t.Fatalf("dry-run changed state: %+v", state.Installations)
 	}
 }
 
