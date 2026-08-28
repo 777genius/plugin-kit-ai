@@ -4563,6 +4563,231 @@ class FixedAdapterContractTests(unittest.TestCase):
         self.assertTrue(contract.complete())
         self.assertEqual(answer, {"jsonrpc": "2.0", "id": "permission-opaque", "result": {"outcome": {"outcome": "selected", "optionId": "once"}}})
 
+    def test_kiro_acp_2200_accepts_current_power_discovery_and_client_target_shape(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "6" * 64
+        records = self.kiro_acp_records(marker)
+        session = "opaque-session"
+        def update(body: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "jsonrpc": "2.0", "method": "session/update",
+                "params": {"sessionId": session, "update": body},
+            }
+        power = "opaque-power-call"
+        power_records = [
+            update({
+                "sessionUpdate": "tool_call", "status": "in_progress", "title": "Kiro Powers",
+                "toolCallId": power, "kind": "other", "rawInput": {"action": "list"},
+                "_meta": {"kiro": {"toolOrigin": "default"}},
+            }),
+            update({
+                "sessionUpdate": "tool_call_update", "status": "completed", "title": "Kiro Powers",
+                "toolCallId": power,
+                "content": [{"type": "content", "content": {"type": "text", "text": "Available powers"}}],
+                "rawInput": {"action": "list"}, "rawOutput": {"response": "Available powers"},
+                "_meta": {"kiro": {"toolOrigin": "default"}},
+            }),
+        ]
+        records[4:4] = power_records
+        target = records[6]["params"]["update"]
+        target.update({
+            "kind": "other",
+            "rawInput": {
+                "query": "Cloudflare Durable Objects SQLite storage API",
+                "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+            },
+            "_meta": {"kiro": {"serverName": "cloudflare-docs", "toolOrigin": "client"}},
+        })
+        options = json.loads(json.dumps(records[7]["params"]["options"]))
+        interaction = {
+            "interactionType": "tool_approval", "options": options,
+            "question": "@cloudflare-docs/search_cloudflare_documentation",
+            "toolCallId": "opaque-call",
+        }
+        records.insert(7, update({
+            "sessionUpdate": "session_info_update",
+            "_meta": {"kiro": {
+                "kind": "pending_interaction", **interaction,
+                "pendingInteraction": json.loads(json.dumps(interaction)),
+            }},
+        }))
+        records[8]["params"]["_meta"] = {"kiro": {"opaque": True}}
+        resolved = {
+            "outcome": "selected", "selectedOption": "once", "toolCallId": "opaque-call",
+        }
+        records.insert(9, update({
+            "sessionUpdate": "session_info_update",
+            "_meta": {"kiro": {
+                "kind": "interaction_resolved", **resolved,
+                "interactionResolved": json.loads(json.dumps(resolved)),
+            }},
+        }))
+        current_meta = {"kiro": {"serverName": "cloudflare-docs", "toolOrigin": "client"}}
+        current_input = {
+            "query": "Cloudflare Durable Objects SQLite storage API",
+            "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+        }
+        records[10]["params"]["update"].update({"rawInput": current_input, "_meta": current_meta})
+        records.insert(11, json.loads(json.dumps(records[10])))
+        records[12]["params"]["update"].update({
+            "rawInput": current_input, "_meta": current_meta,
+            "rawOutput": {
+                "imageBase64Urls": [],
+                "message": "Tool completed successfully",
+                "response": "Tool completed successfully",
+            },
+        })
+        records[13]["params"]["update"]["_meta"] = {"kiro": {"replayId": "opaque-replay"}}
+        records[14]["params"]["update"]["_meta"] = {"kiro": {"replayId": "opaque-replay"}}
+        records[15]["params"]["update"] = {
+            "sessionUpdate": "session_info_update",
+            "_meta": {"kiro": {
+                "kind": "turn_completion", "status": "success", "elapsedTime": 1234,
+                "promptTurnSummaries": [{
+                    "unit": "credit", "unitPlural": "credits", "usage": 0.25,
+                    "usedTools": ["kiro_power", "chrome-devtools/list_pages"],
+                }],
+                "requestIds": ["opaque-request-1", "opaque-request-2"],
+            }},
+        }
+        records[16]["params"]["update"] = {
+            "sessionUpdate": "session_info_update",
+            "_meta": {"kiro": {
+                "kind": "turn_end", "messageId": "opaque-message", "stopReason": "end_turn",
+                "turnEnd": {"stopReason": "end_turn"},
+            }},
+        }
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        answer = None
+        for record in records:
+            candidate = contract.accept(record)
+            if candidate is not None:
+                answer = candidate
+        self.assertTrue(contract.complete())
+        self.assertEqual(contract.power_phase, "completed")
+        self.assertEqual(contract.target_shape, "client")
+        self.assertEqual(contract.target_in_progress_count, 2)
+        self.assertEqual(answer, {"jsonrpc": "2.0", "id": "permission-opaque", "result": {"outcome": {"outcome": "selected", "optionId": "once"}}})
+
+        mutations = (
+            lambda row: row["params"]["update"]["_meta"]["kiro"].update(interactionType="question"),
+            lambda row: row["params"]["update"]["_meta"]["kiro"].update(toolCallId="foreign"),
+            lambda row: row["params"]["update"]["_meta"]["kiro"]["pendingInteraction"].update(question="foreign"),
+            lambda row: row["params"]["update"]["_meta"]["kiro"]["options"].reverse(),
+        )
+        interaction_record = records[7]
+        for mutation in mutations:
+            candidate = json.loads(json.dumps(records))
+            mutation(candidate[7])
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, "pending interaction"):
+                for record in candidate:
+                    contract.accept(record)
+        self.assertEqual(interaction_record["params"]["update"]["sessionUpdate"], "session_info_update")
+
+        flow_mutations = (
+            lambda rows: rows[6]["params"]["update"]["rawInput"].update(query="foreign"),
+            lambda rows: rows[10]["params"]["update"]["rawInput"].update(query="foreign"),
+            lambda rows: rows[10]["params"]["update"]["_meta"]["kiro"].update(serverName="foreign"),
+            lambda rows: rows.insert(12, json.loads(json.dumps(rows[11]))),
+            lambda rows: rows.pop(7),
+            lambda rows: rows.insert(8, json.loads(json.dumps(rows[7]))),
+            lambda rows: rows[9]["params"]["update"]["_meta"]["kiro"].update(outcome="rejected"),
+            lambda rows: rows[9]["params"]["update"]["_meta"]["kiro"].update(selectedOption="always"),
+            lambda rows: rows[9]["params"]["update"]["_meta"]["kiro"].update(toolCallId="foreign"),
+            lambda rows: rows[9]["params"]["update"]["_meta"]["kiro"]["interactionResolved"].update(outcome="rejected"),
+            lambda rows: rows.pop(9),
+            lambda rows: rows.insert(10, json.loads(json.dumps(rows[9]))),
+            lambda rows: rows[12]["params"]["update"]["rawOutput"].update(response="foreign"),
+            lambda rows: rows[12]["params"]["update"]["rawOutput"].update(message="foreign"),
+            lambda rows: rows[12]["params"]["update"]["rawOutput"].update(imageBase64Urls=["foreign"]),
+            lambda rows: rows[12]["params"]["update"]["rawOutput"].update(response="Error: foreign", message="Error: foreign"),
+            lambda rows: rows[12]["params"]["update"]["content"][0]["content"].update(text="Error: foreign"),
+            lambda rows: rows[13]["params"]["update"]["_meta"]["kiro"].update(replayId=""),
+            lambda rows: rows[14]["params"]["update"]["_meta"]["kiro"].update(replayId="foreign"),
+            lambda rows: rows[14]["params"]["update"]["_meta"]["kiro"].update(extra=True),
+            lambda rows: rows[15]["params"]["update"]["_meta"]["kiro"].update(status="failed"),
+            lambda rows: rows[15]["params"]["update"]["_meta"]["kiro"].update(elapsedTime=-1),
+            lambda rows: rows[15]["params"]["update"]["_meta"]["kiro"].update(requestIds=[]),
+            lambda rows: rows[15]["params"]["update"]["_meta"]["kiro"]["promptTurnSummaries"][0].update(usedTools=[]),
+            lambda rows: rows[16]["params"]["update"]["_meta"]["kiro"].update(stopReason="cancelled"),
+            lambda rows: rows[16]["params"]["update"]["_meta"]["kiro"].update(messageId=""),
+            lambda rows: rows[16]["params"]["update"]["_meta"]["kiro"]["turnEnd"].update(stopReason="cancelled"),
+        )
+        for mutation in flow_mutations:
+            candidate = json.loads(json.dumps(records))
+            mutation(candidate)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(flow_mutation=mutation), self.assertRaises(ValueError):
+                for record in candidate:
+                    contract.accept(record)
+
+    def test_kiro_acp_2200_power_discovery_fail_closed(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "5" * 64
+        base = self.kiro_acp_records(marker)
+        session = "opaque-session"
+        def update(body: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "jsonrpc": "2.0", "method": "session/update",
+                "params": {"sessionId": session, "update": body},
+            }
+        start = update({
+            "sessionUpdate": "tool_call", "status": "in_progress", "title": "Kiro Powers",
+            "toolCallId": "power", "kind": "other", "rawInput": {"action": "list"},
+            "_meta": {"kiro": {"toolOrigin": "default"}},
+        })
+        completed = update({
+            "sessionUpdate": "tool_call_update", "status": "completed", "title": "Kiro Powers",
+            "toolCallId": "power",
+            "content": [{"type": "content", "content": {"type": "text", "text": "Available powers"}}],
+            "rawInput": {"action": "list"}, "rawOutput": {"response": "Available powers"},
+            "_meta": {"kiro": {"toolOrigin": "default"}},
+        })
+        mutations = (
+            lambda rows: rows[0]["params"]["update"]["rawInput"].update(action="execute"),
+            lambda rows: rows[0]["params"]["update"]["_meta"]["kiro"].update(toolOrigin="client"),
+            lambda rows: rows[1]["params"]["update"].update(status="failed"),
+            lambda rows: rows[1]["params"]["update"].update(content=[]),
+            lambda rows: rows[1]["params"]["update"].update(rawOutput={"response": "error"}),
+            lambda rows: rows.append(json.loads(json.dumps(rows[1]))),
+        )
+        for mutation in mutations:
+            power_records = json.loads(json.dumps([start, completed]))
+            mutation(power_records)
+            records = json.loads(json.dumps(base))
+            records[4:4] = power_records
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in records:
+                    contract.accept(record)
+
+    def test_kiro_acp_2200_accepts_bounded_official_session_new_extensions(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "7" * 64
+        records = self.kiro_acp_records(marker)
+        records[1]["result"].update({
+            "modes": {"currentModeId": "agent", "availableModes": [{"id": "agent"}]},
+            "configOptions": [{"id": "model"}],
+            "_meta": {"kiro": {"opaque": True}},
+        })
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in records:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        mutations = (
+            lambda result: result.update(extra=True),
+            lambda result: result.update(modes=[]),
+            lambda result: result.update(modes={"currentModeId": "", "availableModes": []}),
+            lambda result: result.update(configOptions=[{}]),
+            lambda result: result.update(_meta=[]),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(records[1]))
+            mutation(forged["result"])
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            contract.accept(records[0])
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(ValueError, "session/new response differs"):
+                contract.accept(forged)
+
     def test_kiro_acp_2200_adversarial_records_fail_closed(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "b" * 64
         base = self.kiro_acp_records(marker)
@@ -4655,6 +4880,178 @@ class FixedAdapterContractTests(unittest.TestCase):
             forged = json.loads(json.dumps(candidate))
             mutation(forged)
             contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in forged:
+                    contract.accept(record)
+
+    def test_kiro_acp_2200_reconciles_equivalent_external_and_session_status(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "9" * 64
+        records = self.kiro_acp_records(marker)
+        tools = [{"name": "kiro_power"}, {"name": "search_cloudflare_documentation"}]
+        for index in (2, 3):
+            records[index]["params"]["update"]["tools"] = json.loads(json.dumps(tools))
+        external = [
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connected", "tools": tools}]}},
+        ]
+        candidate = [*records[:2], *external, *records[2:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+        self.assertEqual(contract.discovery, ["connecting", "connected"])
+
+        flooded = [*records[:2], *[json.loads(json.dumps(external[0])) for _ in range(fixed_adapters.KIRO_MAX_AUXILIARY + 2)]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        with self.assertRaisesRegex(ValueError, "auxiliary notification bound exceeded"):
+            for record in flooded:
+                contract.accept(record)
+
+        unrelated_progress = json.loads(json.dumps(candidate))
+        unrelated_progress[3]["params"]["servers"].append({"name": "other", "status": "connecting", "tools": []})
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in unrelated_progress:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        for mutation in (
+            lambda rows: rows[3]["params"]["servers"][0].update(extra="changed"),
+            lambda rows: rows[3]["params"]["servers"][0].update(_meta={"changed": True}),
+        ):
+            forged = json.loads(json.dumps(candidate))
+            mutation(forged)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(repeated_external_mutation=mutation), self.assertRaisesRegex(ValueError, "changed outside"):
+                for record in forged:
+                    contract.accept(record)
+
+        for mutation in (
+            lambda rows: rows.insert(6, json.loads(json.dumps(rows[5]))),
+            lambda rows: rows[7]["params"]["update"]["tools"].reverse(),
+        ):
+            forged = json.loads(json.dumps(candidate))
+            mutation(forged)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                for record in forged:
+                    contract.accept(record)
+
+    def test_kiro_acp_2200_accepts_only_typed_bounded_pre_session_auxiliary_updates(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "8" * 64
+        records = self.kiro_acp_records(marker)
+        stale = {"jsonrpc": "2.0", "method": "session/update", "params": {
+            "sessionId": "prior-session",
+            "update": {"sessionUpdate": "config_option_update", "configOptions": []},
+        }}
+        candidate = [records[0], stale, *records[1:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        mutations = (
+            lambda row: row["params"]["update"].update(sessionUpdate="unknown"),
+            lambda row: row["params"].update(sessionId=""),
+            lambda row: row["params"].update(update={"sessionUpdate": "config_option_update"}),
+            lambda row: row["params"]["update"].update(unexpected={}),
+            lambda row: row["params"]["update"].update(configOptions={}),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(stale))
+            mutation(forged)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            contract.accept(records[0])
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contract.accept(forged)
+
+        foreign_after_new = json.loads(json.dumps(stale))
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        contract.accept(records[0])
+        contract.accept(records[1])
+        with self.assertRaisesRegex(ValueError, "session update envelope differs"):
+            contract.accept(foreign_after_new)
+
+    def test_kiro_acp_2200_accepts_only_typed_progressive_context_notifications(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "6" * 64
+        records = self.kiro_acp_records(marker)
+        progressive = {"jsonrpc": "2.0", "method": "_kiro/progressive_context/items_changed", "params": {
+            "sessionId": "opaque-session", "status": "success",
+            "items": [{"name": "code-tool-router", "type": "skill"}],
+        }}
+        candidate = [*records[:2], progressive, *records[2:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        mutations = (
+            lambda params: params.update(status="failed"),
+            lambda params: params.update(items=[]),
+            lambda params: params.update(items=[None]),
+            lambda params: params.update(extra=True),
+            lambda params: params.update(sessionId="foreign"),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(progressive))
+            mutation(forged["params"])
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            contract.accept(records[0])
+            contract.accept(records[1])
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contract.accept(forged)
+
+    def test_kiro_acp_2200_accepts_context_usage_during_target_execution(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "5" * 64
+        records = self.kiro_acp_records(marker)
+        context_usage = {"jsonrpc": "2.0", "method": "session/update", "params": {
+            "sessionId": "opaque-session", "update": {
+                "sessionUpdate": "session_info_update",
+                "_meta": {"kiro": {"kind": "context_usage", "usagePercentage": 1.0}},
+            },
+        }}
+        candidate = [*records[:5], context_usage, *records[5:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        malformed = json.loads(json.dumps(context_usage))
+        malformed["params"]["update"]["status"] = "success"
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in records[:5]:
+            contract.accept(record)
+        with self.assertRaises(ValueError):
+            contract.accept(malformed)
+
+    def test_kiro_acp_2200_accepts_only_exact_nonproof_turn_lifecycle_updates(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "4" * 64
+        records = self.kiro_acp_records(marker)
+        updates = [
+            {"sessionUpdate": "session_info_update", "_meta": {"kiro": {"kind": "user_message_id_assigned", "userMessageId": "opaque-message"}}},
+            {"sessionUpdate": "session_info_update", "_meta": {"kiro": {"kind": "turn_start", "turnStart": True, "messageId": "opaque-turn"}}},
+            {"sessionUpdate": "session_info_update", "title": "Use the reviewed tool", "_meta": {"kiro": {"kind": "focus_update", "title": "Use the reviewed tool", "focus": {"title": "Use the reviewed tool"}}}},
+        ]
+        auxiliary = [{"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "opaque-session", "update": update}} for update in updates]
+        candidate = [*records[:4], *auxiliary, *records[4:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
+        mutations = (
+            lambda rows: rows[0]["params"]["update"]["_meta"]["kiro"].update(userMessageId=""),
+            lambda rows: rows[1]["params"]["update"]["_meta"]["kiro"].update(messageId=""),
+            lambda rows: rows[1]["params"]["update"]["_meta"]["kiro"].update(turnStart=False),
+            lambda rows: rows[2]["params"]["update"].update(title="different"),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(auxiliary))
+            mutation(forged)
+            contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+            for record in records[:4]:
+                contract.accept(record)
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 for record in forged:
                     contract.accept(record)

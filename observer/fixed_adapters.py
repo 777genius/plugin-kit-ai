@@ -150,6 +150,12 @@ MCP_PROBE_HINTS = {
     "chrome-devtools": "",
     "notion": " with query UAP read-only probe",
 }
+MCP_PROBE_INPUTS = {
+    "context7": {"libraryName": "React"},
+    "cloudflare-docs": {"query": "Cloudflare Durable Objects SQLite storage API"},
+    "chrome-devtools": {},
+    "notion": {"query": "UAP read-only probe"},
+}
 CURSOR_MAX_THINKING_EVENTS = 32
 KIRO_PROTOCOL_VERSION = 1
 KIRO_CLI_SHA256 = "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358"
@@ -164,6 +170,7 @@ KIRO_AUXILIARY_METHODS = {
     "_kiro/mcp/status", "_kiro/governance/state", "_kiro/tools/didChange",
     "_kiro/powers/items_changed", "_kiro/steering/documents_changed",
     "_kiro/sessions/changed", "_kiro/hooks/didChange", "_kiro/diagnostics/changed",
+    "_kiro/progressive_context/items_changed",
 }
 KIRO_AUXILIARY_UPDATES = {"available_commands_update", "config_option_update", "current_mode_update"}
 
@@ -1580,12 +1587,23 @@ class KiroACPContract:
         self.plugin, self.tool, self.marker = plugin, tool, marker
         self.session_id: str | None = None
         self.tool_call_id: str | None = None
+        self.power_call_id: str | None = None
+        self.power_phase: str | None = None
         self.permission_id: Any = None
         self.allow_once_id: str | None = None
+        self.target_shape: str | None = None
+        self.pending_interaction_seen = False
+        self.interaction_resolved_seen = False
+        self.target_in_progress_count = 0
         self.phase = "initialize"
         self.discovery: list[str] = []
         self.discovery_tools: tuple[str, ...] | None = None
+        self.discovery_channels: dict[str, list[str]] = {"external": [], "session": []}
+        self.discovery_catalogs: dict[str, tuple[str, ...]] = {}
+        self.discovery_last: dict[str, tuple[str, tuple[str, ...]]] = {}
+        self.discovery_last_fingerprint: dict[str, str] = {}
         self.marker_parts: list[str] = []
+        self.marker_replay_id: str | None = None
         self.turn_completion = self.turn_end = self.prompt_done = False
         self.auxiliary_count = 0
 
@@ -1604,10 +1622,104 @@ class KiroACPContract:
             raise ValueError("Kiro ACP update is malformed")
         return update
 
+    @staticmethod
+    def _validate_auxiliary_update(update: Any) -> None:
+        if not isinstance(update, dict):
+            raise ValueError("Kiro ACP auxiliary update is malformed")
+        kind = update.get("sessionUpdate")
+        payload_fields = {
+            "available_commands_update": "availableCommands",
+            "config_option_update": "configOptions",
+            "current_mode_update": "currentModeId",
+        }
+        field = payload_fields.get(kind)
+        allowed = {"sessionUpdate", field} if field is not None else set()
+        meta = update.get("_meta")
+        if (
+            field is None or set(update) not in (allowed, allowed | {"_meta"})
+            or "_meta" in update and meta is not None and (
+                not isinstance(meta, dict) or len(canonical_json(meta)) > 16 << 10
+            )
+        ):
+            raise ValueError("Kiro ACP auxiliary update shape differs")
+        payload = update[field]
+        if kind == "current_mode_update":
+            if not isinstance(payload, str) or not payload or len(payload) > KIRO_MAX_TOOL_NAME:
+                raise ValueError("Kiro ACP auxiliary mode update differs")
+            return
+        if (
+            not isinstance(payload, list) or len(payload) > KIRO_MAX_TOOLS
+            or any(not isinstance(item, dict) or not item for item in payload)
+        ):
+            raise ValueError("Kiro ACP auxiliary collection update differs")
+        if kind == "available_commands_update" and any(
+            not isinstance(item.get("name"), str) or not item["name"]
+            or not isinstance(item.get("description"), str)
+            for item in payload
+        ):
+            raise ValueError("Kiro ACP available command update differs")
+
+    def _pre_session_auxiliary_update(self, record: dict[str, Any]) -> bool:
+        """Ignore only bounded, typed notifications for Kiro's prior session."""
+        if self.phase != "new" or self.session_id is not None:
+            return False
+        if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") != "session/update":
+            return False
+        params = record.get("params")
+        if not isinstance(params, dict) or set(params) != {"sessionId", "update"}:
+            raise ValueError("Kiro ACP pre-session update envelope differs")
+        session_id, update = params.get("sessionId"), params.get("update")
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("Kiro ACP pre-session auxiliary update differs")
+        self._validate_auxiliary_update(update)
+        self._count_auxiliary()
+        return True
+
     def _count_auxiliary(self) -> None:
         self.auxiliary_count += 1
         if self.auxiliary_count > KIRO_MAX_AUXILIARY:
             raise ValueError("Kiro ACP auxiliary notification bound exceeded")
+
+    def _record_discovery(
+        self, channel: str, status: str, catalog: tuple[str, ...], fingerprint: str | None = None,
+    ) -> None:
+        """Reconcile Kiro's equivalent external and session-scoped status streams."""
+        sequence = self.discovery_channels[channel]
+        observation = (status, catalog)
+        if (
+            channel == "external" and sequence == ["connecting"]
+            and observation == self.discovery_last.get(channel)
+        ):
+            if fingerprint is None or fingerprint != self.discovery_last_fingerprint.get(channel):
+                raise ValueError("Kiro ACP repeated MCP status changed outside the target projection")
+            self._count_auxiliary()
+            return
+        expected = "connecting" if not sequence else "connected" if sequence == ["connecting"] else None
+        if status != expected:
+            raise ValueError("Kiro ACP MCP status is conflicting or duplicated")
+        prior = self.discovery_catalogs.get(channel)
+        if prior is not None and catalog and catalog != prior:
+            raise ValueError("Kiro ACP discovery catalog changed while connecting")
+        if catalog:
+            for other_channel, other_catalog in self.discovery_catalogs.items():
+                if other_channel != channel and other_catalog != catalog:
+                    raise ValueError("Kiro ACP discovery channels disagree")
+            self.discovery_catalogs[channel] = catalog
+            self.discovery_tools = catalog
+        sequence.append(status)
+        self.discovery_last[channel] = observation
+        if fingerprint is not None:
+            self.discovery_last_fingerprint[channel] = fingerprint
+        started = [item for item in self.discovery_channels.values() if item]
+        self.discovery = (
+            ["connecting", "connected"]
+            if started and all(item == ["connecting", "connected"] for item in started)
+            else ["connecting"]
+        )
+
+    def _discovery_ready(self) -> bool:
+        started = [item for item in self.discovery_channels.values() if item]
+        return bool(started) and all(item == ["connecting", "connected"] for item in started)
 
     def _external_mcp_status(self, record: dict[str, Any]) -> bool:
         if not self._outer(record, {"jsonrpc", "method", "params"}) or record.get("method") != "_kiro/mcp/status":
@@ -1636,13 +1748,12 @@ class KiroACPContract:
         if len(set(identities)) != len(identities) or status == "connected" and identities.count(self.tool) != 1:
             raise ValueError("Kiro ACP MCP status catalog is ambiguous or missing the target")
         catalog = tuple(identities)
-        if status == "connected":
-            self.discovery_tools = catalog
-        elif self.discovery_tools is not None:
-            raise ValueError("Kiro ACP MCP status regressed after connection")
-        self.discovery.append(status)
-        if self.discovery not in (["connecting"], ["connecting", "connected"]):
-            raise ValueError("Kiro ACP MCP status is conflicting or duplicated")
+        # Other MCP servers can independently progress while this target is
+        # still connecting. Bind the repeat to the complete target entry,
+        # rather than reducing it to status/tool names or freezing the whole
+        # unrelated multi-server snapshot.
+        fingerprint = hashlib.sha256(canonical_json(server)).hexdigest()
+        self._record_discovery("external", status, catalog, fingerprint)
         return True
 
     def _accept_auxiliary(self, record: dict[str, Any]) -> bool:
@@ -1653,6 +1764,15 @@ class KiroACPContract:
             raise ValueError("Kiro ACP auxiliary notification is malformed")
         if "sessionId" in params and self.session_id is not None and params["sessionId"] != self.session_id:
             raise ValueError("Kiro ACP auxiliary notification belongs to another session")
+        if record.get("method") == "_kiro/progressive_context/items_changed":
+            items = params.get("items")
+            if (
+                set(params) != {"items", "sessionId", "status"}
+                or params.get("status") not in {"loading", "success"}
+                or not isinstance(items, list) or not items or len(items) > KIRO_MAX_TOOLS
+                or any(not isinstance(item, dict) or not item for item in items)
+            ):
+                raise ValueError("Kiro ACP progressive context notification differs")
         self._count_auxiliary()
         return True
 
@@ -1674,10 +1794,33 @@ class KiroACPContract:
             if self.phase != "new":
                 raise ValueError("Kiro ACP duplicated session/new response")
             result = record.get("result")
-            if not isinstance(result, dict) or set(result) != {"sessionId"} or not isinstance(result.get("sessionId"), str) or not result["sessionId"]:
+            allowed = {"sessionId", "modes", "configOptions", "_meta"}
+            modes = result.get("modes") if isinstance(result, dict) else None
+            config_options = result.get("configOptions") if isinstance(result, dict) else None
+            metadata = result.get("_meta") if isinstance(result, dict) else None
+            if (
+                not isinstance(result, dict) or "sessionId" not in result or not set(result) <= allowed
+                or not isinstance(result.get("sessionId"), str) or not result["sessionId"]
+                or "modes" in result and modes is not None and (
+                    not isinstance(modes, dict)
+                    or set(modes) != {"currentModeId", "availableModes"}
+                    or not isinstance(modes.get("currentModeId"), str) or not modes["currentModeId"]
+                    or not isinstance(modes.get("availableModes"), list)
+                    or not 1 <= len(modes["availableModes"]) <= KIRO_MAX_TOOLS
+                    or any(not isinstance(item, dict) or not item for item in modes["availableModes"])
+                )
+                or "configOptions" in result and config_options is not None and (
+                    not isinstance(config_options, list) or len(config_options) > KIRO_MAX_TOOLS
+                    or any(not isinstance(item, dict) or not item for item in config_options)
+                )
+                or "_meta" in result and metadata is not None and not isinstance(metadata, dict)
+            ):
                 raise ValueError("Kiro ACP session/new response differs")
             self.session_id = result["sessionId"]
             self.phase = "running"
+            return None
+
+        if self._pre_session_auxiliary_update(record):
             return None
 
         update = self._session_update(record)
@@ -1707,51 +1850,195 @@ class KiroACPContract:
                 if len(set(identities)) != len(identities) or identities.count(self.tool) != 1:
                     raise ValueError("Kiro ACP discovery catalog is ambiguous or missing the target")
                 catalog = tuple(identities)
-                if self.discovery_tools is not None and catalog != self.discovery_tools:
-                    raise ValueError("Kiro ACP discovery catalog changed while connecting")
-                self.discovery_tools = catalog
-                self.discovery.append(status)
-                if self.discovery not in (["connecting"], ["connecting", "connected"]):
-                    raise ValueError("Kiro ACP discovery is conflicting or duplicated")
+                self._record_discovery("session", status, catalog)
                 return None
             if kind == "tool_call":
                 expected_title = f"@{self.plugin}/{self.tool}"
-                if set(update) != {"sessionUpdate", "status", "title", "toolCallId", "_meta"} or update.get("status") != "pending" or update.get("title") != expected_title:
+                if update.get("title") == "Kiro Powers":
+                    if (
+                        set(update) != {"sessionUpdate", "status", "title", "toolCallId", "kind", "rawInput", "_meta"}
+                        or update.get("status") != "in_progress"
+                        or update.get("kind") != "other"
+                        or update.get("rawInput") != {"action": "list"}
+                        or update.get("_meta") != {"kiro": {"toolOrigin": "default"}}
+                        or not isinstance(update.get("toolCallId"), str) or not update["toolCallId"]
+                        or not self._discovery_ready() or self.tool_call_id is not None
+                        or self.power_call_id is not None or self.power_phase is not None
+                    ):
+                        raise ValueError("Kiro ACP power discovery record differs")
+                    self.power_call_id = update["toolCallId"]
+                    self.power_phase = "in_progress"
+                    return None
+                legacy_fields = {"sessionUpdate", "status", "title", "toolCallId", "_meta"}
+                current_fields = legacy_fields | {"kind", "rawInput"}
+                legacy_meta = {"kiro": {"serverName": self.plugin}}
+                current_meta = {"kiro": {"serverName": self.plugin, "toolOrigin": "client"}}
+                current_input = {
+                    **MCP_PROBE_INPUTS[self.plugin],
+                    "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+                }
+                if (
+                    update.get("status") != "pending" or update.get("title") != expected_title
+                    or frozenset(update) not in {frozenset(legacy_fields), frozenset(current_fields)}
+                ):
                     raise ValueError("Kiro ACP target pending record differs")
                 meta, call_id = update.get("_meta"), update.get("toolCallId")
-                if meta != {"kiro": {"serverName": self.plugin}} or not isinstance(call_id, str) or not call_id or self.discovery != ["connecting", "connected"] or self.tool_call_id is not None:
+                legacy = set(update) == legacy_fields and meta == legacy_meta
+                current = (
+                    set(update) == current_fields and meta == current_meta
+                    and update.get("kind") == "other" and update.get("rawInput") == current_input
+                )
+                if (
+                    not (legacy or current) or not isinstance(call_id, str) or not call_id
+                    or not self._discovery_ready() or self.tool_call_id is not None
+                    or self.power_phase not in {None, "completed"}
+                ):
                     raise ValueError("Kiro ACP target pending identity differs")
                 self.tool_call_id = call_id
+                self.target_shape = "client" if current else "legacy"
                 self.phase = "pending"
                 return None
             if kind in KIRO_AUXILIARY_UPDATES:
                 if self.tool_call_id is not None:
                     raise ValueError("Kiro ACP auxiliary update arrived after target execution")
+                self._validate_auxiliary_update(update)
                 self._count_auxiliary()
                 return None
             if kind == "tool_call_update":
+                if update.get("toolCallId") == self.power_call_id:
+                    expected = {
+                        "sessionUpdate", "status", "title", "toolCallId", "content",
+                        "rawInput", "rawOutput", "_meta",
+                    }
+                    content, raw = update.get("content"), update.get("rawOutput")
+                    def typed(item: Any) -> bool:
+                        return bool(
+                            isinstance(item, dict) and set(item) == {"type", "content"}
+                            and item.get("type") == "content"
+                            and substantive_mcp_content(item.get("content"))
+                        )
+                    response = raw.get("response") if isinstance(raw, dict) and set(raw) == {"response"} else None
+                    if (
+                        self.power_phase != "in_progress" or set(update) != expected
+                        or update.get("status") != "completed" or update.get("title") != "Kiro Powers"
+                        or update.get("rawInput") != {"action": "list"}
+                        or update.get("_meta") != {"kiro": {"toolOrigin": "default"}}
+                        or not isinstance(content, list) or not content or not all(typed(item) for item in content)
+                        or not isinstance(response, str) or not response.strip()
+                        or response.strip().lower() in {"error", "failed", "failure"}
+                        or explicit_failure_marker({"content": content, "response": response})
+                    ):
+                        raise ValueError("Kiro ACP power discovery completion differs")
+                    self.power_phase = "completed"
+                    return None
                 if update.get("toolCallId") != self.tool_call_id or self.phase not in {"permitted", "in_progress"}:
                     raise ValueError("Kiro ACP tool update is reordered or foreign")
                 if update.get("status") == "in_progress":
-                    if self.phase != "permitted" or set(update) != {"sessionUpdate", "status", "toolCallId", "_meta"} or update.get("_meta") != {"kiro": {"serverName": self.plugin}}:
+                    legacy = (
+                        self.target_shape == "legacy"
+                        and set(update) == {"sessionUpdate", "status", "toolCallId", "_meta"}
+                        and update.get("_meta") == {"kiro": {"serverName": self.plugin}}
+                    )
+                    current_input = {
+                        **MCP_PROBE_INPUTS[self.plugin],
+                        "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+                    }
+                    current = (
+                        self.target_shape == "client"
+                        and set(update) == {"sessionUpdate", "status", "toolCallId", "rawInput", "_meta"}
+                        and update.get("rawInput") == current_input
+                        and update.get("_meta") == {"kiro": {"serverName": self.plugin, "toolOrigin": "client"}}
+                        and self.interaction_resolved_seen
+                    )
+                    if (
+                        not (legacy or current)
+                        or self.phase == "permitted" and self.target_in_progress_count != 0
+                        or self.phase == "in_progress" and (not current or self.target_in_progress_count != 1)
+                    ):
                         raise ValueError("Kiro ACP in-progress record differs")
+                    self.target_in_progress_count += 1
                     self.phase = "in_progress"
                     return None
                 if update.get("status") == "completed":
                     expected_title = f"@{self.plugin}/{self.tool}"
-                    if self.phase != "in_progress" or set(update) != {"sessionUpdate", "status", "title", "toolCallId", "content", "rawOutput", "_meta"} or update.get("title") != expected_title or update.get("_meta") != {"kiro": {"serverName": self.plugin}}:
+                    legacy_fields = {"sessionUpdate", "status", "title", "toolCallId", "content", "rawOutput", "_meta"}
+                    current_fields = legacy_fields | {"rawInput"}
+                    current_input = {
+                        **MCP_PROBE_INPUTS[self.plugin],
+                        "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+                    }
+                    valid_shape = (
+                        (
+                            self.target_shape == "legacy" and set(update) == legacy_fields
+                            and update.get("_meta") == {"kiro": {"serverName": self.plugin}}
+                        )
+                        or (
+                            self.target_shape == "client" and set(update) == current_fields
+                            and update.get("rawInput") == current_input
+                            and update.get("_meta") == {"kiro": {"serverName": self.plugin, "toolOrigin": "client"}}
+                        )
+                    )
+                    if self.phase != "in_progress" or not valid_shape or update.get("title") != expected_title:
                         raise ValueError("Kiro ACP completion record differs")
                     content, raw = update.get("content"), update.get("rawOutput")
-                    typed = lambda item: isinstance(item, dict) and set(item) == {"type", "content"} and item.get("type") == "content" and substantive_mcp_content(item.get("content"))
+                    def typed(item: Any) -> bool:
+                        return bool(
+                            isinstance(item, dict) and set(item) == {"type", "content"}
+                            and item.get("type") == "content"
+                            and substantive_mcp_content(item.get("content"))
+                        )
                     response = raw.get("response") if isinstance(raw, dict) and set(raw) == {"response"} else None
-                    if not isinstance(content, list) or not content or not all(typed(item) for item in content) or not isinstance(response, dict) or not response or explicit_failure_marker(response):
+                    direct = isinstance(response, dict) and bool(response) and not explicit_failure_marker(response)
+                    wrapped_response = raw.get("response") if isinstance(raw, dict) else None
+                    wrapped_content = (
+                        content[0].get("content")
+                        if isinstance(content, list) and len(content) == 1 and isinstance(content[0], dict)
+                        else None
+                    )
+                    wrapped_text = wrapped_content.get("text") if isinstance(wrapped_content, dict) else None
+                    wrapped = (
+                        self.target_shape == "client"
+                        and isinstance(raw, dict)
+                        and set(raw) == {"imageBase64Urls", "message", "response"}
+                        and raw.get("imageBase64Urls") == []
+                        and isinstance(wrapped_response, str) and bool(wrapped_response.strip())
+                        and raw.get("message") == wrapped_response
+                        and isinstance(content, list) and len(content) == 1
+                        and isinstance(content[0], dict) and set(content[0]) == {"type", "content"}
+                        and content[0].get("type") == "content"
+                        and isinstance(wrapped_content, dict) and set(wrapped_content) == {"type", "text"}
+                        and wrapped_content.get("type") == "text"
+                        and isinstance(wrapped_text, str) and bool(wrapped_text.strip())
+                        and not wrapped_response.strip().lower().startswith(("error", "failed", "failure"))
+                        and not wrapped_text.strip().lower().startswith(("error", "failed", "failure"))
+                    )
+                    if not isinstance(content, list) or not content or not all(typed(item) for item in content) or not (direct or wrapped):
                         raise ValueError("Kiro ACP completion result is empty or unhealthy")
                     self.phase = "completed"
                     return None
                 raise ValueError("Kiro ACP tool update has an unknown status")
             if kind == "agent_message_chunk":
-                if self.phase not in {"completed", "marker"} or set(update) != {"sessionUpdate", "content"}:
+                marker_fields = {"sessionUpdate", "content"}
+                current_fields = marker_fields | {"_meta"}
+                marker_meta = update.get("_meta")
+                replay_id = (
+                    marker_meta.get("kiro", {}).get("replayId")
+                    if isinstance(marker_meta, dict) and isinstance(marker_meta.get("kiro"), dict)
+                    else None
+                )
+                legacy = self.target_shape == "legacy" and set(update) == marker_fields
+                current = (
+                    self.target_shape == "client" and set(update) == current_fields
+                    and isinstance(marker_meta, dict) and set(marker_meta) == {"kiro"}
+                    and isinstance(marker_meta.get("kiro"), dict)
+                    and set(marker_meta["kiro"]) == {"replayId"}
+                    and isinstance(replay_id, str) and bool(replay_id)
+                    and self.marker_replay_id in {None, replay_id}
+                )
+                if self.phase not in {"completed", "marker"} or not (legacy or current):
                     raise ValueError("Kiro ACP assistant marker is reordered")
+                if current and self.marker_replay_id is None:
+                    self.marker_replay_id = replay_id
                 content = update.get("content")
                 if not isinstance(content, dict) or set(content) != {"type", "text"} or content.get("type") != "text" or not isinstance(content.get("text"), str) or not content["text"]:
                     raise ValueError("Kiro ACP assistant marker chunk differs")
@@ -1764,12 +2051,157 @@ class KiroACPContract:
             if kind == "session_info_update":
                 meta = update.get("_meta")
                 kiro = meta.get("kiro") if isinstance(meta, dict) else None
-                if isinstance(kiro, dict) and kiro.get("kind") == "context_usage" and self.tool_call_id is None:
+                if isinstance(kiro, dict) and kiro.get("kind") == "pending_interaction":
+                    options = kiro.get("options")
+                    pending = kiro.get("pendingInteraction")
+                    expected_kinds = ["allow_once", "allow_always", "reject_once", "reject_always"]
+                    well_formed = (
+                        isinstance(options, list) and len(options) == 4
+                        and all(
+                            isinstance(option, dict) and set(option) == {"optionId", "name", "kind"}
+                            and isinstance(option.get("optionId"), str) and option["optionId"]
+                            and isinstance(option.get("name"), str) and option["name"]
+                            for option in options
+                        )
+                        and [option["kind"] for option in options] == expected_kinds
+                        and len({option["optionId"] for option in options}) == 4
+                    )
+                    expected_pending = {
+                        "interactionType": "tool_approval", "options": options,
+                        "question": f"@{self.plugin}/{self.tool}", "toolCallId": self.tool_call_id,
+                    }
+                    if (
+                        self.phase != "pending" or self.target_shape != "client"
+                        or self.pending_interaction_seen or set(update) != {"sessionUpdate", "_meta"}
+                        or set(kiro) != {"kind", "interactionType", "options", "pendingInteraction", "question", "toolCallId"}
+                        or kiro.get("interactionType") != "tool_approval"
+                        or kiro.get("question") != expected_pending["question"]
+                        or kiro.get("toolCallId") != self.tool_call_id
+                        or not well_formed or pending != expected_pending
+                    ):
+                        raise ValueError("Kiro ACP pending interaction differs")
+                    self.pending_interaction_seen = True
+                    self._count_auxiliary()
+                    return None
+                if isinstance(kiro, dict) and kiro.get("kind") == "interaction_resolved":
+                    resolved = {
+                        "outcome": "selected", "selectedOption": self.allow_once_id,
+                        "toolCallId": self.tool_call_id,
+                    }
+                    if (
+                        self.phase != "permitted" or self.target_shape != "client"
+                        or not self.pending_interaction_seen or self.interaction_resolved_seen
+                        or set(update) != {"sessionUpdate", "_meta"}
+                        or kiro != {"kind": "interaction_resolved", **resolved, "interactionResolved": resolved}
+                    ):
+                        raise ValueError("Kiro ACP resolved interaction differs")
+                    self.interaction_resolved_seen = True
+                    self._count_auxiliary()
+                    return None
+                if (
+                    isinstance(kiro, dict) and kiro.get("kind") == "context_usage"
+                    and set(update) == {"sessionUpdate", "_meta"}
+                ):
+                    self._count_auxiliary()
+                    return None
+                if (
+                    isinstance(kiro, dict) and kiro.get("kind") == "user_message_id_assigned"
+                    and set(update) == {"sessionUpdate", "_meta"}
+                    and set(kiro) == {"kind", "userMessageId"}
+                    and isinstance(kiro.get("userMessageId"), str) and kiro["userMessageId"]
+                ):
+                    self._count_auxiliary()
+                    return None
+                if isinstance(kiro, dict) and kiro.get("kind") == "turn_start":
+                    fields = set(kiro)
+                    if (
+                        set(update) != {"sessionUpdate", "_meta"}
+                        or fields not in ({"kind", "turnStart"}, {"kind", "turnStart", "messageId"})
+                        or kiro.get("turnStart") is not True
+                        or "messageId" in kiro and (not isinstance(kiro["messageId"], str) or not kiro["messageId"])
+                    ):
+                        raise ValueError("Kiro ACP turn start differs")
+                    self._count_auxiliary()
+                    return None
+                if isinstance(kiro, dict) and kiro.get("kind") == "focus_update":
+                    title, focus = update.get("title"), kiro.get("focus")
+                    if (
+                        set(update) != {"sessionUpdate", "title", "_meta"}
+                        or set(kiro) != {"kind", "title", "focus"}
+                        or not isinstance(title, str) or not title
+                        or kiro.get("title") != title or focus != {"title": title}
+                    ):
+                        raise ValueError("Kiro ACP focus update differs")
                     self._count_auxiliary()
                     return None
                 if self.phase not in {"marker", "turn_completion"} or "".join(self.marker_parts) != self.marker:
                     raise ValueError("Kiro ACP terminal update is reordered")
                 meta = update.get("_meta")
+                if (
+                    self.target_shape == "client" and set(update) == {"sessionUpdate", "_meta"}
+                    and isinstance(meta, dict) and set(meta) == {"kiro"}
+                    and isinstance(meta.get("kiro"), dict)
+                    and meta["kiro"].get("kind") == "turn_completion"
+                ):
+                    completion = meta["kiro"]
+                    summaries = completion.get("promptTurnSummaries")
+                    request_ids = completion.get("requestIds")
+                    elapsed = completion.get("elapsedTime")
+                    valid_summaries = (
+                        isinstance(summaries, list) and len(summaries) == 1
+                        and isinstance(summaries[0], dict)
+                        and set(summaries[0]) == {"unit", "unitPlural", "usage", "usedTools"}
+                        and all(
+                            isinstance(summaries[0].get(field), str)
+                            and bool(summaries[0][field])
+                            and len(summaries[0][field]) <= KIRO_MAX_TOOL_NAME
+                            for field in ("unit", "unitPlural")
+                        )
+                        and isinstance(summaries[0].get("usage"), (int, float))
+                        and not isinstance(summaries[0]["usage"], bool)
+                        and math.isfinite(summaries[0]["usage"])
+                        and summaries[0]["usage"] >= 0
+                        and isinstance(summaries[0].get("usedTools"), list)
+                        and 0 < len(summaries[0]["usedTools"]) <= KIRO_MAX_TOOLS
+                        and all(
+                            isinstance(item, str) and bool(item) and len(item) <= KIRO_MAX_TOOL_NAME
+                            for item in summaries[0]["usedTools"]
+                        )
+                        and len(set(summaries[0]["usedTools"])) == len(summaries[0]["usedTools"])
+                    )
+                    valid_requests = (
+                        isinstance(request_ids, list) and 0 < len(request_ids) <= KIRO_MAX_TOOLS
+                        and all(isinstance(item, str) and bool(item) for item in request_ids)
+                        and len(set(request_ids)) == len(request_ids)
+                    )
+                    if (
+                        self.phase != "marker" or self.turn_completion
+                        or set(completion) != {"kind", "status", "elapsedTime", "promptTurnSummaries", "requestIds"}
+                        or completion.get("status") != "success"
+                        or type(elapsed) is not int or not 0 <= elapsed <= 3_600_000
+                        or not valid_summaries or not valid_requests
+                        or explicit_failure_marker(completion)
+                    ):
+                        raise ValueError("Kiro ACP current turn completion differs")
+                    self.turn_completion, self.phase = True, "turn_completion"
+                    return None
+                if (
+                    self.target_shape == "client" and set(update) == {"sessionUpdate", "_meta"}
+                    and isinstance(meta, dict) and set(meta) == {"kiro"}
+                    and isinstance(meta.get("kiro"), dict)
+                    and meta["kiro"].get("kind") == "turn_end"
+                ):
+                    ending = meta["kiro"]
+                    if (
+                        self.phase != "turn_completion" or not self.turn_completion or self.turn_end
+                        or set(ending) != {"kind", "messageId", "stopReason", "turnEnd"}
+                        or not isinstance(ending.get("messageId"), str) or not ending["messageId"]
+                        or ending.get("stopReason") != "end_turn"
+                        or ending.get("turnEnd") != {"stopReason": "end_turn"}
+                    ):
+                        raise ValueError("Kiro ACP current turn end differs")
+                    self.turn_end, self.phase = True, "turn_end"
+                    return None
                 if set(update) == {"sessionUpdate", "status", "_meta"} and meta == {"kiro": {"kind": "turn_completion"}} and update.get("status") == "success" and not self.turn_completion:
                     self.turn_completion, self.phase = True, "turn_completion"
                     return None
@@ -1782,13 +2214,25 @@ class KiroACPContract:
         if self._external_mcp_status(record) or self._accept_auxiliary(record):
             return None
         if self._outer(record, {"jsonrpc", "id", "method", "params"}) and record.get("method") == "session/request_permission":
-            if self.phase != "pending" or self.permission_id is not None:
+            if (
+                self.phase != "pending" or self.permission_id is not None
+                or self.target_shape == "client" and not self.pending_interaction_seen
+            ):
                 raise ValueError("Kiro ACP permission request is extra or reordered")
             permission_id = record.get("id")
             if type(permission_id) not in {int, str} or isinstance(permission_id, str) and not permission_id:
                 raise ValueError("Kiro ACP permission request id has an unsupported type")
             params = record.get("params")
-            if not isinstance(params, dict) or set(params) != {"sessionId", "toolCall", "options"} or params.get("sessionId") != self.session_id:
+            allowed_params = {"sessionId", "toolCall", "options", "_meta"}
+            request_meta = params.get("_meta") if isinstance(params, dict) else None
+            if (
+                not isinstance(params, dict)
+                or set(params) not in ({"sessionId", "toolCall", "options"}, allowed_params)
+                or params.get("sessionId") != self.session_id
+                or "_meta" in params and request_meta is not None and (
+                    not isinstance(request_meta, dict) or len(canonical_json(request_meta)) > 16 << 10
+                )
+            ):
                 raise ValueError("Kiro ACP permission envelope differs")
             call = params.get("toolCall")
             if call != {"toolCallId": self.tool_call_id, "title": f"@{self.plugin}/{self.tool}", "status": "pending"}:
@@ -1812,7 +2256,7 @@ class KiroACPContract:
         raise ValueError("Kiro ACP emitted an unknown control record")
 
     def complete(self) -> bool:
-        return self.phase == "done" and self.prompt_done and self.turn_end and self.discovery == ["connecting", "connected"] and "".join(self.marker_parts) == self.marker
+        return self.phase == "done" and self.prompt_done and self.turn_end and self._discovery_ready() and "".join(self.marker_parts) == self.marker
 
 
 def _nested_strings(value: Any) -> list[str]:
