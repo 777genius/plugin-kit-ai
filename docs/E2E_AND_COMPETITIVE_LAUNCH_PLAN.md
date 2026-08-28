@@ -1,6 +1,6 @@
 # E2E and Competitive Launch Plan
 
-Status: implementation plan, 2026-08-27
+Status: implementation plan, updated 2026-08-28
 
 ## 1. Goal
 
@@ -84,7 +84,7 @@ them.
 - six-platform `0.1.18` binaries and npm facade;
 - contributor fork-PR E2E.
 
-### 3.2 Launch blockers
+### 3.2 Launch status and remaining blockers
 
 1. The five external Kiro hero results are not complete, so the launch matrix
    cannot claim 15/15. Kiro CLI 2.20.0 has real disposable read-only evidence
@@ -93,14 +93,23 @@ them.
    The sanitized public shape summary records observed event kinds only.
    Their sequence is not asserted.
 2. The exact public `0.1.18` tag, six-platform release manifest, checksums, npm
-   integrity, and Linux binary are pinned. Branch CI and the protected launch
-   workflow still need to validate the final source commit.
-3. The public production Directory endpoint is not deployed; the staged signed
-   ledger exists, but protected launch evidence blocked promotion.
-4. The two scheduled jobs now install their pinned Python validation
-   dependencies. A fresh scheduled or equivalent manual regression run still
-   has to prove that repair on current `main`.
-5. No real upstream packaging PR has been opened yet.
+   integrity, and Linux binary are pinned. Validation and registry CI passed on
+   the current checkpoint; the protected launch workflow still needs to validate
+   the final evidence tuple.
+3. Signed production Directory sequence 13 is live and verifies. Sequence 14 is
+   staged but is not production: protected launch evidence correctly blocked
+   its promotion. The production marker now prevents scheduled observation from
+   mistaking a staged ledger head for the deployed sequence.
+4. The scheduled fixture, production Directory observation, and public-read
+   jobs passed together on exact `main` commit
+   `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc` in
+   [run 33142162465](https://github.com/777genius/universal-agent-plugins/actions/runs/33142162465).
+   The protected evidence job was intentionally skipped in that credential-free
+   regression and is not counted as complete.
+5. Three real upstream packaging PRs are open with public exact-fork-SHA
+   lifecycle evidence: [Chrome DevTools #2623](https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623),
+   [Cloudflare #465](https://github.com/cloudflare/mcp-server-cloudflare/pull/465),
+   and [GitHub MCP Server #3169](https://github.com/github/github-mcp-server/pull/3169).
 6. The CLI has no public `search`, `outdated`, or read-only package `validate`
    command, and `update` has no explicit all-installed mode.
 
@@ -115,6 +124,14 @@ them.
   privileged run passed 96/97, exposed one stale Cursor fixture, and that exact
   corrected test then passed. This is pre-merge evidence, not the protected
   15/15 result.
+- Current catalog `main`: `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc`.
+- Production identity tracking is monotonic and protected by publisher-only
+  creation/update plus a no-bypass deletion guard. Production remains signed
+  sequence 13; signed sequence 14 remains staged.
+- The last protected attempt could not reach an observer service. This is an
+  infrastructure-unavailable result, not a failed or successful package runtime
+  result. Final observer profiles cannot be sealed until the remaining Cursor
+  and Kiro authentication/runtime matrix is complete.
 
 ## 4. Competitive decision
 
@@ -256,6 +273,8 @@ Make CI report product truth instead of dependency setup failures.
 3. Keep scheduled read-only observation separate from protected runtime
    evidence.
 4. Run the scheduled fixture contract manually at the exact `main` commit.
+   Completed on `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc` in
+   [run 33142162465](https://github.com/777genius/universal-agent-plugins/actions/runs/33142162465).
 5. Do not mark a skipped protected gate as success.
 
 ### Edge cases
@@ -269,7 +288,8 @@ Make CI report product truth instead of dependency setup failures.
 ### Acceptance criteria
 
 - The public Live E2E badge is green on current `main`.
-- Scheduled fixture validation succeeds without secrets.
+- Scheduled fixture validation succeeds without secrets. Completed in
+  [run 33142162465](https://github.com/777genius/universal-agent-plugins/actions/runs/33142162465).
 - Missing protected evidence still fails closed with a precise reason.
 
 ## 7. Phase 2 - Complete current-release runtime E2E
@@ -674,6 +694,20 @@ Start with the three existing bridges:
 - Three real upstream PRs are open with public, exact-SHA evidence.
 - At least one merge can be promoted without changing existing installations.
 
+Current cohort:
+
+- [Chrome DevTools #2623](https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623)
+  at fork head `4ff0c06eab3c2e7af216b24a9350867d5dccb4c8`;
+- [Cloudflare #465](https://github.com/cloudflare/mcp-server-cloudflare/pull/465)
+  at fork head `3897acdb389b453205c559e2b79acc8bd5909bfa`;
+- [GitHub MCP Server #3169](https://github.com/github/github-mcp-server/pull/3169)
+  at fork head `14092de9940741511d224e0d7071ac02910bda11`.
+
+All three exact heads passed schema validation plus isolated add, info, and
+remove lifecycle checks for Codex, Cursor, and Kiro in
+[run 33115759932](https://github.com/777genius/universal-agent-plugins/actions/runs/33115759932).
+That evidence does not claim tool runtime or authentication.
+
 ## 13. Verification gates
 
 ### Repository validation
@@ -734,18 +768,23 @@ Kill switches:
 ## 15. Final acceptance checklist
 
 - [x] Stable launch tuple is entirely `0.1.18`.
-- [ ] Scheduled and protected E2E workflows are green.
+- [x] Scheduled credential-free E2E is green on the recorded checkpoint.
+- [ ] Protected E2E is green for the exact final evidence tuple.
 - [ ] Five heroes pass 15/15 across Codex, Cursor, and Kiro.
 - [ ] Notion evidence is separately authenticated and sanitized.
 - [ ] Cloudflare Docs ChatGPT claim stays within the proved personal-app scope.
-- [ ] Signed production Directory is publicly reachable and fail-closed.
+- [x] Signed production Directory sequence 13 is publicly reachable and
+      fail-closed.
+- [ ] The current staged sequence 14 is promoted only after protected evidence
+      passes.
 - [ ] `install`, `search`, `validate`, `outdated`, and `update --all` are shipped.
 - [ ] Reviewed Directory and unreviewed Discovery Index are visibly distinct.
 - [ ] Discovery covers all reproducibly found conformant packages and targets
       2,000+ unique package paths without padding.
 - [ ] Website search and client multi-select pass browser E2E.
 - [ ] No install telemetry is introduced.
-- [ ] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA evidence.
+- [x] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA lifecycle
+      evidence.
 - [ ] Existing installs never change source implicitly.
 - [ ] No real user project or identity was used for E2E.
 
