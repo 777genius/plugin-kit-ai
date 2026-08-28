@@ -19,6 +19,16 @@ CLIENTS = {"codex", "cursor", "kiro"}
 HEROES = {"agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"}
 PROFILE_ROOT = Path("/var/lib/uap-observer/profiles")
 PROOF_ROOT = Path("/var/lib/uap-observer/proofs")
+SHARED_NATIVE_PROJECTION_PATHS = {
+    "cursor": (
+        PROFILE_ROOT / "cursor" / ".cursor" / "mcp.json",
+        PROFILE_ROOT / "cursor" / ".cursor" / "skills" / "code-tool-router" / "SKILL.md",
+    ),
+    "kiro": (
+        PROFILE_ROOT / "kiro" / ".kiro" / "settings" / "mcp.json",
+        PROFILE_ROOT / "kiro" / ".kiro" / "skills" / "code-tool-router" / "SKILL.md",
+    ),
+}
 PROOF_SEED_NAME = ".uap-observer-proof"
 TRANSACTION_VERSION = 1
 MAX_FILES = 50_000
@@ -511,9 +521,9 @@ def validate_native_projection(value, client: str) -> list[dict]:
     for entry in entries:
         by_active_path.setdefault(entry["client_config"]["path"], []).append(entry)
     duplicates = [group for group in by_active_path.values() if len(group) > 1]
-    if client == "kiro":
-        shared = str(Path("/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json"))
-        skill = str(Path("/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md"))
+    if client in SHARED_NATIVE_PROJECTION_PATHS:
+        shared_path, skill_path = SHARED_NATIVE_PROJECTION_PATHS[client]
+        shared, skill = str(shared_path), str(skill_path)
         if (
             set(by_active_path) != {shared, skill}
             or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1
@@ -799,8 +809,9 @@ def active_native_paths(proof_fd: int, client: str, staging_fd: int) -> tuple[se
             if native_fd >= 0:
                 os.close(native_fd)
             os.close(native_parent)
+        shared_paths = SHARED_NATIVE_PROJECTION_PATHS.get(client)
         if parts in files and not (
-            client == "kiro" and parts == (".kiro", "settings", "mcp.json")
+            shared_paths is not None and path == shared_paths[0]
             and entry["component_kind"] == "mcp"
         ):
             raise ValueError("profile seed native projection repeats an active config")

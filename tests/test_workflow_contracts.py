@@ -1,5 +1,6 @@
 import json
 import hashlib
+import importlib.util
 import re
 import shutil
 import subprocess
@@ -205,6 +206,28 @@ class WorkflowContractTests(unittest.TestCase):
             validate(json.dumps(valid_kiro).encode(), "kiro", Path("/profile/kiro"), Path("/proof/kiro")),
             valid_kiro,
         )
+        cursor_entries = [{
+            **item,
+            "native_config": {
+                "path": f'/proof/cursor/native/{item["plugin"]}.blob', "sha256": digest,
+            },
+            "client_config": {
+                "path": (
+                    "/profile/cursor/.cursor/skills/code-tool-router/SKILL.md"
+                    if item["plugin"] == "agent-code-navigator"
+                    else "/profile/cursor/.cursor/mcp.json"
+                ),
+                "sha256": digest,
+            },
+        } for item in entries]
+        valid_cursor = {"schema_version": 2, "client_id": "cursor", "entries": cursor_entries}
+        self.assertEqual(
+            validate(
+                json.dumps(valid_cursor).encode(), "cursor",
+                Path("/profile/cursor"), Path("/proof/cursor"),
+            ),
+            valid_cursor,
+        )
         for conflicting in (
             {**valid_kiro, "entries": [
                 {**kiro_entries[0], "client_config": {"path": "/profile/kiro/other/mcp.json", "sha256": digest}},
@@ -222,6 +245,20 @@ class WorkflowContractTests(unittest.TestCase):
                 "native_config": {"path": f'/proof/codex/native/{item["plugin"]}.blob', "sha256": digest},
                 "client_config": {"path": "/profile/codex/.kiro/settings/mcp.json", "sha256": digest},
             } for item in entries]},
+            {**valid_cursor, "entries": [
+                cursor_entries[0],
+                {**cursor_entries[1],
+                 "native_config": {**cursor_entries[1]["native_config"], "sha256": "sha256:" + "c" * 64},
+                 "client_config": {**cursor_entries[1]["client_config"], "sha256": "sha256:" + "c" * 64}},
+                *cursor_entries[2:],
+            ]},
+            {**valid_cursor, "entries": [
+                cursor_entries[0],
+                {**cursor_entries[1], "client_config": {
+                    "path": "/profile/cursor/other/mcp.json", "sha256": digest,
+                }},
+                *cursor_entries[2:],
+            ]},
         ):
             with self.subTest(conflicting_shared_path=conflicting), self.assertRaises(SystemExit):
                 validate(
@@ -254,6 +291,79 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('type(receipts.get("schema_version")) is not int', library)
         self.assertIn('record["tuple"]!=entry["tuple"]', library)
         self.assertIn('record.get(field)!=entry.get(field)', library)
+
+    def test_profile_provisioner_accepts_only_canonical_shared_client_configs(self) -> None:
+        path = ROOT / "deploy/uap-observer-provision-profile.py"
+        spec = importlib.util.spec_from_file_location("uap_observer_provision_profile", path)
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        digest = "sha256:" + "a" * 64
+
+        def release_tuple(plugin: str) -> dict:
+            return {
+                "product_id": plugin, "tree_digest": digest, "manifest_digest": digest,
+                "distribution_id": f"owner/{plugin}", "distribution_kind": "upstream",
+                "release_sequence": 1, "package_version": "1.0.0",
+                "source_repository": f"owner/{plugin}", "source_revision": "b" * 40,
+                "source_path": f"plugins/{plugin}", "snapshot_sequence": 1,
+                "snapshot_digest": digest, "binary_digest": digest,
+                "dependency_identity": "locked", "installer_version": "0.1.18",
+                "adapter_version": "r14d", "client_version": None,
+                "os": "linux", "architecture": "x86_64", "observed_at": "2026-08-26T00:00:00Z",
+            }
+
+        heroes = ("agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion")
+
+        def projection(client: str) -> dict:
+            if client == "cursor":
+                shared = "/var/lib/uap-observer/profiles/cursor/.cursor/mcp.json"
+                skill = "/var/lib/uap-observer/profiles/cursor/.cursor/skills/code-tool-router/SKILL.md"
+            elif client == "kiro":
+                shared = "/var/lib/uap-observer/profiles/kiro/.kiro/settings/mcp.json"
+                skill = "/var/lib/uap-observer/profiles/kiro/.kiro/skills/code-tool-router/SKILL.md"
+            else:
+                shared = None
+                skill = "/var/lib/uap-observer/profiles/codex/skills/code-tool-router/SKILL.md"
+            entries = []
+            for plugin in heroes:
+                kind = "skill" if plugin == "agent-code-navigator" else "mcp"
+                config_path = skill if kind == "skill" else (
+                    shared or f"/var/lib/uap-observer/profiles/codex/{plugin}.json"
+                )
+                entries.append({
+                    "plugin": plugin, "component_kind": kind, "tuple": release_tuple(plugin),
+                    "native_config": {
+                        "path": f"/var/lib/uap-observer/proofs/{client}/native/{plugin}.blob",
+                        "sha256": digest,
+                    },
+                    "client_config": {"path": config_path, "sha256": digest},
+                    "manager_add_sha256": digest, "manager_info_sha256": digest,
+                    "post_add_doctor_sha256": digest,
+                })
+            return {"schema_version": 2, "client_id": client, "entries": entries}
+
+        for client in ("cursor", "kiro", "codex"):
+            value = projection(client)
+            with self.subTest(client=client):
+                self.assertEqual(module.validate_native_projection(value, client), value["entries"])
+
+        valid_cursor = projection("cursor")
+        conflicting_digest = json.loads(json.dumps(valid_cursor))
+        conflicting_digest["entries"][1]["native_config"]["sha256"] = "sha256:" + "c" * 64
+        conflicting_digest["entries"][1]["client_config"]["sha256"] = "sha256:" + "c" * 64
+        unexpected_path = json.loads(json.dumps(valid_cursor))
+        unexpected_path["entries"][1]["client_config"]["path"] = "/var/lib/uap-observer/profiles/cursor/other/mcp.json"
+        duplicated_codex = projection("codex")
+        for entry in duplicated_codex["entries"]:
+            if entry["component_kind"] == "mcp":
+                entry["client_config"]["path"] = "/var/lib/uap-observer/profiles/codex/mcp.json"
+        for value, client in (
+            (conflicting_digest, "cursor"), (unexpected_path, "cursor"), (duplicated_codex, "codex"),
+        ):
+            with self.subTest(rejected_client=client), self.assertRaises(ValueError):
+                module.validate_native_projection(value, client)
 
     def test_runbook_strictly_decodes_and_validates_before_canonicalization(self) -> None:
         runbook = (ROOT / "docs/OBSERVER_OPERATIONS.md").read_text()

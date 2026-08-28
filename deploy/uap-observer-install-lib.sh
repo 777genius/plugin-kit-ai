@@ -743,9 +743,18 @@ def native_projection(encoded,suffix,profile,proof):
     if kinds != {plugin:("skill" if plugin=="agent-code-navigator" else "mcp") for plugin in heroes}:
         raise SystemExit(f"installed native projection component kind for {suffix} is invalid")
     duplicates=[group for group in ({path:[entry for entry in value["entries"] if Path(entry["client_config"]["path"])==path] for path in active_paths}).values() if len(group)>1]
-    if suffix=="kiro":
-        shared=profile / ".kiro" / "settings" / "mcp.json"
-        skill=profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+    shared_profiles={
+        "cursor": (
+            profile / ".cursor" / "mcp.json",
+            profile / ".cursor" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+        "kiro": (
+            profile / ".kiro" / "settings" / "mcp.json",
+            profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+    }
+    if suffix in shared_profiles:
+        shared,skill=shared_profiles[suffix]
         if (active_paths!={shared,skill} or len(duplicates)!=1 or len(duplicates[0])!=len(heroes)-1
             or {entry["plugin"] for entry in duplicates[0]} != heroes-{"agent-code-navigator"}
             or any(entry["component_kind"]!="mcp" for entry in duplicates[0])
