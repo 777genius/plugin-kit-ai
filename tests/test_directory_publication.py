@@ -173,6 +173,39 @@ class CanonicalAndSignatureTests(unittest.TestCase):
             },
         )
 
+    def test_snapshot_reader_accepts_immutable_legacy_history_then_wire_projection(self) -> None:
+        legacy = fixture_json("snapshot.json")
+        evidence = legacy["evidence"][0]
+        evidence.update({
+            "product_id": "demo",
+            "manifest_digest": "sha256:" + "2" * 64,
+            "source_repository": "example/plugins",
+            "source_revision": "a" * 40,
+            "source_path": "plugins/demo",
+            "adapter_version": "0.1.18",
+        })
+        evidence.pop("trust")
+        publication.validate_with_schema(legacy, publication.SNAPSHOT_SCHEMA)
+        publication.validate_snapshot_semantics(legacy, None)
+
+        candidate = fixture_json("candidate.json")
+        candidate["evidence"] = [copy.deepcopy(evidence)]
+        with self.assertRaises(publication.PublicationError):
+            publication.validate_with_schema(candidate, publication.CANDIDATE_SCHEMA)
+
+        projected = fixture_json("snapshot.json")
+        projected["sequence"] = legacy["sequence"] + 1
+        projected["publication_id"] = "wire-migration"
+        projected["generated_at"] = "2026-08-27T00:00:00Z"
+        projected["expires_at"] = "2026-09-26T00:00:00Z"
+        projected["evidence"][0]["id"] += ".wire-v1"
+        projected["distributions"][0]["release_policies"][0]["current_evidence"] = [
+            projected["evidence"][0]["id"],
+        ]
+        publication.validate_snapshot_semantics(
+            projected, legacy, {evidence["id"]: evidence},
+        )
+
     def test_signature_domain_digest_and_two_key_overlap(self) -> None:
         snapshot = fixture("snapshot.json")
         keys = publication.load_public_keys(FIXTURES / "trusted-keys.json")

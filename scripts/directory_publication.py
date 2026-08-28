@@ -416,7 +416,7 @@ def _validate_product(value: Any, label: str) -> None:
         _string(icon["digest"], DIGEST_RE, f"{label}.icon.digest")
 
 
-def _validate_evidence(value: Any, label: str) -> None:
+def _validate_public_evidence(value: Any, label: str) -> None:
     required = {"schema_version", "id", "distribution_id", "release_sequence", "package_tree_digest", "level", "outcome", "artifact", "trust"}
     optional = {"client", "client_version", "installer_version", "os", "architecture", "dependency_identity", "observed_at"}
     evidence = _object(value, required, optional, label)
@@ -461,6 +461,64 @@ def _validate_evidence(value: Any, label: str) -> None:
     else:
         _object(trust, {"kind"}, set(), f"{label}.trust")
         require(trust["kind"] == "reviewed_external", f"{label}.trust.kind is invalid")
+
+
+def _validate_legacy_evidence(value: Any, label: str) -> None:
+    """Read the immutable pre-wire-projection schema-1 ledger records."""
+    required = {
+        "schema_version", "id", "product_id", "distribution_id",
+        "release_sequence", "package_tree_digest", "manifest_digest",
+        "source_repository", "source_revision", "source_path", "level",
+        "outcome", "artifact",
+    }
+    optional = {
+        "client", "client_version", "installer_version", "adapter_version",
+        "os", "architecture", "dependency_identity", "observed_at",
+    }
+    evidence = _object(value, required, optional, label)
+    require_integer_const(evidence["schema_version"], 1, f"{label}.schema_version is invalid")
+    _string(evidence["id"], EVIDENCE_ID_RE, f"{label}.id")
+    _string(evidence["product_id"], SIMPLE_ID_RE, f"{label}.product_id")
+    _string(evidence["distribution_id"], DISTRIBUTION_ID_RE, f"{label}.distribution_id")
+    _positive_integer(evidence["release_sequence"], f"{label}.release_sequence")
+    for field in ("package_tree_digest", "manifest_digest"):
+        _string(evidence[field], DIGEST_RE, f"{label}.{field}")
+    _string(evidence["source_repository"], REPOSITORY_RE, f"{label}.source_repository")
+    _string(evidence["source_revision"], SHA_RE, f"{label}.source_revision")
+    _string(evidence["source_path"], None, f"{label}.source_path", minimum=1)
+    source_path = evidence["source_path"]
+    require(
+        not source_path.startswith("/") and not source_path.endswith("/")
+        and "\\" not in source_path and "//" not in source_path
+        and not any(part in {"", ".", ".."} for part in PurePosixPath(source_path).parts)
+        and not any(character in source_path for character in "?#%\x00"),
+        f"{label}.source_path is unsafe",
+    )
+    require(evidence["level"] in {"schema", "materialization", "discovery", "runtime", "oauth"}, f"{label}.level is invalid")
+    require(evidence["outcome"] in {"passed", "failed", "inconclusive", "not_tested", "not_applicable"}, f"{label}.outcome is invalid")
+    if evidence["level"] == "schema":
+        require("client" not in evidence, f"{label}.client is forbidden for schema evidence")
+    else:
+        require({"client", "client_version", "installer_version", "os", "architecture", "observed_at"}.issubset(evidence), f"{label} client fields are missing")
+        require(evidence["client"] in CLIENTS, f"{label}.client is invalid")
+    for field in ("client_version", "installer_version", "adapter_version", "os", "architecture", "dependency_identity"):
+        if field in evidence:
+            _string(evidence[field], None, f"{label}.{field}", minimum=1)
+    if "observed_at" in evidence:
+        parse_timestamp(evidence["observed_at"], f"{label}.observed_at")
+    artifact = _object(evidence["artifact"], {"repository", "revision", "path", "digest"}, set(), f"{label}.artifact")
+    _string(artifact["repository"], REPOSITORY_RE, f"{label}.artifact.repository")
+    _string(artifact["revision"], SHA_RE, f"{label}.artifact.revision")
+    _string(artifact["path"], None, f"{label}.artifact.path", minimum=1)
+    require(not artifact["path"].startswith("/") and "\\" not in artifact["path"] and ".." not in PurePosixPath(artifact["path"]).parts and "\x00" not in artifact["path"], f"{label}.artifact.path is unsafe")
+    _string(artifact["digest"], DIGEST_RE, f"{label}.artifact.digest")
+
+
+def _validate_evidence(value: Any, label: str) -> None:
+    if isinstance(value, dict) and "product_id" in value:
+        _validate_legacy_evidence(value, label)
+    else:
+        _validate_public_evidence(value, label)
 
 
 def validate_directory_records(value: dict[str, Any], *, snapshot: bool) -> None:
@@ -585,10 +643,22 @@ def validate_snapshot_semantics(
         identity = (evidence["distribution_id"], evidence["release_sequence"])
         require(identity in release_map, f"{evidence_id}: evidence release is missing")
         release = release_map[identity]
-        require(
-            evidence["package_tree_digest"] == release["tree_digest"],
-            f"{evidence_id}: evidence package tree does not match release",
-        )
+        if "product_id" in evidence:
+            source = release["package_source"]
+            require(
+                evidence["product_id"] == distribution_map[evidence["distribution_id"]]["product_id"]
+                and evidence["package_tree_digest"] == release["tree_digest"]
+                and evidence["manifest_digest"] == release["manifest_digest"]
+                and evidence["source_repository"] == source["repository"]
+                and evidence["source_revision"] == source["revision"]
+                and evidence["source_path"] == source["path"],
+                f"{evidence_id}: legacy evidence source identity does not match release",
+            )
+        else:
+            require(
+                evidence["package_tree_digest"] == release["tree_digest"],
+                f"{evidence_id}: evidence package tree does not match release",
+            )
         applicability = tuple(evidence.get(field) for field in ("level", "client", "client_version", "installer_version", "dependency_identity", "os", "architecture"))
         seen_applicability = applicability_by_release.setdefault(identity, set())
         require(applicability not in seen_applicability, f"{identity}: multiple current evidence records for one applicability tuple")

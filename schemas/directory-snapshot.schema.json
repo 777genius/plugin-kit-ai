@@ -13,7 +13,10 @@
     "expires_at": {"$ref": "#/$defs/timestamp"},
     "products": {"type": "array", "items": {"$ref": "directory-publication-candidate.schema.json#/$defs/product"}},
     "distributions": {"type": "array", "items": {"$ref": "#/$defs/distribution"}},
-    "evidence": {"type": "array", "items": {"$ref": "directory-publication-candidate.schema.json#/$defs/evidence"}},
+    "evidence": {"type": "array", "items": {"oneOf": [
+      {"$ref": "directory-publication-candidate.schema.json#/$defs/evidence"},
+      {"$ref": "directory-evidence.schema.json"}
+    ]}},
     "revocations": {"type": "array", "items": {"$ref": "directory-publication-candidate.schema.json#/$defs/revocation"}}
   },
   "additionalProperties": false,
