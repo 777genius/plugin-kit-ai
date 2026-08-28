@@ -463,9 +463,12 @@ flags. Preserve both raw outputs. Put the exact envelope accepted for that
 client in the sealer's `add` directory and archive the other under
 `materialized` or `completion`; never combine their fields. Then repeat
 post-add doctor without a source
-operand and info with 0.1.18's installed identity syntax: the installed plugin
-name plus its exact `--target`. There is no receipt-export operation in
-agentplugins 0.1.18:
+operand and info with 0.1.18's installed identity syntax. Codex and Cursor use
+the installed plugin name plus its exact `--target`. Kiro uses its
+single-installed-client view because 0.1.18 omits unsupported native
+reconciliation fields only in that shape; the sealer accepts the omission only
+beside the exact CLI-emitted completion envelope. There is no receipt-export
+operation in agentplugins 0.1.18:
 
 ```sh
 for client in codex cursor kiro; do
@@ -482,8 +485,13 @@ for client in codex cursor kiro; do
       >"$evidence/completion/$plugin.json"
     "$@" "$AGENTPLUGINS" doctor --format json \
       >"$evidence/post-doctor/$plugin.json"
-    "$@" "$AGENTPLUGINS" info "$plugin" --target "$client" --format json \
-      >"$evidence/info/$plugin.json"
+    if [ "$client" = kiro ]; then
+      "$@" "$AGENTPLUGINS" info "$plugin" --format json \
+        >"$evidence/info/$plugin.json"
+    else
+      "$@" "$AGENTPLUGINS" info "$plugin" --target "$client" --format json \
+        >"$evidence/info/$plugin.json"
+    fi
   done
 done
 ```
@@ -510,6 +518,17 @@ config's containment, ownership, mode, link count, and SHA-256. It emits the
 manager receipt and immutable native projection consumed by the adapter:
 
 ```sh
+# Kiro 2.20.0 materializes this skill as 0644. Freeze the exact mapped file to
+# the sealer's root-only seed mode before any projection digest is computed.
+kiro_skill_relative="$(jq -er '."agent-code-navigator"' /root/native-config-kiro.json)"
+test "$kiro_skill_relative" = '.kiro/skills/code-tool-router/SKILL.md'
+kiro_skill="/root/profile-seeds/kiro/$kiro_skill_relative"
+test -f "$kiro_skill" && test ! -L "$kiro_skill"
+test "$(stat -c '%U:%G:%h' "$kiro_skill")" = 'root:root:1'
+case "$(stat -c %a "$kiro_skill")" in 600|644) ;; *) exit 1 ;; esac
+chmod 0600 "$kiro_skill"
+test "$(stat -c '%U:%G:%a:%h' "$kiro_skill")" = 'root:root:600:1'
+
 for client in codex cursor kiro; do
   python3 "$SOURCE_ROOT/deploy/uap-observer-configure-chrome.py" \
     --root-owned-seed "/root/profile-seeds/$client" \
