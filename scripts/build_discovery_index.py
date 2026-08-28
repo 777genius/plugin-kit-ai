@@ -58,6 +58,11 @@ MAX_TREE_BYTES = 64 << 20
 MAX_RECORDS = 10_000
 MAX_API_BYTES = 8 << 20
 MAX_PREVIOUS_SNAPSHOT_BYTES = 16 << 20
+# Retry delays remain bounded even when GitHub returns an invalid or hostile
+# rate-limit hint. This is deliberately large enough for secondary-limit
+# windows such as the 75-second delay observed in production.
+MAX_GITHUB_RETRY_DELAY_SECONDS = 120
+MAX_GITHUB_SERVER_RETRY_DELAY_SECONDS = 30
 REPOSITORY_GRAPHQL_BATCH = 50
 SEARCH_STABILITY_ATTEMPTS = 3
 SEARCH_PARTITION_MAX = 90
@@ -78,6 +83,16 @@ class GitHubHTTPError(DiscoveryError):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise DiscoveryError(message)
+
+
+def _bounded_nonnegative_integer(value: str | None, maximum: int) -> int:
+    if value is None or re.fullmatch(r"[0-9]+", value.strip()) is None:
+        return 0
+    digits = value.strip().lstrip("0") or "0"
+    limit = str(maximum)
+    if len(digits) > len(limit) or (len(digits) == len(limit) and digits > limit):
+        return maximum
+    return int(digits)
 
 
 def normalized_path(value: str) -> str:
@@ -141,15 +156,38 @@ class GitHubAPI:
                     require(isinstance(value, dict), "GitHub response must be an object")
                     return value
             except urllib.error.HTTPError as error:
-                if error.code not in {403, 429, 500, 502, 503, 504} or attempt == 5:
+                try:
                     detail = error.read(4096).decode("utf-8", "replace")
+                except OSError as body_error:
+                    detail = f"<unable to read response body: {type(body_error).__name__}>"
+                if error.code not in {403, 429, 500, 502, 503, 504} or attempt == 5:
                     raise GitHubHTTPError(error.code, path, detail) from error
+                secondary_limit = error.code in {403, 429}
+                delay_cap = (
+                    MAX_GITHUB_RETRY_DELAY_SECONDS
+                    if secondary_limit
+                    else MAX_GITHUB_SERVER_RETRY_DELAY_SECONDS
+                )
                 reset = error.headers.get("X-RateLimit-Reset")
                 retry_after = error.headers.get("Retry-After")
-                delay = int(retry_after) if retry_after and retry_after.isdigit() else 0
-                if reset and reset.isdigit():
-                    delay = max(delay, int(reset) - int(time.time()) + 1)
-                time.sleep(max(1, min(delay, 30)))
+                delay = _bounded_nonnegative_integer(retry_after, delay_cap)
+                now = int(time.time())
+                reset_at = _bounded_nonnegative_integer(reset, now + delay_cap - 1)
+                if reset_at:
+                    delay = max(delay, reset_at - now + 1)
+                if secondary_limit:
+                    match = re.search(
+                        r"try again in\s+([0-9]+(?:\.[0-9]+)?)s\b",
+                        detail,
+                        flags=re.IGNORECASE,
+                    )
+                    if match:
+                        seconds, point, fraction = match.group(1).partition(".")
+                        message_delay = _bounded_nonnegative_integer(seconds, delay_cap)
+                        if message_delay < delay_cap and point and fraction.strip("0"):
+                            message_delay += 1
+                        delay = max(delay, message_delay)
+                time.sleep(max(1, min(delay, delay_cap)))
             except (OSError, UnicodeError, json.JSONDecodeError) as error:
                 if attempt == 5:
                     raise DiscoveryError(f"GitHub API {path} failed: {error}") from error

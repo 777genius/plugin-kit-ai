@@ -20,6 +20,8 @@ from scripts.build_bridges import BridgeError, PinnedRepository
 from scripts.build_discovery_index import (
     DiscoveryError,
     GitHubAPI,
+    GitHubHTTPError,
+    MAX_GITHUB_RETRY_DELAY_SECONDS,
     MAX_PREVIOUS_SNAPSHOT_BYTES,
     SameOriginRedirect,
     build_candidate,
@@ -225,12 +227,169 @@ class DiscoveryIndexTests(unittest.TestCase):
         api = GitHubAPI("test-token")
         api.opener = mock.Mock()
         api.opener.open.side_effect = [
-            urllib.error.HTTPError("https://api.github.com/test", 503, "Unavailable", {}, io.BytesIO(b"retry")),
+            urllib.error.HTTPError(
+                "https://api.github.com/test", 503, "Unavailable", {"Retry-After": "75"},
+                io.BytesIO(b"retry"),
+            ),
             response,
         ]
-        with mock.patch("scripts.build_discovery_index.time.sleep"):
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
             self.assertEqual(api.get("test"), {"ok": True})
+        sleep.assert_called_once_with(30)
         self.assertEqual(api.opener.open.call_count, 2)
+
+    def test_github_api_retries_all_reviewed_http_statuses(self):
+        cases = [(403, 120), (500, 30), (502, 30), (504, 30)]
+        for status, expected_delay in cases:
+            with self.subTest(status=status):
+                response = mock.MagicMock()
+                response.__enter__.return_value.read.return_value = b'{"ok":true}'
+                api = GitHubAPI("test-token")
+                api.opener = mock.Mock()
+                api.opener.open.side_effect = [
+                    urllib.error.HTTPError(
+                        "https://api.github.com/test", status, "Retryable",
+                        {"Retry-After": "999"}, io.BytesIO(b"retry"),
+                    ),
+                    response,
+                ]
+                with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+                    self.assertEqual(api.get("test"), {"ok": True})
+                sleep.assert_called_once_with(expected_delay)
+                self.assertEqual(api.opener.open.call_count, 2)
+
+    def test_github_api_http_error_body_read_failure_stays_in_http_retry_path(self):
+        for body_error in (TimeoutError("timed out"), OSError("read failed")):
+            with self.subTest(error=type(body_error).__name__):
+                body = mock.Mock()
+                body.read.side_effect = body_error
+                response = mock.MagicMock()
+                response.__enter__.return_value.read.return_value = b'{"ok":true}'
+                api = GitHubAPI("test-token")
+                api.opener = mock.Mock()
+                api.opener.open.side_effect = [
+                    urllib.error.HTTPError(
+                        "https://api.github.com/test", 503, "Unavailable",
+                        {"Retry-After": "75"}, body,
+                    ),
+                    response,
+                ]
+                with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+                    self.assertEqual(api.get("test"), {"ok": True})
+                body.read.assert_called_once_with(4096)
+                sleep.assert_called_once_with(30)
+                self.assertEqual(api.opener.open.call_count, 2)
+
+    def test_github_api_body_read_failure_preserves_http_status_and_path(self):
+        body = mock.Mock()
+        body.read.side_effect = OSError("read failed")
+        api = GitHubAPI("test-token")
+        api.opener = mock.Mock()
+        api.opener.open.side_effect = urllib.error.HTTPError(
+            "https://api.github.com/repos/owner/repo", 404, "Not Found", {}, body,
+        )
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+            with self.assertRaisesRegex(
+                GitHubHTTPError,
+                r"GitHub API repos/owner/repo failed with HTTP 404: "
+                r"<unable to read response body: OSError>",
+            ) as raised:
+                api.get("repos/owner/repo")
+        self.assertEqual(raised.exception.status, 404)
+        body.read.assert_called_once_with(4096)
+        sleep.assert_not_called()
+
+    def test_github_api_honors_secondary_limit_message_then_succeeds(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        api = GitHubAPI("test-token")
+        api.opener = mock.Mock()
+        api.opener.open.side_effect = [
+            urllib.error.HTTPError(
+                "https://api.github.com/test", 429, "Too Many Requests", {},
+                io.BytesIO(b'{"message":"try again in 75.004104311s"}'),
+            ),
+            response,
+        ]
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+            self.assertEqual(api.get("test"), {"ok": True})
+        sleep.assert_called_once_with(76)
+
+    def test_github_api_uses_largest_rate_limit_hint_within_cap(self):
+        cases = [
+            ("header", {"Retry-After": "80", "X-RateLimit-Reset": "150"}, "75.1", 80),
+            ("message", {"Retry-After": "25", "X-RateLimit-Reset": "150"}, "75.1", 76),
+            ("reset", {"Retry-After": "25", "X-RateLimit-Reset": "180"}, "75.1", 81),
+            ("cap", {}, "999999999999999999999999999999999999999.1", MAX_GITHUB_RETRY_DELAY_SECONDS),
+            ("huge-header", {"Retry-After": "9" * 5_000}, "invalid", MAX_GITHUB_RETRY_DELAY_SECONDS),
+        ]
+        for name, headers, message_delay, expected in cases:
+            with self.subTest(name=name):
+                response = mock.MagicMock()
+                response.__enter__.return_value.read.return_value = b'{"ok":true}'
+                api = GitHubAPI("test-token")
+                api.opener = mock.Mock()
+                api.opener.open.side_effect = [
+                    urllib.error.HTTPError(
+                        "https://api.github.com/test", 429, "Too Many Requests", headers,
+                        io.BytesIO(f'{{"message":"try again in {message_delay}s"}}'.encode()),
+                    ),
+                    response,
+                ]
+                with (
+                    mock.patch("scripts.build_discovery_index.time.time", return_value=100),
+                    mock.patch("scripts.build_discovery_index.time.sleep") as sleep,
+                ):
+                    self.assertEqual(api.get("test"), {"ok": True})
+                sleep.assert_called_once_with(expected)
+
+    def test_github_api_malformed_rate_limit_hints_use_bounded_fallback(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        api = GitHubAPI("test-token")
+        api.opener = mock.Mock()
+        api.opener.open.side_effect = [
+            urllib.error.HTTPError(
+                "https://api.github.com/test", 429, "Too Many Requests",
+                {"Retry-After": "-10", "X-RateLimit-Reset": "not-a-time"},
+                io.BytesIO(b'{"message":"try again in -5s"}'),
+            ),
+            response,
+        ]
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+            self.assertEqual(api.get("test"), {"ok": True})
+        sleep.assert_called_once_with(1)
+
+    def test_github_api_five_sleep_exhaustion_includes_bounded_body(self):
+        api = GitHubAPI("test-token")
+        api.opener = mock.Mock()
+        bodies = [mock.Mock() for _ in range(6)]
+        for body in bodies:
+            body.read.return_value = b'{"message":"still unavailable"}'
+        api.opener.open.side_effect = [
+            urllib.error.HTTPError(
+                "https://api.github.com/test", 504, "Unavailable", {"Retry-After": "75"}, body,
+            )
+            for body in bodies
+        ]
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+            with self.assertRaisesRegex(GitHubHTTPError, "still unavailable"):
+                api.get("test")
+        self.assertEqual(api.opener.open.call_count, 6)
+        self.assertEqual(sleep.call_args_list, [mock.call(30)] * 5)
+        for body in bodies:
+            body.read.assert_called_once_with(4096)
+
+    def test_github_api_non_retryable_error_does_not_sleep(self):
+        api = GitHubAPI("test-token")
+        api.opener = mock.Mock()
+        api.opener.open.side_effect = urllib.error.HTTPError(
+            "https://api.github.com/test", 404, "Not Found", {}, io.BytesIO(b"missing"),
+        )
+        with mock.patch("scripts.build_discovery_index.time.sleep") as sleep:
+            with self.assertRaisesRegex(GitHubHTTPError, "missing"):
+                api.get("test")
+        sleep.assert_not_called()
 
     def test_graphql_accepts_scoped_not_found_but_rejects_unrelated_partial_errors(self):
         api = GitHubAPI("test-token")
