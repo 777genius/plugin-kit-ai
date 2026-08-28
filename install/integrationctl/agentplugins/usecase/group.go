@@ -299,7 +299,16 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			return result, fmt.Errorf("update target %s is not installed", target.Client.ClientID)
 		}
 		result.Targets[targetIndex].Plan = plan
-		if err := service.observeGroupNativeIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
+		if input.DryRun {
+			if err := service.observeGroupPreparedIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
+				return result, err
+			}
+			if managed != nil && !input.Repair {
+				if err := service.verifyManagedTarget(ctx, target.Client, target.Scope, *managed, "group dry-run"); err != nil {
+					return result, err
+				}
+			}
+		} else if err := service.observeGroupNativeIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
 			return result, err
 		}
 		noChange := managed != nil && !input.Repair && !input.Switch && groupPackageUnchanged(*managed, target) && containsSurface(managed.AffectedSurfaces, string(target.Client.ClientID))
@@ -696,6 +705,21 @@ func (service Service) observeGroupNativeIdentity(ctx context.Context, client do
 	if err != nil {
 		return fmt.Errorf("observe native identity for %s: %w", client.ClientID, err)
 	}
+	return validateGroupNativeIdentityObservation(observation, managed)
+}
+
+func (service Service) observeGroupPreparedIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding, repair bool) error {
+	if !repair {
+		return service.observePreparedIdentity(ctx, client, plan, managed)
+	}
+	observation, err := service.preparedIdentityObservation(ctx, client, plan, managed)
+	if err != nil {
+		return fmt.Errorf("observe prepared identity for %s: %w", client.ClientID, err)
+	}
+	return validateGroupNativeIdentityObservation(observation, managed)
+}
+
+func validateGroupNativeIdentityObservation(observation domain.NativeIdentityObservation, managed *domain.ClientBinding) error {
 	if observation.State == domain.NativeIdentityAbsent && managed != nil {
 		return nil
 	}

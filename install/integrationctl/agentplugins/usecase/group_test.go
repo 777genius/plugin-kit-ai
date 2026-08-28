@@ -119,6 +119,59 @@ func TestGroupedPreflightFailureMutatesNoTarget(t *testing.T) {
 	}
 }
 
+func TestGroupedDryRunDoesNotObserveNativeClientIdentity(t *testing.T) {
+	t.Parallel()
+	service, store, cursor := serviceFixture(t)
+	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
+	observer := &countingNativeObserver{}
+	service.NativeObserver = observer
+	targets := []AddInput{
+		addInput(t, cursor, "https://example.com/dry-run"),
+		addInput(t, kiro, "https://example.com/dry-run"),
+	}
+
+	result, err := service.AddGroup(context.Background(), GroupInput{
+		Targets:          targets,
+		OperationGroupID: "group-dry-run",
+		DryRun:           true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observer.calls != 0 {
+		t.Fatalf("group dry-run observed native client identity %d times", observer.calls)
+	}
+	if observer.preparedCalls != 2 {
+		t.Fatalf("group dry-run prepared observations = %d, want 2", observer.preparedCalls)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Mutated || len(state.Installations) != 0 {
+		t.Fatalf("group dry-run mutated state: result=%+v state=%+v", result, state)
+	}
+
+	installed, err := service.AddGroup(context.Background(), GroupInput{
+		Targets: targets, OperationGroupID: "group-install", Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.Targets[0].Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	observer.calls, observer.preparedCalls = 0, 0
+	if _, err := service.AddGroup(context.Background(), GroupInput{
+		Targets: targets, OperationGroupID: "group-tampered-dry-run", DryRun: true,
+	}); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
+		t.Fatalf("tampered group dry-run error = %v", err)
+	}
+	if observer.calls != 0 || observer.preparedCalls != 1 {
+		t.Fatalf("tampered group dry-run observations: native=%d prepared=%d", observer.calls, observer.preparedCalls)
+	}
+}
+
 func TestSwitchGroupPreservesOwnedPluginDataAcrossDistributionSwitchReverseAndRollback(t *testing.T) {
 	t.Parallel()
 	service, store, cursor := serviceFixture(t)
@@ -326,6 +379,11 @@ type fixedNativeObserver struct {
 	err         error
 }
 
+type countingNativeObserver struct {
+	calls         int
+	preparedCalls int
+}
+
 type failNthVerificationStager struct {
 	verificationFailureStager
 	calls  int
@@ -363,4 +421,17 @@ func (*failNthGroupActivator) Deactivate(context.Context, domain.DeactivationReq
 
 func (observer fixedNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	return observer.observation, observer.err
+}
+
+func (observer *countingNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	observer.calls++
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+}
+
+func (observer *countingNativeObserver) ObservePreparedIdentity(_ context.Context, _ domain.DetectedClient, _ domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	observer.preparedCalls++
+	if managed == nil {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+	}
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, Digest: managedDigest(*managed)}, nil
 }

@@ -171,6 +171,11 @@ func runAddManyLoaded(ctx context.Context, cmd *cobra.Command, app App, opts *op
 		}
 	}
 	if err != nil {
+		if applied.Phase == usecase.GroupPhasePlanned && !applied.Mutated {
+			combined.Status, combined.Failed, combined.Succeeded = "preflight_failed", len(inputs), 0
+			_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
+			return fmt.Errorf("group apply preflight failed; no target was changed: %w%s", err, addGroupNextAction(combined.Targets))
+		}
 		combined.Status = groupFailureStatus(applied.Phase)
 		combined.Failed = len(inputs) - combined.Succeeded
 		_ = renderAddMultiResult(cmd, opts, combined, loaded.envelope)
