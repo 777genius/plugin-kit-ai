@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from observer.client_bundle import verify_bundle
+from observer.secure_files import IMMUTABLE_CLOSURE_ALIAS, read_immutable_closure_regular
 
 MAX_MESSAGE = 8 << 20
 MAX_ADAPTER_OUTPUT = 4 << 20
@@ -402,6 +403,16 @@ def read_owned_regular(
     exact_mode: int | None = None, group_gid: int | None = None,
     expected_nlink: int = 1,
 ) -> bytes:
+    try:
+        relative = path.relative_to(IMMUTABLE_CLOSURE_ALIAS)
+    except ValueError:
+        relative = None
+    if relative is not None:
+        return read_immutable_closure_regular(
+            relative, limit, owner_uid=owner_uid, executable=executable,
+            exact_mode=exact_mode, group_gid=group_gid,
+            expected_nlink=expected_nlink,
+        )
     parent_fd = open_directory(path.parent, allowed_owners={owner_uid, os.geteuid()})
     descriptor = -1
     try:

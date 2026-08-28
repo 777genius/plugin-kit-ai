@@ -42,7 +42,7 @@ from observer.fixed_runner import Adapter, ReviewedRunner, serve as serve_runner
 from observer.http_server import BoundedThreadingHTTPServer, MAX_REQUEST_BYTES, ObserverHandler
 from observer.runner import SocketRunner
 from observer.schema_validation import validate_artifact_schemas
-from observer.secure_files import read_owned_regular
+from observer.secure_files import read_immutable_closure_regular, read_owned_regular
 from observer.service import CHALLENGE_DOMAIN, ObserverService, WorkBusyError
 from observer.signer import SocketSigner
 from observer.signer import CacheExpiredError
@@ -354,6 +354,53 @@ class ObserverTests(unittest.TestCase):
             os.link(target, linked)
             with self.assertRaisesRegex(ValueError, "regular file"):
                 read_owned_regular(target, 32, owner_uid=os.geteuid())
+
+    def test_immutable_closure_alias_accepts_only_pinned_rooted_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve() / "opt"
+            closures = root / "uap-observer-closures"
+            closure = closures / ("a" * 64)
+            etc = closure / "etc"
+            etc.mkdir(parents=True)
+            record = etc / "record"
+            record.write_bytes(b"value")
+            record.chmod(0o600)
+            alias = root / "uap-observer-current"
+            alias.symlink_to(f"uap-observer-closures/{'a' * 64}")
+            uid = os.geteuid()
+
+            self.assertEqual(
+                read_immutable_closure_regular(
+                    Path("etc/record"), 32, owner_uid=uid,
+                    exact_mode=0o600, alias=alias, alias_owner_uid=uid,
+                ),
+                b"value",
+            )
+
+            child_alias = closure / "linked-etc"
+            child_alias.symlink_to("etc", target_is_directory=True)
+            with self.assertRaises(OSError):
+                read_immutable_closure_regular(
+                    Path("linked-etc/record"), 32, owner_uid=uid,
+                    alias=alias, alias_owner_uid=uid,
+                )
+
+            linked = etc / "linked"
+            os.link(record, linked)
+            with self.assertRaisesRegex(ValueError, "regular file"):
+                read_immutable_closure_regular(
+                    Path("etc/record"), 32, owner_uid=uid,
+                    alias=alias, alias_owner_uid=uid,
+                )
+            linked.unlink()
+
+            alias.unlink()
+            alias.symlink_to("../untrusted")
+            with self.assertRaisesRegex(ValueError, "target differs"):
+                read_immutable_closure_regular(
+                    Path("etc/record"), 32, owner_uid=uid,
+                    alias=alias, alias_owner_uid=uid,
+                )
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
