@@ -44,6 +44,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_SCHEMA = ROOT / "schemas" / "1.0.0" / "plugin.schema.json"
 MCP_SCHEMA = ROOT / "schemas" / "1.0.0" / "mcp.schema.json"
 DIRECTORY_SOURCE = ROOT / "registry" / "directory.json"
+SEARCH_SCHEMA = ROOT / "schemas" / "discovery-search.schema.json"
 SNAPSHOT_SCHEMA = ROOT / "schemas" / "discovery-snapshot.schema.json"
 SCHEMA_URI = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
 # ChatGPT requires a separately registered and reviewed app binding. Static
@@ -478,6 +479,8 @@ def package_facts(root: Path) -> dict[str, Any]:
     author = manifest.get("author")
     if isinstance(author, dict):
         author = {key: str(author[key])[:2048] for key in ("name", "email", "url") if key in author}
+        if "name" not in author:
+            author = None
     else:
         author = None
     return {
@@ -772,6 +775,12 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
         "partitions": partitions,
         "records": ordered,
     }
+    validate_document({
+        "search_schema_version": 1,
+        "sequence": 1,
+        "generated_at": generated_at,
+        "records": ordered,
+    }, SEARCH_SCHEMA, "Discovery candidate records")
     return candidate, diagnostics
 
 

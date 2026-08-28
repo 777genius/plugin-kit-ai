@@ -30,6 +30,7 @@ from scripts.build_discovery_index import (
     discover_search_items,
     load_previous,
     make_record,
+    package_facts,
     repository_states,
     scan_repository,
 )
@@ -214,6 +215,32 @@ def previous_snapshot(records: list[dict[str, object]]) -> dict[str, object]:
 
 
 class DiscoveryIndexTests(unittest.TestCase):
+    def test_package_facts_omits_author_without_required_name(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest = {
+                "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+                "name": "author-without-name",
+                "version": "1.0.0",
+                "description": "Valid Agent Plugin author without a display name",
+                "author": {"url": "https://example.test/author"},
+            }
+            (root / "plugin.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+            self.assertIsNone(package_facts(root)["author"])
+
+    def test_candidate_records_are_schema_checked_before_publication(self):
+        previous = candidate_record("a" * 40)
+        previous["author"] = {"url": "https://example.test/author"}
+        with self.assertRaisesRegex(DiscoveryError, "Discovery candidate records: schema error"):
+            build_candidate(
+                api=FixtureAPI("a" * 40),
+                config={"schema_version": 1, "query": "schema", "maximum_file_size": 10,
+                        "maximum_records": 100, "seeds": []},
+                mode="refresh", generated_at="2026-08-27T06:00:00Z",
+                previous_records=[previous],
+            )
+
     def test_valid_previous_snapshot_is_loaded_by_bounded_parser(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "snapshot.json"
