@@ -151,6 +151,11 @@ PY
 }
 
 observer_read_symlink_neutral() {
+  # Model a host that cannot provide the private no-atime view before the
+  # interpreter receives the control path.  Ubuntu's Python startup can call
+  # access(2) on argv entries before this script runs, which would mutate a
+  # symlink atime and make the fail-closed test itself violate the invariant.
+  if [ "${UAP_OBSERVER_TEST_NOATIME_UNSUPPORTED:-}" = 1 ]; then return 1; fi
   PYTHONDONTWRITEBYTECODE=1 python3 -B - "$1" <<'PY'
 import ctypes,os,signal,stat,sys,tempfile
 path=os.path.abspath(sys.argv[1]); parent_path=os.path.dirname(path); name=os.path.basename(path)
@@ -165,7 +170,6 @@ MS_NOATIME=1024; MS_NODIRATIME=2048; MNT_DETACH=2
 def call(result,label):
     if result != 0:
         error=ctypes.get_errno(); raise OSError(error,f"{label}: {os.strerror(error)}")
-if os.environ.get("UAP_OBSERVER_TEST_NOATIME_UNSUPPORTED")=="1": raise OSError("private no-atime view unavailable")
 call(libc.unshare(CLONE_NEWNS),"private mount namespace unavailable")
 call(libc.mount(None,b"/",None,MS_REC|MS_PRIVATE,None),"make mounts private")
 parent_info=os.stat(parent_path,follow_symlinks=False); parent=os.open(parent_path,flags)
