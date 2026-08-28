@@ -110,8 +110,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           MODE: ${{ steps.mode.outputs.value }}
           PREVIOUS_SNAPSHOT: ${{ steps.ledger.outputs.path }}
+          DISCOVERY_REPOSITORY_WORKERS: "8"
         run: |
-          args=(--mode "${MODE}" --output ../candidate.json --diagnostics-output ../diagnostics.json)
+          args=(--mode "${MODE}" --repository-workers "${DISCOVERY_REPOSITORY_WORKERS}" --output ../candidate.json --diagnostics-output ../diagnostics.json)
           if test -n "${PREVIOUS_SNAPSHOT}"; then
             args+=(--previous-snapshot "${PREVIOUS_SNAPSHOT}")
           fi

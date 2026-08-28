@@ -18,6 +18,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -60,6 +61,8 @@ MAX_PREVIOUS_SNAPSHOT_BYTES = 16 << 20
 REPOSITORY_GRAPHQL_BATCH = 50
 SEARCH_STABILITY_ATTEMPTS = 3
 SEARCH_PARTITION_MAX = 90
+DEFAULT_REPOSITORY_WORKERS = 8
+MAX_REPOSITORY_WORKERS = 16
 
 
 class DiscoveryError(Exception):
@@ -515,9 +518,48 @@ def candidate_paths(items: list[dict[str, Any]]) -> dict[str, set[str]]:
     return result
 
 
+def scan_repository(repository_name: str, state: dict[str, Any],
+                    pending: list[tuple[str, str, dict[str, Any] | None]], generated_at: str,
+                    reviewed: dict[tuple[str, str, str], str], mirror_root: Path | None,
+                    ) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]]:
+    """Materialize one pinned repository once and validate all of its packages."""
+    records: dict[str, dict[str, Any]] = {}
+    diagnostics: list[dict[str, str]] = []
+    try:
+        pinned = PinnedRepository(state["repository"], state["revision"], mirror_root)
+    except BridgeError as error:
+        diagnostics.append({
+            "kind": "scan_error", "repository": repository_name, "path": "", "error": str(error),
+        })
+        return records, diagnostics
+    try:
+        for package_path, identity, prior in pending:
+            try:
+                records[identity] = make_record(pinned, state, package_path, generated_at, prior, reviewed)
+            except BridgeError as error:
+                diagnostics.append({
+                    "kind": "scan_error", "repository": state["repository"],
+                    "path": package_path, "error": str(error),
+                })
+            except Exception as error:
+                diagnostics.append({
+                    "kind": "invalid", "repository": state["repository"],
+                    "path": package_path, "error": str(error),
+                })
+                if prior:
+                    records[identity] = {**prior, "availability": "unavailable"}
+    finally:
+        pinned.close()
+    return records, diagnostics
+
+
 def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, generated_at: str,
-                    previous_records: list[dict[str, Any]], mirror_root: Path | None = None) -> tuple[dict[str, Any], list[dict[str, str]]]:
+                    previous_records: list[dict[str, Any]], mirror_root: Path | None = None,
+                    repository_workers: int = DEFAULT_REPOSITORY_WORKERS,
+                    ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     parse_timestamp(generated_at, "generated_at")
+    require(type(repository_workers) is int and 1 <= repository_workers <= MAX_REPOSITORY_WORKERS,
+            f"repository workers must be between 1 and {MAX_REPOSITORY_WORKERS}")
     validate_previous_records(previous_records)
     # A refresh is intentionally metadata-only once records exist. On a fresh
     # ledger (or after an authenticated empty snapshot), however, there is
@@ -549,6 +591,7 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
     reviewed = reviewed_release_map(DIRECTORY_SOURCE)
     discovered = {record_identity(repository, path) for repository, package_paths in paths.items() for path in package_paths}
     states = repository_states(api, list(paths))
+    repository_jobs: dict[str, tuple[dict[str, Any], list[tuple[str, str, dict[str, Any] | None]]]] = {}
     for repository_name in sorted(paths):
         state = states[repository_name]
         if not state["available"]:
@@ -586,25 +629,32 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
             pending.append((package_path, identity, prior))
         if not pending:
             continue
-        try:
-            pinned = PinnedRepository(canonical_repository, state["revision"], mirror_root)
-        except BridgeError as error:
-            diagnostics.append({"kind": "scan_error", "repository": repository_name, "path": "", "error": str(error)})
-            continue
-        try:
-            for package_path, identity, prior in pending:
+        repository_jobs[repository_name] = (state, pending)
+    completed: dict[str, tuple[dict[str, dict[str, Any]], list[dict[str, str]]]] = {}
+    if repository_jobs:
+        worker_count = min(repository_workers, len(repository_jobs))
+        with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="discovery-repository") as executor:
+            futures = {
+                executor.submit(
+                    scan_repository, repository_name, state, pending, generated_at, reviewed, mirror_root,
+                ): repository_name
+                for repository_name, (state, pending) in repository_jobs.items()
+            }
+            for future in as_completed(futures):
+                repository_name = futures[future]
                 try:
-                    records[identity] = make_record(pinned, state, package_path, generated_at, prior, reviewed)
-                except BridgeError as error:
-                    diagnostics.append({"kind": "scan_error", "repository": state["repository"], "path": package_path, "error": str(error)})
+                    completed[repository_name] = future.result()
                 except Exception as error:
-                    diagnostics.append({"kind": "invalid", "repository": state["repository"], "path": package_path, "error": str(error)})
-                    if prior:
-                        records[identity] = {**prior, "availability": "unavailable"}
-                    else:
-                        records.pop(identity, None)
-        finally:
-            pinned.close()
+                    completed[repository_name] = ({}, [{
+                        "kind": "scan_error", "repository": repository_name, "path": "",
+                        "error": f"repository scan failed: {error}",
+                    }])
+    # Futures may complete in any order. Merge only by source order so records
+    # and diagnostics remain byte-for-byte deterministic.
+    for repository_name in sorted(completed):
+        repository_records, repository_diagnostics = completed[repository_name]
+        records.update(repository_records)
+        diagnostics.extend(repository_diagnostics)
     if effective_mode == "reconcile":
         for identity, record in list(records.items()):
             if identity in discovered:
@@ -679,12 +729,14 @@ def main() -> int:
     parser.add_argument("--diagnostics-output", type=Path, required=True)
     parser.add_argument("--generated-at", default=format_timestamp(datetime.now(timezone.utc)))
     parser.add_argument("--mirror-root", type=Path)
+    parser.add_argument("--repository-workers", type=int, default=DEFAULT_REPOSITORY_WORKERS)
     args = parser.parse_args()
     try:
         api = GitHubAPI(os.environ.get("GITHUB_TOKEN", ""))
         candidate, diagnostics = build_candidate(
             api=api, config=load_config(args.config), mode=args.mode, generated_at=args.generated_at,
             previous_records=load_previous(args.previous_snapshot), mirror_root=args.mirror_root,
+            repository_workers=args.repository_workers,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.diagnostics_output.parent.mkdir(parents=True, exist_ok=True)

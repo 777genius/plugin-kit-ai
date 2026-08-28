@@ -5,6 +5,8 @@ import io
 import json
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -14,7 +16,7 @@ from unittest import mock
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
-from scripts.build_bridges import PinnedRepository
+from scripts.build_bridges import BridgeError, PinnedRepository
 from scripts.build_discovery_index import (
     DiscoveryError,
     GitHubAPI,
@@ -479,6 +481,131 @@ class DiscoveryIndexTests(unittest.TestCase):
         self.assertEqual(candidate["partitions"], [])
         self.assertEqual(candidate["records"][0]["last_seen"], "2026-08-27T06:00:00Z")
         self.assertEqual(candidate["records"][0]["revision"], "a" * 40)
+
+    def test_repository_scans_are_bounded_reused_and_merged_deterministically(self):
+        previous = []
+        for repository, package_paths in {
+            "owner/repo-a": ["packages/a", "packages/b"],
+            "owner/repo-b": ["packages/a"],
+            "owner/repo-c": ["packages/a"],
+        }.items():
+            for package_path in package_paths:
+                record = candidate_record("a" * 40)
+                record.update({
+                    "repository": repository,
+                    "owner": "owner",
+                    "package_path": package_path,
+                    "slug": f"discovery:{repository}//{package_path}",
+                })
+                previous.append(record)
+
+        states = {
+            repository: {
+                "repository": repository, "revision": "b" * 40, "stars": 43,
+                "updated_at": "2026-08-27T06:00:00Z", "available": True,
+            }
+            for repository in {record["repository"] for record in previous}
+        }
+        lock = threading.Lock()
+        active = 0
+        maximum_active = 0
+        materializations: dict[str, int] = {}
+        completion_order: list[str] = []
+
+        class TrackingPinned:
+            def __init__(self, repository: str, revision: str, mirror_root: Path | None):
+                nonlocal active, maximum_active
+                self.repository = repository
+                with lock:
+                    materializations[repository] = materializations.get(repository, 0) + 1
+                    active += 1
+                    maximum_active = max(maximum_active, active)
+
+            def close(self):
+                nonlocal active
+                with lock:
+                    active -= 1
+                    completion_order.append(self.repository)
+
+        def fake_make_record(pinned, state, package_path, generated_at, prior, reviewed):
+            time.sleep({"owner/repo-a": 0.04, "owner/repo-b": 0.005, "owner/repo-c": 0.005}[pinned.repository])
+            if package_path == "packages/a":
+                raise ValueError(f"{pinned.repository} is invalid")
+            return {
+                **prior, "revision": state["revision"], "stars": state["stars"],
+                "repository_updated_at": state["updated_at"], "last_seen": generated_at,
+            }
+
+        with mock.patch("scripts.build_discovery_index.repository_states", return_value=states), \
+             mock.patch("scripts.build_discovery_index.PinnedRepository", TrackingPinned), \
+             mock.patch("scripts.build_discovery_index.make_record", side_effect=fake_make_record):
+            candidate, diagnostics = build_candidate(
+                api=mock.Mock(),
+                config={"schema_version": 1, "query": "schema", "maximum_file_size": 10,
+                        "maximum_records": 100, "seeds": []},
+                mode="refresh", generated_at="2026-08-27T06:00:00Z",
+                previous_records=previous, repository_workers=2,
+            )
+
+        self.assertEqual(maximum_active, 2)
+        self.assertEqual(materializations, {"owner/repo-a": 1, "owner/repo-b": 1, "owner/repo-c": 1})
+        self.assertNotEqual(completion_order, sorted(completion_order))
+        self.assertEqual(
+            [(item["repository"], item["path"]) for item in diagnostics],
+            [("owner/repo-a", "packages/a"), ("owner/repo-b", "packages/a"),
+             ("owner/repo-c", "packages/a")],
+        )
+        self.assertTrue(candidate["complete"])
+        self.assertEqual(
+            [(record["repository"], record["package_path"]) for record in candidate["records"]],
+            [("owner/repo-a", "packages/a"), ("owner/repo-a", "packages/b"),
+             ("owner/repo-b", "packages/a"), ("owner/repo-c", "packages/a")],
+        )
+
+    def test_repository_scan_timeout_and_unexpected_exception_are_fail_closed(self):
+        previous = []
+        for repository in ("owner/repo-a", "owner/repo-b"):
+            record = candidate_record("a" * 40)
+            record.update({"repository": repository, "slug": f"discovery:{repository}//packages/demo"})
+            previous.append(record)
+        states = {
+            repository: {
+                "repository": repository, "revision": "b" * 40, "stars": 43,
+                "updated_at": "2026-08-27T06:00:00Z", "available": True,
+            }
+            for repository in ("owner/repo-a", "owner/repo-b")
+        }
+
+        def failed_materialization(repository: str, revision: str, mirror_root: Path | None):
+            if repository == "owner/repo-a":
+                raise BridgeError("Git invocation failed: timed out after 120 seconds")
+            raise RuntimeError("unexpected worker failure")
+
+        with mock.patch("scripts.build_discovery_index.repository_states", return_value=states), \
+             mock.patch("scripts.build_discovery_index.PinnedRepository", side_effect=failed_materialization):
+            candidate, diagnostics = build_candidate(
+                api=mock.Mock(),
+                config={"schema_version": 1, "query": "schema", "maximum_file_size": 10,
+                        "maximum_records": 100, "seeds": []},
+                mode="refresh", generated_at="2026-08-27T06:00:00Z",
+                previous_records=previous, repository_workers=2,
+            )
+
+        self.assertFalse(candidate["complete"])
+        self.assertEqual([item["repository"] for item in diagnostics], ["owner/repo-a", "owner/repo-b"])
+        self.assertIn("timed out", diagnostics[0]["error"])
+        self.assertIn("unexpected worker failure", diagnostics[1]["error"])
+        self.assertEqual([record["revision"] for record in candidate["records"]], ["a" * 40, "a" * 40])
+
+    def test_repository_worker_bound_is_validated(self):
+        with self.assertRaisesRegex(DiscoveryError, "repository workers must be between 1 and 16"):
+            build_candidate(
+                api=mock.Mock(),
+                config={"schema_version": 1, "query": "schema", "maximum_file_size": 10,
+                        "maximum_records": 100, "seeds": []},
+                mode="refresh", generated_at="2026-08-27T06:00:00Z",
+                previous_records=[candidate_record("a" * 40)], repository_workers=17,
+            )
 
     def test_repository_transfer_rebuilds_canonical_identity_even_at_same_revision(self):
         class TransferredAPI:
