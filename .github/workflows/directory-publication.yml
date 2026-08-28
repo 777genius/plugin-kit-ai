@@ -828,6 +828,7 @@ jobs:
 
           run_root="${RUNNER_TEMP}/released-cli-directory"
           mkdir -p "${run_root}"/{home,state,config,cache,tmp,workspace,evidence}
+          mkdir -p "${run_root}/home/.cursor"
           origin="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${EXPECTED_MATERIALIZED_LEDGER_COMMIT}/registry/schemas/1/"
           isolated=(env -i PATH="${PATH}" LANG=C.UTF-8 HOME="${run_root}/home" USERPROFILE="${run_root}/home" \
             XDG_CONFIG_HOME="${run_root}/config" XDG_CACHE_HOME="${run_root}/cache" \
