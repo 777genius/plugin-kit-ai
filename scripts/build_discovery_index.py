@@ -580,12 +580,16 @@ def candidate_paths(items: list[dict[str, Any]]) -> dict[str, set[str]]:
 def scan_repository(repository_name: str, state: dict[str, Any],
                     pending: list[tuple[str, str, dict[str, Any] | None]], generated_at: str,
                     reviewed: dict[tuple[str, str, str], str], mirror_root: Path | None,
+                    github_token: str | None = None,
                     ) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]]:
     """Materialize one pinned repository once and validate all of its packages."""
     records: dict[str, dict[str, Any]] = {}
     diagnostics: list[dict[str, str]] = []
     try:
-        pinned = PinnedRepository(state["repository"], state["revision"], mirror_root)
+        pinned = PinnedRepository(
+            state["repository"], state["revision"], mirror_root,
+            github_token=github_token if mirror_root is None else None,
+        )
     except BridgeError as error:
         diagnostics.append({
             "kind": "scan_error", "repository": repository_name, "path": "", "error": str(error),
@@ -696,6 +700,7 @@ def build_candidate(*, api: GitHubAPI, config: dict[str, Any], mode: str, genera
             futures = {
                 executor.submit(
                     scan_repository, repository_name, state, pending, generated_at, reviewed, mirror_root,
+                    getattr(api, "token", None),
                 ): repository_name
                 for repository_name, (state, pending) in repository_jobs.items()
             }

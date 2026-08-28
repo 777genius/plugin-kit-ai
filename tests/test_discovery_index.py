@@ -30,6 +30,7 @@ from scripts.build_discovery_index import (
     load_previous,
     make_record,
     repository_states,
+    scan_repository,
 )
 from scripts.directory_publication import canonical_json
 import scripts.discovery_publication as discovery_publication
@@ -98,6 +99,23 @@ class FixtureAPI:
     def assert_graphql_query(query: str) -> None:
         if "defaultBranchRef" not in query:
             raise AssertionError(query)
+
+
+class DiscoveryAcquisitionTests(unittest.TestCase):
+    def test_scan_passes_job_token_only_to_remote_acquisition(self) -> None:
+        pinned = mock.Mock()
+        with mock.patch("scripts.build_discovery_index.PinnedRepository", return_value=pinned) as constructor:
+            records, diagnostics = scan_repository(
+                "owner/repo",
+                {"repository": "owner/repo", "revision": "a" * 40},
+                [], "2026-08-28T00:00:00Z", {}, None, "job-token",
+            )
+        self.assertEqual(records, {})
+        self.assertEqual(diagnostics, [])
+        constructor.assert_called_once_with(
+            "owner/repo", "a" * 40, None, github_token="job-token",
+        )
+        pinned.close.assert_called_once_with()
 
 
 def git(directory: Path, *arguments: str) -> str:
@@ -759,8 +777,10 @@ class DiscoveryIndexTests(unittest.TestCase):
         completion_order: list[str] = []
 
         class TrackingPinned:
-            def __init__(self, repository: str, revision: str, mirror_root: Path | None):
+            def __init__(self, repository: str, revision: str, mirror_root: Path | None,
+                         *, github_token: str | None = None):
                 nonlocal active, maximum_active
+                del revision, mirror_root, github_token
                 self.repository = repository
                 with lock:
                     materializations[repository] = materializations.get(repository, 0) + 1
@@ -822,7 +842,9 @@ class DiscoveryIndexTests(unittest.TestCase):
             for repository in ("owner/repo-a", "owner/repo-b")
         }
 
-        def failed_materialization(repository: str, revision: str, mirror_root: Path | None):
+        def failed_materialization(repository: str, revision: str, mirror_root: Path | None,
+                                   *, github_token: str | None = None):
+            del revision, mirror_root, github_token
             if repository == "owner/repo-a":
                 raise BridgeError("Git invocation failed: timed out after 120 seconds")
             raise RuntimeError("unexpected worker failure")

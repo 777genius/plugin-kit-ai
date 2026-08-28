@@ -137,6 +137,32 @@ class BridgeBuilderTests(unittest.TestCase):
         self.assertTrue(all(call[0] == "git" for call in calls))
         self.assertFalse(marker.exists())
 
+    def test_remote_fetch_uses_token_only_through_git_environment(self) -> None:
+        revision = "a" * 40
+        calls: list[tuple[tuple[str, ...], dict[str, str] | None]] = []
+
+        def fake_git(_directory, *arguments, input_bytes=None, extra_env=None):  # type: ignore[no-untyped-def]
+            del input_bytes
+            calls.append((arguments, extra_env))
+            if arguments[:1] == ("rev-parse",):
+                return (revision + "\n").encode()
+            return b""
+
+        with mock.patch.object(bridges, "git", side_effect=fake_git):
+            repository = bridges.PinnedRepository(
+                "owner/repository", revision, None, github_token="test-job-token",
+            )
+            repository.close()
+        fetch_arguments, fetch_environment = next(
+            (arguments, environment)
+            for arguments, environment in calls
+            if "fetch" in arguments
+        )
+        self.assertNotIn("test-job-token", " ".join(fetch_arguments))
+        self.assertEqual(fetch_environment["GIT_CONFIG_COUNT"], "1")
+        self.assertEqual(fetch_environment["GIT_CONFIG_KEY_0"], "http.https://github.com/.extraheader")
+        self.assertTrue(fetch_environment["GIT_CONFIG_VALUE_0"].startswith("AUTHORIZATION: basic "))
+
     def test_license_digest_change_fails_closed(self) -> None:
         recipe = self.recipe()
         recipe["upstream"]["license"]["attribution_paths"][0]["sha256"] = "sha256:" + "0" * 64

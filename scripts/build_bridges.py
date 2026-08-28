@@ -8,6 +8,7 @@ an exact commit; they are never checked out, imported, or executed.
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -91,7 +92,8 @@ def portable_path(value: str, field: str) -> PurePosixPath:
     return path
 
 
-def git(directory: Path, *args: str, input_bytes: bytes | None = None) -> bytes:
+def git(directory: Path, *args: str, input_bytes: bytes | None = None,
+        extra_env: dict[str, str] | None = None) -> bytes:
     environment = {
         "PATH": os.environ.get("PATH", ""),
         "GIT_CONFIG_NOSYSTEM": "1",
@@ -101,6 +103,8 @@ def git(directory: Path, *args: str, input_bytes: bytes | None = None) -> bytes:
         "LANG": "C",
         "LC_ALL": "C",
     }
+    if extra_env:
+        environment.update(extra_env)
     try:
         result = subprocess.run(
             ["git", *args], cwd=directory, env=environment, input=input_bytes,
@@ -122,7 +126,8 @@ class Blob:
 
 
 class PinnedRepository:
-    def __init__(self, repository: str, revision: str, mirror_root: Path | None):
+    def __init__(self, repository: str, revision: str, mirror_root: Path | None,
+                 *, github_token: str | None = None):
         self.repository = repository
         self.revision = revision
         self.temporary = tempfile.TemporaryDirectory(prefix="bridge-git-")
@@ -131,14 +136,28 @@ class PinnedRepository:
         if mirror_root is None:
             remote = f"https://github.com/{repository}.git"
             protocol = "protocol.file.allow=never"
+            fetch_environment = None
+            if github_token:
+                require(
+                    len(github_token) <= 4096 and "\n" not in github_token and "\r" not in github_token,
+                    "GitHub token is invalid",
+                )
+                credential = base64.b64encode(("x-access-token:" + github_token).encode("utf-8")).decode("ascii")
+                fetch_environment = {
+                    "GIT_CONFIG_COUNT": "1",
+                    "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+                    "GIT_CONFIG_VALUE_0": "AUTHORIZATION: basic " + credential,
+                }
         else:
             remote = str((mirror_root / f"{repository}.git").resolve())
             require(Path(remote).is_dir(), f"offline mirror does not exist: {remote}")
             protocol = "protocol.file.allow=always"
+            fetch_environment = None
         git(self.root, "remote", "add", "origin", remote)
         git(
             self.root, "-c", protocol, "fetch", "--quiet", "--no-tags",
             "--depth=1", "--filter=blob:none", "origin", revision,
+            extra_env=fetch_environment,
         )
         actual = git(self.root, "rev-parse", "FETCH_HEAD^{commit}").decode().strip()
         require(actual == revision, f"fetched commit {actual} does not match pinned revision {revision}")
