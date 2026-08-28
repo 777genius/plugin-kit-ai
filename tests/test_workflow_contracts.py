@@ -451,6 +451,13 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("pull_request", workflow["on"])
         scan = workflow["jobs"]["scan"]
         signer = workflow["jobs"]["sign-and-publish"]
+        publisher_preflight = workflow["jobs"]["publisher-preflight"]
+        self.assertEqual(publisher_preflight["environment"], "discovery-publication")
+        self.assertEqual(publisher_preflight["permissions"], {"contents": "read"})
+        self.assertEqual(scan["needs"], "publisher-preflight")
+        preflight_body = yaml.safe_dump(publisher_preflight)
+        self.assertIn("DISCOVERY_PUBLISHER_APP_PRIVATE_KEY", preflight_body)
+        self.assertIn("permission-contents: write", preflight_body)
         self.assertEqual(scan["environment"], "discovery-read")
         self.assertEqual(signer["environment"], "discovery-publication")
         scan_body = yaml.safe_dump(scan)
@@ -472,6 +479,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("registry/discovery/trusted-keys.json", signer_body)
         self.assertIn("UAP-DISCOVERY", (ROOT / "scripts/discovery_publication.py").read_text())
         self.assertIn("git push --atomic", commands(signer))
+        self.assertIn("permission-contents: write", signer_body)
+        self.assertIn("for attempt in 1 2 3", commands(signer))
+        self.assertIn("HTTP (429|5[0-9]{2})", commands(signer))
+        self.assertIn("git ls-remote --refs origin", commands(signer))
+        self.assertIn('test "${branch_commit}" = "${local_commit}"', commands(signer))
+        self.assertIn('test "${tag_commit}" = "${local_commit}"', commands(signer))
+        self.assertIn('test "${branch_commit}" = "${base_commit}"', commands(signer))
+        self.assertIn('test -z "${tag_commit}"', commands(signer))
+        self.assertIn("refusing an uncertain retry", commands(signer))
         self.assertIn("discovery-index-sequence-", commands(signer))
         self.assertIn('merge-base --is-ancestor "refs/tags/${tag}" HEAD', commands(signer))
         self.assertIn('ls-tree -r --name-only "refs/tags/${latest_sequence_tag}"', commands(signer))
@@ -483,6 +499,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('test "${change%%$\'\\t\'*}" = A', commands(signer))
         self.assertIn('RECOVERY_TAG: ${{ steps.preflight.outputs.recovery_tag }}', signer_body)
         self.assertIn('sort -u', commands(signer))
+        artifact_names = [
+            step["with"]["name"]
+            for job in (scan, signer)
+            for step in job["steps"]
+            if isinstance(step, dict) and "with" in step and "name" in step["with"]
+            and step.get("uses", "").startswith(("actions/upload-artifact", "actions/download-artifact"))
+        ]
+        self.assertEqual(artifact_names, [
+            "discovery-candidate-${{ github.run_id }}",
+            "discovery-candidate-${{ github.run_id }}",
+        ])
         incomplete = workflow["jobs"]["incomplete-scan"]
         self.assertIn("needs.scan.outputs.complete != 'true'", incomplete["if"])
         self.assertIn("exit 1", commands(incomplete))

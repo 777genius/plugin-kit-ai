@@ -39,8 +39,26 @@ env:
   FEED_PATH: discovery
 
 jobs:
+  publisher-preflight:
+    name: Verify publisher can write before scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: discovery-publication
+    permissions:
+      contents: read
+    steps:
+      - name: Request exact publisher capability
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.DISCOVERY_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.DISCOVERY_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
   scan:
     name: Scan inert public packages
+    needs: publisher-preflight
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: discovery-read
@@ -135,7 +153,7 @@ jobs:
           echo "candidate_digest=sha256:$(sha256sum ../candidate.json | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: discovery-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          name: discovery-candidate-${{ github.run_id }}
           path: |
             candidate.json
             diagnostics.json
@@ -170,7 +188,7 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: discovery-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          name: discovery-candidate-${{ github.run_id }}
           path: candidate
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -306,6 +324,7 @@ jobs:
           private-key: ${{ secrets.DISCOVERY_PUBLISHER_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
+          permission-contents: write
       - name: Atomically append branch and immutable sequence tag
         working-directory: ledger
         env:
@@ -316,10 +335,57 @@ jobs:
           test -z "$(git tag --list "${tag}")"
           git tag "${tag}"
           auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${PUBLISHER_TOKEN}" | base64 -w0)"
-          GIT_CONFIG_COUNT=1 \
-          GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
-          GIT_CONFIG_VALUE_0="${auth_header}" \
-          git push --atomic origin "HEAD:refs/heads/${LEDGER_BRANCH}" "refs/tags/${tag}:refs/tags/${tag}"
+          local_commit="$(git rev-parse HEAD)"
+          base_commit="$(git rev-parse HEAD^)"
+          push_log="$(mktemp)"
+          remote_log="$(mktemp)"
+          for attempt in 1 2 3; do
+            set +e
+            GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+            GIT_CONFIG_VALUE_0="${auth_header}" \
+            git push --atomic origin "HEAD:refs/heads/${LEDGER_BRANCH}" "refs/tags/${tag}:refs/tags/${tag}" \
+              >"${push_log}" 2>&1
+            status=$?
+            set -e
+            cat "${push_log}"
+            if test "${status}" -eq 0; then
+              exit 0
+            fi
+            if ! grep -Eqi \
+              'HTTP (429|5[0-9]{2})|error: (429|5[0-9]{2})|Could not resolve host|Connection (reset|timed out)|remote end hung up unexpectedly' \
+              "${push_log}"; then
+              exit "${status}"
+            fi
+
+            set +e
+            GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+            GIT_CONFIG_VALUE_0="${auth_header}" \
+            git ls-remote --refs origin \
+              "refs/heads/${LEDGER_BRANCH}" "refs/tags/${tag}" >"${remote_log}" 2>&1
+            remote_status=$?
+            set -e
+            cat "${remote_log}"
+            if test "${remote_status}" -ne 0; then
+              echo "Unable to reconcile the remote atomic publication; refusing an uncertain retry." >&2
+              exit "${status}"
+            fi
+            branch_commit="$(awk -v ref="refs/heads/${LEDGER_BRANCH}" '$2 == ref { print $1 }' "${remote_log}")"
+            tag_commit="$(awk -v ref="refs/tags/${tag}" '$2 == ref { print $1 }' "${remote_log}")"
+            if test "${branch_commit}" = "${local_commit}" && test "${tag_commit}" = "${local_commit}"; then
+              echo "The exact atomic publication is already present remotely."
+              exit 0
+            fi
+            if ! { test "${branch_commit}" = "${base_commit}" && test -z "${tag_commit}"; }; then
+              echo "Remote branch/tag state is partial or divergent; refusing an uncertain retry." >&2
+              exit 1
+            fi
+            if test "${attempt}" -eq 3; then
+              exit "${status}"
+            fi
+            sleep "$((attempt * 2))"
+          done
 
   incomplete-scan:
     name: Report incomplete scan without replacing LKG
