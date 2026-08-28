@@ -3,7 +3,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 install_lib="$script_dir/uap-observer-install-lib.sh"
-test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 62a4ab0f68b9da1085e7f9167589e26b598ff1dd816663364a2d5318d41155a7
+test "$(sha256sum "$install_lib" | cut -d' ' -f1)" = 7ee4e83230b6a6144ff706e2ca98ac39eeb1ece00e09dc4ce8d22bfd1c4197bf
 . "$install_lib"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -13,7 +13,7 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=7b23902d54ba14210e9433971d05a04b5bb32bdb1c79f31c3858fd8c78cfa57a
+runtime_manifest_digest=3135031bf9b786fcb4bc85295d74ab15e1333e1f1e487e480a9770dbdbb41ba4
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 closure_digest=
 closure_stage=
@@ -196,7 +196,7 @@ install -d -o root -g uap-observer-adapter-config -m 0750 /var/lib/uap-observer-
 install -d -o root -g root -m 0700 /var/lib/uap-observer-consent/consumed
 install -d -o root -g root -m 0700 /var/lib/uap-observer-consent/reserved
 install -d -o caddy -g caddy -m 0700 /var/lib/caddy /var/log/caddy
-observer_validate_installed_accounts_and_state "$source_root"
+observer_validate_installed_accounts_and_state "$source_root" "$source_root"
 
 test ! -e /opt/uap-observer-venv.new
 PYTHONDONTWRITEBYTECODE=1 python3 -B -m venv /opt/uap-observer-venv.new

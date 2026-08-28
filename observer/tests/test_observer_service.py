@@ -1376,13 +1376,20 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         adapter.chmod(mode)
 
     def test_production_installer_checks_idempotence_before_staging(self) -> None:
-        installer = (Path(__file__).parents[2] / "deploy/uap-observer-install.sh").read_text()
+        repository = Path(__file__).parents[2]
+        installer = (repository / "deploy/uap-observer-install.sh").read_text()
+        library = (repository / "deploy/uap-observer-install-lib.sh").read_text()
         validation = installer.index("observer_validate_completed_closure")
         staging = installer.index('install -d -o root -g root -m 0700 "$stage_root"')
         self.assertLess(validation, staging)
         self.assertIn('printf \'%s\\n\' "$install_identity" > "$closure_stage/.install-identity"', installer)
         self.assertIn('observer_validate_installed_accounts_and_state', installer[:staging])
         self.assertIn('observer_validate_protected_inputs', installer[:staging])
+        self.assertIn('observer_runtime=${2:-$closure/runtime}', library)
+        self.assertIn(
+            'observer_validate_installed_accounts_and_state "$source_root" "$source_root"',
+            installer,
+        )
 
     def test_proxy_runtime_sources_are_closed_and_installed_at_service_paths(self) -> None:
         repository = Path(__file__).parents[2]

@@ -650,7 +650,7 @@ observer_validate_completed_closure() {
 
 observer_validate_installed_accounts_and_state() {
   closure=${1:-/opt/uap-observer-current}
-  observer_runtime="$closure/runtime"
+  observer_runtime=${2:-$closure/runtime}
   PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$observer_runtime" observer_run_closure_python_script_neutral "$closure" python3 -B <<'PY'
 import grp,hashlib,json,math,os,pwd,re,stat
 from pathlib import Path
