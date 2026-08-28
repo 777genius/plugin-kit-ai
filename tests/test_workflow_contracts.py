@@ -99,6 +99,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("bundle", cursor_rule["required"])
         self.assertEqual(cursor_rule["properties"]["binary"]["const"], "/opt/uap-observer-inputs/cursor/cursor-agent")
         self.assertEqual(schema["$defs"]["bundle"]["properties"]["manifest"]["const"], "/opt/uap-observer-inputs/cursor-bundle.json")
+        self.assertIn("chrome_for_testing", schema["required"])
+        chrome = schema["$defs"]["chrome_for_testing"]
+        self.assertEqual(chrome["properties"]["root"]["const"], "/opt/uap-observer-inputs/chrome-for-testing")
+        self.assertEqual(chrome["properties"]["manifest"]["const"], "/opt/uap-observer-inputs/chrome-for-testing-bundle.json")
+        self.assertEqual(chrome["properties"]["binary"]["const"], "/opt/uap-observer-inputs/chrome-for-testing/chrome")
+        self.assertEqual(chrome["properties"]["version"]["const"], "152.0.7977.64")
         kiro_rule = client["allOf"][2]["then"]
         self.assertEqual(kiro_rule["required"], ["companion_binary", "companion_sha256"])
         self.assertEqual(kiro_rule["properties"]["sha256"]["const"], "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358")
@@ -111,7 +117,7 @@ class WorkflowContractTests(unittest.TestCase):
         runner = (ROOT / "observer/fixed_runner.py").read_text()
         self.assertIn('Path(config["clients"]["kiro"]["companion_binary"])', runner)
         self.assertIn("verify_bundle(", runner)
-        self.assertIn("literal | {bundle_root, bundle_manifest}", runner)
+        self.assertIn("literal | {bundle_root, bundle_manifest, chrome_root, chrome_manifest}", runner)
         runner_unit = (ROOT / "deploy/uap-observer-runner.service").read_text()
         self.assertIn("BindReadOnlyPaths=/opt/uap-observer-current /var/lib/uap-observer/proofs /var/lib/uap-observer/profiles", runner_unit)
         writable = next(line for line in runner_unit.splitlines() if line.startswith("BindPaths=-/var/lib/uap-observer/profiles/"))

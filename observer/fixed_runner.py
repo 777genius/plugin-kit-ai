@@ -268,6 +268,33 @@ def validate_adapter_input_access(
     if cursor_digest != cursor["sha256"]:
         raise ValueError("protected Cursor executable digest differs")
 
+    chrome = config.get("chrome_for_testing")
+    expected_chrome = {
+        "root": str(protected_root / "chrome-for-testing"),
+        "manifest": str(protected_root / "chrome-for-testing-bundle.json"),
+        "binary": str(protected_root / "chrome-for-testing/chrome"),
+        "version": "152.0.7977.64",
+    }
+    if (
+        not isinstance(chrome, dict)
+        or set(chrome) != {*expected_chrome, "manifest_sha256", "binary_sha256"}
+        or any(chrome.get(key) != value for key, value in expected_chrome.items())
+    ):
+        raise ValueError("protected Chrome for Testing bundle config differs")
+    chrome_root = Path(chrome["root"])
+    chrome_manifest = Path(chrome["manifest"])
+    chrome_files = verify_bundle(
+        root=chrome_root,
+        manifest=chrome_manifest,
+        manifest_sha256=chrome["manifest_sha256"],
+    )
+    chrome_binary = Path(chrome["binary"])
+    if chrome_binary not in chrome_files:
+        raise ValueError("protected Chrome executable is absent from its bundle")
+    chrome_digest = "sha256:" + hashlib.sha256(chrome_binary.read_bytes()).hexdigest()
+    if chrome_digest != chrome["binary_sha256"]:
+        raise ValueError("protected Chrome executable digest differs")
+
     expected_files = {
         Path(config["git"]["binary"]): config["git"]["sha256"],
         **{
@@ -286,14 +313,19 @@ def validate_adapter_input_access(
     )
     if set(expected_files) != literal:
         raise ValueError("protected input paths differ")
-    bundle_tree = set(bundle_root.rglob("*")) | {bundle_root}
-    bundle_dirs = {path for path in bundle_tree if path.is_dir()}
-    bundle_paths = {path for path in bundle_tree if path.is_file()}
-    if bundle_paths != set(bundle_files):
-        raise ValueError("protected Cursor bundle inventory differs")
-    expected_dirs = {protected_root, protected_root / "bin", protected_root / "chatgpt"} | bundle_dirs
+    cursor_tree = set(bundle_root.rglob("*")) | {bundle_root}
+    bundle_dirs = {path for path in cursor_tree if path.is_dir()}
+    bundle_paths = {path for path in cursor_tree if path.is_file()}
+    chrome_tree = set(chrome_root.rglob("*")) | {chrome_root}
+    chrome_dirs = {path for path in chrome_tree if path.is_dir()}
+    chrome_paths = {path for path in chrome_tree if path.is_file()}
+    if bundle_paths != set(bundle_files) or chrome_paths != set(chrome_files):
+        raise ValueError("protected bundle inventory differs")
+    expected_dirs = {
+        protected_root, protected_root / "bin", protected_root / "chatgpt",
+    } | bundle_dirs | chrome_dirs
     actual = set(protected_root.rglob("*")) | {protected_root}
-    if actual != expected_dirs | literal | bundle_paths | {bundle_manifest}:
+    if actual != expected_dirs | literal | bundle_paths | chrome_paths | {bundle_manifest, chrome_manifest}:
         raise ValueError("protected input tree contains an unexpected path")
 
     for directory in expected_dirs:
@@ -321,10 +353,12 @@ def validate_adapter_input_access(
         [(path, path.parent == protected_root / "bin") for path in sorted(expected_files)]
         + [(bundle_manifest, False)]
         + [(path, bool(os.lstat(path).st_mode & stat.S_IXUSR)) for path in bundle_files]
+        + [(chrome_manifest, False)]
+        + [(path, bool(os.lstat(path).st_mode & stat.S_IXUSR)) for path in chrome_files]
     )
     for uid, gid, gids in adapters.values():
         access_probe(uid, gid, gids, probes)
-    return tuple(sorted(literal | {bundle_root, bundle_manifest}))
+    return tuple(sorted(literal | {bundle_root, bundle_manifest, chrome_root, chrome_manifest}))
 
 
 def canonical_json(value: Any) -> bytes:

@@ -3195,6 +3195,7 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
             (protected / "bin").mkdir(parents=True)
             (protected / "chatgpt").mkdir()
             (protected / "cursor").mkdir()
+            (protected / "chrome-for-testing").mkdir()
             files = {
                 protected / "bin/git": b"git",
                 protected / "bin/codex": b"codex",
@@ -3205,18 +3206,30 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 protected / "external-pr-evidence.json": b"evidence",
                 protected / "cursor/cursor-agent": b"cursor",
                 protected / "cursor/index.js": b"index",
+                protected / "chrome-for-testing/chrome": b"chrome",
+                protected / "chrome-for-testing/resources.pak": b"resources",
             }
             for path, payload in files.items():
                 path.write_bytes(payload)
-                path.chmod(0o755 if path.parent in {protected / "bin", protected / "cursor"} and path.name != "index.js" else (0o644 if path.parent == protected / "cursor" else 0o640))
+                executable = (
+                    path.parent == protected / "bin"
+                    or path == protected / "cursor/cursor-agent"
+                    or path == protected / "chrome-for-testing/chrome"
+                )
+                bundled = path.parent in {protected / "cursor", protected / "chrome-for-testing"}
+                path.chmod(0o755 if executable else (0o644 if bundled else 0o640))
                 os.chown(path, 0, 0)
-            for directory in (protected, protected / "bin", protected / "chatgpt", protected / "cursor"):
-                directory.chmod(0o755 if directory == protected / "cursor" else 0o711)
+            for directory in (protected, protected / "bin", protected / "chatgpt", protected / "cursor", protected / "chrome-for-testing"):
+                directory.chmod(0o755 if directory in {protected / "cursor", protected / "chrome-for-testing"} else 0o711)
                 os.chown(directory, 0, 0)
             bundle_manifest = protected / "cursor-bundle.json"
             bundle_manifest.write_bytes(client_bundle.canonical_json(client_bundle.inventory_bundle(protected / "cursor")))
             bundle_manifest.chmod(0o644)
             os.chown(bundle_manifest, 0, 0)
+            chrome_manifest = protected / "chrome-for-testing-bundle.json"
+            chrome_manifest.write_bytes(client_bundle.canonical_json(client_bundle.inventory_bundle(protected / "chrome-for-testing")))
+            chrome_manifest.chmod(0o644)
+            os.chown(chrome_manifest, 0, 0)
             digest = lambda path: "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
             config = Path(temporary) / "config.json"
             config.write_text(json.dumps({
@@ -3233,6 +3246,14 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                         },
                     },
                     "kiro": {"binary": str(protected / "bin/kiro"), "sha256": digest(protected / "bin/kiro")},
+                },
+                "chrome_for_testing": {
+                    "root": str(protected / "chrome-for-testing"),
+                    "manifest": str(chrome_manifest),
+                    "manifest_sha256": digest(chrome_manifest),
+                    "binary": str(protected / "chrome-for-testing/chrome"),
+                    "binary_sha256": digest(protected / "chrome-for-testing/chrome"),
+                    "version": "152.0.7977.64",
                 },
                 "chatgpt": {
                     "app_binding_path": str(protected / "chatgpt/app-binding.json"),
@@ -3261,12 +3282,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 self.assertEqual(len(fixed_runner.validate_adapter_input_access(
                     config, protected_root=protected, identities=identities,
                     access_probe=lambda uid, gid, gids, paths: probes.append((uid, gid, gids, paths)),
-                )), 9)
+                )), 11)
                 self.assertEqual(
                     [(uid, gid, gids) for uid, gid, gids, _ in probes],
                     list(identities.values()),
                 )
-                self.assertTrue(all(len(paths) == 10 for _, _, _, paths in probes))
+                self.assertTrue(all(len(paths) == 13 for _, _, _, paths in probes))
                 for excluded, (denied_uid, _, _) in identities.items():
                     with self.subTest(excluded=excluded):
                         def deny(uid: int, _gid: int, _gids: frozenset[int], _paths: tuple[tuple[Path, bool], ...]) -> None:
@@ -3562,6 +3583,55 @@ class FixedAdapterContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "bundle config differs"):
             fixed_adapters.verified_runtime_node({**bundle, "root": "/tmp/cursor"}, owner_uid=1234)
 
+    def test_fixed_browser_runtime_requires_the_verified_complete_bundle(self) -> None:
+        bundle = {
+            "root": str(fixed_adapters.CHROME_ROOT),
+            "manifest": str(fixed_adapters.CHROME_MANIFEST),
+            "manifest_sha256": "sha256:" + "a" * 64,
+            "binary": str(fixed_adapters.CHROME_BINARY),
+            "binary_sha256": "sha256:" + "b" * 64,
+            "version": fixed_adapters.CHROME_VERSION,
+        }
+        with (
+            mock.patch.object(
+                fixed_adapters, "verify_bundle", return_value={fixed_adapters.CHROME_BINARY},
+            ) as verify_bundle,
+            mock.patch.object(fixed_adapters, "verify_executable_file") as verify_binary,
+        ):
+            self.assertEqual(
+                fixed_adapters.verified_runtime_browser(bundle, owner_uid=1234),
+                fixed_adapters.CHROME_BINARY,
+            )
+            verify_bundle.assert_called_once_with(
+                root=fixed_adapters.CHROME_ROOT,
+                manifest=fixed_adapters.CHROME_MANIFEST,
+                manifest_sha256=bundle["manifest_sha256"], owner_uid=1234,
+            )
+            verify_binary.assert_called_once_with(
+                fixed_adapters.CHROME_BINARY, bundle["binary_sha256"], owner_uid=1234,
+            )
+        with mock.patch.object(fixed_adapters, "verify_bundle", return_value=set()):
+            with self.assertRaisesRegex(ValueError, "absent from its verified bundle"):
+                fixed_adapters.verified_runtime_browser(bundle, owner_uid=1234)
+        with self.assertRaisesRegex(ValueError, "bundle config differs"):
+            fixed_adapters.verified_runtime_browser({**bundle, "version": "152.0.0.0"}, owner_uid=1234)
+
+    def test_chrome_runtime_config_requires_exact_headless_closure(self) -> None:
+        args = ["/profile/launcher.mjs", "--no-usage-statistics", *fixed_adapters.CHROME_RUNTIME_ARGUMENTS]
+        encoded = fixed_adapters.canonical_json({
+            "mcpServers": {"chrome-devtools": {"command": "node", "args": args}},
+        })
+        fixed_adapters.validate_chrome_runtime_config(encoded)
+        for rejected in (
+            args[:-1],
+            [args[0], "--browserUrl=http://127.0.0.1:9222", *fixed_adapters.CHROME_RUNTIME_ARGUMENTS],
+            [*args, fixed_adapters.CHROME_RUNTIME_ARGUMENTS[-1]],
+        ):
+            with self.subTest(rejected=rejected), self.assertRaises(ValueError):
+                fixed_adapters.validate_chrome_runtime_config(fixed_adapters.canonical_json({
+                    "mcpServers": {"chrome-devtools": {"command": "node", "args": rejected}},
+                }))
+
     def test_node_runtime_environment_is_proxy_aware_and_path_bounded(self) -> None:
         profile = Path("/var/lib/uap-observer/profiles/cursor")
         plain = fixed_adapters.runtime_environment(profile)
@@ -3585,7 +3655,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                 fixed_adapters, "verified_executable",
                 return_value=Path("/opt/uap-observer-inputs/cursor/cursor-agent"),
             ),
-            self.assertRaisesRegex(ValueError, "verified fixed Node runtime"),
+            self.assertRaisesRegex(ValueError, "verified fixed Node and browser runtimes"),
         ):
             fixed_adapters.invoke(
                 {"profile": "/tmp"}, "chrome-devtools", "cursor", "a" * 64,
@@ -3639,6 +3709,14 @@ class FixedAdapterContractTests(unittest.TestCase):
         config = {
             "schema_version": 1, "request_policy": {}, "git": {}, "clients": clients,
             "matrix": [], "consent_record": {}, "chatgpt": {},
+            "chrome_for_testing": {
+                "root": str(fixed_adapters.CHROME_ROOT),
+                "manifest": str(fixed_adapters.CHROME_MANIFEST),
+                "manifest_sha256": "sha256:" + "c" * 64,
+                "binary": str(fixed_adapters.CHROME_BINARY),
+                "binary_sha256": "sha256:" + "d" * 64,
+                "version": fixed_adapters.CHROME_VERSION,
+            },
             "workspace_root": "/var/lib/uap-observer/workspaces", "external_pr_evidence": {},
             "egress_hosts": ["api.github.com"],
         }
@@ -5143,7 +5221,16 @@ class FixedAdapterContractTests(unittest.TestCase):
                 native.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
                 native.write_text(
                     "# code-tool-router\n" if plugin == "agent-code-navigator"
-                    else json.dumps({"plugin": plugin})
+                    else json.dumps({
+                        "plugin": plugin,
+                        "mcpServers": {"chrome-devtools": {
+                            "command": "node",
+                            "args": [
+                                "/profile/launcher.mjs", "--no-usage-statistics",
+                                *fixed_adapters.CHROME_RUNTIME_ARGUMENTS,
+                            ],
+                        }},
+                    })
                 )
                 native.chmod(0o600)
                 approved = {

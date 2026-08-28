@@ -41,6 +41,7 @@ installer-managed deployment files are:
 | --- | --- | --- |
 | Git, Codex, Kiro native executables | `/opt/uap-observer-inputs/bin/{git,codex,kiro,kiro-cli-chat}` | root-owned `0755` regular files; Kiro requires both digest-pinned executables |
 | Complete Cursor Agent bundle | `/opt/uap-observer-inputs/cursor/` plus `/opt/uap-observer-inputs/cursor-bundle.json` | root-owned closure; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
+| Chrome for Testing 152.0.7977.64 bundle | `/opt/uap-observer-inputs/chrome-for-testing/` plus `/opt/uap-observer-inputs/chrome-for-testing-bundle.json` | root-owned complete browser closure; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
 | ChatGPT app binding and projection receipt | `/opt/uap-observer-inputs/chatgpt/{app-binding.json,projection-receipt.json}` | `root:uap-observer-adapter-config`, `0640` |
 | independently captured external-PR evidence | `/opt/uap-observer-inputs/external-pr-evidence.json` | `root:uap-observer-adapter-config`, `0640` |
 | operator-approved proxy FQDN allowlist | `/opt/uap-observer-current/etc/uap-observer-egress-allowlist.json` | `root:root`, `0644`, one-link regular file |
@@ -55,8 +56,11 @@ There may be no other entries under `/opt/uap-observer-inputs`; directories
 must be root-owned and not group/other-writable. Every file must have one hard
 link, no path may be a symlink, and every `sha256:` in the adapter config must
 match its bytes. Cursor is one bounded bundle because its launcher depends on
-the sibling Node runtime and JavaScript/native modules. The manifest binds
-every relative path, mode, size, and digest; a launcher-only copy is invalid.
+the sibling Node runtime and JavaScript/native modules. Chrome for Testing is a
+second independent bundle because Chrome DevTools needs the complete browser
+resource tree, not only its executable. Both manifests bind every relative
+path, mode, size, and digest; a launcher-only or browser-binary-only copy is
+invalid.
 The external PR record must validate against
 `tests/e2e/schemas/external-pr-evidence.schema.json`, identify a genuinely
 external unmerged PR, and bind its successful head checks to the exact release
@@ -71,7 +75,7 @@ getent group uap-observer-adapter-config >/dev/null || \
   groupadd --system uap-observer-adapter-config
 install -d -o root -g root -m 0755 /opt/uap-observer-inputs \
   /opt/uap-observer-inputs/bin /opt/uap-observer-inputs/chatgpt \
-  /opt/uap-observer-inputs/cursor
+  /opt/uap-observer-inputs/cursor /opt/uap-observer-inputs/chrome-for-testing
 for name in git codex kiro kiro-cli-chat; do
   install -o root -g root -m 0755 "/root/approved-inputs/$name" \
     "/opt/uap-observer-inputs/bin/$name"
@@ -86,6 +90,19 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SOURCE_ROOT" python3 -B \
   "$SOURCE_ROOT/scripts/build_observer_client_bundle.py" \
   /opt/uap-observer-inputs/cursor \
   /opt/uap-observer-inputs/cursor-bundle.json
+cp -a --reflink=auto \
+  /root/approved-inputs/chrome-for-testing-152.0.7977.64/152.0.7977.64/. \
+  /opt/uap-observer-inputs/chrome-for-testing/
+chown -R root:root /opt/uap-observer-inputs/chrome-for-testing
+find /opt/uap-observer-inputs/chrome-for-testing -type d -exec chmod 0755 {} +
+find /opt/uap-observer-inputs/chrome-for-testing -type f -perm /111 -exec chmod 0755 {} +
+find /opt/uap-observer-inputs/chrome-for-testing -type f ! -perm /111 -exec chmod 0644 {} +
+test "$(/opt/uap-observer-inputs/chrome-for-testing/chrome --version | sed 's/[[:space:]]*$//')" = \
+  "Google Chrome for Testing 152.0.7977.64"
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$SOURCE_ROOT" python3 -B \
+  "$SOURCE_ROOT/scripts/build_observer_client_bundle.py" \
+  /opt/uap-observer-inputs/chrome-for-testing \
+  /opt/uap-observer-inputs/chrome-for-testing-bundle.json
 for name in app-binding.json projection-receipt.json; do
   install -o root -g uap-observer-adapter-config -m 0640 \
     "/root/approved-inputs/$name" "/opt/uap-observer-inputs/chatgpt/$name"
@@ -95,6 +112,8 @@ install -o root -g uap-observer-adapter-config -m 0640 \
   /opt/uap-observer-inputs/external-pr-evidence.json
 sha256sum /opt/uap-observer-inputs/bin/* \
   /opt/uap-observer-inputs/cursor-bundle.json \
+  /opt/uap-observer-inputs/chrome-for-testing-bundle.json \
+  /opt/uap-observer-inputs/chrome-for-testing/chrome \
   /opt/uap-observer-inputs/chatgpt/* \
   /opt/uap-observer-inputs/external-pr-evidence.json
 ```
@@ -478,13 +497,24 @@ share `.cursor/mcp.json`; Kiro's four MCP entries intentionally share
 `.kiro/settings/mcp.json`. Their skill uses the corresponding
 `.cursor/skills/code-tool-router/SKILL.md` or
 `.kiro/skills/code-tool-router/SKILL.md`. Codex maps each hero to its exact
-manager-installed native package file. Do not guess paths, hand-write tuple
+manager-installed native package file. The Chrome configuration step changes
+only these disposable observer seeds after manager materialization. It appends
+the exact headless, isolated browser selector and does not change the portable
+package or Directory tuple. The sealer and runtime adapter both reject a
+missing, partial, duplicated, or conflicting selector. Chrome's own sandbox is
+disabled only inside the observer's systemd-isolated mount/process boundary;
+no system browser or mutable executable search path is accepted. Do not guess paths, hand-write tuple
 receipts, or treat name/status output as tuple binding. The repository sealer
 checks each manager record against the approved matrix tuple and each native
 config's containment, ownership, mode, link count, and SHA-256. It emits the
 manager receipt and immutable native projection consumed by the adapter:
 
 ```sh
+for client in codex cursor kiro; do
+  python3 "$SOURCE_ROOT/deploy/uap-observer-configure-chrome.py" \
+    --root-owned-seed "/root/profile-seeds/$client" \
+    --native-config-map "/root/native-config-$client.json"
+done
 install -d -o root -g root -m 0700 /root/projection-digests
 for client in codex cursor kiro; do
   python3 "$SOURCE_ROOT/deploy/uap-observer-seal-profile.py" \

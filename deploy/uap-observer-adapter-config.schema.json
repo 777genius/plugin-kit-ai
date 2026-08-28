@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
-  "required": ["schema_version", "request_policy", "git", "clients", "matrix", "consent_record", "chatgpt", "workspace_root", "external_pr_evidence", "egress_hosts"],
+  "required": ["schema_version", "request_policy", "git", "clients", "matrix", "consent_record", "chatgpt", "chrome_for_testing", "workspace_root", "external_pr_evidence", "egress_hosts"],
   "properties": {
     "schema_version": {"const": 1},
     "egress_hosts": {
@@ -24,6 +24,7 @@
     },
     "workspace_root": {"const": "/var/lib/uap-observer/workspaces"},
     "git": {"type":"object","required":["binary","sha256"],"properties":{"binary":{"const":"/opt/uap-observer-inputs/bin/git"},"sha256":{"$ref":"#/$defs/digest"}},"additionalProperties":false},
+    "chrome_for_testing": {"$ref": "#/$defs/chrome_for_testing"},
     "external_pr_evidence": {"type":"object","required":["path","sha256"],"properties":{"path":{"const":"/opt/uap-observer-inputs/external-pr-evidence.json"},"sha256":{"$ref":"#/$defs/digest"}},"additionalProperties":false},
     "clients": {
       "type": "object",
@@ -95,6 +96,19 @@
         "root": {"const": "/opt/uap-observer-inputs/cursor"},
         "manifest": {"const": "/opt/uap-observer-inputs/cursor-bundle.json"},
         "manifest_sha256": {"$ref": "#/$defs/digest"}
+      },
+      "additionalProperties": false
+    },
+    "chrome_for_testing": {
+      "type": "object",
+      "required": ["root", "manifest", "manifest_sha256", "binary", "binary_sha256", "version"],
+      "properties": {
+        "root": {"const": "/opt/uap-observer-inputs/chrome-for-testing"},
+        "manifest": {"const": "/opt/uap-observer-inputs/chrome-for-testing-bundle.json"},
+        "manifest_sha256": {"$ref": "#/$defs/digest"},
+        "binary": {"const": "/opt/uap-observer-inputs/chrome-for-testing/chrome"},
+        "binary_sha256": {"$ref": "#/$defs/digest"},
+        "version": {"const": "152.0.7977.64"}
       },
       "additionalProperties": false
     },

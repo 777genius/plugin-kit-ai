@@ -33,6 +33,14 @@ PROHIBITED_STATES = re.compile(
     r"error|failed|failure|cancelled|canceled)(?:$|_)",
 )
 MAX_NATIVE_CONFIG_BYTES = 4 << 20
+CHROME_BINARY = "/opt/uap-observer-inputs/chrome-for-testing/chrome"
+CHROME_RUNTIME_ARGUMENTS = (
+    "--headless",
+    f"--executablePath={CHROME_BINARY}",
+    "--isolated",
+    "--chrome-arg=--no-sandbox",
+    "--chrome-arg=--disable-setuid-sandbox",
+)
 
 
 def canonical(value: Any) -> bytes:
@@ -67,6 +75,27 @@ def strict_json_loads(encoded: bytes) -> Any:
 
     return json.loads(encoded, object_pairs_hook=object_from_pairs,
                       parse_constant=reject_constant, parse_float=finite_float)
+
+
+def validate_chrome_runtime_config(value: Any) -> None:
+    servers = value.get("mcpServers") if isinstance(value, dict) else None
+    server = servers.get("chrome-devtools") if isinstance(servers, dict) else None
+    args = server.get("args") if isinstance(server, dict) else None
+    if (
+        not isinstance(args, list)
+        or any(not isinstance(argument, str) for argument in args)
+        or len(args) < len(CHROME_RUNTIME_ARGUMENTS)
+        or tuple(args[-len(CHROME_RUNTIME_ARGUMENTS):]) != CHROME_RUNTIME_ARGUMENTS
+        or any(args.count(argument) != 1 for argument in CHROME_RUNTIME_ARGUMENTS)
+    ):
+        raise ValueError("chrome-devtools native config omits the fixed headless browser closure")
+    forbidden = (
+        "--browserUrl", "--browser-url", "--wsEndpoint", "--ws-endpoint",
+        "--channel", "--autoConnect", "--auto-connect", "--userDataDir", "--user-data-dir",
+    )
+    prefix = args[:-len(CHROME_RUNTIME_ARGUMENTS)]
+    if any(argument == name or argument.startswith(name + "=") for argument in prefix for name in forbidden):
+        raise ValueError("chrome-devtools native config contains a conflicting browser selector")
 
 
 def lifecycle_name(value: Any) -> str:
@@ -774,6 +803,8 @@ def main() -> int:
             if not isinstance(native_value, dict):
                 raise ValueError(f"{plugin}: native config must be a JSON object")
             reconcile_revision_aliases(native_value, approved[plugin], f"{plugin}: native config")
+            if plugin == "chrome-devtools":
+                validate_chrome_runtime_config(native_value)
         elif not native_body.strip():
             raise ValueError(f"{plugin}: native skill must not be empty")
         native_bodies[plugin] = native_body

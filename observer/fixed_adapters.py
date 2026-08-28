@@ -42,12 +42,26 @@ CONFIG_PATH = Path("/opt/uap-observer-current/etc/uap-observer-adapter-config.js
 CONSENT_DIRECTORY = Path("/var/lib/uap-observer-consent/pending")
 GIT_BINARY = Path("/opt/uap-observer-inputs/bin/git")
 NODE_BINARY = Path("/opt/uap-observer-inputs/cursor/node")
+CHROME_ROOT = Path("/opt/uap-observer-inputs/chrome-for-testing")
+CHROME_MANIFEST = Path("/opt/uap-observer-inputs/chrome-for-testing-bundle.json")
+CHROME_BINARY = CHROME_ROOT / "chrome"
+CHROME_VERSION = "152.0.7977.64"
+CHROME_RUNTIME_ARGUMENTS = (
+    "--headless",
+    f"--executablePath={CHROME_BINARY}",
+    "--isolated",
+    "--chrome-arg=--no-sandbox",
+    "--chrome-arg=--disable-setuid-sandbox",
+)
 FIXED_INPUT_PATHS = {
     str(GIT_BINARY),
     "/opt/uap-observer-inputs/bin/codex",
     "/opt/uap-observer-inputs/cursor",
     "/opt/uap-observer-inputs/cursor/cursor-agent",
     "/opt/uap-observer-inputs/cursor-bundle.json",
+    str(CHROME_ROOT),
+    str(CHROME_MANIFEST),
+    str(CHROME_BINARY),
     "/opt/uap-observer-inputs/bin/kiro",
     "/opt/uap-observer-inputs/bin/kiro-cli-chat",
     "/opt/uap-observer-inputs/chatgpt/app-binding.json",
@@ -56,6 +70,7 @@ FIXED_INPUT_PATHS = {
 }
 FIXED_MOUNT_PATHS = FIXED_INPUT_PATHS - {
     "/opt/uap-observer-inputs/cursor/cursor-agent",
+    str(CHROME_BINARY),
 }
 PRIVACY_RESULT = {
     "real_project_accessed": False, "absolute_paths_exported": False,
@@ -350,7 +365,7 @@ def validate_context(value: Any) -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def validate_config(value: dict[str, Any]) -> None:
-    required = {"schema_version", "request_policy", "git", "clients", "matrix", "consent_record", "chatgpt", "workspace_root", "external_pr_evidence", "egress_hosts"}
+    required = {"schema_version", "request_policy", "git", "clients", "matrix", "consent_record", "chatgpt", "chrome_for_testing", "workspace_root", "external_pr_evidence", "egress_hosts"}
     if set(value) != required or type(value.get("schema_version")) is not int or value.get("schema_version") != 1:
         raise ValueError("adapter config is not canonical")
     if set(value.get("clients", {})) != CLIENTS:
@@ -384,6 +399,20 @@ def validate_config(value: dict[str, Any]) -> None:
         raise ValueError("non-Kiro client has an unreviewed companion executable")
     if "bundle" in value["clients"]["codex"] or "bundle" in value["clients"]["kiro"]:
         raise ValueError("non-Cursor client has an unreviewed bundle")
+    chrome = value.get("chrome_for_testing")
+    if (
+        not isinstance(chrome, dict)
+        or set(chrome) != {"root", "manifest", "manifest_sha256", "binary", "binary_sha256", "version"}
+        or chrome.get("root") != str(CHROME_ROOT)
+        or chrome.get("manifest") != str(CHROME_MANIFEST)
+        or chrome.get("binary") != str(CHROME_BINARY)
+        or chrome.get("version") != CHROME_VERSION
+        or any(
+            re.fullmatch(r"sha256:[a-f0-9]{64}", str(chrome.get(field, ""))) is None
+            for field in ("manifest_sha256", "binary_sha256")
+        )
+    ):
+        raise ValueError("Chrome for Testing bundle contract differs")
     if any(value["clients"][client].get("profile") != f"/var/lib/uap-observer/profiles/{client}" for client in CLIENTS):
         raise ValueError("adapter client profile root differs")
     for client in CLIENTS:
@@ -401,6 +430,9 @@ def validate_config(value: dict[str, Any]) -> None:
         value["clients"]["kiro"].get("companion_binary"),
         cursor_bundle.get("root"),
         cursor_bundle.get("manifest"),
+        chrome.get("root"),
+        chrome.get("manifest"),
+        chrome.get("binary"),
         value.get("chatgpt", {}).get("app_binding_path"),
         value.get("chatgpt", {}).get("projection_receipt_path"),
         value.get("external_pr_evidence", {}).get("path"),
@@ -601,6 +633,50 @@ def verified_runtime_node(bundle: Any, owner_uid: int) -> Path:
     if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o755:
         raise ValueError("fixed Node runtime is not executable")
     return NODE_BINARY
+
+
+def verified_runtime_browser(bundle: Any, owner_uid: int) -> Path:
+    """Return the exact Chrome for Testing binary from its complete bundle."""
+    if (
+        not isinstance(bundle, dict)
+        or set(bundle) != {"root", "manifest", "manifest_sha256", "binary", "binary_sha256", "version"}
+        or bundle.get("root") != str(CHROME_ROOT)
+        or bundle.get("manifest") != str(CHROME_MANIFEST)
+        or bundle.get("binary") != str(CHROME_BINARY)
+        or bundle.get("version") != CHROME_VERSION
+    ):
+        raise ValueError("fixed Chrome for Testing bundle config differs")
+    files = verify_bundle(
+        root=CHROME_ROOT, manifest=CHROME_MANIFEST,
+        manifest_sha256=bundle["manifest_sha256"], owner_uid=owner_uid,
+    )
+    if CHROME_BINARY not in files:
+        raise ValueError("fixed Chrome executable is absent from its verified bundle")
+    verify_executable_file(CHROME_BINARY, bundle["binary_sha256"], owner_uid=owner_uid)
+    return CHROME_BINARY
+
+
+def validate_chrome_runtime_config(encoded: bytes) -> None:
+    """Require the observer-only headless browser closure in the sealed MCP config."""
+    value = strict_json_loads(encoded)
+    servers = value.get("mcpServers") if isinstance(value, dict) else None
+    server = servers.get("chrome-devtools") if isinstance(servers, dict) else None
+    args = server.get("args") if isinstance(server, dict) else None
+    if (
+        not isinstance(args, list)
+        or any(not isinstance(argument, str) for argument in args)
+        or len(args) < len(CHROME_RUNTIME_ARGUMENTS)
+        or tuple(args[-len(CHROME_RUNTIME_ARGUMENTS):]) != CHROME_RUNTIME_ARGUMENTS
+        or any(args.count(argument) != 1 for argument in CHROME_RUNTIME_ARGUMENTS)
+    ):
+        raise ValueError("sealed chrome-devtools config omits the fixed headless browser closure")
+    forbidden = (
+        "--browserUrl", "--browser-url", "--wsEndpoint", "--ws-endpoint",
+        "--channel", "--autoConnect", "--auto-connect", "--userDataDir", "--user-data-dir",
+    )
+    prefix = args[:-len(CHROME_RUNTIME_ARGUMENTS)]
+    if any(argument == name or argument.startswith(name + "=") for argument in prefix for name in forbidden):
+        raise ValueError("sealed chrome-devtools config contains a conflicting browser selector")
 
 
 def runtime_environment(profile: Path, runtime_node: Path | None = None) -> dict[str, str]:
@@ -2213,12 +2289,14 @@ def write_skill_probe(workspace: Path, marker: str) -> Path:
 def invoke(
     item: dict[str, Any], plugin: str, client: str, challenge: str, workspace: Path,
     owner_uid: int, approved_tuple: dict[str, Any] | None = None,
-    runtime_node: Path | None = None,
+    runtime_node: Path | None = None, runtime_browser: Path | None = None,
 ) -> tuple[dict[str, Any], list[str], str, str]:
     binary = verified_executable(item, owner_uid)
     profile = Path(item["profile"])
-    if plugin == "chrome-devtools" and runtime_node != NODE_BINARY:
-        raise ValueError("chrome-devtools requires the verified fixed Node runtime")
+    if plugin == "chrome-devtools" and (
+        runtime_node != NODE_BINARY or runtime_browser != CHROME_BINARY
+    ):
+        raise ValueError("chrome-devtools requires the verified fixed Node and browser runtimes")
     environment = runtime_environment(profile, runtime_node)
     if client == "codex":
         environment["CODEX_HOME"] = str(profile / ".codex")
@@ -2250,6 +2328,8 @@ def invoke(
     argv = [str(binary), *CLIENT_ARGUMENTS[client], prompt]
     native_path = Path(native_entry["client_config"]["path"])
     native_config_before = regular_snapshot(native_path, native_entry["client_config"]["sha256"], owner_uid=0, mode=0o440)
+    if plugin == "chrome-devtools":
+        validate_chrome_runtime_config(native_config_before["body"])
     if component_kind == "skill":
         write_skill_probe(workspace, expected_marker)
     version_stdout, _, _ = run_client([str(binary), "--version"], workspace=workspace, environment=environment, timeout=10)
@@ -2352,13 +2432,15 @@ def historical_external_pr_evidence_matches_request(evidence: Any, request: dict
 def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request: dict[str, Any], github: dict[str, Any], consent: dict[str, Any], workspace: Path, owner_uid: int, *, mount_config: dict[str, Any] | None = None) -> dict[str, Any]:
     plugin, client, challenge = item["plugin"], item["client"], request["challenge"]["value"]
     runtime_node = None
+    runtime_browser = None
     if plugin == "chrome-devtools":
         if mount_config is None:
             raise ValueError("chrome-devtools runtime requires the protected adapter config")
         runtime_node = verified_runtime_node(mount_config["clients"]["cursor"].get("bundle"), owner_uid)
+        runtime_browser = verified_runtime_browser(mount_config.get("chrome_for_testing"), owner_uid)
     marker, argv, started, observed = invoke(
         client_config, plugin, client, challenge, workspace, owner_uid, item["tuple"],
-        runtime_node,
+        runtime_node, runtime_browser,
     )
     digest = lambda name: marker[name] if isinstance(marker.get(name), str) and str(marker[name]).startswith("sha256:") else (_ for _ in ()).throw(ValueError("fixed client digest marker is invalid"))
     safe_trace = [client, "protected-runtime-check", plugin, sha256(canonical_json(argv))]
