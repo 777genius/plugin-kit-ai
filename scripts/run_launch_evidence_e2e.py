@@ -535,7 +535,7 @@ def read_production_config() -> dict[str, Any]:
         or value.get("npm_facade_package") != "universal-agent-plugins"
         or value.get("npm_facade_version") != "0.1.18"
         or value.get("npm_facade_integrity") != "sha512-48UfVVaGrvmniWQpoiXQYZvTS3QqrCN0HFLSQBVCsqQJwPdecRtuK9XEsOs4nTMQuWImjX6ZAflUeY/79biRZg=="
-        or value.get("directory_source_digest") != "sha256:8e8fdfc231a95a6b59fde7f552701b32ccc29eab51386b6d663f9ace7067de91"
+        or value.get("directory_source_digest") != "sha256:e4998f9ed1aca8a76cc2efa9ae5d2945dd4c3410ecf7263df8429d863f84d05d"
         or value.get("scenario_contract_digest") != "sha256:d62f160de32f9af53d7bb2d7c03fbfa8c3203e2fe5c99e616985b1e583996e66"
         or value.get("copilot_cli_package") != "@github/copilot"
         or value.get("copilot_cli_version") != "1.0.80"
