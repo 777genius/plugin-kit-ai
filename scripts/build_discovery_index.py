@@ -14,6 +14,7 @@ import os
 import re
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -63,6 +64,7 @@ MAX_PREVIOUS_SNAPSHOT_BYTES = 16 << 20
 # windows such as the 75-second delay observed in production.
 MAX_GITHUB_RETRY_DELAY_SECONDS = 120
 MAX_GITHUB_SERVER_RETRY_DELAY_SECONDS = 30
+CODE_SEARCH_REQUEST_INTERVAL_SECONDS = 6.5
 REPOSITORY_GRAPHQL_BATCH = 50
 SEARCH_STABILITY_ATTEMPTS = 3
 SEARCH_PARTITION_MAX = 90
@@ -129,17 +131,30 @@ class SameOriginRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class GitHubAPI:
-    def __init__(self, token: str):
+    def __init__(self, token: str, *, search_monotonic=None, search_sleep=None):  # noqa: ANN001
         require(bool(token), "GITHUB_TOKEN is required")
         self.token = token
         self.origin = "https://api.github.com"
         self.opener = urllib.request.build_opener(SameOriginRedirect(self.origin))
+        self._search_monotonic = search_monotonic or time.monotonic
+        self._search_sleep = search_sleep or time.sleep
+        self._search_lock = threading.Lock()
+        self._last_search_request_at: float | None = None
+
+    def _pace_code_search(self) -> None:
+        if self._last_search_request_at is not None:
+            deadline = self._last_search_request_at + CODE_SEARCH_REQUEST_INTERVAL_SECONDS
+            delay = deadline - self._search_monotonic()
+            if delay > 0:
+                self._search_sleep(delay)
+        self._last_search_request_at = self._search_monotonic()
 
     def _request(self, path: str, parameters: dict[str, object] | None = None,
                  payload: dict[str, object] | None = None) -> dict[str, Any]:
         query = "" if not parameters else "?" + urllib.parse.urlencode(parameters)
         url = self.origin + "/" + path.lstrip("/") + query
         encoded = None if payload is None else json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+        code_search = path.lstrip("/") == "search/code"
         for attempt in range(6):
             request = urllib.request.Request(url, headers={
                 "Accept": "application/vnd.github+json",
@@ -149,12 +164,18 @@ class GitHubAPI:
                 "X-GitHub-Api-Version": "2022-11-28",
             }, data=encoded, method="POST" if encoded is not None else "GET")
             try:
-                with self.opener.open(request, timeout=30) as response:
-                    body = response.read(MAX_API_BYTES + 1)
-                    require(len(body) <= MAX_API_BYTES, f"GitHub response exceeds {MAX_API_BYTES} bytes")
-                    value = json.loads(body.decode("utf-8"))
-                    require(isinstance(value, dict), "GitHub response must be an object")
-                    return value
+                if code_search:
+                    with self._search_lock:
+                        self._pace_code_search()
+                        with self.opener.open(request, timeout=30) as response:
+                            body = response.read(MAX_API_BYTES + 1)
+                else:
+                    with self.opener.open(request, timeout=30) as response:
+                        body = response.read(MAX_API_BYTES + 1)
+                require(len(body) <= MAX_API_BYTES, f"GitHub response exceeds {MAX_API_BYTES} bytes")
+                value = json.loads(body.decode("utf-8"))
+                require(isinstance(value, dict), "GitHub response must be an object")
+                return value
             except urllib.error.HTTPError as error:
                 try:
                     detail = error.read(4096).decode("utf-8", "replace")

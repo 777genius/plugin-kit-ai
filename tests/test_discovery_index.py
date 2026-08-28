@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey,
 
 from scripts.build_bridges import BridgeError, PinnedRepository
 from scripts.build_discovery_index import (
+    CODE_SEARCH_REQUEST_INTERVAL_SECONDS,
     DiscoveryError,
     GitHubAPI,
     GitHubHTTPError,
@@ -220,6 +221,92 @@ class DiscoveryIndexTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(DiscoveryError, "cross-origin redirect"):
             handler.redirect_request(request, None, 302, "Found", {}, "https://attacker.example/token")
+
+    def test_github_api_first_code_search_request_is_not_delayed(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        monotonic = mock.Mock(return_value=100.0)
+        sleep = mock.Mock()
+        api = GitHubAPI("test-token", search_monotonic=monotonic, search_sleep=sleep)
+        api.opener = mock.Mock()
+        api.opener.open.return_value = response
+
+        self.assertEqual(api.get("search/code", {"q": "plugin.json"}), {"ok": True})
+
+        sleep.assert_not_called()
+        self.assertEqual(api.opener.open.call_count, 1)
+
+    def test_github_api_consecutive_code_search_requests_are_paced(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        clock = [100.0]
+
+        def sleep(delay: float) -> None:
+            clock[0] += delay
+
+        api = GitHubAPI(
+            "test-token", search_monotonic=lambda: clock[0], search_sleep=mock.Mock(side_effect=sleep),
+        )
+        api.opener = mock.Mock()
+        api.opener.open.return_value = response
+
+        api.get("search/code", {"q": "first"})
+        api.get("search/code", {"q": "second"})
+
+        api._search_sleep.assert_called_once_with(CODE_SEARCH_REQUEST_INTERVAL_SECONDS)
+        self.assertEqual(api.opener.open.call_count, 2)
+
+    def test_github_api_concurrent_code_search_requests_are_serialized(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"ok":true}'
+        clock = [100.0]
+        clock_lock = threading.Lock()
+        starts: list[float] = []
+
+        def monotonic() -> float:
+            with clock_lock:
+                return clock[0]
+
+        def sleep(delay: float) -> None:
+            with clock_lock:
+                clock[0] += delay
+
+        def open_request(request, timeout):  # noqa: ANN001
+            starts.append(monotonic())
+            return response
+
+        api = GitHubAPI("test-token", search_monotonic=monotonic, search_sleep=sleep)
+        api.opener = mock.Mock()
+        api.opener.open.side_effect = open_request
+        barrier = threading.Barrier(3)
+
+        def search(query: str) -> None:
+            barrier.wait()
+            api.get("search/code", {"q": query})
+
+        threads = [threading.Thread(target=search, args=(query,)) for query in ("first", "second")]
+        for thread in threads:
+            thread.start()
+        barrier.wait()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(len(starts), 2)
+        self.assertEqual(starts[1] - starts[0], CODE_SEARCH_REQUEST_INTERVAL_SECONDS)
+
+    def test_github_api_non_search_requests_are_not_delayed(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"data":{}}'
+        sleep = mock.Mock()
+        api = GitHubAPI("test-token", search_monotonic=lambda: 100.0, search_sleep=sleep)
+        api.opener = mock.Mock()
+        api.opener.open.return_value = response
+
+        api.get("repos/owner/repo")
+        api.graphql("query { viewer { login } }", {})
+
+        sleep.assert_not_called()
+        self.assertEqual(api.opener.open.call_count, 2)
 
     def test_github_api_retries_transient_server_failure(self):
         response = mock.MagicMock()
