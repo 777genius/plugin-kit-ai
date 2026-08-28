@@ -4396,12 +4396,72 @@ class FixedAdapterContractTests(unittest.TestCase):
         mutations = (
             lambda value: value[4]["tool_call"]["getMcpToolsToolCall"]["args"].update(server="foreign"),
             lambda value: value[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"].update(content="{}"),
+            lambda value: value[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"].update(content=json.dumps({"mode": "single_tool", "namespace": plugin, "namespaceStatus": "ready", "tool": {"tool": tool, "description": marker}})),
             lambda value: value[8]["tool_call"]["mcpToolCall"]["args"].update(providerIdentifier="foreign"),
             lambda value: value[9]["tool_call"]["mcpToolCall"]["result"]["success"].update(isError=True),
             lambda value: value[-1].update(subtype="failed"),
         )
         for mutation in mutations:
             forged = json.loads(json.dumps(rows)); mutation(forged)
+            with self.subTest(mutation=mutation):
+                self.assertFalse(fixed_adapters.successful_cursor_mcp_evidence(forged, tool, plugin, marker, workspace))
+
+    def test_cursor_20260825_mcp_stream_accepts_direct_tool_descriptor_fail_closed(self) -> None:
+        self.assertEqual(fixed_adapters.MCP_PROBE_TOOLS["notion"], "notion-search")
+        marker = "UAP_OBSERVER_OK cursor context7 " + "c" * 64
+        workspace, plugin, tool = Path("/tmp/cursor-mcp-workspace"), "context7", "resolve-library-id"
+        rows, session = self.cursor_stream_shell(fixed_adapters.mcp_probe_prompt(plugin, tool, marker), workspace, marker)
+        discovery_args = {"server": plugin, "toolCallId": "tool-10", "toolName": tool}
+        descriptor = {
+            "description": "Resolve a package name to a Context7 library identifier.",
+            "inputSchema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "libraryName": {"type": "string"},
+                    "query": {"type": "string"},
+                },
+                "required": ["query", "libraryName"],
+            },
+            "tool": tool,
+        }
+        rows += self.cursor_tool_pair(
+            session,
+            "getMcpTools",
+            {"args": discovery_args},
+            {"args": discovery_args, "result": {"success": {"content": json.dumps(descriptor)}}},
+            10,
+        )
+        rows += self.cursor_thinking(session)
+        target_args = {"args": {"libraryName": "React", "query": "React"}, "name": f"{plugin}-{tool}", "providerIdentifier": plugin, "serverIdentifier": plugin, "skipApproval": False, "smartModeApprovalOnly": False, "toolCallId": "tool-20", "toolName": tool}
+        rows += self.cursor_tool_pair(session, "mcp", {"args": target_args, "description": "Resolve React"}, {"args": target_args, "description": "Resolve React", "result": {"success": {"content": [{"text": {"text": "resolved"}}], "isError": False}}}, 20)
+        rows += self.cursor_finish(session, marker)
+        self.assertTrue(fixed_adapters.successful_cursor_mcp_evidence(rows, tool, plugin, marker, workspace))
+        with_additional_properties = json.loads(json.dumps(rows))
+        encoded = with_additional_properties[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"]["content"]
+        with_additional_properties_descriptor = json.loads(encoded)
+        with_additional_properties_descriptor["inputSchema"]["additionalProperties"] = {}
+        with_additional_properties[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"]["content"] = json.dumps(with_additional_properties_descriptor)
+        self.assertTrue(fixed_adapters.successful_cursor_mcp_evidence(with_additional_properties, tool, plugin, marker, workspace))
+
+        mutations = (
+            lambda value: value.update(tool="foreign"),
+            lambda value: value.update(extra=True),
+            lambda value: value.update(description=marker),
+            lambda value: value["inputSchema"].pop("$schema"),
+            lambda value: value["inputSchema"].update(type="array"),
+            lambda value: value["inputSchema"].update(properties=[]),
+            lambda value: value["inputSchema"]["properties"].update(query="string"),
+            lambda value: value["inputSchema"].update(required=["foreign"]),
+            lambda value: value["inputSchema"].update(required=["query", "query"]),
+            lambda value: value["inputSchema"].update(additionalProperties="false"),
+        )
+        for mutation in mutations:
+            forged = json.loads(json.dumps(rows))
+            encoded = forged[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"]["content"]
+            forged_descriptor = json.loads(encoded)
+            mutation(forged_descriptor)
+            forged[5]["tool_call"]["getMcpToolsToolCall"]["result"]["success"]["content"] = json.dumps(forged_descriptor)
             with self.subTest(mutation=mutation):
                 self.assertFalse(fixed_adapters.successful_cursor_mcp_evidence(forged, tool, plugin, marker, workspace))
 
@@ -4834,6 +4894,78 @@ class FixedAdapterContractTests(unittest.TestCase):
                 },
             },
         )
+        self.assertEqual(
+            fixed_adapters.kiro_probe_input("notion"),
+            {
+                "query": "UAP read-only probe",
+                "_meta": {
+                    "_activePath": ["query"],
+                    "_completedPaths": [["query"]],
+                    "_isValid": True,
+                },
+            },
+        )
+
+    def test_kiro_acp_secret_store_is_bounded_private_and_atomic(self) -> None:
+        key = "kiro.mcp." + "a" * 64 + ".tokens"
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary).resolve() / "profile"
+            parent = home / ".state" / "uap-observer"
+            parent.mkdir(parents=True, mode=0o700)
+            parent.chmod(0o700)
+            path = parent / "kiro-acp-secrets.json"
+            path.write_text(json.dumps({key: "initial"}))
+            path.chmod(0o600)
+            store = fixed_adapters.KiroACPSecretStore.from_environment(
+                {"HOME": str(home)},
+            )
+            self.assertIsNotNone(store)
+            assert store is not None
+            request = lambda identifier, method, params: {
+                "jsonrpc": "2.0", "id": identifier, "method": method, "params": params,
+            }
+            self.assertEqual(
+                store.accept(request(1, "_kiro/secret/get", {"key": key}))["result"],
+                {"value": "initial"},
+            )
+            self.assertEqual(
+                store.accept(request(2, "_kiro/secret/store", {"key": key, "value": "rotated"}))["result"],
+                {},
+            )
+            self.assertEqual(json.loads(path.read_text()), {key: "rotated"})
+            with self.assertRaisesRegex(ValueError, "already in use"):
+                fixed_adapters.KiroACPSecretStore(path)
+            self.assertEqual(
+                store.accept(request(3, "_kiro/secret/delete", {"key": key}))["result"],
+                {},
+            )
+            self.assertEqual(json.loads(path.read_text()), {})
+            store.close()
+            self.assertIsNone(
+                fixed_adapters.KiroACPSecretStore.from_environment(
+                    {"HOME": str(Path(temporary) / "missing")},
+                ),
+            )
+
+    def test_kiro_acp_secret_store_rejects_unscoped_or_malformed_requests(self) -> None:
+        key = "kiro.mcp." + "b" * 64 + ".client"
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary).resolve() / "uap-observer"
+            parent.mkdir(mode=0o700)
+            path = parent / "kiro-acp-secrets.json"
+            path.write_text("{}")
+            path.chmod(0o600)
+            store = fixed_adapters.KiroACPSecretStore(path)
+            malformed = (
+                {"jsonrpc": "2.0", "id": True, "method": "_kiro/secret/get", "params": {"key": key}},
+                {"jsonrpc": "2.0", "id": 1, "method": "_kiro/secret/get", "params": {"key": "foreign"}},
+                {"jsonrpc": "2.0", "id": 1, "method": "_kiro/secret/store", "params": {"key": key}},
+                {"jsonrpc": "2.0", "id": 1, "method": "_kiro/secret/delete", "params": {"key": key, "extra": True}},
+            )
+            for request in malformed:
+                with self.subTest(request=request), self.assertRaises(ValueError):
+                    store.accept(request)
+            store.close()
 
     def test_kiro_acp_2200_power_discovery_fail_closed(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "5" * 64
@@ -5009,6 +5141,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
             {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connecting", "tools": []}]}},
             {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connected", "tools": tools}]}},
+            {"jsonrpc": "2.0", "method": "_kiro/mcp/status", "params": {"sessionId": "opaque-session", "servers": [{"name": "cloudflare-docs", "status": "connected", "tools": tools}]}},
         ]
         candidate = [*records[:2], *external, *records[2:]]
         contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
@@ -5042,7 +5175,7 @@ class FixedAdapterContractTests(unittest.TestCase):
                     contract.accept(record)
 
         for mutation in (
-            lambda rows: rows.insert(6, json.loads(json.dumps(rows[5]))),
+            lambda rows: rows[6]["params"]["servers"][0].update(extra="changed"),
             lambda rows: rows[7]["params"]["update"]["tools"].reverse(),
         ):
             forged = json.loads(json.dumps(candidate))
@@ -5349,10 +5482,59 @@ class FixedAdapterContractTests(unittest.TestCase):
             seen = json.loads((root / "requests.json").read_text())
             self.assertEqual([(item.get("id"), item.get("method")) for item in seen[:3]], [(0, "initialize"), (1, "session/new"), (2, "session/prompt")])
             self.assertEqual(seen[0]["params"]["protocolVersion"], 1)
+            self.assertNotIn("_meta", seen[0]["params"]["clientCapabilities"])
             self.assertEqual(seen[1]["params"], {"cwd": str(root), "mcpServers": []})
             self.assertEqual(seen[2]["params"]["sessionId"], "opaque-session")
             self.assertEqual(seen[3]["result"]["outcome"], {"outcome": "selected", "optionId": "once"})
             self.assertEqual(summary["target_chain"], ["pending", "in_progress", "completed"])
+
+    def test_kiro_acp_runner_advertises_and_serves_scoped_secret_storage(self) -> None:
+        marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "e" * 64
+        records = self.kiro_acp_records(marker)
+        key = "kiro.mcp." + "d" * 64 + ".tokens"
+        secret_request = {
+            "jsonrpc": "2.0", "id": 41, "method": "_kiro/secret/get",
+            "params": {"key": key},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            secret_parent = root / ".state" / "uap-observer"
+            secret_parent.mkdir(parents=True, mode=0o700)
+            secret_parent.chmod(0o700)
+            secret_path = secret_parent / "kiro-acp-secrets.json"
+            secret_path.write_text(json.dumps({key: "opaque-test-value"}))
+            secret_path.chmod(0o600)
+            executable = root / "kiro-secret-fixture.py"
+            executable.write_text(
+                "#!/usr/bin/python3\nimport json,sys,time\n"
+                f"rows={records!r}\nsecret={secret_request!r}\nseen=[]\n"
+                "def request():\n line=sys.stdin.readline(); seen.append(json.loads(line)); return seen[-1]\n"
+                "def emit(row): print(json.dumps(row,separators=(',',':')),flush=True)\n"
+                "request(); emit(rows[0]); request(); emit(secret); request(); emit(rows[1])\n"
+                "for row in rows[2:4]: emit(row)\n"
+                "request()\n"
+                "for row in rows[4:6]: emit(row)\n"
+                "request()\n"
+                "open('secret-requests.json','w').write(json.dumps(seen,separators=(',',':')))\n"
+                "for row in rows[6:]: emit(row)\n"
+                "time.sleep(10)\n"
+            )
+            executable.chmod(0o755)
+            environment = {"PATH": str(root), "HOME": str(root)}
+            fixed_adapters.run_kiro_acp(
+                executable, workspace=root, environment=environment,
+                plugin="cloudflare-docs", tool="search_cloudflare_documentation",
+                marker=marker, timeout=3,
+            )
+            seen = json.loads((root / "secret-requests.json").read_text())
+            self.assertEqual(
+                seen[0]["params"]["clientCapabilities"]["_meta"],
+                {"kiro": {"secretStorage": True, "openExternalUrl": False}},
+            )
+            self.assertEqual(seen[2], {
+                "jsonrpc": "2.0", "id": 41,
+                "result": {"value": "opaque-test-value"},
+            })
 
     def test_kiro_acp_skill_runner_never_places_hidden_marker_in_prompt(self) -> None:
         marker = "UAP_SKILL_SECRET_" + "c" * 64

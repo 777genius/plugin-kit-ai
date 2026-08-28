@@ -94,8 +94,11 @@ exact hidden-marker `grep_search`; MCP discovery or prompt echo cannot satisfy
 that contract; unrelated `kiro_power` failure shapes are rejected and cannot
 satisfy either capability contract. The checked-in fixture is a sanitized shape
 summary, not ordered raw frames. Both Kiro executables are
-digest-bound. This validates the grammar, not the pending external 5x3 live
-matrix; the repository does not claim 15/15 or PASS.
+digest-bound. OAuth-backed Kiro MCPs additionally use a private, bounded
+client-managed secret store under the isolated mutable profile state; only Kiro MCP
+keys are accepted, external URL opening stays disabled, and values are never
+included in evidence. This validates the grammar, not the pending external 5x3
+live matrix; the repository does not claim 15/15 or PASS.
 Prompt echo alone is inconclusive.
 Create consent with `uap-observer-attest-consent`; its root-owned `O_EXCL`
 record binds the full canonical request digest and is atomically moved into the

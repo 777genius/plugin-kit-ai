@@ -238,6 +238,34 @@ mode. API keys may be supplied only transiently to the login/preflight process:
 never put them in a script, image, adapter config, service environment, or
 evidence. Prefer device flow for the persistent test profile.
 
+Kiro V3 delegates MCP OAuth persistence to the ACP client. After the dedicated
+test profile completes its supported interactive OAuth flow, copy Kiro's opaque
+credential map into the observer-only mutable store without printing it:
+
+```sh
+python3 - <<'PY'
+import json, re
+from pathlib import Path
+p = Path("/root/profile-seeds/kiro/.kiro/secrets.json")
+value = json.loads(p.read_text())
+key = re.compile(r"kiro\.mcp\.[a-f0-9]{64}\.(?:discovery|client|verifier|tokens)")
+if not isinstance(value, dict) or len(value) > 64 or any(
+    not isinstance(k, str) or key.fullmatch(k) is None or not isinstance(v, str)
+    or len(v.encode()) > (1 << 20) for k, v in value.items()
+):
+    raise SystemExit("Kiro MCP credential store has an unexpected shape")
+PY
+install -d -o root -g root -m 0700 /root/profile-seeds/kiro/.state/uap-observer
+install -o root -g root -m 0600 \
+  /root/profile-seeds/kiro/.kiro/secrets.json \
+  /root/profile-seeds/kiro/.state/uap-observer/kiro-acp-secrets.json
+```
+
+The protected adapter exposes only `_kiro/secret/{get,store,delete}` for that
+bounded namespace, keeps external URL opening disabled, and atomically persists
+token refreshes under the isolated profile state. Never put this file in Git,
+logs, evidence, or another client's profile.
+
 Materialize the five reviewed heroes separately in each seed. Short names are
 not eligible protected inputs in agentplugins 0.1.18. Derive every add argument
 from the approved tuple as the canonical

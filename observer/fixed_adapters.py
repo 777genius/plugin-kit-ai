@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -144,7 +145,7 @@ MCP_PROBE_TOOLS = {
     "context7": "resolve-library-id",
     "cloudflare-docs": "search_cloudflare_documentation",
     "chrome-devtools": "list_pages",
-    "notion": "search",
+    "notion": "notion-search",
 }
 SKILL_PROBE_TOOL = "grep_search"
 SKILL_PROBE_TITLE = "Grep Search"
@@ -173,7 +174,7 @@ def kiro_probe_input(plugin: str) -> dict[str, Any]:
     return {
         **arguments,
         "_meta": {
-            "_activePath": [],
+            "_activePath": ["query"] if plugin == "notion" else [],
             "_completedPaths": [[name] for name in arguments],
             "_isValid": True,
         },
@@ -189,7 +190,12 @@ KIRO_MAX_OUTPUT = 1 << 20
 KIRO_MAX_TOOLS = 64
 KIRO_MAX_TOOL_NAME = 256
 KIRO_MAX_AUXILIARY = 256
+KIRO_MAX_SECRET_OPERATIONS = 128
+KIRO_MAX_SECRET_KEYS = 64
+KIRO_MAX_SECRET_VALUE = 1 << 20
 KIRO_TOOL_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}")
+KIRO_SECRET_KEY = re.compile(r"kiro\.mcp\.[a-f0-9]{64}\.(?:discovery|client|verifier|tokens)")
+KIRO_SECRET_STORE_RELATIVE = Path(".state/uap-observer/kiro-acp-secrets.json")
 KIRO_AUXILIARY_METHODS = {
     "_kiro/mcp/status", "_kiro/governance/state", "_kiro/tools/didChange",
     "_kiro/powers/items_changed", "_kiro/steering/documents_changed",
@@ -1599,6 +1605,61 @@ def _cursor_stream_finish(events: list[Any], index: int, session: str, marker: s
     )
 
 
+def _reviewed_cursor_mcp_description(
+    value: Any, plugin: str, tool: str, marker: str,
+) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if any(marker in text for text in nested_strings(value)):
+        return False
+    described_tool = value.get("tool")
+    if (
+        set(value) == {"mode", "namespace", "namespaceStatus", "tool"}
+        and value.get("mode") == "single_tool"
+        and value.get("namespace") == plugin
+        and value.get("namespaceStatus") == "ready"
+        and isinstance(described_tool, dict)
+        and described_tool.get("tool") == tool
+    ):
+        return True
+
+    if set(value) != {"description", "inputSchema", "tool"} or described_tool != tool:
+        return False
+    description, schema = value.get("description"), value.get("inputSchema")
+    allowed_schema_keys = {"$schema", "type", "properties", "required", "additionalProperties"}
+    if (
+        not isinstance(description, str)
+        or not description
+        or len(description) > 64 << 10
+        or marker in description
+        or not isinstance(schema, dict)
+        or not {"$schema", "type", "properties", "required"} <= set(schema) <= allowed_schema_keys
+        or not isinstance(schema.get("$schema"), str)
+        or not schema["$schema"].startswith(("https://json-schema.org/", "http://json-schema.org/"))
+        or schema.get("type") != "object"
+        or not isinstance(schema.get("properties"), dict)
+        or not schema["properties"]
+        or any(
+            not isinstance(name, str)
+            or not name
+            or not isinstance(specification, dict)
+            for name, specification in schema["properties"].items()
+        )
+        or not isinstance(schema.get("required"), list)
+        or any(not isinstance(name, str) or name not in schema["properties"] for name in schema["required"])
+        or len(schema["required"]) != len(set(schema["required"]))
+        or (
+            "additionalProperties" in schema
+            and not (
+                isinstance(schema["additionalProperties"], bool)
+                or schema["additionalProperties"] == {}
+            )
+        )
+    ):
+        return False
+    return True
+
+
 def successful_cursor_skill_evidence(events: Any, marker: str, skill_path: Path, skill_body: bytes, workspace: Path) -> bool:
     try:
         events, session, index = _cursor_stream_start(events, SKILL_PROBE_PROMPT, workspace)
@@ -1658,8 +1719,7 @@ def successful_cursor_mcp_evidence(events: Any, tool: str, plugin: str, marker: 
         success = discovery_end["result"].get("success") if isinstance(discovery_end["result"], dict) and set(discovery_end["result"]) == {"success"} else None
         content = success.get("content") if isinstance(success, dict) and set(success) == {"content"} else None
         description = strict_json_loads(content) if isinstance(content, str) else None
-        described_tool = description.get("tool") if isinstance(description, dict) else None
-        if not isinstance(description, dict) or description.get("mode") != "single_tool" or description.get("namespace") != plugin or description.get("namespaceStatus") != "ready" or not isinstance(described_tool, dict) or described_tool.get("tool") != tool:
+        if not _reviewed_cursor_mcp_description(description, plugin, tool, marker):
             return False
         index = _cursor_thinking_block(events, index, session, marker)
         target_start, target_end, target_id, index = _cursor_tool_pair(events, index, session, "mcp")
@@ -1711,6 +1771,163 @@ def successful_client_evidence(client: str, value: Any, tool: str, plugin: str, 
     # Kiro has no reviewed structured output contract. Text, including an exact
     # challenge marker, cannot independently establish a tool call.
     return False
+
+
+class KiroACPSecretStore:
+    """Bounded client-managed storage for Kiro V3 MCP OAuth credentials."""
+
+    METHODS = {"_kiro/secret/get", "_kiro/secret/store", "_kiro/secret/delete"}
+
+    def __init__(self, path: Path) -> None:
+        if not path.is_absolute() or path.name != KIRO_SECRET_STORE_RELATIVE.name:
+            raise ValueError("Kiro ACP secret store path is invalid")
+        self.path = path
+        self.directory_fd = open_directory(path.parent, allowed_owners={os.geteuid()})
+        directory = os.fstat(self.directory_fd)
+        if directory.st_uid != os.geteuid() or stat.S_IMODE(directory.st_mode) != 0o700:
+            os.close(self.directory_fd)
+            raise ValueError("Kiro ACP secret store directory is not private")
+        self.lock_fd = -1
+        self.operations = 0
+        try:
+            self.lock_fd = os.open(
+                path.name + ".lock",
+                os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+                dir_fd=self.directory_fd,
+            )
+            lock = os.fstat(self.lock_fd)
+            if (
+                not stat.S_ISREG(lock.st_mode) or lock.st_uid != os.geteuid()
+                or lock.st_nlink != 1 or stat.S_IMODE(lock.st_mode) != 0o600
+            ):
+                raise ValueError("Kiro ACP secret store lock is not private")
+            try:
+                fcntl.flock(self.lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ValueError("Kiro ACP secret store is already in use") from error
+            body = read_regular(path, None, owner_uid=os.geteuid(), mode=0o600)
+            self.values = self._validated(strict_json_loads(body))
+            self.digest = sha256(body)
+        except BaseException:
+            self.close()
+            raise
+
+    @staticmethod
+    def from_environment(environment: dict[str, str]) -> KiroACPSecretStore | None:
+        home = environment.get("HOME")
+        if not isinstance(home, str) or not home or not Path(home).is_absolute():
+            return None
+        path = Path(home) / KIRO_SECRET_STORE_RELATIVE
+        try:
+            info = os.lstat(path)
+        except FileNotFoundError:
+            return None
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("Kiro ACP secret store is not a regular file")
+        return KiroACPSecretStore(path)
+
+    @staticmethod
+    def _validated(value: Any) -> dict[str, str]:
+        if (
+            not isinstance(value, dict) or len(value) > KIRO_MAX_SECRET_KEYS
+            or any(
+                not isinstance(key, str) or KIRO_SECRET_KEY.fullmatch(key) is None
+                or not isinstance(child, str) or len(child.encode()) > KIRO_MAX_SECRET_VALUE
+                for key, child in value.items()
+            )
+        ):
+            raise ValueError("Kiro ACP secret store contents are invalid")
+        return dict(value)
+
+    def close(self) -> None:
+        if getattr(self, "lock_fd", -1) >= 0:
+            try:
+                fcntl.flock(self.lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(self.lock_fd)
+                self.lock_fd = -1
+        if getattr(self, "directory_fd", -1) >= 0:
+            os.close(self.directory_fd)
+            self.directory_fd = -1
+
+    def _persist(self) -> None:
+        current = read_regular(self.path, None, owner_uid=os.geteuid(), mode=0o600)
+        if sha256(current) != self.digest:
+            raise ValueError("Kiro ACP secret store changed concurrently")
+        body = exported_json(self._validated(self.values))
+        if len(body) > MAX_FILE:
+            raise ValueError("Kiro ACP secret store exceeds size bound")
+        temporary = f".{self.path.name}.{os.getpid()}.{time.time_ns()}"
+        descriptor = -1
+        published = False
+        try:
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+                dir_fd=self.directory_fd,
+            )
+            view = memoryview(body)
+            while view:
+                written = os.write(descriptor, view)
+                if written <= 0:
+                    raise OSError("short Kiro ACP secret store write")
+                view = view[written:]
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = -1
+            os.rename(
+                temporary, self.path.name,
+                src_dir_fd=self.directory_fd, dst_dir_fd=self.directory_fd,
+            )
+            published = True
+            directory = os.open(".", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC, dir_fd=self.directory_fd)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+            self.digest = sha256(body)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            if not published:
+                try:
+                    os.unlink(temporary, dir_fd=self.directory_fd)
+                except FileNotFoundError:
+                    pass
+
+    def accept(self, record: Any) -> dict[str, Any] | None:
+        if not isinstance(record, dict) or record.get("method") not in self.METHODS:
+            return None
+        self.operations += 1
+        params, identifier = record.get("params"), record.get("id")
+        if (
+            self.operations > KIRO_MAX_SECRET_OPERATIONS
+            or set(record) != {"jsonrpc", "id", "method", "params"}
+            or record.get("jsonrpc") != "2.0" or type(identifier) is not int or identifier < 0
+            or not isinstance(params, dict)
+        ):
+            raise ValueError("Kiro ACP secret request envelope differs")
+        method = record["method"]
+        expected = {"key", "value"} if method == "_kiro/secret/store" else {"key"}
+        key = params.get("key")
+        if set(params) != expected or not isinstance(key, str) or KIRO_SECRET_KEY.fullmatch(key) is None:
+            raise ValueError("Kiro ACP secret request parameters differ")
+        if method == "_kiro/secret/get":
+            result: dict[str, Any] = {"value": self.values.get(key)}
+        elif method == "_kiro/secret/store":
+            value = params.get("value")
+            if not isinstance(value, str) or len(value.encode()) > KIRO_MAX_SECRET_VALUE:
+                raise ValueError("Kiro ACP secret value is invalid")
+            self.values[key] = value
+            self._persist()
+            result = {}
+        else:
+            self.values.pop(key, None)
+            self._persist()
+            result = {}
+        return {"jsonrpc": "2.0", "id": identifier, "result": result}
 
 
 class KiroACPContract:
@@ -1820,7 +2037,8 @@ class KiroACPContract:
         sequence = self.discovery_channels[channel]
         observation = (status, catalog)
         if (
-            channel == "external" and sequence == ["connecting"]
+            channel == "external"
+            and sequence in (["connecting"], ["connecting", "connected"])
             and observation == self.discovery_last.get(channel)
         ):
             if fingerprint is None or fingerprint != self.discovery_last_fingerprint.get(channel):
@@ -2684,11 +2902,17 @@ def run_kiro_acp(
 ) -> tuple[dict[str, Any], str, str]:
     """Run the fixed Kiro ACP process with bounded newline JSON I/O."""
     started, deadline = utc_now(), time.monotonic() + timeout
-    process = subprocess.Popen(
-        [str(binary), *CLIENT_ARGUMENTS["kiro"]], cwd=workspace, env=environment,
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        start_new_session=True, close_fds=True,
-    )
+    secret_store = KiroACPSecretStore.from_environment(environment)
+    try:
+        process = subprocess.Popen(
+            [str(binary), *CLIENT_ARGUMENTS["kiro"]], cwd=workspace, env=environment,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            start_new_session=True, close_fds=True,
+        )
+    except BaseException:
+        if secret_store is not None:
+            secret_store.close()
+        raise
     assert process.stdin is not None and process.stdout is not None
     contract: KiroACPContract | KiroACPSkillContract = (
         KiroACPSkillContract(marker, skill_path)
@@ -2701,13 +2925,23 @@ def run_kiro_acp(
         process.stdin.close()
         process.stdout.close()
         terminate_group(process)
+        if secret_store is not None:
+            secret_store.close()
         raise
     pending = bytearray()
     total = 0
     sent_new = sent_prompt = False
-    requests = [
-        _acp_request(0, "initialize", {"protocolVersion": 1, "clientCapabilities": {"fs": {"readTextFile": False, "writeTextFile": False}, "terminal": False}, "clientInfo": {"name": "uap-observer", "version": "1"}}),
-    ]
+    client_capabilities: dict[str, Any] = {
+        "fs": {"readTextFile": False, "writeTextFile": False}, "terminal": False,
+    }
+    if secret_store is not None:
+        client_capabilities["_meta"] = {
+            "kiro": {"secretStorage": True, "openExternalUrl": False},
+        }
+    requests = [_acp_request(0, "initialize", {
+        "protocolVersion": 1, "clientCapabilities": client_capabilities,
+        "clientInfo": {"name": "uap-observer", "version": "1"},
+    })]
     try:
         process.stdin.write(requests[0]); process.stdin.flush()
         while not contract.complete():
@@ -2737,9 +2971,12 @@ def run_kiro_acp(
                     record = strict_json_loads(line)
                 except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
                     raise ValueError("Kiro ACP emitted malformed JSON") from error
-                response = contract.accept(record)
+                secret_response = secret_store.accept(record) if secret_store is not None else None
+                response = secret_response if secret_response is not None else contract.accept(record)
                 if response is not None:
                     process.stdin.write(canonical_json(response) + b"\n"); process.stdin.flush()
+                if secret_response is not None:
+                    continue
                 if contract.phase == "new" and not sent_new:
                     process.stdin.write(_acp_request(1, "session/new", {"cwd": str(workspace), "mcpServers": []})); process.stdin.flush(); sent_new = True
                 if contract.ready_for_prompt() and not sent_prompt:
@@ -2761,6 +2998,8 @@ def run_kiro_acp(
         except BrokenPipeError: pass
         process.stdout.close()
         terminate_group(process)
+        if secret_store is not None:
+            secret_store.close()
     if skill_path is not None:
         summary = {
             "protocol_version": KIRO_PROTOCOL_VERSION, "capability": "skill",
