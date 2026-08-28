@@ -1,6 +1,6 @@
 # E2E and Competitive Launch Plan
 
-Status: implementation plan, updated 2026-08-28
+Status: implementation plan and evidence record, updated 2026-08-28
 
 ## 1. Goal
 
@@ -10,8 +10,9 @@ the product competitive with `plugins.sh`.
 
 The release is complete when:
 
-1. `universal-agent-plugins@0.1.18` has one exact, current, protected launch
-   evidence set.
+1. The current public CLI has one exact release, npm provenance, and disposable
+   lifecycle evidence set. The separately protected hero matrix remains bound
+   to its approved release tuple until all consent-bound rows pass.
 2. The five hero packages pass runtime E2E in Codex, Cursor, and Kiro: 15/15
    client/package results.
 3. The named Cloudflare Docs ChatGPT binding retains its separately scoped
@@ -82,7 +83,7 @@ them.
 - signed snapshot generation, verification, cache, expiry, and sequence floor;
 - static website and Git-native external submission flow;
 - public-release-only evidence outside the protected hero contract:
-  six-platform `0.1.19` binaries and npm facade, with public provenance and a
+  six-platform `0.1.21` binaries and npm facade, with public provenance and a
   clean-registry lifecycle proof;
 - contributor fork-PR E2E.
 
@@ -100,12 +101,14 @@ them.
    The Kiro ACP capture remains a sanitized shape summary. Its capability probes do not replace the five-result launch matrix.
    Their sequence is not asserted.
 2. Outside the protected hero contract, the latest public CLI is
-   `universal-agent-plugins@0.1.19`, built from exact commit
-   `6a916221cd2a67192dd13d2eb2475a6451d22723`. Its release manifest,
-   checksums, six native platform proofs, npm provenance, and clean-registry
-   add/info/doctor/update/remove lifecycle passed in
-   [release run 33170444069](https://github.com/777genius/plugin-kit-ai/actions/runs/33170444069)
-   and [npm run 33170941697](https://github.com/777genius/plugin-kit-ai/actions/runs/33170941697).
+   `universal-agent-plugins@0.1.21`, built from exact commit
+   `f875dc6b45b2cd8322d05c2c9bf5c899bae1b09c`. Its release manifest,
+   checksums, attestations, six native platform proofs, npm provenance, and
+   clean-project npm verification passed in
+   [release run 33196477229](https://github.com/777genius/plugin-kit-ai/actions/runs/33196477229)
+   and [npm run 33197346470](https://github.com/777genius/plugin-kit-ai/actions/runs/33197346470).
+   The public npm integrity is
+   `sha512-mPy+oe7NwE6y2In+k+mcajSedWjPSC1JDDh+3zFuW+n9+SDkQGaohfGuNCYGWXy10nBrch8UCM1a3+s6zW4wlw==`.
    The accepted protected hero matrix remains bound to `0.1.18` until all four
    consent-bound rows pass and a new exact tuple is approved.
 3. Signed production Directory sequence 13 is live and verifies. Signed
@@ -141,18 +144,43 @@ them.
    through production sequence 13 and public `0.1.19` passed one grouped
    Codex/Cursor/Kiro dry-run with no mutation and tree digest
    `sha256:2b1d984194324b50b756a893a576f3d795262bd7edfec6d7167863ca8be93a2c`.
-9. The first real Discovery reconciliation in
-   [run 33149260051](https://github.com/777genius/universal-agent-plugins/actions/runs/33149260051)
-   found 2,431 conformant candidates and 283 invalid packages. Publication
-   correctly retained the previous last-known-good index because five malformed
-   upstream Git paths were misclassified as acquisition failures. The current
-   fix treats those deterministic package defects as `invalid`; real fetch,
-   timeout, rate-limit, and partial-search failures remain fail-closed.
+9. Signed production Discovery sequence 3 was generated from exact `main`
+   commit `a8488d99da04545ad53c61c48e1c91a1edc00805` and published in
+   [run 33195617464](https://github.com/777genius/universal-agent-plugins/actions/runs/33195617464).
+   It contains 2,437 unpadded conformant package paths, is marked complete,
+   expires at `2026-08-31T17:38:56Z`, and has snapshot digest
+   `sha256:02c2bf79ba440f4dc4af7125ecd28cb41a8b3e75d664de7f80bbe08afda41705`.
+   The ledger branch and immutable sequence tag both resolve to commit
+   `002261860bb342f7bff4f9f1da22534ab6d4df3b`; independent verification from
+   the public Pages assets passed with the pinned Discovery key.
+10. The live website returned HTTP 200 with no browser console errors, rendered
+    `2437 unreviewed packages from signed index 3`, and found the exact
+    `discovery:upstash/context7//plugins/agent-plugins/context7` selector after a
+    real Chromium search for `context7`.
+11. Public `universal-agent-plugins@0.1.21` passed one fresh disposable Linux
+    lifecycle against that discovered upstream package for explicit
+    `codex,cursor,kiro` targets: one acquisition, 3/3 add, a shared installation
+    ID, info, 3/3 no-change update with an unchanged state digest, native Codex
+    removal, 3/3 manager removal, and final doctor with zero installations and
+    zero open operations. The final Codex command returned
+    `No marketplace plugins found`; Cursor contained no plugin files and Kiro
+    retained an empty `mcpServers` object. No real user project or identity was
+    used. The package resolved to upstream revision
+    `4e980f6b494d6f970cc5ec1df417ba684b2f6e0b`, tree digest
+    `sha256:08eed3b67f2e71a11b68baa594380c2f69ec1bc97584d701deaf7942ac34c0d8`,
+    and manifest digest
+    `sha256:d01781acd899aefa9445a290cf43a481230321934d62f9c8a2aab06a89718236`.
+12. Public `0.1.21` also rejected
+    `discovery:netresearch/context7-skill` in group preflight because its skill
+    has an invalid `allowed-tools` value. All three targets reported no mutation
+    and no managed files or installation state were created. This proves that
+    Discovery conformance is metadata, not permission to bypass the CLI's full
+    package validation.
 
 ### 3.3 Implementation checkpoint
 
 - Exact `0.1.18` release tuple: complete.
-- Latest public CLI release `0.1.19`: public-release evidence only, outside the
+- Latest public CLI release `0.1.21`: public-release evidence only, outside the
   protected hero tuple; published, provenance-verified, and clean-registry
   lifecycle-verified.
 - Capability-specific native projection (`skill` versus `mcp`): implemented.
@@ -168,6 +196,9 @@ them.
 - Production identity tracking is monotonic and protected by publisher-only
   creation/update plus a no-bypass deletion guard. Production remains signed
   sequence 13; signed sequence 16 remains staged.
+- Production Discovery is independently signed in its own domain. Sequence 3
+  is live with 2,437 records and is consumed successfully by both the website
+  and public CLI. This does not change the reviewed Directory sequence.
 - Observer first-install import was fixed in
   [PR #94](https://github.com/777genius/universal-agent-plugins/pull/94).
   A real Kiro run then exposed an ACP readiness race: the prompt was sent before
@@ -832,15 +863,23 @@ Kill switches:
       shipped.
 - [x] Reviewed Directory and unreviewed Discovery Index are visibly distinct
       in labels, provenance text, commands, and browser-tested cards.
-- [ ] Discovery covers all reproducibly found conformant packages and targets
-      2,000+ unique package paths without padding.
+- [x] Production Discovery sequence 3 covers 2,437 reproducibly found,
+      conformant package paths without padding and verifies from public assets.
+- [x] Public `0.1.21` installs one exact-SHA discovered package across explicit
+      Codex, Cursor, and Kiro targets from one acquisition.
+- [x] Public `0.1.21` passes add, info, no-change update, external Codex remove,
+      manager remove, and final doctor in a disposable sandbox.
+- [x] Malformed unreviewed packages fail before mutation.
 - [x] Website search and client multi-select pass 16 desktop/mobile browser E2E
       cases in isolated profiles.
+- [x] The production site consumes sequence 3, finds the tested external
+      selector, and emits no browser console errors.
 - [x] No install telemetry, analytics, or tracking scripts are introduced.
 - [x] Three upstream Agent Plugins 1.0 PRs are open with exact-SHA lifecycle
       evidence.
 - [ ] Existing installs never change source implicitly.
-- [ ] No real user project or identity was used for E2E.
+- [x] No real user project or identity was used for the public Discovery and
+      lifecycle E2E recorded above.
 
 ## 16. Estimate
 
