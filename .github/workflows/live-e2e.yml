@@ -48,6 +48,11 @@ on:
         value: ${{ jobs.required-live-e2e.outputs.attestation_artifact_name }}
   workflow_dispatch:
     inputs:
+      run_scheduled_regression:
+        description: Run the credential-free scheduled regression jobs now
+        required: false
+        default: false
+        type: boolean
       consent:
         description: Approve disposable live launch checks
         required: true
@@ -103,7 +108,7 @@ jobs:
       id-token: write
 
   public-read-flows:
-    if: github.event_name == 'schedule' || inputs.consent
+    if: github.event_name == 'schedule' || inputs.consent || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -154,7 +159,7 @@ jobs:
           test "$PUBLIC_READ_RESULT" = success
 
   scheduled-fixture-contract:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -179,7 +184,7 @@ jobs:
           python -m unittest tests.test_run_launch_evidence_e2e tests.test_materialize_launch_evidence tests.test_workflow_contracts
 
   scheduled-production-directory-observation:
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || inputs.run_scheduled_regression
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -188,12 +193,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: directory-publication-ledger
-          path: _production-ledger
-          fetch-depth: 1
-          persist-credentials: false
+      - name: Resolve the exact deployed production ledger
+        run: |
+          marker_ref="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["marker_ref"])')"
+          production_commit="$(git ls-remote --refs origin "${marker_ref}" | awk '{ print $1 }')"
+          if test -z "${production_commit}"; then
+            bootstrap_sequence="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["bootstrap_sequence"])')"
+            tag_prefix="$(python3 -c 'import json; print(json.load(open("registry/publication/production-marker.json"))["sequence_tag_prefix"])')"
+            bootstrap_ref="${tag_prefix}$(printf '%020d' "${bootstrap_sequence}")"
+            production_commit="$(git ls-remote --refs origin "${bootstrap_ref}" | awk '{ print $1 }')"
+          fi
+          [[ "${production_commit}" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin "${production_commit}"
+          git worktree add --detach _production-ledger "${production_commit}"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"

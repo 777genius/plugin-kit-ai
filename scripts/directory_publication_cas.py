@@ -330,6 +330,52 @@ def evidence_transition(
     raise CasError("evidence publication push failed with exact pre-state still present")
 
 
+def production_transition(
+    repo: Path, remote: str, *, production_new: str, production_tag: str,
+    attempts: int = 3, push_runner: Callable[[Sequence[str]], bool] | None = None,
+) -> str:
+    """Select the exact tree deployed to Pages using a monotonic CAS tag."""
+    _require_sha(production_new, "new production commit")
+    if production_tag != "refs/tags/directory-publication-schema-1-production":
+        raise CasError("production tag is outside the fixed namespace")
+    if not 1 <= attempts <= 3:
+        raise CasError("attempt count must be between one and three")
+    if _git(repo, ["cat-file", "-t", production_new]).stdout.strip() != "commit":
+        raise CasError("new production object is not a commit")
+
+    def read() -> str | None:
+        return read_ref_state(
+            repo, remote, "refs/heads/__unused-main",
+            "refs/heads/__unused-ledger", production_tag,
+        ).sequence_tag
+
+    for _attempt in range(attempts):
+        observed = read()
+        if observed == production_new:
+            return "committed"
+        if observed is not None:
+            fetched = _git(repo, ["fetch", "--no-tags", remote, observed], check=False)
+            if fetched.returncode != 0:
+                continue
+            if _git(repo, ["merge-base", "--is-ancestor", observed, production_new], check=False).returncode != 0:
+                raise CasError("production tag update would roll back or change ledger lineage")
+        lease = f"--force-with-lease={production_tag}:{observed or ''}"
+        arguments = [
+            "-c", "core.hooksPath=/dev/null", "push", lease, remote,
+            f"{production_new}:{production_tag}",
+        ]
+        if push_runner is not None:
+            push_runner(arguments)
+        else:
+            _git(repo, arguments, check=False)
+        current = read()
+        if current == production_new:
+            return "published"
+        if current != observed:
+            raise CasError(f"production tag conflict after push: observed {current}")
+    raise CasError("production tag push failed with exact pre-state still present")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -363,6 +409,14 @@ def main() -> int:
         "--approval-tag",
         default="refs/tags/directory-publication-schema-1-launch-approved",
     )
+    production_parser = subparsers.add_parser("production-publish")
+    production_parser.add_argument("--repo", type=Path, default=Path.cwd())
+    production_parser.add_argument("--remote", default="origin")
+    production_parser.add_argument("--production-new", required=True)
+    production_parser.add_argument(
+        "--production-tag",
+        default="refs/tags/directory-publication-schema-1-production",
+    )
     verify_materialized_parser = subparsers.add_parser("materialize-verify")
     verify_materialized_parser.add_argument("--repo", type=Path, default=Path.cwd())
     verify_materialized_parser.add_argument("--signed", required=True)
@@ -390,6 +444,11 @@ def main() -> int:
                 args.repo, args.remote, main_old=args.main_old, main_new=args.main_new,
                 ledger_old=args.ledger_old, ledger_new=args.ledger_new,
                 approval_tag=args.approval_tag,
+            )
+        elif args.command == "production-publish":
+            result = production_transition(
+                args.repo, args.remote, production_new=args.production_new,
+                production_tag=args.production_tag,
             )
         else:
             validate_materialized_descendant(args.repo, args.materialized, args.signed)

@@ -824,14 +824,21 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("inputs.caller_ref == 'refs/heads/main'", required["if"])
         self.assertIn("directory-publication.yml@refs/heads/main", required["if"])
         scheduled = {
-            name: job
-            for name, job in workflow["jobs"].items()
-            if job.get("if") == "github.event_name == 'schedule'"
+            name: workflow["jobs"][name]
+            for name in (
+                "scheduled-fixture-contract",
+                "scheduled-production-directory-observation",
+            )
         }
         self.assertEqual(
             set(scheduled),
             {"scheduled-fixture-contract", "scheduled-production-directory-observation"},
         )
+        for job in scheduled.values():
+            self.assertEqual(
+                job["if"],
+                "github.event_name == 'schedule' || inputs.run_scheduled_regression",
+            )
         scheduled_body = yaml.safe_dump(scheduled)
         self.assertNotIn("inputs.publication_", scheduled_body)
         self.assertNotIn("launch-evidence-e2e.yml", scheduled_body)
@@ -859,17 +866,19 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('"runtime_claims": False', observation)
         self.assertIn('"oauth_claims": False', observation)
         self.assertIn("SHA256SUMS", observation)
-        ledger_checkouts = [
-            step for step in scheduled["scheduled-production-directory-observation"]["steps"]
-            if isinstance(step, dict)
-            and step.get("with", {}).get("ref") == "directory-publication-ledger"
-        ]
-        self.assertEqual(len(ledger_checkouts), 1)
-        self.assertEqual(ledger_checkouts[0]["with"].get("path"), "_production-ledger")
-        self.assertEqual(ledger_checkouts[0]["with"].get("persist-credentials"), "false")
+        self.assertIn("production-marker.json", observation)
+        self.assertIn("directory-publication-schema-1-production", (
+            ROOT / "registry/publication/production-marker.json"
+        ).read_text())
+        self.assertIn("git ls-remote --refs origin", observation)
+        self.assertIn("git worktree add --detach _production-ledger", observation)
+        self.assertNotIn("ref: directory-publication-ledger", yaml.safe_dump(
+            scheduled["scheduled-production-directory-observation"]
+        ))
         public_reads = workflow["jobs"]["public-read-flows"]
         self.assertEqual(
-            public_reads["if"], "github.event_name == 'schedule' || inputs.consent"
+            public_reads["if"],
+            "github.event_name == 'schedule' || inputs.consent || inputs.run_scheduled_regression",
         )
 
     def test_reusable_protected_jobs_gate_on_caller_inputs_not_event_name(self) -> None:
@@ -978,9 +987,18 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("gate_launch_approval", deploy_needs)
         production = workflow["jobs"]["observe_production_latest"]
         self.assertIn("deploy", production["needs"])
+        self.assertIn("record_production_marker", production["needs"])
         self.assertNotIn("observe_production_latest", required["needs"])
         self.assertIn("observe_production_latest.py", commands(production))
         self.assertEqual(production["permissions"], {"contents": "read"})
+        marker = workflow["jobs"]["record_production_marker"]
+        self.assertEqual(set(marker["needs"]), {"materialize_site", "deploy"})
+        self.assertIn("needs.deploy.result == 'success'", marker["if"])
+        self.assertEqual(marker["environment"], "directory-publication")
+        marker_body = commands(marker)
+        self.assertIn("directory_publication_cas.py production-publish", marker_body)
+        self.assertIn("production-marker.json", marker_body)
+        self.assertIn('--production-new "${EXPECTED_PRODUCTION_COMMIT}"', marker_body)
 
     def test_first_unapproved_publication_cannot_promote_without_launch_ceremony(self) -> None:
         workflow = load(DIRECTORY_PUBLICATION)

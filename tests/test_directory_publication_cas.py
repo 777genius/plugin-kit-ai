@@ -17,6 +17,7 @@ import directory_publication_cas as cas
 GIT = "/usr/bin/git"
 TAG_ONE = "refs/tags/directory-publication-schema-1-sequence-00000000000000000001"
 APPROVAL_TAG = "refs/tags/directory-publication-schema-1-launch-approved"
+PRODUCTION_TAG = "refs/tags/directory-publication-schema-1-production"
 
 
 def git(repo: Path, *args: str, check: bool = True) -> str:
@@ -262,6 +263,65 @@ class BarePublicationCasTests(unittest.TestCase):
             "refs/heads/directory-publication-ledger", APPROVAL_TAG,
         )
         self.assertEqual(after, before)
+
+    def test_production_transition_creates_advances_and_reuses_exact_marker(self) -> None:
+        first = self.commit_object(self.source, "first production tree")
+        second = self.commit_object(first, "second production tree")
+        self.assertEqual(cas.production_transition(
+            self.publisher, "origin", production_new=first,
+            production_tag=PRODUCTION_TAG,
+        ), "published")
+        self.assertEqual(cas.production_transition(
+            self.publisher, "origin", production_new=first,
+            production_tag=PRODUCTION_TAG,
+        ), "committed")
+        self.assertEqual(cas.production_transition(
+            self.publisher, "origin", production_new=second,
+            production_tag=PRODUCTION_TAG,
+        ), "published")
+        self.assertEqual(self.state(PRODUCTION_TAG).sequence_tag, second)
+
+    def test_production_transition_rejects_rollback_and_unrelated_lineage(self) -> None:
+        first = self.commit_object(self.source, "first production tree")
+        second = self.commit_object(first, "second production tree")
+        unrelated = self.commit_object(self.source, "unrelated production tree")
+        cas.production_transition(
+            self.publisher, "origin", production_new=second,
+            production_tag=PRODUCTION_TAG,
+        )
+        for candidate in (first, unrelated):
+            with self.subTest(candidate=candidate):
+                with self.assertRaisesRegex(cas.CasError, "roll back or change ledger lineage"):
+                    cas.production_transition(
+                        self.publisher, "origin", production_new=candidate,
+                        production_tag=PRODUCTION_TAG,
+                    )
+        self.assertEqual(self.state(PRODUCTION_TAG).sequence_tag, second)
+
+    def test_production_transition_resolves_lost_push_response(self) -> None:
+        production = self.commit_object(self.source, "production tree")
+        pushes = []
+
+        def lose_response(arguments):
+            pushes.append(arguments)
+            git(self.publisher, *arguments)
+            return False
+
+        self.assertEqual(cas.production_transition(
+            self.publisher, "origin", production_new=production,
+            production_tag=PRODUCTION_TAG, push_runner=lose_response,
+        ), "published")
+        self.assertEqual(len(pushes), 1)
+        self.assertIn(f"--force-with-lease={PRODUCTION_TAG}:", pushes[0])
+        self.assertEqual(self.state(PRODUCTION_TAG).sequence_tag, production)
+
+    def test_production_transition_rejects_other_tag_names(self) -> None:
+        production = self.commit_object(self.source, "production tree")
+        with self.assertRaisesRegex(cas.CasError, "outside the fixed namespace"):
+            cas.production_transition(
+                self.publisher, "origin", production_new=production,
+                production_tag="refs/tags/production",
+            )
 
     def test_privileged_transition_never_executes_workspace_pre_push_hook(self) -> None:
         sentinel = Path(self.temporary.name) / "hook-executed"

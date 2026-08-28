@@ -1009,9 +1009,54 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
+  record_production_marker:
+    name: Record the exact tree deployed to production
+    needs: [materialize_site, deploy]
+    if: ${{ always() && needs.materialize_site.result == 'success' && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: directory-publication
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-source
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.materialize_site.outputs.ledger_commit }}
+          path: exact-pages-tree
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Acquire dedicated publisher token
+        id: publisher
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.DIRECTORY_PUBLISHER_APP_ID }}
+          private-key: ${{ secrets.DIRECTORY_PUBLISHER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - name: Advance only the production marker with exact readback
+        env:
+          EXPECTED_PRODUCTION_COMMIT: ${{ needs.materialize_site.outputs.ledger_commit }}
+          PUBLISHER_TOKEN: ${{ steps.publisher.outputs.token }}
+        run: |
+          test "$(git -C exact-pages-tree rev-parse HEAD)" = "${EXPECTED_PRODUCTION_COMMIT}"
+          marker_ref="$(python3 -c 'import json; print(json.load(open("trusted-source/registry/publication/production-marker.json"))["marker_ref"])')"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${PUBLISHER_TOKEN}" | base64 -w0)"
+          GIT_CONFIG_COUNT=1 \
+          GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+          GIT_CONFIG_VALUE_0="${auth_header}" \
+          python3 trusted-source/scripts/directory_publication_cas.py production-publish \
+            --repo exact-pages-tree --production-new "${EXPECTED_PRODUCTION_COMMIT}" \
+            --production-tag "${marker_ref}"
+
   observe_production_latest:
     name: Observe exact production latest after deployment
-    needs: [sign, materialize_site, deploy]
+    needs: [sign, materialize_site, deploy, record_production_marker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

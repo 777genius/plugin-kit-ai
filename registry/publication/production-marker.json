@@ -1,0 +1,6 @@
+{
+  "bootstrap_sequence": 13,
+  "contract_version": 1,
+  "marker_ref": "refs/tags/directory-publication-schema-1-production",
+  "sequence_tag_prefix": "refs/tags/directory-publication-schema-1-sequence-"
+}

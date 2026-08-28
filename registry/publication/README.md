@@ -68,7 +68,7 @@ Before enabling `.github/workflows/directory-publication.yml`:
    Administration, Workflows, Environments, or other permission. Its installation
    token is the only credential allowed to update the ledger branch or create
    publication-floor tags; the workflow's generic `GITHUB_TOKEN` stays read-only.
-3. Create eight active repository rulesets. The ledger branch update gate targets only
+3. Create ten active repository rulesets. The ledger branch update gate targets only
    `directory-publication-ledger`, enables **Restrict updates**, and names only
    the installed `uap-directory-publisher` App as an always-allowed bypass actor.
    A second branch immutability guard targets the same branch, blocks deletion
@@ -88,6 +88,12 @@ Before enabling `.github/workflows/directory-publication.yml`:
    **Restrict deletions** with **no bypass actors**. This fixed tag is absent
    before launch and may be created only by the post-ceremony job; never create,
    move, or delete it manually.
+   The production marker gate targets only
+   `directory-publication-schema-1-production`, restricts creations and updates,
+   and names only the installed App as an always-allowed bypass actor. Its
+   deletion guard blocks deletion with **no bypass actors**. Unlike sequence and
+   launch-approval tags, this marker is intentionally advanced after each
+   successful Pages deployment and never before it.
    In addition, split `main` protection into two rulesets before enabling
    publication. The `main` update/review gate must retain required review and
    required status checks for everyone except the installed dedicated
@@ -216,6 +222,15 @@ approved lineage is an ancestor of the current CAS/ledger head. A failed
 deployment or gate leaves the prior GitHub Pages production pointer in place
 and is retried from the already signed `Q` and authenticated `M`; it never
 allocates a new sequence.
+
+The scheduled production observer resolves
+`directory-publication-schema-1-production`, derives the signed identity from
+that exact ledger commit, and compares it byte-for-byte with Pages. Before the
+first protected deployment creates this marker, `production-marker.json`
+selects the already deployed sequence-13 tag as a one-time bootstrap. Staged
+ledger `HEAD` is never treated as production. After Pages succeeds, the
+publisher advances the production marker with an exact lease, monotonic lineage
+check, and exact readback; a lost response is safe to retry.
 
 The publisher validates the latest ledger signature even after client expiry.
 Expired data can supply only the sequence and immutable provenance for recovery,
