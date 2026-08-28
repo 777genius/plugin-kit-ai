@@ -871,6 +871,39 @@ source = "/user/replaced-marketplace"
 	}
 }
 
+func TestDeactivatorRetainsManagedCodexArtifactWhenCLIIsUnavailable(t *testing.T) {
+	t.Parallel()
+	request := codexDeactivationRequest(t)
+	request.Confirmed = true
+	request.BackendExecutable = ""
+	outcome, err := (Activator{}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marketplace := managedMarketplaceName(request.PhysicalArtifactID)
+	if outcome.ArtifactRemovalAllowed || outcome.ExternalRemovalComplete || outcome.Activation != domain.ActivationManual ||
+		len(outcome.UserActions) != 1 || !strings.Contains(outcome.UserActions[0], marketplace) {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+func TestDeactivatorAllowsIdempotentCodexRemovalWhenRegistryIsAlreadyAbsent(t *testing.T) {
+	t.Parallel()
+	request := codexDeactivationRequest(t)
+	request.Confirmed = true
+	request.BackendExecutable = ""
+	if err := os.Remove(filepath.Join(request.Client.ConfigRoot, "config.toml")); err != nil {
+		t.Fatal(err)
+	}
+	outcome, err := (Activator{}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete || outcome.Activation != domain.ActivationNotRequired {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
 func TestDeactivatorTreatsAlreadyAbsentNativeObjectsAsRemoved(t *testing.T) {
 	t.Parallel()
 	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {

@@ -67,11 +67,27 @@ func (activator Activator) Deactivate(ctx context.Context, request domain.Deacti
 		if !request.ExternalUninstalled {
 			return requireExternalUninstall(outcome, false, "uninstall the plugin in Codex, then rerun remove with `--external-uninstalled` (also use the flag if it was never activated)"), nil
 		}
-		if !request.Confirmed || strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
+		if !request.Confirmed {
 			return requireExternalUninstall(outcome, true, ""), nil
 		}
-		if err := activator.deactivateCodexMarketplace(ctx, request); err != nil {
+		if strings.TrimSpace(request.PhysicalArtifactID) == "" {
+			return outcome, fmt.Errorf("managed Codex marketplace identity is missing")
+		}
+		marketplace := managedMarketplaceName(request.PhysicalArtifactID)
+		registered, err := managedCodexMarketplaceRegistered(request.Client.ConfigRoot, marketplace, request.ManagedArtifactPath)
+		if err != nil {
 			return outcome, err
+		}
+		if registered {
+			if strings.TrimSpace(request.BackendExecutable) == "" || activator.Runner == nil {
+				outcome.Activation = domain.ActivationManual
+				outcome.ArtifactRemovalAllowed = false
+				outcome.UserActions = []string{fmt.Sprintf("run `codex plugin marketplace remove %s --json`, then retry removal", marketplace)}
+				return outcome, nil
+			}
+			if err := activator.removeCodexMarketplace(ctx, request.BackendExecutable, marketplace); err != nil {
+				return outcome, err
+			}
 		}
 		outcome.ExternalRemovalComplete = true
 		return outcome, nil
@@ -406,19 +422,8 @@ func (activator Activator) deactivateCopilot(ctx context.Context, request domain
 	return nil
 }
 
-func (activator Activator) deactivateCodexMarketplace(ctx context.Context, request domain.DeactivationRequest) error {
-	if strings.TrimSpace(request.PhysicalArtifactID) == "" {
-		return fmt.Errorf("managed Codex marketplace identity is missing")
-	}
-	marketplace := managedMarketplaceName(request.PhysicalArtifactID)
-	registered, err := managedCodexMarketplaceRegistered(request.Client.ConfigRoot, marketplace, request.ManagedArtifactPath)
-	if err != nil {
-		return err
-	}
-	if !registered {
-		return nil
-	}
-	remove, err := activator.runClientResult(ctx, "Codex CLI", request.BackendExecutable, "plugin", "marketplace", "remove", marketplace, "--json")
+func (activator Activator) removeCodexMarketplace(ctx context.Context, executable, marketplace string) error {
+	remove, err := activator.runClientResult(ctx, "Codex CLI", executable, "plugin", "marketplace", "remove", marketplace, "--json")
 	if err != nil && !commandOutputContains(remove, "not configured or installed") {
 		return fmt.Errorf("remove managed Codex marketplace %s: %w", marketplace, err)
 	}
