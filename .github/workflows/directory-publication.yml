@@ -649,15 +649,16 @@ jobs:
           EXPECTED_LEDGER_COMMIT: ${{ needs.sign.outputs.ledger_commit }}
           EXISTING_MATERIALIZED_COMMIT: ${{ needs.sign.outputs.materialized_ledger_commit }}
         run: |
-          rsync -a --delete --exclude=.git --exclude=registry "${RUNNER_TEMP}/validated-site/" ledger/
+          rsync -a --delete --exclude=.git --exclude=registry --exclude=/discovery "${RUNNER_TEMP}/validated-site/" ledger/
           git -C ledger diff --exit-code -- registry/schemas/1/snapshots
           git -C ledger diff --exit-code -- registry
+          git -C ledger diff --exit-code -- discovery
           if test -n "${EXISTING_MATERIALIZED_COMMIT}"; then
             git -C ledger fetch --no-tags origin "${EXISTING_MATERIALIZED_COMMIT}"
             test "$(git -C ledger show -s --format=%P "${EXISTING_MATERIALIZED_COMMIT}")" = "${EXPECTED_LEDGER_COMMIT}"
             test "$(git -C ledger show -s --format=%B "${EXISTING_MATERIALIZED_COMMIT}")" = "chore(directory): materialize signed production site"
             git -C ledger diff --exit-code "${EXPECTED_LEDGER_COMMIT}" "${EXISTING_MATERIALIZED_COMMIT}" -- registry
-            git -C ledger add -A -- . ':!registry'
+            git -C ledger add -A -- . ':!registry' ':!discovery'
             test "$(git -C ledger write-tree)" = "$(git -C ledger show -s --format=%T "${EXISTING_MATERIALIZED_COMMIT}")" || {
               echo "rerun site tree differs from authenticated materialized descendant" >&2
               exit 1
@@ -667,9 +668,10 @@ jobs:
           elif test -n "$(git -C ledger status --porcelain)"; then
             git -C ledger config user.name "uap-directory-publisher[bot]"
             git -C ledger config user.email "uap-directory-publisher[bot]@users.noreply.github.com"
-            git -C ledger add -A -- . ':!registry'
+            git -C ledger add -A -- . ':!registry' ':!discovery'
             git -C ledger diff --cached --exit-code -- registry/schemas/1/snapshots
             git -C ledger diff --cached --exit-code -- registry
+            git -C ledger diff --cached --exit-code -- discovery
             git -C ledger -c core.hooksPath=/dev/null commit -m "chore(directory): materialize signed production site"
             test "$(git -C ledger rev-parse HEAD^)" = "${EXPECTED_LEDGER_COMMIT}"
           fi
@@ -692,6 +694,7 @@ jobs:
           git -C ledger diff --cached --exit-code
           git -C ledger diff --exit-code "${EXPECTED_LEDGER_COMMIT}" HEAD -- registry/schemas/1/snapshots
           git -C ledger diff --exit-code "${EXPECTED_LEDGER_COMMIT}" HEAD -- registry
+          git -C ledger diff --exit-code "${EXPECTED_LEDGER_COMMIT}" HEAD -- discovery
           test "$(git -C ledger rev-parse HEAD)" = "${MATERIALIZED_LEDGER_COMMIT}"
           auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${PUBLISHER_TOKEN}" | base64 -w0)"
           GIT_CONFIG_COUNT=1 \

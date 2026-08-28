@@ -1,6 +1,7 @@
 import json
 import hashlib
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -476,6 +477,41 @@ class WorkflowContractTests(unittest.TestCase):
                 body = commands(workflow["jobs"][job_name])
                 self.assertIn("cryptography==46.0.3", pinned_requirements(body))
                 self.assertIn("jsonschema==4.26.0", pinned_requirements(body))
+
+    def test_directory_materialization_preserves_the_discovery_feed(self) -> None:
+        workflow = load(DIRECTORY_PUBLICATION)
+        materialize = workflow["jobs"]["materialize_site"]
+        body = commands(materialize)
+        self.assertIn("rsync -a --delete --exclude=.git --exclude=registry --exclude=/discovery", body)
+        self.assertIn("diff --exit-code -- discovery", body)
+        self.assertIn("diff --cached --exit-code -- discovery", body)
+        self.assertIn("diff --exit-code \"${EXPECTED_LEDGER_COMMIT}\" HEAD -- discovery", body)
+        self.assertEqual(body.count("':!discovery'"), 2)
+
+    def test_directory_materialization_delete_semantics_keep_signed_feeds(self) -> None:
+        rsync = shutil.which("rsync")
+        if rsync is None:
+            self.skipTest("rsync is not installed")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            generated = root / "generated"
+            ledger = root / "ledger"
+            generated.mkdir()
+            (ledger / "registry").mkdir(parents=True)
+            (ledger / "discovery").mkdir()
+            (generated / "index.html").write_text("new generated site\n")
+            (ledger / "index.html").write_text("old site\n")
+            (ledger / "stale.html").write_text("remove me\n")
+            (ledger / "registry" / "latest.json").write_text("directory\n")
+            (ledger / "discovery" / "latest.json").write_text("discovery\n")
+            subprocess.run([
+                rsync, "-a", "--delete", "--exclude=.git", "--exclude=registry",
+                "--exclude=/discovery", str(generated) + "/", str(ledger) + "/",
+            ], check=True)
+            self.assertEqual((ledger / "index.html").read_text(), "new generated site\n")
+            self.assertFalse((ledger / "stale.html").exists())
+            self.assertEqual((ledger / "registry" / "latest.json").read_text(), "directory\n")
+            self.assertEqual((ledger / "discovery" / "latest.json").read_text(), "discovery\n")
 
     def test_pages_concurrency_isolates_prs_from_production(self) -> None:
         workflow = load(PAGES)
