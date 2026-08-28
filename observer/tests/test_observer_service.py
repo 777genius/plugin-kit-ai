@@ -4593,7 +4593,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             "kind": "other",
             "rawInput": {
                 "query": "Cloudflare Durable Objects SQLite storage API",
-                "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+                "_meta": {"_activePath": [], "_completedPaths": [["query"]], "_isValid": True},
             },
             "_meta": {"kiro": {"serverName": "cloudflare-docs", "toolOrigin": "client"}},
         })
@@ -4624,7 +4624,7 @@ class FixedAdapterContractTests(unittest.TestCase):
         current_meta = {"kiro": {"serverName": "cloudflare-docs", "toolOrigin": "client"}}
         current_input = {
             "query": "Cloudflare Durable Objects SQLite storage API",
-            "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
+            "_meta": {"_activePath": [], "_completedPaths": [["query"]], "_isValid": True},
         }
         records[10]["params"]["update"].update({"rawInput": current_input, "_meta": current_meta})
         records.insert(11, json.loads(json.dumps(records[10])))
@@ -4720,6 +4720,20 @@ class FixedAdapterContractTests(unittest.TestCase):
             with self.subTest(flow_mutation=mutation), self.assertRaises(ValueError):
                 for record in candidate:
                     contract.accept(record)
+
+    def test_kiro_current_probe_input_binds_every_argument_path(self) -> None:
+        self.assertEqual(
+            fixed_adapters.kiro_probe_input("context7"),
+            {
+                "libraryName": "React",
+                "query": "React library",
+                "_meta": {
+                    "_activePath": [],
+                    "_completedPaths": [["libraryName"], ["query"]],
+                    "_isValid": True,
+                },
+            },
+        )
 
     def test_kiro_acp_2200_power_discovery_fail_closed(self) -> None:
         marker = "UAP_OBSERVER_OK kiro cloudflare-docs " + "5" * 64
@@ -4986,9 +5000,17 @@ class FixedAdapterContractTests(unittest.TestCase):
             contract.accept(record)
         self.assertTrue(contract.complete())
 
+        empty = json.loads(json.dumps(progressive))
+        empty["params"]["items"] = []
+        candidate = [*records[:2], empty, *records[2:]]
+        contract = fixed_adapters.KiroACPContract("cloudflare-docs", "search_cloudflare_documentation", marker)
+        for record in candidate:
+            contract.accept(record)
+        self.assertTrue(contract.complete())
+
         mutations = (
             lambda params: params.update(status="failed"),
-            lambda params: params.update(items=[]),
+            lambda params: params.update(status="loading", items=[]),
             lambda params: params.update(items=[None]),
             lambda params: params.update(extra=True),
             lambda params: params.update(sessionId="foreign"),

@@ -145,17 +145,31 @@ SKILL_PROBE_PROMPT = (
     "beginning UAP_SKILL_SECRET_ in this workspace. Return that exact line only."
 )
 MCP_PROBE_HINTS = {
-    "context7": " with libraryName React",
+    "context7": " with libraryName React and query React library",
     "cloudflare-docs": " with query Cloudflare Durable Objects SQLite storage API",
     "chrome-devtools": "",
     "notion": " with query UAP read-only probe",
 }
 MCP_PROBE_INPUTS = {
-    "context7": {"libraryName": "React"},
+    "context7": {"libraryName": "React", "query": "React library"},
     "cloudflare-docs": {"query": "Cloudflare Durable Objects SQLite storage API"},
     "chrome-devtools": {},
     "notion": {"query": "UAP read-only probe"},
 }
+
+
+def kiro_probe_input(plugin: str) -> dict[str, Any]:
+    arguments = MCP_PROBE_INPUTS[plugin]
+    return {
+        **arguments,
+        "_meta": {
+            "_activePath": [],
+            "_completedPaths": [[name] for name in arguments],
+            "_isValid": True,
+        },
+    }
+
+
 CURSOR_MAX_THINKING_EVENTS = 32
 KIRO_PROTOCOL_VERSION = 1
 KIRO_CLI_SHA256 = "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358"
@@ -1769,7 +1783,8 @@ class KiroACPContract:
             if (
                 set(params) != {"items", "sessionId", "status"}
                 or params.get("status") not in {"loading", "success"}
-                or not isinstance(items, list) or not items or len(items) > KIRO_MAX_TOOLS
+                or not isinstance(items, list) or len(items) > KIRO_MAX_TOOLS
+                or not items and params.get("status") != "success"
                 or any(not isinstance(item, dict) or not item for item in items)
             ):
                 raise ValueError("Kiro ACP progressive context notification differs")
@@ -1873,10 +1888,7 @@ class KiroACPContract:
                 current_fields = legacy_fields | {"kind", "rawInput"}
                 legacy_meta = {"kiro": {"serverName": self.plugin}}
                 current_meta = {"kiro": {"serverName": self.plugin, "toolOrigin": "client"}}
-                current_input = {
-                    **MCP_PROBE_INPUTS[self.plugin],
-                    "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
-                }
+                current_input = kiro_probe_input(self.plugin)
                 if (
                     update.get("status") != "pending" or update.get("title") != expected_title
                     or frozenset(update) not in {frozenset(legacy_fields), frozenset(current_fields)}
@@ -1939,10 +1951,7 @@ class KiroACPContract:
                         and set(update) == {"sessionUpdate", "status", "toolCallId", "_meta"}
                         and update.get("_meta") == {"kiro": {"serverName": self.plugin}}
                     )
-                    current_input = {
-                        **MCP_PROBE_INPUTS[self.plugin],
-                        "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
-                    }
+                    current_input = kiro_probe_input(self.plugin)
                     current = (
                         self.target_shape == "client"
                         and set(update) == {"sessionUpdate", "status", "toolCallId", "rawInput", "_meta"}
@@ -1963,10 +1972,7 @@ class KiroACPContract:
                     expected_title = f"@{self.plugin}/{self.tool}"
                     legacy_fields = {"sessionUpdate", "status", "title", "toolCallId", "content", "rawOutput", "_meta"}
                     current_fields = legacy_fields | {"rawInput"}
-                    current_input = {
-                        **MCP_PROBE_INPUTS[self.plugin],
-                        "_meta": {"_activePath": [], "_completedPaths": [], "_isValid": True},
-                    }
+                    current_input = kiro_probe_input(self.plugin)
                     valid_shape = (
                         (
                             self.target_shape == "legacy" and set(update) == legacy_fields

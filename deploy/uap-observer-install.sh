@@ -13,7 +13,7 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=8e6eabe72cccdfab85f0e6268407a7741d9aa4c5e340b2ba909aad0c4f5d38d1
+runtime_manifest_digest=7b23902d54ba14210e9433971d05a04b5bb32bdb1c79f31c3858fd8c78cfa57a
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
 closure_digest=
 closure_stage=
@@ -52,7 +52,7 @@ if [ -e /opt/uap-observer-current ] || [ -L /opt/uap-observer-current ]; then
   observer_validate_installed_closure_sources "$installed_closure" "$untrusted_source_root" \
     "$untrusted_adapter_config" "$untrusted_observer_config" "$untrusted_caddy_config" "$untrusted_egress_allowlist" \
     6bd02afedb20814d7478ba876744a03f1f2317a23310e0baec28423abe8b4129 \
-    ec53324cbcf6fbd40c8611d25065f22e82d28b8c93b9e37b2ac2ab1a8c9635aa \
+    a67d5dd69e6de8af081b6f1146663f626890a6202ffe53b136826ef763383004 \
     b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
   observer_validate_installed_accounts_and_state "$installed_closure"
   observer_validate_protected_inputs "$installed_closure"
@@ -114,7 +114,7 @@ runner_source="$source_root/observer/fixed_runner.py"
 adapter_source="$source_root/observer/fixed_adapters.py"
 egress_proxy_source="$source_root/deploy/uap-observer-egress-proxy.py"
 runner_digest=6bd02afedb20814d7478ba876744a03f1f2317a23310e0baec28423abe8b4129
-adapter_digest=ec53324cbcf6fbd40c8611d25065f22e82d28b8c93b9e37b2ac2ab1a8c9635aa
+adapter_digest=a67d5dd69e6de8af081b6f1146663f626890a6202ffe53b136826ef763383004
 caddy_digest=b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
 
 test -f "$runner_source"
