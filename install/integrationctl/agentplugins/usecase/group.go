@@ -303,7 +303,7 @@ func (service Service) applyGroup(ctx context.Context, input GroupInput, replace
 			if err := service.observeGroupPreparedIdentity(ctx, target.Client, plan, managed, input.Repair); err != nil {
 				return result, err
 			}
-			if managed != nil {
+			if managed != nil && !input.Repair {
 				if err := service.verifyManagedTarget(ctx, target.Client, target.Scope, *managed, "group dry-run"); err != nil {
 					return result, err
 				}
