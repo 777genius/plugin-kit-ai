@@ -27,7 +27,18 @@ interface SnapshotFixture {
     }>
     releases: Array<Record<string, unknown>>
   }>
-  evidence: Array<{ id: string, distribution_id: string, release_sequence: number, client?: string, level: string, outcome: string, package_tree_digest: string, installer_version?: string, artifact: { digest: string } }>
+  evidence: Array<{
+    id: string
+    distribution_id: string
+    release_sequence: number
+    client?: string
+    level: string
+    outcome: string
+    package_tree_digest: string
+    installer_version?: string
+    artifact: { digest: string, revision: string }
+    trust: { kind: string, workflow?: string, source_ref?: string, source_digest?: string }
+  }>
   revocations: Array<{ distribution_id: string, release_sequence: number }>
 }
 
@@ -78,10 +89,10 @@ describe('registry parsing', () => {
     assert.equal(expectedDistribution(directory.plugins[0]!, ['codex', 'kiro'])?.id, 'example/demo-bridge')
     assert.deepEqual(directory.plugins[0]?.evidence[0], {
       id: 'runtime-demo-codex', client: 'codex', level: 'runtime', outcome: 'passed', client_version: '0.200.0', os: 'linux', architecture: 'amd64', tested_at: '2026-08-19T00:00:00Z',
-      package_tree_digest: `sha256:${'1'.repeat(64)}`, installer_version: '0.1.6', artifact: { repository: 'example/evidence', revision: 'e'.repeat(40), path: 'evidence/demo.json', digest: `sha256:${'3'.repeat(64)}`, url: `https://github.com/example/evidence/blob/${'e'.repeat(40)}/evidence/demo.json` },
+      package_tree_digest: `sha256:${'1'.repeat(64)}`, trusted_for_eligibility: true, installer_version: '0.1.6', artifact: { repository: 'example/evidence', revision: 'e'.repeat(40), path: 'evidence/demo.json', digest: `sha256:${'3'.repeat(64)}`, url: `https://github.com/example/evidence/blob/${'e'.repeat(40)}/evidence/demo.json` },
     })
     assert.deepEqual(directory.plugins[0]?.package_evidence[0], {
-      id: 'schema-demo', level: 'schema', outcome: 'passed', package_tree_digest: `sha256:${'1'.repeat(64)}`,
+      id: 'schema-demo', level: 'schema', outcome: 'passed', package_tree_digest: `sha256:${'1'.repeat(64)}`, trusted_for_eligibility: true,
       artifact: { repository: 'example/evidence', revision: 'f'.repeat(40), path: 'evidence/demo-schema.json', digest: `sha256:${'6'.repeat(64)}`, url: `https://github.com/example/evidence/blob/${'f'.repeat(40)}/evidence/demo-schema.json` },
     })
     assert.equal('client' in directory.plugins[0]!.package_evidence[0]!, false)
@@ -124,9 +135,27 @@ describe('registry parsing', () => {
       const runtime = raw.evidence.find(item => item.id === 'runtime-demo-codex')!
       runtime.level = level
       runtime.outcome = 'failed'
+      if (level === 'materialization') runtime.trust = {
+        kind: 'github_actions',
+        workflow: 'example/evidence/.github/workflows/evidence.yml',
+        source_ref: 'refs/heads/main',
+        source_digest: runtime.artifact.revision,
+      }
       const plugin = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
       assert.equal(expectedDistribution(plugin, ['codex'])?.id, 'example/demo-bridge', `${level} failure must fall back`)
       assert.equal(expectedDistribution(plugin, ['cursor'])?.id, 'example/demo', `${level} failure must block only its client`)
+    }
+  })
+
+  it('matches the CLI by ignoring untrusted materialization evidence', () => {
+    for (const mutation of ['missing', 'mismatched-source']) {
+      const raw = signedFixture()
+      for (const observation of raw.evidence.filter(item => item.level === 'materialization')) {
+        if (mutation === 'missing') delete (observation as unknown as Record<string, unknown>).trust
+        else observation.trust.source_digest = '0'.repeat(40)
+      }
+      const plugin = parseDirectoryData(raw, 'published_snapshot').plugins[0]!
+      assert.equal(expectedDistribution(plugin, ['codex'])?.id, 'example/demo-bridge', mutation)
     }
   })
 

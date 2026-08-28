@@ -139,8 +139,14 @@
       "level": "schema",
       "outcome": "passed",
       "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "release_sequence": 2,
-      "schema_version": 1
+    "release_sequence": 2,
+    "schema_version": 1,
+    "trust": {
+      "kind": "github_actions",
+      "source_digest": "ffffffffffffffffffffffffffffffffffffffff",
+      "source_ref": "refs/heads/main",
+      "workflow": "example/evidence/.github/workflows/evidence.yml"
+    }
     },
     {
       "architecture": "amd64",
@@ -160,18 +166,23 @@
       "os": "linux",
       "outcome": "passed",
       "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "release_sequence": 2,
-      "schema_version": 1
+    "release_sequence": 2,
+    "schema_version": 1,
+    "trust": {
+      "kind": "reviewed_external"
+    }
     },
     {
       "architecture": "amd64",
       "artifact": { "digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777", "path": "evidence/demo-codex-materialization.json", "repository": "example/evidence", "revision": "7777777777777777777777777777777777777777" },
-      "client": "codex", "client_version": "0.200.0", "distribution_id": "example/demo", "id": "materialization-demo-codex", "installer_version": "0.1.6", "level": "materialization", "observed_at": "2026-08-19T00:00:00Z", "os": "linux", "outcome": "passed", "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "release_sequence": 2, "schema_version": 1
+      "client": "codex", "client_version": "0.200.0", "distribution_id": "example/demo", "id": "materialization-demo-codex", "installer_version": "0.1.6", "level": "materialization", "observed_at": "2026-08-19T00:00:00Z", "os": "linux", "outcome": "passed", "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "release_sequence": 2, "schema_version": 1,
+      "trust": {"kind": "github_actions", "workflow": "example/evidence/.github/workflows/evidence.yml", "source_ref": "refs/heads/main", "source_digest": "7777777777777777777777777777777777777777"}
     },
     {
       "architecture": "amd64",
       "artifact": { "digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888", "path": "evidence/demo-cursor-materialization.json", "repository": "example/evidence", "revision": "8888888888888888888888888888888888888888" },
-      "client": "cursor", "client_version": "1.0.0", "distribution_id": "example/demo", "id": "materialization-demo-cursor", "installer_version": "0.1.6", "level": "materialization", "observed_at": "2026-08-19T00:00:00Z", "os": "linux", "outcome": "passed", "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "release_sequence": 2, "schema_version": 1
+      "client": "cursor", "client_version": "1.0.0", "distribution_id": "example/demo", "id": "materialization-demo-cursor", "installer_version": "0.1.6", "level": "materialization", "observed_at": "2026-08-19T00:00:00Z", "os": "linux", "outcome": "passed", "package_tree_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111", "release_sequence": 2, "schema_version": 1,
+      "trust": {"kind": "github_actions", "workflow": "example/evidence/.github/workflows/evidence.yml", "source_ref": "refs/heads/main", "source_digest": "8888888888888888888888888888888888888888"}
     }
   ],
   "expires_at": "2026-09-19T00:00:00Z",

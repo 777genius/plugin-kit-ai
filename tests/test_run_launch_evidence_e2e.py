@@ -4948,7 +4948,7 @@ print("accepted")
                 self.assertEqual(identity, {
                     "publication_id": "fixture-1",
                     "sequence": 7,
-                    "snapshot_digest": "sha256:c2d6a5570426f99956a247d8a164e7a2d7ddbf69b071ec5c74c7cf3c88054683",
+                    "snapshot_digest": "sha256:82a3c3c0528cdf846304fafccc1428ef0092cdfd47b36e1d8589fbc341ffe5de",
                     "source_commit": "d" * 40,
                 })
                 snapshot.unlink()

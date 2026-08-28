@@ -6,6 +6,7 @@ import type {
   DistributionResolution,
   DistributionKind,
   DistributionView,
+  EvidenceLevel,
   PluginAuthor,
   PluginIcon,
   PackageEvidence,
@@ -24,6 +25,8 @@ const COMPONENTS = new Set<ComponentID>(['extensions', 'mcp', 'skills'])
 const CLIENTS = new Set<ClientID>(['codex', 'chatgpt', 'cursor', 'copilot', 'vscode', 'kiro'])
 const KINDS = new Set<DistributionKind>(['upstream', 'community_bridge', 'community'])
 const RFC3339_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/
+const EVIDENCE_WORKFLOW = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*\/\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/
+const EVIDENCE_SOURCE_REF = /^refs\/heads\/[A-Za-z0-9._/-]+$/
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -157,6 +160,7 @@ function legacyEvidence(value: unknown, context: string): ClientEvidence[] {
     client,
     level: 'runtime',
     outcome: 'passed',
+    trusted_for_eligibility: false,
   }))
 }
 
@@ -285,6 +289,25 @@ function releaseTargets(value: unknown, context: string): ReleaseTarget[] {
   })
 }
 
+function evidenceTrustedForEligibility(item: Record<string, unknown>, level: EvidenceLevel): boolean {
+  if (!record(item.trust)) return false
+  const trust = item.trust
+  if (trust.kind === 'github_actions') {
+    const workflow = optionalString(trust, 'workflow')
+    const sourceRef = optionalString(trust, 'source_ref')
+    const sourceDigest = optionalString(trust, 'source_digest')
+    const artifact = item.artifact
+    if (!workflow || !EVIDENCE_WORKFLOW.test(workflow)
+      || !sourceRef || !EVIDENCE_SOURCE_REF.test(sourceRef)
+      || !sourceDigest || !REVISION.test(sourceDigest)
+      || !record(artifact)
+      || workflow.slice(0, workflow.indexOf('/.github/workflows/')) !== artifact.repository
+      || artifact.revision !== sourceDigest) return false
+    return true
+  }
+  return trust.kind === 'reviewed_external' && ['discovery', 'runtime', 'oauth'].includes(level)
+}
+
 function evidenceFromSnapshot(input: unknown, distributionID: string, releaseSequence: number, treeDigest: string, selectedIDs: readonly string[]): { client: ClientEvidence[], package: PackageEvidence[] } {
   const client: ClientEvidence[] = []
   const packageEvidence: PackageEvidence[] = []
@@ -314,6 +337,7 @@ function evidenceFromSnapshot(input: unknown, distributionID: string, releaseSeq
       id: String(item.id),
       outcome: outcome as ClientEvidence['outcome'],
       package_tree_digest: treeDigest,
+      trusted_for_eligibility: evidenceTrustedForEligibility(item, level as EvidenceLevel),
       ...(optionalString(item, 'observed_at') ? { tested_at: optionalString(item, 'observed_at') } : {}),
       artifact,
     }
@@ -414,8 +438,8 @@ function parseSnapshot(input: Record<string, unknown>, mode: 'published_snapshot
         const evidence = evidenceFromSnapshot(input.evidence ?? input.verification_summaries ?? input.current_verification, id, releaseSequence, treeDigest, policy.current_evidence as string[])
         const components = stringArray(release.components ?? [], 'components', `distribution ${id}`) as ComponentID[]
         if (components.some(component => !COMPONENTS.has(component))) throw new Error(`distribution ${id}: unsupported component`)
-        const blockingClients = [...new Set(evidence.client.filter(observation => observation.outcome === 'failed' && ['materialization', 'discovery', 'runtime'].includes(observation.level)).map(observation => observation.client))]
-        const materializedClients = [...new Set(evidence.client.filter(observation => observation.level === 'materialization' && observation.outcome === 'passed').map(observation => observation.client))]
+        const blockingClients = [...new Set(evidence.client.filter(observation => observation.trusted_for_eligibility && observation.outcome === 'failed' && ['materialization', 'discovery', 'runtime'].includes(observation.level)).map(observation => observation.client))]
+        const materializedClients = [...new Set(evidence.client.filter(observation => observation.trusted_for_eligibility && observation.level === 'materialization' && observation.outcome === 'passed').map(observation => observation.client))]
         const meetsMinimumCapabilities = [...requiredComponents].every(component => components.includes(component))
         return {
           release_sequence: releaseSequence,

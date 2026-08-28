@@ -111,14 +111,66 @@ class CanonicalAndSignatureTests(unittest.TestCase):
         with self.assertRaises(publication.PublicationError):
             publication.validate_with_schema(signed_with_null_time, publication.SNAPSHOT_SCHEMA)
 
-    def test_publication_evidence_schema_preserves_every_reviewed_field(self) -> None:
+    def test_publication_evidence_schema_matches_released_cli_wire_contract(self) -> None:
         source = json.loads((ROOT / "schemas" / "directory-evidence.schema.json").read_bytes())
         candidate = json.loads(
             (ROOT / "schemas" / "directory-publication-candidate.schema.json").read_bytes()
         )["$defs"]["evidence"]
+        internal_only = {
+            "product_id", "manifest_digest", "source_repository", "source_revision",
+            "source_path", "adapter_version",
+        }
+        self.assertTrue(internal_only <= set(source["properties"]))
+        self.assertTrue(internal_only.isdisjoint(candidate["properties"]))
+        self.assertIn("trust", candidate["required"])
+
+    def test_public_evidence_projection_strips_internal_identity_and_attestation_chain(self) -> None:
+        record = {
+            "schema_version": 1,
+            "id": "runtime-demo-codex",
+            "product_id": "demo",
+            "distribution_id": "example/demo",
+            "release_sequence": 1,
+            "package_tree_digest": "sha256:" + "1" * 64,
+            "manifest_digest": "sha256:" + "2" * 64,
+            "source_repository": "example/plugins",
+            "source_revision": "a" * 40,
+            "source_path": "plugins/demo",
+            "level": "runtime",
+            "outcome": "passed",
+            "client": "codex",
+            "client_version": "0.200.0",
+            "installer_version": "0.1.18",
+            "adapter_version": "0.1.18",
+            "os": "linux",
+            "architecture": "amd64",
+            "observed_at": "2026-08-28T00:00:00Z",
+            "artifact": {
+                "repository": "example/evidence", "revision": "b" * 40,
+                "path": "evidence/demo.json", "digest": "sha256:" + "3" * 64,
+            },
+            "trust": {
+                "kind": "github_actions",
+                "workflow": "example/evidence/.github/workflows/evidence.yml",
+                "source_ref": "refs/heads/main",
+                "source_digest": "b" * 40,
+                "bundle_manifest": {"must": "not leak"},
+            },
+        }
+        projected = prepare.public_evidence_projection(record)
+        self.assertEqual(projected["id"], "runtime-demo-codex.wire-v1")
+        self.assertTrue({
+            "product_id", "manifest_digest", "source_repository", "source_revision",
+            "source_path", "adapter_version",
+        }.isdisjoint(projected))
         self.assertEqual(
-            set(source["properties"]) - {"trust"},
-            set(candidate["properties"]),
+            projected["trust"],
+            {
+                "kind": "github_actions",
+                "workflow": "example/evidence/.github/workflows/evidence.yml",
+                "source_ref": "refs/heads/main",
+                "source_digest": "b" * 40,
+            },
         )
 
     def test_signature_domain_digest_and_two_key_overlap(self) -> None:
@@ -857,27 +909,38 @@ class PublicationLifecycleTests(unittest.TestCase):
             }
             source["evidence"] = [{**evidence, "trust": {"kind": "reviewed_external"}}]
             source["distributions"][0]["release_policies"][0]["current_evidence"] = ["schema-demo"]
-            with mock.patch.object(prepare, "verified_evidence", return_value=evidence):
+            verified_evidence = {**evidence, "trust": {"kind": "reviewed_external"}}
+            with mock.patch.object(prepare, "verified_evidence", return_value=verified_evidence):
                 evidenced = prepare.build_candidate(
                     source, config, source_commit, "prepare-evidence", None,
                     repository_root=Path(tmp),
                 )
-            self.assertEqual(evidenced["evidence"], [evidence])
+            self.assertEqual(
+                evidenced["evidence"],
+                [prepare.public_evidence_projection(verified_evidence)],
+            )
+            self.assertEqual(
+                evidenced["distributions"][0]["release_policies"][0]["current_evidence"],
+                ["schema-demo.wire-v1"],
+            )
             self.assertEqual(
                 evidenced["distributions"][0]["releases"][0]["package_source"]["revision"],
-                evidenced["evidence"][0]["source_revision"],
+                source_commit,
             )
 
             unused = copy.deepcopy(source["evidence"][0])
             unused["id"] = "unused-local-evidence"
             unused.pop("trust")
             source["evidence"].append(unused)
-            with mock.patch.object(prepare, "verified_evidence", return_value=evidence):
+            with mock.patch.object(prepare, "verified_evidence", return_value=verified_evidence):
                 unaffected = prepare.build_candidate(
                     source, config, source_commit, "prepare-unused-evidence", None,
                     repository_root=Path(tmp),
                 )
-            self.assertEqual(unaffected["evidence"], [evidence])
+            self.assertEqual(
+                unaffected["evidence"],
+                [prepare.public_evidence_projection(verified_evidence)],
+            )
 
             source["evidence"] = []
             source["distributions"][0]["release_policies"][0]["current_evidence"] = []
@@ -1223,7 +1286,9 @@ class PublicationLifecycleTests(unittest.TestCase):
             config = prepare.load_config(ROOT / "registry" / "publication" / "config.json")
             config["trusted_external_evidence"] = [copy.deepcopy(locator)]
             selected = prepare.selected_evidence(source_for(pointer), {"example/demo"}, config, {"example/evidence": repository})
-            self.assertEqual(selected, [{**payload, "artifact": locator}])
+            self.assertEqual(selected, [prepare.public_evidence_projection({
+                **payload, "artifact": locator, "trust": {"kind": "reviewed_external"},
+            })])
 
             invented_summary = {**pointer, "outcome": "failed", "repository": "invented/repository"}
             derived = prepare.selected_evidence(source_for(invented_summary), {"example/demo"}, config, {"example/evidence": repository})

@@ -56,6 +56,7 @@ interface EvidenceDetails {
   id: string
   outcome: EvidenceOutcome
   tested_at?: string
+  trusted_for_eligibility: boolean
 }
 
 export interface PackageEvidence extends EvidenceDetails {

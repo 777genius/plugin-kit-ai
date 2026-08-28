@@ -787,6 +787,74 @@ jobs:
               test "${attempt}" -lt 3
             done
           done
+      - name: Prove compatibility with the exact released CLI
+        env:
+          AGENTPLUGINS_COMMIT: 74a3790ee15d92afda8e8e3dd8f903c04811cfc7
+          AGENTPLUGINS_VERSION: 0.1.18
+          EXPECTED_SEQUENCE: ${{ needs.sign.outputs.sequence }}
+          EXPECTED_MATERIALIZED_LEDGER_COMMIT: ${{ needs.materialize_site.outputs.ledger_commit }}
+        run: |
+          release_dir="${RUNNER_TEMP}/agentplugins-release"
+          mkdir -p "${release_dir}"
+          release_origin="https://github.com/777genius/plugin-kit-ai/releases/download/agentplugins-v${AGENTPLUGINS_VERSION}"
+          for asset in "agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64" checksums.txt release-manifest.json; do
+            curl --fail --silent --show-error --location --max-redirs 3 \
+              --output "${release_dir}/${asset}" "${release_origin}/${asset}"
+          done
+          binary="${release_dir}/agentplugins_${AGENTPLUGINS_VERSION}_linux_amd64"
+          chmod +x "${binary}"
+          cd "${release_dir}"
+          test "$(sha256sum "$(basename "${binary}")" | cut -d ' ' -f 1)" = 9a294d2d117d6be2042aa28f911999edccf051ccbc3f1c7f0f46920cfd6b5779
+          test "$(sha256sum checksums.txt | cut -d ' ' -f 1)" = d581ac34d9880afe998f8f871df285b5474623778d2eae98ebc8780a932a9fa8
+          test "$(sha256sum release-manifest.json | cut -d ' ' -f 1)" = 0e8f7316ddef542067bdd7276273fffa3bc00532afed8fd42be12f612aedea57
+          sha256sum --check checksums.txt --ignore-missing
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          manifest = json.loads(Path("release-manifest.json").read_text())
+          asset = manifest["assets"]["linux-amd64"]
+          binary = Path(asset["file"])
+          assert manifest["schema_version"] == 2
+          assert manifest["tag"] == f"agentplugins-v{os.environ['AGENTPLUGINS_VERSION']}"
+          assert manifest["version"] == os.environ["AGENTPLUGINS_VERSION"]
+          assert manifest["commit"] == os.environ["AGENTPLUGINS_COMMIT"]
+          assert asset["size"] == binary.stat().st_size
+          assert asset["sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest()
+          PY
+          test "$("${binary}" version)" = "agentplugins ${AGENTPLUGINS_VERSION}"
+
+          run_root="${RUNNER_TEMP}/released-cli-directory"
+          mkdir -p "${run_root}"/{home,state,config,cache,tmp,workspace,evidence}
+          origin="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${EXPECTED_MATERIALIZED_LEDGER_COMMIT}/registry/schemas/1/"
+          isolated=(env -i PATH="${PATH}" LANG=C.UTF-8 HOME="${run_root}/home" USERPROFILE="${run_root}/home" \
+            XDG_CONFIG_HOME="${run_root}/config" XDG_CACHE_HOME="${run_root}/cache" \
+            AGENTPLUGINS_HOME="${run_root}/state" AGENTPLUGINS_DIRECTORY_ORIGIN="${origin}" \
+            TMPDIR="${run_root}/tmp" GIT_CONFIG_GLOBAL="${run_root}/home/.gitconfig" \
+            GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 CI=true)
+          cd "${run_root}/workspace"
+          "${isolated[@]}" "${binary}" search context7 --format json > "${run_root}/evidence/search.json"
+          "${isolated[@]}" "${binary}" add context7 --dry-run --target cursor --format json > "${run_root}/evidence/add.json"
+          python3 - "${run_root}/evidence" "${EXPECTED_SEQUENCE}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          evidence = Path(sys.argv[1])
+          expected_sequence = int(sys.argv[2])
+          search = json.loads((evidence / "search.json").read_text())
+          add = json.loads((evidence / "add.json").read_text())
+          assert search["result"] == "success"
+          assert search["data"]["snapshot_sequence"] == expected_sequence
+          result = next(item for item in search["data"]["results"] if item["product_id"] == "context7")
+          assert result["status"] == "available"
+          assert add["result"] == "success"
+          assert add["data"]["targets"][0]["target"] == "cursor"
+          assert add["data"]["targets"][0]["output"]["plugin"] == "context7"
+          assert add["data"]["targets"][0]["output"]["result"]["mutated"] is False
+          PY
 
   required_stable_launch_evidence:
     name: Require stable launch evidence before initial production promotion

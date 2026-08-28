@@ -63,6 +63,36 @@ MAX_PLUGIN_FILES = 10_000
 MAX_PLUGIN_FILE_BYTES = 16 << 20
 MAX_PLUGIN_TREE_BYTES = 64 << 20
 MAX_EVIDENCE_BYTES = 4 << 20
+PUBLIC_EVIDENCE_FIELDS = (
+    "schema_version", "id", "distribution_id", "release_sequence",
+    "package_tree_digest", "level", "outcome", "client", "client_version",
+    "installer_version", "os", "architecture", "dependency_identity",
+    "observed_at", "artifact",
+)
+
+
+def public_evidence_id(evidence_id: str) -> str:
+    """Give the schema-1 wire projection its own immutable identity."""
+    return f"{evidence_id}.wire-v1"
+
+
+def public_evidence_projection(record: dict[str, Any]) -> dict[str, Any]:
+    """Project attested evidence onto the immutable schema-1 wire contract."""
+    projected = {
+        field: copy.deepcopy(record[field])
+        for field in PUBLIC_EVIDENCE_FIELDS
+        if field in record
+    }
+    projected["id"] = public_evidence_id(record["id"])
+    trust = record["trust"]
+    if trust["kind"] == "github_actions":
+        projected["trust"] = {
+            field: trust[field]
+            for field in ("kind", "workflow", "source_ref", "source_digest")
+        }
+    else:
+        projected["trust"] = {"kind": "reviewed_external"}
+    return projected
 
 
 def repository_override(overrides: dict[str, Path], repository: str) -> Path | None:
@@ -505,7 +535,11 @@ def verified_evidence(
             manifest_body=manifest_body, launch_body=launch_body,
             observer_body=observer_body, index_body=index_body,
         )
-        return {**copy.deepcopy(payload), "artifact": copy.deepcopy(artifact)}
+        return {
+            **copy.deepcopy(payload),
+            "artifact": copy.deepcopy(artifact),
+            "trust": copy.deepcopy(pointer["trust"]),
+        }
     finally:
         for chained_temporary in chained:
             chained_temporary.cleanup()
@@ -549,7 +583,7 @@ def selected_evidence(
                     f"{evidence_id}: evidence source identity mismatch",
                 )
                 selected.add(evidence_id)
-    return [copy.deepcopy(verified[item]) for item in sorted(selected)]
+    return [public_evidence_projection(verified[item]) for item in sorted(selected)]
 
 
 def validate_upstream_default_evidence(
@@ -918,11 +952,22 @@ def build_candidate(
     evidence = selected_evidence(
         candidate_source, set(distributions_by_id), config, evidence_overrides,
     )
-    selected_ids = {item["id"] for item in evidence}
+    source_selected_ids = {
+        evidence_id
+        for distribution in output_distributions
+        for policy in distribution["release_policies"]
+        for evidence_id in policy["current_evidence"]
+    }
     validate_local_evidence_anchor(
         config, repository_root,
-        [item for item in candidate_source["evidence"] if item["id"] in selected_ids],
+        [item for item in candidate_source["evidence"] if item["id"] in source_selected_ids],
     )
+    for distribution in output_distributions:
+        for policy in distribution["release_policies"]:
+            policy["current_evidence"] = [
+                public_evidence_id(evidence_id)
+                for evidence_id in policy["current_evidence"]
+            ]
     validate_upstream_default_evidence(products, output_distributions, evidence)
     revocations = [
         {"distribution_id": distribution["id"], "release_sequence": policy["release_sequence"]}

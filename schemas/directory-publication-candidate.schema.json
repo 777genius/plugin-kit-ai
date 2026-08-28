@@ -111,13 +111,16 @@
     },
     "evidence": {
       "type": "object",
-      "required": ["schema_version", "id", "product_id", "distribution_id", "release_sequence", "package_tree_digest", "manifest_digest", "source_repository", "source_revision", "source_path", "level", "outcome", "artifact"],
+      "required": ["schema_version", "id", "distribution_id", "release_sequence", "package_tree_digest", "level", "outcome", "artifact", "trust"],
       "properties": {
-        "schema_version": {"const": 1}, "id": {"$ref": "#/$defs/evidenceId"}, "product_id": {"$ref": "#/$defs/id"}, "distribution_id": {"$ref": "#/$defs/distributionId"}, "release_sequence": {"type": "integer", "minimum": 1}, "package_tree_digest": {"$ref": "#/$defs/digest"}, "manifest_digest": {"$ref": "#/$defs/digest"},
-        "source_repository": {"type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,99})$"}, "source_revision": {"$ref": "#/$defs/sha"}, "source_path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\)(?!.*[?#%])[^\\u0000]+(?<!/)$"},
+        "schema_version": {"const": 1}, "id": {"$ref": "#/$defs/evidenceId"}, "distribution_id": {"$ref": "#/$defs/distributionId"}, "release_sequence": {"type": "integer", "minimum": 1}, "package_tree_digest": {"$ref": "#/$defs/digest"},
         "level": {"enum": ["schema", "materialization", "discovery", "runtime", "oauth"]}, "outcome": {"enum": ["passed", "failed", "inconclusive", "not_tested", "not_applicable"]},
-        "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]}, "client_version": {"type": "string", "minLength": 1}, "installer_version": {"type": "string", "minLength": 1}, "adapter_version": {"type": "string", "minLength": 1}, "os": {"type": "string", "minLength": 1}, "architecture": {"type": "string", "minLength": 1}, "dependency_identity": {"type": "string", "minLength": 1}, "observed_at": {"$ref": "#/$defs/timestamp"},
-        "artifact": {"type": "object", "required": ["repository", "revision", "path", "digest"], "properties": {"repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"}, "revision": {"$ref": "#/$defs/sha"}, "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$"}, "digest": {"$ref": "#/$defs/digest"}}, "additionalProperties": false}
+        "client": {"enum": ["codex", "chatgpt", "cursor", "copilot", "vscode", "kiro"]}, "client_version": {"type": "string", "minLength": 1}, "installer_version": {"type": "string", "minLength": 1}, "os": {"type": "string", "minLength": 1}, "architecture": {"type": "string", "minLength": 1}, "dependency_identity": {"type": "string", "minLength": 1}, "observed_at": {"$ref": "#/$defs/timestamp"},
+        "artifact": {"type": "object", "required": ["repository", "revision", "path", "digest"], "properties": {"repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"}, "revision": {"$ref": "#/$defs/sha"}, "path": {"type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[^\\u0000]+$"}, "digest": {"$ref": "#/$defs/digest"}}, "additionalProperties": false},
+        "trust": {"oneOf": [
+          {"type": "object", "required": ["kind", "workflow", "source_ref", "source_digest"], "properties": {"kind": {"const": "github_actions"}, "workflow": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9._-]*/\\.github/workflows/[A-Za-z0-9._-]+\\.ya?ml$"}, "source_ref": {"type": "string", "pattern": "^refs/heads/[A-Za-z0-9._/-]+$"}, "source_digest": {"$ref": "#/$defs/sha"}}, "additionalProperties": false},
+          {"type": "object", "required": ["kind"], "properties": {"kind": {"const": "reviewed_external"}}, "additionalProperties": false}
+        ]}
       },
       "additionalProperties": false,
       "allOf": [{"if": {"properties": {"level": {"const": "schema"}}}, "then": {"not": {"required": ["client"]}}}, {"if": {"properties": {"level": {"enum": ["materialization", "discovery", "runtime", "oauth"]}}}, "then": {"required": ["client", "client_version", "installer_version", "os", "architecture", "observed_at"]}}]
