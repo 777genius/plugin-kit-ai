@@ -1733,6 +1733,60 @@ func TestRemovePlanExposesExternalUninstallAndPreservesCodexArtifactUntilAcknowl
 	}
 }
 
+func TestRemoveCleansNativeCodexMarketplaceBeforeManagedArtifactDeletion(t *testing.T) {
+	t.Parallel()
+	service, store, _ := serviceFixture(t)
+	client := domain.DetectedClient{
+		ClientID: domain.ClientCodex, Status: domain.DetectionDetected,
+		ConfigRoot: filepath.Join(t.TempDir(), ".codex"),
+	}
+	runner := &codexCleanupUsecaseRunner{configRoot: client.ConfigRoot}
+	if result := runner.writeConfig(false); result.ExitCode != 0 {
+		t.Fatalf("seed Codex config: %s", result.Stderr)
+	}
+	service.Activator = providers.Activator{Runner: runner}
+	add := addInput(t, client, "https://example.com/codex-cleanup")
+	add.Confirmed = true
+	add.BackendExecutable = "/test/bin/codex"
+	installed, err := service.Add(context.Background(), add)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed, err := service.Remove(context.Background(), RemoveInput{
+		Selector: installed.InstallationID, Client: client, Scope: domain.ScopeUser,
+		Confirmed: true, ExternalUninstalled: true, BackendExecutable: "/test/bin/codex",
+		OperationID: "operation-remove-native-codex",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !removed.Mutated || !removed.Deactivation.ExternalRemovalComplete {
+		t.Fatalf("remove result = %+v", removed)
+	}
+	marketplace := providers.ManagedMarketplaceName(installed.Plan.PhysicalArtifactID)
+	wantCleanup := []string{"/test/bin/codex", "plugin", "marketplace", "remove", marketplace, "--json"}
+	if got := runner.commands[len(runner.commands)-1].Argv; !reflect.DeepEqual(got, wantCleanup) {
+		t.Fatalf("last command = %#v, want cleanup %#v", got, wantCleanup)
+	}
+	config, err := os.ReadFile(filepath.Join(client.ConfigRoot, "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(config), marketplace) || !strings.Contains(string(config), "user-marketplace") {
+		t.Fatalf("Codex config did not preserve only the user marketplace:\n%s", config)
+	}
+	if _, err := os.Lstat(installed.Plan.ActivePath); !os.IsNotExist(err) {
+		t.Fatalf("managed Codex artifact survived successful cleanup: %v", err)
+	}
+	state, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Installations) != 1 || len(state.Installations[0].Clients) != 0 || !state.Installations[0].DataRetained {
+		t.Fatalf("remove state = %+v", state.Installations)
+	}
+}
+
 func TestRemoveRefusesUserEditedManagedPackage(t *testing.T) {
 	t.Parallel()
 	service, store, client := serviceFixture(t)
@@ -1899,6 +1953,59 @@ func (activator *observedActivator) PreflightActivation(domain.ActivationRequest
 type fixedUsecaseRunner struct {
 	result legacyports.CommandResult
 	err    error
+}
+
+type codexCleanupUsecaseRunner struct {
+	commands           []legacyports.Command
+	configRoot         string
+	managedMarketplace string
+	managedPath        string
+}
+
+func (runner *codexCleanupUsecaseRunner) Run(_ context.Context, command legacyports.Command) (legacyports.CommandResult, error) {
+	runner.commands = append(runner.commands, command)
+	if len(command.Argv) >= 5 && command.Argv[1] == "plugin" && command.Argv[2] == "marketplace" && command.Argv[3] == "add" {
+		runner.managedPath = command.Argv[4]
+		runner.managedMarketplace = providers.ManagedMarketplaceName(filepath.Base(command.Argv[4]))
+		return runner.writeConfig(true), nil
+	}
+	if len(command.Argv) >= 5 && command.Argv[1] == "plugin" && command.Argv[2] == "marketplace" && command.Argv[3] == "remove" {
+		if command.Argv[4] != runner.managedMarketplace {
+			return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("unexpected marketplace")}, nil
+		}
+		return runner.writeConfig(false), nil
+	}
+	if len(command.Argv) >= 4 && command.Argv[1] == "plugin" && command.Argv[2] == "list" {
+		marketplace := ""
+		name := "demo"
+		for _, prior := range runner.commands {
+			if len(prior.Argv) >= 4 && prior.Argv[1] == "plugin" && prior.Argv[2] == "add" {
+				parts := strings.SplitN(prior.Argv[3], "@", 2)
+				if len(parts) == 2 {
+					name, marketplace = parts[0], parts[1]
+				}
+			}
+		}
+		return legacyports.CommandResult{Stdout: []byte(fmt.Sprintf(
+			`{"installed":[{"pluginId":%q,"name":%q,"marketplaceName":%q,"installed":true,"enabled":true}]}`,
+			name+"@"+marketplace, name, marketplace,
+		))}, nil
+	}
+	return legacyports.CommandResult{}, nil
+}
+
+func (runner *codexCleanupUsecaseRunner) writeConfig(includeManaged bool) legacyports.CommandResult {
+	if err := os.MkdirAll(runner.configRoot, 0o700); err != nil {
+		return legacyports.CommandResult{ExitCode: 1, Stderr: []byte(err.Error())}
+	}
+	body := "[marketplaces.user-marketplace]\nsource_type = \"local\"\nsource = \"/user/marketplace\"\n"
+	if includeManaged {
+		body += fmt.Sprintf("\n[marketplaces.%s]\nsource_type = \"local\"\nsource = %q\n", runner.managedMarketplace, runner.managedPath)
+	}
+	if err := os.WriteFile(filepath.Join(runner.configRoot, "config.toml"), []byte(body), 0o600); err != nil {
+		return legacyports.CommandResult{ExitCode: 1, Stderr: []byte(err.Error())}
+	}
+	return legacyports.CommandResult{}
 }
 
 func (runner fixedUsecaseRunner) Run(context.Context, legacyports.Command) (legacyports.CommandResult, error) {

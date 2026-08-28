@@ -791,6 +791,86 @@ func TestDeactivatorPreviewsThenRemovesNativeCopilotLifecycle(t *testing.T) {
 	}
 }
 
+func TestDeactivatorPreviewsThenCleansManagedCodexMarketplace(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{}
+	request := codexDeactivationRequest(t)
+	preview, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !preview.ArtifactRemovalAllowed || !preview.ExternalRemovalComplete || len(runner.commands) != 0 {
+		t.Fatalf("preview = %+v, commands = %+v", preview, runner.commands)
+	}
+	request.Confirmed = true
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	want := [][]string{{
+		"/test/bin/codex", "plugin", "marketplace", "remove",
+		managedMarketplaceName(request.PhysicalArtifactID), "--json",
+	}}
+	if got := commandArgv(runner.commands); !reflect.DeepEqual(got, want) {
+		t.Fatalf("commands = %#v, want %#v", got, want)
+	}
+}
+
+func TestDeactivatorTreatsAbsentManagedCodexMarketplaceAsClean(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("marketplace `agentplugins-demo` is not configured or installed")}
+	}}
+	request := codexDeactivationRequest(t)
+	request.Confirmed = true
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !outcome.ArtifactRemovalAllowed || !outcome.ExternalRemovalComplete {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+func TestDeactivatorRetainsManagedCodexArtifactWhenMarketplaceCleanupFails(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
+		return legacyports.CommandResult{ExitCode: 1, Stderr: []byte("config write failed")}
+	}}
+	request := codexDeactivationRequest(t)
+	request.Confirmed = true
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "remove managed Codex marketplace") {
+		t.Fatalf("outcome = %+v, error = %v", outcome, err)
+	}
+	if outcome.ExternalRemovalComplete {
+		t.Fatalf("failed cleanup claimed external completion: %+v", outcome)
+	}
+}
+
+func TestDeactivatorNeverRemovesSameNameUserCodexMarketplace(t *testing.T) {
+	t.Parallel()
+	runner := &recordingRunner{}
+	request := codexDeactivationRequest(t)
+	request.Confirmed = true
+	marketplace := managedMarketplaceName(request.PhysicalArtifactID)
+	writeTestFile(t, filepath.Join(request.Client.ConfigRoot, "config.toml"), fmt.Sprintf(`
+[marketplaces.%s]
+source_type = "local"
+source = "/user/replaced-marketplace"
+`, marketplace))
+	outcome, err := (Activator{Runner: runner}).Deactivate(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "no longer points at the managed artifact") {
+		t.Fatalf("outcome = %+v, error = %v", outcome, err)
+	}
+	if len(runner.commands) != 0 || outcome.ExternalRemovalComplete {
+		t.Fatalf("user marketplace was targeted: outcome=%+v commands=%+v", outcome, runner.commands)
+	}
+}
+
 func TestDeactivatorTreatsAlreadyAbsentNativeObjectsAsRemoved(t *testing.T) {
 	t.Parallel()
 	runner := &recordingRunner{run: func(command legacyports.Command) legacyports.CommandResult {
@@ -888,6 +968,29 @@ func TestChatGPTActivationCanOnlyCompleteByExplicitAttestation(t *testing.T) {
 	}
 	if outcome.Activation != domain.ActivationActive || outcome.Verification != domain.VerificationInstalled || !outcome.ActivationAttested {
 		t.Fatalf("ChatGPT attestation = %+v", outcome)
+	}
+}
+
+func codexDeactivationRequest(t *testing.T) domain.DeactivationRequest {
+	t.Helper()
+	configRoot := t.TempDir()
+	managedArtifact := filepath.Join(t.TempDir(), "managed", "demo")
+	physicalArtifactID := "demo-0123456789ab"
+	marketplace := managedMarketplaceName(physicalArtifactID)
+	writeTestFile(t, filepath.Join(configRoot, "config.toml"), fmt.Sprintf(`
+[marketplaces.%s]
+source_type = "local"
+source = %q
+
+[marketplaces.user-marketplace]
+source_type = "local"
+source = "/user/marketplace"
+`, marketplace, managedArtifact))
+	return domain.DeactivationRequest{
+		Client: domain.DetectedClient{ClientID: domain.ClientCodex, ConfigRoot: configRoot}, DeclaredName: "demo",
+		CurrentActivation: domain.ActivationActive, BackendExecutable: "/test/bin/codex",
+		PhysicalArtifactID: physicalArtifactID, ManagedArtifactPath: managedArtifact,
+		ExternalUninstalled: true,
 	}
 }
 

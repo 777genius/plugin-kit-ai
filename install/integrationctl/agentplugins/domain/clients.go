@@ -190,6 +190,7 @@ type DeactivationRequest struct {
 	Confirmed           bool                    `json:"confirmed"`
 	PhysicalArtifactID  string                  `json:"physical_artifact_id"`
 	BackendExecutable   string                  `json:"-"`
+	ManagedArtifactPath string                  `json:"-"`
 	NativeObjects       []NativeObjectOwnership `json:"-"`
 }
 
