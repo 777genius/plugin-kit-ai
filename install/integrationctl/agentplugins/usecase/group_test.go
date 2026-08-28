@@ -140,6 +140,9 @@ func TestGroupedDryRunDoesNotObserveNativeClientIdentity(t *testing.T) {
 	if observer.calls != 0 {
 		t.Fatalf("group dry-run observed native client identity %d times", observer.calls)
 	}
+	if observer.preparedCalls != 2 {
+		t.Fatalf("group dry-run prepared observations = %d, want 2", observer.preparedCalls)
+	}
 	state, err := store.Load()
 	if err != nil {
 		t.Fatal(err)
@@ -357,7 +360,8 @@ type fixedNativeObserver struct {
 }
 
 type countingNativeObserver struct {
-	calls int
+	calls         int
+	preparedCalls int
 }
 
 type failNthVerificationStager struct {
@@ -402,4 +406,12 @@ func (observer fixedNativeObserver) ObserveNativeIdentity(context.Context, domai
 func (observer *countingNativeObserver) ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	observer.calls++
 	return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+}
+
+func (observer *countingNativeObserver) ObservePreparedIdentity(_ context.Context, _ domain.DetectedClient, _ domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	observer.preparedCalls++
+	if managed == nil {
+		return domain.NativeIdentityObservation{State: domain.NativeIdentityAbsent}, nil
+	}
+	return domain.NativeIdentityObservation{State: domain.NativeIdentityManaged, Digest: managedDigest(*managed)}, nil
 }

@@ -52,6 +52,17 @@ const (
 )
 
 func (observer NativeIdentityObserver) ObserveNativeIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	return observer.observeIdentity(ctx, client, plan, managed, true)
+}
+
+// ObservePreparedIdentity inspects only filesystem-backed package identities.
+// It deliberately excludes native CLI discovery so dry-run cannot launch the
+// detected client executable.
+func (observer NativeIdentityObserver) ObservePreparedIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	return observer.observeIdentity(ctx, client, plan, managed, false)
+}
+
+func (observer NativeIdentityObserver) observeIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding, includeNativeRegistry bool) (domain.NativeIdentityObservation, error) {
 	if err := ctx.Err(); err != nil {
 		return domain.NativeIdentityObservation{}, err
 	}
@@ -64,22 +75,26 @@ func (observer NativeIdentityObserver) ObserveNativeIdentity(ctx context.Context
 	if preparedErr != nil {
 		prepared = registryIndeterminate
 	}
-	nativeAttempted := observer.Runner != nil && strings.TrimSpace(plan.NativeRegistryExecutable) != "" &&
+	nativeAttempted := includeNativeRegistry && observer.Runner != nil && strings.TrimSpace(plan.NativeRegistryExecutable) != "" &&
 		(client.ClientID == domain.ClientCodex || client.ClientID == domain.ClientCopilot || client.ClientID == domain.ClientVSCode)
-	nativeCtx := ctx
-	cancelNative := func() {}
-	if nativeAttempted {
-		timeout := observer.DiscoveryTimeout
-		if timeout <= 0 {
-			timeout = defaultNativeDiscoveryTimeout
+	native := registryClear
+	if includeNativeRegistry {
+		nativeCtx := ctx
+		cancelNative := func() {}
+		if nativeAttempted {
+			timeout := observer.DiscoveryTimeout
+			if timeout <= 0 {
+				timeout = defaultNativeDiscoveryTimeout
+			}
+			nativeCtx, cancelNative = context.WithTimeout(ctx, timeout)
 		}
-		nativeCtx, cancelNative = context.WithTimeout(ctx, timeout)
-	}
-	native, err := observer.inspectNativeRegistry(nativeCtx, client, plan, managed)
-	cancelNative()
-	if err != nil {
-		return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate,
-			NativeDiscoveryAttempted: nativeAttempted}, err
+		var err error
+		native, err = observer.inspectNativeRegistry(nativeCtx, client, plan, managed)
+		cancelNative()
+		if err != nil {
+			return domain.NativeIdentityObservation{State: domain.NativeIdentityIndeterminate, NativeDiscoveryState: domain.NativeIdentityIndeterminate,
+				NativeDiscoveryAttempted: nativeAttempted}, err
+		}
 	}
 	discoveryState := domain.NativeIdentityAbsent
 	discoveryReconciled := false

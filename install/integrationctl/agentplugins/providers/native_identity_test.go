@@ -86,6 +86,24 @@ func TestNativeIdentityCodexUsesExactCLIRegistryIdentity(t *testing.T) {
 	}
 }
 
+func TestPreparedIdentityInspectsFilesWithoutLaunchingNativeCLI(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "prepared")
+	plan := identityPlan(root)
+	plan.NativeRegistryExecutable = "/test/bin/codex"
+	writeIdentityFile(t, filepath.Join(root, "foreign", "plugin.json"), `{"name":"demo"}`)
+	runner := &identityRunner{}
+
+	observation, err := (NativeIdentityObserver{Runner: runner}).ObservePreparedIdentity(
+		context.Background(), domain.DetectedClient{ClientID: domain.ClientCodex}, plan, nil,
+	)
+	if err != nil || observation.State != domain.NativeIdentityUnmanaged {
+		t.Fatalf("observation = %+v, err = %v", observation, err)
+	}
+	if len(runner.commands) != 0 || observation.NativeDiscoveryAttempted {
+		t.Fatalf("prepared observation launched native discovery: commands=%#v observation=%+v", runner.commands, observation)
+	}
+}
+
 func TestNativeIdentityCodexManualModeReadsAuthoritativeConfig(t *testing.T) {
 	configRoot := filepath.Join(t.TempDir(), ".codex")
 	plan := identityPlan(filepath.Join(t.TempDir(), "prepared"))

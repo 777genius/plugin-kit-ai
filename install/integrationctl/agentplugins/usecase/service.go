@@ -53,6 +53,13 @@ type NativeIdentityObserver interface {
 	ObserveNativeIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error)
 }
 
+// PreparedIdentityObserver is the process-inert subset used by dry-run. It may
+// inspect package files and prepared registries, but must not launch a client
+// executable or query a remote registry.
+type PreparedIdentityObserver interface {
+	ObservePreparedIdentity(context.Context, domain.DetectedClient, domain.DeliveryPlan, *domain.ClientBinding) (domain.NativeIdentityObservation, error)
+}
+
 type PluginDataManager interface {
 	EnsureData(context.Context, string, string, string) (domain.DataReceipt, bool, error)
 	ValidateData(context.Context, domain.DataReceipt) error
@@ -248,6 +255,9 @@ func (service Service) apply(ctx context.Context, input AddInput, replace bool) 
 		return result, fmt.Errorf("lifecycle completion flags require an already materialized package; run add first, then rerun add with the completion flags")
 	}
 	if input.DryRun {
+		if err := service.observePreparedIdentity(ctx, input.Client, plan, managedBinding); err != nil {
+			return result, err
+		}
 		if replace && !isMaterialized {
 			return result, fmt.Errorf("plugin is not materialized for %s; use add", input.Client.ClientID)
 		}
@@ -1254,6 +1264,18 @@ func (service Service) observeNativeIdentity(ctx context.Context, client domain.
 	if err != nil {
 		return fmt.Errorf("observe native identity for %s: %w", client.ClientID, err)
 	}
+	return validateNativeIdentityObservation(observation, managed)
+}
+
+func (service Service) observePreparedIdentity(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) error {
+	observation, err := service.preparedIdentityObservation(ctx, client, plan, managed)
+	if err != nil {
+		return fmt.Errorf("observe prepared identity for %s: %w", client.ClientID, err)
+	}
+	return validateNativeIdentityObservation(observation, managed)
+}
+
+func validateNativeIdentityObservation(observation domain.NativeIdentityObservation, managed *domain.ClientBinding) error {
 	switch observation.State {
 	case NativeIdentityAbsent:
 		if managed != nil && managed.Materialization != domain.MaterializationAbsent {
@@ -1282,6 +1304,17 @@ func (service Service) nativeIdentityObservation(ctx context.Context, client dom
 	if service.NativeObserver != nil {
 		return service.NativeObserver.ObserveNativeIdentity(ctx, client, plan, managed)
 	}
+	return service.filesystemIdentityObservation(ctx, plan, managed)
+}
+
+func (service Service) preparedIdentityObservation(ctx context.Context, client domain.DetectedClient, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
+	if observer, ok := service.NativeObserver.(PreparedIdentityObserver); ok {
+		return observer.ObservePreparedIdentity(ctx, client, plan, managed)
+	}
+	return service.filesystemIdentityObservation(ctx, plan, managed)
+}
+
+func (service Service) filesystemIdentityObservation(ctx context.Context, plan domain.DeliveryPlan, managed *domain.ClientBinding) (domain.NativeIdentityObservation, error) {
 	// Every backend gets a fail-closed filesystem observation even when it has
 	// no richer namespace-aware observer. A specialized observer may prove
 	// qualified coexistence; the fallback never does.

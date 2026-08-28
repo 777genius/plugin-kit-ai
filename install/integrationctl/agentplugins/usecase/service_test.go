@@ -56,6 +56,9 @@ func TestAddDryRunAndUnconfirmedPlanDoNotMutateStateOrClient(t *testing.T) {
 			if mode == "dry_run" && observer.calls != 0 {
 				t.Fatalf("dry-run observed native client identity %d times", observer.calls)
 			}
+			if mode == "dry_run" && observer.preparedCalls != 1 {
+				t.Fatalf("dry-run prepared observations = %d, want 1", observer.preparedCalls)
+			}
 		})
 	}
 }
@@ -659,6 +662,9 @@ func TestNoChangeDryRunChecksManagedDigestWithoutNativeObservation(t *testing.T)
 	}
 	if observer.calls != 0 {
 		t.Fatalf("dry-run observed native client identity %d times", observer.calls)
+	}
+	if observer.preparedCalls != 1 {
+		t.Fatalf("dry-run prepared observations = %d, want 1", observer.preparedCalls)
 	}
 	state, err := store.Load()
 	if err != nil {
