@@ -2,6 +2,7 @@ package agentpluginscli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -100,6 +101,13 @@ func prepareUpdateMany(ctx context.Context, app App, opts *options, installation
 		operation = domain.DirectoryNewTarget
 	}
 	loaded, err := app.loadInstalledPackage(ctx, installation, allTargets, operation, 0, installation.Source.ResolvedRevision, detected)
+	if operation == domain.DirectoryUpdate && errors.Is(err, domain.ErrDirectoryNoSafeUpdate) {
+		// "No later release" means the tracked immutable release is already the
+		// newest safe choice, not that update itself is invalid. Resolve that
+		// exact recorded release again so the lifecycle can report an idempotent
+		// no-change result while retaining revocation and integrity checks.
+		loaded, err = app.loadInstalledPackage(ctx, installation, allTargets, domain.DirectoryNewTarget, 0, installation.Source.ResolvedRevision, detected)
+	}
 	if err != nil {
 		return nil, err
 	}

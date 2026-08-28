@@ -2,6 +2,7 @@ package agentpluginscli
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -102,6 +103,14 @@ func (fixture rolloutDirectoryFixture) publishV2() {
 	fixture.directory.bundle.Snapshot.Distributions[0].ReleasePolicies[1].Status = domain.ReleaseActive
 }
 
+func (fixture rolloutDirectoryFixture) retainV1Only() {
+	distribution := &fixture.directory.bundle.Snapshot.Distributions[0]
+	distribution.Releases = distribution.Releases[:1]
+	distribution.ReleasePolicies = distribution.ReleasePolicies[:1]
+	fixture.directory.bundle.Snapshot.Evidence = fixture.directory.bundle.Snapshot.Evidence[:len(distribution.ReleasePolicies[0].Targets)]
+	fixture.directory.bundle.Snapshot.Sequence = 1
+}
+
 func TestPartialDirectoryUpdateConvergesToAlreadyAcceptedDesiredRelease(t *testing.T) {
 	t.Parallel()
 	rollout := newRolloutDirectoryFixture(t,
@@ -134,6 +143,75 @@ func TestPartialDirectoryUpdateConvergesToAlreadyAcceptedDesiredRelease(t *testi
 	}
 	if bindingRelease(state.Installations[0], domain.ClientCodex) != 2 || bindingRelease(state.Installations[0], domain.ClientCursor) != 2 || rollout.acquirer.revisionCalls[rollout.v2.revision] != 1 {
 		t.Fatalf("desired-release convergence = state:%+v acquisitions:%v", state.Installations[0], rollout.acquirer.revisionCalls)
+	}
+}
+
+func TestCurrentDirectoryUpdateResolvesRecordedReleaseInsteadOfFailing(t *testing.T) {
+	t.Parallel()
+	rollout := newRolloutDirectoryFixture(t,
+		[]domain.ClientID{domain.ClientCodex, domain.ClientCursor},
+		[]domain.ClientID{domain.ClientCodex, domain.ClientCursor})
+	rollout.retainV1Only()
+	if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "codex,cursor"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := rollout.cli.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rollout.acquirer.revisionCalls = map[string]int{}
+	stdout, _, err := rollout.cli.execute(false, "update", "demo", "--target", "codex,cursor", "--format", "json")
+	if err != nil {
+		t.Fatalf("update of current Directory release: %v", err)
+	}
+	var output struct {
+		Data updateMultiResult `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+		t.Fatalf("decode current Directory update output: %v", err)
+	}
+	if len(output.Data.Targets) != 2 {
+		t.Fatalf("current Directory update targets = %+v", output.Data.Targets)
+	}
+	for _, target := range output.Data.Targets {
+		if !target.Output.Result.NoChange || target.Output.Result.Mutated {
+			t.Fatalf("current Directory update target = %+v", target)
+		}
+	}
+	after, err := rollout.cli.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("current Directory update changed state:\nbefore=%+v\nafter=%+v", before, after)
+	}
+	if rollout.acquirer.revisionCalls[rollout.v1.revision] != 1 {
+		t.Fatalf("recorded release acquisitions = %v", rollout.acquirer.revisionCalls)
+	}
+}
+
+func TestCurrentDirectoryUpdateStillRejectsRevokedRecordedRelease(t *testing.T) {
+	t.Parallel()
+	rollout := newRolloutDirectoryFixture(t, []domain.ClientID{domain.ClientCursor}, []domain.ClientID{domain.ClientCursor})
+	rollout.retainV1Only()
+	if _, _, err := rollout.cli.execute(false, "add", "rollout-demo", "--target", "cursor"); err != nil {
+		t.Fatal(err)
+	}
+	before, err := rollout.cli.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rollout.directory.bundle.Snapshot.Revocations = []domain.DirectoryRevocation{{DistributionID: "owner/rollout", ReleaseSequence: 1}}
+	rollout.acquirer.verifiedCalls = 0
+	if _, _, err := rollout.cli.execute(false, "update", "demo", "--target", "cursor"); err == nil || !strings.Contains(err.Error(), "revoked") {
+		t.Fatalf("revoked current release update = %v", err)
+	}
+	after, err := rollout.cli.store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rollout.acquirer.verifiedCalls != 0 || !reflect.DeepEqual(after, before) {
+		t.Fatalf("revoked current release acquired or changed state: acquisitions=%d before=%+v after=%+v", rollout.acquirer.verifiedCalls, before, after)
 	}
 }
 
