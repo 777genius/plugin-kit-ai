@@ -193,13 +193,52 @@ jobs:
             test "${tag}" = "${tag_prefix}$(printf '%020d' "${sequence}")"
             git -C ledger merge-base --is-ancestor "refs/tags/${tag}" HEAD
           done
+          recovery_tag=
+          if test "${sequence}" -gt 0; then
+            latest_sequence_tag="${tags[$((sequence - 1))]}"
+            expected_feed=("${FEED_PATH}/latest.json")
+            for ((current = 1; current <= sequence; current++)); do
+              stem="$(printf '%020d' "${current}")"
+              expected_feed+=(
+                "${FEED_PATH}/search/${stem}.json"
+                "${FEED_PATH}/snapshots/${stem}.envelope.json"
+                "${FEED_PATH}/snapshots/${stem}.json"
+              )
+            done
+            mapfile -t expected_feed < <(printf '%s\n' "${expected_feed[@]}" | LC_ALL=C sort)
+            mapfile -t tagged_paths < <(git -C ledger ls-tree -r --name-only "refs/tags/${latest_sequence_tag}" -- "${FEED_PATH}" | LC_ALL=C sort)
+            test "${tagged_paths[*]}" = "${expected_feed[*]}"
+            mapfile -t tagged_entries < <(git -C ledger ls-tree -r "refs/tags/${latest_sequence_tag}" -- "${FEED_PATH}")
+            test "${#tagged_entries[@]}" -eq "${#expected_feed[@]}"
+            for entry in "${tagged_entries[@]}"; do
+              test "${entry%% *}" = 100644
+              remainder="${entry#* }"
+              test "${remainder%% *}" = blob
+            done
+          fi
           if test -f "ledger/${FEED_PATH}/latest.json"; then
             test "${sequence}" -gt 0
             test "$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')" = "${sequence}"
+            mapfile -t ledger_entries < <(git -C ledger ls-tree -r HEAD -- "${FEED_PATH}")
+            test "${ledger_entries[*]}" = "${tagged_entries[*]}"
+          elif test "${sequence}" -gt 0; then
+            test -z "$(git -C ledger ls-tree -r --name-only HEAD -- "${FEED_PATH}")"
+            recovery_tag="${latest_sequence_tag}"
+            git -C ledger checkout "refs/tags/${recovery_tag}" -- "${FEED_PATH}"
+            mapfile -t restored < <(git -C ledger diff --cached --name-status)
+            test "${#restored[@]}" -eq "${#expected_feed[@]}"
+            mapfile -t restored_paths < <(printf '%s\n' "${restored[@]}" | cut -f2 | LC_ALL=C sort)
+            test "${restored_paths[*]}" = "${expected_feed[*]}"
+            for change in "${restored[@]}"; do
+              test "${change%%$'\t'*}" = A
+            done
+            test "$(python3 -c 'import json; print(json.load(open("ledger/discovery/latest.json"))["sequence"])')" = "${sequence}"
+            echo "Recovering the complete signed Discovery feed from ${recovery_tag}."
           else
             test "${sequence}" -eq 0
           fi
           echo "next_sequence=$((sequence + 1))" >> "$GITHUB_OUTPUT"
+          echo "recovery_tag=${recovery_tag}" >> "$GITHUB_OUTPUT"
       - name: Sign in the separate Discovery signature domain
         id: sign
         working-directory: source
@@ -227,19 +266,25 @@ jobs:
         working-directory: ledger
         env:
           SEQUENCE: ${{ steps.sign.outputs.sequence }}
+          RECOVERY_TAG: ${{ steps.preflight.outputs.recovery_tag }}
         run: |
           git config user.name universal-agent-plugins-publisher[bot]
           git config user.email 247038142+universal-agent-plugins-publisher[bot]@users.noreply.github.com
           git add -- discovery
           stem="$(printf '%020d' "${SEQUENCE}")"
-          mapfile -t changed < <(git diff --cached --name-status)
-          test "${#changed[@]}" -eq 4
           expected=(
             "discovery/latest.json"
             "discovery/search/${stem}.json"
             "discovery/snapshots/${stem}.envelope.json"
             "discovery/snapshots/${stem}.json"
           )
+          if test -n "${RECOVERY_TAG}"; then
+            mapfile -t recovery_paths < <(git ls-tree -r --name-only "refs/tags/${RECOVERY_TAG}" -- discovery)
+            expected+=("${recovery_paths[@]}")
+          fi
+          mapfile -t expected < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort -u)
+          mapfile -t changed < <(git diff --cached --name-status)
+          test "${#changed[@]}" -eq "${#expected[@]}"
           mapfile -t actual < <(printf '%s\n' "${changed[@]}" | awk '{ print $2 }' | LC_ALL=C sort)
           test "${actual[*]}" = "${expected[*]}"
           for change in "${changed[@]}"; do
