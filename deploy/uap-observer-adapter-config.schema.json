@@ -119,7 +119,7 @@
         "profile": {"type": "string", "pattern": "^/var/lib/uap-observer/profiles/"},
         "client_id": {"enum": ["codex", "cursor", "kiro"]},
         "bundle": {"$ref": "#/$defs/bundle"},
-        "companion_binary": {"const": "/opt/uap-observer-inputs/bin/kiro-cli-chat"},
+        "companion_binary": {"enum": ["/opt/uap-observer-inputs/bin/codex-code-mode-host", "/opt/uap-observer-inputs/bin/kiro-cli-chat"]},
         "companion_sha256": {"$ref": "#/$defs/digest"},
         "native_projection": {
           "type": "object", "required": ["path", "sha256"],
@@ -128,7 +128,7 @@
         }
       },
       "allOf": [
-        {"if": {"properties": {"client_id": {"const": "codex"}}}, "then": {"not": {"anyOf": [{"required": ["bundle"]}, {"required": ["companion_binary"]}, {"required": ["companion_sha256"]}]}, "properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/codex"}, "profile": {"const": "/var/lib/uap-observer/profiles/codex"}, "native_projection": {"properties": {"path": {"const": "/var/lib/uap-observer/proofs/codex/native-projection.json"}}}}}},
+        {"if": {"properties": {"client_id": {"const": "codex"}}}, "then": {"required": ["companion_binary", "companion_sha256"], "not": {"required": ["bundle"]}, "properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/codex"}, "companion_binary": {"const": "/opt/uap-observer-inputs/bin/codex-code-mode-host"}, "profile": {"const": "/var/lib/uap-observer/profiles/codex"}, "native_projection": {"properties": {"path": {"const": "/var/lib/uap-observer/proofs/codex/native-projection.json"}}}}}},
         {"if": {"properties": {"client_id": {"const": "cursor"}}}, "then": {"required": ["bundle"], "not": {"anyOf": [{"required": ["companion_binary"]}, {"required": ["companion_sha256"]}]}, "properties": {"binary": {"const": "/opt/uap-observer-inputs/cursor/cursor-agent"}, "profile": {"const": "/var/lib/uap-observer/profiles/cursor"}, "native_projection": {"properties": {"path": {"const": "/var/lib/uap-observer/proofs/cursor/native-projection.json"}}}}}},
         {"if": {"properties": {"client_id": {"const": "kiro"}}}, "then": {"required": ["companion_binary", "companion_sha256"], "not": {"required": ["bundle"]}, "properties": {"binary": {"const": "/opt/uap-observer-inputs/bin/kiro"}, "sha256": {"const": "sha256:14d835aff3772afb9ffb71e395b433df516c091dea8c43daef46e7cb66368358"}, "companion_sha256": {"const": "sha256:59f47eb75928fa158df1cea31382cb39a4eb0d8ec7afbcfc4c6e75693d35163e"}, "profile": {"const": "/var/lib/uap-observer/profiles/kiro"}, "native_projection": {"properties": {"path": {"const": "/var/lib/uap-observer/proofs/kiro/native-projection.json"}}}}}}
       ],

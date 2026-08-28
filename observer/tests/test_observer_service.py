@@ -3206,6 +3206,7 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
             files = {
                 protected / "bin/git": b"git",
                 protected / "bin/codex": b"codex",
+                protected / "bin/codex-code-mode-host": b"codex-host",
                 protected / "bin/kiro": b"kiro",
                 protected / "bin/kiro-cli-chat": b"kiro-chat",
                 protected / "chatgpt/app-binding.json": b"app",
@@ -3213,6 +3214,11 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 protected / "external-pr-evidence.json": b"evidence",
                 protected / "cursor/cursor-agent": b"cursor",
                 protected / "cursor/index.js": b"index",
+                protected / "cursor/node": b"node",
+                protected / "cursor/bash": b"bash",
+                protected / "cursor/basename": b"basename",
+                protected / "cursor/dirname": b"dirname",
+                protected / "cursor/realpath": b"realpath",
                 protected / "chrome-for-testing/chrome": b"chrome",
                 protected / "chrome-for-testing/resources.pak": b"resources",
             }
@@ -3220,7 +3226,7 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 path.write_bytes(payload)
                 executable = (
                     path.parent == protected / "bin"
-                    or path == protected / "cursor/cursor-agent"
+                    or path.name in {"cursor-agent", "node", "bash", "basename", "dirname", "realpath"}
                     or path == protected / "chrome-for-testing/chrome"
                 )
                 bundled = path.parent in {protected / "cursor", protected / "chrome-for-testing"}
@@ -3242,7 +3248,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
             config.write_text(json.dumps({
                 "git": {"binary": str(protected / "bin/git"), "sha256": digest(protected / "bin/git")},
                 "clients": {
-                    "codex": {"binary": str(protected / "bin/codex"), "sha256": digest(protected / "bin/codex")},
+                    "codex": {
+                        "binary": str(protected / "bin/codex"),
+                        "sha256": digest(protected / "bin/codex"),
+                        "companion_binary": str(protected / "bin/codex-code-mode-host"),
+                        "companion_sha256": digest(protected / "bin/codex-code-mode-host"),
+                    },
                     "cursor": {
                         "binary": str(protected / "cursor/cursor-agent"),
                         "sha256": digest(protected / "cursor/cursor-agent"),
@@ -3289,12 +3300,12 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
                 self.assertEqual(len(fixed_runner.validate_adapter_input_access(
                     config, protected_root=protected, identities=identities,
                     access_probe=lambda uid, gid, gids, paths: probes.append((uid, gid, gids, paths)),
-                )), 11)
+                )), 12)
                 self.assertEqual(
                     [(uid, gid, gids) for uid, gid, gids, _ in probes],
                     list(identities.values()),
                 )
-                self.assertTrue(all(len(paths) == 13 for _, _, _, paths in probes))
+                self.assertTrue(all(len(paths) == 19 for _, _, _, paths in probes))
                 for excluded, (denied_uid, _, _) in identities.items():
                     with self.subTest(excluded=excluded):
                         def deny(uid: int, _gid: int, _gids: frozenset[int], _paths: tuple[tuple[Path, bool], ...]) -> None:
@@ -3571,7 +3582,7 @@ class FixedAdapterContractTests(unittest.TestCase):
         executable = mock.Mock(st_mode=stat.S_IFREG | 0o755)
         with (
             mock.patch.object(
-                fixed_adapters, "verify_bundle", return_value={fixed_adapters.NODE_BINARY},
+                fixed_adapters, "verify_bundle", return_value=fixed_adapters.CURSOR_RUNTIME_MEMBERS,
             ) as verify,
             mock.patch.object(fixed_adapters.os, "lstat", return_value=executable),
         ):
@@ -3585,7 +3596,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             )
 
         with mock.patch.object(fixed_adapters, "verify_bundle", return_value=set()):
-            with self.assertRaisesRegex(ValueError, "absent from its verified bundle"):
+            with self.assertRaisesRegex(ValueError, "runtime closure is absent"):
                 fixed_adapters.verified_runtime_node(bundle, owner_uid=1234)
         with self.assertRaisesRegex(ValueError, "bundle config differs"):
             fixed_adapters.verified_runtime_node({**bundle, "root": "/tmp/cursor"}, owner_uid=1234)
@@ -4083,6 +4094,66 @@ class FixedAdapterContractTests(unittest.TestCase):
             *(prefix + [tool, message, terminal] for terminal in malformed_completions),
         )
         for stream in rejected:
+            with self.subTest(stream=stream):
+                self.assertFalse(fixed_adapters.successful_client_evidence(
+                    "codex", stream, "resolve-library-id", "context7", marker,
+                ))
+
+    def test_codex_current_mcp_stream_requires_exact_started_completed_pair(self) -> None:
+        marker = "UAP_OBSERVER_OK codex context7 " + "b" * 64
+        arguments = {"libraryName": "React", "query": "React library"}
+        started = {"type": "item.started", "item": {
+            "id": "call-1", "type": "mcp_tool_call", "server": "context7",
+            "tool": "resolve-library-id", "status": "in_progress", "arguments": arguments,
+            "result": None, "error": None,
+        }}
+        completed = {"type": "item.completed", "item": {
+            **started["item"], "status": "completed",
+            "result": {"content": [{"type": "text", "text": "resolved"}], "structured_content": None},
+        }}
+        preface = {"type": "item.completed", "item": {
+            "id": "preface-1", "type": "agent_message",
+            "text": "I will perform the read-only Context7 lookup.",
+        }}
+        message = {"type": "item.completed", "item": {
+            "id": "message-1", "type": "agent_message", "text": marker,
+        }}
+        completed_turn = {"type": "turn.completed", "usage": {
+            "input_tokens": 24763, "cached_input_tokens": 23744,
+            "cache_write_input_tokens": 0, "output_tokens": 122, "reasoning_output_tokens": 20,
+        }}
+        prefix = [{"type": "thread.started", "thread_id": "current-thread"}, {"type": "turn.started"}]
+        golden = prefix + [preface, started, completed, message, completed_turn]
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "codex", golden, "resolve-library-id", "context7", marker,
+        ))
+        self.assertTrue(fixed_adapters.successful_client_evidence(
+            "codex", prefix + [started, completed, message, completed_turn],
+            "resolve-library-id", "context7", marker,
+        ))
+
+        mutations = []
+        for path, value in (
+            ((4, "item", "id"), "different-call"),
+            ((3, "item", "arguments"), {"libraryName": "Vue", "query": "Vue library"}),
+            ((3, "item", "error"), {"message": "failed"}),
+            ((4, "item", "status"), "failed"),
+            ((4, "item", "result"), {"content": [], "structured_content": None}),
+            ((5, "item", "text"), "different-marker"),
+            ((3, "item", "extra"), True),
+        ):
+            candidate = json.loads(json.dumps(golden))
+            target: Any = candidate
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            mutations.append(candidate)
+        mutations.extend((
+            prefix + [preface, completed, message, completed_turn],
+            prefix + [preface, started, completed, message, completed_turn, completed_turn],
+            prefix + [{**preface, "item": {**preface["item"], "text": marker}}, started, completed, message, completed_turn],
+        ))
+        for stream in mutations:
             with self.subTest(stream=stream):
                 self.assertFalse(fixed_adapters.successful_client_evidence(
                     "codex", stream, "resolve-library-id", "context7", marker,
@@ -5585,10 +5656,13 @@ class FixedAdapterContractTests(unittest.TestCase):
                 "binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(),
                 "profile": str(profile), "client_id": "codex", "native_projection": self.install_projection(profile, "codex", approved),
             }
-            with mock.patch.object(
-                fixed_adapters, "native_discovery_output_present",
-                wraps=fixed_adapters.native_discovery_output_present,
-            ) as discovery_check:
+            with (
+                mock.patch.object(fixed_adapters, "verified_executable", return_value=binary),
+                mock.patch.object(
+                    fixed_adapters, "native_discovery_output_present",
+                    wraps=fixed_adapters.native_discovery_output_present,
+                ) as discovery_check,
+            ):
                 marker, argv, _, _ = fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid(), approved)
             self.assertEqual(len(discovery_check.call_args_list), 2)
             self.assertTrue(all(call.args[3] == approved for call in discovery_check.call_args_list))
@@ -5622,7 +5696,10 @@ class FixedAdapterContractTests(unittest.TestCase):
             )
             binary.chmod(0o755)
             item = {"binary": str(binary), "sha256": "sha256:" + hashlib.sha256(binary.read_bytes()).hexdigest(), "profile": str(profile), "client_id": "codex", "native_projection": self.install_projection(profile, "codex", approved)}
-            with self.assertRaisesRegex(ValueError, "successful exact tool invocation"):
+            with (
+                mock.patch.object(fixed_adapters, "verified_executable", return_value=binary),
+                self.assertRaisesRegex(ValueError, "successful exact tool invocation"),
+            ):
                 fixed_adapters.invoke(item, "context7", "codex", "a" * 64, workspace, os.geteuid(), approved)
 
     @requires_disposable_observer_host

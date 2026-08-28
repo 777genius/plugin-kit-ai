@@ -25,6 +25,7 @@ from scripts.build_discovery_index import (
     MAX_GITHUB_RETRY_DELAY_SECONDS,
     MAX_PREVIOUS_SNAPSHOT_BYTES,
     SameOriginRedirect,
+    bounded_package_files,
     build_candidate,
     discover_search_items,
     load_previous,
@@ -102,6 +103,13 @@ class FixtureAPI:
 
 
 class DiscoveryAcquisitionTests(unittest.TestCase):
+    def test_nonportable_git_path_is_package_invalid_not_scan_incomplete(self) -> None:
+        repository = mock.Mock(root=Path("/tmp/inert-mirror"), revision="a" * 40)
+        tree = b"100644 blob " + b"b" * 40 + b"\tplugins/demo/\xc3\xa9.txt\0"
+        with mock.patch("scripts.build_discovery_index.git", return_value=tree):
+            with self.assertRaisesRegex(DiscoveryError, "path must be non-empty ASCII"):
+                bounded_package_files(repository, "plugins/demo")
+
     def test_scan_passes_job_token_only_to_remote_acquisition(self) -> None:
         pinned = mock.Mock()
         with mock.patch("scripts.build_discovery_index.PinnedRepository", return_value=pinned) as constructor:

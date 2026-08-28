@@ -4640,6 +4640,19 @@ else: raise SystemExit(2)
             self.assertTrue(passed, value)
             self.assertEqual(value["validator_artifact"]["candidate_digest"], match_candidate_digest)
 
+    def test_git_worktree_digest_ignores_internal_stat_cache_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".git").mkdir()
+            (root / ".git" / "index").write_bytes(b"index-v1")
+            worktree = root / "plugin.json"
+            worktree.write_bytes(b"plugin-v1")
+            baseline = observer.git_worktree_digest(root)
+            (root / ".git" / "index").write_bytes(b"index-v2")
+            self.assertEqual(observer.git_worktree_digest(root), baseline)
+            worktree.write_bytes(b"plugin-v2")
+            self.assertNotEqual(observer.git_worktree_digest(root), baseline)
+
     def test_journey_aggregation_requires_accepted_and_rejected_fork_artifacts(self) -> None:
         harness = self.fixture_harness()
         harness.cli_version = "0.1.18"

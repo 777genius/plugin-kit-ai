@@ -86,20 +86,27 @@ them.
 
 ### 3.2 Launch status and remaining blockers
 
-1. The five external Kiro hero results are not complete, so the launch matrix
-   cannot claim 15/15. Kiro CLI 2.20.0 has real disposable read-only evidence
-   for both native MCP invocation and native `code-tool-router` skill loading,
-   but those capability probes do not replace the five-result launch matrix.
-   The sanitized public shape summary records observed event kinds only.
+1. The accepted exact-tuple matrix is currently 11/15: Codex 5/5, Cursor 3/5,
+   and Kiro 3/5. The selected upstream Context7 package uses
+   `https://mcp.context7.com/mcp/oauth`, so Cursor and Kiro need separate vendor
+   consent; Notion remains the other consent-bound result in both clients.
+   Separately, the active no-account community Context7 package passed real
+   disposable add, native discovery, challenge-bound read-only tool call, and
+   remove flows in Codex, Cursor, and Kiro from exact release source commit
+   `dcd94db0bfafe5ff5c4b1f1154ee1f7c656c19e4`. That product-level result does
+   not replace the approved upstream Context7 tuple in the protected matrix.
+   The Kiro ACP capture remains a sanitized shape summary. Its capability probes do not replace the five-result launch matrix.
    Their sequence is not asserted.
 2. The exact public `0.1.18` tag, six-platform release manifest, checksums, npm
    integrity, and Linux binary are pinned. Validation and registry CI passed on
    the current checkpoint; the protected launch workflow still needs to validate
    the final evidence tuple.
-3. Signed production Directory sequence 13 is live and verifies. Sequence 14 is
-   staged but is not production: protected launch evidence correctly blocked
-   its promotion. The production marker now prevents scheduled observation from
-   mistaking a staged ledger head for the deployed sequence.
+3. Signed production Directory sequence 13 is live and verifies. Signed
+   sequence 16 is staged but is not production: the protected observer gate
+   correctly blocked promotion. The staged snapshot digest is
+   `sha256:80718f74941c948ec7731a7b4a8de63e381b70d0ce96e23be80fa4542c7907d8`,
+   its source marker is `6ccc54978e06b73f2758b052b505de51362522b6`,
+   and its ledger commit is `16ff04cac59756c15413b267ea5c6398a2df2c8f`.
 4. The scheduled fixture, production Directory observation, and public-read
    jobs passed together on exact `main` commit
    `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc` in
@@ -110,8 +117,21 @@ them.
    lifecycle evidence: [Chrome DevTools #2623](https://github.com/ChromeDevTools/chrome-devtools-mcp/pull/2623),
    [Cloudflare #465](https://github.com/cloudflare/mcp-server-cloudflare/pull/465),
    and [GitHub MCP Server #3169](https://github.com/github/github-mcp-server/pull/3169).
-6. The CLI has no public `search`, `outdated`, or read-only package `validate`
-   command, and `update` has no explicit all-installed mode.
+6. Released `0.1.18` now ships `search`, read-only `validate`, `outdated`, and
+   `update --all`. The planned `install` alias of `add` is the remaining CLI
+   parity item.
+7. The public sequence-13 short-name Context7 install currently fails closed:
+   its community distribution is suspended for the operation and the upstream
+   alternative lacks current passed Kiro materialization evidence. Exact-SHA
+   direct installation still works. Do not promote the Quick Start broadly
+   until a higher signed sequence restores one eligible reviewed default.
+8. The first real Discovery reconciliation in
+   [run 33149260051](https://github.com/777genius/universal-agent-plugins/actions/runs/33149260051)
+   found 2,431 conformant candidates and 283 invalid packages. Publication
+   correctly retained the previous last-known-good index because five malformed
+   upstream Git paths were misclassified as acquisition failures. The current
+   fix treats those deterministic package defects as `invalid`; real fetch,
+   timeout, rate-limit, and partial-search failures remain fail-closed.
 
 ### 3.3 Implementation checkpoint
 
@@ -124,14 +144,26 @@ them.
   privileged run passed 96/97, exposed one stale Cursor fixture, and that exact
   corrected test then passed. This is pre-merge evidence, not the protected
   15/15 result.
-- Current catalog `main`: `8934d258ecc1ef15d05b5bc8ef075e5dffd902cc`.
+- Last runtime-verified observer code checkpoint:
+  `c4db619984795998f0a40a9f391f52534f6eb382`.
 - Production identity tracking is monotonic and protected by publisher-only
   creation/update plus a no-bypass deletion guard. Production remains signed
-  sequence 13; signed sequence 14 remains staged.
-- The last protected attempt could not reach an observer service. This is an
-  infrastructure-unavailable result, not a failed or successful package runtime
-  result. Final observer profiles cannot be sealed until the remaining Cursor
-  and Kiro authentication/runtime matrix is complete.
+  sequence 13; signed sequence 16 remains staged.
+- Observer first-install import was fixed in
+  [PR #94](https://github.com/777genius/universal-agent-plugins/pull/94).
+  A real Kiro run then exposed an ACP readiness race: the prompt was sent before
+  the native MCP catalog connected. [PR #95](https://github.com/777genius/universal-agent-plugins/pull/95)
+  now waits for the exact MCP or skill catalog and passed Linux contract tests
+  plus the disposable Context7 runtime above.
+- Codex CLI 0.150.1 introduced a mandatory sibling
+  `codex-code-mode-host` executable and a new structured MCP event envelope.
+  The protected runtime now binds and verifies that sibling and recognizes only
+  a matched started/completed MCP call plus the exact final marker.
+- The pinned Cursor launcher also requires `bash`, `basename`, `dirname`, and
+  `realpath`. They are now explicit digest-bound members of its existing bundle,
+  and every Cursor runtime receives that complete closure on its fixed `PATH`.
+- Final protected profiles still cannot be represented as 15/15 until the four
+  consent-bound upstream Context7 and Notion rows for Cursor and Kiro pass.
 
 ## 4. Competitive decision
 
@@ -775,9 +807,10 @@ Kill switches:
 - [ ] Cloudflare Docs ChatGPT claim stays within the proved personal-app scope.
 - [x] Signed production Directory sequence 13 is publicly reachable and
       fail-closed.
-- [ ] The current staged sequence 14 is promoted only after protected evidence
+- [ ] The current staged sequence 16 is promoted only after protected evidence
       passes.
-- [ ] `install`, `search`, `validate`, `outdated`, and `update --all` are shipped.
+- [ ] `install` is shipped as an alias; `search`, `validate`, `outdated`, and
+      `update --all` are already in `0.1.18`.
 - [ ] Reviewed Directory and unreviewed Discovery Index are visibly distinct.
 - [ ] Discovery covers all reproducibly found conformant packages and targets
       2,000+ unique package paths without padding.

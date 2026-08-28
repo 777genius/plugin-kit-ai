@@ -262,8 +262,12 @@ def validate_adapter_input_access(
         manifest=bundle_manifest,
         manifest_sha256=bundle["manifest_sha256"],
     )
-    if Path(cursor["binary"]) not in bundle_files:
-        raise ValueError("protected Cursor executable is absent from its bundle")
+    required_cursor_runtime = {
+        bundle_root / name
+        for name in ("cursor-agent", "node", "bash", "basename", "dirname", "realpath")
+    }
+    if Path(cursor["binary"]) not in bundle_files or not required_cursor_runtime.issubset(bundle_files):
+        raise ValueError("protected Cursor runtime closure is absent from its bundle")
     cursor_digest = "sha256:" + hashlib.sha256(Path(cursor["binary"]).read_bytes()).hexdigest()
     if cursor_digest != cursor["sha256"]:
         raise ValueError("protected Cursor executable digest differs")
@@ -301,13 +305,14 @@ def validate_adapter_input_access(
             Path(config["clients"][name]["binary"]): config["clients"][name]["sha256"]
             for name in ("codex", "kiro")
         },
+        Path(config["clients"]["codex"]["companion_binary"]): config["clients"]["codex"]["companion_sha256"],
         Path(config["clients"]["kiro"]["companion_binary"]): config["clients"]["kiro"]["companion_sha256"],
         Path(config["chatgpt"]["app_binding_path"]): config["chatgpt"]["app_binding_sha256"],
         Path(config["chatgpt"]["projection_receipt_path"]): config["chatgpt"]["projection_receipt_sha256"],
         Path(config["external_pr_evidence"]["path"]): config["external_pr_evidence"]["sha256"],
     }
     literal = (
-        {protected_root / "bin" / name for name in ("git", "codex", "kiro", "kiro-cli-chat")}
+        {protected_root / "bin" / name for name in ("git", "codex", "codex-code-mode-host", "kiro", "kiro-cli-chat")}
         | {protected_root / "chatgpt" / name for name in ("app-binding.json", "projection-receipt.json")}
         | {protected_root / "external-pr-evidence.json"}
     )

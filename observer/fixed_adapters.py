@@ -41,7 +41,16 @@ ENTRYPOINT_ARTIFACT = {
 CONFIG_PATH = Path("/opt/uap-observer-current/etc/uap-observer-adapter-config.json")
 CONSENT_DIRECTORY = Path("/var/lib/uap-observer-consent/pending")
 GIT_BINARY = Path("/opt/uap-observer-inputs/bin/git")
+CODEX_CODE_MODE_HOST = Path("/opt/uap-observer-inputs/bin/codex-code-mode-host")
 NODE_BINARY = Path("/opt/uap-observer-inputs/cursor/node")
+CURSOR_RUNTIME_MEMBERS = frozenset({
+    Path("/opt/uap-observer-inputs/cursor/cursor-agent"),
+    Path("/opt/uap-observer-inputs/cursor/node"),
+    Path("/opt/uap-observer-inputs/cursor/bash"),
+    Path("/opt/uap-observer-inputs/cursor/basename"),
+    Path("/opt/uap-observer-inputs/cursor/dirname"),
+    Path("/opt/uap-observer-inputs/cursor/realpath"),
+})
 CHROME_ROOT = Path("/opt/uap-observer-inputs/chrome-for-testing")
 CHROME_MANIFEST = Path("/opt/uap-observer-inputs/chrome-for-testing-bundle.json")
 CHROME_BINARY = CHROME_ROOT / "chrome"
@@ -56,6 +65,7 @@ CHROME_RUNTIME_ARGUMENTS = (
 FIXED_INPUT_PATHS = {
     str(GIT_BINARY),
     "/opt/uap-observer-inputs/bin/codex",
+    str(CODEX_CODE_MODE_HOST),
     "/opt/uap-observer-inputs/cursor",
     "/opt/uap-observer-inputs/cursor/cursor-agent",
     "/opt/uap-observer-inputs/cursor-bundle.json",
@@ -409,6 +419,12 @@ def validate_config(value: dict[str, Any]) -> None:
         or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(cursor_bundle.get("manifest_sha256", "")))
     ):
         raise ValueError("Cursor bundle contract differs")
+    codex = value["clients"]["codex"]
+    if (
+        codex.get("companion_binary") != str(CODEX_CODE_MODE_HOST)
+        or re.fullmatch(r"sha256:[a-f0-9]{64}", str(codex.get("companion_sha256", ""))) is None
+    ):
+        raise ValueError("Codex code-mode host contract differs")
     kiro = value["clients"]["kiro"]
     if (
         kiro.get("sha256") != KIRO_CLI_SHA256
@@ -416,8 +432,8 @@ def validate_config(value: dict[str, Any]) -> None:
         or kiro.get("companion_sha256") != KIRO_CHAT_SHA256
     ):
         raise ValueError("Kiro ACP executables differ from the captured 2.20.0 closure")
-    if any("companion_binary" in value["clients"][client] or "companion_sha256" in value["clients"][client] for client in {"codex", "cursor"}):
-        raise ValueError("non-Kiro client has an unreviewed companion executable")
+    if "companion_binary" in value["clients"]["cursor"] or "companion_sha256" in value["clients"]["cursor"]:
+        raise ValueError("Cursor has an unreviewed companion executable")
     if "bundle" in value["clients"]["codex"] or "bundle" in value["clients"]["kiro"]:
         raise ValueError("non-Cursor client has an unreviewed bundle")
     chrome = value.get("chrome_for_testing")
@@ -448,6 +464,7 @@ def validate_config(value: dict[str, Any]) -> None:
     actual_paths = {
         value.get("git", {}).get("binary"),
         *(value["clients"][client].get("binary") for client in CLIENTS),
+        value["clients"]["codex"].get("companion_binary"),
         value["clients"]["kiro"].get("companion_binary"),
         cursor_bundle.get("root"),
         cursor_bundle.get("manifest"),
@@ -599,7 +616,7 @@ def verified_executable(item: dict[str, Any], owner_uid: int) -> Path:
     expected = {"binary", "sha256", "profile", "client_id", "native_projection"}
     if isinstance(item, dict) and item.get("client_id") == "cursor":
         expected |= {"bundle"}
-    if isinstance(item, dict) and item.get("client_id") == "kiro":
+    if isinstance(item, dict) and item.get("client_id") in {"codex", "kiro"}:
         expected |= {"companion_binary", "companion_sha256"}
     if not isinstance(item, dict) or set(item) != expected:
         raise ValueError("fixed client config is invalid")
@@ -619,19 +636,25 @@ def verified_executable(item: dict[str, Any], owner_uid: int) -> Path:
             manifest_sha256=bundle["manifest_sha256"],
             owner_uid=owner_uid,
         )
-        if binary not in files:
-            raise ValueError("fixed Cursor executable is absent from its bundle")
+        if binary not in files or not CURSOR_RUNTIME_MEMBERS.issubset(files):
+            raise ValueError("fixed Cursor runtime closure is absent from its bundle")
     verify_executable_file(binary, item["sha256"], owner_uid=owner_uid)
     profile = Path(item["profile"])
     profile_fd = verify_root_readonly_directory(profile, label="fixed client profile")
     os.close(profile_fd)
+    if item["client_id"] in {"codex", "kiro"}:
+        companion = Path(item["companion_binary"])
+        expected_companion = (
+            CODEX_CODE_MODE_HOST
+            if item["client_id"] == "codex"
+            else Path("/opt/uap-observer-inputs/bin/kiro-cli-chat")
+        )
+        if companion != expected_companion:
+            raise ValueError(f"{item['client_id']} companion executable path differs")
+        verify_executable_file(companion, item["companion_sha256"], owner_uid=owner_uid)
     if item["client_id"] == "kiro":
         if item["sha256"] != KIRO_CLI_SHA256 or item["companion_sha256"] != KIRO_CHAT_SHA256:
             raise ValueError("Kiro executable digest contract differs")
-        companion = Path(item["companion_binary"])
-        if companion != Path("/opt/uap-observer-inputs/bin/kiro-cli-chat"):
-            raise ValueError("Kiro companion executable path differs")
-        verify_executable_file(companion, item["companion_sha256"], owner_uid=owner_uid)
     return binary
 
 
@@ -648,8 +671,8 @@ def verified_runtime_node(bundle: Any, owner_uid: int) -> Path:
         root=Path(bundle["root"]), manifest=Path(bundle["manifest"]),
         manifest_sha256=bundle["manifest_sha256"], owner_uid=owner_uid,
     )
-    if NODE_BINARY not in files:
-        raise ValueError("fixed Node runtime is absent from its verified bundle")
+    if not CURSOR_RUNTIME_MEMBERS.issubset(files):
+        raise ValueError("fixed Cursor runtime closure is absent from its verified bundle")
     info = os.lstat(NODE_BINARY)
     if not stat.S_ISREG(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o755:
         raise ValueError("fixed Node runtime is not executable")
@@ -1101,6 +1124,100 @@ def successful_marker_event(value: Any, expected_marker: str) -> bool:
         and candidate.get("type") == "agent_message"
         and candidate.get("text") == expected_marker
     )
+
+
+def successful_codex_current_mcp_evidence(
+    events: Any, tool: str, plugin: str, expected_marker: str,
+) -> bool:
+    """Recognize the exact Codex 0.150 MCP stream, including its call pair."""
+    if not isinstance(events, list) or len(events) not in {6, 7}:
+        return False
+    if any(not isinstance(event, dict) for event in events):
+        return False
+    if (
+        set(events[0]) != {"type", "thread_id"}
+        or events[0].get("type") != "thread.started"
+        or not isinstance(events[0].get("thread_id"), str)
+        or not events[0]["thread_id"]
+        or events[1] != {"type": "turn.started"}
+    ):
+        return False
+    index = 2
+    if len(events) == 7:
+        preface = events[index]
+        item = preface.get("item")
+        text = item.get("text") if isinstance(item, dict) else None
+        if (
+            set(preface) != {"type", "item"}
+            or preface.get("type") != "item.completed"
+            or not isinstance(item, dict)
+            or set(item) != {"id", "type", "text"}
+            or not isinstance(item.get("id"), str)
+            or not item["id"]
+            or item.get("type") != "agent_message"
+            or not isinstance(text, str)
+            or not text
+            or plugin.lower() not in text.lower()
+            or expected_marker in text
+        ):
+            return False
+        index += 1
+    started, completed, marker, turn = events[index:]
+    started_item = started.get("item")
+    completed_item = completed.get("item")
+    expected_item_keys = {"id", "type", "server", "tool", "status", "arguments", "result", "error"}
+    if (
+        set(started) != {"type", "item"}
+        or started.get("type") != "item.started"
+        or not isinstance(started_item, dict)
+        or set(started_item) != expected_item_keys
+        or set(completed) != {"type", "item"}
+        or completed.get("type") != "item.completed"
+        or not isinstance(completed_item, dict)
+        or set(completed_item) != expected_item_keys
+    ):
+        return False
+    expected_arguments = MCP_PROBE_INPUTS.get(plugin)
+    if (
+        not isinstance(started_item.get("id"), str)
+        or not started_item["id"]
+        or started_item.get("type") != "mcp_tool_call"
+        or started_item.get("server") != plugin
+        or started_item.get("tool") != tool
+        or started_item.get("status") != "in_progress"
+        or started_item.get("arguments") != expected_arguments
+        or started_item.get("result") is not None
+        or started_item.get("error") is not None
+    ):
+        return False
+    if any(
+        completed_item.get(field) != started_item.get(field)
+        for field in ("id", "type", "server", "tool", "arguments", "error")
+    ):
+        return False
+    result = completed_item.get("result")
+    if (
+        completed_item.get("status") != "completed"
+        or not isinstance(result, dict)
+        or set(result) != {"content", "structured_content"}
+        or result.get("structured_content") is not None
+        or not reviewed_success_payload(result.get("content"))
+    ):
+        return False
+    marker_item = marker.get("item")
+    if (
+        set(marker) != {"type", "item"}
+        or marker.get("type") != "item.completed"
+        or not isinstance(marker_item, dict)
+        or set(marker_item) != {"id", "type", "text"}
+        or not isinstance(marker_item.get("id"), str)
+        or not marker_item["id"]
+        or marker_item.get("type") != "agent_message"
+        or marker_item.get("text") != expected_marker
+        or not successful_codex_turn_completion(turn)
+    ):
+        return False
+    return not any(explicit_failure_marker(event) for event in events)
 
 
 def successful_cursor_tool_event(value: Any, tool: str, plugin: str) -> bool:
@@ -1570,6 +1687,8 @@ def successful_client_evidence(client: str, value: Any, tool: str, plugin: str, 
     if not events or any(explicit_failure_marker(event) for event in events):
         return False
     if client == "codex":
+        if successful_codex_current_mcp_evidence(events, tool, plugin, expected_marker):
+            return True
         successes = [index for index, event in enumerate(events) if successful_tool_event(event, tool, plugin)]
         markers = [index for index, event in enumerate(events) if successful_marker_event(event, expected_marker)]
         turn_completions = [index for index, event in enumerate(events) if successful_codex_turn_completion(event)]
@@ -2895,10 +3014,11 @@ def runtime_record(item: dict[str, Any], client_config: dict[str, Any], request:
     plugin, client, challenge = item["plugin"], item["client"], request["challenge"]["value"]
     runtime_node = None
     runtime_browser = None
-    if plugin == "chrome-devtools":
+    if client == "cursor" or plugin == "chrome-devtools":
         if mount_config is None:
-            raise ValueError("chrome-devtools runtime requires the protected adapter config")
+            raise ValueError("client runtime requires the protected adapter config")
         runtime_node = verified_runtime_node(mount_config["clients"]["cursor"].get("bundle"), owner_uid)
+    if plugin == "chrome-devtools":
         runtime_browser = verified_runtime_browser(mount_config.get("chrome_for_testing"), owner_uid)
     marker, argv, started, observed = invoke(
         client_config, plugin, client, challenge, workspace, owner_uid, item["tuple"],

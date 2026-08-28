@@ -96,6 +96,12 @@ class WorkflowContractTests(unittest.TestCase):
         client = schema["$defs"]["client"]
         self.assertIn("native_projection", client["required"])
         self.assertEqual(set(client["properties"]["native_projection"]["required"]), {"path", "sha256"})
+        codex_rule = client["allOf"][0]["then"]
+        self.assertEqual(codex_rule["required"], ["companion_binary", "companion_sha256"])
+        self.assertEqual(
+            codex_rule["properties"]["companion_binary"]["const"],
+            "/opt/uap-observer-inputs/bin/codex-code-mode-host",
+        )
         cursor_rule = client["allOf"][1]["then"]
         self.assertIn("bundle", cursor_rule["required"])
         self.assertEqual(cursor_rule["properties"]["binary"]["const"], "/opt/uap-observer-inputs/cursor/cursor-agent")
@@ -116,7 +122,9 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('allowlist.get("hosts") != egress_hosts', installer)
         self.assertIn('type(allowlist.get("schema_version")) is not int', installer)
         runner = (ROOT / "observer/fixed_runner.py").read_text()
+        self.assertIn('Path(config["clients"]["codex"]["companion_binary"])', runner)
         self.assertIn('Path(config["clients"]["kiro"]["companion_binary"])', runner)
+        self.assertIn('("cursor-agent", "node", "bash", "basename", "dirname", "realpath")', runner)
         self.assertIn("verify_bundle(", runner)
         self.assertIn("literal | {bundle_root, bundle_manifest, chrome_root, chrome_manifest}", runner)
         runner_unit = (ROOT / "deploy/uap-observer-runner.service").read_text()

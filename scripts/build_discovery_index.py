@@ -402,7 +402,13 @@ def bounded_package_files(repository: PinnedRepository, package_path: str) -> li
         except (ValueError, UnicodeError) as error:
             raise DiscoveryError("package tree contains an invalid Git entry") from error
         require(kind == "blob" and mode in GIT_MODES, f"unsupported package tree entry: {full_path}")
-        portable_path(full_path, "package tree")
+        try:
+            portable_path(full_path, "package tree")
+        except BridgeError as error:
+            # A hostile or non-portable Git pathname invalidates only this
+            # package. It is deterministic package data, not an acquisition
+            # failure that should block replacement of the whole LKG index.
+            raise DiscoveryError(str(error)) from error
         folded = full_path.casefold()
         require(folded not in seen, f"package tree contains a case-colliding path: {full_path}")
         seen.add(folded)
@@ -431,7 +437,10 @@ def bounded_package_files(repository: PinnedRepository, package_path: str) -> li
 
 def materialize_package(files: list[tuple[str, int, bytes]], root: Path) -> None:
     for relative, mode, body in files:
-        path = portable_path(relative, "package file")
+        try:
+            path = portable_path(relative, "package file")
+        except BridgeError as error:
+            raise DiscoveryError(str(error)) from error
         destination = root.joinpath(*PurePosixPath(path).parts)
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(body)

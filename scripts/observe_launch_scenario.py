@@ -1177,6 +1177,20 @@ def tree_digest(root: Path) -> str:
     return "sha256:" + hashlib.sha256(framed).hexdigest()
 
 
+def git_worktree_digest(root: Path) -> str:
+    """Digest repository bytes while excluding mutable internal Git stat cache."""
+    _, bodies = _stable_tree_snapshot(root)
+    framed = bytearray(b"uap-git-worktree-observation-v1\0")
+    for relative in sorted(bodies):
+        if relative == ".git" or relative.startswith(".git/"):
+            continue
+        name = relative.encode()
+        body = bodies[relative]
+        framed.extend(len(name).to_bytes(8, "big") + name)
+        framed.extend(len(body).to_bytes(8, "big") + body)
+    return "sha256:" + hashlib.sha256(framed).hexdigest()
+
+
 def observe(home: Path, manager: Path) -> dict[str, Any]:
     manager_snapshot = filesystem_snapshot(manager)
     native_snapshots = {name: filesystem_snapshot(home / name) for name in NATIVE_ROOTS}
@@ -5853,11 +5867,11 @@ def promotion_scenario(binary: Path, scenario: str, root: Path, challenge: str) 
     }, sort_keys=True))
     candidate_output = root / "promotion-candidate.json"
     before = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
-    before_repository = tree_digest(repository)
+    before_repository = git_worktree_digest(repository)
     argv = [str(JOURNEY_VALIDATOR), "promotion", "--repository", str(repository), "--pr-metadata", str(pr_metadata), "--path", "packages/chrome-devtools", "--review-record", str(review_record), "--candidate-output", str(candidate_output)]
     completed, trace = traced(Path(sys.executable), argv, root, challenge)
     result = json.loads(completed.stdout)
-    after_repository = tree_digest(repository)
+    after_repository = git_worktree_digest(repository)
     after = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
     gate_names = [item["name"] for item in result.get("gates", [])]
     if scenario == "promotion_gate_digest_match":
@@ -5910,13 +5924,13 @@ def fork_submission_scenario(scenario: str, root: Path, challenge: str) -> tuple
         "distribution_id": "contributor/fixture-bridge",
     }, sort_keys=True))
     before = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
-    before_repository = tree_digest(fork)
+    before_repository = git_worktree_digest(fork)
     argv = [str(JOURNEY_VALIDATOR), "submission", "--repository", str(fork), "--submission-record", str(record), "--upstream-mirror", str(root / "upstream-mirror")]
     completed, trace = traced(Path(sys.executable), argv, root, challenge)
     trace["argv"] = ["validate-review-journey", "submission", "--repository", "disposable-fork", "--branch-revision", branch_revision, "--upstream-mirror", "disposable-upstream-mirror"]
     result = json.loads(completed.stdout)
     after = observe(Path(os.environ["HOME"]), Path(os.environ["AGENTPLUGINS_HOME"]))
-    after_repository = tree_digest(fork)
+    after_repository = git_worktree_digest(fork)
     if scenario == "fork_submission":
         gate_names = [item["name"] for item in result.get("gates", [])]
         side_effects = result.get("side_effects", {})

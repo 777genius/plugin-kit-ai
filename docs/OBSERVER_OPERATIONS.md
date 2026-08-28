@@ -39,8 +39,8 @@ installer-managed deployment files are:
 
 | Artifact | Installed path | Mode |
 | --- | --- | --- |
-| Git, Codex, Kiro native executables | `/opt/uap-observer-inputs/bin/{git,codex,kiro,kiro-cli-chat}` | root-owned `0755` regular files; Kiro requires both digest-pinned executables |
-| Complete Cursor Agent bundle | `/opt/uap-observer-inputs/cursor/` plus `/opt/uap-observer-inputs/cursor-bundle.json` | root-owned closure; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
+| Git, Codex, Kiro native executables | `/opt/uap-observer-inputs/bin/{git,codex,codex-code-mode-host,kiro,kiro-cli-chat}` | root-owned `0755` regular files; Codex and Kiro require their digest-pinned sibling executables |
+| Complete Cursor Agent bundle | `/opt/uap-observer-inputs/cursor/` plus `/opt/uap-observer-inputs/cursor-bundle.json` | root-owned closure including `node`, `bash`, `basename`, `dirname`, and `realpath`; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
 | Chrome for Testing 152.0.7977.64 bundle | `/opt/uap-observer-inputs/chrome-for-testing/` plus `/opt/uap-observer-inputs/chrome-for-testing-bundle.json` | root-owned complete browser closure; directories `0755`, files `0644` or `0755`, canonical manifest `0644` |
 | ChatGPT app binding and projection receipt | `/opt/uap-observer-inputs/chatgpt/{app-binding.json,projection-receipt.json}` | `root:uap-observer-adapter-config`, `0640` |
 | independently captured external-PR evidence | `/opt/uap-observer-inputs/external-pr-evidence.json` | `root:uap-observer-adapter-config`, `0640` |
@@ -76,7 +76,7 @@ getent group uap-observer-adapter-config >/dev/null || \
 install -d -o root -g root -m 0755 /opt/uap-observer-inputs \
   /opt/uap-observer-inputs/bin /opt/uap-observer-inputs/chatgpt \
   /opt/uap-observer-inputs/cursor /opt/uap-observer-inputs/chrome-for-testing
-for name in git codex kiro kiro-cli-chat; do
+for name in git codex codex-code-mode-host kiro kiro-cli-chat; do
   install -o root -g root -m 0755 "/root/approved-inputs/$name" \
     "/opt/uap-observer-inputs/bin/$name"
 done
@@ -285,7 +285,10 @@ for client in codex cursor kiro; do
   fi
   install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/git "$client_path/git"
   case "$client" in
-    codex) install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/codex "$client_path/codex" ;;
+    codex)
+      install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/codex "$client_path/codex"
+      install -o root -g root -m 0755 /opt/uap-observer-inputs/bin/codex-code-mode-host "$client_path/codex-code-mode-host"
+      ;;
     cursor)
       printf '%s\n' '#!/bin/sh' \
         'exec /opt/uap-observer-inputs/cursor/cursor-agent "$@"' \
@@ -310,7 +313,7 @@ for client in codex cursor kiro; do
   test "$(sha256sum "$client_path/git" | cut -d' ' -f1)" = \
     "$(sha256sum /opt/uap-observer-inputs/bin/git | cut -d' ' -f1)"
   case "$client" in
-    codex) expected_names='codex git node'; aliases='codex' ;;
+    codex) expected_names='codex codex-code-mode-host git node'; aliases='codex' ;;
     cursor) expected_names='cursor git node'; aliases='' ;;
     kiro) expected_names='git kiro-cli kiro-cli-chat node'; aliases='kiro-cli' ;;
   esac
@@ -321,6 +324,10 @@ for client in codex cursor kiro; do
     test "$(sha256sum "$client_path/$alias" | cut -d' ' -f1)" = \
       "$(sha256sum "/opt/uap-observer-inputs/bin/$client" | cut -d' ' -f1)"
   done
+  if [ "$client" = codex ]; then
+    test "$(sha256sum "$client_path/codex-code-mode-host" | cut -d' ' -f1)" = \
+      "$(sha256sum /opt/uap-observer-inputs/bin/codex-code-mode-host | cut -d' ' -f1)"
+  fi
   if [ "$client" = cursor ]; then
     test "$(sed -n '2p' "$client_path/cursor")" = \
       'exec /opt/uap-observer-inputs/cursor/cursor-agent "$@"'
