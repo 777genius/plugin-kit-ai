@@ -125,12 +125,13 @@ func TestGroupedDryRunDoesNotObserveNativeClientIdentity(t *testing.T) {
 	kiro := domain.DetectedClient{ClientID: domain.ClientKiro, Status: domain.DetectionDetected, ConfigRoot: filepath.Join(t.TempDir(), ".kiro")}
 	observer := &countingNativeObserver{}
 	service.NativeObserver = observer
+	targets := []AddInput{
+		addInput(t, cursor, "https://example.com/dry-run"),
+		addInput(t, kiro, "https://example.com/dry-run"),
+	}
 
 	result, err := service.AddGroup(context.Background(), GroupInput{
-		Targets: []AddInput{
-			addInput(t, cursor, "https://example.com/dry-run"),
-			addInput(t, kiro, "https://example.com/dry-run"),
-		},
+		Targets:          targets,
 		OperationGroupID: "group-dry-run",
 		DryRun:           true,
 	})
@@ -149,6 +150,25 @@ func TestGroupedDryRunDoesNotObserveNativeClientIdentity(t *testing.T) {
 	}
 	if result.Mutated || len(state.Installations) != 0 {
 		t.Fatalf("group dry-run mutated state: result=%+v state=%+v", result, state)
+	}
+
+	installed, err := service.AddGroup(context.Background(), GroupInput{
+		Targets: targets, OperationGroupID: "group-install", Confirmed: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.Targets[0].Plan.ActivePath, "plugin.json"), []byte("tampered"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	observer.calls, observer.preparedCalls = 0, 0
+	if _, err := service.AddGroup(context.Background(), GroupInput{
+		Targets: targets, OperationGroupID: "group-tampered-dry-run", DryRun: true,
+	}); err == nil || !strings.Contains(err.Error(), "changed or is missing") {
+		t.Fatalf("tampered group dry-run error = %v", err)
+	}
+	if observer.calls != 0 || observer.preparedCalls != 1 {
+		t.Fatalf("tampered group dry-run observations: native=%d prepared=%d", observer.calls, observer.preparedCalls)
 	}
 }
 
