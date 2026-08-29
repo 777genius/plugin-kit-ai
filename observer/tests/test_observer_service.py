@@ -1832,6 +1832,15 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         self.assertEqual(service.count(binding), 1)
         self.assertNotIn("Environment=PYTHONPATH=/opt/uap-observer\n", service)
 
+    def test_protected_adapters_import_only_the_immutable_runtime(self) -> None:
+        protected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=True)
+        self.assertEqual(protected["PYTHONPATH"], "/opt/uap-observer-current/runtime")
+        self.assertEqual(protected["PYTHONDONTWRITEBYTECODE"], "1")
+        self.assertNotIn("HOME", protected)
+        unprotected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=False)
+        self.assertNotIn("PYTHONPATH", unprotected)
+        self.assertNotIn("PYTHONDONTWRITEBYTECODE", unprotected)
+
     def test_production_pins_match_exact_bytes_and_fixture_reaches_beyond_both_checks(self) -> None:
         repository = Path(__file__).parents[2]
         manifest = repository / "deploy/uap-observer-runtime.sha256"
@@ -3908,6 +3917,27 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
 
 
 class FixedAdapterContractTests(unittest.TestCase):
+    def test_adapter_reads_config_through_the_verified_immutable_alias(self) -> None:
+        body = b'{"schema_version":1}'
+        path = fixed_adapters.IMMUTABLE_CLOSURE_ALIAS / "etc/uap-observer-adapter-config.json"
+        with (
+            mock.patch.object(fixed_adapters, "read_immutable_closure_regular", return_value=body) as read,
+            mock.patch.object(fixed_adapters, "open_directory") as direct_open,
+        ):
+            self.assertEqual(
+                fixed_adapters.read_regular(
+                    path, fixed_adapters.sha256(body), owner_uid=0, mode=0o640,
+                ),
+                body,
+            )
+        read.assert_called_once_with(
+            Path("etc/uap-observer-adapter-config.json"),
+            fixed_adapters.MAX_FILE,
+            owner_uid=0,
+            exact_mode=0o640,
+        )
+        direct_open.assert_not_called()
+
     @staticmethod
     def install_projection(profile: Path, client: str, approved: dict[str, Any]) -> dict[str, str]:
         proof = profile.parent / "proofs" / client

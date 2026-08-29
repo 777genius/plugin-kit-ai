@@ -371,6 +371,20 @@ def canonical_json(value: Any) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 
 
+def adapter_environment(config_digest: str, identity: str, *, protected: bool) -> dict[str, str]:
+    environment = {
+        "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
+        "UAP_OBSERVER_ADAPTER_CONFIG_SHA256": config_digest,
+        "UAP_OBSERVER_ADAPTER_CLIENT": identity,
+    }
+    if protected:
+        environment.update({
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": str(IMMUTABLE_CLOSURE_ALIAS / "runtime"),
+        })
+    return environment
+
+
 def validate_artifacts(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != ARTIFACT_NAMES or not all(isinstance(item, dict) for item in value.values()):
         raise ValueError("adapter artifact set is not canonical")
@@ -797,11 +811,9 @@ class ReviewedRunner:
                         process = subprocess.Popen(
                             [str(adapter.executable), "--context", str(context_path), "--output", str(output)],
                             cwd=invocation_dir,
-                            env={
-                                "PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-                                "UAP_OBSERVER_ADAPTER_CONFIG_SHA256": adapter.config_digest,
-                                "UAP_OBSERVER_ADAPTER_CLIENT": identity,
-                            },
+                            env=adapter_environment(
+                                adapter.config_digest, identity, protected=self.protected,
+                            ),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             start_new_session=True,
                             preexec_fn=contain_and_drop_privileges if self.protected else None,

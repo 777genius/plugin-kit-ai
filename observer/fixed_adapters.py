@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from observer.client_bundle import verify_bundle
+from observer.secure_files import IMMUTABLE_CLOSURE_ALIAS, read_immutable_closure_regular
 
 HEROES = {"agent-code-navigator", "context7", "cloudflare-docs", "chrome-devtools", "notion"}
 CLIENTS = {"codex", "cursor", "kiro"}
@@ -309,6 +310,17 @@ def verify_root_readonly_ancestors(profile: Path, parent: Path) -> None:
 
 
 def read_regular(path: Path, expected_digest: str | None, *, owner_uid: int, mode: int | None = None) -> bytes:
+    try:
+        relative = path.relative_to(IMMUTABLE_CLOSURE_ALIAS)
+    except ValueError:
+        relative = None
+    if relative is not None:
+        encoded = read_immutable_closure_regular(
+            relative, MAX_FILE, owner_uid=owner_uid, exact_mode=mode,
+        )
+        if expected_digest is not None and sha256(encoded) != expected_digest:
+            raise ValueError("protected file digest differs")
+        return encoded
     parent_fd = open_directory(path.parent, allowed_owners={owner_uid, os.geteuid()})
     descriptor = -1
     try:
