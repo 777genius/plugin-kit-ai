@@ -1,4 +1,7 @@
 #!/bin/sh
+LC_ALL=C
+LANG=C
+export LC_ALL LANG
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

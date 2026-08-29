@@ -1448,6 +1448,47 @@ class FixedRunnerFixtureTests(unittest.TestCase):
             installer,
         )
 
+    def test_installer_pins_c_locale_before_inventory_validation(self) -> None:
+        repository = Path(__file__).parents[2]
+        installer = (repository / "deploy/uap-observer-install.sh").read_text()
+        prologue = "#!/bin/sh\nLC_ALL=C\nLANG=C\nexport LC_ALL LANG\nset -eu\n"
+        self.assertTrue(installer.startswith(prologue))
+        inventory = next(
+            line for line in installer.splitlines()
+            if 'tar -tzf "$stage_root/caddy_2.11.4_linux_amd64.tar.gz"' in line
+        ).replace('"$stage_root/caddy_2.11.4_linux_amd64.tar.gz"', '"$1"')
+        with tempfile.TemporaryDirectory() as temporary:
+            tools = Path(temporary)
+            tar = tools / "tar"
+            tar.write_text("#!/bin/sh\nprintf '%s\\n' caddy LICENSE README.md\n")
+            tar.chmod(0o755)
+            sort = tools / "sort"
+            sort.write_text(
+                "#!/bin/sh\n"
+                "if [ \"${LC_ALL-}:${LANG-}\" = C:C ]; then\n"
+                "  exec /usr/bin/sort \"$@\"\n"
+                "fi\n"
+                "cat\n"
+            )
+            sort.chmod(0o755)
+            inherited = {
+                **os.environ,
+                "PATH": f"{tools}:/usr/bin:/bin",
+                "LC_ALL": "en_US.UTF-8",
+                "LANG": "en_US.UTF-8",
+            }
+            control = subprocess.run(
+                ["/bin/sh", "-c", "tar -tzf \"$1\" | sort | tr '\\n' ' '", "sh", "fixture.tar.gz"],
+                env=inherited, text=True, capture_output=True,
+            )
+            self.assertEqual(control.returncode, 0, control.stderr)
+            self.assertEqual(control.stdout, "caddy LICENSE README.md ")
+            result = subprocess.run(
+                ["/bin/sh", "-c", prologue + inventory, "sh", "fixture.tar.gz"],
+                env=inherited, text=True, capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_installer_rejects_mismatched_runner_binding_before_install_effects(self) -> None:
         repository = Path(__file__).parents[2]
         installer = (repository / "deploy/uap-observer-install.sh").read_text()
