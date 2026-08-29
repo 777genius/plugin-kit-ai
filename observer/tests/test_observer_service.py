@@ -1825,6 +1825,13 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         socket = (repository / "deploy/uap-observer-egress-proxy.socket").read_text()
         self.assertIn("ListenStream=127.0.0.2:8766", socket)
 
+    def test_runner_service_imports_only_the_immutable_runtime(self) -> None:
+        repository = Path(__file__).parents[2]
+        service = (repository / "deploy/uap-observer-runner.service").read_text()
+        binding = "Environment=PYTHONPATH=/opt/uap-observer-current/runtime\n"
+        self.assertEqual(service.count(binding), 1)
+        self.assertNotIn("Environment=PYTHONPATH=/opt/uap-observer\n", service)
+
     def test_production_pins_match_exact_bytes_and_fixture_reaches_beyond_both_checks(self) -> None:
         repository = Path(__file__).parents[2]
         manifest = repository / "deploy/uap-observer-runtime.sha256"

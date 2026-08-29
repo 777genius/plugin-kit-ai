@@ -11,6 +11,7 @@ User=root
 Group=root
 ExecStart=/opt/uap-observer-current/venv/bin/python /opt/uap-observer-current/libexec/uap-observer-runner --socket-fd 3
 Environment=UAP_OBSERVER_ISOLATION=systemd-positive-mount-allowlist-v1
+Environment=PYTHONPATH=/opt/uap-observer-current/runtime
 Environment=HTTPS_PROXY=http://127.0.0.2:8766
 Environment=https_proxy=http://127.0.0.2:8766
 Environment=HTTP_PROXY=http://127.0.0.2:8766
