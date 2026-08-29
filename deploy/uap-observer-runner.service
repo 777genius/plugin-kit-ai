@@ -55,6 +55,7 @@ TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec
 TemporaryFileSystem=/var/tmp:rw,nosuid,nodev,noexec
 BindReadOnlyPaths=/usr/bin /usr/lib -/usr/lib64 -/lib -/lib64 /etc/passwd /etc/group /etc/nsswitch.conf -/etc/ssl -/etc/pki
 BindReadOnlyPaths=/var/empty/uap-observer-codex /var/empty/uap-observer-cursor /var/empty/uap-observer-kiro /var/empty/uap-observer-control
+BindReadOnlyPaths=/opt/uap-observer-inputs
 BindPaths=/var/lib/uap-observer/jobs /var/lib/uap-observer/workspaces /var/lib/uap-observer-human/pending /var/lib/uap-observer-human/reserved /var/lib/uap-observer-human/consumed /var/lib/uap-observer-consent/pending /var/lib/uap-observer-consent/reserved /var/lib/uap-observer-consent/consumed
 BindReadOnlyPaths=/opt/uap-observer-current /var/lib/uap-observer/proofs /var/lib/uap-observer/profiles
 BindPaths=-/var/lib/uap-observer/profiles/codex/.auth -/var/lib/uap-observer/profiles/codex/.state -/var/lib/uap-observer/profiles/cursor/.auth -/var/lib/uap-observer/profiles/cursor/.state -/var/lib/uap-observer/profiles/kiro/.auth -/var/lib/uap-observer/profiles/kiro/.state

@@ -257,6 +257,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("literal | {bundle_root, bundle_manifest, chrome_root, chrome_manifest}", runner)
         runner_unit = (ROOT / "deploy/uap-observer-runner.service").read_text()
         self.assertIn("BindReadOnlyPaths=/opt/uap-observer-current /var/lib/uap-observer/proofs /var/lib/uap-observer/profiles", runner_unit)
+        self.assertEqual(runner_unit.splitlines().count("BindReadOnlyPaths=/opt/uap-observer-inputs"), 1)
         writable = next(line for line in runner_unit.splitlines() if line.startswith("BindPaths=-/var/lib/uap-observer/profiles/"))
         self.assertEqual(writable.split("=")[1].split(), [
             f"-/var/lib/uap-observer/profiles/{client}/{leaf}"

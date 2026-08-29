@@ -1927,6 +1927,9 @@ class FixedRunnerFixtureTests(unittest.TestCase):
             "/var/empty/uap-observer-control"
         )
         self.assertEqual(service.count(homes), 1)
+        self.assertEqual(
+            service.splitlines().count("BindReadOnlyPaths=/opt/uap-observer-inputs"), 1,
+        )
 
     def test_protected_adapters_import_only_the_immutable_runtime(self) -> None:
         protected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=True)
