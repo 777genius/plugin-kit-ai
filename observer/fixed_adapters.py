@@ -80,11 +80,49 @@ FIXED_INPUT_PATHS = {
     "/opt/uap-observer-inputs/chatgpt/projection-receipt.json",
     "/opt/uap-observer-inputs/external-pr-evidence.json",
 }
-FIXED_MOUNT_PATHS = FIXED_INPUT_PATHS - {
+ADAPTER_HOME_PATHS = {
+    f"/var/empty/uap-observer-{identity}"
+    for identity in ("codex", "cursor", "kiro", "control")
+}
+FIXED_MOUNT_PATHS = (FIXED_INPUT_PATHS - {
     "/opt/uap-observer-inputs/cursor/cursor-agent",
     str(CHROME_BINARY),
-}
+}) | ADAPTER_HOME_PATHS
 CLOSURE_MOUNT_SOURCE = re.compile(r"/opt/uap-observer-closures/[a-f0-9]{64}")
+SYSTEMD_PROPAGATION_SOURCE = re.compile(
+    r"/systemd/propagate/[A-Za-z0-9_.@-]+\.service",
+)
+EFI_VARIABLES_PATH = "/sys/firmware/efi/efivars"
+FIXED_RESOLVED_MOUNT_SOURCES = {
+    "/lib": "/usr/lib",
+    "/lib64": "/usr/lib64",
+}
+SYSTEMD_INACCESSIBLE_PATHS = {
+    "/sys/fs/fuse/connections",
+    "/sys/kernel/config",
+    "/sys/kernel/debug",
+    "/sys/kernel/tracing",
+    "/usr/lib/modules",
+}
+READ_ONLY_MOUNT_PATHS = (
+    "/opt/uap-observer-current",
+    "/usr/bin", "/usr/lib", "/usr/lib64", "/lib", "/lib64",
+    "/etc/passwd", "/etc/group", "/etc/nsswitch.conf", "/etc/hosts",
+    "/etc/ssl", "/etc/pki",
+    "/var/lib/uap-observer/profiles", "/var/lib/uap-observer/proofs",
+)
+WRITABLE_MOUNT_PATHS = (
+    "/var/lib/uap-observer/jobs", "/var/lib/uap-observer/workspaces",
+    "/var/lib/uap-observer-human/pending",
+    "/var/lib/uap-observer-human/reserved",
+    "/var/lib/uap-observer-human/consumed",
+    "/var/lib/uap-observer-consent/pending",
+    "/var/lib/uap-observer-consent/reserved",
+    "/var/lib/uap-observer-consent/consumed",
+    *(f"/var/lib/uap-observer/profiles/{client}/{leaf}"
+      for client in ("codex", "cursor", "kiro")
+      for leaf in (".auth", ".state")),
+)
 PRIVACY_RESULT = {
     "real_project_accessed": False, "absolute_paths_exported": False,
     "credential_material_exported": False, "auth_copied": False,
@@ -584,47 +622,100 @@ def verify_positive_mount_namespace(mountinfo: str) -> None:
     if len(mountinfo) > (1 << 20):
         raise ValueError("mount namespace description exceeds size bound")
     fixed_paths = tuple(sorted(FIXED_MOUNT_PATHS))
-    allowed = (
-        "/opt/uap-observer-current", "/usr/bin", "/usr/lib", "/usr/lib64",
-        "/lib", "/lib64",
-        "/etc/passwd", "/etc/group", "/etc/nsswitch.conf", "/etc/hosts", "/etc/ssl", "/etc/pki",
-        "/var/lib/uap-observer/jobs", "/var/lib/uap-observer/workspaces", "/var/lib/uap-observer/profiles", "/var/lib/uap-observer/proofs",
-        "/var/lib/uap-observer-human/pending", "/var/lib/uap-observer-human/reserved", "/var/lib/uap-observer-human/consumed",
-        "/var/lib/uap-observer-consent/pending", "/var/lib/uap-observer-consent/reserved", "/var/lib/uap-observer-consent/consumed",
-    )
+    allowed = tuple(sorted(
+        READ_ONLY_MOUNT_PATHS + WRITABLE_MOUNT_PATHS,
+        key=len, reverse=True,
+    ))
     kernel_filesystems = {
         "tmpfs", "proc", "sysfs", "cgroup2", "devtmpfs", "devpts", "mqueue",
         "hugetlbfs", "securityfs", "tracefs", "pstore", "bpf", "autofs", "ramfs",
     }
-    kernel_targets = ("/proc", "/sys", "/dev", "/tmp", "/var/tmp", "/run/credentials", "/run/systemd")
+    kernel_targets = ("/proc", "/sys", "/dev")
     root_seen = False
     for line in mountinfo.splitlines():
         fields = line.split()
         try:
             separator = fields.index("-")
             source_root, target = _mount_path(fields[3]), _mount_path(fields[4])
+            mount_options = set(fields[5].split(","))
             filesystem = fields[separator + 1]
         except (ValueError, IndexError):
             raise ValueError("mount namespace description is malformed") from None
         if target == "/":
-            if filesystem not in {"tmpfs", "ramfs"}:
+            if not (
+                filesystem in {"tmpfs", "ramfs"}
+                and {"ro", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
                 raise ValueError("mount namespace root is not an empty synthetic filesystem")
             root_seen = True
+            continue
+        if target in SYSTEMD_INACCESSIBLE_PATHS:
+            if not (
+                source_root == "/systemd/inaccessible/dir"
+                and filesystem == "tmpfs"
+                and {"ro", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
+                raise ValueError(f"protected kernel path at {target} is not inaccessible")
+            continue
+        if target == "/run":
+            if not (
+                source_root == "/" and filesystem == "tmpfs"
+                and {"rw", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
+                raise ValueError("runtime directory is not an isolated tmpfs")
+            continue
+        if target == "/run/systemd/incoming":
+            if not (
+                SYSTEMD_PROPAGATION_SOURCE.fullmatch(source_root) is not None
+                and filesystem == "tmpfs"
+                and {"ro", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
+                raise ValueError("systemd propagation mount differs")
+            continue
+        if target in {"/tmp", "/var/tmp"}:
+            if not (
+                source_root == "/" and filesystem == "tmpfs"
+                and {"rw", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
+                raise ValueError(f"temporary directory at {target} is not isolated")
+            continue
+        if filesystem == "efivarfs" or target == EFI_VARIABLES_PATH:
+            if not (
+                target == EFI_VARIABLES_PATH and source_root == "/"
+                and filesystem == "efivarfs"
+                and {"ro", "nosuid", "nodev", "noexec"} <= mount_options
+            ):
+                raise ValueError("EFI variable mount differs")
             continue
         if filesystem in kernel_filesystems and any(target == prefix or target.startswith(prefix + "/") for prefix in kernel_targets):
             continue
         matched = next((prefix for prefix in allowed if target == prefix or target.startswith(prefix + "/")), None)
         if matched is None and target not in fixed_paths:
             raise ValueError(f"mount namespace exposes a non-allowlisted filesystem at {target}")
-        if target in fixed_paths and source_root != target:
-            raise ValueError(f"fixed runtime input at {target} is an alternate-path bind")
+        if target in fixed_paths:
+            if source_root != target:
+                raise ValueError(f"fixed runtime input at {target} is an alternate-path bind")
+            if "ro" not in mount_options:
+                raise ValueError(f"fixed runtime input at {target} is not read-only")
+            continue
         closure_alias = (
             matched == "/opt/uap-observer-current"
             and CLOSURE_MOUNT_SOURCE.fullmatch(source_root) is not None
         )
-        same_source = matched is not None and (source_root == matched or source_root.startswith(matched + "/"))
+        resolved_system_alias = (
+            matched == target
+            and FIXED_RESOLVED_MOUNT_SOURCES.get(target) == source_root
+        )
+        same_source = matched is not None and (
+            source_root == matched or source_root.startswith(matched + "/")
+            or resolved_system_alias
+        )
         if target not in fixed_paths and not same_source and not closure_alias:
             raise ValueError(f"allowlisted runtime path at {target} has a foreign mount source")
+        expected_mode = "rw" if matched in WRITABLE_MOUNT_PATHS else "ro"
+        if expected_mode not in mount_options:
+            state = "writable" if expected_mode == "rw" else "read-only"
+            raise ValueError(f"allowlisted runtime path at {target} is not {state}")
     if not root_seen:
         raise ValueError("mount namespace root was not identified")
 

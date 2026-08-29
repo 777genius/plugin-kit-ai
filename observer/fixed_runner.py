@@ -162,12 +162,22 @@ def reviewed_service_identities() -> dict[str, tuple[int, int, frozenset[int]]]:
     return result
 
 
+def _nonblocking_cloexec_pipe() -> tuple[int, int]:
+    if hasattr(os, "pipe2"):
+        return os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    descriptors = os.pipe()
+    for descriptor in descriptors:
+        os.set_inheritable(descriptor, False)
+        os.set_blocking(descriptor, False)
+    return descriptors
+
+
 def _probe_adapter_identity_access(
     uid: int, gid: int, gids: frozenset[int], paths: tuple[tuple[Path, bool], ...],
     *, timeout: float = 2.0,
 ) -> None:
     """Use the kernel's DAC/ACL checks under the exact service credentials."""
-    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    read_fd, write_fd = _nonblocking_cloexec_pipe()
     child = os.fork()
     if child == 0:
         os.close(read_fd)
@@ -232,6 +242,71 @@ def _identity_directory_open_flags(o_path: int) -> int:
     """Select search-only traversal when the platform exposes O_PATH."""
     access_mode = o_path if o_path else os.O_RDONLY
     return access_mode | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def validate_empty_adapter_home(
+    path: Path, *, uid: int, gid: int, timeout: float = 2.0,
+) -> None:
+    """Validate an adapter-owned 0700 home under that exact service identity."""
+    read_fd, write_fd = _nonblocking_cloexec_pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(read_fd)
+        descriptor = -1
+        try:
+            if os.geteuid() == 0:
+                os.setgroups([])
+                os.setresgid(gid, gid, gid)
+                os.setresuid(uid, uid, uid)
+                try:
+                    os.setuid(0)
+                except PermissionError:
+                    pass
+                else:
+                    raise PermissionError("adapter home probe retained privilege")
+            elif uid != os.geteuid() or gid != os.getegid():
+                raise PermissionError("adapter home probe cannot assume exact identity")
+            descriptor = os.open(
+                path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            )
+            info = os.fstat(descriptor)
+            if (
+                not stat.S_ISDIR(info.st_mode) or info.st_uid != uid
+                or info.st_gid != gid or stat.S_IMODE(info.st_mode) != 0o700
+            ):
+                raise ValueError("reviewed adapter home or groups differ")
+            if os.listdir(descriptor):
+                raise ValueError("reviewed adapter home is not empty")
+        except BaseException as error:
+            try:
+                os.write(write_fd, str(error).encode("utf-8", "replace")[:4096])
+            finally:
+                os._exit(1)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+        os._exit(0)
+    os.close(write_fd)
+    deadline = time.monotonic() + timeout
+    status: int | None = None
+    try:
+        while time.monotonic() < deadline:
+            completed, value = os.waitpid(child, os.WNOHANG)
+            if completed:
+                status = value
+                break
+            select.select(
+                [read_fd], [], [], min(0.02, max(0.0, deadline - time.monotonic())),
+            )
+        if status is None:
+            os.kill(child, signal.SIGKILL)
+            _, status = os.waitpid(child, 0)
+            raise ValueError("adapter home validation timed out")
+        error = os.read(read_fd, 4096).decode("utf-8", "replace")
+        if not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+            raise ValueError(f"adapter home validation failed: {error}")
+    finally:
+        os.close(read_fd)
 
 
 def validate_adapter_input_access(
@@ -753,13 +828,9 @@ class ReviewedRunner:
             self._config_gid = grp.getgrnam("uap-observer-adapter-config").gr_gid
             for identity in ("codex", "cursor", "kiro", "control"):
                 uid, gid, _ = service_identities[identity]
-                expected_home = f"/var/empty/uap-observer-{identity}"
-                home = os.stat(expected_home, follow_symlinks=False)
-                if (
-                    not stat.S_ISDIR(home.st_mode) or home.st_uid != uid
-                    or home.st_gid != gid or stat.S_IMODE(home.st_mode) != 0o700
-                ):
-                    raise ValueError("reviewed adapter home or groups differ")
+                validate_empty_adapter_home(
+                    Path(f"/var/empty/uap-observer-{identity}"), uid=uid, gid=gid,
+                )
                 self._identities[identity] = (uid, gid)
         else:
             self._identities = {identity: (os.geteuid(), os.getegid()) for identity in ("codex", "cursor", "kiro", "control")}

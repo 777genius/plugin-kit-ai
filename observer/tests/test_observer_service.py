@@ -1866,7 +1866,23 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         self.assertEqual(service.count(binding), 1)
         self.assertNotIn("Environment=PYTHONPATH=/opt/uap-observer\n", service)
         self.assertIn("TemporaryFileSystem=/:ro,nosuid,nodev,noexec", service)
+        self.assertIn("TemporaryFileSystem=/run:rw,nosuid,nodev,noexec", service)
+        self.assertIn("TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec", service)
+        self.assertIn("TemporaryFileSystem=/var/tmp:rw,nosuid,nodev,noexec", service)
+        self.assertNotIn("PrivateTmp=yes", service)
         self.assertNotIn("\nProtectSystem=strict\n", "\n" + service)
+        self.assertIn("ProtectKernelLogs=yes", service)
+        self.assertIn(
+            "InaccessiblePaths=-/sys/kernel/debug -/sys/kernel/tracing "
+            "-/sys/kernel/config -/sys/fs/fuse/connections",
+            service,
+        )
+        homes = (
+            "BindReadOnlyPaths=/var/empty/uap-observer-codex "
+            "/var/empty/uap-observer-cursor /var/empty/uap-observer-kiro "
+            "/var/empty/uap-observer-control"
+        )
+        self.assertEqual(service.count(homes), 1)
 
     def test_protected_adapters_import_only_the_immutable_runtime(self) -> None:
         protected = fixed_runner.adapter_environment("sha256:" + "a" * 64, "codex", protected=True)
@@ -3848,6 +3864,26 @@ recover_observer_install "$2" "$3" "$4" "$5" /bin/true cleanup_fixture
         self.assertEqual(fallback, os.O_RDONLY | common)
         self.assertFalse(fallback & synthetic_o_path)
 
+    def test_adapter_home_is_exact_metadata_and_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "adapter-home"
+            home.mkdir(mode=0o700)
+            fixed_runner.validate_empty_adapter_home(
+                home, uid=os.geteuid(), gid=os.getegid(),
+            )
+            unexpected = home / "unexpected"
+            unexpected.write_text("not empty")
+            with self.assertRaisesRegex(ValueError, "not empty"):
+                fixed_runner.validate_empty_adapter_home(
+                    home, uid=os.geteuid(), gid=os.getegid(),
+                )
+            unexpected.unlink()
+            home.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "home or groups differ"):
+                fixed_runner.validate_empty_adapter_home(
+                    home, uid=os.geteuid(), gid=os.getegid(),
+                )
+
     def test_fixed_runner_socket_executes_only_injected_reviewed_adapters(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -4243,7 +4279,7 @@ class FixedAdapterContractTests(unittest.TestCase):
             fixed_adapters.validate_config(config)
 
     def test_mount_namespace_is_a_kernel_verified_positive_allowlist(self) -> None:
-        root = "10 1 0:1 / / ro - tmpfs tmpfs ro\n"
+        root = "10 1 0:1 / / ro,nosuid,nodev,noexec - tmpfs tmpfs ro\n"
         allowed = root + "11 10 8:1 /usr/bin /usr/bin ro - ext4 /dev/root ro\n"
         fixed_adapters.verify_positive_mount_namespace(allowed)
         fixed_adapters.verify_positive_mount_namespace(
@@ -4254,6 +4290,45 @@ class FixedAdapterContractTests(unittest.TestCase):
             + f"12 10 8:2 /opt/uap-observer-closures/{'a' * 64} "
             "/opt/uap-observer-current ro - ext4 /dev/root ro\n",
         )
+        fixed_adapters.verify_positive_mount_namespace(
+            allowed
+            + "12 10 8:2 /var/empty/uap-observer-codex "
+            "/var/empty/uap-observer-codex ro - ext4 /dev/root ro\n",
+        )
+        fixed_adapters.verify_positive_mount_namespace(
+            root
+            + "12 10 8:2 /usr/lib /lib ro - ext4 /dev/root ro\n"
+            + "13 10 8:2 /usr/lib64 /lib64 ro - ext4 /dev/root ro\n",
+        )
+        fixed_adapters.verify_positive_mount_namespace(
+            root
+            + "12 10 0:54 / /run rw,nosuid,nodev,noexec - tmpfs tmpfs rw\n"
+            + "15 12 0:25 /systemd/propagate/uap-observer-runner.service "
+            "/run/systemd/incoming ro,nosuid,nodev,noexec - tmpfs tmpfs rw\n"
+            + "13 10 0:55 / /tmp rw,nosuid,nodev,noexec - tmpfs tmpfs rw\n"
+            + "14 10 0:56 / /var/tmp rw,nosuid,nodev,noexec - tmpfs tmpfs rw\n",
+        )
+        fixed_adapters.verify_positive_mount_namespace(
+            root
+            + "12 10 0:25 /systemd/inaccessible/dir /sys/kernel/debug "
+            "ro,nosuid,nodev,noexec - tmpfs tmpfs rw\n"
+            + "13 10 0:25 /systemd/inaccessible/dir /usr/lib/modules "
+            "ro,nosuid,nodev,noexec - tmpfs tmpfs rw\n",
+        )
+        fixed_adapters.verify_positive_mount_namespace(
+            root
+            + "12 10 0:59 / /sys/firmware/efi/efivars "
+            "ro,nosuid,nodev,noexec - efivarfs efivarfs rw\n",
+        )
+        for source, target, options in (
+            ("/", "/sys/firmware/efi/efivars", "rw,nosuid,nodev,noexec"),
+            ("/", "/sys/firmware/efi/foreign", "ro,nosuid,nodev,noexec"),
+            ("/host/firmware", "/sys/firmware/efi/efivars", "ro,nosuid,nodev,noexec"),
+        ):
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "EFI variable"):
+                fixed_adapters.verify_positive_mount_namespace(
+                    root + f"12 10 0:59 {source} {target} {options} - efivarfs efivarfs rw\n",
+                )
         for target in ("/var/www/customer-project", "/usr/local/src/repository", "/workspace/project", "/var/www/link-to-project", "/var/lib/uap-observer/state"):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, "non-allowlisted"):
                 fixed_adapters.verify_positive_mount_namespace(allowed + f"12 10 8:2 /project {target} ro - ext4 /dev/fixture ro\n")
@@ -4271,8 +4346,65 @@ class FixedAdapterContractTests(unittest.TestCase):
             fixed_adapters.verify_positive_mount_namespace(
                 root + "12 10 8:2 /opt/uap-observer-closures/not-a-digest /opt/uap-observer-current ro - ext4 /dev/fixture ro\n",
             )
+        with self.assertRaisesRegex(ValueError, "alternate-path bind"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root + "12 10 8:2 /srv/foreign /var/empty/uap-observer-codex ro - ext4 /dev/fixture ro\n",
+            )
+        with self.assertRaisesRegex(ValueError, "not read-only"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root
+                + "12 10 8:2 /var/empty/uap-observer-codex "
+                "/var/empty/uap-observer-codex rw - ext4 /dev/fixture rw\n",
+            )
+        with self.assertRaisesRegex(ValueError, "foreign mount source"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root + "12 10 8:2 /srv/foreign /lib ro - ext4 /dev/fixture ro\n",
+            )
+        with self.assertRaisesRegex(ValueError, "isolated tmpfs"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root + "12 10 8:2 /run /run rw - ext4 /dev/fixture rw\n",
+            )
+        with self.assertRaisesRegex(ValueError, "systemd propagation"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root
+                + "12 10 0:25 /foreign/tmpfs /run/systemd/incoming "
+                "ro,nosuid,nodev,noexec - tmpfs tmpfs rw\n",
+            )
+        with self.assertRaisesRegex(ValueError, "temporary directory"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root + "12 10 0:25 /host/private /tmp rw - tmpfs tmpfs rw\n",
+            )
+        for target in (
+            "/usr/bin", "/opt/uap-observer-current",
+            "/var/lib/uap-observer/profiles", "/var/lib/uap-observer/proofs",
+        ):
+            source = (
+                f"/opt/uap-observer-closures/{'a' * 64}"
+                if target == "/opt/uap-observer-current" else target
+            )
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "not read-only"):
+                fixed_adapters.verify_positive_mount_namespace(
+                    root + f"12 10 8:2 {source} {target} rw - ext4 /dev/fixture rw\n",
+                )
+        for target in (
+            "/var/lib/uap-observer/jobs",
+            "/var/lib/uap-observer/workspaces",
+            "/var/lib/uap-observer/profiles/codex/.auth",
+        ):
+            with self.subTest(target=target), self.assertRaisesRegex(ValueError, "not writable"):
+                fixed_adapters.verify_positive_mount_namespace(
+                    root + f"12 10 8:2 {target} {target} ro - ext4 /dev/fixture ro\n",
+                )
+        with self.assertRaisesRegex(ValueError, "not inaccessible"):
+            fixed_adapters.verify_positive_mount_namespace(
+                root
+                + "12 10 0:25 /systemd/inaccessible/dir /sys/kernel/debug "
+                "ro,nosuid,nodev - tmpfs tmpfs rw\n",
+            )
         with self.assertRaisesRegex(ValueError, "synthetic"):
             fixed_adapters.verify_positive_mount_namespace("10 1 8:1 / / ro - ext4 /dev/root ro\n")
+        with self.assertRaisesRegex(ValueError, "synthetic"):
+            fixed_adapters.verify_positive_mount_namespace("10 1 0:1 / / ro - tmpfs tmpfs ro\n")
 
     @requires_disposable_observer_host
     def test_systemd_mount_namespace_keeps_only_auth_and_state_writable(self) -> None:
