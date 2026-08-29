@@ -606,21 +606,24 @@ class WorkflowContractTests(unittest.TestCase):
             "runner_digest": manifest["observer/fixed_runner.py"],
             "adapter_digest": manifest["observer/fixed_adapters.py"],
         })
-        idempotent = re.search(
-            r"observer_validate_installed_closure_sources .*?\\\n"
-            r"(?:.*?\\\n){1,3}\s+([a-f0-9]{64}) \\\n\s+([a-f0-9]{64}) \\\n",
-            installer,
-        )
-        self.assertIsNotNone(idempotent)
-        self.assertEqual(idempotent.groups(), (
-            manifest["observer/fixed_runner.py"], manifest["observer/fixed_adapters.py"],
-        ))
+        self.assertIn('    "$runner_digest" \\\n    "$adapter_digest" \\\n', installer)
         library_pin = re.search(r'sha256sum "\$install_lib".*?= ([a-f0-9]{64})$', installer, re.MULTILINE)
         self.assertIsNotNone(library_pin)
         self.assertEqual(library_pin.group(1), file_digest("deploy/uap-observer-install-lib.sh"))
         closure_pin = re.search(r"^runtime_manifest_digest=([a-f0-9]{64})$", installer, re.MULTILINE)
         self.assertIsNotNone(closure_pin)
         self.assertEqual(closure_pin.group(1), hashlib.sha256(manifest_path.read_bytes()).hexdigest())
+
+    def test_checked_in_observer_config_binds_exact_runner_closure(self) -> None:
+        config = json.loads((ROOT / "deploy/uap-observer.json").read_text())
+        runner_digest = hashlib.sha256((ROOT / "observer/fixed_runner.py").read_bytes()).hexdigest()
+        self.assertEqual(config["runner_source_digest"], f"sha256:{runner_digest}")
+        self.assertEqual(
+            config["runner_source_path"],
+            "/opt/uap-observer-current/libexec/uap-observer-runner",
+        )
+        self.assertEqual(config["runner_socket"], "/run/uap-observer-runner.sock")
+        self.assertEqual(config["runner_user"], "root")
 
     def test_installed_adapter_manifest_uses_runtime_strict_json_and_version_rules(self) -> None:
         library = (ROOT / "deploy/uap-observer-install-lib.sh").read_text()

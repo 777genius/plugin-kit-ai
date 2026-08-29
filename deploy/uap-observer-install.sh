@@ -13,11 +13,106 @@ fi
 
 usage='usage: uap-observer-install.sh SOURCE_ROOT ADAPTER_CONFIG ADAPTER_SHA256 OBSERVER_CONFIG OBSERVER_SHA256 CADDY_2.11.4_LINUX_AMD64_ARCHIVE CADDY_CONFIG CADDY_CONFIG_SHA256 EGRESS_ALLOWLIST EGRESS_ALLOWLIST_SHA256'
 stage_root=/opt/uap-observer-source.new
-runtime_manifest_digest=4b625ee3bfcfc8a59c09617f875aeaf58b87c8f79678c59d74d6702524417268
+runtime_manifest_digest=48c378e03cc8851522eb1b79023abd2c0da6e7b3ced852d46350104cc96a941c
 caddy_archive_digest=527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9
+runner_digest=357fc65b1b552f049e497e045f4b84a4df33bb892495a681837bb5e626701017
+adapter_digest=48df8eb011e8c90f4a72d58d189a8605704f9adc3449f14f60588f6cbc5dd9d1
 closure_digest=
 closure_stage=
 closure_final=
+observer_config_snapshot_dir=
+observer_config_snapshot=
+
+pin_observer_config() {
+  PYTHONDONTWRITEBYTECODE=1 python3 -B - "$1" "$2" "$3" "$4" <<'PY'
+import hashlib,json,math,os,stat,sys
+
+maximum=256 << 10
+source_path,supplied_digest,runner_digest,snapshot_path=sys.argv[1:]
+flags=os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NOATIME
+source=os.open(source_path,flags)
+def identity(info):
+    return (info.st_dev,info.st_ino,info.st_mode,info.st_nlink,info.st_uid,
+            info.st_gid,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+try:
+    before=os.fstat(source)
+    if not stat.S_ISREG(before.st_mode) or before.st_uid != 0:
+        raise PermissionError("observer config source is not a root-owned regular file")
+    if before.st_size > maximum:
+        raise ValueError("observer config exceeds 256 KiB")
+    chunks=[]
+    remaining=maximum + 1
+    while remaining:
+        chunk=os.read(source,min(65536,remaining))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        remaining-=len(chunk)
+    encoded=b"".join(chunks)
+    after=os.fstat(source)
+    if identity(after) != identity(before) or len(encoded) != before.st_size:
+        raise PermissionError("observer config source changed while reading")
+    if identity(os.stat(source_path,follow_symlinks=False)) != identity(before):
+        raise PermissionError("observer config pathname changed while reading")
+finally:
+    os.close(source)
+if len(encoded) > maximum:
+    raise ValueError("observer config exceeds 256 KiB")
+if "sha256:" + hashlib.sha256(encoded).hexdigest() != supplied_digest:
+    raise SystemExit("observer config digest differs while validating runner binding")
+def object_from_pairs(pairs):
+    value={}
+    folded=set()
+    for key,child in pairs:
+        normalized=key.casefold()
+        if key in value or normalized in folded:
+            raise ValueError("duplicate or case-confusable JSON object member")
+        value[key]=child
+        folded.add(normalized)
+    return value
+def reject_constant(value):
+    raise ValueError(f"non-finite JSON number: {value}")
+def finite_float(value):
+    decoded=float(value)
+    if not math.isfinite(decoded):
+        raise ValueError(f"non-finite JSON number: {value}")
+    return decoded
+config=json.loads(encoded,object_pairs_hook=object_from_pairs,
+                  parse_constant=reject_constant,parse_float=finite_float)
+expected={
+    "runner_source_path": "/opt/uap-observer-current/libexec/uap-observer-runner",
+    "runner_source_digest": "sha256:" + runner_digest,
+    "runner_socket": "/run/uap-observer-runner.sock",
+    "runner_user": "root",
+}
+if not isinstance(config,dict) or any(config.get(key) != value for key,value in expected.items()):
+    raise SystemExit("observer config runner binding differs from immutable closure")
+snapshot=os.open(snapshot_path,os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                 os.O_CLOEXEC | os.O_NOFOLLOW,0o600)
+try:
+    view=memoryview(encoded)
+    while view:
+        written=os.write(snapshot,view)
+        if written <= 0:
+            raise OSError("short observer config snapshot write")
+        view=view[written:]
+    os.fsync(snapshot)
+    info=os.fstat(snapshot)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or
+            info.st_nlink != 1 or info.st_size != len(encoded)):
+        raise PermissionError("observer config snapshot metadata differs")
+finally:
+    os.close(snapshot)
+PY
+}
+
+cleanup_observer_config_snapshot() {
+  if [ -n "$observer_config_snapshot" ]; then rm -f -- "$observer_config_snapshot"; fi
+  if [ -n "$observer_config_snapshot_dir" ]; then rmdir -- "$observer_config_snapshot_dir"; fi
+}
+trap 'cleanup_observer_config_snapshot' EXIT
+trap 'exit 1' HUP INT TERM
+
 install -d -o root -g root -m 0755 /run/lock
 exec 9>/run/lock/uap-observer-install.lock
 flock -n 9 || { echo "another observer install is active" >&2; exit 1; }
@@ -37,10 +132,15 @@ untrusted_caddy_config=${7:?$usage}
 caddy_config_digest=${8:?$usage}
 untrusted_egress_allowlist=${9:?$usage}
 egress_allowlist_digest=${10:?$usage}
+observer_config_snapshot_dir=$(mktemp -d /run/uap-observer-config.XXXXXX)
+observer_config_snapshot=$observer_config_snapshot_dir/config.json
+test "$(stat -c '%u:%g:%a' "$observer_config_snapshot_dir")" = '0:0:700'
+pin_observer_config "$untrusted_observer_config" "$observer_config_digest" \
+  "$runner_digest" "$observer_config_snapshot"
 install_identity=$(observer_install_input_identity \
   "$untrusted_source_root" "$runtime_manifest_digest" \
   "$untrusted_adapter_config" "$adapter_config_digest" \
-  "$untrusted_observer_config" "$observer_config_digest" \
+  "$observer_config_snapshot" "$observer_config_digest" \
   "$untrusted_caddy_archive" "$caddy_archive_digest" \
   "$untrusted_caddy_config" "$caddy_config_digest" \
   "$untrusted_egress_allowlist" "$egress_allowlist_digest")
@@ -50,9 +150,9 @@ if [ -e /opt/uap-observer-current ] || [ -L /opt/uap-observer-current ]; then
   installed_target=$(observer_read_symlink_neutral /opt/uap-observer-current)
   installed_closure="/opt/$installed_target"
   observer_validate_installed_closure_sources "$installed_closure" "$untrusted_source_root" \
-    "$untrusted_adapter_config" "$untrusted_observer_config" "$untrusted_caddy_config" "$untrusted_egress_allowlist" \
-    357fc65b1b552f049e497e045f4b84a4df33bb892495a681837bb5e626701017 \
-    48df8eb011e8c90f4a72d58d189a8605704f9adc3449f14f60588f6cbc5dd9d1 \
+    "$untrusted_adapter_config" "$observer_config_snapshot" "$untrusted_caddy_config" "$untrusted_egress_allowlist" \
+    "$runner_digest" \
+    "$adapter_digest" \
     b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
   observer_validate_installed_accounts_and_state "$installed_closure"
   observer_validate_protected_inputs "$installed_closure"
@@ -69,6 +169,7 @@ cleanup() {
   status=${1:-1}
   trap - EXIT HUP INT TERM
   set +e
+  cleanup_observer_config_snapshot
   recover_observer_install "$stage_root" /opt/uap-observer-closures /opt/uap-observer-current /etc/systemd/system systemctl
   recovery_status=$?
   set -e
@@ -95,7 +196,7 @@ while read -r expected relative extra; do
   install -D -o root -g root -m 0444 "$untrusted_source_root/$relative" "$stage_root/$relative"
 done < "$stage_root/deploy/uap-observer-runtime.sha256"
 install -o root -g root -m 0400 "$untrusted_adapter_config" "$stage_root/adapter-config.json"
-install -o root -g root -m 0644 "$untrusted_observer_config" "$stage_root/observer-config.json"
+install -o root -g root -m 0644 "$observer_config_snapshot" "$stage_root/observer-config.json"
 install -o root -g root -m 0644 "$untrusted_egress_allowlist" "$stage_root/egress-allowlist.json"
 install -o root -g root -m 0400 "$untrusted_caddy_archive" "$stage_root/caddy_2.11.4_linux_amd64.tar.gz"
 test "$(sha256sum "$stage_root/caddy_2.11.4_linux_amd64.tar.gz" | cut -d' ' -f1)" = "527fbf917c39189a1e3b31d34fa955601680b2d5c8055d2a87b8b9588dec7bb9"
@@ -113,8 +214,6 @@ caddy_config=$stage_root/Caddyfile
 runner_source="$source_root/observer/fixed_runner.py"
 adapter_source="$source_root/observer/fixed_adapters.py"
 egress_proxy_source="$source_root/deploy/uap-observer-egress-proxy.py"
-runner_digest=357fc65b1b552f049e497e045f4b84a4df33bb892495a681837bb5e626701017
-adapter_digest=48df8eb011e8c90f4a72d58d189a8605704f9adc3449f14f60588f6cbc5dd9d1
 caddy_digest=b7105518e3ed1c0761f232e44fc09345535533c9cb0abf0e12809416c7ac64d9
 
 test -f "$runner_source"
