@@ -179,21 +179,18 @@ func validatePlugin(plugin domain.CatalogPlugin, schemaVersion int) error {
 		components[component] = struct{}{}
 	}
 	allowChatGPT := schemaVersion == SchemaVersionV2
-	allowedCompatibility := 0
-	for _, definition := range domain.ClientDefinitions() {
-		if definition.ID != domain.ClientChatGPT || allowChatGPT {
-			allowedCompatibility++
-		}
-	}
-	if len(plugin.Compatibility) < len(requiredCompatibility) || len(plugin.Compatibility) > allowedCompatibility {
+	if (!allowChatGPT && len(plugin.Compatibility) != len(requiredCompatibility)) ||
+		(allowChatGPT && (len(plugin.Compatibility) < len(requiredCompatibility) || len(plugin.Compatibility) > len(requiredCompatibility)+1)) {
 		return fmt.Errorf("plugin %q compatibility has the wrong client set for catalog schema v%d", plugin.Name, schemaVersion)
+	}
+	for client := range plugin.Compatibility {
+		if _, required := requiredCompatibility[client]; !required && (!allowChatGPT || client != string(domain.ClientChatGPT)) {
+			return fmt.Errorf("plugin %q compatibility contains unsupported client %q", plugin.Name, client)
+		}
 	}
 	var authentication domain.AuthenticationRequirement
 	for client, compatibility := range plugin.Compatibility {
-		definition, supported := domain.ClientDefinitionFor(domain.ClientID(client))
-		if !supported || (definition.ID == domain.ClientChatGPT && !allowChatGPT) {
-			return fmt.Errorf("plugin %q compatibility contains unsupported client %q", plugin.Name, client)
-		}
+		definition, _ := domain.ClientDefinitionFor(domain.ClientID(client))
 		if compatibility.Package != definition.CatalogPackage ||
 			!validVerificationCompatibility(compatibility.Verification) || !validAuthCompatibility(compatibility.Authentication) {
 			return fmt.Errorf("plugin %q has invalid compatibility for %q", plugin.Name, client)
