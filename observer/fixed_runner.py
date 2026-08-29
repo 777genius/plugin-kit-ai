@@ -657,9 +657,18 @@ def revalidate_client_proofs(
         if body != proof_body or "sha256:" + hashlib.sha256(body).hexdigest() != native["sha256"]:
             raise ValueError("native config changed after all client processes terminated")
     duplicates = [group for group in active_groups.values() if len(group) > 1]
-    if client == "kiro":
-        shared = profile / ".kiro" / "settings" / "mcp.json"
-        skill = profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+    shared_layouts = {
+        "cursor": (
+            profile / ".cursor" / "mcp.json",
+            profile / ".cursor" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+        "kiro": (
+            profile / ".kiro" / "settings" / "mcp.json",
+            profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+    }
+    if client in shared_layouts:
+        shared, skill = shared_layouts[client]
         if (
             set(active_groups) != {shared, skill}
             or len(duplicates) != 1 or len(duplicates[0]) != len(RUNTIME_HEROES) - 1

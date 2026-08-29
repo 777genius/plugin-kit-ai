@@ -910,9 +910,19 @@ def verified_native_projection(
             raise ValueError("fixed client native projection capability path is invalid")
         active_groups.setdefault(client_path, []).append(entry)
     duplicates = [group for group in active_groups.values() if len(group) > 1]
-    if item.get("client_id") == "kiro":
-        shared = profile / ".kiro" / "settings" / "mcp.json"
-        skill = profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md"
+    shared_layouts = {
+        "cursor": (
+            profile / ".cursor" / "mcp.json",
+            profile / ".cursor" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+        "kiro": (
+            profile / ".kiro" / "settings" / "mcp.json",
+            profile / ".kiro" / "skills" / "code-tool-router" / "SKILL.md",
+        ),
+    }
+    client_id = item.get("client_id")
+    if client_id in shared_layouts:
+        shared, skill = shared_layouts[client_id]
         if (
             set(active_groups) != {shared, skill}
             or len(duplicates) != 1 or len(duplicates[0]) != len(HEROES) - 1

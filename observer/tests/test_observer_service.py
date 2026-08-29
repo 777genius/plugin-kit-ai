@@ -1146,6 +1146,24 @@ class FixedRunnerFixtureTests(unittest.TestCase):
                     config, config_digest, "codex", os.geteuid(), os.getegid(),
                 )
 
+    def test_post_cgroup_revalidation_accepts_cursor_shared_mcp_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "profile"
+            profile.mkdir(mode=0o700)
+            projection = FixedAdapterContractTests.install_projection(
+                profile, "cursor", sealed_tuple("context7"), shared_mcp=True,
+            )
+            config = Path(temporary) / "adapter.json"
+            config.write_bytes(canonical_json({"clients": {"cursor": {
+                "profile": str(profile), "native_projection": projection,
+            }}}))
+            config.chmod(0o640)
+            fixed_runner.revalidate_client_proofs(
+                config,
+                "sha256:" + hashlib.sha256(config.read_bytes()).hexdigest(),
+                "cursor", os.geteuid(), os.getegid(),
+            )
+
     @staticmethod
     def _reap_process(process: subprocess.Popen[str]) -> None:
         if process.poll() is None:
@@ -1872,6 +1890,13 @@ class FixedRunnerFixtureTests(unittest.TestCase):
         self.assertNotIn("PrivateTmp=yes", service)
         self.assertNotIn("\nProtectSystem=strict\n", "\n" + service)
         self.assertIn("ProtectKernelLogs=yes", service)
+        self.assertIn("CapabilityBoundingSet=CAP_CHOWN CAP_SETGID CAP_SETUID", service)
+        self.assertIn("AmbientCapabilities=CAP_SETUID", service)
+        self.assertIn(
+            "SystemCallFilter=@system-service @chown setgid setgroups "
+            "setresgid setresuid setuid",
+            service,
+        )
         self.assertIn(
             "InaccessiblePaths=-/sys/kernel/debug -/sys/kernel/tracing "
             "-/sys/kernel/config -/sys/fs/fuse/connections",
@@ -4016,23 +4041,42 @@ class FixedAdapterContractTests(unittest.TestCase):
         direct_open.assert_not_called()
 
     @staticmethod
-    def install_projection(profile: Path, client: str, approved: dict[str, Any]) -> dict[str, str]:
+    def install_projection(
+        profile: Path, client: str, approved: dict[str, Any], *, shared_mcp: bool = False,
+    ) -> dict[str, str]:
         proof = profile.parent / "proofs" / client
         proof.mkdir(parents=True, mode=0o700, exist_ok=True)
         projection = proof / "native-projection.json"
         native_proof = proof / "native"
         native_proof.mkdir(mode=0o700)
         entries = []
+        shared_body = json.dumps({
+            "mcpServers": {
+                plugin: {} for plugin in sorted(fixed_adapters.HEROES - {"agent-code-navigator"})
+            },
+        })
         for plugin in sorted(fixed_adapters.HEROES):
-            native = (
-                profile / "skills" / "code-tool-router" / "SKILL.md"
-                if plugin == "agent-code-navigator" else profile / f"{plugin}.native"
-            )
+            if shared_mcp:
+                client_root = profile / f".{client}"
+                native = (
+                    client_root / "skills" / "code-tool-router" / "SKILL.md"
+                    if plugin == "agent-code-navigator"
+                    else client_root / "settings" / "mcp.json"
+                    if client == "kiro"
+                    else client_root / "mcp.json"
+                )
+            else:
+                native = (
+                    profile / "skills" / "code-tool-router" / "SKILL.md"
+                    if plugin == "agent-code-navigator" else profile / f"{plugin}.native"
+                )
             native.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-            native.write_text(
+            body = (
                 "# code-tool-router\n" if plugin == "agent-code-navigator"
-                else json.dumps({"plugin": plugin})
+                else shared_body if shared_mcp else json.dumps({"plugin": plugin})
             )
+            if not native.exists():
+                native.write_text(body)
             native.chmod(0o440)
             protected_native = native_proof / f"{plugin}.blob"
             protected_native.write_bytes(native.read_bytes())
@@ -4062,6 +4106,12 @@ class FixedAdapterContractTests(unittest.TestCase):
         receipts.chmod(0o440)
         native_proof.chmod(0o510)
         proof.chmod(0o510)
+        if shared_mcp:
+            for directory in sorted(
+                (path for path in profile.rglob("*") if path.is_dir()),
+                key=lambda path: len(path.parts), reverse=True,
+            ):
+                directory.chmod(0o510)
         profile.chmod(0o510)
         return {"path": str(projection), "sha256": fixed_adapters.sha256(projection.read_bytes())}
 
@@ -5287,6 +5337,30 @@ class FixedAdapterContractTests(unittest.TestCase):
             native.chmod(0o644)
             with self.assertRaisesRegex(ValueError, "mode"):
                 fixed_adapters.verified_native_projection(item, "context7", approved, owner_uid=os.geteuid())
+
+    @requires_disposable_observer_host
+    def test_cursor_projection_accepts_one_shared_mcp_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / "profile"
+            profile.mkdir(mode=0o700)
+            approved = sealed_tuple("context7")
+            native_projection = self.install_projection(
+                profile, "cursor", approved, shared_mcp=True,
+            )
+            item = {
+                "profile": str(profile), "client_id": "cursor",
+                "native_projection": native_projection,
+            }
+            result = fixed_adapters.verified_native_projection(
+                item, "context7", approved, owner_uid=os.geteuid(),
+            )
+            self.assertEqual(result["client_id"], "cursor")
+            context7 = next(
+                entry for entry in result["entries"] if entry["plugin"] == "context7"
+            )
+            self.assertEqual(
+                context7["client_config"]["path"], str(profile / ".cursor" / "mcp.json"),
+            )
 
     def test_kiro_marker_text_never_establishes_tool_evidence(self) -> None:
         marker = "UAP_OBSERVER_OK kiro context7 " + "a" * 64
