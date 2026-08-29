@@ -273,7 +273,7 @@ func normalizedToolVersion(version string) string {
 }
 
 func doctorSupportedClients() []supportedClient {
-	ids := []domain.ClientID{domain.ClientCodex, domain.ClientChatGPT, domain.ClientCursor, domain.ClientCopilot, domain.ClientVSCode, domain.ClientKiro}
+	ids := domain.SupportedClientIDs()
 	result := make([]supportedClient, 0, len(ids))
 	for _, id := range ids {
 		capabilities, _ := clientplanner.Capabilities(id)

@@ -427,7 +427,7 @@ func parseSemver(v string) ([3]uint64, error) {
 	return out, nil
 }
 func validClient(v domain.ClientID) bool {
-	return v == domain.ClientCodex || v == domain.ClientChatGPT || v == domain.ClientCursor || v == domain.ClientCopilot || v == domain.ClientVSCode || v == domain.ClientKiro
+	return domain.IsSupportedClient(v)
 }
 func oneOf(v string, values ...string) bool {
 	for _, x := range values {

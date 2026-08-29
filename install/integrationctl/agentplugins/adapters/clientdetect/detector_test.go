@@ -44,13 +44,86 @@ func TestDetectorReturnsAllSupportedClientsWithoutAmbientDiscovery(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(clients) != 6 {
-		t.Fatalf("clients = %d, want 6", len(clients))
+	if len(clients) != len(domain.SupportedClientIDs()) {
+		t.Fatalf("clients = %d, want %d", len(clients), len(domain.SupportedClientIDs()))
 	}
 	for _, client := range clients {
 		if client.Status != domain.DetectionNotDetected {
 			t.Fatalf("client %s unexpectedly detected", client.ClientID)
 		}
+	}
+}
+
+func TestDetectorFindsNewCLIClientsFromOfficialHomeAndXDGSurfaces(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	xdg := filepath.Join(home, "xdg")
+	for _, root := range []string{filepath.Join(home, ".claude"), filepath.Join(home, ".gemini"), filepath.Join(xdg, "opencode")} {
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	detector := testDetector(home, map[string]string{
+		"claude":   filepath.Join(home, "bin", "claude"),
+		"gemini":   filepath.Join(home, "bin", "gemini"),
+		"opencode": filepath.Join(home, "bin", "opencode"),
+	})
+	detector.Environment["XDG_CONFIG_HOME"] = xdg
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []domain.ClientID{domain.ClientClaude, domain.ClientGemini, domain.ClientOpenCode} {
+		if statusOf(clients, id) != domain.DetectionDetected {
+			t.Fatalf("%s was not detected: %+v", id, clientOf(clients, id))
+		}
+	}
+	if got := clientOf(clients, domain.ClientOpenCode).ConfigRoot; got != filepath.Join(xdg, "opencode") {
+		t.Fatalf("OpenCode config root = %q", got)
+	}
+}
+
+func TestDetectorFindsClineOnlyFromSupportedEditorSurfaces(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	extension := filepath.Join(home, ".vscode", "extensions", "saoudrizwan.claude-dev-3.26.4")
+	storage := filepath.Join(home, ".config", "Cursor", "User", "globalStorage", "saoudrizwan.claude-dev")
+	for _, root := range []string{extension, storage} {
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	detector := testDetector(home, nil)
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cline := clientOf(clients, domain.ClientCline)
+	if cline.Status != domain.DetectionDetected || !surfaceDetected(cline.Surfaces, "cline_vscode_extension") || !surfaceDetected(cline.Surfaces, "cline_cursor_config") {
+		t.Fatalf("Cline detection = %+v", cline)
+	}
+}
+
+func TestDetectorFindsWindsurfDevinChannelsWithoutExecutingThem(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	applications := filepath.Join(home, "Applications")
+	devinConfig := filepath.Join(home, "Library", "Application Support", "Devin", "User")
+	for _, root := range []string{filepath.Join(applications, "Windsurf.app"), devinConfig} {
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	detector := testDetector(home, nil)
+	detector.GOOS = "darwin"
+	detector.SystemApplicationsDir = applications
+	clients, err := detector.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	windsurf := clientOf(clients, domain.ClientWindsurf)
+	if windsurf.Status != domain.DetectionDetected || !surfaceDetected(windsurf.Surfaces, "windsurf_desktop") || !surfaceDetected(windsurf.Surfaces, "devin_config") {
+		t.Fatalf("Windsurf / Devin detection = %+v", windsurf)
 	}
 }
 
@@ -521,7 +594,8 @@ func testDetector(home string, binaries map[string]string) Detector {
 			}
 			return "", exec.ErrNotFound
 		},
-		Lstat: os.Lstat,
+		Lstat:   os.Lstat,
+		ReadDir: os.ReadDir,
 	}
 }
 

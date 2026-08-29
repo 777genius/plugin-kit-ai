@@ -180,7 +180,7 @@ func promptDetectedTargets(ctx context.Context, cmd *cobra.Command, app App, pro
 	if len(detected) == 0 {
 		return "", nil, fmt.Errorf("no supported local AI client was detected; use --target chatgpt for ChatGPT, or install/detect another client")
 	}
-	sort.Slice(detected, func(i, j int) bool { return string(detected[i].ClientID) < string(detected[j].ClientID) })
+	sort.SliceStable(detected, func(i, j int) bool { return targetOrder(detected[i].ClientID) < targetOrder(detected[j].ClientID) })
 	if len(detected) == 1 {
 		return string(detected[0].ClientID), clients, nil
 	}
@@ -317,7 +317,7 @@ func selectClient(
 	if !app.Terminal || opts.format == "json" {
 		return domain.DetectedClient{}, detectedMap, fmt.Errorf("multiple clients detected; choose one or more with --target codex,cursor")
 	}
-	sort.Slice(detected, func(i, j int) bool { return detected[i].DisplayName < detected[j].DisplayName })
+	sort.SliceStable(detected, func(i, j int) bool { return targetOrder(detected[i].ClientID) < targetOrder(detected[j].ClientID) })
 	_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Detected clients:")
 	for index, client := range detected {
 		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  %d. %s\n", index+1, client.DisplayName)
@@ -348,6 +348,16 @@ func normalizeTarget(value string) domain.ClientID {
 		return domain.ClientVSCode
 	case "kiro":
 		return domain.ClientKiro
+	case "claude", "claude-code":
+		return domain.ClientClaude
+	case "gemini", "gemini-cli":
+		return domain.ClientGemini
+	case "opencode", "open-code":
+		return domain.ClientOpenCode
+	case "cline":
+		return domain.ClientCline
+	case "windsurf", "devin":
+		return domain.ClientWindsurf
 	default:
 		return domain.ClientID(strings.ToLower(strings.TrimSpace(value)))
 	}

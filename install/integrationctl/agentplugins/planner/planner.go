@@ -305,51 +305,8 @@ func (planner Planner) ResolveTarget(
 }
 
 func Capabilities(clientID domain.ClientID) (domain.ClientCapabilities, bool) {
-	allMCP := map[string]domain.SupportLevel{
-		"stdio":           domain.SupportNative,
-		"streamable-http": domain.SupportNative,
-		"sse":             domain.SupportNative,
-	}
-	switch clientID {
-	case domain.ClientCodex:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackageProjection, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportProjected,
-			MCPTransports: mapSupport(allMCP, domain.SupportProjected), AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportUnsupported,
-		}, true
-	case domain.ClientChatGPT:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackageProjection, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportProjected,
-			MCPTransports: mapSupport(allMCP, domain.SupportUnsupported), AppSupport: domain.SupportProjected, ExtensionSupport: domain.SupportUnsupported,
-		}, true
-	case domain.ClientCursor:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportNative,
-		}, true
-	case domain.ClientCopilot:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportNative,
-		}, true
-	case domain.ClientVSCode:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackagePrepared, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportPrepared,
-			MCPTransports: mapSupport(allMCP, domain.SupportPrepared), AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportPrepared,
-		}, true
-	case domain.ClientKiro:
-		return domain.ClientCapabilities{
-			ClientID: clientID, PackageMode: domain.PackageNative, ActivationMode: domain.ActivationByUser,
-			Scopes: []domain.InstallScope{domain.ScopeUser}, SkillSupport: domain.SupportNative,
-			MCPTransports: allMCP, AppSupport: domain.SupportUnsupported, ExtensionSupport: domain.SupportUnsupported,
-		}, true
-	default:
-		return domain.ClientCapabilities{}, false
-	}
+	definition, ok := domain.ClientDefinitionFor(clientID)
+	return definition.Capabilities, ok
 }
 
 func (planner Planner) targetRoot(client domain.DetectedClient, mode domain.PackageMode) (string, string, error) {

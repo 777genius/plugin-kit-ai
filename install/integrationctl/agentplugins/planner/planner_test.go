@@ -279,6 +279,16 @@ func TestOnlyChatGPTProjectsRegisteredAppBindings(t *testing.T) {
 	}
 }
 
+func TestPlannerReadsNewPreparedCapabilitiesFromClientRegistry(t *testing.T) {
+	t.Parallel()
+	for _, client := range []domain.ClientID{domain.ClientClaude, domain.ClientGemini, domain.ClientOpenCode, domain.ClientCline, domain.ClientWindsurf} {
+		capabilities, ok := Capabilities(client)
+		if !ok || capabilities.PackageMode != domain.PackagePrepared || capabilities.SkillSupport != domain.SupportPrepared || capabilities.MCPTransports["stdio"] != domain.SupportPrepared {
+			t.Fatalf("%s capabilities = %+v", client, capabilities)
+		}
+	}
+}
+
 func TestChatGPTMCPFailsClosedWithoutValidAppBinding(t *testing.T) {
 	t.Parallel()
 	envelope := domain.PackageEnvelope{

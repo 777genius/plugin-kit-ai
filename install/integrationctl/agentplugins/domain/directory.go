@@ -118,16 +118,8 @@ type DirectoryTarget struct {
 // a logical client surface. Directory delivery describes the public packaging
 // boundary, not the installer's internal PackageMode spelling.
 func ExpectedDirectoryDelivery(client ClientID) (string, bool) {
-	switch client {
-	case ClientCodex, ClientCursor, ClientCopilot, ClientKiro:
-		return "managed", true
-	case ClientVSCode:
-		return "prepared", true
-	case ClientChatGPT:
-		return "manual_activation", true
-	default:
-		return "", false
-	}
+	definition, ok := ClientDefinitionFor(client)
+	return definition.DirectoryDelivery, ok && definition.DirectoryDelivery != ""
 }
 
 type DirectoryAppBinding struct {

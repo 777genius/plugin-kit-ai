@@ -1100,11 +1100,7 @@ func rejectNativeNameCollision(state domain.StateFileV2, installationID, declare
 }
 
 func sameNativeBackend(first, second domain.ClientID) bool {
-	if first == second {
-		return true
-	}
-	return (first == domain.ClientCopilot || first == domain.ClientVSCode) &&
-		(second == domain.ClientCopilot || second == domain.ClientVSCode)
+	return domain.SameClientBackend(first, second)
 }
 
 func initialLifecycle(plan domain.DeliveryPlan) (domain.ActivationState, domain.VerificationState) {

@@ -43,6 +43,27 @@ func TestCatalogLoadsStrictPinnedIndexAndResolvesExactSource(t *testing.T) {
 	}
 }
 
+func TestCatalogKeepsNewClientsOptionalAndAcceptsDeclaredPreparedCompatibility(t *testing.T) {
+	t.Parallel()
+	oldCatalog := validCatalog()
+	if _, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load(oldCatalog, ""); err != nil {
+		t.Fatalf("legacy catalog now requires new clients: %v", err)
+	}
+	withClaude := strings.Replace(string(oldCatalog),
+		`"kiro":{"package":"native","verification":"tested","authentication":"not_required"}`,
+		`"kiro":{"package":"native","verification":"tested","authentication":"not_required"},"claude":{"package":"prepared","verification":"tested","authentication":"not_required"}`,
+		1,
+	)
+	loaded, err := (Loader{CurrentCLIVersion: "0.1.0"}).Load([]byte(withClaude), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := loaded.Resolve("context7")
+	if err != nil || resolved.Hints.Compatibility["claude"].Package != "prepared" {
+		t.Fatalf("new compatibility = %+v, err=%v", resolved.Hints.Compatibility["claude"], err)
+	}
+}
+
 func TestCatalogRejectsChecksumUnknownFieldsTraversalAndSupplyChainConflict(t *testing.T) {
 	t.Parallel()
 	tests := map[string][]byte{
