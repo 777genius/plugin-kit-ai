@@ -31,8 +31,10 @@ func (kernel Kernel) Apply(req Request) (Receipt, error) {
 	return receipts[0], nil
 }
 
-// ApplyBatch validates and applies related MCP entry mutations through one
-// compare-and-swap write. Either every requested entry changes or none do.
+// ApplyBatch validates and renders related MCP entry mutations into one atomic
+// replacement. The batch is all-or-none for cooperating agentplugins writers.
+// See conditionalFileIO for the unavoidable portable race with clients that do
+// not honor the same locks.
 func (kernel Kernel) ApplyBatch(requests []Request) ([]Receipt, error) {
 	if kernel.files == nil {
 		return nil, fmt.Errorf("native config file IO is required")

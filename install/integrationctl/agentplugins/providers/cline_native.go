@@ -282,9 +282,9 @@ func applyClineNativeMutation(configRoot, activePath string, previous, desired [
 		installed[id] = object
 	}
 
-	// Prove the filesystem half before committing the single CAS-protected MCP
-	// batch. ApplyBatch is the final operation and either writes every server or
-	// none, so a config failure can still roll the skills back safely.
+	// Prove the filesystem half before committing the single ownership-aware MCP
+	// batch. ApplyBatch is the final manager operation, so a reported config
+	// failure can still roll the skills back safely.
 	if err := verifyClineNativeObjects(configRoot, clineSkillObjects(desired), false); err != nil {
 		return err
 	}

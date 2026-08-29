@@ -110,7 +110,8 @@ type FileIO interface {
 // inserting work between validation and replacement. Ordinary filesystems do
 // not expose a portable linearizable content-CAS, so external clients that do
 // not honor our locks can still win the final syscall-sized race; post-write
-// verification remains mandatory and rollback never overwrites unknown bytes.
+// verification remains mandatory. Rollback repeats the same immediate
+// precondition check, but it has the same residual syscall-sized limitation.
 type conditionalFileIO interface {
 	CompareAndSwap(path string, expected []byte, expectedExists bool, body []byte, mode os.FileMode) error
 	RemoveIfUnchanged(path string, expected []byte) error
